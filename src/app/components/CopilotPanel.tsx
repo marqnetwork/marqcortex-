@@ -34,6 +34,7 @@ import {
 } from '@/app/core/copilotEngine';
 import type { AIAction } from '@/app/core/aiAssistEngine';
 import { AI_ACTION_LABELS } from '@/app/core/aiAssistEngine';
+import { useApp } from '@/app/contexts/AppContext';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -718,6 +719,9 @@ export function CopilotPanel({
   onRejectRevision,
   onClose,
 }: CopilotPanelProps) {
+  const { teamAccessToken } = useApp();
+  const accessToken = teamAccessToken ?? '';
+
   const [step,          setStep]          = useState<Step>('idle');
   const [userInput,     setUserInput]     = useState('');
   const [scope,         setScope]         = useState<PatchScope>('whole_proposal');
@@ -735,6 +739,7 @@ export function CopilotPanel({
       const newPlan = await interpretRequest(
         userInput, scope, proposalId, allStates,
         { company: 'Vesper Dynamics', industry: 'SaaS / Revenue Tech' },
+        accessToken,
       );
       setPlan(newPlan);
       setStep('plan_ready');
@@ -758,6 +763,7 @@ export function CopilotPanel({
         (completed, total, currentTitle) => {
           setProgress({ completed, total, currentTitle });
         },
+        accessToken,
       );
 
       // Push all new pending revisions into BlockRegistryPanel state

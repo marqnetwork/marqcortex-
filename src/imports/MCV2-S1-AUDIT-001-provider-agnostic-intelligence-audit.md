@@ -8,7 +8,7 @@
 | **Audit date** | 2026-07-11 |
 | **Runtime mode** | DEMO (`BACKEND_INTEGRATION: false`) |
 | **Authority** | `ARCHITECT.md`, verified file reads |
-| **Next task** | MCV2-S1-IMPLEMENT-002 (out of scope for this run) |
+| **Next task** | MCV2-S1-IMPLEMENT-002 (see `MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md`) |
 
 ---
 
@@ -352,7 +352,7 @@ This audit is documentation-only. Rollback: delete or revert this file and promp
 
 ## 18. Recommended Next Action
 
-Proceed to **MCV2-S1-IMPLEMENT-002**:
+Proceed to **MCV2-S1-IMPLEMENT-002** per migration plan `MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md`:
 
 1. Implement backend `llmGateway` adapter with normalized types
 2. Externalize model configuration

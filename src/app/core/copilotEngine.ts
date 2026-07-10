@@ -13,11 +13,9 @@
  * Hard guardrails (spec §5):
  *   - roi_financial_snapshot → never targeted
  *   - contract_clause        → admin-only notice, not targeted
- *   - BACKEND_INTEGRATION=false → deterministic mock plan
+ *   - BACKEND_INTEGRATION=false → deterministic mock plan via dataService
  */
 
-import { FEATURES } from '@/config/features';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
 import type { BlockRevision, BlockState } from './blockEngine';
 import { BLOCK_TYPE_LABELS, REFERENCE_ONLY_TYPES } from './blockEngine';
 import {
@@ -26,6 +24,11 @@ import {
   type AIAction,
   type AIAssistContext,
 } from './aiAssistEngine';
+import {
+  copilotInterpret as requestCopilotInterpret,
+  type CopilotInterpretRequest,
+  type CopilotInterpretResponse,
+} from '@/app/services/dataService';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -309,6 +312,23 @@ function buildMockPlan(
   };
 }
 
+/** Demo-mode API-shaped response for dataService.copilotInterpret */
+export function buildMockCopilotInterpretApiResponse(
+  userInput:  string,
+  scope:      PatchScope,
+  entityId:   string,
+  allStates:  BlockState[],
+): CopilotInterpretResponse {
+  const plan = buildMockPlan(userInput, scope, entityId, allStates);
+  return {
+    intent:              plan.intent,
+    intent_label:        plan.intent_label,
+    targets:             plan.targets,
+    skipped:             plan.skipped,
+    roi_recalc_required: plan.roi_recalc_required,
+  };
+}
+
 function buildRationale(intent: PatchIntent, blockType: string, title: string): string {
   const typeLabel = BLOCK_TYPE_LABELS[blockType as any] ?? blockType;
   switch (intent) {
@@ -339,14 +359,8 @@ export async function interpretRequest(
   entityId:     string,
   allStates:    BlockState[],
   proposalMeta: { company?: string; industry?: string } = {},
+  accessToken:  string = '',
 ): Promise<PatchPlan> {
-  // ── BACKEND_INTEGRATION=false → deterministic mock ───────────────────────
-  if (!FEATURES.BACKEND_INTEGRATION) {
-    await new Promise(r => setTimeout(r, 900)); // simulate network
-    return buildMockPlan(userInput, scope, entityId, allStates);
-  }
-
-  // ── LIVE API path ─────────────────────────────────────────────────────────
   const blockSummaries = allStates.map(s => ({
     block_id:    s.block.block_id,
     block_type:  s.block.block_type,
@@ -356,31 +370,20 @@ export async function interpretRequest(
     is_locked:   !!s.lock,
   }));
 
-  const url = `https://${projectId}.supabase.co/functions/v1/make-server-324f4fbe/blocks/copilot-interpret`;
+  const payload: CopilotInterpretRequest = {
+    user_input:      userInput,
+    scope,
+    entity_id:       entityId,
+    block_summaries: blockSummaries,
+    context: {
+      company:  proposalMeta.company  ?? 'Vesper Dynamics',
+      industry: proposalMeta.industry ?? 'SaaS / Revenue Tech',
+    },
+  };
 
-  let raw: any;
+  let raw: CopilotInterpretResponse;
   try {
-    const res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        Authorization:   `Bearer ${publicAnonKey}`,
-      },
-      body: JSON.stringify({
-        user_input:      userInput,
-        scope,
-        entity_id:       entityId,
-        block_summaries: blockSummaries,
-        context: {
-          company:  proposalMeta.company  ?? 'Vesper Dynamics',
-          industry: proposalMeta.industry ?? 'SaaS / Revenue Tech',
-        },
-      }),
-    });
-    raw = await res.json();
-    if (!res.ok) {
-      throw new Error(raw.error ?? `Server returned ${res.status}`);
-    }
+    raw = await requestCopilotInterpret(payload, accessToken, allStates);
   } catch (e: any) {
     if (e?.message) throw e;
     throw new Error(`Network error: ${e}`);
@@ -416,9 +419,10 @@ export async function interpretRequest(
 // ════════════════════════════════════════════════════════════════════════════════
 
 export async function applyPatchPlan(
-  plan:       PatchPlan,
-  allStates:  BlockState[],
-  onProgress: (completed: number, total: number, currentTitle: string) => void = () => {},
+  plan:         PatchPlan,
+  allStates:    BlockState[],
+  onProgress:   (completed: number, total: number, currentTitle: string) => void = () => {},
+  accessToken:  string = '',
 ): Promise<BatchApplyResult> {
   const applied: BatchApplyResult['applied'] = [];
   const failed:  BatchApplyResult['failed']  = [];
@@ -445,7 +449,7 @@ export async function applyPatchPlan(
     });
 
     try {
-      const { revision } = await callBlockAIAssist(blockState, target.action, context);
+      const { revision } = await callBlockAIAssist(blockState, target.action, context, accessToken);
       applied.push({ target, revision });
     } catch (err: any) {
       failed.push({ target, error: err?.message ?? String(err) });

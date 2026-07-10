@@ -18,7 +18,10 @@
 
 Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. Sprint prompts do not override the system prompt.
 
-**Intelligence audit (MCV2):** `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md`
+**Intelligence audit (MCV2):** `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md`  
+**Gateway migration plan (MCV2):** `src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md`  
+**Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
+**Provider extension guide:** `src/imports/MCV2-intelligence-gateway-provider-extension-guide.md`
 
 ---
 
@@ -143,6 +146,10 @@ cortex/
 | Change client portal tabs | `ClientPortal.tsx` (tab order fixed) |
 | Change team dashboard nav | `TeamDashboardLayout.tsx`, `TeamDashboardNew.tsx` |
 | Change CORTEX AI chat | `GlobalAIChat.tsx`, `GlobalAIChatContext.tsx`, `dataService.chatWithAI` |
+| Change block AI assist | `BlockRegistryPanel.tsx`, `aiAssistEngine.ts`, `dataService.blockAIAssist` |
+| Change Cortex Copilot | `CopilotPanel.tsx`, `copilotEngine.ts`, `dataService.copilotInterpret` |
+| Change portfolio narrative | `CortexChatPanel.tsx`, `dataService.generateCortexNarrative` |
+| Change submission AI analysis | `CortexDashboard.tsx`, `dataService.analyzeSubmission` |
 | Change pipeline/kanban | `PipelineKanban.tsx`, `dataService.getPipelinePositions` |
 | Change PDF export | `utils/pdfExport.ts` (dynamic import only) |
 | Change registry / node IDs | `src/system/manifest.ts`, `RegistryViewer.tsx` |
@@ -151,7 +158,10 @@ cortex/
 | See all node IDs + deps | `src/system/manifest.ts` |
 | Agent operating rules | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` |
 | Provider-agnostic AI audit | `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md` |
-| Change AI provider / gateway | Audit doc §11 first; then `supabase/functions/server/` adapters |
+| Intelligence Gateway migration plan | `src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md` |
+| Change AI provider / gateway | `supabase/functions/server/intelligence/` + extension guide |
+| Intelligence Gateway tests | `npm run test:intelligence` |
+| Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 
 ---
 
@@ -166,9 +176,19 @@ PUBLIC FUNNEL
 STANDARD PATH (all components)
   Component → dataService.ts → [demoData | api.ts] → Edge Function → KV
 
-CORTEX INTELLIGENCE
+CORTEX INTELLIGENCE (canonical frontend path — MCV2-S2)
+  Component → dataService.ts → api.ts → Edge Function → Intelligence Gateway → Provider
+  Features:
+    AI Chat        → dataService.chatWithAI
+    Narrative      → dataService.generateCortexNarrative
+    Analysis       → dataService.analyzeSubmission / analyzeSubmissionsBatch
+    Block Assist   → aiAssistEngine.callBlockAIAssist → dataService.blockAIAssist
+    Copilot        → copilotEngine.interpretRequest → dataService.copilotInterpret
+  Auth: teamAccessToken from AppContext (headers fall back to anon key when absent)
+  Demo: dataService isDemo() — mock responses, no direct provider or edge fetch from engines
+
+LEGACY CORTEX DATA (portfolio mock — not LLM)
   CortexDashboard → cortexDataService → mockCortexData / generator
-  AI → dataService.chatWithAI / generateCortexNarrative → OpenAI (backend)
 
 DETERMINISTIC PIPELINE
   Answers → runCortexEngine() in core/index.ts
@@ -293,7 +313,7 @@ Grouped exports (all UI must use these):
 - **Notes:** `getNotes`, `addNote`, `deleteNote`
 - **Team admin:** `getTeamMembers`, `inviteTeamMember`, `updateTeamMember`, `removeTeamMember`
 - **Settings:** `getPlatformSettings`, `savePlatformSettings`
-- **CORTEX AI:** `getCortexAnalysis`, `analyzeSubmission`, `generateCortexNarrative`, `chatWithAI`
+- **CORTEX AI:** `getCortexAnalysis`, `analyzeSubmission`, `generateCortexNarrative`, `chatWithAI`, `blockAIAssist`, `copilotInterpret`
 - **Pipeline:** `getPipelinePositions`, `savePipelinePosition`, `resetPipelinePositions`, column capacities
 - **Email queue:** `enqueueEmails`, `getEmailQueue`, `updateEmailStatus`
 - **Health:** `ping`, `healthCheck`, `testAuth`, `getDiagnostics`
@@ -312,7 +332,11 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `cortexNarrative.ts` | Narrative generation |
 | `blockAiAssist.ts` | Block-level AI |
 | `copilotPatch.ts` | Copilot patches |
+| `intelligence/gateway.ts` | **Intelligence Gateway** (MQC-SVC-010) — provider-agnostic AI routing |
+| `intelligence/providers/openaiAdapter.ts` | OpenAI HTTP adapter |
 | `emailService.ts` | Resend emails |
+
+**Intelligence Gateway env (Edge secrets):** `INTELLIGENCE_PROVIDER` (default `openai`), `INTELLIGENCE_TIMEOUT_MS`, `INTELLIGENCE_MAX_RETRIES`, per-feature rollback `INTELLIGENCE_USE_GATEWAY_*` (default `true`). Model overrides: `INTELLIGENCE_MODEL_NARRATIVE`, etc.
 
 Base path: `/make-server-324f4fbe`
 

@@ -1493,6 +1493,125 @@ export async function chatWithAI(
 }
 
 // ============================================================================
+// BLOCK AI ASSIST + COPILOT — per-block AI actions (team auth)
+// ============================================================================
+
+export type BlockAIAction = 'ai_improve' | 'ai_expand' | 'ai_simplify' | 'fix_issues';
+
+export interface BlockAIAssistRequest {
+  block_id:        string;
+  block_type:      string;
+  title:           string;
+  current_content: Record<string, unknown>;
+  action:          BlockAIAction;
+  context: {
+    company:           string;
+    industry:          string;
+    tone:              string;
+    roi_snapshot?:     Record<string, unknown>;
+    scope_boundaries?: Record<string, unknown>;
+    linked_diagnoses?: Record<string, unknown>[];
+  };
+}
+
+export interface BlockAIAssistResponse {
+  proposed_content: Record<string, unknown>;
+  diff_summary:     string;
+  change_type:      BlockAIAction;
+  model:            string;
+  generated_at:     string;
+  error?:           string;
+  keyMissing?:      boolean;
+}
+
+export async function blockAIAssist(
+  req: BlockAIAssistRequest,
+  accessToken: string,
+): Promise<BlockAIAssistResponse> {
+  const res = await fetch(`${BASE}/blocks/ai-assist`, {
+    method: 'POST',
+    headers: headers(accessToken),
+    body: JSON.stringify(req),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Block AI assist failed') as Error & { keyMissing?: boolean };
+    err.keyMissing = data.keyMissing;
+    throw err;
+  }
+  return data as BlockAIAssistResponse;
+}
+
+export type CopilotPatchIntent =
+  | 'rewrite_tone'
+  | 'expand_detail'
+  | 'simplify_client_view'
+  | 'fix_ready_gate_failures'
+  | 'align_solution_to_diagnosis'
+  | 'generate_missing_blocks'
+  | 'summarize_for_email';
+
+export interface CopilotBlockSummary {
+  block_id:    string;
+  block_type:  string;
+  title:       string;
+  status:      string;
+  has_pending: boolean;
+  is_locked:   boolean;
+}
+
+export interface CopilotInterpretRequest {
+  user_input:      string;
+  scope:           string;
+  entity_id:       string;
+  block_summaries: CopilotBlockSummary[];
+  context: {
+    company:  string;
+    industry: string;
+  };
+}
+
+export interface CopilotPatchTarget {
+  block_id:    string;
+  block_type:  string;
+  title:       string;
+  action:      BlockAIAction;
+  rationale:   string;
+  constraints: {
+    tone?:         string;
+    do_not_change: string[];
+  };
+}
+
+export interface CopilotInterpretResponse {
+  intent:              CopilotPatchIntent;
+  intent_label:        string;
+  targets:             CopilotPatchTarget[];
+  skipped:             Array<{ block_id: string; title: string; reason: string }>;
+  roi_recalc_required: boolean;
+  error?:              string;
+  keyMissing?:         boolean;
+}
+
+export async function copilotInterpret(
+  req: CopilotInterpretRequest,
+  accessToken: string,
+): Promise<CopilotInterpretResponse> {
+  const res = await fetch(`${BASE}/blocks/copilot-interpret`, {
+    method: 'POST',
+    headers: headers(accessToken),
+    body: JSON.stringify(req),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Copilot interpret failed') as Error & { keyMissing?: boolean };
+    err.keyMissing = data.keyMissing;
+    throw err;
+  }
+  return data as CopilotInterpretResponse;
+}
+
+// ============================================================================
 // LEAD CAPTURE
 // ============================================================================
 

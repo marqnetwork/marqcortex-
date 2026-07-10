@@ -9,6 +9,13 @@
  * The LLM assists with writing, tone, narrative — never overrides scores.
  */
 
+import { isGatewayEnabledForFeature } from './intelligence/config.ts';
+import {
+  gatewayGenerateChat,
+  mapGatewayErrorToLegacyMessage,
+} from './intelligence/featureBridge.ts';
+import './intelligence/bootstrap.ts';
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
@@ -101,20 +108,11 @@ ${req.sectionContent}`);
 
 // ── Main Chat Function ────────────────────────────────────────────────────────
 
-export async function handleCortexChat(req: ChatRequest): Promise<ChatResponse> {
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
-
+function buildChatMessages(req: ChatRequest): { role: string; content: string }[] {
   const contextBlock = buildUserContext(req);
-
-  // Build message history for the API
   const messages: { role: string; content: string }[] = [
     { role: 'system', content: SYSTEM_PROMPT },
   ];
-
-  // Inject lead/section context as the first user turn if present
   if (contextBlock) {
     messages.push({
       role: 'user',
@@ -125,15 +123,28 @@ export async function handleCortexChat(req: ChatRequest): Promise<ChatResponse> 
       content: 'Understood. I have the context loaded. How can I assist?',
     });
   }
-
-  // Append history (last 10 turns to manage token budget)
   const recentHistory = req.history.slice(-10);
   for (const turn of recentHistory) {
     messages.push({ role: turn.role, content: turn.content });
   }
-
-  // Append current user message
   messages.push({ role: 'user', content: req.message });
+  return messages;
+}
+
+function parseChatContent(fullText: string): { reply: string; applyContent?: string } {
+  const applyMatch = fullText.match(/\[APPLY_START\]\s*([\s\S]*?)\s*\[APPLY_END\]/);
+  const applyContent = applyMatch ? applyMatch[1].trim() : undefined;
+  const reply = fullText.replace(/\[APPLY_START\][\s\S]*?\[APPLY_END\]/g, '').trim();
+  return { reply, applyContent };
+}
+
+export async function handleCortexChatLegacy(req: ChatRequest): Promise<ChatResponse> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured.');
+  }
+
+  const messages = buildChatMessages(req);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -156,11 +167,7 @@ export async function handleCortexChat(req: ChatRequest): Promise<ChatResponse> 
 
   const data = await response.json();
   const fullText: string = data.choices?.[0]?.message?.content ?? '';
-
-  // Extract apply block if present
-  const applyMatch = fullText.match(/\[APPLY_START\]\s*([\s\S]*?)\s*\[APPLY_END\]/);
-  const applyContent = applyMatch ? applyMatch[1].trim() : undefined;
-  const reply = fullText.replace(/\[APPLY_START\][\s\S]*?\[APPLY_END\]/g, '').trim();
+  const { reply, applyContent } = parseChatContent(fullText);
 
   return {
     reply,
@@ -168,4 +175,31 @@ export async function handleCortexChat(req: ChatRequest): Promise<ChatResponse> 
     model: data.model ?? 'gpt-4o-mini',
     generated_at: new Date().toISOString(),
   };
+}
+
+export async function handleCortexChat(req: ChatRequest): Promise<ChatResponse> {
+  if (!isGatewayEnabledForFeature('chat')) {
+    return handleCortexChatLegacy(req);
+  }
+
+  const messages = buildChatMessages(req);
+  try {
+    const result = await gatewayGenerateChat({
+      messages: messages.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant',
+        content: m.content,
+      })),
+      temperature: 0.7,
+      maxTokens: 1200,
+    });
+    const { reply, applyContent } = parseChatContent(result.content);
+    return {
+      reply,
+      applyContent,
+      model: result.model,
+      generated_at: result.generatedAt,
+    };
+  } catch (err) {
+    throw mapGatewayErrorToLegacyMessage(err);
+  }
 }

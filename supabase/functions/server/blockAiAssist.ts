@@ -18,6 +18,14 @@
  * AI revision is ALWAYS pending — humans approve (spec §4).
  */
 
+import { isGatewayEnabledForFeature } from './intelligence/config.ts';
+import {
+  gatewayGenerateJson,
+  GatewayPrompts,
+  mapGatewayErrorToLegacyMessage,
+} from './intelligence/featureBridge.ts';
+import './intelligence/bootstrap.ts';
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AIBlockAction = 'ai_improve' | 'ai_expand' | 'ai_simplify' | 'fix_issues';
@@ -159,13 +167,12 @@ Respond ONLY with a JSON object in this exact shape (no markdown, no explanation
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
-export async function handleBlockAIAssist(req: BlockAIAssistRequest): Promise<BlockAIAssistResponse> {
+export async function handleBlockAIAssistLegacy(req: BlockAIAssistRequest): Promise<BlockAIAssistResponse> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured. Add it via Supabase dashboard → Edge Functions → Secrets.');
   }
 
-  // ROI financial snapshot is reference-only — should be caught upstream too
   if (req.block_type === 'roi_financial_snapshot') {
     throw new Error('ROI financial snapshot is a reference block. AI actions are disabled. Edit the roi_summary_narrative block to update the narrative.');
   }
@@ -181,14 +188,8 @@ export async function handleBlockAIAssist(req: BlockAIAssistRequest): Promise<Bl
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role:    'system',
-          content: 'You are CORTEX Block AI. You assist consultants in writing boardroom-grade proposal content. You always return valid JSON. You never invent numbers, never use guarantee language, and never change ROI figures. Math decides facts — you only polish language.',
-        },
-        {
-          role:    'user',
-          content: prompt,
-        },
+        { role: 'system', content: GatewayPrompts.blockSystem },
+        { role: 'user', content: prompt },
       ],
       temperature:  0.45,
       max_tokens:   900,
@@ -226,4 +227,43 @@ export async function handleBlockAIAssist(req: BlockAIAssistRequest): Promise<Bl
     model:            data.model ?? 'gpt-4o-mini',
     generated_at:     new Date().toISOString(),
   };
+}
+
+export async function handleBlockAIAssist(req: BlockAIAssistRequest): Promise<BlockAIAssistResponse> {
+  if (req.block_type === 'roi_financial_snapshot') {
+    throw new Error('ROI financial snapshot is a reference block. AI actions are disabled. Edit the roi_summary_narrative block to update the narrative.');
+  }
+
+  if (!isGatewayEnabledForFeature('block_assist')) {
+    return handleBlockAIAssistLegacy(req);
+  }
+
+  const prompt = buildPrompt(req);
+  try {
+    const result = await gatewayGenerateJson({
+      feature: 'block_assist',
+      modelProfile: 'block-default',
+      systemPrompt: GatewayPrompts.blockSystem,
+      userPrompt: prompt,
+      temperature: 0.45,
+      maxTokens: 900,
+      requiredFields: ['proposed_content'],
+    });
+    const parsed = JSON.parse(result.content) as {
+      proposed_content: Record<string, unknown>;
+      diff_summary?: string;
+    };
+    if (!parsed.proposed_content || typeof parsed.proposed_content !== 'object') {
+      throw new Error('OpenAI response missing proposed_content field');
+    }
+    return {
+      proposed_content: parsed.proposed_content,
+      diff_summary: parsed.diff_summary ?? `AI ${req.action.replace('_', ' ')} applied to ${req.block_type}`,
+      change_type: req.action,
+      model: result.model,
+      generated_at: result.generatedAt,
+    };
+  } catch (err) {
+    throw mapGatewayErrorToLegacyMessage(err);
+  }
 }

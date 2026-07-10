@@ -65,6 +65,10 @@ export type {
   AIChatLeadContext,
   AIChatRequest,
   AIChatResponse,
+  BlockAIAssistRequest,
+  BlockAIAssistResponse,
+  CopilotInterpretRequest,
+  CopilotInterpretResponse,
   QueuedEmailPayload,
   LeadCapturePayload,
 } from '@/app/lib/api';
@@ -1068,6 +1072,40 @@ export async function chatWithAI(
     } as api.AIChatResponse;
   }
   return api.chatWithAI(req, accessToken);
+}
+
+/** Per-block AI assist — Block Registry / Copilot apply pipeline */
+export async function blockAIAssist(
+  req: api.BlockAIAssistRequest,
+  accessToken: string,
+): Promise<api.BlockAIAssistResponse> {
+  if (isDemo()) {
+    log('Block AI assist (demo mode):', req.block_id, req.action);
+    await new Promise(r => setTimeout(r, 1_200));
+    const { buildMockBlockAIAssistApiResponse } = await import('@/app/core/aiAssistEngine');
+    return buildMockBlockAIAssistApiResponse(req);
+  }
+  return api.blockAIAssist(req, accessToken);
+}
+
+/** Copilot patch plan interpreter — no edits, plan only */
+export async function copilotInterpret(
+  req: api.CopilotInterpretRequest,
+  accessToken: string,
+  demoAllStates?: import('@/app/core/blockEngine').BlockState[],
+): Promise<api.CopilotInterpretResponse> {
+  if (isDemo()) {
+    log('Copilot interpret (demo mode):', req.entity_id);
+    await new Promise(r => setTimeout(r, 900));
+    const { buildMockCopilotInterpretApiResponse } = await import('@/app/core/copilotEngine');
+    return buildMockCopilotInterpretApiResponse(
+      req.user_input,
+      req.scope as import('@/app/core/copilotEngine').PatchScope,
+      req.entity_id,
+      demoAllStates ?? [],
+    );
+  }
+  return api.copilotInterpret(req, accessToken);
 }
 
 // ============================================================================

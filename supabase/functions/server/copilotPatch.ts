@@ -15,6 +15,14 @@
  *   - No invented proof / no guarantee language
  */
 
+import { isGatewayEnabledForFeature } from './intelligence/config.ts';
+import {
+  gatewayGenerateJson,
+  GatewayPrompts,
+  mapGatewayErrorToLegacyMessage,
+} from './intelligence/featureBridge.ts';
+import './intelligence/bootstrap.ts';
+
 export type CopilotPatchIntent =
   | 'rewrite_tone'
   | 'expand_detail'
@@ -149,7 +157,7 @@ Return ONLY a valid JSON object (no markdown fences, no explanation outside JSON
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
-export async function handleCopilotInterpret(
+export async function handleCopilotInterpretLegacy(
   req: CopilotInterpretRequest,
 ): Promise<CopilotInterpretResponse> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
@@ -168,14 +176,8 @@ export async function handleCopilotInterpret(
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role:    'system',
-          content: 'You are CORTEX Copilot. You plan content changes for consulting proposals. You always return valid JSON. You never invent numbers or guarantee outcomes. You select blocks deterministically based on the user request and scope.',
-        },
-        {
-          role:    'user',
-          content: prompt,
-        },
+        { role: 'system', content: GatewayPrompts.copilotSystem },
+        { role: 'user', content: prompt },
       ],
       temperature:     0.3,
       max_tokens:      800,
@@ -199,7 +201,6 @@ export async function handleCopilotInterpret(
     throw new Error(`OpenAI response was not valid JSON: ${raw.slice(0, 200)}`);
   }
 
-  // Validate required fields
   if (!parsed.intent || !Array.isArray(parsed.targets)) {
     throw new Error('OpenAI response missing required fields: intent, targets');
   }
@@ -211,4 +212,38 @@ export async function handleCopilotInterpret(
     skipped:             parsed.skipped             ?? [],
     roi_recalc_required: parsed.roi_recalc_required ?? false,
   };
+}
+
+export async function handleCopilotInterpret(
+  req: CopilotInterpretRequest,
+): Promise<CopilotInterpretResponse> {
+  if (!isGatewayEnabledForFeature('copilot')) {
+    return handleCopilotInterpretLegacy(req);
+  }
+
+  const prompt = buildCopilotPrompt(req);
+  try {
+    const result = await gatewayGenerateJson({
+      feature: 'copilot',
+      modelProfile: 'copilot-default',
+      systemPrompt: GatewayPrompts.copilotSystem,
+      userPrompt: prompt,
+      temperature: 0.3,
+      maxTokens: 800,
+      requiredFields: ['intent', 'targets'],
+    });
+    const parsed = JSON.parse(result.content) as CopilotInterpretResponse;
+    if (!parsed.intent || !Array.isArray(parsed.targets)) {
+      throw new Error('OpenAI response missing required fields: intent, targets');
+    }
+    return {
+      intent: parsed.intent ?? 'rewrite_tone',
+      intent_label: parsed.intent_label ?? parsed.intent,
+      targets: parsed.targets ?? [],
+      skipped: parsed.skipped ?? [],
+      roi_recalc_required: parsed.roi_recalc_required ?? false,
+    };
+  } catch (err) {
+    throw mapGatewayErrorToLegacyMessage(err);
+  }
 }

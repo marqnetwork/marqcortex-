@@ -4,10 +4,10 @@
  * Frontend orchestrator for per-block AI actions.
  *
  * Responsibilities:
- *   1. Call POST /blocks/ai-assist on the server
+ *   1. Call dataService.blockAIAssist (→ POST /blocks/ai-assist on the server)
  *   2. Run all 3 validators BEFORE the revision is committed
  *   3. Return a BlockRevision with approval_status="pending" — never auto-accept
- *   4. Respect BACKEND_INTEGRATION=false → return deterministic mock after 1.5s
+ *   4. Respect BACKEND_INTEGRATION=false → demo mock via dataService
  *
  * Three validators (spec §5):
  *   A) Fact lock   — client name, offer price, timeline_weeks, ROI metrics
@@ -15,10 +15,9 @@
  *   C) Jargon      — reject if jargon density > threshold
  */
 
-import { FEATURES } from '@/config/features';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
-import type { Block, BlockRevision, BlockState, RevisionChangeType } from './blockEngine';
+import type { Block, BlockRevision, BlockState, RevisionChangeType, BlockType } from './blockEngine';
 import { nextRevisionId, BLOCK_TYPE_LABELS } from './blockEngine';
+import { blockAIAssist as requestBlockAIAssist, type BlockAIAssistRequest, type BlockAIAssistResponse } from '@/app/services/dataService';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -355,6 +354,34 @@ function buildMockRevision(
   };
 }
 
+/** Demo-mode API-shaped response for dataService.blockAIAssist */
+export function buildMockBlockAIAssistApiResponse(
+  req: Pick<BlockAIAssistRequest, 'block_id' | 'block_type' | 'title' | 'current_content' | 'action'>,
+): BlockAIAssistResponse {
+  const block: Block = {
+    block_id:            req.block_id,
+    block_type:          req.block_type as BlockType,
+    title:               req.title,
+    content:             req.current_content,
+    content_format:      'text' in req.current_content ? 'rich_text' : 'structured_json',
+    status:              'draft',
+    source:              'system',
+    owner_user_id:       'demo',
+    created_at:          new Date().toISOString(),
+    updated_at:          new Date().toISOString(),
+    current_revision_id: 'rev-demo',
+    version:             1,
+  };
+  const revision = buildMockRevision(block, req.action);
+  return {
+    proposed_content: revision.proposed_content,
+    diff_summary:     revision.diff_summary,
+    change_type:      req.action,
+    model:            'demo-mode',
+    generated_at:     revision.created_at,
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // MAIN CALL — callBlockAIAssist
 // ════════════════════════════════════════════════════════════════════════════════
@@ -369,69 +396,31 @@ function buildMockRevision(
  * @throws            AIAssistError on validation failure or API error
  */
 export async function callBlockAIAssist(
-  blockState: BlockState,
-  action:     AIAction,
-  context:    AIAssistContext,
+  blockState:  BlockState,
+  action:      AIAction,
+  context:     AIAssistContext,
+  accessToken: string = '',
 ): Promise<AIAssistResult> {
   const { block } = blockState;
 
-  // ── BACKEND_INTEGRATION=false → deterministic mock path ───────────────────
-  if (!FEATURES.BACKEND_INTEGRATION) {
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 1_200));
-
-    const revision   = buildMockRevision(block, action);
-    const validation = validateAIRevision(block.block_type, block.content, revision.proposed_content);
-
-    // If mock itself fails validators (shouldn't happen), still return with warning
-    return { revision, validation };
-  }
-
-  // ── LIVE API path ─────────────────────────────────────────────────────────
-  const url = `https://${projectId}.supabase.co/functions/v1/make-server-324f4fbe/blocks/ai-assist`;
-
-  let rawResult: {
-    proposed_content: Record<string, unknown>;
-    diff_summary:     string;
-    change_type:      AIAction;
-    model:            string;
-    generated_at:     string;
-    error?:           string;
-    keyMissing?:      boolean;
+  const payload: BlockAIAssistRequest = {
+    block_id:        block.block_id,
+    block_type:      block.block_type,
+    title:           block.title,
+    current_content: block.content,
+    action,
+    context,
   };
 
+  let rawResult: BlockAIAssistResponse;
+
   try {
-    const res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        Authorization:   `Bearer ${publicAnonKey}`,
-      },
-      body: JSON.stringify({
-        block_id:        block.block_id,
-        block_type:      block.block_type,
-        title:           block.title,
-        current_content: block.content,
-        action,
-        context,
-      }),
-    });
-
-    rawResult = await res.json();
-
-    if (!res.ok) {
-      const err: AIAssistError = {
-        code:    rawResult.keyMissing ? 'key_missing' : 'api_error',
-        message: rawResult.error ?? `Server returned ${res.status}`,
-        details: null,
-      };
-      throw err;
-    }
+    rawResult = await requestBlockAIAssist(payload, accessToken);
   } catch (e: any) {
-    if (e && 'code' in e) throw e; // already shaped error
+    if (e && 'code' in e) throw e;
     const err: AIAssistError = {
-      code:    'api_error',
-      message: `Network error calling block AI assist: ${e?.message ?? e}`,
+      code:    e?.keyMissing ? 'key_missing' : 'api_error',
+      message: e?.message ?? `Network error calling block AI assist: ${String(e)}`,
       details: null,
     };
     throw err;

@@ -38,6 +38,7 @@ import { EditableBlockCard } from './EditableBlockCard';
 import { BlockHistoryPanel } from './BlockHistoryPanel';
 import { CopilotPanel } from './CopilotPanel';
 import { RoleSwitcher } from './RoleSwitcher';
+import { useApp } from '@/app/contexts/AppContext';
 import {
   callBlockAIAssist,
   assembleAIContext,
@@ -388,6 +389,9 @@ interface BlockRegistryPanelProps {
 }
 
 export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockRegistryPanelProps) {
+  const { teamAccessToken } = useApp();
+  const accessToken = teamAccessToken ?? '';
+
   // ── Local copies of the four stores ────────────────────────────────────────
   // (In production: replace with Supabase query + subscription)
   const [blocks,    setBlocks]    = useState<Block[]>(BLOCK_STORE);
@@ -520,11 +524,11 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
     const context = assembleAIContext(blockId, allStates);
 
     // Call AI — returns a pending BlockRevision
-    const { revision } = await callBlockAIAssist(blockState, action, context);
+    const { revision } = await callBlockAIAssist(blockState, action, context, accessToken);
 
     // Append the pending revision to state — no auto-accept
     setRevisions(prev => [...prev, revision]);
-  }, [allStates]);
+  }, [allStates, accessToken]);
 
   // ── Copilot batch revisions — copilot-patch-plan.md ─────────────────────
   const handleRevisionsBatch = useCallback((newRevisions: BlockRevision[]) => {

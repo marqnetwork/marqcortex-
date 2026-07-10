@@ -1990,9 +1990,22 @@ export const manifest: SystemManifest = {
       domain: 'SYSTEM',
       filePath: 'supabase/functions/server/index.tsx',
       description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, auth middleware, and error handling. 68 routes total.',
-      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008'],
+      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010'],
       dependents: [],
       notes: 'Rate limit: 120 requests/minute per IP. Add new routes by importing handlers and registering them here with the /make-server-324f4fbe/ prefix.',
+    },
+
+    'MQC-SVC-010': {
+      id: 'MQC-SVC-010',
+      name: 'intelligenceGateway (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/intelligence/gateway.ts',
+      description: 'Provider-agnostic Intelligence Gateway. Normalizes AI requests, resolves provider/model via registry, applies timeout/retry/telemetry, and delegates to adapters (OpenAI, mock).',
+      dependencies: [],
+      dependents: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-009'],
+      notes: 'Rollback per feature via INTELLIGENCE_USE_GATEWAY_* env flags. Legacy *Legacy() paths retained. See src/imports/MCV2-intelligence-gateway-provider-extension-guide.md',
     },
 
     // ══════════════════════════════════════════════════════════════════════════

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test",
+    "test:intelligence": "node --experimental-strip-types --test supabase/functions/server/intelligence/*.test.ts"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",

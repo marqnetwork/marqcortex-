@@ -8,6 +8,14 @@
  * Status: "complete" | "pending" | "error"
  */
 
+import { isGatewayEnabledForFeature } from './intelligence/config.ts';
+import {
+  gatewayGenerateJson,
+  GatewayPrompts,
+  mapGatewayErrorToLegacyMessage,
+} from './intelligence/featureBridge.ts';
+import './intelligence/bootstrap.ts';
+
 // ============================================================================
 // PROMPT BUILDER
 // ============================================================================
@@ -129,10 +137,10 @@ Return this exact JSON structure with NO extra fields:
 }
 
 // ============================================================================
-// OPENAI CALLER
+// OPENAI CALLER (legacy + Intelligence Gateway)
 // ============================================================================
 
-export async function callOpenAI(prompt: string): Promise<Record<string, any>> {
+export async function callOpenAILegacy(prompt: string): Promise<Record<string, any>> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured. Add it via the Supabase dashboard → Edge Functions → Secrets.');
@@ -149,7 +157,7 @@ export async function callOpenAI(prompt: string): Promise<Record<string, any>> {
       messages: [
         {
           role: 'system',
-          content: 'You are a business operations analyst specializing in AI-powered consulting. Return only valid JSON objects. No markdown. No explanations.',
+          content: GatewayPrompts.analysisSystem,
         },
         {
           role: 'user',
@@ -175,6 +183,25 @@ export async function callOpenAI(prompt: string): Promise<Record<string, any>> {
     return JSON.parse(content);
   } catch {
     throw new Error(`Failed to parse OpenAI JSON response: ${content.substring(0, 200)}`);
+  }
+}
+
+export async function callOpenAI(prompt: string): Promise<Record<string, any>> {
+  if (!isGatewayEnabledForFeature('analysis')) {
+    return callOpenAILegacy(prompt);
+  }
+  try {
+    const result = await gatewayGenerateJson({
+      feature: 'analysis',
+      modelProfile: 'analysis-default',
+      systemPrompt: GatewayPrompts.analysisSystem,
+      userPrompt: prompt,
+      temperature: 0.3,
+      maxTokens: 2500,
+    });
+    return JSON.parse(result.content);
+  } catch (err) {
+    throw mapGatewayErrorToLegacyMessage(err);
   }
 }
 

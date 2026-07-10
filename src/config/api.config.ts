@@ -97,5 +97,11 @@ export const API_CONFIG = {
     SUBMISSION_CORTEX: (id: string) => `/submissions/${id}/cortex`,
     SUBMISSION_OUTCOME: (id: string) => `/submissions/${id}/outcome`,
     SUBMISSIONS_ANALYZE_BATCH: '/submissions/analyze-batch',
+
+    // Intelligence Gateway AI routes
+    CORTEX_NARRATIVE: '/cortex/narrative',
+    AI_CHAT: '/ai/chat',
+    BLOCKS_AI_ASSIST: '/blocks/ai-assist',
+    BLOCKS_COPILOT_INTERPRET: '/blocks/copilot-interpret',
   },
 } as const;

@@ -32,7 +32,37 @@
     "system_prompt": "prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md",
     "architecture_map": "ARCHITECT.md",
     "cursor_rule": ".cursor/rules/read-marq-agent-prompt.mdc",
-    "intelligence_audit": "src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md"
+    "intelligence_audit": "src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md",
+    "intelligence_migration_plan": "src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md",
+    "intelligence_provider_guide": "src/imports/MCV2-intelligence-gateway-provider-extension-guide.md",
+    "frontend_ai_normalization": "src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md"
+  },
+
+  "intelligence_gateway": {
+    "status": "LIVE",
+    "manifest_id": "MQC-SVC-010",
+    "path": "supabase/functions/server/intelligence/",
+    "gateway_entry": "intelligence/gateway.ts",
+    "providers": ["openai", "mock"],
+    "migrated_backend_features": ["narrative", "analysis", "chat", "block_assist", "copilot"],
+    "migrated_frontend_features": ["narrative", "analysis", "chat", "block_assist", "copilot"],
+    "deferred_frontend_bypasses": [],
+    "frontend_canonical_path": "Component → core engine (orchestration) → dataService → api.ts → Edge → Intelligence Gateway",
+    "frontend_ai_methods": [
+      "dataService.chatWithAI",
+      "dataService.generateCortexNarrative",
+      "dataService.analyzeSubmission",
+      "dataService.blockAIAssist",
+      "dataService.copilotInterpret"
+    ],
+    "rollback_env_flags": [
+      "INTELLIGENCE_USE_GATEWAY_NARRATIVE",
+      "INTELLIGENCE_USE_GATEWAY_ANALYSIS",
+      "INTELLIGENCE_USE_GATEWAY_CHAT",
+      "INTELLIGENCE_USE_GATEWAY_BLOCK_ASSIST",
+      "INTELLIGENCE_USE_GATEWAY_COPILOT"
+    ],
+    "test_command": "npm run test:intelligence"
   },
 
   "top_level_directories": {

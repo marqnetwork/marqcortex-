@@ -1,5 +1,5 @@
 /**
- * CORTEX NARRATIVE GENERATION — GPT-4o-mini
+ * CORTEX NARRATIVE GENERATION — Intelligence Gateway
  *
  * Generates explanation-layer narratives:
  *   - why_now: urgency analysis
@@ -7,9 +7,15 @@
  *   - strategic_decision: why this recommendation first
  *
  * Core Rule: "Math decides priority, LLM only explains decisions."
- * The LLM receives the deterministic outputs and produces human-readable
- * explanations. It never overrides scoring or priority.
  */
+
+import { isGatewayEnabledForFeature } from './intelligence/config.ts';
+import {
+  gatewayGenerateText,
+  GatewayPrompts,
+  mapGatewayErrorToLegacyMessage,
+} from './intelligence/featureBridge.ts';
+import './intelligence/bootstrap.ts';
 
 // ============================================================================
 // TYPES
@@ -138,30 +144,30 @@ RULES:
 Return ONLY the narrative text, no JSON wrapping.`;
 }
 
+function buildPromptForType(request: NarrativeRequest): string {
+  switch (request.type) {
+    case 'why_now':
+      return buildWhyNowPrompt(request.context);
+    case 'confidence_reasoning':
+      return buildConfidenceReasoningPrompt(request.context);
+    case 'strategic_decision':
+      return buildStrategicDecisionPrompt(request.context);
+    default:
+      throw new Error(`Unknown narrative type: ${(request as NarrativeRequest).type}`);
+  }
+}
+
 // ============================================================================
-// GENERATE NARRATIVE (calls OpenAI GPT-4o-mini)
+// LEGACY PATH (rollback)
 // ============================================================================
 
-export async function generateNarrative(request: NarrativeRequest): Promise<NarrativeResponse> {
+export async function generateNarrativeLegacy(request: NarrativeRequest): Promise<NarrativeResponse> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured. Add it via Supabase dashboard -> Edge Functions -> Secrets.');
   }
 
-  let prompt: string;
-  switch (request.type) {
-    case 'why_now':
-      prompt = buildWhyNowPrompt(request.context);
-      break;
-    case 'confidence_reasoning':
-      prompt = buildConfidenceReasoningPrompt(request.context);
-      break;
-    case 'strategic_decision':
-      prompt = buildStrategicDecisionPrompt(request.context);
-      break;
-    default:
-      throw new Error(`Unknown narrative type: ${request.type}`);
-  }
+  const prompt = buildPromptForType(request);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -172,14 +178,8 @@ export async function generateNarrative(request: NarrativeRequest): Promise<Narr
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content: 'You are CORTEX, a decision intelligence engine for an AI consultancy called MARQ. You explain deterministic scoring decisions in clear, professional language. You never override or invent numbers. Math decides priority — you only explain decisions. Return plain text, no markdown headers or JSON.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
+        { role: 'system', content: GatewayPrompts.narrativeSystem },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.4,
       max_tokens: 500,
@@ -198,7 +198,41 @@ export async function generateNarrative(request: NarrativeRequest): Promise<Narr
   return {
     type: request.type,
     narrative: content.trim(),
-    model: 'gpt-4o-mini',
+    model: data.model ?? 'gpt-4o-mini',
     generated_at: new Date().toISOString(),
   };
+}
+
+// ============================================================================
+// GATEWAY PATH
+// ============================================================================
+
+async function generateNarrativeViaGateway(request: NarrativeRequest): Promise<NarrativeResponse> {
+  const prompt = buildPromptForType(request);
+  try {
+    const result = await gatewayGenerateText({
+      feature: 'narrative',
+      modelProfile: 'narrative-default',
+      systemPrompt: GatewayPrompts.narrativeSystem,
+      userPrompt: prompt,
+      temperature: 0.4,
+      maxTokens: 500,
+      metadata: { narrativeType: request.type },
+    });
+    return {
+      type: request.type,
+      narrative: result.content.trim(),
+      model: result.model,
+      generated_at: result.generatedAt,
+    };
+  } catch (err) {
+    throw mapGatewayErrorToLegacyMessage(err);
+  }
+}
+
+export async function generateNarrative(request: NarrativeRequest): Promise<NarrativeResponse> {
+  if (!isGatewayEnabledForFeature('narrative')) {
+    return generateNarrativeLegacy(request);
+  }
+  return generateNarrativeViaGateway(request);
 }
