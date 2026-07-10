@@ -1,7 +1,7 @@
 {
   "_meta": {
     "protocol": "MARQ Code Intelligence OS v3.3",
-    "generated": "2026-07-02",
+    "generated": "2026-07-11",
     "canonical_doc": "ARCHITECT.md",
     "manifest": "src/system/manifest.ts",
     "confidence": "PROVEN",
@@ -28,8 +28,16 @@
     }
   },
 
+  "agent_entry_points": {
+    "system_prompt": "prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md",
+    "architecture_map": "ARCHITECT.md",
+    "cursor_rule": ".cursor/rules/read-marq-agent-prompt.mdc",
+    "intelligence_audit": "src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md"
+  },
+
   "top_level_directories": {
     "ARCHITECT.md": "Canonical map + root pointer (read first)",
+    "prompts": "MARQ Claude Agent System Prompt v1.0",
     "architecture": "system_map.json (machine-readable snapshot)",
     "src/app": "React app — components, contexts, core, hooks, lib, pages, services, types, utils",
     "src/config": "features.ts, api.config.ts, runtime.ts",

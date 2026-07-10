@@ -4,7 +4,21 @@
 >
 > **Related:** machine snapshot → `architecture/system_map.json` · node registry → `src/system/manifest.ts`
 
-**Last verified:** 2026-07-02 · **Manifest:** `src/system/manifest.ts` v2.0.0 · **Runtime:** DEMO (`BACKEND_INTEGRATION: false`)
+**Last verified:** 2026-07-11 · **Manifest:** `src/system/manifest.ts` v2.0.0 · **Runtime:** DEMO (`BACKEND_INTEGRATION: false`)
+
+---
+
+## Agent entry points (read before coding)
+
+| Order | Document | Purpose |
+|-------|----------|---------|
+| 1 | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` | Permanent MARQ Claude Agent operating contract (v1.0) |
+| 2 | `ARCHITECT.md` (this file) | Repository map, golden rules, task → file lookup |
+| 3 | Sprint task prompt | Scoped work and acceptance criteria only |
+
+Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. Sprint prompts do not override the system prompt.
+
+**Intelligence audit (MCV2):** `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md`
 
 ---
 
@@ -47,6 +61,8 @@
 ```
 cortex/
 ├── ARCHITECT.md                  # ← THIS FILE (root map + agent entry point)
+├── prompts/
+│   └── MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md  # Agent operating contract
 ├── index.html                    # Shell → /src/main.tsx
 ├── vite.config.ts                # @ alias, dev server host:true port 5173
 ├── architecture/
@@ -133,6 +149,9 @@ cortex/
 | Change backend routes | `supabase/functions/server/index.tsx` |
 | Fix localhost dev server | `vite.config.ts` (`host: true`, port 5173) |
 | See all node IDs + deps | `src/system/manifest.ts` |
+| Agent operating rules | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` |
+| Provider-agnostic AI audit | `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md` |
+| Change AI provider / gateway | Audit doc §11 first; then `supabase/functions/server/` adapters |
 
 ---
 

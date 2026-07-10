@@ -1,0 +1,18 @@
+---
+description: Read MARQ Claude Agent System Prompt v1.0 before any Cortex coding work
+alwaysApply: true
+---
+
+Before starting any MARQ Cortex task, read these documents in order:
+
+1. `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` — permanent operating contract (v1.0)
+2. `ARCHITECT.md` — repository map, golden rules, task → file lookup
+
+Then read the assigned sprint task prompt.
+
+Rules:
+
+- Sprint prompts define **what** to do; the system prompt defines **how** to do it safely.
+- Do not override architecture protection, completion standards, or provider-independence rules.
+- Use ARCHITECT §5 Task → file lookup instead of broad repo scans.
+- After structural changes, update `ARCHITECT.md` and `architecture/system_map.json`.
