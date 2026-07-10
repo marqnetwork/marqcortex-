@@ -1,0 +1,190 @@
+{
+  "_meta": {
+    "generated": "2026-03-06",
+    "protocol": "MARQ Code Intelligence OS — Step 2",
+    "description": "High-level architecture map of MARQ Cortex Diagnostic Platform",
+    "version": "1.0.0"
+  },
+
+  "product": {
+    "name": "MARQ Cortex Diagnostic Platform",
+    "type": "Single-Page Application + Supabase Edge Function Backend",
+    "router": "createHashRouter (react-router) — hash-based for iframe compat",
+    "theme": "Eclipse dark (#0A0A0F)",
+    "coreRule": "Math decides priority. LLM only explains decisions."
+  },
+
+  "runtime_mode": {
+    "current": "DEMO",
+    "flag_file": "src/config/features.ts",
+    "flag_key": "FEATURES.BACKEND_INTEGRATION",
+    "flag_value": false,
+    "effect": "All API calls bypassed. demoData.ts + instantScoring.ts serve all data.",
+    "go_live_steps": [
+      "Deploy supabase functions deploy make-server-324f4fbe",
+      "Set FEATURES.BACKEND_INTEGRATION = true",
+      "Set RESEND_API_KEY in Supabase dashboard",
+      "Set OPENAI_API_KEY in Supabase dashboard",
+      "Verify all 68 routes return correct shapes"
+    ]
+  },
+
+  "layers": {
+    "frontend": {
+      "entry": "src/main.tsx → src/app/App.tsx",
+      "framework": "React 18 + TypeScript + Vite",
+      "styling": "Tailwind CSS v4",
+      "state": {
+        "global": "src/app/contexts/AppContext.tsx (auth, session, score result)",
+        "dashboard": "src/app/contexts/DashboardContext.tsx (active submission, tabs)",
+        "ai_chat": "src/app/contexts/GlobalAIChatContext.tsx (chat history, context)"
+      },
+      "data_access": {
+        "primary": "src/app/services/dataService.ts — ALL components use this only",
+        "ai_specific": "src/app/services/cortexDataService.ts",
+        "http_client": "src/app/lib/api.ts — never imported directly by components",
+        "supabase_client": "src/app/lib/supabase.ts"
+      }
+    },
+
+    "routing": {
+      "type": "Hash-based (createHashRouter)",
+      "lazy_loaded": [
+        "#/get-started → LeadMagnetRoute",
+        "#/diagnostic → DiagnosticRoute",
+        "#/score → ScoreRoute",
+        "#/team/login → TeamLoginRoute",
+        "#/team/dashboard → TeamDashboardRoute",
+        "#/team/execution → ExecutionRoute",
+        "#/client/login → ClientLoginRoute",
+        "#/client/portal → ClientPortalRoute",
+        "#/architecture → SystemArchitecture",
+        "#/registry → RegistryViewer"
+      ],
+      "eager_loaded": ["#/ → LandingPageRoute (first paint)"]
+    },
+
+    "public_funnel": {
+      "flow": "LandingPage → LeadMagnetCapture → DiagnosticForm → ScorePage",
+      "scoring": {
+        "instant": "src/app/utils/instantScoring.ts — browser-side keyword matching, immediate feedback",
+        "authoritative": "src/app/core/scoringEngine.ts — weighted formula, deterministic",
+        "WARNING": "Two scoring systems exist. instantScoring gives the user their score. scoringEngine is the authoritative engine. These must be reconciled — the user sees keyword-match scores, not weighted-formula scores."
+      }
+    },
+
+    "auth": {
+      "team": {
+        "login": "dataService.teamLogin → demo: hardcoded check / live: Supabase auth",
+        "session": "localStorage key marq_cortex_team_session, TTL 8h",
+        "token": "JWT stored in AppContext.teamAccessToken"
+      },
+      "client": {
+        "login": "dataService.verifyClientEmail — email + submissionId lookup only",
+        "session": "localStorage key marq_cortex_client_session",
+        "WARNING": "Client auth is email + submissionId with no real JWT. Any person who knows a submissionId can access that portal."
+      }
+    },
+
+    "team_dashboard": {
+      "shell": "TeamDashboardLayout.tsx — two-layer provider: GlobalAIChatProvider (outer) + DashboardContext (inner)",
+      "content": "TeamDashboardNew.tsx — all panels are React.lazy()",
+      "panels_count": 20,
+      "client_portal_tabs": ["Status", "Solution", "Readiness Report", "Schedule a Call", "Proposal", "Messages", "Your Assessment", "Strategic Report"]
+    },
+
+    "core_engines": {
+      "location": "src/app/core/",
+      "count": 35,
+      "rule": "Pure functions only. No React. No side effects. No LLM calls.",
+      "critical": [
+        "scoringEngine.ts — weighted formula, source of authoritative scores",
+        "decisionEngine.ts — routes scoring results to solution paths",
+        "roiEngine.ts — all ROI numbers shown to clients",
+        "proposalGateEngine.ts — controls client proposal visibility"
+      ]
+    },
+
+    "backend": {
+      "runtime": "Supabase Edge Functions (Deno)",
+      "framework": "Hono",
+      "entry": "supabase/functions/server/index.tsx",
+      "base_path": "/make-server-324f4fbe",
+      "routes_count": 68,
+      "ai_services": [
+        "blockAiAssist.ts — block content suggestions",
+        "copilotPatch.ts — proposal section copilot",
+        "cortexAnalysis.ts — deep submission analysis",
+        "cortexChat.ts — AI chat with context injection",
+        "cortexNarrative.ts — LLM narrative from math-decided scores",
+        "emailService.ts — Resend transactional emails"
+      ],
+      "database": "Supabase KV store (kv_store_324f4fbe table)",
+      "rate_limit": "120 requests/minute per IP",
+      "auth_middleware": "verifyTeamToken() — JWT check on protected routes"
+    },
+
+    "registry_systems": {
+      "WARNING": "TWO COMPETING REGISTRY SYSTEMS EXIST",
+      "original": {
+        "files": [
+          "src/app/utils/registryData.ts",
+          "src/app/utils/registryDataExtension.ts",
+          "src/app/utils/registryProcesses.ts",
+          "src/app/utils/registryAudit.ts"
+        ],
+        "id_format": "MQC-{TYPE}-{NNN} where TYPE is APP/CFG/RTE/CMP/CTX/HKS/SVC/ENG/UTL/TYP/LIB/API/BEF/UI",
+        "process_ids": "MQC-PRC-{NNN} (66 processes)",
+        "interaction_ids": "MQC-INT-{NNN} (185 interactions)",
+        "audit_counts": {"LIVE": 113, "DEMO": 14, "GATED": 54, "MISSING": 3, "VISUAL": 2},
+        "status": "ORPHANED — RegistryViewer.tsx no longer reads from these files"
+      },
+      "new": {
+        "files": [
+          "src/system/manifest.ts",
+          "src/system/types.ts",
+          "src/system/validate.ts"
+        ],
+        "id_format": "MQC-{TYPE}-{NNN} where TYPE is PAGE/COMP/CORE/SVC/HOOK/TYPE",
+        "node_count": 158,
+        "status": "ACTIVE — RegistryViewer.tsx reads from this"
+      },
+      "resolution_needed": "Merge or choose one. The original system has more maturity (debugNotes, recentFixes, supplies, apiCalls, keyFunctions). The new system has cleaner types and validation."
+    },
+
+    "mock_infrastructure": {
+      "files": [
+        "src/app/utils/demoData.ts",
+        "src/app/utils/mockAIAnalysis.ts",
+        "src/app/utils/mockCortexAIBrain.ts",
+        "src/app/utils/mockCortexData.ts",
+        "src/app/utils/mockClientReport.ts",
+        "src/app/utils/cortexDataGenerator.ts"
+      ],
+      "risk": "6 separate mock files can drift from real API response shapes as the backend evolves."
+    }
+  },
+
+  "external_integrations": {
+    "supabase": {
+      "url": "from utils/supabase/info.tsx",
+      "auth": "Supabase Auth (JWT)",
+      "db": "PostgreSQL via KV abstraction layer"
+    },
+    "openai": {
+      "key": "OPENAI_API_KEY env var (backend only)",
+      "used_by": ["cortexChat.ts", "cortexAnalysis.ts", "cortexNarrative.ts", "blockAiAssist.ts", "copilotPatch.ts"]
+    },
+    "resend": {
+      "key": "RESEND_API_KEY env var (backend only)",
+      "used_by": ["emailService.ts"]
+    }
+  },
+
+  "missing_infrastructure": {
+    "tests": "NONE — zero test files found anywhere in the project",
+    "api_spec": "/API_SPECIFICATIONS.md — referenced in dataService.ts line 15 but does not exist",
+    "ci_cd": "Not visible in this environment",
+    "error_monitoring": "Console.log only — no Sentry or equivalent"
+  }
+}

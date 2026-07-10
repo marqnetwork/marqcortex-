@@ -1,0 +1,204 @@
+{
+  "status": "ok",
+
+  "method_version": "roi_engine_v1_conservative",
+
+  "portfolio": {
+    "investment_estimate": {
+      "min": 22000,
+      "max": 42000
+    },
+
+    "expected_annual_gain_range": {
+      "low": 132000,
+      "mid": 198000,
+      "high": 268000
+    },
+
+    "confidence_weighted_gain_range": {
+      "low": 111000,
+      "mid": 166000,
+      "high": 225000
+    },
+
+    "roi_percent_range_display": {
+      "low": 120,
+      "mid": 240,
+      "high": 350
+    },
+
+    "cap_applied": true,
+
+    "payback_months_range": {
+      "low_case": 4.5,
+      "mid_case": 2.8,
+      "high_case": 2.0
+    },
+
+    "confidence_score_portfolio": 82
+  },
+
+  "by_recommendation": [
+
+    {
+      "recommendation_id": "R1",
+
+      "calculation_type": [
+        "cost_reduction",
+        "efficiency",
+        "revenue_protection"
+      ],
+
+      "raw_annual_gain_range": {
+        "low": 90000,
+        "mid": 145000,
+        "high": 200000
+      },
+
+      "confidence_adjusted_gain_range": {
+        "low": 77400,
+        "mid": 124700,
+        "high": 172000
+      },
+
+      "investment_estimate": {
+        "min": 9000,
+        "max": 16000
+      },
+
+      "roi_percent_range_display": {
+        "low": 150,
+        "mid": 280,
+        "high": 350
+      },
+
+      "cap_applied": true,
+
+      "payback_months_range": {
+        "low_case": 3.8,
+        "mid_case": 2.2,
+        "high_case": 1.6
+      },
+
+      "confidence_score": 86,
+
+      "assumptions_used": [
+        "inputs.assumptions.support_tickets_per_week",
+        "inputs.assumptions.labor_cost_per_hour",
+        "inputs.assumptions.monthly_revenue",
+        "inputs.assumptions.gross_margin_percent"
+      ]
+    },
+
+    {
+      "recommendation_id": "R2",
+
+      "calculation_type": [
+        "efficiency",
+        "cost_reduction"
+      ],
+
+      "raw_annual_gain_range": {
+        "low": 25000,
+        "mid": 42000,
+        "high": 65000
+      },
+
+      "confidence_adjusted_gain_range": {
+        "low": 19500,
+        "mid": 32760,
+        "high": 50700
+      },
+
+      "investment_estimate": {
+        "min": 7000,
+        "max": 14000
+      },
+
+      "roi_percent_range_display": {
+        "low": 70,
+        "mid": 135,
+        "high": 220
+      },
+
+      "cap_applied": false,
+
+      "payback_months_range": {
+        "low_case": 6.5,
+        "mid_case": 4.0,
+        "high_case": 2.8
+      },
+
+      "confidence_score": 78,
+
+      "assumptions_used": [
+        "inputs.assumptions.labor_cost_per_hour"
+      ]
+    },
+
+    {
+      "recommendation_id": "R3",
+
+      "calculation_type": [
+        "efficiency",
+        "risk_reduction"
+      ],
+
+      "raw_annual_gain_range": {
+        "low": 17000,
+        "mid": 28000,
+        "high": 43000
+      },
+
+      "confidence_adjusted_gain_range": {
+        "low": 12240,
+        "mid": 20160,
+        "high": 30960
+      },
+
+      "investment_estimate": {
+        "min": 6000,
+        "max": 12000
+      },
+
+      "roi_percent_range_display": {
+        "low": 60,
+        "mid": 100,
+        "high": 160
+      },
+
+      "cap_applied": false,
+
+      "payback_months_range": {
+        "low_case": 8.5,
+        "mid_case": 5.5,
+        "high_case": 3.7
+      },
+
+      "confidence_score": 72,
+
+      "assumptions_used": []
+    }
+  ],
+
+  "assumptions_used_portfolio": [
+    "support_tickets_per_week",
+    "labor_cost_per_hour",
+    "monthly_revenue",
+    "gross_margin_percent"
+  ],
+
+  "sensitivity_analysis": {
+    "most_sensitive_variable": "support_tickets_per_week",
+    "second_most_sensitive": "gross_margin_percent",
+    "third_most_sensitive": "labor_cost_per_hour"
+  },
+
+  "method_notes": [
+    "All gains are confidence-weighted.",
+    "ROI above 350% capped by constraint.",
+    "Revenue counted at gross margin only.",
+    "Efficiency gains use realization factors.",
+    "No stacked double-counting across dependent recommendations."
+  ]
+}

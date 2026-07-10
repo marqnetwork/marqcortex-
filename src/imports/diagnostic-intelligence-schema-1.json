@@ -1,0 +1,176 @@
+DIAGNOSTIC INTELLIGENCE SCHEMA v1
+
+This is the exact structure your system must produce.
+
+1️⃣ Executive Layer
+executive_summary: {
+  readiness_score: number,
+  readiness_category: "Manual | Fragmented | Transitional | Structured",
+  primary_bottleneck_id: string,
+  secondary_bottleneck_id: string,
+  growth_risk_level: "Low | Moderate | High | Critical",
+  estimated_annual_impact_range: {
+    min: number,
+    max: number
+  },
+  narrative_summary: string,
+  confidence_score: number
+}
+
+This drives the top section of your Diagnostic tab.
+
+2️⃣ Bottleneck Objects (Core Engine)
+
+Every bottleneck must follow this exact anatomy.
+
+bottlenecks: [
+  {
+    id: "B1",
+    title: string,
+    severity: "Moderate | High | Critical",
+    category: "Revenue | Operations | Governance | Compliance",
+    pattern_strength: number,
+    
+    causal_chain: [
+      "Trigger",
+      "Immediate Effect",
+      "Secondary Effect",
+      "Compounding Effect",
+      "Failure Outcome"
+    ],
+
+    stress_simulation: {
+      growth_20_percent: string,
+      growth_30_percent: string,
+      founder_absence: string,
+      system_failure: string
+    },
+
+    root_cause_hierarchy: {
+      level_1_symptom: string,
+      level_2_process_failure: string,
+      level_3_architecture_failure: string,
+      level_4_governance_failure: string
+    },
+
+    quantified_impact: {
+      revenue_leakage_estimate: number,
+      payroll_inflation_risk: number,
+      time_waste_hours_per_week: number,
+      growth_ceiling_percent: number
+    },
+
+    intervention_path: {
+      short_term: string,
+      mid_term: string,
+      structural_redesign: string
+    },
+
+    supporting_questions: [
+      {
+        question_id: string,
+        client_answer: string,
+        ai_interpretation: string,
+        structural_implication: string
+      }
+    ]
+  }
+]
+
+Every bottleneck must include every layer.
+No skipping.
+
+3️⃣ Systemic Pattern Engine
+
+This aggregates signals across answers.
+
+systemic_patterns: [
+  {
+    pattern_name: string,
+    severity: "Low | Moderate | High",
+    signal_count: number,
+    cross_departmental_presence: boolean,
+    failure_cascade_potential: string,
+    recurrence_probability: number
+  }
+]
+
+This prevents shallow isolated insights.
+
+4️⃣ Operational Pillar Matrix
+pillar_matrix: {
+  operations: {
+    score: number,
+    interpretation: string,
+    dominant_weakness: string,
+    automation_leverage_potential: string
+  },
+  revenue: {
+    score: number,
+    interpretation: string,
+    dominant_weakness: string,
+    automation_leverage_potential: string
+  },
+  systems: {
+    score: number,
+    interpretation: string,
+    dominant_weakness: string,
+    automation_leverage_potential: string
+  },
+  governance: {
+    score: number,
+    interpretation: string,
+    dominant_weakness: string,
+    automation_leverage_potential: string
+  }
+}
+5️⃣ Financial Model Engine
+
+Must derive from inputs, not guess.
+
+financial_model: {
+  direct_revenue_leakage: number,
+  hidden_operational_drag: number,
+  payroll_misallocation: number,
+  opportunity_cost: number,
+  compounding_growth_tax: number,
+  total_estimated_annual_impact: number
+}
+6️⃣ Risk Model
+risk_model: [
+  {
+    risk_type: "Scalability | Data | Dependency | Compliance",
+    severity: "Low | Moderate | High | Critical",
+    trigger_threshold: string,
+    probability_percent: number,
+    time_to_failure_estimate: string,
+    cascade_path: string
+  }
+]
+7️⃣ Confidence & Integrity Layer
+
+This protects credibility.
+
+confidence_layer: {
+  total_signals_detected: number,
+  corroborated_patterns: number,
+  contradiction_flags: number,
+  weak_signal_flags: number,
+  ai_confidence_score: number
+}
+🔥 Why This Fixes Your Core Problem
+
+Right now your system:
+Summarizes insights.
+
+With this schema:
+It builds structured intelligence.
+
+The UI will simply render this hierarchy.
+
+The depth comes from:
+Causal chains
+Stress simulation
+Root cause layers
+Quantified modeling
+Evidence mapping

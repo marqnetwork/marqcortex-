@@ -1,0 +1,75 @@
+{
+  "recommendation_id": "auto-generated-uuid",
+  "version": "v1",
+
+  "core_problem": {
+    "problem_id": "string",
+    "problem_title": "string",
+    "severity_score": 1-10,
+    "pillar_impact": ["consultancy", "software", "growth", "operations"]
+  },
+
+  "strategic_decision": {
+    "why_now": "string",
+    "why_first": "string",
+    "expected_time_to_impact_days": number
+  },
+
+  "impact_profile": {
+    "impact_type": ["revenue_growth", "cost_reduction", "efficiency", "risk_reduction"],
+    "primary_metric": "string",
+    "baseline_value": number,
+    "target_value_30d": number,
+    "target_value_60d": number,
+    "target_value_90d": number,
+    "unit": "percentage | hours | dollars | tickets | etc"
+  },
+
+  "execution_plan": {
+    "total_duration_days": 30,
+    "phases": [
+      {
+        "phase_id": "phase_1",
+        "title": "string",
+        "duration_days": number,
+        "objectives": ["string"],
+        "deliverables": ["string"],
+        "dependencies": ["string"]
+      }
+    ]
+  },
+
+  "resource_requirements": [
+    {
+      "role": "AI Engineer",
+      "allocation_percent": number,
+      "active_phase": "phase_1"
+    }
+  ],
+
+  "risk_profile": [
+    {
+      "risk_id": "string",
+      "probability": "low | medium | high",
+      "impact": "low | medium | high",
+      "mitigation": "string"
+    }
+  ],
+
+  "assumptions_used": [
+    "string",
+    "string"
+  ],
+
+  "confidence_model": {
+    "confidence_score": 0-100,
+    "confidence_reasoning": "string"
+  },
+
+  "priority_score": {
+    "impact_score": 0-10,
+    "feasibility_score": 0-10,
+    "risk_score": 0-10,
+    "computed_priority": "formula-based number"
+  }
+}

@@ -1,0 +1,285 @@
+{
+  "portfolio_id": "pf_01HZZ_MARQ_EXAMPLECO",
+  "current_version": "v2",
+  "created_at": "2026-02-28T12:00:00Z",
+  "updated_at": "2026-02-28T12:22:00Z",
+
+  "inputs": {
+    "business_snapshot": {
+      "company_name": "ExampleCo",
+      "industry": "E-commerce",
+      "region": "USA",
+      "revenue_band": "1M-8M",
+      "team_size": 24
+    },
+    "answers": [
+      { "question_id": "Q1", "text": "We run day-to-day ops in Slack and spreadsheets; tasks are manual and assigned ad-hoc." },
+      { "question_id": "Q2", "text": "Weekly spreadsheets; we pull data from Shopify and email reports manually." },
+      { "question_id": "Q3", "text": "Usually 24–48 hours when busy." },
+      { "question_id": "Q4", "text": "Support follow-ups, reporting, and approvals." },
+      { "question_id": "Q5", "text": "Not reliably. Some integrations break or aren’t set up fully." },
+      { "question_id": "Q6", "text": "Order status, returns, refunds, and delivery questions." },
+      { "question_id": "Q7", "text": "Founder sign-off is needed for escalations and special cases." },
+      { "question_id": "Q8", "text": "Mostly manual checks; sometimes inventory mismatches happen." },
+      { "question_id": "Q9", "text": "Refunds rise and customers complain publicly." },
+      { "question_id": "Q10", "text": "Mostly manual or not consistent." },
+      { "question_id": "Q11", "text": "Basic tools for writing, nothing operational." },
+      { "question_id": "Q12", "text": "Things break when volume spikes, we hire but it doesn’t fix the core problems." },
+      { "question_id": "Q13", "text": "We escalate in Slack; decisions vary by person." },
+      { "question_id": "Q14", "text": "Within 60–90 days ideally." }
+    ],
+    "assumptions": {
+      "monthly_revenue": 250000,
+      "avg_order_value": 85,
+      "monthly_orders": 2940,
+      "support_tickets_per_week": 350,
+      "avg_response_time_hours": 30,
+      "labor_cost_per_hour": 22,
+      "refund_rate_percent": 3.8,
+      "conversion_rate_percent": 2.1,
+      "gross_margin_percent": 42
+    },
+    "constraints": {
+      "max_roi_display_percent": 350,
+      "roi_must_be_range": true,
+      "confidence_floor_for_roi": 60,
+      "max_recommendations": 7,
+      "no_claims_without_assumptions": true
+    }
+  },
+
+  "outputs": {
+    "diagnostic": {
+      "executive_summary": {
+        "readiness_score": 62,
+        "readiness_category": "Fragmented",
+        "growth_risk_level": "High",
+        "primary_bottleneck_id": "B1",
+        "secondary_bottleneck_id": "B2",
+        "estimated_annual_impact_range": { "min": 200000, "max": 310000 },
+        "confidence_score": 0.86
+      },
+      "bottlenecks": [
+        { "id": "B1", "title": "Reactive Customer Support Bottleneck", "severity": "Critical" },
+        { "id": "B2", "title": "Tool Fragmentation & Manual Reporting", "severity": "High" },
+        { "id": "B3", "title": "Approval Bottleneck & Founder Dependency", "severity": "High" }
+      ],
+      "systemic_patterns": [
+        { "pattern_name": "Manual Dependency Across Core Workflows", "severity": "High", "signal_count": 7 },
+        { "pattern_name": "Fragmented Tool Stack Without Reliable Data Flow", "severity": "High", "signal_count": 6 }
+      ],
+      "confidence_layer": {
+        "total_signals_detected": 46,
+        "corroborated_patterns": 3,
+        "contradiction_flags": 1,
+        "weak_signal_flags": 1,
+        "ai_confidence_score": 0.86
+      }
+    },
+
+    "recommendations": {
+      "portfolio_summary": {
+        "execution_horizon_days": 90,
+        "recommendation_count": 3,
+        "global_priority_ranking": ["R1", "R2", "R3"],
+        "sequence_note": "Higher ticket volume increases urgency of support deflection; keep sequencing unchanged."
+      },
+      "recommendations": [
+        {
+          "recommendation_id": "R1",
+          "version": "v2",
+          "core_problem": { "problem_id": "B1", "problem_title": "Reactive Customer Support Bottleneck", "severity_score": 10, "pillar_impact": ["operations", "growth", "software", "consultancy"] },
+          "strategic_decision": {
+            "why_now": "Ticket volume is higher than baseline, which increases refund risk and SLA failure probability.",
+            "why_first": "Still the fastest stabilization lever with direct revenue protection.",
+            "expected_time_to_impact_days": 14
+          },
+          "impact_profile": {
+            "impact_type": ["cost_reduction", "revenue_growth", "efficiency"],
+            "primary_metric": "support_tickets_deflected_percent",
+            "baseline_value": 0,
+            "target_value_30d": 40,
+            "target_value_60d": 55,
+            "target_value_90d": 65,
+            "unit": "percentage"
+          },
+          "execution_plan": {
+            "total_duration_days": 90,
+            "phases": [
+              { "phase_id": "p1", "title": "Deflection + Routing Foundation", "duration_days": 14, "objectives": ["Immediate load reduction"], "deliverables": ["Top 30 deflection flows", "Routing + SLA rules", "Escalation map"], "dependencies": ["Ticket access", "Order data access"] },
+              { "phase_id": "p2", "title": "Lifecycle Automation + SLA Visibility", "duration_days": 40, "objectives": ["Reduce refunds and response time"], "deliverables": ["SLA dashboard", "Lifecycle triggers", "Refund thresholds"], "dependencies": ["Support/CRM integration"] },
+              { "phase_id": "p3", "title": "Predictive Support Model", "duration_days": 36, "objectives": ["Prevent ticket creation"], "deliverables": ["At-risk order alerts", "Proactive comms", "Playbooks"], "dependencies": ["Event tracking"] }
+            ]
+          },
+          "resource_requirements": [
+            { "role": "AI/Automation Engineer", "allocation_percent": 65, "active_phase": "p1" },
+            { "role": "Ops Lead", "allocation_percent": 25, "active_phase": "p1" }
+          ],
+          "risk_profile": [
+            { "risk_id": "r1", "probability": "medium", "impact": "high", "mitigation": "Human-in-loop for refunds/edge cases; phased rollout." }
+          ],
+          "assumptions_used": [
+            "inputs.assumptions.support_tickets_per_week",
+            "inputs.assumptions.labor_cost_per_hour",
+            "inputs.assumptions.monthly_revenue"
+          ],
+          "confidence_model": { "confidence_score": 86, "confidence_reasoning": "Higher tickets increased dominance; evidence remains consistent." },
+          "priority_score": { "impact_score": 10, "feasibility_score": 7, "risk_score": 4, "computed_priority": 8.4 }
+        },
+
+        {
+          "recommendation_id": "R2",
+          "version": "v2",
+          "core_problem": { "problem_id": "B2", "problem_title": "Tool Fragmentation & Manual Reporting", "severity_score": 8, "pillar_impact": ["operations", "software", "consultancy"] },
+          "strategic_decision": {
+            "why_now": "Higher labor cost increases the penalty of manual reporting work.",
+            "why_first": "Second because it improves visibility and prevents wrong decisions.",
+            "expected_time_to_impact_days": 30
+          },
+          "impact_profile": {
+            "impact_type": ["efficiency", "risk_reduction"],
+            "primary_metric": "manual_reporting_hours_per_week",
+            "baseline_value": 12,
+            "target_value_30d": 6,
+            "target_value_60d": 3,
+            "target_value_90d": 1,
+            "unit": "hours"
+          },
+          "execution_plan": {
+            "total_duration_days": 90,
+            "phases": [
+              { "phase_id": "p1", "title": "KPI Standardization", "duration_days": 14, "objectives": ["Align definitions"], "deliverables": ["KPI dictionary", "Owner map"], "dependencies": ["Leadership approval"] },
+              { "phase_id": "p2", "title": "Automated Dashboards", "duration_days": 35, "objectives": ["Remove manual stitching"], "deliverables": ["Auto dashboards", "Data checks"], "dependencies": ["System access"] },
+              { "phase_id": "p3", "title": "Alerts + Forecasting", "duration_days": 41, "objectives": ["Detect anomalies"], "deliverables": ["Alerts", "Forecast indicators"], "dependencies": ["Event consistency"] }
+            ]
+          },
+          "resource_requirements": [
+            { "role": "Data/Automation Engineer", "allocation_percent": 50, "active_phase": "p2" }
+          ],
+          "risk_profile": [
+            { "risk_id": "r2", "probability": "medium", "impact": "medium", "mitigation": "Start with core KPIs only." }
+          ],
+          "assumptions_used": [
+            "inputs.assumptions.labor_cost_per_hour"
+          ],
+          "confidence_model": { "confidence_score": 78, "confidence_reasoning": "Evidence stable; ROI sensitivity improved due to labor cost update." },
+          "priority_score": { "impact_score": 8, "feasibility_score": 6, "risk_score": 5, "computed_priority": 6.9 }
+        },
+
+        {
+          "recommendation_id": "R3",
+          "version": "v2",
+          "core_problem": { "problem_id": "B3", "problem_title": "Approval Bottleneck & Founder Dependency", "severity_score": 7, "pillar_impact": ["governance", "operations", "consultancy"] },
+          "strategic_decision": {
+            "why_now": "Approvals continue to slow execution; keep as third after stabilization and reporting spine.",
+            "why_first": "Third because it becomes easier once workflows are formalized.",
+            "expected_time_to_impact_days": 14
+          },
+          "impact_profile": {
+            "impact_type": ["efficiency", "risk_reduction"],
+            "primary_metric": "approval_cycle_time_reduction_percent",
+            "baseline_value": 0,
+            "target_value_30d": 20,
+            "target_value_60d": 35,
+            "target_value_90d": 50,
+            "unit": "percentage"
+          },
+          "execution_plan": {
+            "total_duration_days": 60,
+            "phases": [
+              { "phase_id": "p1", "title": "Decision Rights + SLA", "duration_days": 14, "objectives": ["Reduce queue time"], "deliverables": ["Decision matrix", "SLA rules"], "dependencies": ["Leadership sign-off"] },
+              { "phase_id": "p2", "title": "Workflow Routing", "duration_days": 46, "objectives": ["Automate approvals"], "deliverables": ["Routing rules", "Exception playbooks"], "dependencies": ["Workflow tool"] }
+            ]
+          },
+          "resource_requirements": [
+            { "role": "Ops Lead", "allocation_percent": 25, "active_phase": "p1" }
+          ],
+          "risk_profile": [
+            { "risk_id": "r3", "probability": "low", "impact": "medium", "mitigation": "Pilot first; expand." }
+          ],
+          "assumptions_used": [],
+          "confidence_model": { "confidence_score": 72, "confidence_reasoning": "Still missing baseline cycle-time; unchanged." },
+          "priority_score": { "impact_score": 7, "feasibility_score": 7, "risk_score": 4, "computed_priority": 6.8 }
+        }
+      ]
+    },
+
+    "roi": {
+      "status": "mock",
+      "portfolio": {
+        "investment_estimate": { "min": 22000, "max": 42000 },
+        "expected_annual_net_gain_range": { "min": 175000, "max": 285000 },
+        "displayed_roi_percent_range": { "low": 140, "mid": 240, "high": 350 },
+        "cap_applied": true,
+        "payback_months_range": { "min": 2.0, "max": 5.5 },
+        "assumptions_used": [
+          "inputs.assumptions.support_tickets_per_week",
+          "inputs.assumptions.labor_cost_per_hour",
+          "inputs.assumptions.monthly_revenue"
+        ]
+      },
+      "by_recommendation": [
+        {
+          "recommendation_id": "R1",
+          "investment_estimate": { "min": 9000, "max": 16000 },
+          "gain_annual_range": { "min": 95000, "max": 170000 },
+          "roi_percent_range_display": { "low": 180, "mid": 290, "high": 350 },
+          "cap_applied": true,
+          "confidence_adjusted": true
+        },
+        {
+          "recommendation_id": "R2",
+          "investment_estimate": { "min": 7000, "max": 14000 },
+          "gain_annual_range": { "min": 35000, "max": 75000 },
+          "roi_percent_range_display": { "low": 90, "mid": 150, "high": 220 },
+          "cap_applied": false,
+          "confidence_adjusted": true
+        },
+        {
+          "recommendation_id": "R3",
+          "investment_estimate": { "min": 6000, "max": 12000 },
+          "gain_annual_range": { "min": 20000, "max": 40000 },
+          "roi_percent_range_display": { "low": 60, "mid": 100, "high": 160 },
+          "cap_applied": false,
+          "confidence_adjusted": true
+        }
+      ]
+    }
+  },
+
+  "history": [
+    {
+      "version": "v1",
+      "previous_version": null,
+      "timestamp": "2026-02-28T12:00:00Z",
+      "actor": "system",
+      "source": "auto",
+      "delta_log": [],
+      "recalc": { "scoring": true, "portfolio": true, "feasibility": true, "confidence": true, "roi": true, "cortex_narrative": true },
+      "summary": "Initial portfolio generated from diagnostic + baseline assumptions."
+    },
+    {
+      "version": "v2",
+      "previous_version": "v1",
+      "timestamp": "2026-02-28T12:22:00Z",
+      "actor": "team_user",
+      "source": "chat",
+      "delta_log": [
+        {
+          "path": "inputs.assumptions.support_tickets_per_week",
+          "old": 220,
+          "new": 350,
+          "reason": "Peak season volume clarified in chat"
+        },
+        {
+          "path": "inputs.assumptions.labor_cost_per_hour",
+          "old": 18,
+          "new": 22,
+          "reason": "Updated blended hourly cost"
+        }
+      ],
+      "recalc": { "scoring": true, "portfolio": true, "feasibility": true, "confidence": true, "roi": true, "cortex_narrative": true },
+      "summary": "Updated assumptions; recalculated confidence and ROI; support sprint urgency increased."
+    }
+  ]
+}

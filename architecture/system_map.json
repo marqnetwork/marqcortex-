@@ -1,0 +1,204 @@
+{
+  "_meta": {
+    "protocol": "MARQ Code Intelligence OS v3.3",
+    "generated": "2026-07-02",
+    "canonical_doc": "ARCHITECT.md",
+    "manifest": "src/system/manifest.ts",
+    "confidence": "PROVEN",
+    "evidence_source": "Direct file reads — no inference"
+  },
+
+  "product": {
+    "name": "MARQ Cortex Diagnostic Platform",
+    "type": "SPA + Supabase Edge Function",
+    "framework": "React 18 + TypeScript + Vite 6 + Tailwind v4",
+    "router": "createHashRouter",
+    "router_evidence": "src/app/App.tsx",
+    "theme": "Eclipse dark (#0A0A0F)",
+    "core_rule": "Math decides priority. LLM only explains decisions.",
+    "runtime_mode": "DEMO",
+    "runtime_flag_file": "src/config/features.ts",
+    "runtime_flag_value": "FEATURES.BACKEND_INTEGRATION = false",
+    "dev_server": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "config": "vite.config.ts",
+      "host": true,
+      "port": 5173
+    }
+  },
+
+  "top_level_directories": {
+    "ARCHITECT.md": "Canonical map + root pointer (read first)",
+    "architecture": "system_map.json (machine-readable snapshot)",
+    "src/app": "React app — components, contexts, core, hooks, lib, pages, services, types, utils",
+    "src/config": "features.ts, api.config.ts, runtime.ts",
+    "src/system": "manifest.ts (158 nodes), types.ts, validate.ts, system_map.json",
+    "src/styles": "Global CSS, theme tokens",
+    "src/types": "Shared api.types.ts",
+    "src/imports": "Specs, schemas, static assets",
+    "supabase/functions/server": "Hono backend — index.tsx + 7 service files",
+    "memory": "failure_library, regression_cases, pattern_violations",
+    "utils/supabase": "projectId, publicAnonKey"
+  },
+
+  "entry_points": {
+    "index.html": "Shell, mounts #root",
+    "src/main.tsx": "Bootstrap, error fallbacks, lazy App import",
+    "src/app/App.tsx": "Hash router, makeLazy() factory",
+    "src/app/pages/RootLayout.tsx": "AppProvider, ErrorBoundary, OfflineBanner"
+  },
+
+  "routes": {
+    "#/": { "page": "src/app/pages/LandingPageRoute.tsx", "load": "eager" },
+    "#/get-started": { "page": "src/app/pages/LeadMagnetRoute.tsx", "load": "lazy" },
+    "#/diagnostic": { "page": "src/app/pages/DiagnosticRoute.tsx", "load": "lazy" },
+    "#/score": { "page": "src/app/pages/ScoreRoute.tsx", "load": "lazy" },
+    "#/team/login": { "page": "src/app/pages/TeamLoginRoute.tsx", "load": "lazy" },
+    "#/team/dashboard": { "page": "src/app/pages/TeamDashboardRoute.tsx", "load": "lazy" },
+    "#/team/execution": { "page": "src/app/pages/ExecutionRoute.tsx", "load": "lazy" },
+    "#/client/login": { "page": "src/app/pages/ClientLoginRoute.tsx", "load": "lazy" },
+    "#/client/portal": { "page": "src/app/pages/ClientPortalRoute.tsx", "load": "lazy" },
+    "#/architecture": { "component": "src/app/components/SystemArchitecture.tsx", "load": "lazy" },
+    "#/registry": { "component": "src/app/components/RegistryViewer.tsx", "load": "lazy" }
+  },
+
+  "data_flow": {
+    "description": "Component → dataService.ts → [demoData | api.ts] → Edge Function → KV",
+    "gateway_rule": "ALL components import data from dataService.ts ONLY",
+    "gateway_file": "src/app/services/dataService.ts",
+    "demo_bypass": "isDemo() = !FEATURES.BACKEND_INTEGRATION"
+  },
+
+  "auth": {
+    "team": {
+      "mechanism": "Email + password → token",
+      "demo_credentials": "admin@marqcortex.com / CortexAdmin2026!",
+      "demo_credentials_file": "src/app/services/dataService.ts",
+      "session_storage": "marq_cortex_team_session",
+      "expiry_key": "marq_cortex_team_session_expiry",
+      "ttl": "8 hours",
+      "context": "src/app/contexts/AppContext.tsx"
+    },
+    "client": {
+      "mechanism": "Email verify → submissionId + optional sessionToken",
+      "session_storage": "marq_cortex_client_session",
+      "context": "src/app/contexts/AppContext.tsx"
+    }
+  },
+
+  "frontend_layers": {
+    "state_management": {
+      "AppContext": "src/app/contexts/AppContext.tsx",
+      "DashboardContext": "src/app/contexts/DashboardContext.tsx",
+      "GlobalAIChatContext": "src/app/contexts/GlobalAIChatContext.tsx"
+    },
+    "data_access": {
+      "gateway": "src/app/services/dataService.ts",
+      "cortex_gateway": "src/app/services/cortexDataService.ts",
+      "http_client": "src/app/lib/api.ts",
+      "supabase_client": "src/app/lib/supabase.ts"
+    },
+    "team_dashboard_shell": {
+      "layout": "src/app/components/TeamDashboardLayout.tsx",
+      "content": "src/app/components/TeamDashboardNew.tsx",
+      "provider_order": "GlobalAIChatProvider (outer) > DashboardProvider (inner)"
+    }
+  },
+
+  "client_portal_tabs": [
+    "status",
+    "solution",
+    "report",
+    "schedule",
+    "proposal",
+    "messages",
+    "assessment",
+    "strategic-report"
+  ],
+
+  "team_dashboard_panels": [
+    "dashboard",
+    "cortex",
+    "team",
+    "settings",
+    "reviewer",
+    "analytics",
+    "emails",
+    "revenue",
+    "mapping",
+    "execution",
+    "architecture"
+  ],
+
+  "core_engines": {
+    "location": "src/app/core/",
+    "count": 35,
+    "orchestrator": "runCortexEngine() in src/app/core/index.ts",
+    "rule": "Pure functions. No React. No side effects. No LLM calls.",
+    "load_bearing": ["scoringEngine.ts", "decisionEngine.ts", "roiEngine.ts", "proposalGateEngine.ts"]
+  },
+
+  "backend": {
+    "runtime": "Supabase Edge Functions (Deno)",
+    "framework": "Hono",
+    "entry": "supabase/functions/server/index.tsx",
+    "base_path": "/make-server-324f4fbe",
+    "route_count": 68,
+    "ai_services": [
+      "cortexAnalysis.ts",
+      "cortexNarrative.ts",
+      "cortexChat.ts",
+      "blockAiAssist.ts",
+      "copilotPatch.ts",
+      "emailService.ts"
+    ]
+  },
+
+  "manifest": {
+    "file": "src/system/manifest.ts",
+    "version": "2.0.0",
+    "node_count": 158,
+    "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
+    "viewer": "src/app/components/RegistryViewer.tsx",
+    "legacy_orphan": "src/app/utils/registryData*.ts"
+  },
+
+  "known_debt": {
+    "missing_session_ts": {
+      "file": "src/app/lib/session.ts",
+      "impact": "api.ts imports ClientAuthContext — build break",
+      "severity": "CRITICAL"
+    },
+    "missing_client_expiry": {
+      "symbol": "isClientSessionExpired",
+      "referenced_in": "src/app/pages/ClientPortalRoute.tsx",
+      "impact": "Not exported from AppContext — build break",
+      "severity": "CRITICAL"
+    },
+    "dual_scoring": {
+      "public": "src/app/utils/instantScoring.ts",
+      "authoritative": "src/app/core/scoringEngine.ts",
+      "severity": "DRIFT"
+    },
+    "session_key_drift": {
+      "wrong_keys": ["team_access_token", "team_user"],
+      "canonical": "marq_cortex_team_session",
+      "files": ["EmailNurturePanel.tsx", "TeamHomeDashboard.tsx", "FullFeaturedDashboard.tsx", "TeamMessageThread.tsx"],
+      "severity": "DRIFT"
+    },
+    "no_tests": true,
+    "missing_api_spec": "API_SPECIFICATIONS.md referenced but absent"
+  },
+
+  "task_lookup": {
+    "routing": "src/app/App.tsx",
+    "feature_flags": "src/config/features.ts",
+    "all_data_calls": "src/app/services/dataService.ts",
+    "scoring_public": "src/app/utils/instantScoring.ts",
+    "scoring_engine": "src/app/core/scoringEngine.ts",
+    "roi": "src/app/core/roiEngine.ts",
+    "manifest": "src/system/manifest.ts",
+    "dev_server": "vite.config.ts"
+  }
+}

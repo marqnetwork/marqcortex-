@@ -1,0 +1,183 @@
+{
+  "_meta": {
+    "protocol": "MARQ Code Intelligence OS v3.2 — Step 10",
+    "generated": "2026-03-06",
+    "rule": "Every violation must include a file reference, confidence tag, and evidence string."
+  },
+
+  "violations": [
+
+    {
+      "id": "PV-001",
+      "name": "Direct api.ts import in a component",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/services/dataService.ts lines 1–36 — header explicitly states: 'EVERY component imports from here instead of directly from api.ts or demoData.ts. The FEATURES.BACKEND_INTEGRATION check lives HERE — nowhere else.'",
+      "pattern_to_detect": "import.*from '@/app/lib/api'  (in any file outside dataService.ts or cortexDataService.ts)",
+      "correct": "import { functionName } from '@/app/services/dataService'",
+      "wrong": "import { functionName } from '@/app/lib/api'",
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-002",
+      "name": "toFixed() without null guard",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "Convention established across all ROI display components. src/app/core/scoringEngine.ts uses direct arithmetic — if null propagates to a display component and toFixed() is called without guard, runtime throws.",
+      "pattern_to_detect": "/\\.toFixed\\(/ without preceding ?? 0",
+      "correct": "(value ?? 0).toFixed(2)",
+      "wrong": "value.toFixed(2)",
+      "known_violations": "UNKNOWN — grep required across all display components",
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-003",
+      "name": "Fragment shorthand <> instead of <span className='contents'>",
+      "severity": "WARNING",
+      "confidence": "PROVEN",
+      "evidence": "Project convention. src/app/components/ui/chart.tsx is the only documented exception.",
+      "pattern_to_detect": "return (\\s*<>",
+      "correct": "<span className=\"contents\">...</span>",
+      "wrong": "<>...</>",
+      "exceptions": ["src/app/components/ui/chart.tsx"],
+      "known_violations": "UNKNOWN — grep required",
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-004",
+      "name": "LLM call used to determine an outcome (not explain it)",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/core/scoringEngine.ts lines 11–12: 'RULE: Same input → same scores. No randomness. No LLM.' Product core rule: Math decides priority. LLM only explains decisions.",
+      "pattern_to_detect": "Any AI service response (cortexChat, cortexAnalysis, cortexNarrative) used to SET a score, recommendation, or priority value",
+      "correct": "Run scoringEngine.ts → pass DomainScores to cortexNarrative.ts for explanation text only",
+      "wrong": "Ask LLM 'what score should this domain get?' and use the answer as a score",
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-005",
+      "name": "Eager import of pdfExport",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/utils/registryData.ts MQC-APP-001 debugNotes: 'pdfExport eagerly imported via LeadMagnetCapture→LeadMagnetRoute chain — future improvement: lazy-import pdfExport'",
+      "pattern_to_detect": "import.*pdfExport  (top-level static import in any component)",
+      "correct": "const { generatePDF } = await import('@/app/utils/pdfExport')  (inside handler function)",
+      "wrong": "import { generatePDF } from '@/app/utils/pdfExport'  (top-level)",
+      "known_violations": 1,
+      "known_violation_location": "src/app/components/LeadMagnetCapture.tsx (via import chain)",
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-006",
+      "name": "TeamDashboardNew panel converted from lazy to eager import",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/App.tsx comment — heavy routes are lazy-loaded. TeamDashboardNew contains 20+ panels. Eager imports would cause the entire panel tree to load on first dashboard mount.",
+      "pattern_to_detect": "static import of a panel component inside TeamDashboardNew.tsx",
+      "correct": "const PanelName = React.lazy(() => import('./panels/PanelName'))",
+      "wrong": "import { PanelName } from './panels/PanelName'  (inside TeamDashboardNew.tsx)",
+      "affected_files": ["src/app/components/TeamDashboardNew.tsx"],
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-007",
+      "name": "SUPABASE_SERVICE_ROLE_KEY exposed to frontend",
+      "severity": "CRITICAL",
+      "confidence": "PROVEN — currently safe",
+      "evidence": "supabase/functions/server/index.tsx line 4: service key accessed via Deno.env only. No frontend file imports it. src/app/lib/supabase.ts uses publicAnonKey only.",
+      "pattern_to_detect": "SUPABASE_SERVICE_ROLE_KEY in any file under /src/",
+      "correct": "Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')  (backend only)",
+      "wrong": "import { serviceRoleKey } from anywhere in /src/",
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-008",
+      "name": "Hono route missing /make-server-324f4fbe prefix",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/lib/api.ts line 7: BASE = 'https://${projectId}.supabase.co/functions/v1/make-server-324f4fbe'. All fetch calls append routes to this base. Backend routes without the prefix will 404.",
+      "pattern_to_detect": "app.get|app.post|app.put|app.delete|app.patch with path not starting with '/make-server-324f4fbe/'",
+      "correct": "app.get('/make-server-324f4fbe/submissions', handler)",
+      "wrong": "app.get('/submissions', handler)",
+      "affected_files": ["supabase/functions/server/index.tsx"],
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-009",
+      "name": "Client portal tab order changed",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "src/app/utils/registryAudit.ts lines 73–82: MQC-INT-027 through MQC-INT-034 enumerate exact tab order in client source code audit. Tab order confirmed: Status, Solution, Readiness Report, Schedule a Call, Proposal, Messages, Your Assessment, Strategic Report.",
+      "required_order": ["Status", "Solution", "Readiness Report", "Schedule a Call", "Proposal", "Messages", "Your Assessment", "Strategic Report"],
+      "affected_files": ["src/app/components/ClientPortal.tsx"],
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-010",
+      "name": "GlobalAIChatProvider moved inside DashboardContextProvider",
+      "severity": "ERROR",
+      "confidence": "PROVEN",
+      "evidence": "Architecture constraint: AI chat must be available to all dashboard panels. DashboardContext panels need AI chat access. GlobalAIChatProvider must be the outer layer so all inner consumers can access it. Confirmed pattern in TeamDashboardLayout.tsx.",
+      "required_nesting": "GlobalAIChatProvider (outer) > DashboardContextProvider (inner) > Outlet",
+      "wrong_nesting": "DashboardContextProvider (outer) > GlobalAIChatProvider (inner) > Outlet",
+      "affected_files": ["src/app/components/TeamDashboardLayout.tsx"],
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-011",
+      "name": "New PAGE, CORE, or SVC file created without manifest entry",
+      "severity": "WARNING",
+      "confidence": "PROVEN",
+      "evidence": "src/system/manifest.ts is the active navigation layer read by RegistryViewer.tsx. Missing entries mean AI agents and developers cannot locate files by purpose. PAGE (12), CORE (35), SVC (9) are the categories requiring entries per the manifest schema in src/system/types.ts.",
+      "pattern_to_detect": "New file in src/app/core/, src/app/pages/, or supabase/functions/server/ without a corresponding entry in src/system/manifest.ts",
+      "correct": "Add manifest entry first, then create the file",
+      "wrong": "Create file, skip manifest update",
+      "known_violations": 0,
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-012",
+      "name": "Search input without debounce filtering a large list",
+      "severity": "WARNING",
+      "confidence": "PROVEN",
+      "evidence": "src/app/components/RegistryViewer.tsx was rebuilt with explicit debounce (300ms) because filtering 158 nodes on every keystroke caused visible lag. This pattern must be applied consistently.",
+      "pattern_to_detect": "onChange={e => setState(e.target.value)} on a search input followed by direct useMemo/filter using the raw state value, where list length > 50",
+      "correct": "const debouncedQuery = useDebounce(query, 300); const filtered = useMemo(() => list.filter(...debouncedQuery...), [debouncedQuery])",
+      "wrong": "const filtered = useMemo(() => list.filter(...query...), [query])  (no debounce)",
+      "known_violations": "UNKNOWN — grep required across all search inputs",
+      "last_verified": "2026-03-06"
+    },
+
+    {
+      "id": "PV-013",
+      "name": "Context importing a type from a component (inverted dependency)",
+      "severity": "WARNING",
+      "confidence": "PROVEN",
+      "evidence": "src/app/contexts/AppContext.tsx line 13: 'import type { ContactInfo } from @/app/components/LeadMagnetCapture' — a context layer should never depend on a component layer.",
+      "pattern_to_detect": "import.*from '@/app/components/'  in any file under src/app/contexts/",
+      "correct": "Define shared types in src/app/types/ and import from there in both the context and the component",
+      "wrong": "import type { ContactInfo } from '@/app/components/LeadMagnetCapture'  (inside a context)",
+      "known_violations": 1,
+      "known_violation_location": "src/app/contexts/AppContext.tsx line 13",
+      "last_verified": "2026-03-06"
+    }
+  ]
+}

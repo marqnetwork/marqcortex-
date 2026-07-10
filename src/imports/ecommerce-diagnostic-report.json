@@ -1,0 +1,303 @@
+{
+  "meta": {
+    "company_name": "ExampleCo",
+    "industry": "E-commerce",
+    "revenue_band": "1M-8M",
+    "team_size": 24,
+    "region": "USA",
+    "submitted_at": "2026-02-28T12:00:00Z",
+    "diagnostic_version": "v1"
+  },
+
+  "executive_summary": {
+    "readiness_score": 62,
+    "readiness_category": "Fragmented",
+    "growth_risk_level": "High",
+    "primary_bottleneck_id": "B1",
+    "secondary_bottleneck_id": "B2",
+    "estimated_annual_impact_range": { "min": 180000, "max": 260000 },
+    "narrative_summary": "Operations are growing faster than systems. Support is reactive, key workflows are manual, and tools are not reliably connected. Under a 20–30% growth scenario, response times, errors, and approval delays compound into revenue leakage and payroll inflation.",
+    "confidence_score": 0.84
+  },
+
+  "bottlenecks": [
+    {
+      "id": "B1",
+      "title": "Reactive Customer Support Bottleneck",
+      "severity": "Critical",
+      "category": "Revenue",
+      "pattern_strength": 4,
+      "causal_chain": [
+        "Repetitive tickets handled manually",
+        "Support bandwidth consumed by low-value work",
+        "High-value issues delayed",
+        "Refunds/cancellations increase",
+        "Revenue leakage compounds under growth"
+      ],
+      "stress_simulation": {
+        "growth_20_percent": "Backlog becomes persistent; response times exceed 48 hours; escalations spike.",
+        "growth_30_percent": "Refund rate rises; review score drops; support becomes the first operational failure point.",
+        "founder_absence": "Escalation decisions stall; SLA collapses; customers churn silently.",
+        "system_failure": "Order-status uncertainty triggers ticket surge and overwhelms manual triage."
+      },
+      "root_cause_hierarchy": {
+        "level_1_symptom": "Slow response times and high ticket volume",
+        "level_2_process_failure": "Repetitive queries require human handling",
+        "level_3_architecture_failure": "No deflection/routing automation layer; weak system integrations",
+        "level_4_governance_failure": "No automation-first operating model for customer lifecycle"
+      },
+      "quantified_impact": {
+        "revenue_leakage_estimate": 78000,
+        "payroll_inflation_risk": 90000,
+        "time_waste_hours_per_week": 18,
+        "growth_ceiling_percent": 20
+      },
+      "intervention_path": {
+        "short_term": "Deploy AI deflection + routing for repetitive tickets (order status, returns, FAQs).",
+        "mid_term": "Integrate unified ticketing + self-service portal connected to order data.",
+        "structural_redesign": "Shift to predictive support with lifecycle triggers, at-risk order detection, and escalation logic."
+      },
+      "supporting_questions": [
+        {
+          "question_id": "Q3",
+          "client_answer": "We reply within 24–48 hours when busy.",
+          "ai_interpretation": "Reactive workflow with no SLA protection.",
+          "structural_implication": "Backlog grows non-linearly as volume increases."
+        },
+        {
+          "question_id": "Q6",
+          "client_answer": "Customers email us mostly for order status, returns, refunds.",
+          "ai_interpretation": "High percentage of deflectable tickets.",
+          "structural_implication": "Automation can reduce load without hiring."
+        },
+        {
+          "question_id": "Q9",
+          "client_answer": "Refunds increase when support is slow.",
+          "ai_interpretation": "Service latency directly impacts revenue.",
+          "structural_implication": "Support is a revenue protection function, not a cost center."
+        }
+      ]
+    },
+
+    {
+      "id": "B2",
+      "title": "Tool Fragmentation & Manual Reporting",
+      "severity": "High",
+      "category": "Operations",
+      "pattern_strength": 3,
+      "causal_chain": [
+        "Systems don’t share reliable data",
+        "Teams rebuild reports manually",
+        "Leadership gets delayed/partial visibility",
+        "Decisions slow down",
+        "Execution becomes inconsistent across functions"
+      ],
+      "stress_simulation": {
+        "growth_20_percent": "Manual reporting time increases; data mismatches increase; decisions become delayed.",
+        "growth_30_percent": "Ops meetings become 'data reconciliation' instead of execution; errors become recurring.",
+        "founder_absence": "No single source of truth; teams interpret KPIs differently; priorities drift.",
+        "system_failure": "One integration break causes reporting blind spots and operational surprises."
+      },
+      "root_cause_hierarchy": {
+        "level_1_symptom": "Reports take too long; teams disagree on numbers",
+        "level_2_process_failure": "Data is stitched manually across tools",
+        "level_3_architecture_failure": "No unified data layer / event pipeline / standardized KPIs",
+        "level_4_governance_failure": "No defined reporting ownership + KPI definitions + data quality checks"
+      },
+      "quantified_impact": {
+        "revenue_leakage_estimate": 32000,
+        "payroll_inflation_risk": 45000,
+        "time_waste_hours_per_week": 12,
+        "growth_ceiling_percent": 30
+      },
+      "intervention_path": {
+        "short_term": "Standardize KPIs + automate weekly dashboards from source systems.",
+        "mid_term": "Introduce unified operational dashboard + scheduled data checks.",
+        "structural_redesign": "Build a lightweight data layer and event-driven reporting for real-time visibility."
+      },
+      "supporting_questions": [
+        {
+          "question_id": "Q2",
+          "client_answer": "We build weekly reports in spreadsheets.",
+          "ai_interpretation": "Manual reporting indicates missing instrumentation or integration.",
+          "structural_implication": "Decision velocity slows as complexity grows."
+        },
+        {
+          "question_id": "Q5",
+          "client_answer": "Our tools don’t talk to each other consistently.",
+          "ai_interpretation": "Fragmentation is a systemic constraint.",
+          "structural_implication": "Automation projects will fail without a data spine."
+        }
+      ]
+    },
+
+    {
+      "id": "B3",
+      "title": "Approval Bottleneck & Founder Dependency",
+      "severity": "High",
+      "category": "Governance",
+      "pattern_strength": 3,
+      "causal_chain": [
+        "Key approvals centralized",
+        "Work queues stall waiting for decisions",
+        "Team speed depends on one person",
+        "Operational cycle time expands",
+        "Growth becomes fragile"
+      ],
+      "stress_simulation": {
+        "growth_20_percent": "Approval queues grow; delays become normal; customers feel the lag.",
+        "growth_30_percent": "Founder becomes operational choke point; teams become reactive; quality drops.",
+        "founder_absence": "Work halts or proceeds inconsistently; rework increases.",
+        "system_failure": "No policy automation means exceptions escalate to humans by default."
+      },
+      "root_cause_hierarchy": {
+        "level_1_symptom": "Work waits on approvals and escalations",
+        "level_2_process_failure": "No standardized rules for routing/approving requests",
+        "level_3_architecture_failure": "No workflow engine for approvals, SLAs, and exception handling",
+        "level_4_governance_failure": "Decision rights not distributed; no operational playbooks"
+      },
+      "quantified_impact": {
+        "revenue_leakage_estimate": 24000,
+        "payroll_inflation_risk": 30000,
+        "time_waste_hours_per_week": 6,
+        "growth_ceiling_percent": 25
+      },
+      "intervention_path": {
+        "short_term": "Define decision rights + create approval SLAs and templates.",
+        "mid_term": "Implement workflow routing and exception policies with human override.",
+        "structural_redesign": "Operational playbooks + governance automation to remove dependency on any one person."
+      },
+      "supporting_questions": [
+        {
+          "question_id": "Q7",
+          "client_answer": "Many things require founder sign-off.",
+          "ai_interpretation": "Centralized approvals constrain throughput.",
+          "structural_implication": "Growth increases queue time and error rate."
+        }
+      ]
+    }
+  ],
+
+  "systemic_patterns": [
+    {
+      "pattern_name": "Manual Dependency Across Core Workflows",
+      "severity": "High",
+      "signal_count": 7,
+      "cross_departmental_presence": true,
+      "failure_cascade_potential": "Manual work consumes capacity and creates compounding delays under growth.",
+      "recurrence_probability": 0.78
+    },
+    {
+      "pattern_name": "Fragmented Tool Stack Without Reliable Data Flow",
+      "severity": "High",
+      "signal_count": 6,
+      "cross_departmental_presence": true,
+      "failure_cascade_potential": "Integration breaks create reporting blind spots and operational surprises.",
+      "recurrence_probability": 0.72
+    },
+    {
+      "pattern_name": "Governance Bottlenecks in Approval/Exception Handling",
+      "severity": "Moderate",
+      "signal_count": 4,
+      "cross_departmental_presence": true,
+      "failure_cascade_potential": "Approvals become queues; execution velocity becomes person-dependent.",
+      "recurrence_probability": 0.64
+    }
+  ],
+
+  "pillar_matrix": {
+    "operations": {
+      "score": 58,
+      "interpretation": "Operational throughput is constrained by manual workflows and inconsistent handoffs.",
+      "dominant_weakness": "Reactive execution loops",
+      "automation_leverage_potential": "High"
+    },
+    "revenue": {
+      "score": 66,
+      "interpretation": "Revenue engine works, but leaks occur when support and lifecycle systems lag.",
+      "dominant_weakness": "Retention and service latency",
+      "automation_leverage_potential": "High"
+    },
+    "systems": {
+      "score": 54,
+      "interpretation": "Tool stack exists but lacks a reliable integration spine and unified reporting.",
+      "dominant_weakness": "Data fragmentation",
+      "automation_leverage_potential": "Very High"
+    },
+    "governance": {
+      "score": 63,
+      "interpretation": "Decision rights and approvals are concentrated, slowing execution under load.",
+      "dominant_weakness": "Founder dependency",
+      "automation_leverage_potential": "Medium"
+    }
+  },
+
+  "financial_model": {
+    "direct_revenue_leakage": 134000,
+    "hidden_operational_drag": 42000,
+    "payroll_misallocation": 52000,
+    "opportunity_cost": 28000,
+    "compounding_growth_tax": 19000,
+    "total_estimated_annual_impact": 275000
+  },
+
+  "risk_model": [
+    {
+      "risk_type": "Scalability",
+      "severity": "High",
+      "trigger_threshold": "Sustained +20–30% order volume growth",
+      "probability_percent": 74,
+      "time_to_failure_estimate": "8–14 weeks at elevated volume",
+      "cascade_path": "Support delay → cancellations/refunds → negative reviews → higher CAC → lower margin"
+    },
+    {
+      "risk_type": "Data",
+      "severity": "High",
+      "trigger_threshold": "Any integration outage or inconsistent tool syncing",
+      "probability_percent": 68,
+      "time_to_failure_estimate": "Immediate visibility loss within 1–2 reporting cycles",
+      "cascade_path": "Bad data → wrong decisions → operational misalignment → recurring errors"
+    },
+    {
+      "risk_type": "Dependency",
+      "severity": "High",
+      "trigger_threshold": "Founder unavailable or overloaded; approval queues increase",
+      "probability_percent": 62,
+      "time_to_failure_estimate": "2–6 weeks as queues accumulate",
+      "cascade_path": "Approvals stall → cycle time expands → team frustration → quality drops"
+    },
+    {
+      "risk_type": "Compliance",
+      "severity": "Moderate",
+      "trigger_threshold": "Handling sensitive customer data without formal policies",
+      "probability_percent": 38,
+      "time_to_failure_estimate": "Policy risk increases as team size grows",
+      "cascade_path": "Data handling gaps → reputational risk → vendor/partner restrictions"
+    }
+  ],
+
+  "confidence_layer": {
+    "total_signals_detected": 44,
+    "corroborated_patterns": 3,
+    "contradiction_flags": 1,
+    "weak_signal_flags": 2,
+    "ai_confidence_score": 0.84
+  },
+
+  "answers": [
+    { "question_id": "Q1", "question": "Describe your current operations workflow.", "text": "We run day-to-day ops in Slack and spreadsheets; tasks are manual and assigned ad-hoc." },
+    { "question_id": "Q2", "question": "How do you report on performance?", "text": "Weekly spreadsheets; we pull data from Shopify and email reports manually." },
+    { "question_id": "Q3", "question": "What is your average support response time?", "text": "Usually 24–48 hours when busy." },
+    { "question_id": "Q4", "question": "Where do you lose the most time weekly?", "text": "Support follow-ups, reporting, and approvals." },
+    { "question_id": "Q5", "question": "Do your tools talk to each other?", "text": "Not reliably. Some integrations break or aren’t set up fully." },
+    { "question_id": "Q6", "question": "What are the most common customer requests?", "text": "Order status, returns, refunds, and delivery questions." },
+    { "question_id": "Q7", "question": "Where do approvals slow things down?", "text": "Founder sign-off is needed for escalations and special cases." },
+    { "question_id": "Q8", "question": "How do you handle inventory and fulfillment updates?", "text": "Mostly manual checks; sometimes inventory mismatches happen." },
+    { "question_id": "Q9", "question": "What happens when support is slow?", "text": "Refunds rise and customers complain publicly." },
+    { "question_id": "Q10", "question": "How do you follow up after purchase?", "text": "Mostly manual or not consistent." },
+    { "question_id": "Q11", "question": "Do you use any AI today?", "text": "Basic tools for writing, nothing operational." },
+    { "question_id": "Q12", "question": "What’s your biggest growth constraint?", "text": "Things break when volume spikes, we hire but it doesn’t fix the core problems." },
+    { "question_id": "Q13", "question": "How do you manage exceptions?", "text": "We escalate in Slack; decisions vary by person." },
+    { "question_id": "Q14", "question": "What’s your timeline to improve operations?", "text": "Within 60–90 days ideally." }
+  ]
+}

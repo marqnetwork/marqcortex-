@@ -1,0 +1,129 @@
+Lock the Recommendation Output Schema
+
+Your system must ALWAYS return recommendations in this fixed structure:
+
+{
+  "primary_recommendation": {
+    "title": "",
+    "why_this_first": "",
+    "confidence_score": 0,
+    "expected_impact": {
+      "revenue_lift_percent": 0,
+      "cost_reduction_percent": 0,
+      "time_saved_hours_month": 0
+    },
+    "implementation_window_days": 30
+  },
+  "focus_areas_90_days": [],
+  "what_not_to_do": [],
+  "solution_blueprint": {
+    "phases": [],
+    "kpis": [],
+    "risks": []
+  },
+  "investment_summary": {
+    "estimated_cost_range": "",
+    "payback_period_weeks": "",
+    "roi_percent_12_month": ""
+  }
+}
+
+No variation.
+Every recommendation must map into this.
+
+2️⃣ Build the Internal Scoring Logic (Deterministic Layer)
+
+Before any AI model, you must have rule-based scoring.
+
+Example:
+
+if (support_ticket_volume > 150 && avg_response_time > 12) {
+   core_problem = "Customer Service Bottleneck"
+   priority_score = 9
+}
+
+if (inventory_sync_manual === true && oversell_incidents > 2) {
+   core_problem = "Inventory Chaos"
+   priority_score = 8
+}
+
+if (cart_abandonment_rate > 65) {
+   core_problem = "Revenue Leakage"
+   priority_score = 7
+}
+
+Then:
+
+sort by priority_score desc
+pick highest
+
+This ensures stability before LLM exists.
+
+3️⃣ Build Recommendation Mapping Table
+
+Core Problem → Sprint Template
+
+Core Problem	Sprint
+Customer Service Bottleneck	Automation Sprint
+Inventory Chaos	Inventory Sync Sprint
+High CAC	Retention Sprint
+Low Repeat Rate	Lifecycle Optimization Sprint
+
+This makes output predictable.
+
+4️⃣ Create Editable Content Blocks (Figma Safe)
+
+Right now you are in Figma-only mode.
+
+So store:
+
+Phase titles
+
+Deliverables
+
+KPIs
+
+Risk registry
+
+Investment ranges
+
+As static JSON objects inside the frontend.
+
+Later you swap static JSON → API response.
+
+Do NOT hardcode text into components.
+Bind everything to a data object.
+
+5️⃣ Add Confidence Layer
+
+You need this immediately:
+
+"confidence_score": 82
+
+Calculated from:
+
+Data completeness %
+
+Consistency of answers
+
+Severity score gap between top 2 problems
+
+If gap is small → confidence lower.
+
+This makes your system feel intelligent.
+
+6️⃣ Add “Why This, Why Not Others” Logic
+
+Every recommendation must explain:
+
+Why chosen
+
+Why not the others yet
+
+This builds trust.
+
+Example:
+
+We are not recommending platform migration because current stack is sufficient and operational inefficiency is the root cause.
+
+That logic layer is critical.

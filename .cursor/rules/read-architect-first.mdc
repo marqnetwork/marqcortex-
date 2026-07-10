@@ -1,0 +1,15 @@
+---
+description: Read the architecture map before exploring the MARQ Cortex codebase
+alwaysApply: true
+---
+
+Before searching or reading files across the repo, read `ARCHITECT.md` at the repo root.
+
+Use it to:
+- Find the correct file for the task (§5 Task → file lookup)
+- Understand routes, data flow, and golden rules
+- Avoid scanning `node_modules` or the full `src/` tree
+
+Only open `src/system/manifest.ts` when you need a specific node ID or dependency graph.
+
+After structural changes, update `ARCHITECT.md` and `architecture/system_map.json`.

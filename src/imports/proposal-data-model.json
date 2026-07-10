@@ -1,0 +1,114 @@
+Proposal Data Model Foundation (Build Spec)
+Goal
+
+Create a single Proposal payload that your UI can render into cards and your team can edit safely, without APIs. This is the source of truth for Proposal tab.
+
+1) Create proposal as a first-class artifact
+
+Add a new artifact type (or JSON object in your current store) called:
+
+proposal_draft
+
+It must reference:
+
+client_id
+
+diagnostic_id
+
+portfolio_version_id (so proposal always ties to a locked ROI/recommendation version)
+
+2) Proposal Payload v1 (Copy-paste JSON schema)
+
+Use this exact structure:
+
+{
+  "proposal_id": "P-0001",
+  "status": "draft",
+  "client": {
+    "client_id": "C-0001",
+    "company_name": "ExampleCo",
+    "industry": "SaaS",
+    "region": "USA",
+    "primary_contact": {
+      "name": "—",
+      "title": "COO",
+      "email": "—"
+    }
+  },
+  "linkage": {
+    "diagnostic_id": "D-0001",
+    "portfolio_version_id": "v4",
+    "generated_from": ["diagnostic", "recommendations", "roi"]
+  },
+  "executive_brief": {
+    "title": "AI Transformation Opportunity Brief",
+    "strategic_context": "",
+    "why_now": "",
+    "what_success_looks_like": "",
+    "positioning_statement": "We install AI systems that reduce labor, remove bottlenecks, and scale revenue, without hiring more people."
+  },
+  "diagnosis_blocks": [
+    {
+      "diagnosis_id": "DX-01",
+      "title": "",
+      "description": "",
+      "operational_impact": ["", ""],
+      "financial_impact": ["", ""],
+      "evidence": [
+        { "source": "questionnaire", "ref": "Q7,Q9,Q12", "note": "" },
+        { "source": "ops_pattern", "ref": "PATTERN-01", "note": "" }
+      ],
+      "severity": "high",
+      "confidence": 0
+    }
+  ],
+  "scope_boundaries": {
+    "included": ["AI readiness audit", "workflow mapping", "ROI validation", "90-day roadmap"],
+    "excluded": ["guaranteed outcomes", "medical/legal/financial advice", "fully autonomous decision-making"],
+    "assumptions": ["Client provides access to current tools and workflows", "Stakeholders attend validation sessions"]
+  },
+  "next_step_offer": {
+    "offer_name": "AI Readiness & ROI Audit",
+    "price": 4500,
+    "currency": "USD",
+    "duration": "2 weeks",
+    "primary_cta": "Approve & Begin AI Audit",
+    "secondary_cta": "Schedule Executive Clarification Call"
+  },
+  "metadata": {
+    "created_at": "ISO_DATE",
+    "last_updated_at": "ISO_DATE",
+    "created_by": "team_user_id",
+    "version": 1
+  }
+}
+
+This is Phase 1 only: no solutions yet, no timelines, no team, no ROI details beyond linkage.
+
+3) UI Cards mapped to Phase 1 fields (minimal)
+
+Your Proposal tab should render these cards from the payload:
+
+Executive Brief → executive_brief.*
+
+Confirmed Diagnosis → diagnosis_blocks[]
+
+Scope Boundaries → scope_boundaries.*
+
+Next Step Offer → next_step_offer.*
+
+4) Edit Rules (Important)
+
+Team can edit only these in Phase 1:
+
+executive_brief
+
+diagnosis_blocks
+
+scope_boundaries
+
+next_step_offer.price (optional)
+
+Everything else is read-only or system-filled.
+
+Every edit creates a new proposal.metadata.version += 1.

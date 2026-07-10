@@ -1,0 +1,168 @@
+Universal Editable Blocks + Versioning (Foundation)
+
+Goal: every UI box becomes an editable, versioned “Block”, with safe locking + audit trail. This powers inline edits, AI edits, chat edits later.
+
+1) Core Entities You Must Add (Minimum)
+
+blocks (the box itself)
+
+block_revisions (every change, human or AI)
+
+block_links (connect blocks to proposal/roi/solution/etc.)
+
+block_locks (prevent edits when sent/signed)
+
+That’s it.
+
+2) Block Types (Locked Enum)
+
+Use a strict enum so UI renders consistently:
+
+proposal_executive_brief
+
+proposal_diagnosis
+
+proposal_solution
+
+proposal_timeline
+
+proposal_team
+
+proposal_governance
+
+proposal_next_step
+
+roi_summary_narrative
+
+roi_financial_snapshot (numbers are referenced, not rewritten)
+
+recommendation_card
+
+contract_clause (usually locked)
+
+followup_email_template
+
+crm_note
+
+3) blocks Schema (Source of Truth)
+{
+  "block_id": "B-000123",
+  "block_type": "proposal_solution",
+  "title": "Workflow Automation Layer",
+  "content_format": "rich_text | structured_json",
+  "content": {},
+  "status": "draft | approved | locked",
+  "source": "human | ai | mixed",
+  "owner_user_id": "U-01",
+  "created_at": "ISO_DATE",
+  "updated_at": "ISO_DATE",
+  "current_revision_id": "R-000900",
+  "version": 1
+}
+
+Rules:
+
+UI always renders from blocks.content of current_revision_id.
+
+version increments only when a revision is accepted.
+
+4) block_revisions Schema (Audit Trail)
+{
+  "revision_id": "R-000900",
+  "block_id": "B-000123",
+  "change_type": "create | edit | ai_improve | ai_expand | ai_simplify | chat_patch",
+  "proposed_content": {},
+  "diff_summary": "Short text summary of what changed",
+  "created_by": "U-01",
+  "created_by_type": "human | ai",
+  "created_at": "ISO_DATE",
+  "approval_status": "pending | accepted | rejected",
+  "approved_by": null,
+  "approved_at": null
+}
+
+Rules:
+
+Revisions are never overwritten.
+
+Only one pending revision allowed per block (simplifies UX).
+
+Accepting revision updates the block’s content + current_revision_id.
+
+5) block_links Schema (Connect Blocks to the System)
+
+This lets one block attach to Proposal, Solution, ROI, Contract, etc.
+
+{
+  "link_id": "L-001",
+  "block_id": "B-000123",
+  "entity_type": "proposal | diagnosis | solution | phase | roi | contract | deal",
+  "entity_id": "P-0001",
+  "created_at": "ISO_DATE"
+}
+
+Rules:
+
+A block can have multiple links (ex: solution block linked to proposal + solution_id).
+
+This is how chat can “update all solution blocks”.
+
+6) block_locks Schema (Non-Negotiable)
+{
+  "lock_id": "K-0001",
+  "block_id": "B-000123",
+  "lock_reason": "proposal_sent | contract_sent | contract_signed | compliance_locked | roi_locked",
+  "locked_by": "system | admin",
+  "locked_at": "ISO_DATE",
+  "unlock_allowed": false
+}
+
+Rules:
+
+If a block is locked, only admin can create revisions.
+
+Contract clauses default unlock_allowed=false.
+
+7) Editing UX Rules (So it stays clean)
+
+Each block shows:
+
+Title
+
+Status badge (Draft/Approved/Locked)
+
+“Edit” button (if not locked)
+
+“History” button
+
+If pending revision exists: “Review changes” (Accept / Reject)
+
+No silent edits. Ever.
+
+8) Proposal “Ready Gate” now uses Blocks
+
+Proposal can move forward only if required blocks exist and are approved:
+
+Required block set for Proposal readiness:
+
+proposal_executive_brief (approved)
+
+3× proposal_diagnosis (approved)
+
+2× proposal_solution (approved)
+
+proposal_next_step (approved)
+
+Later phases add timeline/team/governance requirements.
+
+9) ROI Protection Rule (Important)
+
+roi_financial_snapshot is a reference block:
+
+It pulls numbers from ROI engine outputs
+
+Humans/AI can only edit the narrative block (roi_summary_narrative)
+
+Not the numbers
+
+This avoids “editing ROI”.

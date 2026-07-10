@@ -1,0 +1,61 @@
+/**
+ * FEATURE FLAGS
+ * 
+ * Control which features are enabled/disabled.
+ * Use this to toggle between demo mode and production backend integration.
+ */
+
+export const FEATURES = {
+  /**
+   * BACKEND_INTEGRATION
+   * 
+   * When true: Attempts to connect to Supabase backend
+   * When false: Uses demo/seed data exclusively (no API calls)
+   * 
+   * Set to false for demos, presentations, or when backend isn't deployed yet.
+   * Set to true when Supabase edge functions are deployed and ready.
+   */
+  BACKEND_INTEGRATION: false,
+
+  /**
+   * SHOW_API_ERRORS
+   * 
+   * When true: Shows error banners when API calls fail
+   * When false: Silently falls back to demo data (seamless UX)
+   * 
+   * Recommended: false for production demos, true for development/debugging
+   */
+  SHOW_API_ERRORS: false,
+
+  /**
+   * VERBOSE_LOGGING
+   * 
+   * When true: Logs detailed API call information to console
+   * When false: Minimal console output
+   * 
+   * Useful for debugging API issues
+   */
+  VERBOSE_LOGGING: false,
+} as const;
+
+/**
+ * BACKEND STATUS
+ * 
+ * Quick reference for backend deployment status and common issues:
+ * 
+ * ❌ "Failed to fetch" errors = Edge function not deployed or URL incorrect
+ * ❌ CORS errors = Edge function deployed but CORS not configured (already configured in code)
+ * ❌ 401/403 errors = Authentication issue (check access tokens)
+ * ❌ 500 errors = Edge function crashed (check server logs in Supabase dashboard)
+ * ✅ 200 responses = Backend working correctly
+ * 
+ * To deploy the edge function:
+ * 1. Install Supabase CLI: https://supabase.com/docs/guides/cli
+ * 2. Run: supabase functions deploy make-server-324f4fbe
+ * 3. Check deployment in Supabase dashboard > Edge Functions
+ * 
+ * To test if edge function is deployed:
+ * 1. Open browser console
+ * 2. Try: fetch('https://tmclwqcgqfcmqwgrogjy.supabase.co/functions/v1/make-server-324f4fbe/ping')
+ * 3. Should return: {success: true, message: "pong", ...}
+ */
