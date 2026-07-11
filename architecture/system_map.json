@@ -35,7 +35,12 @@
     "intelligence_audit": "src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md",
     "intelligence_migration_plan": "src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md",
     "intelligence_provider_guide": "src/imports/MCV2-intelligence-gateway-provider-extension-guide.md",
-    "frontend_ai_normalization": "src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md"
+    "frontend_ai_normalization": "src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md",
+    "data_platform_architecture": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
+    "database_erd": "architecture/database/MCV2-S3-ENTITY-RELATIONSHIP-DIAGRAM.md",
+    "database_table_catalog": "architecture/database/MCV2-S3-TABLE-CATALOG.md",
+    "database_migration_roadmap": "architecture/database/MCV2-S3-MIGRATION-ROADMAP.md",
+    "database_adr_register": "architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md"
   },
 
   "intelligence_gateway": {
@@ -102,10 +107,56 @@
   },
 
   "data_flow": {
-    "description": "Component → dataService.ts → [demoData | api.ts] → Edge Function → KV",
+    "description": "Component → dataService.ts → [demoData | api.ts] → Edge Function → KV (current) → PostgreSQL (planned MCV2-S3)",
     "gateway_rule": "ALL components import data from dataService.ts ONLY",
     "gateway_file": "src/app/services/dataService.ts",
-    "demo_bypass": "isDemo() = !FEATURES.BACKEND_INTEGRATION"
+    "demo_bypass": "isDemo() = !FEATURES.BACKEND_INTEGRATION",
+    "current_store": "kv_store_324f4fbe",
+    "target_store": "PostgreSQL with RLS (MCV2-S3 architecture)",
+    "architecture_doc": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md"
+  },
+
+  "database_platform": {
+    "sprint": "MCV2-S4-IMPLEMENT-001",
+    "status": "tenancy_foundation_implemented",
+    "current_persistence": {
+      "table": "kv_store_324f4fbe",
+      "helper": "supabase/functions/server/kv_store.tsx",
+      "access": "service_role only",
+      "authoritative": true
+    },
+    "relational_foundation": {
+      "tables_implemented": 6,
+      "tables": [
+        "organizations",
+        "roles",
+        "permissions",
+        "role_permissions",
+        "organization_memberships",
+        "organization_settings"
+      ],
+      "migrations": [
+        "supabase/migrations/20260711050000_cortex_tenancy_foundation.sql",
+        "supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql"
+      ],
+      "rollback": "supabase/migrations/rollbacks/20260711050000_rollback_tenancy.sql",
+      "repository": "supabase/functions/server/repositories/tenancyRepository.ts",
+      "types": "src/types/database.types.ts",
+      "rls_schema": "cortex",
+      "default_org_slug": "marq"
+    },
+    "proposed_tables": 88,
+    "proposed_domains": 12,
+    "test_commands": {
+      "static": "npm run test:database",
+      "intelligence_regression": "npm run test:intelligence"
+    },
+    "docs": {
+      "master": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
+      "completion": "architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md",
+      "local_setup": "architecture/database/LOCAL_DATABASE_SETUP.md",
+      "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
+    }
   },
 
   "auth": {

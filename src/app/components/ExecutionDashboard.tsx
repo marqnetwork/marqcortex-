@@ -2148,7 +2148,7 @@ export function ExecutionDashboard({ project }: ExecutionDashboardProps) {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-full"
       style={{ background: 'linear-gradient(135deg, #05050F 0%, #0A0A1A 60%, #080812 100%)' }}
     >
       {/* Sticky header */}

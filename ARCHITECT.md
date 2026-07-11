@@ -21,6 +21,7 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 **Intelligence audit (MCV2):** `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md`  
 **Gateway migration plan (MCV2):** `src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
+**Data platform architecture (MCV2-S3):** `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`  
 **Provider extension guide:** `src/imports/MCV2-intelligence-gateway-provider-extension-guide.md`
 
 ---
@@ -162,10 +163,33 @@ cortex/
 | Change AI provider / gateway | `supabase/functions/server/intelligence/` + extension guide |
 | Intelligence Gateway tests | `npm run test:intelligence` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
+| Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
+| Tenancy migrations (MCV2-S4) | `supabase/migrations/20260711050000_cortex_tenancy_foundation.sql` |
+| Database tests | `tests/database/` · `npm run test:database` |
+| Database ERD / table catalog | `architecture/database/MCV2-S3-*.md` |
+| KV → SQL migration roadmap | `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
 
 ---
 
-## 6. Data flow
+## 6. Data platform (MCV2-S3/S4)
+
+| Layer | Current (PROVEN) | Sprint 4 status |
+|-------|------------------|-----------------|
+| Production store | `kv_store_324f4fbe` — **still authoritative** | Unchanged |
+| Relational foundation | — | **6 tables** via `supabase/migrations/20260711050000_*.sql` |
+| Access path | Edge `index.tsx` → `kv_store.tsx` | + `repositories/tenancyRepository.ts` (not wired to routes) |
+| Team auth | Supabase Auth + `user_metadata.teamRole` | + `organization_memberships` (seed manual) |
+| RLS helpers | — | `cortex.*` functions in migration `20260711050001_*.sql` |
+
+**Migrations:** `supabase/migrations/` · **Rollback:** `supabase/migrations/rollbacks/`  
+**Tests:** `npm run test:database` · **Setup:** `architecture/database/LOCAL_DATABASE_SETUP.md`  
+**Completion:** `architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md`
+
+**Golden rule during migration:** KV remains authoritative until per-domain Phase 5 cutover.
+
+---
+
+## 7. Data flow
 
 ```
 PUBLIC FUNNEL
@@ -201,7 +225,7 @@ TEAM DASHBOARD STATE
 
 ---
 
-## 7. Auth & sessions
+## 8. Auth & sessions
 
 | Actor | Mechanism | Storage key | TTL |
 |-------|-----------|-------------|-----|
@@ -214,7 +238,7 @@ TEAM DASHBOARD STATE
 
 ---
 
-## 8. Team dashboard panels (`TeamDashboardNew.tsx`)
+## 9. Team dashboard panels (`TeamDashboardNew.tsx`)
 
 Internal `PageView` state (not hash routes except execution/architecture):
 
@@ -236,7 +260,7 @@ Shell: `TeamDashboardLayout.tsx` — sidebar, command palette, notifications, gl
 
 ---
 
-## 9. Client portal tabs (`ClientPortal.tsx`)
+## 10. Client portal tabs (`ClientPortal.tsx`)
 
 **Fixed order — do not reorder without explicit instruction:**
 
@@ -251,7 +275,7 @@ Shell: `TeamDashboardLayout.tsx` — sidebar, command palette, notifications, gl
 
 ---
 
-## 10. Core engines (`src/app/core/`)
+## 11. Core engines (`src/app/core/`)
 
 **Orchestrator:** `runCortexEngine()` in `core/index.ts`  
 **Rule:** Pure functions. No React. No side effects. No LLM.
@@ -295,7 +319,7 @@ Shell: `TeamDashboardLayout.tsx` — sidebar, command palette, notifications, gl
 
 ---
 
-## 11. Services
+## 12. Services
 
 ### Frontend gateway — `dataService.ts`
 
@@ -342,7 +366,7 @@ Base path: `/make-server-324f4fbe`
 
 ---
 
-## 12. Contexts & hooks
+## 13. Contexts & hooks
 
 | File | ID | Holds |
 |------|-----|-------|
@@ -358,7 +382,7 @@ Base path: `/make-server-324f4fbe`
 
 ---
 
-## 13. Types (`src/app/types/`)
+## 14. Types (`src/app/types/`)
 
 | File | Owns |
 |------|------|
@@ -375,7 +399,7 @@ Engine types: `src/app/core/types.ts`
 
 ---
 
-## 14. Manifest / registry
+## 15. Manifest / registry
 
 **Authoritative:** `src/system/manifest.ts` — 158 nodes  
 **ID format:** `MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}`  
@@ -387,7 +411,7 @@ Engine types: `src/app/core/types.ts`
 
 ---
 
-## 15. Go-live checklist
+## 16. Go-live checklist
 
 1. Deploy: `supabase functions deploy make-server-324f4fbe`
 2. Set `BACKEND_INTEGRATION: true` in `src/config/features.ts`
@@ -397,7 +421,7 @@ Engine types: `src/app/core/types.ts`
 
 ---
 
-## 16. Known debt & breakpoints
+## 17. Known debt & breakpoints
 
 | Issue | Status | Notes |
 |-------|--------|-------|
@@ -411,7 +435,7 @@ Engine types: `src/app/core/types.ts`
 
 ---
 
-## 17. Change checklist
+## 18. Change checklist
 
 When you change the codebase, update:
 
@@ -422,7 +446,7 @@ When you change the codebase, update:
 
 ---
 
-## 18. User journeys (quick)
+## 19. User journeys (quick)
 
 ```
 PUBLIC:  #/ → #/get-started → #/diagnostic → #/score

@@ -15,6 +15,7 @@
  */
 
 import { useState, useRef, lazy, Suspense } from 'react';
+import { useNavigate } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
 
@@ -66,9 +67,25 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
 
 type PageView = 'dashboard' | 'cortex' | 'team' | 'settings' | 'reviewer' | 'analytics' | 'emails' | 'revenue' | 'execution' | 'mapping' | 'architecture';
 
+const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+
+function readInitialPage(): PageView {
+  try {
+    const saved = sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY);
+    if (saved) {
+      sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
+      return saved as PageView;
+    }
+  } catch {
+    // sessionStorage unavailable — fall back to dashboard
+  }
+  return 'dashboard';
+}
+
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
+  const navigate = useNavigate();
   const { state, setCortexState, resetState } = useDashboard();
-  const [currentPage, setCurrentPage] = useState<PageView>('dashboard');
+  const [currentPage, setCurrentPage] = useState<PageView>(readInitialPage);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -142,11 +159,11 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   const handleNavigate = (page: string) => {
     // Routes that leave the dashboard shell — navigate via hash-router URL
     if (page === 'execution') {
-      window.location.href = '/#/team/execution';
+      navigate('/team/execution');
       return;
     }
     if (page === 'architecture') {
-      window.location.href = '/#/architecture';
+      navigate('/architecture');
       return;
     }
     setCurrentPage(page as PageView);

@@ -71,7 +71,7 @@ import type { SystemManifest } from './types';
 
 export const manifest: SystemManifest = {
   version: '2.0.0',
-  lastVerified: '2026-03-05',
+  lastVerified: '2026-07-11',
   coreRule: 'Math decides priority. LLM only explains decisions.',
   backendIntegration: false,
 
@@ -2008,6 +2008,19 @@ export const manifest: SystemManifest = {
       notes: 'Rollback per feature via INTELLIGENCE_USE_GATEWAY_* env flags. Legacy *Legacy() paths retained. See src/imports/MCV2-intelligence-gateway-provider-extension-guide.md',
     },
 
+    'MQC-SVC-011': {
+      id: 'MQC-SVC-011',
+      name: 'tenancyRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'SYSTEM',
+      filePath: 'supabase/functions/server/repositories/tenancyRepository.ts',
+      description: 'Server-side repository for organizations, memberships, roles, and settings. MCV2-S4 foundation — not wired to Hono routes yet.',
+      dependencies: [],
+      dependents: [],
+      notes: 'Uses service role client. KV remains authoritative for runtime data. See architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md',
+    },
+
     // ══════════════════════════════════════════════════════════════════════════
     // HOOKS & CONTEXTS — /src/app/hooks + /src/app/contexts  (MQC-HOOK-001 → 006)
     // ══════════════════════════════════════════════════════════════════════════
@@ -2173,6 +2186,18 @@ export const manifest: SystemManifest = {
       description: 'Types for the reviewer workflow — ChecklistItem, ReviewStatus, ReviewerAssignment.',
       dependencies: [],
       dependents: [],
+    },
+
+    'MQC-TYPE-008': {
+      id: 'MQC-TYPE-008',
+      name: 'database-types',
+      type: 'TYPE',
+      status: 'LIVE',
+      domain: 'SYSTEM',
+      filePath: 'src/types/database.types.ts',
+      description: 'Tenancy foundation database types — Organization, Role, Permission, Membership, Settings. MCV2-S4.',
+      dependencies: [],
+      dependents: ['MQC-SVC-011'],
     },
   },
 };
