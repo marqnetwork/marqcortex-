@@ -60,18 +60,18 @@ Legend: **Org-owned** = requires `organization_id`. **RLS** = `tenant` | `client
 
 | Table | Purpose | Org-owned | Key relationships | Sensitivity | RLS | Volume | Sprint |
 |-------|---------|-----------|-------------------|-------------|-----|--------|--------|
-| `diagnostic_leads` | Funnel leads | Yes | — | Medium | public-insert + tenant | Medium | 2 |
-| `contacts` | Normalized contacts | Yes | accounts | High | tenant | Medium | 2 |
-| `submissions` | Diagnostic submissions | Yes | diagnostic_leads, contacts | High | tenant + client | High | 2 |
-| `diagnostic_answers` | Per-question answers | Yes | submissions | High | tenant + client | High | 2 |
-| `diagnostic_scores` | Computed scores | Yes | submissions | Medium | tenant | High | 2 |
-| `domain_scores` | Dimension scores | Yes | submissions | Medium | tenant | High | 2 |
+| `diagnostic_leads` | Funnel leads | Yes | — | Medium | public-insert + tenant | Medium | **2 ✓** (`leads`) |
+| `contacts` | Normalized contacts | Yes | accounts | High | tenant | Medium | **2 ✓** |
+| `submissions` | Diagnostic submissions | Yes | diagnostic_leads, contacts | High | tenant + client | High | **2 ✓** |
+| `diagnostic_answers` | Per-question answers | Yes | submissions | High | tenant + client | High | **2 ✓** |
+| `diagnostic_scores` | Computed scores | Yes | submissions | Medium | tenant | High | **2 ✓** |
+| `domain_scores` | Dimension scores | Yes | submissions | Medium | tenant | High | **2 ✓** |
 | `recommendations` | Engine recommendations | Yes | submissions | Medium | tenant | Medium | 2 |
 | `portfolios` | Solution portfolios | Yes | submissions | Medium | tenant | Medium | 2 |
 | `portfolio_versions` | Immutable portfolio | Yes | portfolios | Medium | tenant | Medium | 2 |
-| `reports` | Client reports | Yes | submissions | High | client-scoped | Medium | 3 |
-| `report_versions` | Report snapshots | Yes | reports | High | client-scoped | Medium | 3 |
-| `outcomes` | Post-engagement outcomes | Yes | submissions | Medium | tenant | Low | 4 |
+| `reports` | Client reports | Yes | submissions | High | client-scoped | Medium | **2 ✓** (S5 foundation) |
+| `report_versions` | Report snapshots | Yes | reports | High | client-scoped | Medium | **2 ✓** (S5 foundation) |
+| `outcomes` | Post-engagement outcomes | Yes | submissions | Medium | tenant | Low | **2 ✓** (S5 foundation) |
 
 ---
 

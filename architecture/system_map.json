@@ -117,8 +117,8 @@
   },
 
   "database_platform": {
-    "sprint": "MCV2-S4-IMPLEMENT-001",
-    "status": "tenancy_foundation_implemented",
+    "sprint": "MCV2-S5-IMPLEMENT-002",
+    "status": "diagnostic_foundation_implemented",
     "current_persistence": {
       "table": "kv_store_324f4fbe",
       "helper": "supabase/functions/server/kv_store.tsx",
@@ -126,24 +126,42 @@
       "authoritative": true
     },
     "relational_foundation": {
-      "tables_implemented": 6,
+      "tables_implemented": 19,
+      "tenancy_tables": 6,
+      "diagnostic_tables": 13,
       "tables": [
-        "organizations",
-        "roles",
-        "permissions",
-        "role_permissions",
-        "organization_memberships",
-        "organization_settings"
+        "organizations", "roles", "permissions", "role_permissions",
+        "organization_memberships", "organization_settings",
+        "lead_sources", "leads", "lead_tags", "contacts", "contact_methods",
+        "submissions", "submission_sections", "diagnostic_answers",
+        "diagnostic_scores", "domain_scores", "reports", "report_versions", "outcomes"
       ],
       "migrations": [
         "supabase/migrations/20260711050000_cortex_tenancy_foundation.sql",
-        "supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql"
+        "supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql",
+        "supabase/migrations/20260713000000_kv_store_foundation.sql",
+        "supabase/migrations/20260714050000_cortex_diagnostic_foundation.sql",
+        "supabase/migrations/20260714050001_cortex_diagnostic_rls.sql"
       ],
-      "rollback": "supabase/migrations/rollbacks/20260711050000_rollback_tenancy.sql",
-      "repository": "supabase/functions/server/repositories/tenancyRepository.ts",
-      "types": "src/types/database.types.ts",
+      "rollback": [
+        "supabase/migrations/rollbacks/20260711050000_rollback_tenancy.sql",
+        "supabase/migrations/rollbacks/20260714050000_rollback_diagnostic.sql"
+      ],
+      "repositories": [
+        "supabase/functions/server/repositories/tenancyRepository.ts",
+        "supabase/functions/server/repositories/leadRepository.ts",
+        "supabase/functions/server/repositories/contactRepository.ts",
+        "supabase/functions/server/repositories/submissionRepository.ts",
+        "supabase/functions/server/repositories/reportRepository.ts",
+        "supabase/functions/server/repositories/outcomeRepository.ts"
+      ],
+      "types": [
+        "src/types/database.types.ts",
+        "src/types/diagnostic.database.types.ts"
+      ],
       "rls_schema": "cortex",
-      "default_org_slug": "marq"
+      "default_org_slug": "marq",
+      "kv_mapping": "architecture/database/MCV2-S5-KV-RELATIONAL-MAPPING.md"
     },
     "proposed_tables": 88,
     "proposed_domains": 12,
@@ -153,7 +171,10 @@
     },
     "docs": {
       "master": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
-      "completion": "architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md",
+      "completion": [
+        "architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md",
+        "architecture/database/MCV2-S5-IMPLEMENT-002-COMPLETION.md"
+      ],
       "local_setup": "architecture/database/LOCAL_DATABASE_SETUP.md",
       "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
     }

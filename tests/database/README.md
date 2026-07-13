@@ -1,39 +1,29 @@
-# Cortex Database Tests — Tenancy Foundation (MCV2-S4)
+# Cortex Database Tests — Tenancy (S4) + Diagnostic (S5)
 
 ## Purpose
 
-SQL and static tests for Sprint `MCV2-S4-IMPLEMENT-001`. These files validate schema shape, RLS policy presence, and seed idempotency patterns.
+SQL and static tests for:
+- `MCV2-S4-IMPLEMENT-001` — tenancy foundation
+- `MCV2-S5-IMPLEMENT-002` — diagnostic domain foundation
 
 ## Prerequisites
 
 - Supabase CLI **or** `psql` connected to a disposable Postgres 15+ database
-- Migrations applied in order:
-  1. `supabase/migrations/20260711050000_cortex_tenancy_foundation.sql`
-  2. `supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql`
-
-## Apply migrations (local)
-
-```bash
-# Option A — Supabase CLI (when installed)
-supabase db reset
-
-# Option B — psql
-psql "$DATABASE_URL" -f supabase/migrations/20260711050000_cortex_tenancy_foundation.sql
-psql "$DATABASE_URL" -f supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql
-```
+- Migrations applied in order (see `supabase/migrations/`)
 
 ## Run SQL tests
 
 ```bash
 psql "$DATABASE_URL" -f tests/database/tenancy_schema.test.sql
 psql "$DATABASE_URL" -f tests/database/tenancy_rls.test.sql
-psql "$DATABASE_URL" -f tests/database/tenancy_seed_idempotent.test.sql
+psql "$DATABASE_URL" -f tests/database/diagnostic_schema.test.sql
+psql "$DATABASE_URL" -f tests/database/diagnostic_rls.test.sql
 ```
 
 ## Run static validation (no database required)
 
 ```bash
-node --test tests/database/static_migration.test.ts
+npm run test:database
 ```
 
 ## Membership bootstrap (manual)

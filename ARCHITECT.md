@@ -4,7 +4,7 @@
 >
 > **Related:** machine snapshot → `architecture/system_map.json` · node registry → `src/system/manifest.ts`
 
-**Last verified:** 2026-07-11 · **Manifest:** `src/system/manifest.ts` v2.0.0 · **Runtime:** DEMO (`BACKEND_INTEGRATION: false`)
+**Last verified:** 2026-07-14 · **Manifest:** `src/system/manifest.ts` v2.0.0 · **Runtime:** LIVE (`BACKEND_INTEGRATION` via `.env.local`)
 
 ---
 
@@ -54,9 +54,9 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 | Router | Hash (`#/path`) — `src/app/App.tsx` |
 | Theme | Eclipse dark `#0A0A0F` |
 | Backend | Supabase Edge Functions (Deno) + Hono — `supabase/functions/server/` |
-| Supabase project | `tmclwqcgqfcmqwgrogjy` — `utils/supabase/info.tsx` |
+| Supabase project | `oqybniefkbppptfatoae` — `.env.local` + `supabase/.temp/project-ref` |
 | Dev server | `npm run dev` → `http://localhost:5173` (`vite.config.ts`: `host: true`) |
-| Feature flag | `src/config/features.ts` → `BACKEND_INTEGRATION: false` |
+| Feature flag | `src/config/features.ts` → `VITE_BACKEND_INTEGRATION` in `.env.local` |
 
 ---
 
@@ -165,25 +165,28 @@ cortex/
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
 | Tenancy migrations (MCV2-S4) | `supabase/migrations/20260711050000_cortex_tenancy_foundation.sql` |
+| Diagnostic migrations (MCV2-S5) | `supabase/migrations/20260714050000_cortex_diagnostic_foundation.sql` |
+| Diagnostic repositories | `supabase/functions/server/repositories/*Repository.ts` |
+| KV → SQL mapping (MCV2-S5) | `architecture/database/MCV2-S5-KV-RELATIONAL-MAPPING.md` |
 | Database tests | `tests/database/` · `npm run test:database` |
 | Database ERD / table catalog | `architecture/database/MCV2-S3-*.md` |
 | KV → SQL migration roadmap | `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
 
 ---
 
-## 6. Data platform (MCV2-S3/S4)
+## 6. Data platform (MCV2-S3/S4/S5)
 
-| Layer | Current (PROVEN) | Sprint 4 status |
-|-------|------------------|-----------------|
+| Layer | Current (PROVEN) | Sprint status |
+|-------|------------------|---------------|
 | Production store | `kv_store_324f4fbe` — **still authoritative** | Unchanged |
-| Relational foundation | — | **6 tables** via `supabase/migrations/20260711050000_*.sql` |
-| Access path | Edge `index.tsx` → `kv_store.tsx` | + `repositories/tenancyRepository.ts` (not wired to routes) |
+| Relational foundation | Tenancy: **6 tables** (S4) + Diagnostic: **13 tables** (S5) | Migrations in repo |
+| Access path | Edge `index.tsx` → `kv_store.tsx` | + repositories (not wired to routes) |
 | Team auth | Supabase Auth + `user_metadata.teamRole` | + `organization_memberships` (seed manual) |
-| RLS helpers | — | `cortex.*` functions in migration `20260711050001_*.sql` |
+| RLS helpers | `cortex.*` functions | S4 tenancy + S5 diagnostic helpers |
 
 **Migrations:** `supabase/migrations/` · **Rollback:** `supabase/migrations/rollbacks/`  
 **Tests:** `npm run test:database` · **Setup:** `architecture/database/LOCAL_DATABASE_SETUP.md`  
-**Completion:** `architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md`
+**Completion:** `architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md` · `MCV2-S5-IMPLEMENT-002-COMPLETION.md`
 
 **Golden rule during migration:** KV remains authoritative until per-domain Phase 5 cutover.
 

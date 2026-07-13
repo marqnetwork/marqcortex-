@@ -2021,6 +2021,81 @@ export const manifest: SystemManifest = {
       notes: 'Uses service role client. KV remains authoritative for runtime data. See architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md',
     },
 
+    'MQC-SVC-012': {
+      id: 'MQC-SVC-012',
+      name: 'leadRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/repositories/leadRepository.ts',
+      description: 'Diagnostic domain lead repository. MCV2-S5 foundation — not wired to Hono routes.',
+      dependencies: ['MQC-SVC-011'],
+      dependents: [],
+      notes: 'KV lead:* remains authoritative. Relational writes deferred to migration sprint.',
+    },
+
+    'MQC-SVC-013': {
+      id: 'MQC-SVC-013',
+      name: 'contactRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/repositories/contactRepository.ts',
+      description: 'Diagnostic domain contact repository. MCV2-S5 foundation — not wired to Hono routes.',
+      dependencies: ['MQC-SVC-011'],
+      dependents: [],
+    },
+
+    'MQC-SVC-014': {
+      id: 'MQC-SVC-014',
+      name: 'submissionRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/repositories/submissionRepository.ts',
+      description: 'Diagnostic domain submission repository with sections, answers, and scores. MCV2-S5 — not wired to routes.',
+      dependencies: ['MQC-SVC-011'],
+      dependents: [],
+      notes: 'Maps to KV sub:* namespace. No runtime cutover.',
+    },
+
+    'MQC-SVC-015': {
+      id: 'MQC-SVC-015',
+      name: 'reportRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/repositories/reportRepository.ts',
+      description: 'Client report repository with version history. MCV2-S5 — not wired to routes.',
+      dependencies: ['MQC-SVC-014'],
+      dependents: [],
+    },
+
+    'MQC-SVC-016': {
+      id: 'MQC-SVC-016',
+      name: 'outcomeRepository (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/repositories/outcomeRepository.ts',
+      description: 'Post-engagement outcome repository. MCV2-S5 — not wired to routes.',
+      dependencies: ['MQC-SVC-014'],
+      dependents: [],
+      notes: 'Maps to KV outcome:{submissionId}.',
+    },
+
+    'MQC-TYPE-009': {
+      id: 'MQC-TYPE-009',
+      name: 'diagnostic.database.types',
+      type: 'TYPE',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'src/types/diagnostic.database.types.ts',
+      description: 'TypeScript types for diagnostic domain relational tables (MCV2-S5).',
+      dependencies: [],
+      dependents: ['MQC-SVC-012', 'MQC-SVC-013', 'MQC-SVC-014', 'MQC-SVC-015', 'MQC-SVC-016'],
+    },
+
     // ══════════════════════════════════════════════════════════════════════════
     // HOOKS & CONTEXTS — /src/app/hooks + /src/app/contexts  (MQC-HOOK-001 → 006)
     // ══════════════════════════════════════════════════════════════════════════

@@ -1,1 +1,0 @@
-import{n as a,X as r,Y as s,q as i}from"./BarChart-Ben5Ba3g.js";import{A as x}from"./Area-CfnTgM9Y.js";var o=a({chartName:"AreaChart",GraphicalChild:x,axisComponents:[{axisType:"xAxis",AxisComp:r},{axisType:"yAxis",AxisComp:s}],formatAxisMap:i});export{o as A};

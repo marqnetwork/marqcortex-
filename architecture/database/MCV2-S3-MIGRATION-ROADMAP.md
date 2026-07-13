@@ -27,6 +27,7 @@
 | **Entry** | Phase 0 complete |
 | **Work** | Deploy migration SQL (Sprint 1 tables only); **KV remains authoritative**; no route changes |
 | **Exit** | Empty relational tables exist; RLS enabled; helper functions deployed |
+| **Status** | **Partial** — S4 tenancy (6 tables) + S5 diagnostic (13 tables) migrated in repo; apply via `supabase db push` |
 | **Tests** | Migration up/down in staging; RLS policy tests |
 | **Rollback** | Drop new tables (no production data yet) |
 | **Observability** | Table row counts = 0 |
