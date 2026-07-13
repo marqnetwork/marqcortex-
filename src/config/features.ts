@@ -5,6 +5,13 @@
  * Use this to toggle between demo mode and production backend integration.
  */
 
+const envFlag = (key: string, fallback: boolean) => {
+  const raw = import.meta.env[key];
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return fallback;
+};
+
 export const FEATURES = {
   /**
    * BACKEND_INTEGRATION
@@ -14,8 +21,9 @@ export const FEATURES = {
    * 
    * Set to false for demos, presentations, or when backend isn't deployed yet.
    * Set to true when Supabase edge functions are deployed and ready.
+   * Override via VITE_BACKEND_INTEGRATION in .env.local
    */
-  BACKEND_INTEGRATION: false,
+  BACKEND_INTEGRATION: envFlag('VITE_BACKEND_INTEGRATION', false),
 
   /**
    * SHOW_API_ERRORS
@@ -25,7 +33,7 @@ export const FEATURES = {
    * 
    * Recommended: false for production demos, true for development/debugging
    */
-  SHOW_API_ERRORS: false,
+  SHOW_API_ERRORS: envFlag('VITE_SHOW_API_ERRORS', false),
 
   /**
    * VERBOSE_LOGGING
@@ -35,7 +43,7 @@ export const FEATURES = {
    * 
    * Useful for debugging API issues
    */
-  VERBOSE_LOGGING: false,
+  VERBOSE_LOGGING: envFlag('VITE_VERBOSE_LOGGING', false),
 } as const;
 
 /**

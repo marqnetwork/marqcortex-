@@ -8,7 +8,10 @@
     "dev": "vite",
     "test:smoke": "playwright test",
     "test:intelligence": "node --experimental-strip-types --test supabase/functions/server/intelligence/*.test.ts",
-    "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts"
+    "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts",
+    "supabase:link": "supabase link",
+    "supabase:deploy": "supabase functions deploy make-server-324f4fbe",
+    "supabase:db-push": "supabase db push"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",

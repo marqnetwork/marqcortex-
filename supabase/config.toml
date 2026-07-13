@@ -1,0 +1,21 @@
+# Supabase local / CLI config — link with: npx supabase link --project-ref YOUR_REF
+
+project_id = "oqybniefkbppptfatoae"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "cortex"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[functions.make-server-324f4fbe]
+verify_jwt = false

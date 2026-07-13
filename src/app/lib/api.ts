@@ -1,15 +1,15 @@
 /**
  * Frontend API client — calls the Supabase Edge Function server
  */
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { edgeFunctionBaseUrl, supabaseAnonKey } from '@/config/supabase.config';
 import { FEATURES } from '@/config/features';
 import type { ClientAuthContext } from '@/app/lib/session';
 
-const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-324f4fbe`;
+const BASE = edgeFunctionBaseUrl;
 
 const headers = (token?: string | null) => ({
   'Content-Type': 'application/json',
-  'Authorization': `Bearer ${token || publicAnonKey}`,
+  'Authorization': `Bearer ${token || supabaseAnonKey}`,
 });
 
 /** Prefer server-issued client session token; fall back to anon key + email query */

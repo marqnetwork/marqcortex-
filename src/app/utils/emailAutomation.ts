@@ -21,7 +21,7 @@
  */
 
 import { FEATURES } from '@/config/features';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { edgeFunctionBaseUrl, supabaseAnonKey } from '@/config/supabase.config';
 import { log } from '@/app/utils/logger';
 
 export interface EmailTemplate {
@@ -421,8 +421,8 @@ export class EmailService {
 
       if (FEATURES.BACKEND_INTEGRATION) {
         // Route through server → Resend
-        const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-324f4fbe`;
-        const token = localStorage.getItem('team_access_token') || publicAnonKey;
+        const BASE = edgeFunctionBaseUrl;
+        const token = localStorage.getItem('team_access_token') || supabaseAnonKey;
         const res = await fetch(`${BASE}/email/send`, {
           method: 'POST',
           headers: {

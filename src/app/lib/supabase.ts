@@ -1,7 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { supabase } from '@/app/lib/supabaseClient';
 
-export const supabase = createClient(
-  `https://${projectId}.supabase.co`,
-  publicAnonKey,
-);
+export { supabase };
+export { createClient } from '@/app/lib/supabaseClient';
