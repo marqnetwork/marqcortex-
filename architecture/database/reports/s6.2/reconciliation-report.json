@@ -1,0 +1,20 @@
+{
+  "domain": "leads",
+  "sourceCount": 0,
+  "targetCount": 0,
+  "missingCount": 0,
+  "duplicateCount": 0,
+  "orphanCount": 0,
+  "mismatchCount": 0,
+  "sampleSize": 0,
+  "sampleMismatchCount": 0,
+  "thresholdPassed": true,
+  "classifications": {
+    "migrated": 0,
+    "duplicate": 0,
+    "index_only": 0,
+    "quarantined": 0,
+    "skipped": 0
+  },
+  "unclassifiedCount": 0
+}

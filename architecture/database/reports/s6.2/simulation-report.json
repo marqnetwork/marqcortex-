@@ -1,0 +1,19 @@
+{
+  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "runId": null,
+  "discoveredRecords": 0,
+  "validRecords": 0,
+  "normalizationRequired": 0,
+  "duplicates": 0,
+  "quarantined": 0,
+  "predictedLeads": 0,
+  "predictedContacts": 0,
+  "predictedContactMethods": 0,
+  "unresolvedMappings": [],
+  "checksumSource": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "checksumTarget": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "thresholdsPassed": true,
+  "details": {
+    "note": "Empty KV — simulation passes vacuously. Fixture tests cover non-empty paths."
+  }
+}

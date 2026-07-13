@@ -12,9 +12,10 @@
 
 | Order | Document | Purpose |
 |-------|----------|---------|
-| 1 | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` | Permanent MARQ Claude Agent operating contract (v1.0) |
-| 2 | `ARCHITECT.md` (this file) | Repository map, golden rules, task → file lookup |
-| 3 | Sprint task prompt | Scoped work and acceptance criteria only |
+| 1 | `MARQ_CORTEX_CONSTITUTION.md` | Locked operating principles (v1.1) |
+| 2 | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` | Permanent MARQ Claude Agent operating contract (v1.0) |
+| 3 | `ARCHITECT.md` (this file) | Repository map, golden rules, task → file lookup |
+| 4 | Sprint task prompt | Scoped work and acceptance criteria only |
 
 Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. Sprint prompts do not override the system prompt.
 
@@ -171,6 +172,13 @@ cortex/
 | Database tests | `tests/database/` · `npm run test:database` |
 | Database ERD / table catalog | `architecture/database/MCV2-S3-*.md` |
 | KV → SQL migration roadmap | `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
+| KV backfill & reconciliation (MCV2-S6.1) | `architecture/database/MCV2-S6.1-PLAN-003-KV-BACKFILL-RECONCILIATION-ARCHITECTURE.md` |
+| Migration infrastructure (MCV2-S6.2) | `supabase/migrations/20260713184931_migration_infrastructure.sql` |
+| Migration engine / CLI | `supabase/functions/server/migration/` · `scripts/migration/cli.ts` |
+| Migration tests | `npm run test:migration` |
+| S6.2 completion / rollback | `architecture/database/MCV2-S6.2-IMPLEMENT-004-COMPLETION.md` · `MCV2-S6.2-ROLLBACK-GUIDE.md` |
+| Constitution | `MARQ_CORTEX_CONSTITUTION.md` |
+| S6.3 validation | `architecture/database/MCV2-S6.3-VALIDATE-005-COMPLETION.md` |
 
 ---
 
@@ -180,6 +188,8 @@ cortex/
 |-------|------------------|---------------|
 | Production store | `kv_store_324f4fbe` — **still authoritative** | Unchanged |
 | Relational foundation | Tenancy: **6 tables** (S4) + Diagnostic: **13 tables** (S5) | Migrations in repo |
+| Migration infrastructure | **4 tables** (S6.2): runs, checkpoints, quarantine, reconciliation_log | Applied remote |
+| Migration engine | CLI + `supabase/functions/server/migration/` | Lead/contact slice only |
 | Access path | Edge `index.tsx` → `kv_store.tsx` | + repositories (not wired to routes) |
 | Team auth | Supabase Auth + `user_metadata.teamRole` | + `organization_memberships` (seed manual) |
 | RLS helpers | `cortex.*` functions | S4 tenancy + S5 diagnostic helpers |

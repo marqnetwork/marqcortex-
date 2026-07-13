@@ -2031,7 +2031,20 @@ export const manifest: SystemManifest = {
       description: 'Diagnostic domain lead repository. MCV2-S5 foundation — not wired to Hono routes.',
       dependencies: ['MQC-SVC-011'],
       dependents: [],
-      notes: 'KV lead:* remains authoritative. Relational writes deferred to migration sprint.',
+      notes: 'KV lead:* remains authoritative until Phase 5 cutover. Backfill via MQC-MIG-001 migration engine (S6.2).',
+    },
+
+    'MQC-MIG-001': {
+      id: 'MQC-MIG-001',
+      name: 'kvMigrationEngine',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/migration/orchestrator.ts',
+      description: 'KV backfill migration engine: inventory, simulation, backfill, reconcile, rollback. MCV2-S6.2 — lead/contact slice only; CLI-safe; not wired to routes.',
+      dependencies: ['MQC-SVC-012', 'MQC-SVC-013'],
+      dependents: [],
+      notes: 'CLI: scripts/migration/cli.ts. KV read-only. Requires service role for live writes. See MCV2-S6.2-IMPLEMENT-004-COMPLETION.md',
     },
 
     'MQC-SVC-013': {

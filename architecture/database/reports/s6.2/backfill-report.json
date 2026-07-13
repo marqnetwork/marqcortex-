@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "runId": null,
+  "inserted": 0,
+  "updated": 0,
+  "quarantined": 0,
+  "discovered": 0,
+  "note": "Live backfill against empty KV — zero rows written. CLI live execution requires SUPABASE_SERVICE_ROLE_KEY in environment."
+}

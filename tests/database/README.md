@@ -14,10 +14,17 @@ SQL and static tests for:
 ## Run SQL tests
 
 ```bash
-psql "$DATABASE_URL" -f tests/database/tenancy_schema.test.sql
-psql "$DATABASE_URL" -f tests/database/tenancy_rls.test.sql
-psql "$DATABASE_URL" -f tests/database/diagnostic_schema.test.sql
-psql "$DATABASE_URL" -f tests/database/diagnostic_rls.test.sql
+# Static (no DB)
+npm run test:database
+npm run test:migration
+
+# Live — linked Supabase project (Windows)
+$env:SUPABASE_ACCESS_TOKEN = "<token>"
+.\scripts\supabase-cli.ps1 db query --linked -f tests/database/diagnostic_schema.test.sql
+.\scripts\supabase-cli.ps1 db query --linked -f tests/database/diagnostic_rls.test.sql
+.\scripts\supabase-cli.ps1 db query --linked -f tests/database/diagnostic_live_rls.test.sql
+.\scripts\supabase-cli.ps1 db query --linked -f tests/database/diagnostic_anon_policy_review.test.sql
+.\scripts\supabase-cli.ps1 db query --linked -f tests/database/diagnostic_repository_live.test.sql
 ```
 
 ## Run static validation (no database required)

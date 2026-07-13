@@ -118,7 +118,7 @@
 
   "database_platform": {
     "sprint": "MCV2-S5-IMPLEMENT-002",
-    "status": "diagnostic_foundation_implemented",
+    "status": "diagnostic_foundation_validated_live",
     "current_persistence": {
       "table": "kv_store_324f4fbe",
       "helper": "supabase/functions/server/kv_store.tsx",
@@ -141,7 +141,8 @@
         "supabase/migrations/20260711050001_cortex_tenancy_rls_and_seed.sql",
         "supabase/migrations/20260713000000_kv_store_foundation.sql",
         "supabase/migrations/20260714050000_cortex_diagnostic_foundation.sql",
-        "supabase/migrations/20260714050001_cortex_diagnostic_rls.sql"
+        "supabase/migrations/20260714050001_cortex_diagnostic_rls.sql",
+        "supabase/migrations/20260714060000_cortex_diagnostic_anon_policy_hardening.sql"
       ],
       "rollback": [
         "supabase/migrations/rollbacks/20260711050000_rollback_tenancy.sql",
@@ -161,7 +162,10 @@
       ],
       "rls_schema": "cortex",
       "default_org_slug": "marq",
-      "kv_mapping": "architecture/database/MCV2-S5-KV-RELATIONAL-MAPPING.md"
+      "kv_mapping": "architecture/database/MCV2-S5-KV-RELATIONAL-MAPPING.md",
+      "backfill_architecture": "architecture/database/MCV2-S6.1-PLAN-003-KV-BACKFILL-RECONCILIATION-ARCHITECTURE.md",
+      "backfill_sprint": "MCV2-S6.1-PLAN-003",
+      "backfill_status": "planning_complete"
     },
     "proposed_tables": 88,
     "proposed_domains": 12,
@@ -173,7 +177,11 @@
       "master": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
       "completion": [
         "architecture/database/MCV2-S4-IMPLEMENT-001-COMPLETION.md",
-        "architecture/database/MCV2-S5-IMPLEMENT-002-COMPLETION.md"
+        "architecture/database/MCV2-S5-IMPLEMENT-002-COMPLETION.md",
+        "architecture/database/MCV2-S5-VALIDATE-001-COMPLETION.md"
+      ],
+      "planning": [
+        "architecture/database/MCV2-S6.1-PLAN-003-KV-BACKFILL-RECONCILIATION-ARCHITECTURE.md"
       ],
       "local_setup": "architecture/database/LOCAL_DATABASE_SETUP.md",
       "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
@@ -255,6 +263,14 @@
     "entry": "supabase/functions/server/index.tsx",
     "base_path": "/make-server-324f4fbe",
     "route_count": 68,
+    "migration_engine": {
+      "status": "LIVE",
+      "manifest_id": "MQC-MIG-001",
+      "path": "supabase/functions/server/migration/",
+      "cli": "scripts/migration/cli.ts",
+      "scope_s6_2": "lead:* and lead_email:* only",
+      "kv_authority": "unchanged"
+    },
     "ai_services": [
       "cortexAnalysis.ts",
       "cortexNarrative.ts",
@@ -309,6 +325,8 @@
     "scoring_engine": "src/app/core/scoringEngine.ts",
     "roi": "src/app/core/roiEngine.ts",
     "manifest": "src/system/manifest.ts",
-    "dev_server": "vite.config.ts"
+    "dev_server": "vite.config.ts",
+    "migration_engine": "supabase/functions/server/migration/",
+    "migration_cli": "scripts/migration/cli.ts"
   }
 }

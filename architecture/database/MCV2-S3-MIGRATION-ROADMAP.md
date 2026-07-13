@@ -40,6 +40,7 @@
 | **Entry** | Phase 1 complete |
 | **Work** | Batch backfill scripts: `sub:*` → `submissions` + children; all prefixes per catalog; idempotent upsert on `legacy_kv_key` |
 | **Exit** | Reconciliation report: KV count == SQL count per entity (± documented exceptions) |
+| **Status** | **Partial** — S6.2 lead/contact infrastructure + engine delivered; submission backfill deferred S6.3 |
 | **Tests** | Checksum compare; spot-check 100 random records |
 | **Rollback** | Truncate relational tables; KV untouched |
 | **Observability** | `migration_reconciliation_log` table |

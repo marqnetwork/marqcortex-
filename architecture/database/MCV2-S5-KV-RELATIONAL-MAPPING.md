@@ -20,7 +20,7 @@
 
 | KV prefix / key | Destination table(s) | Migration strategy | Reconciliation | Rollback |
 |-----------------|-------------------|--------------------|----------------|----------|
-| `lead:{id}` | `leads` | Idempotent upsert by `legacy_kv_key` | Count `lead:*` vs `leads` where `legacy_kv_key IS NOT NULL` | Truncate relational leads; KV untouched |
+| `lead:{id}` | `leads` (+ `contacts`, `contact_methods`) | Idempotent upsert by `legacy_kv_key` | Count `lead:*` vs `leads` where `legacy_kv_key IS NOT NULL` | Bounded rollback by `migration_run_id` (S6.2) |
 | `lead_email:{email}` | `leads.email` (unique per org) | Resolve via email index; drop separate index table | Spot-check email lookups | N/A — index not stored separately |
 | `sub:{id}` | `submissions` + `diagnostic_answers` + `diagnostic_scores` | Parse JSON blob; split `answers` object into rows | Field-level hash on 100 random subs | Truncate diagnostic tables; KV untouched |
 | `sub_email:{email}` | `submissions.contact_email` | Latest submission by email per org | Compare lookup results | N/A |
@@ -62,7 +62,9 @@
 
 ## Rollback
 
-Apply: `supabase/migrations/rollbacks/20260714050000_rollback_diagnostic.sql`
+Apply bounded rollback by migration run: `architecture/database/MCV2-S6.2-ROLLBACK-GUIDE.md`
+
+Full diagnostic rollback (emergency): `supabase/migrations/rollbacks/20260714050000_rollback_diagnostic.sql`
 
 KV data is unaffected. Runtime routes continue using `kv_store.tsx`.
 

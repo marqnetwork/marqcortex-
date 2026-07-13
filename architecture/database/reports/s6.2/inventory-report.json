@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-07-14T00:00:00.000Z",
+  "project": "oqybniefkbppptfatoae",
+  "baseline": {
+    "kv_lead_count": 0,
+    "kv_lead_email_count": 0,
+    "kv_total_count": 0,
+    "sql_leads": 0,
+    "sql_contacts": 0,
+    "sql_contact_methods": 0,
+    "sql_lead_sources": 3
+  },
+  "namespaces": {
+    "lead:": {
+      "prefix": "lead:",
+      "totalCount": 0,
+      "malformedCount": 0,
+      "doubleEncodedCount": 0,
+      "missingRequiredCount": 0,
+      "sampleKeys": []
+    },
+    "lead_email:": {
+      "prefix": "lead_email:",
+      "totalCount": 0,
+      "malformedCount": 0,
+      "doubleEncodedCount": 0,
+      "missingRequiredCount": 0,
+      "sampleKeys": []
+    }
+  },
+  "duplicateEmails": [],
+  "orphanedLeadEmailMappings": [],
+  "indexOnlyRecords": [],
+  "summary": {
+    "totalRecords": 0,
+    "malformedCount": 0,
+    "doubleEncodedCount": 0,
+    "missingRequiredCount": 0
+  },
+  "thresholdsPassed": true
+}
