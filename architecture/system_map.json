@@ -257,6 +257,44 @@
     "first_shadow_read_entity": "outcome"
   },
 
+  "outcome_shadow_read": {
+    "sprint": "MCV2-S7.4-IMPLEMENT-009",
+    "status": "engineering_complete_live_deferred",
+    "entity": "outcome",
+    "enabled_by_default": false,
+    "kv_authority": "authoritative",
+    "sql_returned_to_users": false,
+    "fallback": false,
+    "sql_primary": false,
+    "writes_through_gateway": false,
+    "kill_switch": "STORAGE_FORCE_KV_ONLY",
+    "execution": "background bounded SQL read, not awaited by response path",
+    "files": [
+      "storage/sqlOutcomeAdapter.ts",
+      "storage/outcomeNormalize.ts",
+      "storage/outcomeCompare.ts",
+      "storage/runtimeSqlOutcome.ts (Deno-only SQL bridge; not imported by barrel/tests)"
+    ],
+    "env_flags": [
+      "STORAGE_SHADOW_OUTCOME_ENABLED",
+      "STORAGE_FORCE_KV_ONLY",
+      "STORAGE_SHADOW_OUTCOME_ORG_ALLOWLIST",
+      "STORAGE_SHADOW_DEFAULT_ORG_ID",
+      "STORAGE_SHADOW_SQL_TIMEOUT_MS",
+      "STORAGE_ENVIRONMENT"
+    ],
+    "comparison_outcomes": ["match", "normalization_only_match", "source_missing", "target_missing", "value_mismatch", "relationship_mismatch", "authorization_mismatch", "schema_mismatch", "error"],
+    "storage_test_count": 70,
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.4-IMPLEMENT-009-COMPLETION.md",
+      "comparison_spec": "architecture/database/MCV2-S7.4-OUTCOME-COMPARISON-SPEC.md",
+      "rollout": "architecture/database/MCV2-S7.4-OUTCOME-SHADOW-ROLLOUT.md",
+      "rollback": "architecture/database/MCV2-S7.4-ROLLBACK-GUIDE.md"
+    },
+    "live_validation": "deferred_environment_capability",
+    "next_phase": "MCV2-S7.5 live Outcome shadow validation (not started)"
+  },
+
   "auth": {
     "team": {
       "mechanism": "Email + password → token",

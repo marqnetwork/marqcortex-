@@ -100,6 +100,13 @@ export interface ReadResult<T> {
   mode: ReadMode;
   /** Internal latency metadata; not serialised into API responses. */
   latency: { kvMs?: number; sqlMs?: number };
+  /**
+   * Optional shadow-read handle (MCV2-S7.4, Outcome only). Present only when a
+   * SQL shadow read was launched. It ALWAYS resolves (never rejects) so the
+   * route can ignore it safely; awaiting it is for tests/telemetry inspection.
+   * SQL is never returned to the caller — `data`/`returnedSource` stay KV.
+   */
+  shadow?: Promise<OutcomeComparison>;
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +195,13 @@ export interface StorageReadTelemetryEvent {
   errorClass?: string;
   route: string;
   organizationId?: string | null;
+  // --- shadow-read fields (MCV2-S7.4, Outcome only; absent when no shadow) ---
+  shadowAttempted?: boolean;
+  comparisonOutcome?: ComparisonOutcome;
+  mismatchCount?: number;
+  mismatchSeverity?: MismatchSeverity;
+  sqlErrorClass?: string;
+  environment?: string;
 }
 
 /**
@@ -197,4 +211,60 @@ export interface StorageReadTelemetryEvent {
 export interface StorageTelemetrySink {
   readonly enabled: boolean;
   emit(event: StorageReadTelemetryEvent): void;
+}
+
+// ---------------------------------------------------------------------------
+// Outcome shadow-read contracts (MCV2-S7.4-IMPLEMENT-009) — Outcome ENTITY ONLY
+// ---------------------------------------------------------------------------
+
+export const ComparisonOutcome = {
+  MATCH: 'match',
+  NORMALIZATION_ONLY_MATCH: 'normalization_only_match',
+  SOURCE_MISSING: 'source_missing', // KV missing
+  TARGET_MISSING: 'target_missing', // SQL missing
+  VALUE_MISMATCH: 'value_mismatch',
+  RELATIONSHIP_MISMATCH: 'relationship_mismatch',
+  AUTHORIZATION_MISMATCH: 'authorization_mismatch',
+  SCHEMA_MISMATCH: 'schema_mismatch',
+  ERROR: 'error',
+} as const;
+export type ComparisonOutcome = (typeof ComparisonOutcome)[keyof typeof ComparisonOutcome];
+
+export type MismatchSeverity = 'info' | 'low' | 'high' | 'critical';
+
+/** Canonical, business-critical Outcome shape used for KV↔SQL comparison. */
+export interface OutcomeDTO {
+  submissionId: string | null;
+  didConvert: boolean | null;
+  conversionValue: number | null;
+  lostReason: string | null;
+  recommendationWorked: boolean | null;
+  whatWeLearned: string | null;
+  improvementAreas: string[];
+  status: string | null;
+}
+
+export interface OutcomeComparison {
+  outcome: ComparisonOutcome;
+  requestId: string;
+  organizationId: string | null;
+  entityType: 'outcome';
+  entityRefHash: string; // hashed reference — never a raw id/payload
+  kvMs?: number;
+  sqlMs?: number;
+  mismatchCount: number;
+  mismatchFields: string[]; // field paths only — never values
+  severity: MismatchSeverity;
+  comparisonTimestamp: string;
+  sqlErrorClass?: string;
+}
+
+/**
+ * Minimal read surface of the Outcome SQL repository the shadow read needs.
+ * The concrete repository (which imports `jsr:@supabase/...`) is adapted to
+ * this port by a Deno-only runtime module, so pure/tested code never imports
+ * Supabase. Tenant scope is mandatory.
+ */
+export interface OutcomeSqlPort {
+  getOutcomeBySubmission(submissionId: string, organizationId: string): Promise<unknown>;
 }

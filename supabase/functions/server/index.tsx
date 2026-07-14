@@ -10,6 +10,7 @@ import {
   StorageReadError,
 } from "./storage/index.ts";
 import { safeJsonParse, parseSubmissions } from "./storage/kvParse.ts";
+import { createRuntimeOutcomeSqlPort } from "./storage/runtimeSqlOutcome.ts";
 import {
   sendTeamNewSubmissionEmail,
   sendClientUnderReviewEmail,
@@ -275,9 +276,15 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
 // DIAGNOSTIC STORAGE GATEWAY (MCV2-S7.2-IMPLEMENT-007)
 // ============================================================================
 // One diagnostic-domain read gateway over the existing KV helper. KV remains
-// authoritative; read mode is KV_ONLY by default and clamped to KV_ONLY this
-// phase (no SQL path exists). Writes do NOT go through the gateway.
-const diagnosticStorage = createRuntimeDiagnosticGateway(kv);
+// authoritative and is ALWAYS the returned source. An Outcome-only SQL shadow
+// read (MCV2-S7.4) is wired in but stays disabled unless
+// STORAGE_SHADOW_OUTCOME_ENABLED=true (and the kill switch is off). The SQL
+// port is lazy + fail-safe, so wiring it here is a no-op when shadow is off or
+// service-role creds are absent. SQL is never returned to users; writes never
+// go through the gateway.
+const diagnosticStorage = createRuntimeDiagnosticGateway(kv, {
+  sqlOutcomePort: createRuntimeOutcomeSqlPort(),
+});
 
 // ============================================================================
 // HELPERS — notification prefs + gated email firing

@@ -43,6 +43,13 @@ export const STORAGE_ENV_KEYS = {
   MODE_REPORT: 'STORAGE_MODE_REPORT',
   MODE_LEAD: 'STORAGE_MODE_LEAD',
   TELEMETRY_ENABLED: 'STORAGE_READ_TELEMETRY_ENABLED',
+  // --- Outcome shadow-read (MCV2-S7.4) ---
+  FORCE_KV_ONLY: 'STORAGE_FORCE_KV_ONLY',
+  SHADOW_OUTCOME_ENABLED: 'STORAGE_SHADOW_OUTCOME_ENABLED',
+  SHADOW_OUTCOME_ORG_ALLOWLIST: 'STORAGE_SHADOW_OUTCOME_ORG_ALLOWLIST',
+  SHADOW_DEFAULT_ORG_ID: 'STORAGE_SHADOW_DEFAULT_ORG_ID',
+  SHADOW_SQL_TIMEOUT_MS: 'STORAGE_SHADOW_SQL_TIMEOUT_MS',
+  ENVIRONMENT: 'STORAGE_ENVIRONMENT',
 } as const;
 
 function readEnv(source: EnvSource | undefined, key: string): string | undefined {
@@ -124,4 +131,93 @@ export function readRuntimeStorageConfig(): StorageConfig {
     return readStorageConfig(processEnv);
   }
   return readStorageConfig(undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Outcome shadow-read configuration (MCV2-S7.4) — Outcome ENTITY ONLY
+// ---------------------------------------------------------------------------
+
+export interface OutcomeShadowConfig {
+  /** Master shadow toggle for Outcome. Disabled by default. */
+  enabled: boolean;
+  /** Global kill switch: when true, forces KV-only and disables all shadow. */
+  forceKvOnly: boolean;
+  /** Org allowlist. Empty = no org restriction (still gated by `enabled`). */
+  orgAllowlist: string[];
+  /** Default org id used to scope the SQL shadow when the request org is null. */
+  defaultOrgId: string | null;
+  /** Hard SQL read timeout (ms). */
+  sqlTimeoutMs: number;
+  /** Environment label for telemetry. */
+  environment: string | null;
+}
+
+function parseCsv(raw: string | undefined): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function parseTimeout(raw: string | undefined): number {
+  const n = Number(String(raw ?? '').trim());
+  if (!Number.isFinite(n) || n <= 0) return 250; // safe default
+  return Math.min(n, 2000); // hard cap
+}
+
+/**
+ * Read Outcome shadow config. Invalid/missing values resolve to the safe
+ * (disabled) state. There is no frontend control and no request-parameter
+ * activation — this reads server env only.
+ */
+export function readOutcomeShadowConfig(source?: EnvSource): OutcomeShadowConfig {
+  const forceKvOnly = parseBool(readEnv(source, STORAGE_ENV_KEYS.FORCE_KV_ONLY));
+  return {
+    enabled: parseBool(readEnv(source, STORAGE_ENV_KEYS.SHADOW_OUTCOME_ENABLED)) && !forceKvOnly,
+    forceKvOnly,
+    orgAllowlist: parseCsv(readEnv(source, STORAGE_ENV_KEYS.SHADOW_OUTCOME_ORG_ALLOWLIST)),
+    defaultOrgId: readEnv(source, STORAGE_ENV_KEYS.SHADOW_DEFAULT_ORG_ID)?.trim() || null,
+    sqlTimeoutMs: parseTimeout(readEnv(source, STORAGE_ENV_KEYS.SHADOW_SQL_TIMEOUT_MS)),
+    environment: readEnv(source, STORAGE_ENV_KEYS.ENVIRONMENT)?.trim() || null,
+  };
+}
+
+export function readRuntimeOutcomeShadowConfig(): OutcomeShadowConfig {
+  const denoEnv = (globalThis as { Deno?: { env?: { get(k: string): string | undefined } } }).Deno?.env;
+  if (denoEnv && typeof denoEnv.get === 'function') {
+    return readOutcomeShadowConfig({ get: (k: string) => denoEnv.get(k) });
+  }
+  const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  if (processEnv) return readOutcomeShadowConfig(processEnv);
+  return readOutcomeShadowConfig(undefined);
+}
+
+export interface OutcomeShadowEligibility {
+  eligible: boolean;
+  /** Server-resolved org to scope the SQL query. Null when ineligible. */
+  effectiveOrg: string | null;
+  reason: string;
+}
+
+/**
+ * Decide whether an Outcome shadow read may execute. Fails closed on any
+ * uncertainty. `hasSqlPort` reflects whether an SQL port was wired at runtime.
+ */
+export function resolveOutcomeShadowEligibility(
+  config: OutcomeShadowConfig,
+  params: { organizationId: string | null; hasSqlPort: boolean },
+): OutcomeShadowEligibility {
+  const ineligible = (reason: string): OutcomeShadowEligibility => ({ eligible: false, effectiveOrg: null, reason });
+
+  if (config.forceKvOnly) return ineligible('kill_switch');
+  if (!config.enabled) return ineligible('disabled');
+  if (!params.hasSqlPort) return ineligible('no_sql_port');
+
+  const effectiveOrg = params.organizationId ?? config.defaultOrgId;
+  if (!effectiveOrg) return ineligible('no_org_scope');
+
+  if (config.orgAllowlist.length > 0 && !config.orgAllowlist.includes(effectiveOrg)) {
+    return ineligible('org_not_allowlisted');
+  }
+  return { eligible: true, effectiveOrg, reason: 'eligible' };
 }

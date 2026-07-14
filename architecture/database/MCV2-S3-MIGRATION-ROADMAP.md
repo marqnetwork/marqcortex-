@@ -53,7 +53,7 @@
 |------|--------|
 | **Entry** | Phase 2 reconciliation passed |
 | **Work** | Introduce `SubmissionRepository` etc.; read SQL first, fallback KV on miss; log mismatches |
-| **Status** | **In progress (Phase 1 validated)** — S7.1 designed the gateway; S7.2 (`MCV2-S7.2-IMPLEMENT-007`) implemented the KV-only `DiagnosticStorageGateway` and routed 3 diagnostic reads through it; S7.3 (`MCV2-S7.3-VALIDATE-008`) validated response parity, config/telemetry safety, SQL non-invocation, rollback, and overhead (storage tests 44/44). **No SQL/shadow reads enabled; KV authoritative.** True shadow-read (Mode B) begins S7.4, first entity = **Outcome** (`MCV2-S7.3-SHADOW-READ-READINESS-PLAN.md`). |
+| **Status** | **In progress (shadow-read landed for Outcome, disabled by default)** — S7.1 designed the gateway; S7.2 implemented the KV-only gateway (3 reads); S7.3 validated it (44/44); S7.4 (`MCV2-S7.4-IMPLEMENT-009`) added the **Outcome** SQL shadow read (KV-primary Mode B): bounded background SQL read + normalize + compare + non-blocking telemetry, **KV always returned, SQL never returned, no fallback, disabled by default, kill switch** (storage tests 70/70). Live shadow validation deferred (offline env). **KV authoritative.** Expansion to other entities gated by S7.3 exit gates. See `MCV2-S7.4-IMPLEMENT-009-COMPLETION.md`. |
 | **Exit** | Mismatch rate < 0.1% over 7 days staging |
 | **Tests** | Integration tests per repository; mismatch alerts |
 | **Rollback** | Feature flag `DATA_SOURCE=kv` |

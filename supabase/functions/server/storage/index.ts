@@ -18,26 +18,55 @@ export {
   readStorageConfig,
   resolveActiveMode,
   readRuntimeStorageConfig,
+  readOutcomeShadowConfig,
+  readRuntimeOutcomeShadowConfig,
+  resolveOutcomeShadowEligibility,
   type EnvSource,
+  type OutcomeShadowConfig,
+  type OutcomeShadowEligibility,
 } from './config.ts';
 export { safeJsonParse, parseSubmissions, sortSubmissionsBySubmittedAtDesc } from './kvParse.ts';
+export { createSqlOutcomeAdapter, type SqlOutcomeAdapter } from './sqlOutcomeAdapter.ts';
+export {
+  normalizeKvOutcome,
+  normalizeSqlOutcome,
+  OUTCOME_IGNORED_FIELDS,
+} from './outcomeNormalize.ts';
+export { compareOutcome, outcomeErrorComparison, hashEntityRef } from './outcomeCompare.ts';
 
-import type { DiagnosticStorageGateway, KvDiagnosticPort, ReadActor, ReadContext, DiagnosticEntity } from './contracts.ts';
+import type {
+  DiagnosticStorageGateway,
+  KvDiagnosticPort,
+  OutcomeSqlPort,
+  ReadActor,
+  ReadContext,
+  DiagnosticEntity,
+  StorageTelemetrySink,
+} from './contracts.ts';
 import { createKvDiagnosticAdapter } from './kvAdapter.ts';
 import { createDiagnosticStorageGateway } from './gateway.ts';
 import { createNoopTelemetrySink } from './telemetry.ts';
-import { readRuntimeStorageConfig } from './config.ts';
+import { readRuntimeStorageConfig, readRuntimeOutcomeShadowConfig } from './config.ts';
 
 /**
  * Compose the runtime diagnostic gateway from the live KV helper. Reads config
- * from the ambient environment (KV_ONLY + telemetry-off by default) and uses a
- * no-op telemetry sink (no live telemetry table in Phase 1).
+ * from the ambient environment. KV is authoritative and the returned source.
+ *
+ * `opts.sqlOutcomePort` (Deno-only, service-role backed) enables the Outcome
+ * SHADOW read when — and only when — `STORAGE_SHADOW_OUTCOME_ENABLED=true` and
+ * the kill switch is off. It is never imported here, so this barrel stays
+ * Node-testable and free of Supabase imports.
  */
-export function createRuntimeDiagnosticGateway(kv: KvDiagnosticPort): DiagnosticStorageGateway {
+export function createRuntimeDiagnosticGateway(
+  kv: KvDiagnosticPort,
+  opts?: { sqlOutcomePort?: OutcomeSqlPort; telemetry?: StorageTelemetrySink },
+): DiagnosticStorageGateway {
   return createDiagnosticStorageGateway({
     kvAdapter: createKvDiagnosticAdapter(kv),
     config: readRuntimeStorageConfig(),
-    telemetry: createNoopTelemetrySink(),
+    telemetry: opts?.telemetry ?? createNoopTelemetrySink(),
+    sqlOutcomePort: opts?.sqlOutcomePort,
+    outcomeShadow: readRuntimeOutcomeShadowConfig(),
   });
 }
 

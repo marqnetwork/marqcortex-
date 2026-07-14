@@ -242,21 +242,35 @@ describe('S7.3 telemetry safety', () => {
 // STAGE 5 — SQL ACTIVATION PROTECTION
 // ===========================================================================
 
-describe('S7.3 SQL activation protection', () => {
-  it('no storage source module references SQL/repositories/Supabase/Deno', () => {
+describe('S7.3/S7.4 SQL activation protection', () => {
+  // The pure/Node-testable core stays Supabase-free. The ONLY module allowed to
+  // import the concrete repository is the Deno-only runtimeSqlOutcome.ts, which
+  // the barrel never imports (so importing the barrel never pulls in Supabase).
+  const DENO_ONLY_SQL_BRIDGE = 'runtimeSqlOutcome.ts';
+
+  it('no storage source module (except the Deno-only SQL bridge) IMPORTS Supabase/repositories', () => {
     for (const file of readdirSync(storageDir).filter((f) => f.endsWith('.ts'))) {
+      if (file === DENO_ONLY_SQL_BRIDGE) continue;
       const src = readFileSync(join(storageDir, file), 'utf8');
-      assert.equal(/repositor/i.test(src), false, `${file} references repositories`);
-      assert.equal(/@supabase|createClient\(/.test(src), false, `${file} references Supabase client`);
-      assert.equal(/\bjsr:/.test(src), false, `${file} has a jsr import`);
-      assert.equal(/from ['"]\.\.\//.test(src), false, `${file} imports outside storage/`);
+      // Inspect import/export specifiers only (ignore doc-comment prose).
+      const importSpecs = (src.match(/from\s+['"][^'"]+['"]/g) ?? []).join('\n');
+      assert.equal(/repositor/i.test(importSpecs), false, `${file} imports a repository`);
+      assert.equal(/@supabase|\bjsr:/i.test(importSpecs), false, `${file} imports Supabase/jsr`);
+      assert.equal(/from ['"]\.\.\//.test(importSpecs), false, `${file} imports outside storage/`);
+      assert.equal(/createClient\(/.test(src), false, `${file} constructs a Supabase client`);
     }
   });
 
-  it('barrel exports expose no SQL adapter symbol', async () => {
+  it('the barrel does NOT import the Deno-only SQL bridge (stays Supabase-free/Node-loadable)', () => {
+    const barrel = readFileSync(join(storageDir, 'index.ts'), 'utf8');
+    assert.equal(barrel.includes('runtimeSqlOutcome'), false);
+    // (This test file imports the barrel at top; if it pulled in `jsr:`, Node would have failed to load.)
+  });
+
+  it('barrel exposes no concrete SQL repository/Supabase symbol (port-based adapters are allowed)', async () => {
     const mod: Record<string, unknown> = await import('../../supabase/functions/server/storage/index.ts');
-    const sqlish = Object.keys(mod).filter((k) => /sql|repository|postgres/i.test(k));
-    assert.deepEqual(sqlish, []);
+    const forbidden = Object.keys(mod).filter((k) => /repository|postgres|supabase/i.test(k));
+    assert.deepEqual(forbidden, []);
   });
 
   it('every read returns returnedSource=kv and mode=kv_only', async () => {

@@ -189,6 +189,9 @@ cortex/
 | S7.2 completion / rollback | `architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md` · `MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md` |
 | S7.3 validation (parity/rollback/telemetry) | `architecture/database/MCV2-S7.3-VALIDATE-008-COMPLETION.md` · `MCV2-S7.3-RESPONSE-PARITY-REPORT.md` · `MCV2-S7.3-ROLLBACK-VALIDATION.md` |
 | Shadow-read readiness plan (first entity: Outcome) | `architecture/database/MCV2-S7.3-SHADOW-READ-READINESS-PLAN.md` |
+| Outcome shadow read (MCV2-S7.4, disabled by default) | `supabase/functions/server/storage/{sqlOutcomeAdapter,outcomeNormalize,outcomeCompare,runtimeSqlOutcome}.ts` |
+| Outcome shadow config/rollout/rollback (MCV2-S7.4) | `architecture/database/MCV2-S7.4-OUTCOME-SHADOW-ROLLOUT.md` · `MCV2-S7.4-OUTCOME-COMPARISON-SPEC.md` · `MCV2-S7.4-ROLLBACK-GUIDE.md` |
+| S7.4 completion | `architecture/database/MCV2-S7.4-IMPLEMENT-009-COMPLETION.md` |
 
 ---
 
