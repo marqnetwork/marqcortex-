@@ -187,6 +187,8 @@ cortex/
 | Storage read-mode config (MCV2-S7.2) | `architecture/database/MCV2-S7.2-READ-MODE-CONFIG-GUIDE.md` (env `STORAGE_*`, default `kv_only`) |
 | Storage gateway tests (MCV2-S7.2) | `tests/storage/` · `npm run test:storage` |
 | S7.2 completion / rollback | `architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md` · `MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md` |
+| S7.3 validation (parity/rollback/telemetry) | `architecture/database/MCV2-S7.3-VALIDATE-008-COMPLETION.md` · `MCV2-S7.3-RESPONSE-PARITY-REPORT.md` · `MCV2-S7.3-ROLLBACK-VALIDATION.md` |
+| Shadow-read readiness plan (first entity: Outcome) | `architecture/database/MCV2-S7.3-SHADOW-READ-READINESS-PLAN.md` |
 
 ---
 
