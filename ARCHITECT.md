@@ -179,6 +179,10 @@ cortex/
 | S6.2 completion / rollback | `architecture/database/MCV2-S6.2-IMPLEMENT-004-COMPLETION.md` · `MCV2-S6.2-ROLLBACK-GUIDE.md` |
 | Constitution | `MARQ_CORTEX_CONSTITUTION.md` |
 | S6.3 validation | `architecture/database/MCV2-S6.3-VALIDATE-005-COMPLETION.md` |
+| Runtime storage gateway plan (MCV2-S7.1) | `architecture/database/MCV2-S7.1-RUNTIME-STORAGE-GATEWAY-ARCHITECTURE.md` |
+| Runtime read dependency map (MCV2-S7.1) | `architecture/database/MCV2-S7.1-RUNTIME-READ-DEPENDENCY-MAP.md` |
+| Dual-read rollout & flags (MCV2-S7.1) | `architecture/database/MCV2-S7.1-DUAL-READ-ROLLOUT-PLAN.md` |
+| S7.2 storage file/test plan (MCV2-S7.1) | `architecture/database/MCV2-S7.1-IMPLEMENTATION-FILE-PLAN.md` · `MCV2-S7.1-TEST-PLAN.md` |
 
 ---
 

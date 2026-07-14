@@ -1,7 +1,7 @@
 {
   "_meta": {
     "protocol": "MARQ Code Intelligence OS v3.3",
-    "generated": "2026-07-11",
+    "generated": "2026-07-14",
     "canonical_doc": "ARCHITECT.md",
     "manifest": "src/system/manifest.ts",
     "confidence": "PROVEN",
@@ -186,6 +186,31 @@
       "local_setup": "architecture/database/LOCAL_DATABASE_SETUP.md",
       "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
     }
+  },
+
+  "storage_gateway_plan": {
+    "sprint": "MCV2-S7.1-PLAN-006",
+    "status": "planning_complete",
+    "runtime_changes": "none",
+    "kv_authority": "unchanged",
+    "selected_architecture": "diagnostic-domain gateway wrapping existing S5 repositories behind a read-strategy layer",
+    "gateway_target_path": "supabase/functions/server/storage/ (created in S7.2, not yet present)",
+    "read_modes": ["kv_only", "kv_primary", "sql_primary", "sql_only", "disabled"],
+    "default_mode": "kv_only",
+    "flags_scope": "Edge env, per-domain + per-entity, fail-safe to kv_only",
+    "sql_reads_enabled": false,
+    "shadow_reads_enabled": false,
+    "dual_write_enabled": false,
+    "docs": {
+      "architecture": "architecture/database/MCV2-S7.1-RUNTIME-STORAGE-GATEWAY-ARCHITECTURE.md",
+      "dependency_map": "architecture/database/MCV2-S7.1-RUNTIME-READ-DEPENDENCY-MAP.md",
+      "rollout_plan": "architecture/database/MCV2-S7.1-DUAL-READ-ROLLOUT-PLAN.md",
+      "file_plan": "architecture/database/MCV2-S7.1-IMPLEMENTATION-FILE-PLAN.md",
+      "test_plan": "architecture/database/MCV2-S7.1-TEST-PLAN.md",
+      "s7_2_prompt_draft": "architecture/database/MCV2-S7.2-IMPLEMENT-006-PROMPT-DRAFT.md",
+      "completion": "architecture/database/MCV2-S7.1-PLAN-006-COMPLETION.md"
+    },
+    "next_phase": "MCV2-S7.2-IMPLEMENT-006 (not started)"
   },
 
   "auth": {
