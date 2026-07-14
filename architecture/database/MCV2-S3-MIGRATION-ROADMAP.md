@@ -53,7 +53,7 @@
 |------|--------|
 | **Entry** | Phase 2 reconciliation passed |
 | **Work** | Introduce `SubmissionRepository` etc.; read SQL first, fallback KV on miss; log mismatches |
-| **Status** | **Planned** — S7.1 (`MCV2-S7.1-PLAN-006`) designed the `DiagnosticStorageGateway`, read modes A–D, per-entity flags, comparison/fallback/telemetry, rollout + cutover gates. See `architecture/database/MCV2-S7.1-RUNTIME-STORAGE-GATEWAY-ARCHITECTURE.md`. Not enabled; KV authoritative. |
+| **Status** | **In progress (Phase 1)** — S7.1 (`MCV2-S7.1-PLAN-006`) designed the gateway; S7.2 (`MCV2-S7.2-IMPLEMENT-007`) implemented the KV-only `DiagnosticStorageGateway` in `supabase/functions/server/storage/` and routed 3 diagnostic reads through it (`GET /submissions`, `/submissions/:id`, `/submissions/:id/outcome`). **No SQL/shadow reads enabled; KV authoritative.** Shadow-read (true dual-read) begins S7.3. See `MCV2-S7.2-IMPLEMENT-007-COMPLETION.md`. |
 | **Exit** | Mismatch rate < 0.1% over 7 days staging |
 | **Tests** | Integration tests per repository; mismatch alerts |
 | **Rollback** | Feature flag `DATA_SOURCE=kv` |

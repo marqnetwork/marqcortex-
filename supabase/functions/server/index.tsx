@@ -4,6 +4,13 @@ import { logger } from "npm:hono/logger";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as kv from "./kv_store.tsx";
 import {
+  createRuntimeDiagnosticGateway,
+  buildReadContext,
+  DiagnosticEntity,
+  StorageReadError,
+} from "./storage/index.ts";
+import { safeJsonParse, parseSubmissions } from "./storage/kvParse.ts";
+import {
   sendTeamNewSubmissionEmail,
   sendClientUnderReviewEmail,
   sendClientReportReadyEmail,
@@ -259,87 +266,18 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
 // ============================================================================
 // HELPER — safe JSON parse (handles JSONB that might be string or object)
 // ============================================================================
+// `safeJsonParse`, `parseSubmissions` (and the submissions sort) now live in
+// ./storage/kvParse.ts and are imported above. They are shared verbatim with
+// the diagnostic storage gateway (MCV2-S7.2) so route parsing and gateway
+// parsing can never drift. Behaviour is unchanged from the previous inline defs.
 
-function safeJsonParse(value: any): any {
-  // Handle null, undefined, empty string
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-  
-  // If it's already an object (parsed by JSONB), return it
-  if (typeof value === 'object') {
-    // Verify it's a valid object (not null, not broken)
-    try {
-      // Make sure it's not an array of primitives or malformed object
-      if (Array.isArray(value)) return value;
-      // Ensure the object is serializable and not corrupted
-      if (Object.keys(value).length === 0 && value.constructor === Object) {
-        // Empty object is valid
-        return value;
-      }
-      return value;
-    } catch (err) {
-      console.log('⚠️ Object validation error:', err);
-      return null;
-    }
-  }
-  
-  // If it's a string, try to parse it
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    
-    // Empty string after trim
-    if (!trimmed) return null;
-    
-    // Check if it looks like JSON
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-      // Not a JSON object/array, might be a plain string value or ISO date
-      // Just return the trimmed string
-      return trimmed;
-    }
-    
-    // Try to parse as JSON
-    try {
-      const parsed = JSON.parse(trimmed);
-      return parsed;
-    } catch (err) {
-      console.log('⚠️ JSON parse error for value:', trimmed.substring(0, 100), 'Error:', err);
-      return null;
-    }
-  }
-  
-  // For primitives (numbers, booleans), return as-is
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return value;
-  }
-  
-  // Unknown type
-  console.log('⚠️ Unknown value type in safeJsonParse:', typeof value);
-  return null;
-}
-
-/**
- * Parse an array of raw kv values from getByPrefix('sub:') into submission objects.
- * Filters out non-submission entries (e.g. simple string email-to-id mappings
- * from sub_email: keys that might get matched) and malformed JSON, returning
- * only valid submission objects that have an `id` property.
- */
-function parseSubmissions(rawArray: any[]): any[] {
-  if (!Array.isArray(rawArray)) return [];
-  const results: any[] = [];
-  for (const raw of rawArray) {
-    try {
-      const parsed = safeJsonParse(raw);
-      // A valid submission must be an object with an id field
-      if (parsed && typeof parsed === 'object' && parsed.id) {
-        results.push(parsed);
-      }
-    } catch {
-      // Skip unparseable entries silently
-    }
-  }
-  return results;
-}
+// ============================================================================
+// DIAGNOSTIC STORAGE GATEWAY (MCV2-S7.2-IMPLEMENT-007)
+// ============================================================================
+// One diagnostic-domain read gateway over the existing KV helper. KV remains
+// authoritative; read mode is KV_ONLY by default and clamped to KV_ONLY this
+// phase (no SQL path exists). Writes do NOT go through the gateway.
+const diagnosticStorage = createRuntimeDiagnosticGateway(kv);
 
 // ============================================================================
 // HELPERS — notification prefs + gated email firing
@@ -938,45 +876,31 @@ app.get("/make-server-324f4fbe/submissions", async (c) => {
       return c.json({ error: "Unauthorized — valid team token required" }, 401);
     }
 
-    console.log('📂 Fetching submissions from KV store...');
-    // Get all submissions using prefix scan with error handling
-    let allSubmissions;
+    console.log('📂 Fetching submissions via diagnostic storage gateway (KV)...');
+    // Reads flow through the diagnostic storage gateway (KV-only). The gateway
+    // performs the same prefix scan, non-array fallback, parse, and newest-first
+    // sort the route used to do inline. KV read failures surface as
+    // StorageReadError so the exact "Database error" 500 envelope is preserved.
+    let parsed: any[];
     try {
-      allSubmissions = await kv.getByPrefix('sub:');
-      console.log(`📦 Raw submissions fetched successfully: ${allSubmissions?.length || 0}`);
+      const ctx = buildReadContext({
+        route: 'GET /submissions',
+        entity: DiagnosticEntity.SUBMISSION_LIST,
+        actor: { kind: 'team', id: userId },
+      });
+      const result = await diagnosticStorage.listSubmissions(ctx);
+      parsed = (result.data ?? []) as any[];
     } catch (kvError) {
-      console.error('❌ KV store error while fetching submissions:', kvError);
-      console.error('KV error stack:', kvError?.stack);
-      return c.json({ 
-        error: `Database error: ${kvError?.message || String(kvError)}`,
+      const cause = kvError instanceof StorageReadError ? kvError.cause : kvError;
+      console.error('❌ KV store error while fetching submissions:', cause);
+      console.error('KV error stack:', (cause as any)?.stack);
+      return c.json({
+        error: `Database error: ${(cause as any)?.message || String(cause)}`,
         details: 'Failed to connect to database. Please check Supabase connection.',
       }, 500);
     }
-    
-    console.log(`📦 Raw submissions count from KV: ${allSubmissions?.length || 0}`);
-    
-    // Safety check: ensure we have an array
-    if (!Array.isArray(allSubmissions)) {
-      console.log('⚠️ getByPrefix returned non-array:', typeof allSubmissions);
-      return c.json({ success: true, submissions: [], total: 0 });
-    }
-    
-    const parsed = parseSubmissions(allSubmissions)
-      .sort((a, b) => {
-        try {
-          const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-          const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-          // Handle invalid dates (NaN)
-          const aValid = !isNaN(aTime) ? aTime : 0;
-          const bValid = !isNaN(bTime) ? bTime : 0;
-          return bValid - aValid;
-        } catch (err) {
-          console.log('Sort error for submissions:', err);
-          return 0;
-        }
-      });
 
-    console.log(`✅ Fetched ${parsed.length} submissions (filtered from ${allSubmissions?.length || 0} raw entries)`);
+    console.log(`✅ Fetched ${parsed.length} submissions via gateway`);
     return c.json({ success: true, submissions: parsed, total: parsed.length });
   } catch (err) {
     console.error('❌ List submissions error:', err);
@@ -1005,12 +929,17 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
     }
 
     const id = c.req.param('id');
-    const raw = await kv.get(`sub:${id}`);
-    if (!raw) {
+    const ctx = buildReadContext({
+      route: 'GET /submissions/:id',
+      entity: DiagnosticEntity.SUBMISSION,
+      actor: { kind: 'team', id: userId },
+    });
+    const result = await diagnosticStorage.getSubmission(id, ctx);
+    if (!result.found) {
       return c.json({ error: "Submission not found" }, 404);
     }
 
-    return c.json({ success: true, submission: safeJsonParse(raw) });
+    return c.json({ success: true, submission: result.data });
   } catch (err) {
     console.log('Get submission error:', err);
     return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
@@ -3012,9 +2941,13 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const userId = await verifyTeamToken(c.req.header('Authorization'));
     if (!userId) return c.json({ error: "Unauthorized" }, 401);
     const submissionId = c.req.param('id');
-    const raw = await kv.get(`outcome:${submissionId}`);
-    const outcome = raw ? JSON.parse(raw) : null;
-    return c.json({ success: true, outcome });
+    const ctx = buildReadContext({
+      route: 'GET /submissions/:id/outcome',
+      entity: DiagnosticEntity.OUTCOME,
+      actor: { kind: 'team', id: userId },
+    });
+    const result = await diagnosticStorage.getOutcome(submissionId, ctx);
+    return c.json({ success: true, outcome: result.data });
   } catch (err) {
     console.log('Get outcome error:', err);
     return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);

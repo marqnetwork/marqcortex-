@@ -10,6 +10,7 @@
     "test:intelligence": "node --experimental-strip-types --test supabase/functions/server/intelligence/*.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
+    "test:storage": "node --experimental-strip-types --test tests/storage/*.test.ts",
     "migration:inventory": "node --experimental-strip-types scripts/migration/cli.ts --mode=inventory",
     "migration:simulate": "node --experimental-strip-types scripts/migration/cli.ts --mode=simulation",
     "migration:backfill": "node --experimental-strip-types scripts/migration/cli.ts --mode=backfill",

@@ -183,6 +183,10 @@ cortex/
 | Runtime read dependency map (MCV2-S7.1) | `architecture/database/MCV2-S7.1-RUNTIME-READ-DEPENDENCY-MAP.md` |
 | Dual-read rollout & flags (MCV2-S7.1) | `architecture/database/MCV2-S7.1-DUAL-READ-ROLLOUT-PLAN.md` |
 | S7.2 storage file/test plan (MCV2-S7.1) | `architecture/database/MCV2-S7.1-IMPLEMENTATION-FILE-PLAN.md` · `MCV2-S7.1-TEST-PLAN.md` |
+| Diagnostic storage gateway (MCV2-S7.2) | `supabase/functions/server/storage/` · usage: `architecture/database/MCV2-S7.2-STORAGE-GATEWAY-USAGE-GUIDE.md` |
+| Storage read-mode config (MCV2-S7.2) | `architecture/database/MCV2-S7.2-READ-MODE-CONFIG-GUIDE.md` (env `STORAGE_*`, default `kv_only`) |
+| Storage gateway tests (MCV2-S7.2) | `tests/storage/` · `npm run test:storage` |
+| S7.2 completion / rollback | `architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md` · `MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md` |
 
 ---
 

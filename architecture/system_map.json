@@ -213,6 +213,44 @@
     "next_phase": "MCV2-S7.2-IMPLEMENT-006 (not started)"
   },
 
+  "storage_gateway_impl": {
+    "sprint": "MCV2-S7.2-IMPLEMENT-007",
+    "status": "phase1_complete",
+    "path": "supabase/functions/server/storage/",
+    "files": [
+      "storage/contracts.ts",
+      "storage/kvParse.ts",
+      "storage/config.ts",
+      "storage/telemetry.ts",
+      "storage/kvAdapter.ts",
+      "storage/gateway.ts",
+      "storage/index.ts"
+    ],
+    "active_read_mode": "kv_only",
+    "kv_authority": "authoritative",
+    "sql_runtime_reads": false,
+    "shadow_reads": false,
+    "fallback": false,
+    "writes_through_gateway": false,
+    "telemetry_enabled_by_default": false,
+    "telemetry_table_created": false,
+    "migrated_read_routes": [
+      "GET /submissions",
+      "GET /submissions/:id",
+      "GET /submissions/:id/outcome"
+    ],
+    "deferred_reads": ["client/submission/:id", "client/submission/:id/report", "cortex/scores", "lead", "analytics_aggregates"],
+    "env_flags": ["STORAGE_DUAL_READ_ENABLED", "STORAGE_MODE_SUBMISSION", "STORAGE_MODE_OUTCOME", "STORAGE_MODE_REPORT", "STORAGE_MODE_LEAD", "STORAGE_READ_TELEMETRY_ENABLED"],
+    "test_command": "npm run test:storage",
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md",
+      "usage_guide": "architecture/database/MCV2-S7.2-STORAGE-GATEWAY-USAGE-GUIDE.md",
+      "config_guide": "architecture/database/MCV2-S7.2-READ-MODE-CONFIG-GUIDE.md",
+      "rollback": "architecture/database/MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md"
+    },
+    "next_phase": "MCV2-S7.3 (validation + shadow-read prep, not started)"
+  },
+
   "auth": {
     "team": {
       "mechanism": "Email + password → token",
