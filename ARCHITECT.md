@@ -195,6 +195,8 @@ cortex/
 | Outcome shadow dry-run harness (MCV2-S7.5) | `scripts/storage/outcome-shadow-dryrun.ts` · `npm run storage:shadow-dryrun` |
 | Outcome shadow staging runbook / gates / alerting (MCV2-S7.5) | `architecture/database/MCV2-S7.5-OUTCOME-SHADOW-STAGING-RUNBOOK.md` · `MCV2-S7.5-GO-NO-GO-GATES.md` · `MCV2-S7.5-TELEMETRY-ALERTING-SPEC.md` |
 | S7.5 completion | `architecture/database/MCV2-S7.5-VALIDATE-010-COMPLETION.md` |
+| Live Outcome reconciliation runner (MCV2-S7.6, read-only, capability-gated) | `scripts/storage/outcome-shadow-reconcile.ts` · `scripts/storage/outcomeReconcile.ts` |
+| S7.6 completion (live soak deferred) | `architecture/database/MCV2-S7.6-VALIDATE-011-COMPLETION.md` |
 
 ---
 
