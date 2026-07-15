@@ -54,7 +54,8 @@
 | **Entry** | Phase 2 reconciliation passed |
 | **Work** | Introduce `SubmissionRepository` etc.; read SQL first, fallback KV on miss; log mismatches |
 | **Status** | **In progress (shadow-read landed for Outcome, disabled by default)** — S7.1 designed the gateway; S7.2 implemented the KV-only gateway (3 reads); S7.3 validated it (44/44); S7.4 (`MCV2-S7.4-IMPLEMENT-009`) added the **Outcome** SQL shadow read (KV-primary Mode B): bounded background SQL read + normalize + compare + non-blocking telemetry, **KV always returned, SQL never returned, no fallback, disabled by default, kill switch** (storage tests 70/70). Live shadow validation deferred (offline env). **KV authoritative.** Expansion to other entities gated by S7.3 exit gates. See `MCV2-S7.4-IMPLEMENT-009-COMPLETION.md`. |
-| **Exit** | Mismatch rate < 0.1% over 7 days staging |
+| **S7.5** | `MCV2-S7.5-VALIDATE-010`: Outcome shadow validated **offline** via a runnable reconciliation dry-run harness (`npm run storage:shadow-dryrun`, 9/9 categories, KV-always/SQL-never); staging runbook + objective go/no-go gates + telemetry/alert spec produced; storage tests 71/71 (flaky timer fixed). **Live staging soak deferred** (no service-role/backfill offline). |
+| **Exit** | Mismatch rate < 0.1% over 7 days staging (live soak — S7.6, gated by `MCV2-S7.5-GO-NO-GO-GATES.md`) |
 | **Tests** | Integration tests per repository; mismatch alerts |
 | **Rollback** | Feature flag `DATA_SOURCE=kv` |
 | **Observability** | `dual_read_mismatches` metric |

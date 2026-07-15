@@ -192,6 +192,9 @@ cortex/
 | Outcome shadow read (MCV2-S7.4, disabled by default) | `supabase/functions/server/storage/{sqlOutcomeAdapter,outcomeNormalize,outcomeCompare,runtimeSqlOutcome}.ts` |
 | Outcome shadow config/rollout/rollback (MCV2-S7.4) | `architecture/database/MCV2-S7.4-OUTCOME-SHADOW-ROLLOUT.md` · `MCV2-S7.4-OUTCOME-COMPARISON-SPEC.md` · `MCV2-S7.4-ROLLBACK-GUIDE.md` |
 | S7.4 completion | `architecture/database/MCV2-S7.4-IMPLEMENT-009-COMPLETION.md` |
+| Outcome shadow dry-run harness (MCV2-S7.5) | `scripts/storage/outcome-shadow-dryrun.ts` · `npm run storage:shadow-dryrun` |
+| Outcome shadow staging runbook / gates / alerting (MCV2-S7.5) | `architecture/database/MCV2-S7.5-OUTCOME-SHADOW-STAGING-RUNBOOK.md` · `MCV2-S7.5-GO-NO-GO-GATES.md` · `MCV2-S7.5-TELEMETRY-ALERTING-SPEC.md` |
+| S7.5 completion | `architecture/database/MCV2-S7.5-VALIDATE-010-COMPLETION.md` |
 
 ---
 

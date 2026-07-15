@@ -43,7 +43,14 @@ function sqlPort(record: unknown, opts: { delayMs?: number; throwErr?: Error } =
     getOutcomeBySubmission: async (submissionId: string, organizationId: string) => {
       calls.push({ submissionId, organizationId });
       if (opts.throwErr) throw opts.throwErr;
-      if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs));
+      if (opts.delayMs) {
+        // unref so a dangling delay (e.g. the timeout scenario) never keeps the
+        // test process alive or leaks async activity across tests.
+        await new Promise((r) => {
+          const t = setTimeout(r, opts.delayMs);
+          (t as { unref?: () => void }).unref?.();
+        });
+      }
       return record;
     },
   };

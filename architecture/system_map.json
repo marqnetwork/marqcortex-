@@ -295,6 +295,26 @@
     "next_phase": "MCV2-S7.5 live Outcome shadow validation (not started)"
   },
 
+  "outcome_shadow_validation": {
+    "sprint": "MCV2-S7.5-VALIDATE-010",
+    "status": "offline_validated_live_deferred",
+    "offline_harness": "scripts/storage/outcome-shadow-dryrun.ts",
+    "harness_command": "npm run storage:shadow-dryrun",
+    "harness_result": "PASS (9/9 categories, kv_always_returned, sql_never_returned)",
+    "storage_test_count": 71,
+    "flaky_test_fixed": "outcomeShadow.test.ts fake SQL port timer unref'd",
+    "kv_authority": "authoritative",
+    "shadow_enabled_by_default": false,
+    "live_validation": "deferred_environment_capability",
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.5-VALIDATE-010-COMPLETION.md",
+      "staging_runbook": "architecture/database/MCV2-S7.5-OUTCOME-SHADOW-STAGING-RUNBOOK.md",
+      "go_no_go_gates": "architecture/database/MCV2-S7.5-GO-NO-GO-GATES.md",
+      "telemetry_alerting": "architecture/database/MCV2-S7.5-TELEMETRY-ALERTING-SPEC.md"
+    },
+    "next_phase": "MCV2-S7.6 live staging Outcome shadow soak (not started)"
+  },
+
   "auth": {
     "team": {
       "mechanism": "Email + password → token",
