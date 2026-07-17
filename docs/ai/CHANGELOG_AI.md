@@ -1,20 +1,13 @@
 # AI Changelog
 
-## 2026-07-18
+Concise history of completed work. One short entry per feature.
 
-### F1.1
+---
+
+## 2026-07-18 — F1.1
+
+Feature: Backend integration and production dashboard
 Status: COMPLETE
-
-Completed
-- Backend integration
-- Supabase production config
-- Dashboard live read
-- Recent Activity
-- Production deployment
-
-Commits
-- 9fef53b
-- c90e63f
-
-Notes
-- Removed demo dashboard path in backend mode.
+Commit: 9fef53b, c90e63f
+Production Result: Deployed; dashboard live read and Recent Activity verified.
+Notes: Removed demo dashboard path in backend mode.
