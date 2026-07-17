@@ -20,6 +20,51 @@ import type { TeamMemberRecord } from '@/app/lib/api';
 import type { Message } from '@/app/lib/api';
 
 // ============================================================================
+// DEMO PERSISTENCE STORE
+// ----------------------------------------------------------------------------
+// In demo mode (FEATURES.BACKEND_INTEGRATION = false) there is no server. To
+// give the app real data integrity — questionnaire submissions and invited
+// team members that survive a refresh — the demo submissions and team roster
+// are persisted to localStorage. The hardcoded arrays below act only as the
+// one-time SEED; after that the persisted copy is the source of truth.
+//
+// This preserves the existing API contracts: the exported reader functions
+// keep their signatures, and every consumer (dashboard, analytics, team,
+// settings) transparently reads the same persisted list.
+// ============================================================================
+
+const STORE_VERSION = 'v1';
+const SUBMISSIONS_STORE_KEY = `marq_cortex_demo_submissions_${STORE_VERSION}`;
+const TEAM_STORE_KEY = `marq_cortex_demo_team_${STORE_VERSION}`;
+
+function hasStorage(): boolean {
+  try {
+    return typeof localStorage !== 'undefined';
+  } catch {
+    return false;
+  }
+}
+
+function readStore<T>(key: string): T | null {
+  if (!hasStorage()) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStore<T>(key: string, value: T): void {
+  if (!hasStorage()) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore quota / serialization errors — demo store is best-effort */
+  }
+}
+
+// ============================================================================
 // DEMO CLIENT LOGINS
 // ============================================================================
 
@@ -44,7 +89,8 @@ export function findDemoClient(email: string): DemoClient | null {
 // DEMO TEAM MEMBERS
 // ============================================================================
 
-export function getDemoTeamMembers(): TeamMemberRecord[] {
+/** One-time seed roster. After first read this is persisted to localStorage. */
+function buildSeedTeamMembers(): TeamMemberRecord[] {
   return [
     {
       id: 'user_001',
@@ -79,16 +125,57 @@ export function getDemoTeamMembers(): TeamMemberRecord[] {
   ];
 }
 
+/** Get the persisted demo team roster (seeded once from buildSeedTeamMembers). */
+export function getDemoTeamMembers(): TeamMemberRecord[] {
+  const stored = readStore<TeamMemberRecord[]>(TEAM_STORE_KEY);
+  if (stored && Array.isArray(stored)) return stored;
+  const seed = buildSeedTeamMembers();
+  writeStore(TEAM_STORE_KEY, seed);
+  return seed;
+}
+
+/** Persist a newly invited team member so it survives a refresh. */
+export function addDemoTeamMember(member: TeamMemberRecord): TeamMemberRecord {
+  const list = getDemoTeamMembers();
+  writeStore(TEAM_STORE_KEY, [...list, member]);
+  return member;
+}
+
+/** Persist an update to a team member. Returns the updated record (or null). */
+export function updateDemoTeamMember(
+  id: string,
+  updates: Partial<TeamMemberRecord>,
+): TeamMemberRecord | null {
+  const list = getDemoTeamMembers();
+  let updated: TeamMemberRecord | null = null;
+  const next = list.map((m) => {
+    if (m.id === id) {
+      updated = { ...m, ...updates };
+      return updated;
+    }
+    return m;
+  });
+  if (updated) writeStore(TEAM_STORE_KEY, next);
+  return updated;
+}
+
+/** Persist removal of a team member. */
+export function removeDemoTeamMember(id: string): void {
+  const list = getDemoTeamMembers();
+  writeStore(TEAM_STORE_KEY, list.filter((m) => m.id !== id));
+}
+
 /** Minimal fallback team (just the admin) — used in catch blocks. */
 export function getDemoTeamFallback(): TeamMemberRecord[] {
-  return [getDemoTeamMembers()[0]];
+  return [buildSeedTeamMembers()[0]];
 }
 
 // ============================================================================
 // DEMO SUBMISSIONS (Full-Featured Dashboard)
 // ============================================================================
 
-export function getDemoSubmissions(): Submission[] {
+/** One-time seed submissions. After first read this is persisted to localStorage. */
+function buildSeedSubmissions(): Submission[] {
   const now = Date.now();
   return [
     {
@@ -224,6 +311,26 @@ export function getDemoSubmissions(): Submission[] {
       isRead: false,
     },
   ];
+}
+
+/** Get the persisted demo submissions list (seeded once from buildSeedSubmissions). */
+export function getDemoSubmissions(): Submission[] {
+  const stored = readStore<Submission[]>(SUBMISSIONS_STORE_KEY);
+  if (stored && Array.isArray(stored)) return stored;
+  const seed = buildSeedSubmissions();
+  writeStore(SUBMISSIONS_STORE_KEY, seed);
+  return seed;
+}
+
+/**
+ * Persist a newly submitted questionnaire so its answers survive a refresh and
+ * appear on the dashboard. Newest first; de-duplicates by id.
+ */
+export function addDemoSubmission(submission: Submission): Submission {
+  const list = getDemoSubmissions();
+  const next = [submission, ...list.filter((s) => s.id !== submission.id)];
+  writeStore(SUBMISSIONS_STORE_KEY, next);
+  return submission;
 }
 
 // ============================================================================

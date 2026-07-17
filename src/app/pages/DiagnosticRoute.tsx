@@ -41,20 +41,23 @@ export function DiagnosticRoute() {
     // Navigate to score page immediately so user sees value
     navigate('/score');
 
-    if (FEATURES.BACKEND_INTEGRATION) {
-      try {
-        const result = await createSubmission({
-          contactName: data.contactName || contactInfo?.name || '',
-          email: data.email || contactInfo?.email || '',
-          phone: data.phone || contactInfo?.phone || '',
-          website: data.website || contactInfo?.website || '',
-          industry: data.industry,
-          answers: data.answers,
-          // ── F-001: pipe client-computed score to server so both sides show the same number
-          readinessScore: score.readinessScore,
-        });
+    // Persist the submission (demo mode → local demo store; backend → server) so
+    // the questionnaire answers survive a refresh and appear on the dashboard.
+    try {
+      const result = await createSubmission({
+        contactName: data.contactName || contactInfo?.name || '',
+        email: data.email || contactInfo?.email || '',
+        phone: data.phone || contactInfo?.phone || '',
+        website: data.website || contactInfo?.website || '',
+        industry: data.industry,
+        answers: data.answers,
+        // ── F-001: pipe client-computed score to server so both sides show the same number
+        readinessScore: score.readinessScore,
+      });
 
-        // Also push email queue to server
+      // Also push email queue to server (backend mode only — demo queue is
+      // already persisted locally by enqueueNurtureSequence above).
+      if (FEATURES.BACKEND_INTEGRATION) {
         try {
           await enqueueEmailsApi({
             submissionId: result.submissionId || submissionId,
@@ -80,9 +83,9 @@ export function DiagnosticRoute() {
         } catch (emailErr) {
           console.error('Email queue sync failed (non-blocking):', emailErr);
         }
-      } catch (err) {
-        console.error('Failed to save submission:', err);
       }
+    } catch (err) {
+      console.error('Failed to save submission:', err);
     }
 
     setIsSubmitting(false);

@@ -48,7 +48,7 @@ import type { WinCelebrationData } from '@/app/components/WinCelebration';
 import {
   getSubmissions, updateSubmissionStatus, getNotes, getCortexAnalysis,
   analyzeSubmission, clearCortexAnalysis, getCortexStatus, analyzeSubmissionsBatch,
-  getOutcomesMap,
+  getOutcomesMap, getDemoSubmissions,
   type Submission, type CortexAnalysisResult, type CortexStatusEntry,
 } from '@/app/services/dataService';
 import { SubmissionNotesPanel } from '@/app/components/SubmissionNotesPanel';
@@ -1145,6 +1145,23 @@ function CortexLeadDetail({
         if (isVerboseLogging()) {
           console.log('📦 Using demo data for lead details (backend disabled)');
         }
+        // If this lead is a persisted submission with real questionnaire
+        // answers, build the CORTEX view deterministically from those answers
+        // instead of static mock data. This surfaces the client's actual
+        // responses on the dashboard.
+        const persistedSub = getDemoSubmissions().find(s => s.id === leadId);
+        const hasRealAnswers =
+          !!persistedSub &&
+          Object.values(persistedSub.answers || {}).some(a => String(a ?? '').trim().length > 0);
+
+        if (persistedSub && hasRealAnswers) {
+          const realData = generateCortexData(persistedSub);
+          setData(realData);
+          setCurrentStatus(realData.lead.status);
+          setIsLoading(false);
+          return;
+        }
+
         const mockData = getMockCortexLeadData(leadId);
         setData(mockData);
         setCurrentStatus(mockData.lead.status);

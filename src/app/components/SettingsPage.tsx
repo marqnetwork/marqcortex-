@@ -23,9 +23,24 @@ import {
 import {
   getPlatformSettings, savePlatformSettings,
   sendTestEmailRequest, sendWeeklyDigestRequest,
+  getDemoSubmissions,
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+
+/**
+ * Platform Health counts derived from the persisted demo submissions — reflects
+ * the real demo data (and any newly submitted questionnaires), never a
+ * hardcoded fabricated total.
+ */
+function demoSubmissionCounts() {
+  const subs = getDemoSubmissions();
+  const counts = { new: 0, 'in-review': 0, completed: 0, approved: 0, total: subs.length };
+  for (const s of subs) {
+    if (s.status in counts) (counts as any)[s.status] += 1;
+  }
+  return counts;
+}
 
 interface Props {
   accessToken?: string;
@@ -87,7 +102,7 @@ export function SettingsPage({ accessToken }: Props) {
             },
           },
           health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
+            submissionCounts: demoSubmissionCounts(),
             serverTime: new Date().toISOString(),
             recentActivity: [],
           },
@@ -134,7 +149,7 @@ export function SettingsPage({ accessToken }: Props) {
             },
           },
           health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
+            submissionCounts: demoSubmissionCounts(),
             serverTime: new Date().toISOString(),
             recentActivity: [],
           },

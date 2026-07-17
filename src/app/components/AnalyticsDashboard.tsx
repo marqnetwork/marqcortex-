@@ -26,7 +26,7 @@ import {
   Building2, BarChart3, Loader2, RefreshCw, Users, Target,
   ArrowUpRight, ArrowDownRight, Minus, Activity, FileText, Send, Eye, ThumbsUp,
 } from 'lucide-react';
-import { getAnalytics, getSubmissions, type Submission } from '@/app/services/dataService';
+import { getAnalytics, getSubmissions, getDemoSubmissions, type Submission } from '@/app/services/dataService';
 import { EngagementIntelligence } from '@/app/components/EngagementIntelligence';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 
@@ -106,10 +106,12 @@ export function AnalyticsDashboard({ accessToken }: Props) {
       // Check feature flag before making API calls
       if (!isBackendEnabled()) {
         if (isVerboseLogging()) {
-          console.log('📦 Using demo data for analytics (backend disabled)');
+          console.log('📦 Using persisted demo submissions for analytics (backend disabled)');
         }
-        // Generate demo analytics data
-        const demoSubmissions: Submission[] = generateDemoSubmissions();
+        // Read the SAME persisted demo submissions every refresh — no random
+        // regeneration, so values are stable across reloads.
+        const res = await getSubmissions(accessToken);
+        const demoSubmissions = res.submissions || [];
         setSubmissions(demoSubmissions);
         setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
         setLastUpdated(new Date());
@@ -129,13 +131,13 @@ export function AnalyticsDashboard({ accessToken }: Props) {
       if (isVerboseLogging()) {
         console.error('❌ Analytics load error:', err);
       }
-      
+
       if (shouldShowApiErrors()) {
         setError(err.message || 'Failed to load analytics');
       }
-      
-      // Fall back to demo data
-      const demoSubmissions: Submission[] = generateDemoSubmissions();
+
+      // Fall back to the persisted demo submissions (stable — never random)
+      const demoSubmissions: Submission[] = getDemoSubmissions();
       setSubmissions(demoSubmissions);
       setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
       setLastUpdated(new Date());
@@ -698,44 +700,6 @@ function DarkTooltip({ active, payload, label }: any) {
 // ============================================================================
 // DATA BUILDERS
 // ============================================================================
-
-function generateDemoSubmissions(): Submission[] {
-  const industries = ['Technology', 'Healthcare', 'E-commerce', 'Manufacturing', 'Finance'];
-  const statuses: Array<'new' | 'in-review' | 'completed' | 'approved'> = ['new', 'in-review', 'completed', 'approved'];
-  const priorities: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
-  
-  const demos: Submission[] = [];
-  for (let i = 0; i < 20; i++) {
-    const daysAgo = Math.floor(Math.random() * 14);
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    
-    demos.push({
-      id: `demo_sub_${i + 1}`,
-      company: `Demo Company ${i + 1}`,
-      contact: `Contact ${i + 1}`,
-      email: `contact${i + 1}@democompany.com`,
-      phone: '(555) 123-4567',
-      website: `www.demo${i + 1}.com`,
-      industry: industries[i % industries.length],
-      industryId: industries[i % industries.length].toLowerCase(),
-      employees: i % 3 === 0 ? '10-50' : i % 3 === 1 ? '51-200' : '201-500',
-      revenue: i % 3 === 0 ? '$1M-$5M' : i % 3 === 1 ? '$5M-$20M' : '$20M-$50M',
-      submittedAt: date.toISOString(),
-      submittedDate: date.toLocaleDateString(),
-      status: statuses[i % statuses.length],
-      priority: priorities[i % priorities.length],
-      completionScore: 60 + Math.floor(Math.random() * 35),
-      qualityScore: 70 + Math.floor(Math.random() * 25),
-      aiScore: 65 + Math.floor(Math.random() * 30),
-      roiPotential: i % 2 === 0 ? 'High' : 'Medium',
-      answers: { 1: 'Demo answer', 2: 'Demo answer 2' },
-      isRead: i % 2 === 0,
-    });
-  }
-  
-  return demos;
-}
 
 function computeAnalyticsFromSubmissions(subs: Submission[]): AnalyticsData {
   const byStatus: Record<string, number> = { new: 0, 'in-review': 0, completed: 0, approved: 0 };

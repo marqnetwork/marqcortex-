@@ -168,10 +168,51 @@ export const findDemoClient = demo.findDemoClient;
 /** Create a new submission */
 export async function createSubmission(payload: api.SubmissionPayload) {
   if (isDemo()) {
-    log('Create submission (demo mode)');
-    return { success: true, submissionId: `demo-${Date.now()}` };
+    log('Create submission (demo mode — persisted to demo store)');
+    const submission = buildSubmissionFromPayload(payload);
+    demo.addDemoSubmission(submission);
+    return { success: true, submissionId: submission.id };
   }
   return api.createSubmission(payload);
+}
+
+/**
+ * Build a full Submission record from the diagnostic payload for demo-mode
+ * persistence. Derived scores come from the real answers / client-computed
+ * readiness score — no random or fabricated values.
+ */
+function buildSubmissionFromPayload(payload: api.SubmissionPayload): api.Submission {
+  const id = `sub_${Date.now()}`;
+  const answers = payload.answers || {};
+  const answered = Object.values(answers).filter(a => String(a ?? '').trim().length > 0);
+  const totalQuestions = Object.keys(answers).length || answered.length || 1;
+  const completionScore = Math.round((answered.length / totalQuestions) * 100);
+  const score = typeof payload.readinessScore === 'number' ? payload.readinessScore : 0;
+  const priority: api.Submission['priority'] = score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+  const nowIso = new Date().toISOString();
+
+  return {
+    id,
+    company: payload.website || (payload.contactName ? `${payload.contactName}'s Company` : 'New Submission'),
+    contact: payload.contactName || '',
+    email: payload.email || '',
+    phone: payload.phone || '',
+    website: payload.website || '',
+    industry: payload.industry || '',
+    industryId: payload.industry || '',
+    employees: '',
+    revenue: '',
+    submittedAt: nowIso,
+    submittedDate: new Date(nowIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    status: 'new',
+    priority,
+    completionScore,
+    qualityScore: score,
+    aiScore: score,
+    roiPotential: '—',
+    answers,
+    isRead: false,
+  };
 }
 
 /** Get all submissions (team auth) */
@@ -578,16 +619,25 @@ export const getDemoEngagementEvents = demo.getDemoEngagementEvents;
 
 export async function getAnalytics(accessToken: string) {
   if (isDemo()) {
-    log('Get analytics (demo mode)');
+    log('Get analytics (demo mode — derived from persisted submissions)');
     return {
       success: true,
       analytics: {
-        submissionCounts: { new: 3, 'in-review': 2, completed: 1, approved: 0, total: 6 },
+        submissionCounts: computeSubmissionCounts(demo.getDemoSubmissions()),
         dailyTrend: [],
       },
     };
   }
   return api.getAnalytics(accessToken);
+}
+
+/** Count submissions by status (stable, derived from the persisted demo store). */
+function computeSubmissionCounts(subs: api.Submission[]) {
+  const counts = { new: 0, 'in-review': 0, completed: 0, approved: 0, total: subs.length };
+  for (const s of subs) {
+    if (s.status in counts) (counts as any)[s.status] += 1;
+  }
+  return counts;
 }
 
 // ============================================================================
@@ -712,7 +762,7 @@ export async function inviteTeamMember(
   accessToken: string,
 ) {
   if (isDemo()) {
-    log('Invite team member (demo mode)');
+    log('Invite team member (demo mode — persisted to demo store)');
     const member: api.TeamMemberRecord = {
       id: `user_demo_${Date.now()}`,
       email: payload.email,
@@ -723,7 +773,8 @@ export async function inviteTeamMember(
       lastActive: null,
       isSelf: false,
     };
-    return { success: true, member, tempPassword: 'DemoPass123!' };
+    demo.addDemoTeamMember(member);
+    return { success: true, member, tempPassword: payload.tempPassword || 'DemoPass123!' };
   }
   return api.inviteTeamMember(payload, accessToken);
 }
@@ -734,17 +785,19 @@ export async function updateTeamMember(
   accessToken: string,
 ) {
   if (isDemo()) {
-    log('Update team member (demo mode)');
+    log('Update team member (demo mode — persisted to demo store)');
+    const updated = demo.updateDemoTeamMember(id, updates as Partial<api.TeamMemberRecord>);
     const members = demo.getDemoTeamMembers();
-    const member = members.find(m => m.id === id) || members[0];
-    return { success: true, member: { ...member, ...updates } as api.TeamMemberRecord };
+    const member = updated || members.find(m => m.id === id) || members[0];
+    return { success: true, member: member as api.TeamMemberRecord };
   }
   return api.updateTeamMember(id, updates, accessToken);
 }
 
 export async function removeTeamMember(id: string, accessToken: string) {
   if (isDemo()) {
-    log('Remove team member (demo mode)');
+    log('Remove team member (demo mode — persisted to demo store)');
+    demo.removeDemoTeamMember(id);
     return { success: true };
   }
   return api.removeTeamMember(id, accessToken);
@@ -784,7 +837,7 @@ export async function getPlatformSettings(accessToken: string) {
         },
       },
       health: {
-        submissionCounts: { new: 3, 'in-review': 2, completed: 1, approved: 0, total: 6 },
+        submissionCounts: computeSubmissionCounts(demo.getDemoSubmissions()),
         serverTime: new Date().toISOString(),
         recentActivity: [],
       },

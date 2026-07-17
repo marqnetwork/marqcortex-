@@ -128,13 +128,16 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
   // ── Load ───────────────────────────────────────────────────────────────────
 
   const loadSubmissions = useCallback(async (silent = false) => {
-    // If backend integration is disabled, use demo data immediately
+    // If backend integration is disabled, use the persisted demo store. Reading
+    // it fresh (not the module-level SEED_SUBMISSIONS constant) means newly
+    // submitted questionnaires appear in the leads list.
     if (!FEATURES.BACKEND_INTEGRATION || !accessToken) {
       if (FEATURES.VERBOSE_LOGGING) {
-        console.log('📊 Using demo/seed data (backend integration disabled or no access token)');
+        console.log('📊 Using persisted demo store (backend integration disabled or no access token)');
       }
-      setSubmissions(SEED_SUBMISSIONS);
-      setSearchableSubmissions(SEED_SUBMISSIONS);
+      const demoData = getDemoSubmissions();
+      setSubmissions(demoData);
+      setSearchableSubmissions(demoData);
       setIsLoading(false);
       return;
     }

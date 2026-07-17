@@ -22,7 +22,6 @@ import {
   getQueueStats,
   markEmailSent,
   markEmailSkipped,
-  seedDemoQueue,
   seedABVariants,
   EMAIL_TEMPLATE_CONFIGS,
   getDemoDeliveryStats,
@@ -140,8 +139,10 @@ export function EmailNurturePanel() {
   };
 
   const refresh = () => {
-    seedDemoQueue(); // idempotent
-    seedABVariants(); // idempotent — seeds A/B variants onto all emails
+    // Show only the REAL persisted queue (built from actual questionnaire
+    // submissions). No fabricated demo leads are injected — an empty queue
+    // renders the empty state below.
+    seedABVariants(); // idempotent — seeds A/B variants onto existing emails only
     setQueue(getEmailQueue());
     setStats(getQueueStats());
   };
@@ -380,8 +381,17 @@ export function EmailNurturePanel() {
         {filtered.length === 0 && (
           <div className="text-center py-20 text-white/40">
             <Mail className="size-12 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-semibold mb-1">No emails match your filters</p>
-            <p className="text-sm">Try adjusting the filter or search terms.</p>
+            {queue.length === 0 ? (
+              <>
+                <p className="text-lg font-semibold mb-1">No nurture emails yet</p>
+                <p className="text-sm">Emails are queued automatically when a diagnostic is submitted.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold mb-1">No emails match your filters</p>
+                <p className="text-sm">Try adjusting the filter or search terms.</p>
+              </>
+            )}
           </div>
         )}
       </div>
