@@ -1,35 +1,39 @@
-# MARQ Cortex — Stabilization Recovery & Reconciliation
+# MARQ Cortex — Stabilization Inventory
 
-**Generated:** 2026-07-17
-**Branch:** `claude/marq-cortex-stabilization-recovery-1990jj`
+**Generated:** 2026-07-17 · **Unified into AI OS:** 2026-07-17
+**Authority:** governed by `docs/ai/MARQ_CORTEX.md`. This file is the stabilization backlog of record; `docs/ai/STABILIZATION.md` lists which batches are active.
 **Mode:** Analysis & reconciliation only — no product code changed.
-**Evidence rule:** Every remaining item cites a repository file (and line where possible). Confidence tags follow the Constitution Article 10 / `src/imports/marq-os-report.md` protocol: **PROVEN / LIKELY / SUSPECTED / MISSING EVIDENCE**.
+**Evidence rule:** Every remaining item cites a repository file (and line where possible). Confidence tags follow the `docs/ai/MARQ_CORTEX.md` evidence rule / `src/imports/marq-os-report.md` protocol: **PROVEN / LIKELY / SUSPECTED / MISSING EVIDENCE**.
+
+> **History:** originally authored as `docs/ai/STABILIZATION_RECONCILIATION.md` on the stabilization branch. Migrated to this filename when that branch was unified with the AI Operating System branch (`claude/marq-cortex-os-wu1asl`). Governance now lives solely under `docs/ai/`; the legacy root Constitution is preserved at `docs/ai/archive/legacy/MARQ_CORTEX_CONSTITUTION.md`.
 
 ---
 
 ## 0. Reconciliation Notes (read this first)
 
-Two premises in the task did not match the repository as it stands. Recording them is part of the recovery:
+Two premises are recorded here as part of the recovery. Item 1 is now **resolved** by the
+documentation unification; item 2 remains a standing clarification.
 
-1. **The prescribed `docs/ai/*` "AI Operating System" files do not exist.** None of
-   `AI_START_HERE.md`, `docs/ai/MARQ_CORTEX.md`, `docs/ai/ACTIVE_WORK.md`, `docs/ai/ROADMAP.md`,
-   `docs/ai/STABILIZATION.md`, `docs/ai/CHANGELOG_AI.md`, or `docs/ai/DECISIONS.md` are present
-   (verified by direct read — all returned "file does not exist"). The governance they describe
-   **does** exist, but under different paths. This document is placed at `docs/ai/` to establish
-   that home and reconcile the two structures. **Actual governance surface:**
+1. **The `docs/ai/*` "AI Operating System" now exists and is the single documentation authority.**
+   When this inventory was first authored, none of the prescribed AI-OS files were present on the
+   stabilization branch — governance lived in scattered root `.txt` files. That gap is now **closed**:
+   the AI OS branch was merged in, root governance docs were relocated under `docs/ai/`, and the
+   legacy root Constitution was archived. The original → canonical mapping (all migrations complete):
 
-   | Assumed AI-OS file | Real repository artifact (evidence) |
+   | Canonical AI-OS file (authority) | Migrated from (now removed/archived) |
    |---|---|
-   | `docs/ai/MARQ_CORTEX.md` (charter) | `MARQ_CORTEX_CONSTITUTION.md` (v1.1, 17 Articles) |
-   | `docs/ai/ROADMAP.md` | `MARQ_CORTEX_ROADMAP.md.txt` (Phase 1–5 sprint table) |
-   | `docs/ai/STABILIZATION.md` | `MARQ_CORTEX_STABILIZATION_ROADMAP.md.txt` — **exists but is 0 bytes / empty** |
-   | `docs/ai/ACTIVE_WORK.md` | `MARQ_CORTEX_ROADMAP.md.txt` § "Current Sprint" + `MARQ_CORTEX_EXECUTION_RULES.md.txt` |
-   | `docs/ai/CHANGELOG_AI.md` | `architecture/database/MCV2-S*-COMPLETION.md` reports + git history |
-   | `docs/ai/DECISIONS.md` | `architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md` |
-   | (audit memory) | `memory/failure_library.md`, `memory/regression_cases.md`, `src/imports/cortex-audit-report.md` |
+   | `docs/ai/MARQ_CORTEX.md` (charter) | root `MARQ_CORTEX_CONSTITUTION.md` → `docs/ai/archive/legacy/` |
+   | `docs/ai/ROADMAP.md` | root `MARQ_CORTEX_ROADMAP.md.txt` |
+   | `docs/ai/STABILIZATION.md` | root `MARQ_CORTEX_STABILIZATION_ROADMAP.md.txt` (was 0 bytes/empty) |
+   | `docs/ai/EXECUTION_RULES.md` | root `MARQ_CORTEX_EXECUTION_RULES.md.txt` |
+   | `docs/ai/DOCUMENTATION_RULES.md` | root `MARQ_CORTEX_DOCUMENTATION_RULES.md.txt` |
+   | `docs/ai/TEST_PROTOCOL.md` | root `MARQ_CORTEX_TEST_PROTOCOL.md.txt` |
+   | `docs/ai/ACTIVE_WORK.md`, `docs/ai/CHANGELOG_AI.md`, `docs/ai/DECISIONS.md` | new AI-OS files |
+   | `docs/ai/STABILIZATION_INVENTORY.md` (this file) | `docs/ai/STABILIZATION_RECONCILIATION.md` |
 
-   The empty `MARQ_CORTEX_STABILIZATION_ROADMAP.md.txt` is direct evidence that **the stabilization
-   roadmap was never written down** — this document fills that gap from repository evidence.
+   Supporting evidence outside `docs/ai/` remains where it is (not documentation authority, but cited
+   as proof): `memory/failure_library.md`, `memory/regression_cases.md`, `registryAudit.ts`,
+   `architecture/database/MCV2-S*-COMPLETION.md`, `src/imports/*`.
 
 2. **"66 Fixes" is not a fixes count.** The task already flags the phrase as conversational
    shorthand. Repository evidence pins its origin: `registryProcesses.ts` contains exactly **66**
@@ -44,10 +48,10 @@ Two premises in the task did not match the repository as it stands. Recording th
 
 ## 1. Completed Stabilization Work (PROVEN)
 
-Evidence sources: `MARQ_CORTEX_ROADMAP.md.txt`, `memory/failure_library.md`,
+Evidence sources: `docs/ai/ROADMAP.md`, `memory/failure_library.md`,
 `architecture/database/MCV2-S*-COMPLETION.md`, git history, `src/imports/cortex-audit-report.md`.
 
-### 1a. Sprint / phase track (per `MARQ_CORTEX_ROADMAP.md.txt`)
+### 1a. Sprint / phase track (per `docs/ai/ROADMAP.md`)
 - **Phase 1 — AI Foundation:** S1 Intelligence Gateway ✅, S2 Frontend Gateway Normalization ✅.
 - **Phase 2 — Data Platform:** S3 Database Architecture ✅, S4 Tenancy Foundation ✅, S5 Diagnostic Foundation ✅.
   Corroborated by completion reports `MCV2-S4-IMPLEMENT-001-COMPLETION.md`, `MCV2-S5-IMPLEMENT-002-COMPLETION.md`, `MCV2-S5-VALIDATE-001-COMPLETION.md`.
@@ -130,7 +134,7 @@ The structural audit's own remaining list — implementation/polish, not archite
 | D6 | Performance hardening (caching, pagination, audit-log indexing) | `cortex-audit-report.md` item 6 | **P3** | Low |
 
 ### The Phase 4–5 sprint track (roadmap-native remaining work)
-`MARQ_CORTEX_ROADMAP.md.txt` lists these as the **not-yet-done sprints** — the governance-native
+`docs/ai/ROADMAP.md` lists these as the **not-yet-done sprints** — the governance-native
 framing of Stream A. Current position: **S7.4 In Progress**, "Storage Authority: KV".
 | Sprint | Name | Status | Maps to |
 |---|---|---|---|
@@ -181,23 +185,20 @@ authority**) and Execution Rules (small, reversible, bounded sprints).
 
 ## 7. Mapping into the Governance Structure
 
-Because the assumed `docs/ai/*` AI-OS files are absent, findings are mapped into the **artifacts that
-actually govern the repo**, so nothing is orphaned:
+With the AI OS unified, findings map into the **`docs/ai/` authority**, so nothing is orphaned:
 
 | Stream / item | Governing artifact it belongs in |
 |---|---|
-| Stream A (cutover), S7.4–S8.3 | `MARQ_CORTEX_ROADMAP.md.txt` (already tracks these sprints — the SoT per its own "Rules") |
+| Stream A (cutover), S7.4–S8.3 | `docs/ai/ROADMAP.md` (tracks the sprints) + `docs/ai/STABILIZATION.md` (active batches) |
 | Stream B (F-004…F-010) | `memory/failure_library.md` (update status on resolution; add regression case in `memory/regression_cases.md`) |
 | Stream C (dead buttons) | `src/app/utils/registryAudit.ts` (flip MQC-INT-054/055/153 MISSING→LIVE when wired) |
 | Stream D (integration/polish) | `src/imports/cortex-audit-report.md` "6 things" list |
-| Authority/cutover gates | `MARQ_CORTEX_CONSTITUTION.md` Art. 12 & 17; `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
-| Decisions taken during batches | `architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md` |
-| Per-sprint completion evidence | `architecture/database/MCV2-S*-COMPLETION.md` convention |
+| Authority/cutover gates | `docs/ai/MARQ_CORTEX.md` (charter) + `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
+| Decisions taken during batches | `docs/ai/DECISIONS.md` (canonical) + `architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md` (S3 record) |
+| Per-sprint completion evidence | `docs/ai/CHANGELOG_AI.md` (canonical) + `architecture/database/MCV2-S*-COMPLETION.md` (detailed reports) |
 
-**Recommended (optional) reconciliation action to close the doc gap:** populate the empty
-`MARQ_CORTEX_STABILIZATION_ROADMAP.md.txt` with Streams A–D above, or adopt `docs/ai/` as the AI-OS
-home (this file is the first entry). Not done here to honor the task's "recover and reconcile, do not
-invent work" boundary — flagged for a human decision.
+**Doc-gap status:** CLOSED. `docs/ai/` is now the sole documentation authority; the current task is
+tracked in `docs/ai/ACTIVE_WORK.md` and the active batch is surfaced in `docs/ai/STABILIZATION.md`.
 
 ---
 

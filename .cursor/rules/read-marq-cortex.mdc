@@ -1,0 +1,14 @@
+---
+description: Read MARQ Cortex master document before architecture or migration work
+alwaysApply: true
+---
+
+Before starting any MARQ Cortex architecture, migration, or data-platform task, read:
+
+1. `docs/ai/MARQ_CORTEX.md` — master control document and governing principles
+2. `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` — agent operating contract
+3. `ARCHITECT.md` — repository map and task lookup
+
+Migration sprints must obey **Validation precedes authority**: KV remains authoritative until per-domain cutover gates pass. Full historical governance: `docs/ai/archive/legacy/MARQ_CORTEX_CONSTITUTION.md`.
+
+Do not store secrets in repository files or generated reports.
