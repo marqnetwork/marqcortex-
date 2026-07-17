@@ -64,6 +64,6 @@ export const FEATURES = {
  * 
  * To test if edge function is deployed:
  * 1. Open browser console
- * 2. Try: fetch('https://tmclwqcgqfcmqwgrogjy.supabase.co/functions/v1/make-server-324f4fbe/ping')
+ * 2. Try: fetch('https://oqybniefkbppptfatoae.supabase.co/functions/v1/make-server-324f4fbe/ping')
  * 3. Should return: {success: true, message: "pong", ...}
  */

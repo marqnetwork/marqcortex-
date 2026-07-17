@@ -38,53 +38,65 @@ export function DiagnosticRoute() {
       bottleneckTheme: score.bottleneckTheme.label,
     });
 
-    // Navigate to score page immediately so user sees value
+    // ── Persist to Supabase FIRST ────────────────────────────────────────────
+    // Dispatch the POST /submissions request *before* navigating (and before
+    // the score page renders anything that could throw, e.g. client-side PDF
+    // export of a themed report). This guarantees database persistence can
+    // never be blocked by a downstream failure — the request is already in
+    // flight. We await its result afterwards only to settle `isSubmitting`;
+    // navigation is never gated on it.
+    const persistence: Promise<void> = FEATURES.BACKEND_INTEGRATION
+      ? (async () => {
+          try {
+            const result = await createSubmission({
+              contactName: data.contactName || contactInfo?.name || '',
+              email: data.email || contactInfo?.email || '',
+              phone: data.phone || contactInfo?.phone || '',
+              website: data.website || contactInfo?.website || '',
+              industry: data.industry,
+              answers: data.answers,
+              // ── F-001: pipe client-computed score to server so both sides show the same number
+              readinessScore: score.readinessScore,
+            });
+
+            // Also push email queue to server (non-blocking)
+            try {
+              await enqueueEmailsApi({
+                submissionId: result.submissionId || submissionId,
+                contactName: name,
+                contactEmail: email,
+                companyName: company,
+                industry: data.industry,
+                readinessScore: score.readinessScore,
+                bottleneckTheme: score.bottleneckTheme.label,
+                emails: nurtureEntries.map(e => ({
+                  id: e.id,
+                  templateId: e.templateId,
+                  subject: e.subject,
+                  previewText: e.previewText,
+                  status: e.status,
+                  scheduledAt: e.scheduledAt,
+                  sentAt: e.sentAt,
+                  createdAt: e.createdAt,
+                  readinessScore: e.readinessScore,
+                  bottleneckTheme: e.bottleneckTheme,
+                })),
+              });
+            } catch (emailErr) {
+              console.error('Email queue sync failed (non-blocking):', emailErr);
+            }
+          } catch (err) {
+            console.error('Failed to save submission:', err);
+          }
+        })()
+      : Promise.resolve();
+
+    // Navigate to score page immediately so user sees value. Intentionally NOT
+    // awaited on persistence — the request above is already dispatched.
     navigate('/score');
 
-    if (FEATURES.BACKEND_INTEGRATION) {
-      try {
-        const result = await createSubmission({
-          contactName: data.contactName || contactInfo?.name || '',
-          email: data.email || contactInfo?.email || '',
-          phone: data.phone || contactInfo?.phone || '',
-          website: data.website || contactInfo?.website || '',
-          industry: data.industry,
-          answers: data.answers,
-          // ── F-001: pipe client-computed score to server so both sides show the same number
-          readinessScore: score.readinessScore,
-        });
-
-        // Also push email queue to server
-        try {
-          await enqueueEmailsApi({
-            submissionId: result.submissionId || submissionId,
-            contactName: name,
-            contactEmail: email,
-            companyName: company,
-            industry: data.industry,
-            readinessScore: score.readinessScore,
-            bottleneckTheme: score.bottleneckTheme.label,
-            emails: nurtureEntries.map(e => ({
-              id: e.id,
-              templateId: e.templateId,
-              subject: e.subject,
-              previewText: e.previewText,
-              status: e.status,
-              scheduledAt: e.scheduledAt,
-              sentAt: e.sentAt,
-              createdAt: e.createdAt,
-              readinessScore: e.readinessScore,
-              bottleneckTheme: e.bottleneckTheme,
-            })),
-          });
-        } catch (emailErr) {
-          console.error('Email queue sync failed (non-blocking):', emailErr);
-        }
-      } catch (err) {
-        console.error('Failed to save submission:', err);
-      }
-    }
-
+    // Settle submitting state once persistence resolves (already non-blocking).
+    await persistence;
     setIsSubmitting(false);
   };
 
