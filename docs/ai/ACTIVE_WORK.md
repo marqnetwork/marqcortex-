@@ -1,6 +1,6 @@
 # Active Work
 
-Current Feature:
+Current Objective: MCV2-S7.4 — Outcome Shadow Read
 
 Current Task:
 
@@ -8,14 +8,14 @@ Current File:
 
 Root Cause:
 
-Next Action:
+Next Action: Begin S7.4 outcome shadow read implementation.
 
-Status:
+Status: 🔄 In Progress
 
-Branch:
+Branch: claude/marq-cortex-os-wu1asl
 
 Commit:
 
-Blockers:
+Blockers: None
 
 Completed:

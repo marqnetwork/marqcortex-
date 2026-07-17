@@ -1,14 +1,14 @@
 ---
-description: Read MARQ Cortex Constitution before architecture or migration work
+description: Read MARQ Cortex master document before architecture or migration work
 alwaysApply: true
 ---
 
 Before starting any MARQ Cortex architecture, migration, or data-platform task, read:
 
-1. `MARQ_CORTEX_CONSTITUTION.md` — locked operating principles (v1.1)
+1. `docs/ai/MARQ_CORTEX.md` — master control document and governing principles
 2. `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` — agent operating contract
 3. `ARCHITECT.md` — repository map and task lookup
 
-Migration sprints must obey **Article 17 — Runtime Authority Protection**: validation precedes authority; KV remains authoritative until per-domain cutover gates pass.
+Migration sprints must obey **Validation precedes authority**: KV remains authoritative until per-domain cutover gates pass. Full historical governance: `docs/ai/archive/legacy/MARQ_CORTEX_CONSTITUTION.md`.
 
 Do not store secrets in repository files or generated reports.

@@ -12,7 +12,7 @@
 
 | Order | Document | Purpose |
 |-------|----------|---------|
-| 1 | `MARQ_CORTEX_CONSTITUTION.md` | Locked operating principles (v1.1) |
+| 1 | `docs/ai/MARQ_CORTEX.md` | Master control document and governing principles |
 | 2 | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` | Permanent MARQ Claude Agent operating contract (v1.0) |
 | 3 | `ARCHITECT.md` (this file) | Repository map, golden rules, task → file lookup |
 | 4 | Sprint task prompt | Scoped work and acceptance criteria only |
@@ -177,7 +177,7 @@ cortex/
 | Migration engine / CLI | `supabase/functions/server/migration/` · `scripts/migration/cli.ts` |
 | Migration tests | `npm run test:migration` |
 | S6.2 completion / rollback | `architecture/database/MCV2-S6.2-IMPLEMENT-004-COMPLETION.md` · `MCV2-S6.2-ROLLBACK-GUIDE.md` |
-| Constitution | `MARQ_CORTEX_CONSTITUTION.md` |
+| Master control / governance | `docs/ai/MARQ_CORTEX.md` (history: `docs/ai/archive/legacy/MARQ_CORTEX_CONSTITUTION.md`) |
 | S6.3 validation | `architecture/database/MCV2-S6.3-VALIDATE-005-COMPLETION.md` |
 
 ---
