@@ -43,9 +43,17 @@ Issues addressed:
 
 ---
 
+## F1.1 Data Source (corrected)
+
+Real authenticated users persist through the **real Supabase/backend path**
+(edge function `make-server-324f4fbe` → `kv_store_324f4fbe` + Supabase Auth).
+Production builds default to the backend (`BACKEND_INTEGRATION = import.meta.env.PROD`);
+demo mode (localStorage) is isolated to local dev / explicit
+`VITE_BACKEND_INTEGRATION=false`.
+
 ## Runtime Authority (unchanged)
 
-- Storage Authority: KV
+- Storage Authority: KV (`kv_store_324f4fbe`)
 - Storage Gateway: preserved
 - SQL Authority: No
 - API Contracts: Stable

@@ -15,15 +15,23 @@ const envFlag = (key: string, fallback: boolean) => {
 export const FEATURES = {
   /**
    * BACKEND_INTEGRATION
-   * 
-   * When true: Attempts to connect to Supabase backend
-   * When false: Uses demo/seed data exclusively (no API calls)
-   * 
-   * Set to false for demos, presentations, or when backend isn't deployed yet.
-   * Set to true when Supabase edge functions are deployed and ready.
-   * Override via VITE_BACKEND_INTEGRATION in .env.local
+   *
+   * When true: Reads/writes go through the real Supabase edge function
+   *            (authenticated users persist to Postgres — the kv_store_324f4fbe
+   *            table and Supabase Auth).
+   * When false: Uses demo/seed data exclusively (no API calls, localStorage only).
+   *
+   * DEFAULT (root cause fix — F1.1):
+   *   Production builds (`vite build`, i.e. the deployed Vercel app) default to
+   *   the REAL backend so real users persist to Supabase. Local dev (`vite`)
+   *   defaults to demo mode so contributors and the demo smoke test do not need
+   *   a live backend. Demo mode is therefore isolated to dev / explicit opt-in.
+   *
+   * Explicit override (either direction) always wins:
+   *   VITE_BACKEND_INTEGRATION=true   → force real backend (e.g. staging preview)
+   *   VITE_BACKEND_INTEGRATION=false  → force demo mode (e.g. a demo deployment)
    */
-  BACKEND_INTEGRATION: envFlag('VITE_BACKEND_INTEGRATION', false),
+  BACKEND_INTEGRATION: envFlag('VITE_BACKEND_INTEGRATION', import.meta.env.PROD),
 
   /**
    * SHOW_API_ERRORS

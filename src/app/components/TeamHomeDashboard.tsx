@@ -14,7 +14,7 @@
  *   - "All Leads" tab (embeds FullFeaturedDashboard)
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,10 +29,14 @@ import {
   BellRing, ListChecks, Layers, LineChart,
   Building2, Filter,
 } from 'lucide-react';
-import { getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
+import {
+  getDemoSubmissions, getDemoTeamMembers,
+  getSubmissions, getTeamMembers,
+} from '@/app/services/dataService';
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
 import { InlineAITrigger } from '@/app/components/InlineAITrigger';
-import type { Submission } from '@/app/services/dataService';
+import type { Submission, TeamMemberRecord } from '@/app/services/dataService';
+import { isBackendEnabled } from '@/config/runtime';
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -236,8 +240,28 @@ export function TeamHomeDashboard({
   const [activeTab, setActiveTab] = useState<DashTab>('command');
   const [now] = useState(() => new Date());
 
-  const submissions = useMemo(() => getDemoSubmissions(), []);
-  const teamMembers  = useMemo(() => getDemoTeamMembers(), []);
+  // Data source: real Supabase backend when enabled, demo store otherwise.
+  // Seed initial state from demo so the first paint is never empty; when the
+  // backend is enabled we replace it with the authenticated read.
+  const [submissions, setSubmissions] = useState<Submission[]>(() =>
+    isBackendEnabled() ? [] : getDemoSubmissions(),
+  );
+  const [teamMembers, setTeamMembers] = useState<TeamMemberRecord[]>(() =>
+    isBackendEnabled() ? [] : getDemoTeamMembers(),
+  );
+
+  useEffect(() => {
+    if (!isBackendEnabled()) return;
+    if (!accessToken) return;
+    let cancelled = false;
+    getSubmissions(accessToken)
+      .then(res => { if (!cancelled) setSubmissions(res.submissions || []); })
+      .catch(() => { if (!cancelled) setSubmissions(getDemoSubmissions()); });
+    getTeamMembers(accessToken)
+      .then(res => { if (!cancelled) setTeamMembers(res.members || []); })
+      .catch(() => { if (!cancelled) setTeamMembers(getDemoTeamMembers()); });
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
   // ── Computed KPIs ──────────────────────────────────────────
   const kpis = useMemo(() => {
