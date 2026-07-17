@@ -1,7 +1,7 @@
 {
   "_meta": {
     "protocol": "MARQ Code Intelligence OS v3.3",
-    "generated": "2026-07-11",
+    "generated": "2026-07-14",
     "canonical_doc": "ARCHITECT.md",
     "manifest": "src/system/manifest.ts",
     "confidence": "PROVEN",
@@ -186,6 +186,148 @@
       "local_setup": "architecture/database/LOCAL_DATABASE_SETUP.md",
       "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
     }
+  },
+
+  "storage_gateway_plan": {
+    "sprint": "MCV2-S7.1-PLAN-006",
+    "status": "planning_complete",
+    "runtime_changes": "none",
+    "kv_authority": "unchanged",
+    "selected_architecture": "diagnostic-domain gateway wrapping existing S5 repositories behind a read-strategy layer",
+    "gateway_target_path": "supabase/functions/server/storage/ (created in S7.2, not yet present)",
+    "read_modes": ["kv_only", "kv_primary", "sql_primary", "sql_only", "disabled"],
+    "default_mode": "kv_only",
+    "flags_scope": "Edge env, per-domain + per-entity, fail-safe to kv_only",
+    "sql_reads_enabled": false,
+    "shadow_reads_enabled": false,
+    "dual_write_enabled": false,
+    "docs": {
+      "architecture": "architecture/database/MCV2-S7.1-RUNTIME-STORAGE-GATEWAY-ARCHITECTURE.md",
+      "dependency_map": "architecture/database/MCV2-S7.1-RUNTIME-READ-DEPENDENCY-MAP.md",
+      "rollout_plan": "architecture/database/MCV2-S7.1-DUAL-READ-ROLLOUT-PLAN.md",
+      "file_plan": "architecture/database/MCV2-S7.1-IMPLEMENTATION-FILE-PLAN.md",
+      "test_plan": "architecture/database/MCV2-S7.1-TEST-PLAN.md",
+      "s7_2_prompt_draft": "architecture/database/MCV2-S7.2-IMPLEMENT-006-PROMPT-DRAFT.md",
+      "completion": "architecture/database/MCV2-S7.1-PLAN-006-COMPLETION.md"
+    },
+    "next_phase": "MCV2-S7.2-IMPLEMENT-006 (not started)"
+  },
+
+  "storage_gateway_impl": {
+    "sprint": "MCV2-S7.2-IMPLEMENT-007",
+    "status": "phase1_complete_validated",
+    "validation_sprint": "MCV2-S7.3-VALIDATE-008",
+    "validation_status": "passed",
+    "response_parity": "confirmed",
+    "rollback_verified": true,
+    "storage_test_count": 44,
+    "path": "supabase/functions/server/storage/",
+    "files": [
+      "storage/contracts.ts",
+      "storage/kvParse.ts",
+      "storage/config.ts",
+      "storage/telemetry.ts",
+      "storage/kvAdapter.ts",
+      "storage/gateway.ts",
+      "storage/index.ts"
+    ],
+    "active_read_mode": "kv_only",
+    "kv_authority": "authoritative",
+    "sql_runtime_reads": false,
+    "shadow_reads": false,
+    "fallback": false,
+    "writes_through_gateway": false,
+    "telemetry_enabled_by_default": false,
+    "telemetry_table_created": false,
+    "migrated_read_routes": [
+      "GET /submissions",
+      "GET /submissions/:id",
+      "GET /submissions/:id/outcome"
+    ],
+    "deferred_reads": ["client/submission/:id", "client/submission/:id/report", "cortex/scores", "lead", "analytics_aggregates"],
+    "env_flags": ["STORAGE_DUAL_READ_ENABLED", "STORAGE_MODE_SUBMISSION", "STORAGE_MODE_OUTCOME", "STORAGE_MODE_REPORT", "STORAGE_MODE_LEAD", "STORAGE_READ_TELEMETRY_ENABLED"],
+    "test_command": "npm run test:storage",
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md",
+      "usage_guide": "architecture/database/MCV2-S7.2-STORAGE-GATEWAY-USAGE-GUIDE.md",
+      "config_guide": "architecture/database/MCV2-S7.2-READ-MODE-CONFIG-GUIDE.md",
+      "rollback": "architecture/database/MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md"
+    },
+    "next_phase": "MCV2-S7.4 (shadow-read impl for Outcome entity, not started)",
+    "first_shadow_read_entity": "outcome"
+  },
+
+  "outcome_shadow_read": {
+    "sprint": "MCV2-S7.4-IMPLEMENT-009",
+    "status": "engineering_complete_live_deferred",
+    "entity": "outcome",
+    "enabled_by_default": false,
+    "kv_authority": "authoritative",
+    "sql_returned_to_users": false,
+    "fallback": false,
+    "sql_primary": false,
+    "writes_through_gateway": false,
+    "kill_switch": "STORAGE_FORCE_KV_ONLY",
+    "execution": "background bounded SQL read, not awaited by response path",
+    "files": [
+      "storage/sqlOutcomeAdapter.ts",
+      "storage/outcomeNormalize.ts",
+      "storage/outcomeCompare.ts",
+      "storage/runtimeSqlOutcome.ts (Deno-only SQL bridge; not imported by barrel/tests)"
+    ],
+    "env_flags": [
+      "STORAGE_SHADOW_OUTCOME_ENABLED",
+      "STORAGE_FORCE_KV_ONLY",
+      "STORAGE_SHADOW_OUTCOME_ORG_ALLOWLIST",
+      "STORAGE_SHADOW_DEFAULT_ORG_ID",
+      "STORAGE_SHADOW_SQL_TIMEOUT_MS",
+      "STORAGE_ENVIRONMENT"
+    ],
+    "comparison_outcomes": ["match", "normalization_only_match", "source_missing", "target_missing", "value_mismatch", "relationship_mismatch", "authorization_mismatch", "schema_mismatch", "error"],
+    "storage_test_count": 70,
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.4-IMPLEMENT-009-COMPLETION.md",
+      "comparison_spec": "architecture/database/MCV2-S7.4-OUTCOME-COMPARISON-SPEC.md",
+      "rollout": "architecture/database/MCV2-S7.4-OUTCOME-SHADOW-ROLLOUT.md",
+      "rollback": "architecture/database/MCV2-S7.4-ROLLBACK-GUIDE.md"
+    },
+    "live_validation": "deferred_environment_capability",
+    "next_phase": "MCV2-S7.5 live Outcome shadow validation (not started)"
+  },
+
+  "outcome_shadow_validation": {
+    "sprint": "MCV2-S7.5-VALIDATE-010",
+    "status": "offline_validated_live_deferred",
+    "offline_harness": "scripts/storage/outcome-shadow-dryrun.ts",
+    "harness_command": "npm run storage:shadow-dryrun",
+    "harness_result": "PASS (9/9 categories, kv_always_returned, sql_never_returned)",
+    "storage_test_count": 71,
+    "flaky_test_fixed": "outcomeShadow.test.ts fake SQL port timer unref'd",
+    "kv_authority": "authoritative",
+    "shadow_enabled_by_default": false,
+    "live_validation": "deferred_environment_capability",
+    "docs": {
+      "completion": "architecture/database/MCV2-S7.5-VALIDATE-010-COMPLETION.md",
+      "staging_runbook": "architecture/database/MCV2-S7.5-OUTCOME-SHADOW-STAGING-RUNBOOK.md",
+      "go_no_go_gates": "architecture/database/MCV2-S7.5-GO-NO-GO-GATES.md",
+      "telemetry_alerting": "architecture/database/MCV2-S7.5-TELEMETRY-ALERTING-SPEC.md"
+    },
+    "next_phase": "MCV2-S7.6 live staging Outcome shadow soak (not started)"
+  },
+
+  "outcome_shadow_reconcile": {
+    "sprint": "MCV2-S7.6-VALIDATE-011",
+    "status": "runner_complete_live_soak_deferred",
+    "live_soak_executed": false,
+    "blocked_on": ["service_role_env", "outcomes_backfill", "human_approval_target_org", "human_approval_telemetry_destination"],
+    "runner": "scripts/storage/outcome-shadow-reconcile.ts (Deno CLI, capability-gated, read-only)",
+    "aggregation": "scripts/storage/outcomeReconcile.ts (Node-tested)",
+    "gate_c_logic": "unexplained_mismatch==0 && authorization_mismatch==0 && error_rate<0.5%",
+    "storage_test_count": 77,
+    "kv_authority": "authoritative",
+    "shadow_enabled_by_default": false,
+    "completion": "architecture/database/MCV2-S7.6-VALIDATE-011-COMPLETION.md",
+    "next_phase": "MCV2-S7.6 live execution once env + approvals exist (not started)"
   },
 
   "auth": {

@@ -179,6 +179,24 @@ cortex/
 | S6.2 completion / rollback | `architecture/database/MCV2-S6.2-IMPLEMENT-004-COMPLETION.md` · `MCV2-S6.2-ROLLBACK-GUIDE.md` |
 | Constitution | `MARQ_CORTEX_CONSTITUTION.md` |
 | S6.3 validation | `architecture/database/MCV2-S6.3-VALIDATE-005-COMPLETION.md` |
+| Runtime storage gateway plan (MCV2-S7.1) | `architecture/database/MCV2-S7.1-RUNTIME-STORAGE-GATEWAY-ARCHITECTURE.md` |
+| Runtime read dependency map (MCV2-S7.1) | `architecture/database/MCV2-S7.1-RUNTIME-READ-DEPENDENCY-MAP.md` |
+| Dual-read rollout & flags (MCV2-S7.1) | `architecture/database/MCV2-S7.1-DUAL-READ-ROLLOUT-PLAN.md` |
+| S7.2 storage file/test plan (MCV2-S7.1) | `architecture/database/MCV2-S7.1-IMPLEMENTATION-FILE-PLAN.md` · `MCV2-S7.1-TEST-PLAN.md` |
+| Diagnostic storage gateway (MCV2-S7.2) | `supabase/functions/server/storage/` · usage: `architecture/database/MCV2-S7.2-STORAGE-GATEWAY-USAGE-GUIDE.md` |
+| Storage read-mode config (MCV2-S7.2) | `architecture/database/MCV2-S7.2-READ-MODE-CONFIG-GUIDE.md` (env `STORAGE_*`, default `kv_only`) |
+| Storage gateway tests (MCV2-S7.2) | `tests/storage/` · `npm run test:storage` |
+| S7.2 completion / rollback | `architecture/database/MCV2-S7.2-IMPLEMENT-007-COMPLETION.md` · `MCV2-S7.2-PHASE1-ROLLBACK-GUIDE.md` |
+| S7.3 validation (parity/rollback/telemetry) | `architecture/database/MCV2-S7.3-VALIDATE-008-COMPLETION.md` · `MCV2-S7.3-RESPONSE-PARITY-REPORT.md` · `MCV2-S7.3-ROLLBACK-VALIDATION.md` |
+| Shadow-read readiness plan (first entity: Outcome) | `architecture/database/MCV2-S7.3-SHADOW-READ-READINESS-PLAN.md` |
+| Outcome shadow read (MCV2-S7.4, disabled by default) | `supabase/functions/server/storage/{sqlOutcomeAdapter,outcomeNormalize,outcomeCompare,runtimeSqlOutcome}.ts` |
+| Outcome shadow config/rollout/rollback (MCV2-S7.4) | `architecture/database/MCV2-S7.4-OUTCOME-SHADOW-ROLLOUT.md` · `MCV2-S7.4-OUTCOME-COMPARISON-SPEC.md` · `MCV2-S7.4-ROLLBACK-GUIDE.md` |
+| S7.4 completion | `architecture/database/MCV2-S7.4-IMPLEMENT-009-COMPLETION.md` |
+| Outcome shadow dry-run harness (MCV2-S7.5) | `scripts/storage/outcome-shadow-dryrun.ts` · `npm run storage:shadow-dryrun` |
+| Outcome shadow staging runbook / gates / alerting (MCV2-S7.5) | `architecture/database/MCV2-S7.5-OUTCOME-SHADOW-STAGING-RUNBOOK.md` · `MCV2-S7.5-GO-NO-GO-GATES.md` · `MCV2-S7.5-TELEMETRY-ALERTING-SPEC.md` |
+| S7.5 completion | `architecture/database/MCV2-S7.5-VALIDATE-010-COMPLETION.md` |
+| Live Outcome reconciliation runner (MCV2-S7.6, read-only, capability-gated) | `scripts/storage/outcome-shadow-reconcile.ts` · `scripts/storage/outcomeReconcile.ts` |
+| S7.6 completion (live soak deferred) | `architecture/database/MCV2-S7.6-VALIDATE-011-COMPLETION.md` |
 
 ---
 
