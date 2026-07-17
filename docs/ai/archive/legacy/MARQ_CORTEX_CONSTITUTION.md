@@ -126,7 +126,7 @@ When sources disagree, resolve in this order:
 | Surface | Reference |
 |---------|-----------|
 | Agent entry | `ARCHITECT.md` § Agent entry points |
-| Cursor rule | `.cursor/rules/read-marq-constitution.mdc` |
+| Cursor rule | `.cursor/rules/read-marq-cortex.mdc` |
 | Machine snapshot | `architecture/system_map.json` → `constitution` |
 | Migration roadmap | `architecture/database/MCV2-S3-MIGRATION-ROADMAP.md` |
 

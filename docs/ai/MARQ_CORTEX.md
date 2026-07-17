@@ -28,6 +28,7 @@ Never rediscover completed work. Never restart completed work.
 | `ACTIVE_WORK.md` | Current task only |
 | `CHANGELOG_AI.md` | Concise history of completed work |
 | `ROADMAP.md` | Long-term roadmap only |
+| `DECISIONS.md` | Permanent architectural decisions |
 | `STABILIZATION.md` | Active stabilization phases only |
 | `EXECUTION_RULES.md` | Detailed sprint execution procedure |
 | `TEST_PROTOCOL.md` | Detailed QA and validation checklist |
