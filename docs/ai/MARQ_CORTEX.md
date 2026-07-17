@@ -1,10 +1,18 @@
 # MARQ Cortex
 
-Version: 1.0 (locked)
-Status: Canonical — highest authority
-Purpose: The single master control document for MARQ Cortex. Every AI session (Claude, ChatGPT, Codex, Cursor, Gemini) reads this first.
+## AI Operating System
 
-This document defines operating principles only. It never contains sprint information, implementation history, or temporary notes.
+| Field | Value |
+|-------|-------|
+| Version | 1.0.1 |
+| Last Updated | 2026-07-17 |
+| Status | LOCKED |
+| Compatibility | Provider-agnostic — any AI agent (Claude, ChatGPT, Gemini, Cursor, Codex, etc.) |
+
+Status: Canonical — highest authority
+Purpose: The single master control document for MARQ Cortex. Every AI session reads this first.
+
+This document defines operating principles only. It never contains sprint information, implementation history, or temporary notes. Any change to this file must increment the AI OS version (see Amendment Process).
 
 ---
 
@@ -164,3 +172,33 @@ A task is complete only when:
 Git: one logical fix, one commit; commit and push at sprint end; record commit SHA and branch; no Pull Request unless requested; merge only after QA. Push failures caused by environment policy are deployment limitations, not sprint failures.
 
 Then stop.
+
+---
+
+# 10. Engineering Lifecycle
+
+Every engineering task follows this lifecycle:
+
+PLAN → IMPLEMENT → VERIFY → REGRESSION → PRODUCTION → LOCK
+
+- **PLAN** — Requirements and implementation strategy.
+- **IMPLEMENT** — Smallest safe change.
+- **VERIFY** — Confirm end-to-end behavior.
+- **REGRESSION** — Ensure no existing functionality broke.
+- **PRODUCTION** — Deploy and verify production.
+- **LOCK** — Feature is complete and should not be reopened without new evidence.
+
+---
+
+# 11. Amendment Process
+
+This document is the AI Operating System. It may only change when one of the following changes:
+
+- Engineering workflow
+- Repository governance
+- AI operating principles
+- Documentation architecture
+
+Feature implementation must never modify the AI Operating System.
+
+Any approved change to this file must increment the AI OS version in the header. During normal feature development, update only `ACTIVE_WORK.md`, `CHANGELOG_AI.md`, `ROADMAP.md`, `STABILIZATION.md`, and `DECISIONS.md`.
