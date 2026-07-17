@@ -23,11 +23,11 @@ import {
 import {
   Brain, TrendingUp, TrendingDown, DollarSign, Users, Target,
   Zap, AlertTriangle, CheckCircle2, Clock, ArrowRight,
-  Flame, Sparkles, Activity, Calendar, Mail,
+  Flame, Activity, Calendar, Mail,
   BarChart3, Settings, Shield, FileText, Minus,
   Star, ChevronRight, Circle, RefreshCw,
-  BellRing, ListChecks, Layers, LineChart, UserCheck,
-  Building2, Filter, MessageSquare,
+  BellRing, ListChecks, Layers, LineChart,
+  Building2, Filter,
 } from 'lucide-react';
 import { getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
@@ -166,17 +166,47 @@ function buildPriorityActions(subs: Submission[]): PriorityAction[] {
     .slice(0, 6);
 }
 
-// Static recent activity (representative events)
-const ACTIVITY_FEED = [
-  { id: 'a1', icon: Sparkles,      color: PURPLE,  text: 'AI analysis completed for Manufacturing Pro',     time: '2 min ago' },
-  { id: 'a2', icon: FileText,      color: BLUE,    text: 'Proposal draft §3 updated — TechCorp Solutions',  time: '18 min ago' },
-  { id: 'a3', icon: MessageSquare, color: CYAN,    text: 'New message from Dr. James Wilson (HealthFirst)',  time: '34 min ago' },
-  { id: 'a4', icon: CheckCircle2,  color: GREEN,   text: 'CloudServe Ltd marked as Completed',              time: '1 hr ago' },
-  { id: 'a5', icon: BellRing,      color: ORANGE,  text: 'RetailMax Inc — 3-day follow-up reminder fired',  time: '2 hr ago' },
-  { id: 'a6', icon: Star,          color: PURPLE,  text: 'QBR report generated for Manufacturing Pro',      time: '4 hr ago' },
-  { id: 'a7', icon: UserCheck,     color: GREEN,   text: 'FinanceHub assigned to Review Manager',           time: '5 hr ago' },
-  { id: 'a8', icon: Building2,     color: BLUE,    text: 'New diagnostic submitted — FinanceHub',           time: '6 hr ago' },
-];
+// Relative "time ago" label for the activity feed.
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff)) return '';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
+interface ActivityItem {
+  id: string;
+  icon: typeof Building2;
+  color: string;
+  text: string;
+  time: string;
+}
+
+// Recent Activity derived from the REAL persisted submissions (newest first),
+// so a freshly submitted diagnostic shows up here on the dashboard.
+function buildActivityFeed(subs: Submission[]): ActivityItem[] {
+  return [...subs]
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    .slice(0, 6)
+    .map(s => {
+      const company = s.company || 'New submission';
+      switch (s.status) {
+        case 'completed':
+          return { id: s.id, icon: CheckCircle2, color: CYAN,   text: `${company} marked as Completed`,        time: relativeTime(s.submittedAt) };
+        case 'approved':
+          return { id: s.id, icon: CheckCircle2, color: GREEN,  text: `${company} approved`,                   time: relativeTime(s.submittedAt) };
+        case 'in-review':
+          return { id: s.id, icon: FileText,     color: ORANGE, text: `${company} is in review`,               time: relativeTime(s.submittedAt) };
+        default:
+          return { id: s.id, icon: Building2,    color: BLUE,   text: `New diagnostic submitted — ${company}`, time: relativeTime(s.submittedAt) };
+      }
+    });
+}
 
 // ─────────────────────────────────────────────────────────────
 // PROPS
@@ -225,6 +255,7 @@ export function TeamHomeDashboard({
 
   const trendData      = useMemo(() => buildTrendData(submissions), [submissions]);
   const priorityItems  = useMemo(() => buildPriorityActions(submissions), [submissions]);
+  const activityFeed   = useMemo(() => buildActivityFeed(submissions), [submissions]);
 
   // Industry bar chart data — computed once at top level (NOT inside JSX)
   const industryChartData = useMemo(() => {
@@ -631,24 +662,30 @@ export function TeamHomeDashboard({
                   </div>
 
                   <div className="divide-y divide-white/4">
-                    {ACTIVITY_FEED.slice(0, 6).map((item, i) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.04 }}
-                        className="flex items-start gap-3 px-5 py-3 hover:bg-white/2 transition-colors"
-                      >
-                        <div className="size-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{ background: `${item.color}20` }}>
-                          <item.icon className="size-3.5" style={{ color: item.color }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-300 leading-snug">{item.text}</p>
-                          <p className="text-[10px] text-gray-600 mt-0.5">{item.time}</p>
-                        </div>
-                      </motion.div>
-                    ))}
+                    {activityFeed.length === 0 ? (
+                      <div className="px-5 py-8 text-center text-xs text-gray-600">
+                        No recent activity yet.
+                      </div>
+                    ) : (
+                      activityFeed.map((item, i) => (
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="flex items-start gap-3 px-5 py-3 hover:bg-white/2 transition-colors"
+                        >
+                          <div className="size-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                            style={{ background: `${item.color}20` }}>
+                            <item.icon className="size-3.5" style={{ color: item.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-300 leading-snug">{item.text}</p>
+                            <p className="text-[10px] text-gray-600 mt-0.5">{item.time}</p>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
                   </div>
                 </div>
 
