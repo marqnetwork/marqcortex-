@@ -220,4 +220,54 @@ When additional information is needed, search only the affected module instead o
 
 Every sprint should build only on the immediately previous sprint.
 
-Avoid repository-wide scans unless explicitly requested.
+Avoid repository-wide scans unless explicitly requested.   
+
+## Git Workflow
+
+At the end of every completed sprint:
+
+1. Run all required tests.
+2. Commit the sprint.
+3. Push the branch to GitHub.
+4. Verify the push succeeded.
+5. Include the commit SHA and branch name in the completion report.
+
+Do not open a Pull Request unless explicitly requested or a roadmap milestone has been completed.
+
+A sprint is considered fully complete only after:
+- Engineering is complete.
+- Tests pass.
+- Documentation is updated.
+- Changes are successfully pushed to GitHub.
+# Sprint Discipline
+
+Every sprint must begin by confirming:
+
+- Current roadmap position from `MARQ_CORTEX_ROADMAP.md`
+- Latest completed sprint
+- Current sprint objective
+
+Work only on the approved sprint.
+
+Do not:
+- Skip ahead to future sprints.
+- Expand the scope beyond the approved sprint.
+- Refactor unrelated code.
+- Re-audit completed modules.
+- Re-open previously approved architecture decisions.
+
+If a defect from a previous sprint is discovered:
+
+- Fix it only if it directly blocks the current sprint.
+- Otherwise document it as technical debt and continue.
+
+Before marking a sprint complete, verify:
+
+- Scope completed exactly as requested.
+- No unrelated files modified.
+- No architectural drift.
+- Tests passed.
+- Documentation updated.
+- Commit created.
+- Changes pushed to GitHub.
+- Roadmap updated.
