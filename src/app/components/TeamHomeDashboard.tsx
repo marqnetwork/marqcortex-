@@ -14,7 +14,7 @@
  *   - "All Leads" tab (embeds FullFeaturedDashboard)
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,9 +29,10 @@ import {
   BellRing, ListChecks, Layers, LineChart, UserCheck,
   Building2, Filter, MessageSquare,
 } from 'lucide-react';
-import { getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
+import { getSubmissions, getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
 import { InlineAITrigger } from '@/app/components/InlineAITrigger';
+import { FEATURES } from '@/config/features';
 import type { Submission } from '@/app/services/dataService';
 
 // ─────────────────────────────────────────────────────────────
@@ -75,6 +76,19 @@ function formatDate(d: Date): string {
 
 function formatTime(): string {
   return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Human-readable "time ago" from an ISO timestamp
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff)) return '';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 // Build last-7-days trend from submission timestamps
@@ -166,7 +180,30 @@ function buildPriorityActions(subs: Submission[]): PriorityAction[] {
     .slice(0, 6);
 }
 
-// Static recent activity (representative events)
+interface ActivityItem {
+  id: string;
+  icon: any;
+  color: string;
+  text: string;
+  time: string;
+}
+
+// Build the Recent Activity feed from real submissions (newest first).
+// Backend mode uses this so freshly-submitted records surface immediately.
+function buildActivityFeed(subs: Submission[]): ActivityItem[] {
+  return [...subs]
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    .slice(0, 6)
+    .map(s => ({
+      id: s.id,
+      icon: Building2,
+      color: BLUE,
+      text: `New diagnostic submitted — ${s.company}`,
+      time: timeAgo(s.submittedAt),
+    }));
+}
+
+// Static recent activity (representative events — demo mode only)
 const ACTIVITY_FEED = [
   { id: 'a1', icon: Sparkles,      color: PURPLE,  text: 'AI analysis completed for Manufacturing Pro',     time: '2 min ago' },
   { id: 'a2', icon: FileText,      color: BLUE,    text: 'Proposal draft §3 updated — TechCorp Solutions',  time: '18 min ago' },
@@ -206,7 +243,34 @@ export function TeamHomeDashboard({
   const [activeTab, setActiveTab] = useState<DashTab>('command');
   const [now] = useState(() => new Date());
 
-  const submissions = useMemo(() => getDemoSubmissions(), []);
+  // ── Live submissions ────────────────────────────────────────
+  // Backend mode: read from GET /submissions (no demo fallback — a real
+  // empty pipeline must read as empty, never masked by seed data).
+  // Demo mode: use the local seed set.
+  const backendMode = FEATURES.BACKEND_INTEGRATION && !!accessToken;
+  const [submissions, setSubmissions] = useState<Submission[]>(
+    () => (backendMode ? [] : getDemoSubmissions()),
+  );
+
+  useEffect(() => {
+    if (!backendMode) {
+      setSubmissions(getDemoSubmissions());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await getSubmissions(accessToken!);
+        if (!cancelled) setSubmissions(result.submissions ?? []);
+      } catch (err) {
+        if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load submissions', err);
+        // Backend mode surfaces the real (empty) state rather than demo data.
+        if (!cancelled) setSubmissions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [backendMode, accessToken]);
+
   const teamMembers  = useMemo(() => getDemoTeamMembers(), []);
 
   // ── Computed KPIs ──────────────────────────────────────────
@@ -226,6 +290,12 @@ export function TeamHomeDashboard({
   const trendData      = useMemo(() => buildTrendData(submissions), [submissions]);
   const priorityItems  = useMemo(() => buildPriorityActions(submissions), [submissions]);
 
+  // Recent Activity: live submissions in backend mode, representative feed in demo mode
+  const recentActivity = useMemo<ActivityItem[]>(
+    () => (backendMode ? buildActivityFeed(submissions) : ACTIVITY_FEED),
+    [backendMode, submissions],
+  );
+
   // Industry bar chart data — computed once at top level (NOT inside JSX)
   const industryChartData = useMemo(() => {
     const byIndustry: Record<string, number> = {};
@@ -238,12 +308,13 @@ export function TeamHomeDashboard({
       .sort((a, b) => b.value - a.value);
   }, [submissions]);
 
-  // Pipeline stage bars
+  // Pipeline stage bars (guard against a zero-total pipeline → avoid NaN widths)
+  const pipelineTotal = kpis.total || 1;
   const pipelineStages = [
-    { label: 'New',       count: kpis.newCount,   color: PURPLE, pct: Math.round((kpis.newCount  / kpis.total) * 100) },
-    { label: 'In Review', count: kpis.inReview,   color: ORANGE, pct: Math.round((kpis.inReview  / kpis.total) * 100) },
-    { label: 'Completed', count: kpis.completed,  color: CYAN,   pct: Math.round((kpis.completed / kpis.total) * 100) },
-    { label: 'Approved',  count: kpis.approved,   color: GREEN,  pct: Math.round((kpis.approved  / kpis.total) * 100) },
+    { label: 'New',       count: kpis.newCount,   color: PURPLE, pct: Math.round((kpis.newCount  / pipelineTotal) * 100) },
+    { label: 'In Review', count: kpis.inReview,   color: ORANGE, pct: Math.round((kpis.inReview  / pipelineTotal) * 100) },
+    { label: 'Completed', count: kpis.completed,  color: CYAN,   pct: Math.round((kpis.completed / pipelineTotal) * 100) },
+    { label: 'Approved',  count: kpis.approved,   color: GREEN,  pct: Math.round((kpis.approved  / pipelineTotal) * 100) },
   ];
 
   const userName = useMemo(() => {
@@ -631,7 +702,7 @@ export function TeamHomeDashboard({
                   </div>
 
                   <div className="divide-y divide-white/4">
-                    {ACTIVITY_FEED.slice(0, 6).map((item, i) => (
+                    {recentActivity.slice(0, 6).map((item, i) => (
                       <motion.div
                         key={item.id}
                         initial={{ opacity: 0 }}
