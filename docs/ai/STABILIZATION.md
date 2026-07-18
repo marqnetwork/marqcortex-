@@ -11,7 +11,9 @@ Goal: satisfy the P0 security gates required before backend cutover.
 | F-004 | No credential material in the production frontend bundle | ✅ Satisfied |
 | A1 | Backend auth requires secrets, fails closed, no hardcoded fallbacks | ✅ Satisfied |
 | Bundle guard | Build fails if credentials/token appear in `dist/` | ✅ In place |
-| F-010 / RC-005 | Core math-engine unit tests | ⏳ Remaining |
+| F-010 / RC-005 | Core math-engine unit tests | ✅ Satisfied |
+
+**All Batch 1 gates satisfied — Stabilization Batch 1 is fully complete.**
 
 ### A1 — design summary
 - **Required secrets:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
@@ -37,8 +39,20 @@ and git history). Operators must:
 
 Secrets cannot be set from the repository and are intentionally not committed.
 
+### F-010 / RC-005 — core math-engine tests
+- Five engines under test (per `memory/failure_library.md`): **scoringEngine,
+  roiEngine, dcfEngine, irrEngine, monteCarloEngine**.
+- 59 tests: normal operation, edge cases, invalid inputs, boundary conditions,
+  regression anchors. Deterministic engines asserted for reproducibility; the
+  stochastic Monte Carlo engine asserted on deterministic failure paths +
+  distribution-independent invariants.
+- The engines import sibling modules without file extensions; a test-only resolve
+  hook (`tests/support/ts-extension-hook.mjs`) lets the Node runner load them
+  unmodified. No engine source was changed.
+
 ## Verification commands
 - Frontend gate: `npm run build` (runs `vite build` + `verify:bundle`).
 - Auth logic: `npm run test:auth`.
+- Core math engines: `npm run test:core`.
 - Regression: `npm run test:intelligence`, `npm run test:database`,
   `npm run test:migration`, `npm run test:smoke`.

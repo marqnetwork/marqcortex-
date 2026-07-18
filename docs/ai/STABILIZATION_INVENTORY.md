@@ -31,8 +31,17 @@
 - **Evidence:** `supabase/functions/server/index.tsx` (seed / getTeamEmail / login),
   `supabase/functions/server/auth/validateSecrets.ts`, `tests/auth/validate-secrets.test.ts`.
 
-### F-010 / RC-005 — Missing unit tests for the five core math engines — ⏳ OPEN
-- **Severity:** medium. Not started; scheduled for the Batch 1 remainder.
+### F-010 / RC-005 — Missing unit tests for the five core math engines — ✅ RESOLVED
+- **Severity:** medium.
+- **Root cause:** the client-facing financial/scoring engines had no regression
+  safety net — a broken formula could ship undetected (`memory/failure_library.md`).
+- **Resolution:** added 59 unit tests across the five engines named in the failure
+  library — **scoringEngine, roiEngine, dcfEngine, irrEngine, monteCarloEngine** —
+  covering normal operation, edge cases, invalid inputs, boundary conditions, and
+  regression anchors. Run via `npm run test:core`.
+- **No engine behavior changed** — no defect was discovered.
+- **Evidence:** `tests/core/*.test.ts`, `tests/core/_fixtures.ts`,
+  `tests/support/ts-extension-hook.mjs` (test-only import shim).
 
 ## Known residuals (non-blocking)
 - **Email notification default recipient:** `supabase/functions/server/emailService.ts`

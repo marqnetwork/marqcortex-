@@ -2,6 +2,24 @@
 
 > Chronological log of AI-executed stabilization work. Newest first.
 
+## 2026-07-18 — F-010 / RC-005: unit tests for the five core math engines
+
+Batch 1 final item. Branch `claude/marq-cortex-stabilization-batch-1-rzvtii`.
+
+- Identified the five engines from `memory/failure_library.md`:
+  **scoringEngine, roiEngine, dcfEngine, irrEngine, monteCarloEngine**.
+- Added `tests/core/*.test.ts` (59 tests) + `tests/core/_fixtures.ts`, covering
+  normal operation, edge cases, invalid inputs, boundary conditions, and
+  regression anchors. ROI is exercised against the ExampleCo gold-standard
+  portfolio (`src/imports/exampleco-portfolio-diagnostic-1.json`).
+- Added `tests/support/ts-extension-hook.mjs` + `register-ts.mjs` — a test-only
+  module-resolution shim so the Node runner can import engines that use
+  extensionless relative imports. **No engine source was modified.**
+- Added the `test:core` script.
+- No defect discovered — all engine behavior left unchanged.
+- Verified: `test:core` 59/59. Full regression: core 59, auth 6, intelligence 8,
+  database 19, migration 36, smoke 1 — all pass; frontend build + F-004 guard green.
+
 ## 2026-07-18 — A1: backend authentication production-readiness
 
 Batch 1, item A1. Branch `claude/marq-cortex-stabilization-batch-1-rzvtii`.

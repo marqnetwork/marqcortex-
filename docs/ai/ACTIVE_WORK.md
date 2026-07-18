@@ -11,7 +11,9 @@ Branch: `claude/marq-cortex-stabilization-batch-1-rzvtii`
 |----|------|--------|
 | F-004 | Remove hardcoded demo credentials from the compiled frontend bundle | ✅ Complete |
 | A1 | Backend authentication production-readiness (rotation, fail-closed secrets) | ✅ Complete |
-| F-010 / RC-005 | Unit tests for the five core math engines | ⏳ Not started (Batch 1 remainder / follow-up) |
+| F-010 / RC-005 | Unit tests for the five core math engines | ✅ Complete |
+
+**Stabilization Batch 1 is fully complete.**
 
 ### F-004 — Complete
 - Frontend credential literals and the fixed demo token removed.
@@ -26,9 +28,14 @@ Branch: `claude/marq-cortex-stabilization-batch-1-rzvtii`
 - `POST /auth/team/login` returns `503` when required secrets are missing.
 - Verified via `npm run test:auth`; regression suites and F-004 gate all green.
 
+### F-010 / RC-005 — Complete
+- The five core math engines (per `memory/failure_library.md`) — **scoringEngine, roiEngine, dcfEngine, irrEngine, monteCarloEngine** — now have comprehensive unit tests: 59 tests covering normal operation, edge cases, invalid inputs, boundary conditions, and regression anchors.
+- Run with `npm run test:core`. No engine behavior was modified — **no defect was found**.
+- Deterministic engines (DCF/IRR/ROI/scoring) are asserted for reproducibility; the stochastic Monte Carlo engine is asserted on deterministic failure paths + distribution-independent statistical invariants (percentile ordering, bounds, sample counts).
+
 ## Next
 - **Ops (required before cutover):** set fresh `TEAM_ADMIN_EMAIL` / `TEAM_ADMIN_PASSWORD` secrets in Supabase and redeploy the edge function so rotation takes effect. See STABILIZATION.md → "A1 operational follow-up".
-- F-010 / RC-005 math-engine unit tests remain for the Batch 1 remainder.
+- Batch 1 is complete. Await approval before Batch 2.
 
 ## Do NOT
 - Begin Batch 2.
