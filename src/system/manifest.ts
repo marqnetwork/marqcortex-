@@ -447,12 +447,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-016',
       name: 'InstantBooking',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'DEMO',
       domain: 'PORTAL',
       filePath: 'src/app/components/InstantBooking.tsx',
       description: 'The Schedule a Call tab of the client portal. Allows clients to book a consultation call directly from their portal.',
       dependencies: ['MQC-COMP-017'],
       dependents: ['MQC-COMP-010'],
+      notes: 'Batch 4 correction (2026-07-18): reclassified LIVE → DEMO. bookPriorityMeeting() is a no-op stub (commented-out fetch) — the booking is never persisted. Slated for Batch 4 migration to a KV-backed booking endpoint.',
     },
 
     'MQC-COMP-017': {
@@ -1040,12 +1041,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-063',
       name: 'BlockRegistryPanel',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'DEMO',
       domain: 'EXECUTION',
       filePath: 'src/app/components/BlockRegistryPanel.tsx',
       description: 'Registry of all reusable execution blocks. Team members can browse, search, and insert blocks into execution plans.',
       dependencies: ['MQC-CORE-002', 'MQC-SVC-003'],
       dependents: ['MQC-COMP-037'],
+      notes: 'Batch 4 correction (2026-07-18): reclassified LIVE → DEMO. CRUD, revisions, and locks all operate on in-memory seed stores (BLOCK_STORE / REVISION_STORE / LOCK_STORE) — every change is lost on reload; nothing is persisted server-side. Slated for Batch 4 migration to KV-backed CRUD with revision/lock support.',
     },
 
     'MQC-COMP-064': {
