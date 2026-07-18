@@ -63,15 +63,19 @@
  * └────────────────────────────────────────────────────────────────────────────┘
  *
  * Total nodes: 158  (PAGE ×12 · COMP ×89 · CORE ×35 · SVC ×9 · HOOK ×6 · TYPE ×7)
- * Last verified: 2026-03-05
+ * Last verified: 2026-07-18
  * BACKEND_INTEGRATION: false (demo mode — target: flip to true)
+ *
+ * Stabilization Batch 3 (2026-07-18): reconciled 7 already-wired nodes to LIVE
+ * (COMP-046/047/048/052/053/057, SVC-002). Remaining non-LIVE nodes have no
+ * consumable backend endpoint and are documented in their notes + docs/ai/.
  */
 
 import type { SystemManifest } from './types';
 
 export const manifest: SystemManifest = {
   version: '2.0.0',
-  lastVerified: '2026-07-11',
+  lastVerified: '2026-07-18',
   coreRule: 'Math decides priority. LLM only explains decisions.',
   backendIntegration: false,
 
@@ -515,7 +519,7 @@ export const manifest: SystemManifest = {
       description: 'AI writing assistant sidebar in the proposal editor. Suggests text for individual sections based on the submission data. Currently in demo mode — real responses require BACKEND_INTEGRATION: true.',
       dependencies: ['MQC-SVC-004', 'MQC-HOOK-006'],
       dependents: ['MQC-COMP-019'],
-      notes: 'Requires copilotPatch backend service to be wired. Demo fallback returns static suggestion text.',
+      notes: 'Batch 3: NOT migrated — no consumable backend for its data model. handleGenerate always calls the local buildMockRevision (the flag only removes the simulated latency). The copilotPatch backend (MQC-SVC-004) operates on the block registry model (block_summaries → patch targets), whereas this panel edits ProposalDraft SECTIONS (executive_brief, diagnosis_N, scope_boundaries) and returns structured {after, diff_summary, changed_fields, validation}. No section-level endpoint exists; wiring would require a new backend contract. Left untouched per Batch 3 rule (do not invent backend behavior).',
     },
 
     'MQC-COMP-022': {
@@ -824,39 +828,39 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-046',
       name: 'GlobalAIChat',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/GlobalAIChat.tsx',
-      description: 'Floating AI chat panel available across all team dashboard views. Powered by cortexChat backend. Currently in demo mode — responses are mocked.',
+      description: 'Floating AI chat panel available across all team dashboard views. Powered by the cortexChat backend (POST /ai/chat via chatWithAI).',
       dependencies: ['MQC-HOOK-006', 'MQC-SVC-006'],
       dependents: ['MQC-COMP-036'],
-      notes: 'Must remain mounted at the TeamDashboardLayout level so it persists across tab navigation.',
+      notes: 'Backend mode calls chatWithAI → MQC-SVC-006; demo mode keeps the local scripted fallback (flag-gated). Live AI responses require OPENAI_API_KEY on the edge function, otherwise the intelligence gateway mock adapter answers. Must remain mounted at the TeamDashboardLayout level so it persists across tab navigation. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-047': {
       id: 'MQC-COMP-047',
       name: 'CortexChatPanel',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CortexChatPanel.tsx',
       description: 'Embedded chat panel for the Cortex AI assistant in specific contexts. Distinct from GlobalAIChat — this is context-aware and injects submission data.',
       dependencies: ['MQC-HOOK-006', 'MQC-SVC-006'],
       dependents: ['MQC-COMP-044'],
-      notes: 'BACKEND_INTEGRATION: false returns demo responses. Wire MQC-SVC-006 to make live.',
+      notes: 'Backend mode calls generateCortexNarrative → MQC-SVC-006/-007 (POST /cortex/narrative) with an access token; demo mode keeps the local narrative fallback (flag-gated). Live prose requires OPENAI_API_KEY; otherwise the gateway mock adapter narrates. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-048': {
       id: 'MQC-COMP-048',
       name: 'CopilotPanel',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CopilotPanel.tsx',
       description: 'AI writing copilot panel for team members drafting proposals and reports. Interprets intent and suggests structured text.',
       dependencies: ['MQC-CORE-007', 'MQC-SVC-004'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Requires copilotPatch backend (MQC-SVC-004) to be wired for live mode.',
+      notes: 'Wired to copilotPatch (MQC-SVC-004) via interpretRequest/applyPatchPlan (POST /blocks/copilot-interpret) with the team access token. Live suggestions require OPENAI_API_KEY; otherwise the gateway mock adapter responds. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-049': {
@@ -869,6 +873,7 @@ export const manifest: SystemManifest = {
       description: 'General-purpose AI assistant component that can be embedded in any panel to answer contextual questions about the current submission.',
       dependencies: ['MQC-CORE-001', 'MQC-HOOK-006'],
       dependents: [],
+      notes: 'Batch 3: NOT migrated — no backend endpoint exists. generateContextualHelp() produces deterministic, rule-based question hints locally (question index, industry, prior answers). There is no /ai contextual-help route; this is intentionally a local UX helper, not demo business logic. Left untouched per Batch 3 rule.',
     },
 
     'MQC-COMP-050': {
@@ -881,6 +886,7 @@ export const manifest: SystemManifest = {
       description: 'Small trigger button that opens the AI assistant inline within a specific form field or section. Provides contextual AI help without leaving the flow.',
       dependencies: ['MQC-HOOK-006'],
       dependents: [],
+      notes: 'Batch 3: NOT migrated — presentational trigger with no data path of its own. It opens the chat surface (MQC-COMP-046, now LIVE); it has no mock business logic to replace. Left untouched per Batch 3 rule.',
     },
 
     'MQC-COMP-051': {
@@ -890,35 +896,36 @@ export const manifest: SystemManifest = {
       status: 'DEMO',
       domain: 'AI',
       filePath: 'src/app/components/ObjectionHandlerPanel.tsx',
-      description: 'AI-powered panel that generates responses to common client objections based on the submission data and proposal context.',
+      description: 'Panel that classifies client objections and generates response playbooks/emails from the submission and proposal context.',
       dependencies: ['MQC-CORE-020', 'MQC-SVC-005'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Requires cortexAnalysis backend (MQC-SVC-005) for live responses.',
+      notes: 'Batch 3: NOT migrated — output is deterministic and computed locally by objectionEngine (detectObjection/getPlaybook/hydratePlaybook), consistent with the core rule "math decides, LLM only explains". The escalation protocol persists only in component state; no /objection or escalation-persistence backend route exists (see full route list). Left untouched per Batch 3 rule (no consumable backend).',
     },
 
     'MQC-COMP-052': {
       id: 'MQC-COMP-052',
       name: 'CortexModulesNew',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CortexModulesNew.tsx',
       description: 'Container for all Cortex AI module cards. Each module represents a distinct AI capability that can be activated for a submission.',
       dependencies: ['MQC-SVC-002'],
       dependents: ['MQC-COMP-037'],
+      notes: 'Outcome logging reads/writes the backend in backend mode (getOutcome/logOutcome → GET/POST /submissions/:id/outcome); demo mode persists locally (flag-gated). Deterministic KV — no LLM dependency. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-053': {
       id: 'MQC-COMP-053',
       name: 'CortexProposalModule',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CortexProposalModule.tsx',
       description: 'Cortex AI module specifically for proposal generation. Uses narrative engine to produce first-draft proposal text from scoring data.',
       dependencies: ['MQC-SVC-007', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-052'],
-      notes: 'Requires cortexNarrative backend (MQC-SVC-007) for live generation.',
+      notes: 'Backend mode loads/persists proposals via getProposal/saveProposal/sendProposal (GET/POST /submissions/:id/proposal); demo mode builds the draft locally from scoring data (flag-gated). Deterministic KV persistence — narrative prose (MQC-SVC-007) is the explain-only layer. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-054': {
@@ -931,6 +938,7 @@ export const manifest: SystemManifest = {
       description: 'Cortex AI module for automated proposal review. Checks for consistency, completeness, and alignment with the diagnostic findings.',
       dependencies: ['MQC-SVC-005', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-052'],
+      notes: 'Batch 3: NOT migrated — the checklist is computed locally, and submitting a review only surfaces an alert ("In production, this saves to database"); there is no reviewer-decision persistence route in the Hono server. Wiring requires a new backend contract, so left untouched per Batch 3 rule (do not invent backend behavior).',
     },
 
     // ── ANALYTICS ────────────────────────────────────────────────────────────
@@ -957,19 +965,20 @@ export const manifest: SystemManifest = {
       description: 'Predictive revenue intelligence showing pipeline value, win probability, and projected monthly recurring revenue.',
       dependencies: ['MQC-CORE-021', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Uses cortexDataService demo data. Wire MQC-SVC-002 and MQC-SVC-005 for live predictions.',
+      notes: 'Batch 3: NOT migrated — the dashboard reads MOCK_SNAPSHOTS exclusively and ignores its accessToken prop. It needs per-deal AnalyticsSnapshot rows (revenue, ROI accuracy, objection aggregates); no snapshot-analytics endpoint exists (the spec calls for nightly aggregation, /analytics/overview returns a different shape). Left untouched per Batch 3 rule (no consumable backend).',
     },
 
     'MQC-COMP-057': {
       id: 'MQC-COMP-057',
       name: 'EngagementIntelligence',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'ANALYTICS',
       filePath: 'src/app/components/EngagementIntelligence.tsx',
       description: 'Client engagement scoring panel. Tracks portal activity, response times, and engagement signals to predict deal health.',
       dependencies: ['MQC-COMP-058', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-037'],
+      notes: 'Backend mode calls getEngagementAnalytics (GET /analytics/engagement) with a token; demo mode uses a representative dataset (flag-gated). Deterministic aggregation — no LLM dependency. [Batch 3 reconcile]',
     },
 
     'MQC-COMP-058': {
@@ -1888,13 +1897,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-SVC-002',
       name: 'cortexDataService',
       type: 'SVC',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/services/cortexDataService.ts',
-      description: 'Sibling service to dataService, specifically for Cortex AI module data. Provides AI analysis results and intelligence metrics.',
+      description: 'Sibling service to dataService, specifically for Cortex AI module data. Exposes the deterministic generateCortexData converter (submission → CortexLeadData) plus a mock-lead fallback for demo mode.',
       dependencies: ['MQC-SVC-001'],
       dependents: ['MQC-COMP-044', 'MQC-COMP-052', 'MQC-COMP-056'],
-      notes: 'Returns demo data until BACKEND_INTEGRATION is true and cortexAnalysis backend is wired.',
+      notes: 'Mirrors MQC-SVC-001: backend mode derives Cortex data from live submissions via generateCortexData; getMockLeads/getMockCortexLeadData are the flag-gated demo fallback. CortexDashboard (MQC-COMP-044) consumes the live path. [Batch 3 reconcile]',
     },
 
     'MQC-SVC-003': {
