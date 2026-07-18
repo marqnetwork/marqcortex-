@@ -8,10 +8,10 @@
  *   §4  Revision accept / reject callbacks wired to blockEngine
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Layers, Filter, CheckCircle2, XCircle, ShieldCheck, ShieldX,
-  RefreshCw, Info, Bot, AlertTriangle,
+  RefreshCw, Info, Bot, AlertTriangle, Save, Loader2, Cloud,
 } from 'lucide-react';
 import {
   BLOCK_STORE,
@@ -39,6 +39,13 @@ import { BlockHistoryPanel } from './BlockHistoryPanel';
 import { CopilotPanel } from './CopilotPanel';
 import { RoleSwitcher } from './RoleSwitcher';
 import { useApp } from '@/app/contexts/AppContext';
+import { getBlockRegistry, saveBlockRegistry } from '@/app/services/dataService';
+import { isBackendEnabled } from '@/config/runtime';
+import {
+  proposalBlockIdSet,
+  extractProposalSubset,
+  mergeProposalSubset,
+} from '@/app/core/blockRegistrySync';
 import {
   callBlockAIAssist,
   assembleAIContext,
@@ -380,6 +387,39 @@ function TypePill({
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// REGISTRY SAVE INDICATOR — reflects KV persistence state
+// ════════════════════════════════════════════════════════════════════════════════
+
+function RegistrySaveIndicator({
+  persistEnabled, loading, status, rev,
+}: {
+  persistEnabled: boolean;
+  loading:        boolean;
+  status:         'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+  rev:            number | null;
+}) {
+  const pill = (color: string, label: React.ReactNode, title?: string) => (
+    <span
+      className="flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full border"
+      style={{ color, borderColor: `${color}33`, background: `${color}14` }}
+      title={title}
+    >
+      {label}
+    </span>
+  );
+
+  if (!persistEnabled) {
+    return pill('#6B7280', <><Cloud className="size-2.5" />Demo</>, 'Demo mode — changes are not persisted');
+  }
+  if (loading) return pill('#8B5CF6', <><Loader2 className="size-2.5 animate-spin" />Loading</>);
+  if (status === 'saving') return pill('#8B5CF6', <><Loader2 className="size-2.5 animate-spin" />Saving</>);
+  if (status === 'conflict') return pill('#F59E0B', <><AlertTriangle className="size-2.5" />Reloaded</>, 'Another session updated the registry — latest version reloaded');
+  if (status === 'error') return pill('#FD4438', <><XCircle className="size-2.5" />Save failed</>);
+  if (status === 'saved') return pill('#10B981', <><Save className="size-2.5" />Saved{rev != null ? ` · r${rev}` : ''}</>);
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // MAIN EXPORT
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -393,11 +433,100 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
   const accessToken = teamAccessToken ?? '';
 
   // ── Local copies of the four stores ────────────────────────────────────────
-  // (In production: replace with Supabase query + subscription)
+  // Seeded from the engine stores, then overlaid with the persisted snapshot.
   const [blocks,    setBlocks]    = useState<Block[]>(BLOCK_STORE);
   const [revisions, setRevisions] = useState<BlockRevision[]>(REVISION_STORE);
   const [links]                   = useState<BlockLink[]>(LINK_STORE);
   const [locks,     setLocks]     = useState<BlockLock[]>(LOCK_STORE);
+
+  // ── KV persistence ──────────────────────────────────────────────────────────
+  type RegSaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+  const persistEnabled = Boolean(accessToken) && isBackendEnabled();
+  const [regLoading, setRegLoading] = useState(persistEnabled);
+  const [regStatus,  setRegStatus]  = useState<RegSaveStatus>('idle');
+  const revRef        = useRef<number | null>(null); // last-known document revision
+  const hasLoadedRef  = useRef(false);
+  const saveTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // block_ids that belong to this proposal (membership is via links → static)
+  const proposalIds = useMemo(() => proposalBlockIdSet(proposalId, links), [proposalId, links]);
+
+  // Load the persisted snapshot on mount and overlay it onto the seed stores.
+  useEffect(() => {
+    let cancelled = false;
+    if (!persistEnabled || !accessToken) { hasLoadedRef.current = true; setRegLoading(false); return; }
+    setRegLoading(true);
+    getBlockRegistry(proposalId, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.registry) {
+          const merged = mergeProposalSubset(
+            proposalIds,
+            { blocks: BLOCK_STORE, revisions: REVISION_STORE, locks: LOCK_STORE },
+            { blocks: res.registry.blocks, revisions: res.registry.revisions, locks: res.registry.locks },
+          );
+          setBlocks(merged.blocks);
+          setRevisions(merged.revisions);
+          setLocks(merged.locks);
+          revRef.current = res.registry.rev;
+          setRegStatus('saved');
+        }
+      })
+      .catch((err) => console.error('BlockRegistryPanel load error:', err))
+      .finally(() => { if (!cancelled) { hasLoadedRef.current = true; setRegLoading(false); } });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalId, accessToken, persistEnabled]);
+
+  // Persist this proposal's subset; reconciles on an optimistic-lock 409.
+  const persistRegistry = useCallback(async (
+    nextBlocks: Block[],
+    nextRevisions: BlockRevision[],
+    nextLocks: BlockLock[],
+  ) => {
+    if (!persistEnabled || !accessToken) return;
+    const subset = extractProposalSubset(proposalIds, nextBlocks, nextRevisions, nextLocks);
+    setRegStatus('saving');
+    try {
+      const res = await saveBlockRegistry(
+        proposalId,
+        { ...subset, baseRev: revRef.current ?? undefined },
+        accessToken,
+      );
+      revRef.current = res.registry.rev;
+      setRegStatus('saved');
+    } catch (err: any) {
+      if (err?.conflict) {
+        // Another session advanced the registry — reload and let the user retry.
+        setRegStatus('conflict');
+        try {
+          const res = await getBlockRegistry(proposalId, accessToken);
+          if (res.registry) {
+            const merged = mergeProposalSubset(
+              proposalIds,
+              { blocks: BLOCK_STORE, revisions: REVISION_STORE, locks: LOCK_STORE },
+              { blocks: res.registry.blocks, revisions: res.registry.revisions, locks: res.registry.locks },
+            );
+            setBlocks(merged.blocks);
+            setRevisions(merged.revisions);
+            setLocks(merged.locks);
+            revRef.current = res.registry.rev;
+          }
+        } catch { /* keep conflict status */ }
+      } else {
+        console.error('BlockRegistryPanel save error:', err);
+        setRegStatus('error');
+      }
+    }
+  }, [persistEnabled, accessToken, proposalId, proposalIds]);
+
+  // Debounced autosave whenever blocks/revisions/locks change post-load.
+  useEffect(() => {
+    if (!persistEnabled || !hasLoadedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { void persistRegistry(blocks, revisions, locks); }, 1000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [blocks, revisions, locks, persistEnabled, persistRegistry]);
 
   // ── Filters ─────────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -563,6 +692,12 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
           <span className="text-[9px] text-gray-700">
             {allStates.length} blocks · proposal {proposalId}
           </span>
+          <RegistrySaveIndicator
+            persistEnabled={persistEnabled}
+            loading={regLoading}
+            status={regStatus}
+            rev={revRef.current}
+          />
           {/* Role Switcher */}
           <RoleSwitcher currentRole={currentRole} onChange={setCurrentRole} />
           {/* Validate button */}

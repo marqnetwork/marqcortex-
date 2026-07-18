@@ -279,6 +279,27 @@ email index `booking_email:{email} → bookingId`.
 
 ---
 
+## Group 8e — Block Registry (Batch 4)
+
+Persists the BlockRegistryPanel's blocks / revisions / locks per proposal at KV
+key `blockreg:{proposalId}`. Only the proposal's slice is stored; the panel
+overlays it onto the global engine stores on load (`blockRegistrySync.ts`).
+
+### 24h. `GET /proposals/:proposalId/blocks`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, registry: { proposalId, blocks, revisions, locks, rev, updatedAt } | null }`  
+**Notes:** `rev` is the document revision used for optimistic locking. `null` when nothing has been saved.
+
+---
+
+### 24i. `PUT /proposals/:proposalId/blocks`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ blocks: Block[], revisions: BlockRevision[], locks: BlockLock[], baseRev? }`  
+**Returns:** `{ success, registry }` — or **409** `{ error, conflict: true, currentRev }` on a stale `baseRev`  
+**Notes:** Optimistic concurrency: when `baseRev` is supplied and does not match the stored `rev`, the write is rejected so concurrent editors never silently clobber each other; the panel then reloads and surfaces a "Reloaded" state. On success `rev` is incremented. The frontend debounce-autosaves after each block edit / revision accept-reject / approve / lock change.
+
+---
+
 ## Group 9 — Messaging
 
 ### 25. `GET /submissions/:id/messages/team`

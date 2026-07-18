@@ -78,6 +78,8 @@ export type {
   CreateEscalationPayload,
   Booking,
   CreateBookingPayload,
+  BlockRegistrySnapshot,
+  SaveBlockRegistryPayload,
 } from '@/app/lib/api';
 
 // Re-export the reviewer checklist type so components import it from dataService
@@ -824,6 +826,38 @@ export async function getBookings(accessToken: string) {
     return { success: true, bookings: [] as api.Booking[], count: 0 };
   }
   return api.getBookings(accessToken);
+}
+
+// ============================================================================
+// 10e. BLOCK REGISTRY — BlockRegistryPanel persistence
+// ============================================================================
+
+export async function getBlockRegistry(proposalId: string, accessToken: string) {
+  if (isDemo()) {
+    log('Get block registry (demo mode) — none persisted');
+    return { success: true, registry: null as api.BlockRegistrySnapshot | null };
+  }
+  return api.getBlockRegistry(proposalId, accessToken);
+}
+
+export async function saveBlockRegistry(
+  proposalId: string,
+  payload: api.SaveBlockRegistryPayload,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Save block registry (demo mode) — echo only, not persisted');
+    const registry: api.BlockRegistrySnapshot = {
+      proposalId,
+      blocks: payload.blocks,
+      revisions: payload.revisions,
+      locks: payload.locks,
+      rev: (payload.baseRev ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    return { success: true, registry };
+  }
+  return api.saveBlockRegistry(proposalId, payload, accessToken);
 }
 
 // ============================================================================

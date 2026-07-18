@@ -2099,6 +2099,75 @@ app.get("/make-server-324f4fbe/bookings", async (c) => {
 });
 
 // ============================================================================
+// BLOCK REGISTRY — persist BlockRegistryPanel blocks/revisions/locks per proposal
+// KV key: blockreg:{proposalId} → { proposalId, blocks, revisions, locks, rev, updatedAt }
+// `rev` is a monotonically-increasing document revision used for optimistic
+// locking: a PUT that carries a stale baseRev is rejected with 409 so concurrent
+// editors never silently clobber each other. Team auth required.
+// ============================================================================
+
+// GET /proposals/:proposalId/blocks — fetch the stored registry snapshot (or null)
+app.get("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const proposalId = c.req.param('proposalId');
+    const raw = await kv.get(`blockreg:${proposalId}`);
+    const registry = raw ? safeJsonParse(raw) : null;
+    return c.json({ success: true, registry });
+  } catch (err) {
+    console.log('Get block registry error:', err);
+    return c.json({ error: `Failed to fetch block registry: ${err}` }, 500);
+  }
+});
+
+// PUT /proposals/:proposalId/blocks — save snapshot (optimistic-locked by baseRev)
+app.put("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const proposalId = c.req.param('proposalId');
+    const body = await c.req.json();
+    const { blocks, revisions, locks, baseRev } = body;
+
+    if (!Array.isArray(blocks) || !Array.isArray(revisions) || !Array.isArray(locks)) {
+      return c.json({ error: "blocks, revisions and locks must be arrays" }, 400);
+    }
+
+    const existing = safeJsonParse(await kv.get(`blockreg:${proposalId}`));
+    const currentRev: number = existing?.rev ?? 0;
+
+    // Optimistic concurrency: reject stale writes when a baseRev is supplied.
+    if (typeof baseRev === 'number' && existing && baseRev !== currentRev) {
+      return c.json({
+        error: "Registry was modified by another session",
+        conflict: true,
+        currentRev,
+      }, 409);
+    }
+
+    const registry = {
+      proposalId,
+      blocks,
+      revisions,
+      locks,
+      rev: currentRev + 1,
+      updatedBy: userId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await kv.set(`blockreg:${proposalId}`, JSON.stringify(registry));
+    console.log(`🧱 Block registry ${proposalId} saved — rev ${registry.rev} (${blocks.length} blocks, ${revisions.length} revs, ${locks.length} locks)`);
+    return c.json({ success: true, registry });
+  } catch (err) {
+    console.log('Save block registry error:', err);
+    return c.json({ error: `Failed to save block registry: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
 // MESSAGING — TEAM (auth required) — defined BEFORE client routes to avoid clash
 // ============================================================================
 

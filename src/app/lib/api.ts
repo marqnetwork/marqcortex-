@@ -836,6 +836,67 @@ export async function getBookings(accessToken: string) {
 }
 
 // ============================================================================
+// BLOCK REGISTRY — BlockRegistryPanel persistence (team auth)
+// ============================================================================
+
+import type { Block, BlockRevision, BlockLock } from '@/app/core/blockEngine';
+
+export interface BlockRegistrySnapshot {
+  proposalId: string;
+  blocks:     Block[];
+  revisions:  BlockRevision[];
+  locks:      BlockLock[];
+  rev:        number;
+  updatedBy?: string;
+  updatedAt:  string;
+}
+
+export interface SaveBlockRegistryPayload {
+  blocks:    Block[];
+  revisions: BlockRevision[];
+  locks:     BlockLock[];
+  /** Document revision the client last loaded — enables optimistic-lock 409s */
+  baseRev?:  number;
+}
+
+/** Fetch the stored block-registry snapshot for a proposal (null if none saved) */
+export async function getBlockRegistry(proposalId: string, accessToken: string) {
+  const res = await fetch(`${BASE}/proposals/${proposalId}/blocks`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch block registry');
+  return data as { success: boolean; registry: BlockRegistrySnapshot | null };
+}
+
+/**
+ * Save the block-registry snapshot. On a stale baseRev the server responds 409;
+ * the thrown error carries `conflict: true` and `currentRev` so the caller can reconcile.
+ */
+export async function saveBlockRegistry(
+  proposalId: string,
+  payload: SaveBlockRegistryPayload,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/proposals/${proposalId}/blocks`, {
+    method: 'PUT',
+    headers: headers(accessToken),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Failed to save block registry') as Error & {
+      conflict?: boolean;
+      currentRev?: number;
+    };
+    err.conflict = data.conflict;
+    err.currentRev = data.currentRev;
+    throw err;
+  }
+  return data as { success: boolean; registry: BlockRegistrySnapshot };
+}
+
+// ============================================================================
 // PROPOSALS
 // ============================================================================
 
