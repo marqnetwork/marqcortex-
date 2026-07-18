@@ -129,9 +129,11 @@ export function migrateBookingRecord(raw: unknown): BookingRecord {
     ? (r.status as BookingStatus)
     : 'requested';
 
+  // A record carrying a v2 schemaVersion but no source is a v2 write (default
+  // 'score-page'); one lacking both is a pre-v2/legacy stub payload.
   const source = isNonEmptyString(r.source) && VALID_SOURCE.has(r.source)
     ? (r.source as BookingSource)
-    : (isNonEmptyString(r.schemaVersion as unknown as string) || r.schemaVersion === BOOKING_SCHEMA_VERSION)
+    : r.schemaVersion === BOOKING_SCHEMA_VERSION
       ? 'score-page'
       : 'legacy';
 

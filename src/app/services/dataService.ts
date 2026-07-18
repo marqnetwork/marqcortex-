@@ -762,7 +762,7 @@ export async function createEscalation(
 ) {
   if (isDemo()) {
     log('Create escalation (demo mode) — echo only, not persisted');
-    const detectionCount = payload.atRisk ? 1 : 1;
+    const detectionCount = 1;
     const escalation: api.EscalationRecord = {
       id: `esc_demo_${Date.now()}`,
       submissionId,

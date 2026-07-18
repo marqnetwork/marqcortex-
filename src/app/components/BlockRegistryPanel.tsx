@@ -447,6 +447,10 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
   const revRef        = useRef<number | null>(null); // last-known document revision
   const hasLoadedRef  = useRef(false);
   const saveTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Signature of this proposal's subset as last persisted, so autosave can skip
+  // a redundant write (e.g. right after load) — otherwise merely opening the
+  // panel would bump `rev` and cause spurious 409s for concurrent editors.
+  const lastPersistedRef = useRef<string | null>(null);
 
   // block_ids that belong to this proposal (membership is via links → static)
   const proposalIds = useMemo(() => proposalBlockIdSet(proposalId, links), [proposalId, links]);
@@ -469,6 +473,10 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
           setRevisions(merged.revisions);
           setLocks(merged.locks);
           revRef.current = res.registry.rev;
+          // Baseline the loaded subset so autosave doesn't immediately re-save it.
+          lastPersistedRef.current = JSON.stringify(
+            extractProposalSubset(proposalIds, merged.blocks, merged.revisions, merged.locks),
+          );
           setRegStatus('saved');
         }
       })
@@ -486,6 +494,7 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
   ) => {
     if (!persistEnabled || !accessToken) return;
     const subset = extractProposalSubset(proposalIds, nextBlocks, nextRevisions, nextLocks);
+    lastPersistedRef.current = JSON.stringify(subset);
     setRegStatus('saving');
     try {
       const res = await saveBlockRegistry(
@@ -511,6 +520,9 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
             setRevisions(merged.revisions);
             setLocks(merged.locks);
             revRef.current = res.registry.rev;
+            lastPersistedRef.current = JSON.stringify(
+              extractProposalSubset(proposalIds, merged.blocks, merged.revisions, merged.locks),
+            );
           }
         } catch { /* keep conflict status */ }
       } else {
@@ -524,9 +536,14 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
   useEffect(() => {
     if (!persistEnabled || !hasLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { void persistRegistry(blocks, revisions, locks); }, 1000);
+    saveTimerRef.current = setTimeout(() => {
+      // Skip if this proposal's subset is unchanged from what's already persisted.
+      const sig = JSON.stringify(extractProposalSubset(proposalIds, blocks, revisions, locks));
+      if (sig === lastPersistedRef.current) return;
+      void persistRegistry(blocks, revisions, locks);
+    }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [blocks, revisions, locks, persistEnabled, persistRegistry]);
+  }, [blocks, revisions, locks, persistEnabled, persistRegistry, proposalIds]);
 
   // ── Filters ─────────────────────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');

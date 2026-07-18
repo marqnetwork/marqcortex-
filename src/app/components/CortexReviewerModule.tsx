@@ -75,10 +75,14 @@ export function CortexReviewerModule({
   // a stored review with the empty factory checklist on first render).
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Signature of the checklist currently persisted on the server, so autosave
+  // can skip a write when nothing has actually changed (e.g. right after load).
+  const lastPersistedRef = useRef<string | null>(null);
 
   // Persist the given checklist to the backend (no-op unless enabled).
   const persist = useCallback(async (next: ReviewerChecklist): Promise<boolean> => {
     if (!persistEnabled || !accessToken) return false;
+    lastPersistedRef.current = JSON.stringify(next);
     setSaveStatus('saving');
     try {
       const res = await saveReview(leadId, reviewType, next, accessToken);
@@ -108,6 +112,8 @@ export function CortexReviewerModule({
           setChecklist(res.review);
           setLastSavedAt(res.review.updated_at ?? null);
           setSaveStatus('saved');
+          // Baseline the loaded content so autosave doesn't immediately re-save it.
+          lastPersistedRef.current = JSON.stringify(res.review);
         }
       })
       .catch((err) => console.error('CortexReviewerModule load error:', err))
@@ -124,7 +130,11 @@ export function CortexReviewerModule({
   useEffect(() => {
     if (!persistEnabled || !hasLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { void persist(checklist); }, 1200);
+    saveTimerRef.current = setTimeout(() => {
+      // Skip if the checklist is unchanged from what's already persisted.
+      if (JSON.stringify(checklist) === lastPersistedRef.current) return;
+      void persist(checklist);
+    }, 1200);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [checklist, persistEnabled, persist]);
 
