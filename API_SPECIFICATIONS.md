@@ -209,6 +209,27 @@
 
 ---
 
+## Group 8b — Reviewer Checklist (Batch 4)
+
+Powers the CortexReviewerModule quality gate. One review per submission per
+`reviewType` (`report` | `call-prep` | `proposal`), stored at KV key
+`review:{submissionId}:{reviewType}`.
+
+### 24a. `GET /submissions/:id/review/:reviewType`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, review: ReviewerChecklist | null }`  
+**Notes:** `reviewType` must be one of `report`, `call-prep`, `proposal` (400 otherwise). `review` is `null` when nothing has been saved yet.
+
+---
+
+### 24b. `PUT /submissions/:id/review/:reviewType`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ checklist: ReviewerChecklist }`  
+**Returns:** `{ success, review: ReviewerChecklist }`  
+**Notes:** Creates or replaces the stored review. `lead_id`, `review_type`, `reviewer_name`, `reviewer_email`, and `updated_at` are set server-side from the team JWT — client-supplied values for these are overwritten. The frontend autosaves (debounced) on checklist edits and saves immediately on a final decision.
+
+---
+
 ## Group 9 — Messaging
 
 ### 25. `GET /submissions/:id/messages/team`

@@ -666,6 +666,51 @@ export async function deleteNote(
 }
 
 // ============================================================================
+// REVIEWER CHECKLIST — CortexReviewerModule quality-gate persistence (team auth)
+// ============================================================================
+
+import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
+
+export type ReviewType = 'report' | 'call-prep' | 'proposal';
+
+/** Server-stored review = the checklist plus server-set identity/timestamps */
+export type StoredReview = ReviewerChecklist & {
+  reviewer_email?: string;
+  updated_at?: string;
+};
+
+/** Fetch the stored review checklist for a submission + type (null if none saved) */
+export async function getReview(
+  submissionId: string,
+  reviewType: ReviewType,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/review/${reviewType}`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch review');
+  return data as { success: boolean; review: StoredReview | null };
+}
+
+/** Save (create or replace) the review checklist for a submission + type */
+export async function saveReview(
+  submissionId: string,
+  reviewType: ReviewType,
+  checklist: ReviewerChecklist,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/review/${reviewType}`, {
+    method: 'PUT',
+    headers: headers(accessToken),
+    body: JSON.stringify({ checklist }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save review');
+  return data as { success: boolean; review: StoredReview };
+}
+
+// ============================================================================
 // PROPOSALS
 // ============================================================================
 

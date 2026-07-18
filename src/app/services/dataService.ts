@@ -71,7 +71,12 @@ export type {
   CopilotInterpretResponse,
   QueuedEmailPayload,
   LeadCapturePayload,
+  ReviewType,
+  StoredReview,
 } from '@/app/lib/api';
+
+// Re-export the reviewer checklist type so components import it from dataService
+export type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 
 // Re-export demo types
 export type { DemoClient, DemoNurtureLead } from '@/app/utils/demoData';
@@ -81,6 +86,7 @@ export type { ClientReportData } from '@/app/utils/clientReportGenerator';
 
 // ── Internal imports (not re-exported) ──────────────────────────────────────
 import * as api from '@/app/lib/api';
+import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 import * as demo from '@/app/utils/demoData';
 import { generateClientReport as _generateClientReport } from '@/app/utils/clientReportGenerator';
 
@@ -693,6 +699,41 @@ export async function deleteNote(submissionId: string, noteId: string, accessTok
     return { success: true };
   }
   return api.deleteNote(submissionId, noteId, accessToken);
+}
+
+// ============================================================================
+// 10b. REVIEWER CHECKLIST — CortexReviewerModule quality-gate persistence
+// ============================================================================
+
+export async function getReview(
+  submissionId: string,
+  reviewType: api.ReviewType,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Get review (demo mode) — no persisted review');
+    return { success: true, review: null as api.StoredReview | null };
+  }
+  return api.getReview(submissionId, reviewType, accessToken);
+}
+
+export async function saveReview(
+  submissionId: string,
+  reviewType: api.ReviewType,
+  checklist: ReviewerChecklist,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Save review (demo mode) — echo only, not persisted');
+    const review = {
+      ...checklist,
+      lead_id: submissionId,
+      review_type: reviewType,
+      updated_at: new Date().toISOString(),
+    } as api.StoredReview;
+    return { success: true, review };
+  }
+  return api.saveReview(submissionId, reviewType, checklist, accessToken);
 }
 
 // ============================================================================

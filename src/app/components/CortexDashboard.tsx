@@ -1629,9 +1629,10 @@ function CortexLeadDetail({
             {activeTab === 'callprep'       && <CallPrepSection data={data} />}
             {activeTab === 'reviewer'       && (
               <CortexReviewerModule
-                leadId={data.lead.id}
+                leadId={leadId}
                 companyName={data.lead.companyName}
                 reviewType="report"
+                accessToken={accessToken}
               />
             )}
             {activeTab === 'decisions'      && <DecisionLogModule data={data} />}

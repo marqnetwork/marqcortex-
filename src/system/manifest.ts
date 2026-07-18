@@ -926,12 +926,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-054',
       name: 'CortexReviewerModule',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CortexReviewerModule.tsx',
       description: 'Cortex AI module for automated proposal review. Checks for consistency, completeness, and alignment with the diagnostic findings.',
       dependencies: ['MQC-SVC-005', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-052'],
+      notes: 'Batch 4 (2026-07-18): review persistence migrated to KV. Checklist loads on mount, debounced-autosaves on edit, and saves immediately on final decision via GET/PUT /submissions/:id/review/:reviewType (team auth). Demo mode keeps local-only behavior (no persistence). Contract covered by tests/features/reviewModule.test.ts.',
     },
 
     // ── ANALYTICS ────────────────────────────────────────────────────────────

@@ -1855,6 +1855,83 @@ app.delete("/make-server-324f4fbe/submissions/:id/notes/:noteId", async (c) => {
 });
 
 // ============================================================================
+// REVIEWER CHECKLIST — persist CortexReviewerModule quality-gate reviews
+// KV key pattern: review:{submissionId}:{reviewType}  →  JSON ReviewerChecklist
+// reviewType ∈ { report, call-prep, proposal }
+// Team auth required — reviews are internal quality-control artifacts.
+// ============================================================================
+
+const REVIEW_TYPES = new Set(['report', 'call-prep', 'proposal']);
+
+// GET /submissions/:id/review/:reviewType — fetch stored review (or null)
+app.get("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const reviewType   = c.req.param('reviewType');
+    if (!REVIEW_TYPES.has(reviewType)) {
+      return c.json({ error: `Invalid reviewType: ${reviewType}` }, 400);
+    }
+
+    const raw = await kv.get(`review:${submissionId}:${reviewType}`);
+    const review = raw ? safeJsonParse(raw) : null;
+    return c.json({ success: true, review });
+  } catch (err) {
+    console.log('Get review error:', err);
+    return c.json({ error: `Failed to fetch review: ${err}` }, 500);
+  }
+});
+
+// PUT /submissions/:id/review/:reviewType — save/replace the review checklist
+app.put("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) => {
+  try {
+    const token  = c.req.header('Authorization');
+    const userId = await verifyTeamToken(token);
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const reviewType   = c.req.param('reviewType');
+    if (!REVIEW_TYPES.has(reviewType)) {
+      return c.json({ error: `Invalid reviewType: ${reviewType}` }, 400);
+    }
+
+    const body = await c.req.json();
+    const checklist = body?.checklist;
+    if (!checklist || typeof checklist !== 'object') {
+      return c.json({ error: "Missing checklist payload" }, 400);
+    }
+
+    // Resolve reviewer identity from the auth token (authoritative over client)
+    const rawToken = token?.split(' ')[1];
+    let reviewerName = 'Team Member';
+    let reviewerEmail = '';
+    try {
+      const { data: { user } } = await supabaseAdmin.auth.getUser(rawToken!);
+      reviewerName  = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Team Member';
+      reviewerEmail = user?.email || '';
+    } catch { /* demo/service tokens — keep defaults */ }
+
+    const record = {
+      ...checklist,
+      lead_id:       submissionId,
+      review_type:   reviewType,
+      reviewer_name: reviewerName,
+      reviewer_email: reviewerEmail,
+      updated_at:    new Date().toISOString(),
+    };
+
+    await kv.set(`review:${submissionId}:${reviewType}`, JSON.stringify(record));
+    console.log(`✅ Review saved for ${submissionId} (${reviewType}) by ${reviewerEmail || userId}`);
+    return c.json({ success: true, review: record });
+  } catch (err) {
+    console.log('Save review error:', err);
+    return c.json({ error: `Failed to save review: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
 // MESSAGING — TEAM (auth required) — defined BEFORE client routes to avoid clash
 // ============================================================================
 
