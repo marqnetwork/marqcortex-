@@ -992,13 +992,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-059',
       name: 'ABTestingPanel',
       type: 'COMP',
-      status: 'GATED',
+      status: 'DEMO',
       domain: 'ANALYTICS',
       filePath: 'src/app/components/ABTestingPanel.tsx',
-      description: 'A/B testing panel for proposal variants. Tracks which proposal formats have higher acceptance rates.',
-      dependencies: ['MQC-SVC-002'],
-      dependents: [],
-      notes: 'Gated — not exposed in any current navigation. Will be added to AnalyticsDashboard when sufficient data volume exists.',
+      description: 'Email subject-line A/B distribution aid embedded in EmailNurturePanel. Shows per-template variant send distribution, a "leading" badge by send count, and bulk "apply winner". Operates on the client-side email nurture queue (emailNurtureQueue util, localStorage-backed).',
+      dependencies: [],
+      dependents: ['MQC-COMP-068'],
+      notes: 'Batch 6: reclassified GATED → DEMO (prior status/description were stale — it is mounted in EmailNurturePanel and is about email subject lines, not proposal variants). It reads the localStorage-backed email queue (emailNurtureQueue) and assigns variants with Math.random. Honest empty state ("Queue some emails first"). It does NOT compute statistical significance and no LLM is involved. DEFERRED to a real experiment platform: server-persisted experiment/variant store, deterministic stable bucketing, exposure/outcome events, tenant isolation, and significance evaluation are all absent — do not present this as production experimentation.',
     },
 
     'MQC-COMP-060': {
@@ -1098,10 +1098,10 @@ export const manifest: SystemManifest = {
       status: 'GATED',
       domain: 'COMMS',
       filePath: 'src/app/components/CRMSyncPanel.tsx',
-      description: 'CRM integration panel. Syncs submission data to external CRMs (HubSpot, Salesforce). Currently gated — integration not yet configured.',
-      dependencies: ['MQC-CORE-009', 'MQC-SVC-001'],
-      dependents: [],
-      notes: 'Gated until CRM API credentials are configured. crmEngine is built but the backend webhook endpoint is not yet wired.',
+      description: 'Local CRM pipeline preview embedded in ProposalDraftEditor. Derives a deal (stage, probability, tasks, activity) from the current draft via crmEngine and renders it. It is NOT connected to an external CRM — no data leaves the browser.',
+      dependencies: ['MQC-CORE-009'],
+      dependents: ['MQC-COMP-019'],
+      notes: 'Batch 6: kept GATED (honest). crmEngine (MQC-CORE-009) derives the pipeline view deterministically, but there is NO external CRM connector, credential path, backend sync endpoint, or webhook verification. The panel now labels itself "Local preview only — not connected to an external CRM" and the button says "Refresh" (re-derive) rather than "Sync", so no successful external synchronization is fabricated. ACTIVATION PREREQUISITES: (1) approved provider (HubSpot/Salesforce) + connector contract; (2) tenant-scoped credential storage (server-side, never in the Vite bundle); (3) backend sync/upsert endpoints with idempotency, retry/backoff, rate-limit handling; (4) webhook signature verification; (5) last-sync cursor + failure visibility + audit logging.',
     },
 
     'MQC-COMP-068': {

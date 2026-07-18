@@ -24,8 +24,8 @@ CortexDashboard, CRMSync in ProposalDraftEditor).
 
 - [x] WS1 — AIAssistant + InlineAITrigger → LIVE (deterministic/delegator, verified); manifest notes + dependency edges corrected. (No unit test: JSX components can't load under the Node strip-types runner and behavior is trivial deterministic UI / pure delegation — documented instead.)
 - [x] WS1b — LearningLoopPanel → LIVE (already wired). Extracted deterministic aggregation into `learningLoop.ts`; endpoint refactored to call it; 10 tests added (tests/features/learningLoop.test.ts). Manifest COMP-061 GATED→LIVE + new SVC-019.
-- [ ] WS2 — ABTestingPanel: keep DEMO honest; document real-experiment prerequisites (no invented backend).
-- [ ] WS4 — CRMSyncPanel: keep GATED honest; remove fabricated-sync implication (honest labeling); document connector prerequisites.
+- [x] WS2 — ABTestingPanel GATED→DEMO (stale status/description corrected); documented real-experiment prerequisites (deferred). No invented backend.
+- [x] WS4 — CRMSyncPanel kept GATED; removed fabricated-sync implication ("Sync"→"Refresh", "Local preview only — not connected" banner); documented connector prerequisites. BATCH6_STABILIZATION_STATUS.md created.
 - [ ] WS5 — Storage authority/SQL cutover: KV authoritative, SQL=No, shadow reads disabled. Document; NO cutover.
 - [ ] WS6 — Feature flags/env: fail-closed audit; no secrets in Vite; GATED stays inaccessible where prereqs absent.
 - [ ] WS7 — Focused security verification (auth, tenant, validation, secrets, CORS, prompt-injection/fact-lock). Fix only launch blockers.

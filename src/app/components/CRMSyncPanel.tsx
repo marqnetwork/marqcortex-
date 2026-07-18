@@ -484,16 +484,18 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
             <Filter className="size-2.5" />Filter
           </button>
 
-          {/* Sync button */}
+          {/* Refresh button — re-derives the local preview from the draft.
+              NOTE: this is not an external CRM sync (no connector configured). */}
           <button
             onClick={handleSync}
+            title="Re-derive the local pipeline preview from the current draft. No external CRM is connected."
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-lg border transition-colors text-gray-500 hover:text-white border-white/10 hover:border-white/20"
           >
-            <RefreshCw className="size-2.5" />Sync
+            <RefreshCw className="size-2.5" />Refresh
           </button>
 
           <span className="text-[9px] text-gray-700">
-            {lastSynced}
+            Local preview · {lastSynced}
           </span>
         </div>
       </div>
@@ -650,6 +652,16 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
           <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-2">
             <CheckCircle2 className="size-3 text-[#10B981]" />
             Phase 7 Sync Status
+          </div>
+          {/* Honest state: this panel derives a local CRM pipeline preview from the
+              draft via crmEngine. It is NOT connected to an external CRM — no
+              HubSpot/Salesforce connector or credentials are configured. */}
+          <div
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded text-[9px]"
+            style={{ background: '#F59E0B0D', color: '#F59E0B' }}
+          >
+            <AlertCircle className="size-2.5 flex-shrink-0" />
+            Local preview only — not connected to an external CRM. HubSpot/Salesforce sync requires a configured connector and credentials.
           </div>
           <div className="grid grid-cols-1 gap-1">
             {[
