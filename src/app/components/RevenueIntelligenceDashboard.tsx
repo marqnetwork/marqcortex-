@@ -19,7 +19,7 @@
  * Architecture note: production → pre-computed aggregate table (spec §3).
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ComposedChart, BarChart, Bar, Line, LineChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -46,8 +46,11 @@ import {
   deriveFilterOptions,
   type DashboardFilters,
   type KPITile,
+  type DealSnapshot,
 } from '@/app/core/dashboardAggregator';
 import type { ObjectionType } from '@/app/types/cortex-types';
+import * as dataService from '@/app/services/dataService';
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // COLOURS
@@ -110,6 +113,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 interface FilterBarProps {
   filters:   DashboardFilters;
+  snapshots: DealSnapshot[];
   onChange:  (f: DashboardFilters) => void;
   onReset:   () => void;
 }
@@ -164,8 +168,8 @@ function FilterPill({
   );
 }
 
-function FilterBar({ filters, onChange, onReset }: FilterBarProps) {
-  const opts = useMemo(() => deriveFilterOptions(MOCK_SNAPSHOTS), []);
+function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
+  const opts = useMemo(() => deriveFilterOptions(snapshots), [snapshots]);
 
   function set<K extends keyof DashboardFilters>(k: K, v: DashboardFilters[K]) {
     onChange({ ...filters, [k]: v });
@@ -784,17 +788,50 @@ interface RevenueIntelligenceDashboardProps {
   accessToken?: string;
 }
 
-export function RevenueIntelligenceDashboard(_props: RevenueIntelligenceDashboardProps) {
+export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenceDashboardProps) {
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
+  // Demo mode is seeded with MOCK_SNAPSHOTS. Live mode must NEVER display mock
+  // data (governance: no fabricated metrics), so it starts empty and shows only
+  // the deterministically-derived snapshots returned by the backend — even when
+  // that set is empty (a fresh tenant with no deals yet).
+  const [snapshots, setSnapshots] = useState<DealSnapshot[]>(() =>
+    isBackendEnabled() ? [] : MOCK_SNAPSHOTS,
+  );
+  const [loadState, setLoadState] = useState<'ready' | 'loading' | 'error'>(() =>
+    isBackendEnabled() ? 'loading' : 'ready',
+  );
+
+  useEffect(() => {
+    if (!isBackendEnabled()) return; // demo mode keeps the seed set
+    let cancelled = false;
+    setLoadState('loading');
+    (async () => {
+      try {
+        const res = await dataService.getRevenueSnapshots(accessToken ?? '');
+        if (cancelled) return;
+        // Live snapshots are authoritative — apply them even when empty rather
+        // than falling back to MOCK_SNAPSHOTS, which would fabricate revenue.
+        setSnapshots(res.snapshots);
+        setLoadState('ready');
+      } catch (err) {
+        if (cancelled) return;
+        if (isVerboseLogging()) console.error('Revenue snapshots fetch failed:', err);
+        // Do NOT fall back to mock data in production — surface an honest error.
+        setSnapshots([]);
+        setLoadState('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
   const filtered = useMemo(
-    () => filterSnapshots(MOCK_SNAPSHOTS, filters),
-    [filters],
+    () => filterSnapshots(snapshots, filters),
+    [snapshots, filters],
   );
 
   const prevFiltered = useMemo(
-    () => prevPeriodSnapshots(MOCK_SNAPSHOTS, filters),
-    [filters],
+    () => prevPeriodSnapshots(snapshots, filters),
+    [snapshots, filters],
   );
 
   const kpiTiles = useMemo(
@@ -807,6 +844,7 @@ export function RevenueIntelligenceDashboard(_props: RevenueIntelligenceDashboar
       {/* Filter bar — sticky */}
       <FilterBar
         filters={filters}
+        snapshots={snapshots}
         onChange={setFilters}
         onReset={() => setFilters(DEFAULT_FILTERS)}
       />
@@ -842,17 +880,36 @@ export function RevenueIntelligenceDashboard(_props: RevenueIntelligenceDashboar
 
         {/* Empty state */}
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-            <Filter className="size-8 text-gray-700" />
-            <div className="text-sm font-bold text-gray-600">No deals match current filters</div>
-            <div className="text-[10px] text-gray-700">Adjust date range or clear filters to see data.</div>
-            <button
-              onClick={() => setFilters(DEFAULT_FILTERS)}
-              className="mt-2 px-4 py-2 text-[10px] font-bold rounded-lg border border-white/10 text-gray-400 hover:text-white transition-colors"
-            >
-              Reset Filters
-            </button>
-          </div>
+          loadState === 'loading' ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+              <Activity className="size-8 text-gray-700 animate-pulse" />
+              <div className="text-sm font-bold text-gray-600">Loading revenue snapshots…</div>
+            </div>
+          ) : loadState === 'error' ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+              <Filter className="size-8 text-[#FD4438]/60" />
+              <div className="text-sm font-bold text-gray-500">Couldn't load revenue data</div>
+              <div className="text-[10px] text-gray-700">The snapshot service is unavailable. No data is shown rather than estimated figures.</div>
+            </div>
+          ) : snapshots.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+              <BarChart3 className="size-8 text-gray-700" />
+              <div className="text-sm font-bold text-gray-600">No deal data yet</div>
+              <div className="text-[10px] text-gray-700">Revenue intelligence appears here once diagnostics, proposals, and outcomes are recorded.</div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+              <Filter className="size-8 text-gray-700" />
+              <div className="text-sm font-bold text-gray-600">No deals match current filters</div>
+              <div className="text-[10px] text-gray-700">Adjust date range or clear filters to see data.</div>
+              <button
+                onClick={() => setFilters(DEFAULT_FILTERS)}
+                className="mt-2 px-4 py-2 text-[10px] font-bold rounded-lg border border-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )
         ) : (
           <span className="contents">
             {/* 4 panels in 2×2 grid */}

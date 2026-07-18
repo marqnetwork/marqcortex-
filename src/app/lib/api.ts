@@ -4,6 +4,7 @@
 import { edgeFunctionBaseUrl, supabaseAnonKey } from '@/config/supabase.config';
 import { FEATURES } from '@/config/features';
 import type { ClientAuthContext } from '@/app/lib/session';
+import type { DealSnapshot } from '@/app/core/dashboardAggregator';
 
 const BASE = edgeFunctionBaseUrl;
 
@@ -427,6 +428,35 @@ export async function getEngagementAnalytics(accessToken: string) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Engagement analytics error');
   return data as { success: boolean; engagement: EngagementAnalytics };
+}
+
+// ── Revenue Intelligence — deterministic deal snapshots (team auth) ────────────
+
+export interface RevenueSnapshotSummary {
+  total_deals:          number;
+  proposals_sent:       number;
+  closed_won:           number;
+  closed_lost:          number;
+  closed_won_value:     number;
+  close_rate_pct:       number;
+  total_pipeline_value: number;
+}
+
+export interface RevenueSnapshotsResponse {
+  success:       boolean;
+  snapshots:     DealSnapshot[];
+  summary:       RevenueSnapshotSummary;
+  source_counts: { submissions: number; proposals: number; outcomes: number; escalations: number };
+  generated_at:  string;
+}
+
+export async function getRevenueSnapshots(accessToken: string): Promise<RevenueSnapshotsResponse> {
+  const res = await fetch(`${BASE}/analytics/revenue-snapshots`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Revenue snapshots error');
+  return data as RevenueSnapshotsResponse;
 }
 
 export interface EngagementAnalytics {
@@ -1771,6 +1801,62 @@ export async function blockAIAssist(
     throw err;
   }
   return data as BlockAIAssistResponse;
+}
+
+// ── Proposal Section Copilot — section-level rewrite/explain (team auth) ──────
+
+export type ProposalCopilotSection =
+  | 'executive_brief'
+  | 'diagnosis_0' | 'diagnosis_1' | 'diagnosis_2'
+  | 'scope_boundaries'
+  | 'next_step_offer';
+
+export type ProposalCopilotAction = 'improve' | 'expand' | 'simplify' | 'fix_gate' | 'custom';
+
+export interface ProposalSectionCopilotRequest {
+  section:         ProposalCopilotSection;
+  section_label:   string;
+  action:          ProposalCopilotAction;
+  current_content: Record<string, unknown>;
+  custom_prompt?:  string;
+  rejection_contexts?: string[];
+  context: {
+    company:   string;
+    industry?: string;
+    locked_facts?: {
+      price?:    number;
+      currency?: string;
+      duration?: string;
+    };
+  };
+}
+
+export interface ProposalSectionCopilotResponse {
+  proposed_content:   Record<string, unknown>;
+  diff_summary:       string;
+  model:              string;
+  generated_at:       string;
+  fact_lock_enforced: string[];
+  error?:             string;
+  keyMissing?:        boolean;
+}
+
+export async function proposalSectionCopilot(
+  req: ProposalSectionCopilotRequest,
+  accessToken: string,
+): Promise<ProposalSectionCopilotResponse> {
+  const res = await fetch(`${BASE}/proposal/section-copilot`, {
+    method: 'POST',
+    headers: headers(accessToken),
+    body: JSON.stringify(req),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Section copilot failed') as Error & { keyMissing?: boolean };
+    err.keyMissing = data.keyMissing;
+    throw err;
+  }
+  return data as ProposalSectionCopilotResponse;
 }
 
 export type CopilotPatchIntent =

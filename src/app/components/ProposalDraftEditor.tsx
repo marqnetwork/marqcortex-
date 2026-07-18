@@ -1544,6 +1544,7 @@ export function ProposalDraftEditor({ initialDraft, onDraftChange, submissionId,
       <ProposalSectionCopilot
         draft={draft}
         onApply={handleCopilotApply}
+        accessToken={accessToken}
       />
 
       {/* §1 Executive Brief */}

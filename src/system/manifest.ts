@@ -510,13 +510,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-021',
       name: 'ProposalSectionCopilot',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'PROPOSAL',
       filePath: 'src/app/components/ProposalSectionCopilot.tsx',
-      description: 'AI writing assistant sidebar in the proposal editor. Suggests text for individual sections based on the submission data. Currently in demo mode — real responses require BACKEND_INTEGRATION: true.',
-      dependencies: ['MQC-SVC-004', 'MQC-HOOK-006'],
+      description: 'Section-level AI copilot in the proposal editor. Generates a pending rewrite/explanation for one of the 6 proposal sections, routed through dataService → api.ts → POST /proposal/section-copilot (Intelligence Gateway). Fact-locked fields (price, currency, duration, severity, confidence, evidence) can never be altered by AI. Demo mode returns a deterministic mock via proposalCopilotEngine.',
+      dependencies: ['MQC-CORE-036', 'MQC-SVC-001', 'MQC-SVC-017', 'MQC-HOOK-006'],
       dependents: ['MQC-COMP-019'],
-      notes: 'Requires copilotPatch backend service to be wired. Demo fallback returns static suggestion text.',
+      notes: 'Batch 5: wired to the section-copilot backend (MQC-SVC-017). AI only rewrites/explains narrative; authoritative fields are re-injected server-side. Demo fallback lives in proposalCopilotEngine (MQC-CORE-036).',
     },
 
     'MQC-COMP-022': {
@@ -953,13 +953,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-056',
       name: 'RevenueIntelligenceDashboard',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'ANALYTICS',
       filePath: 'src/app/components/RevenueIntelligenceDashboard.tsx',
-      description: 'Predictive revenue intelligence showing pipeline value, win probability, and projected monthly recurring revenue.',
-      dependencies: ['MQC-CORE-021', 'MQC-SVC-002'],
+      description: 'Revenue intelligence: pipeline funnel, proposal performance, ROI accuracy, and objection intelligence across 4 panels + a leadership KPI strip. Fetches deterministically-derived deal snapshots via dataService → api.ts → GET /analytics/revenue-snapshots and aggregates them client-side. Math decides every metric — no LLM.',
+      dependencies: ['MQC-CORE-010', 'MQC-SVC-001', 'MQC-SVC-018'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Uses cortexDataService demo data. Wire MQC-SVC-002 and MQC-SVC-005 for live predictions.',
+      notes: 'Batch 5: wired to the revenue-snapshots backend (MQC-SVC-018). Snapshots are derived from authoritative persisted data only. Demo mode seeds MOCK_SNAPSHOTS; live mode replaces them on load. All aggregation stays in dashboardAggregator (MQC-CORE-010).',
     },
 
     'MQC-COMP-057': {
@@ -1512,10 +1512,10 @@ export const manifest: SystemManifest = {
       status: 'LIVE',
       domain: 'ANALYTICS',
       filePath: 'src/app/core/dashboardAggregator.ts',
-      description: 'Aggregates data across multiple submissions to produce platform-level metrics — pipeline health, average score, conversion rates.',
+      description: 'Aggregates data across multiple submissions to produce platform-level metrics — pipeline health, average score, conversion rates. Also home of the DealSnapshot type + Revenue Intelligence deterministic aggregators (filterSnapshots, aggregateRevenue/ProposalPerf/ROIAccuracy/Objections, buildKPIStrip) and MOCK_SNAPSHOTS.',
       dependencies: [],
-      dependents: ['MQC-COMP-044', 'MQC-COMP-055'],
-      inputs: ['Submission[]'],
+      dependents: ['MQC-COMP-044', 'MQC-COMP-055', 'MQC-COMP-056'],
+      inputs: ['Submission[]', 'DealSnapshot[]'],
       outputs: ['DashboardMetrics'],
     },
 
@@ -1870,8 +1870,21 @@ export const manifest: SystemManifest = {
       dependents: [],
     },
 
+    'MQC-CORE-036': {
+      id: 'MQC-CORE-036',
+      name: 'proposalCopilotEngine',
+      type: 'CORE',
+      status: 'LIVE',
+      domain: 'PROPOSAL',
+      filePath: 'src/app/core/proposalCopilotEngine.ts',
+      description: 'Section-copilot orchestration for ProposalSectionCopilot: the deterministic demo generator, the client-side fact-lock mirror, changed-field diffing, and validators that assemble a live backend response into the same shape the demo path returns.',
+      dependencies: [],
+      dependents: ['MQC-COMP-021', 'MQC-SVC-001'],
+      notes: 'Batch 5. Fact-lock policy here mirrors supabase/functions/server/proposalSectionCopilot.ts (defence-in-depth). AI never determines authoritative values.',
+    },
+
     // ══════════════════════════════════════════════════════════════════════════
-    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 009)
+    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 018)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-SVC-001': {
@@ -1992,8 +2005,8 @@ export const manifest: SystemManifest = {
       status: 'LIVE',
       domain: 'SYSTEM',
       filePath: 'supabase/functions/server/index.tsx',
-      description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, auth middleware, and error handling. 68 routes total.',
-      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010'],
+      description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, auth middleware, and error handling. 70 routes total (Batch 5 added POST /proposal/section-copilot and GET /analytics/revenue-snapshots).',
+      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010', 'MQC-SVC-017', 'MQC-SVC-018'],
       dependents: [],
       notes: 'Rate limit: 120 requests/minute per IP. Add new routes by importing handlers and registering them here with the /make-server-324f4fbe/ prefix.',
     },
@@ -2007,7 +2020,7 @@ export const manifest: SystemManifest = {
       filePath: 'supabase/functions/server/intelligence/gateway.ts',
       description: 'Provider-agnostic Intelligence Gateway. Normalizes AI requests, resolves provider/model via registry, applies timeout/retry/telemetry, and delegates to adapters (OpenAI, mock).',
       dependencies: [],
-      dependents: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-009'],
+      dependents: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-009', 'MQC-SVC-017'],
       notes: 'Rollback per feature via INTELLIGENCE_USE_GATEWAY_* env flags. Legacy *Legacy() paths retained. See src/imports/MCV2-intelligence-gateway-provider-extension-guide.md',
     },
 
@@ -2098,6 +2111,38 @@ export const manifest: SystemManifest = {
       dependencies: ['MQC-SVC-014'],
       dependents: [],
       notes: 'Maps to KV outcome:{submissionId}.',
+    },
+
+    'MQC-SVC-017': {
+      id: 'MQC-SVC-017',
+      name: 'proposalSectionCopilot (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/proposalSectionCopilot.ts',
+      description: 'Hono backend for the section-level proposal copilot. Routes generation through the Intelligence Gateway (feature block_assist) and deterministically re-injects fact-locked fields (price, currency, duration, severity, confidence, evidence) so AI can only rewrite narrative — never alter authoritative values.',
+      dependencies: ['MQC-SVC-010'],
+      dependents: ['MQC-COMP-021'],
+      backendRoute: 'POST /make-server-324f4fbe/proposal/section-copilot',
+      inputs: ['ProposalSectionCopilotRequest'],
+      outputs: ['ProposalSectionCopilotResponse'],
+      notes: 'Batch 5. Core rule enforced in code: enforceFactLock() reverts any locked field the model touched and reports it in fact_lock_enforced.',
+    },
+
+    'MQC-SVC-018': {
+      id: 'MQC-SVC-018',
+      name: 'revenueSnapshot (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'ANALYTICS',
+      filePath: 'supabase/functions/server/revenueSnapshot.ts',
+      description: 'Deterministic deal-snapshot derivation + headline summary for the Revenue Intelligence Dashboard. Reads only authoritative persisted KV records (sub:*, proposal:*, outcome:*, escalation:*) and maps them to DealSnapshot[]. No LLM — math decides every metric; unpersisted dimensions use documented deterministic defaults and never fabricate a value.',
+      dependencies: [],
+      dependents: ['MQC-COMP-056'],
+      backendRoute: 'GET /make-server-324f4fbe/analytics/revenue-snapshots',
+      inputs: ['DeriveInput'],
+      outputs: ['DealSnapshot[]', 'SnapshotSummary'],
+      notes: 'Batch 5. Pure module (no Deno/KV imports) — unit-tested under the Node runner. The Hono route (MQC-SVC-009) loads the KV records and calls deriveDealSnapshots/summarizeSnapshots.',
     },
 
     'MQC-TYPE-009': {

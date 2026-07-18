@@ -169,6 +169,14 @@
 
 ---
 
+### 19a. `GET /analytics/revenue-snapshots` *(Batch 5)*
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, snapshots: DealSnapshot[], summary, source_counts, generated_at }`  
+**Summary:** `{ total_deals, proposals_sent, closed_won, closed_lost, closed_won_value, close_rate_pct, total_pipeline_value }`  
+**Governance:** **Fully deterministic — no LLM.** Derives one `DealSnapshot` per submission from authoritative persisted KV records only: `sub:*` (deal + owner + industry), `proposal:*` (stage + sent/viewed/accepted/rejected timestamps + price), `outcome:*` (won/lost + conversion value + sign date), and `escalation:*` (objection type + resolution days). Deal value uses the outcome's conversion value for won deals, else the proposal price. `deal_size_band` is computed from value. Fields the platform does not persist are set to documented deterministic defaults that read as "unknown"/"not tracked" and never fabricate a metric: `region='NA'`, `scenario='expected'`, `is_expired=false`, `projected_roi_pct=0`, `actual_roi_pct=null`. The dashboard's existing deterministic aggregators (`dashboardAggregator`) run client-side on these snapshots; the LLM is never involved in any metric. Demo mode (`BACKEND_INTEGRATION=false`) returns the seeded `MOCK_SNAPSHOTS`.
+
+---
+
 ## Group 7 — Notifications
 
 ### 20. `GET /notifications`
@@ -647,6 +655,17 @@ overlays it onto the global engine stores on load (`blockRegistrySync.ts`).
 
 ---
 
+### 69. `POST /proposal/section-copilot` *(Batch 5)*
+**Auth:** TEAM_TOKEN  
+**Body:** `{ section, section_label, action, current_content, custom_prompt?, rejection_contexts?, context: { company, industry?, locked_facts? } }`  
+**Valid sections:** `executive_brief` | `diagnosis_0` | `diagnosis_1` | `diagnosis_2` | `scope_boundaries` | `next_step_offer`  
+**Valid actions:** `improve` | `expand` | `simplify` | `fix_gate` | `custom` (`custom` requires `custom_prompt`)  
+**Returns:** `{ success, proposed_content, diff_summary, model, generated_at, fact_lock_enforced: string[] }`  
+**Errors:** `400` — missing/invalid field (unknown section/action, missing `context.company`, `custom` without prompt). `503` — `OPENAI_API_KEY` not configured.  
+**Governance:** Routed through the **Intelligence Gateway** (feature `block_assist`) for provider independence. The LLM may **only rewrite or explain narrative** — it never computes or decides. Fact-locked fields are re-injected server-side from `current_content` **after** the model responds and can never be altered by AI: `next_step_offer` → `price`, `currency`, `duration`; `diagnosis_*` → `severity`, `confidence`, `evidence`. `fact_lock_enforced` lists any locked field the model tried to change (and that was reverted). Every revision is returned **pending** — the human accepts or rejects in the UI. Demo mode (`BACKEND_INTEGRATION=false`) returns a deterministic mock via `proposalCopilotEngine` without calling the API.
+
+---
+
 ## KV Store — Key Namespace Reference
 
 | Prefix | Content | Cardinality |
@@ -681,7 +700,7 @@ overlays it onto the global engine stores on load (`blockRegistrySync.ts`).
 | `SUPABASE_URL` | All routes | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Auth, team management | Yes |
 | `SUPABASE_ANON_KEY` | Team login proxy | Yes |
-| `OPENAI_API_KEY` | Routes 48, 52, 65, 66, 67, 68 | For AI features |
+| `OPENAI_API_KEY` | Routes 48, 52, 65, 66, 67, 68, 69 | For AI features |
 | `RESEND_API_KEY` | Routes 40, 41, 43, 46 + all side-effect emails | For email delivery |
 | `TEAM_ADMIN_EMAIL` | Startup seed | Optional (defaults to `admin@marqcortex.com`) |
 | `TEAM_ADMIN_PASSWORD` | Startup seed | Optional (defaults to `CortexAdmin2026!`) |

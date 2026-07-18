@@ -21,6 +21,20 @@ import { runCortexAnalysis } from "./cortexAnalysis.ts";
 import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
 import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
 import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
+import {
+  handleProposalSectionCopilot,
+  VALID_SECTIONS,
+  VALID_ACTIONS,
+  type ProposalSectionCopilotRequest,
+} from "./proposalSectionCopilot.ts";
+import {
+  deriveDealSnapshots,
+  summarizeSnapshots,
+  type RawSubmission,
+  type RawProposal,
+  type RawOutcome,
+  type RawEscalation,
+} from "./revenueSnapshot.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
 import {
   normalizeBooking,
@@ -1449,6 +1463,57 @@ app.get("/make-server-324f4fbe/analytics/overview", async (c) => {
   } catch (err) {
     console.log('Analytics overview error:', err);
     return c.json({ error: `Failed to compute analytics: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// ANALYTICS — REVENUE INTELLIGENCE SNAPSHOTS (team auth required)
+// Deterministic deal-snapshot derivation from authoritative persisted KV data.
+// No LLM. Powers the Revenue Intelligence Dashboard's aggregators.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/analytics/revenue-snapshots", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const [rawSubs, rawProposals, rawOutcomes, rawEscalations] = await Promise.all([
+      kv.getByPrefix('sub:'),
+      kv.getByPrefix('proposal:'),
+      kv.getByPrefix('outcome:'),
+      kv.getByPrefix('escalation:'),
+    ]);
+
+    const submissions = parseSubmissions(Array.isArray(rawSubs) ? rawSubs : []) as RawSubmission[];
+    const parseAll = <T,>(arr: unknown): T[] =>
+      (Array.isArray(arr) ? arr : [])
+        .map((r: unknown) => { try { return safeJsonParse(r) as T; } catch { return null; } })
+        .filter((r): r is T => r != null && typeof r === 'object');
+
+    const proposals   = parseAll<RawProposal>(rawProposals);
+    const outcomes    = parseAll<RawOutcome>(rawOutcomes);
+    const escalations = parseAll<RawEscalation>(rawEscalations);
+
+    const snapshots = deriveDealSnapshots({ submissions, proposals, outcomes, escalations });
+    const summary   = summarizeSnapshots(snapshots);
+
+    console.log(`✅ /analytics/revenue-snapshots: ${snapshots.length} snapshots from ${submissions.length} subs`);
+
+    return c.json({
+      success: true,
+      snapshots,
+      summary,
+      source_counts: {
+        submissions: submissions.length,
+        proposals:   proposals.length,
+        outcomes:    outcomes.length,
+        escalations: escalations.length,
+      },
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.log('Revenue snapshots error:', err);
+    return c.json({ error: `Failed to compute revenue snapshots: ${err}` }, 500);
   }
 });
 
@@ -3978,6 +4043,60 @@ app.post("/make-server-324f4fbe/blocks/copilot-interpret", async (c) => {
     const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
     return c.json({
       error:      `Copilot interpret failed: ${err?.message || err}`,
+      keyMissing: isKeyMissing,
+    }, 500);
+  }
+});
+
+// ============================================================================
+// PROPOSAL SECTION COPILOT — section-level AI rewrite/explain (team auth required)
+// Routes through the Intelligence Gateway. LLM rewrites narrative ONLY;
+// authoritative fields (price, currency, duration, severity, confidence,
+// evidence) are re-injected server-side and can never be altered by AI.
+// ============================================================================
+
+app.post("/make-server-324f4fbe/proposal/section-copilot", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
+
+    const body = await c.req.json() as ProposalSectionCopilotRequest;
+
+    const required = ['section', 'section_label', 'action', 'current_content', 'context'];
+    const missing  = required.filter(k => !(k in body));
+    if (missing.length > 0) {
+      return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400);
+    }
+    if (!VALID_SECTIONS.includes(body.section)) {
+      return c.json({ error: `Invalid section: ${body.section}. Must be one of: ${VALID_SECTIONS.join(', ')}` }, 400);
+    }
+    if (!VALID_ACTIONS.includes(body.action)) {
+      return c.json({ error: `Invalid action: ${body.action}. Must be one of: ${VALID_ACTIONS.join(', ')}` }, 400);
+    }
+    if (!body.current_content || typeof body.current_content !== 'object') {
+      return c.json({ error: 'current_content must be an object' }, 400);
+    }
+    if (body.action === 'custom' && !body.custom_prompt?.trim()) {
+      return c.json({ error: 'custom_prompt is required when action is "custom"' }, 400);
+    }
+    if (!body.context?.company) {
+      return c.json({ error: 'context.company is required' }, 400);
+    }
+
+    if (!Deno.env.get('OPENAI_API_KEY')) {
+      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
+    }
+
+    console.log(`🤖 Section Copilot: action="${body.action}" section="${body.section}" company="${body.context.company}"`);
+    const result = await handleProposalSectionCopilot(body);
+    console.log(`✅ Section Copilot: done (diff: "${result.diff_summary}", fact-locked: ${result.fact_lock_enforced.join(',') || 'none'})`);
+
+    return c.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error('❌ Section Copilot error:', err);
+    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
+    return c.json({
+      error:      `Section copilot failed: ${err?.message || err}`,
       keyMissing: isKeyMissing,
     }, 500);
   }

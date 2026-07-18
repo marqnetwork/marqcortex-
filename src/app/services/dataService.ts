@@ -67,6 +67,10 @@ export type {
   AIChatResponse,
   BlockAIAssistRequest,
   BlockAIAssistResponse,
+  ProposalSectionCopilotRequest,
+  ProposalSectionCopilotResponse,
+  ProposalCopilotSection,
+  ProposalCopilotAction,
   CopilotInterpretRequest,
   CopilotInterpretResponse,
   QueuedEmailPayload,
@@ -601,6 +605,24 @@ export async function getAnalytics(accessToken: string) {
     };
   }
   return api.getAnalytics(accessToken);
+}
+
+/**
+ * Revenue Intelligence deal snapshots. Demo mode returns the seeded
+ * MOCK_SNAPSHOTS (deterministic); live mode fetches deterministically-derived
+ * snapshots from persisted data. Aggregation runs client-side either way, so the
+ * dashboard behaves identically — only the data source changes.
+ */
+export async function getRevenueSnapshots(
+  accessToken: string,
+): Promise<{ snapshots: import('@/app/core/dashboardAggregator').DealSnapshot[]; source: 'demo' | 'live'; summary?: api.RevenueSnapshotSummary }> {
+  if (isDemo()) {
+    log('Get revenue snapshots (demo mode) — MOCK_SNAPSHOTS');
+    const { MOCK_SNAPSHOTS } = await import('@/app/core/dashboardAggregator');
+    return { snapshots: MOCK_SNAPSHOTS, source: 'demo' };
+  }
+  const res = await api.getRevenueSnapshots(accessToken);
+  return { snapshots: res.snapshots, source: 'live', summary: res.summary };
 }
 
 // ============================================================================
@@ -1251,6 +1273,42 @@ export async function blockAIAssist(
     return buildMockBlockAIAssistApiResponse(req);
   }
   return api.blockAIAssist(req, accessToken);
+}
+
+/**
+ * Proposal Section Copilot — section-level rewrite/explain for the 6 proposal
+ * sections. Demo mode returns a deterministic mock revision; live mode routes
+ * through the backend (Intelligence Gateway) and re-applies fact-lock on the
+ * client as defence-in-depth. Returns the same shape in both modes.
+ */
+export async function proposalSectionCopilot(
+  req: api.ProposalSectionCopilotRequest,
+  accessToken: string,
+  demo?: {
+    draft: import('@/app/types/cortex-types').ProposalDraft;
+    rejectionContexts: string[];
+  },
+): Promise<import('@/app/core/proposalCopilotEngine').SectionCopilotResult> {
+  const engine = await import('@/app/core/proposalCopilotEngine');
+  if (isDemo()) {
+    log('Proposal section copilot (demo mode):', req.section, req.action);
+    await new Promise(r => setTimeout(r, 1_400));
+    if (!demo) throw new Error('proposalSectionCopilot demo mode requires draft context');
+    return engine.buildDemoSectionRevision(
+      req.section as import('@/app/core/proposalCopilotEngine').SectionKey,
+      req.action as import('@/app/core/proposalCopilotEngine').ActionKey,
+      demo.draft,
+      req.custom_prompt ?? '',
+      demo.rejectionContexts,
+    );
+  }
+  const res = await api.proposalSectionCopilot(req, accessToken);
+  return engine.assembleLiveResult(
+    req.section as import('@/app/core/proposalCopilotEngine').SectionKey,
+    req.current_content,
+    res.proposed_content,
+    res.diff_summary,
+  );
 }
 
 /** Copilot patch plan interpreter — no edits, plan only */
