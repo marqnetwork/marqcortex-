@@ -35,6 +35,7 @@ import {
   type RawOutcome,
   type RawEscalation,
 } from "./revenueSnapshot.ts";
+import { aggregateLearningLoop } from "./learningLoop.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
 import {
   normalizeBooking,
@@ -3441,107 +3442,17 @@ app.get("/make-server-324f4fbe/cortex/learning-loop", async (c) => {
     if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
     const rawOutcomes = await kv.getByPrefix('outcome:');
-    const outcomes = rawOutcomes
+    const outcomes = (Array.isArray(rawOutcomes) ? rawOutcomes : [])
       .map((r: any) => { try { return typeof r === 'string' ? JSON.parse(r) : r; } catch { return null; } })
       .filter(Boolean);
 
-    if (outcomes.length === 0) {
+    const { isEmpty, data } = aggregateLearningLoop(outcomes);
+    if (isEmpty || !data) {
       return c.json({ success: true, data: null, isEmpty: true });
     }
 
-    const converted = outcomes.filter((o: any) => o.didConvert);
-    const lost = outcomes.filter((o: any) => !o.didConvert);
-    const total = outcomes.length;
-
-    const conversionRate = Math.round((converted.length / total) * 100);
-    const totalRevenue = converted.reduce((sum: number, o: any) => sum + (o.conversionValue || 0), 0);
-    const avgDealSize = converted.length > 0 ? Math.round(totalRevenue / converted.length) : 0;
-
-    const recRated = outcomes.filter((o: any) => o.recommendationWorked !== null);
-    const recWorked = recRated.filter((o: any) => o.recommendationWorked === true);
-    const recommendationAccuracy = recRated.length > 0 ? Math.round((recWorked.length / recRated.length) * 100) : null;
-
-    const industryMap: Record<string, { total: number; converted: number; revenue: number }> = {};
-    for (const o of outcomes) {
-      const ind = (o as any).industry || 'Unknown';
-      if (!industryMap[ind]) industryMap[ind] = { total: 0, converted: 0, revenue: 0 };
-      industryMap[ind].total++;
-      if ((o as any).didConvert) {
-        industryMap[ind].converted++;
-        industryMap[ind].revenue += (o as any).conversionValue || 0;
-      }
-    }
-    const byIndustry = Object.entries(industryMap)
-      .map(([industry, d]) => ({
-        industry, total: d.total, converted: d.converted,
-        conversionRate: Math.round((d.converted / d.total) * 100),
-        avgDealSize: d.converted > 0 ? Math.round(d.revenue / d.converted) : 0,
-      }))
-      .sort((a, b) => b.conversionRate - a.conversionRate);
-
-    const toRate = (arr: any[]) =>
-      arr.length > 0 ? Math.round((arr.filter((o: any) => o.didConvert).length / arr.length) * 100) : null;
-    const highScoreArr = outcomes.filter((o: any) => o.aiScore >= 80);
-    const midScoreArr  = outcomes.filter((o: any) => o.aiScore >= 60 && o.aiScore < 80);
-    const lowScoreArr  = outcomes.filter((o: any) => o.aiScore < 60);
-    const scoreCorrelation = {
-      highScore: { range: '80+',   total: highScoreArr.length, converted: highScoreArr.filter((o: any) => o.didConvert).length, rate: toRate(highScoreArr) },
-      midScore:  { range: '60–79', total: midScoreArr.length,  converted: midScoreArr.filter((o: any) => o.didConvert).length,  rate: toRate(midScoreArr) },
-      lowScore:  { range: '<60',   total: lowScoreArr.length,  converted: lowScoreArr.filter((o: any) => o.didConvert).length,  rate: toRate(lowScoreArr) },
-    };
-
-    const reasonKeywords = ['budget', 'timing', 'competitor', 'wrong fit', 'no decision', 'price', 'scope', 'size'];
-    const reasonMap: Record<string, number> = {};
-    for (const o of lost) {
-      const text = ((o as any).lostReason || '').toLowerCase();
-      let matched = false;
-      for (const kw of reasonKeywords) {
-        if (text.includes(kw)) { reasonMap[kw] = (reasonMap[kw] || 0) + 1; matched = true; break; }
-      }
-      if (!matched && (o as any).lostReason) reasonMap['other'] = (reasonMap['other'] || 0) + 1;
-    }
-    const topLostReasons = Object.entries(reasonMap)
-      .map(([reason, count]) => ({ reason, count }))
-      .sort((a, b) => b.count - a.count).slice(0, 6);
-
-    const allAreas: string[] = [];
-    for (const o of outcomes) {
-      if (Array.isArray((o as any).improvementAreas)) allAreas.push(...(o as any).improvementAreas);
-    }
-    const areaMap: Record<string, number> = {};
-    for (const area of allAreas) areaMap[area] = (areaMap[area] || 0) + 1;
-    const improvementAreas = Object.entries(areaMap)
-      .map(([area, count]) => ({ area, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const recentOutcomes = [...outcomes]
-      .sort((a: any, b: any) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
-      .slice(0, 10)
-      .map((o: any) => ({
-        submissionId: o.submissionId, company: o.company, industry: o.industry,
-        didConvert: o.didConvert, conversionValue: o.conversionValue,
-        recommendedService: o.recommendedService, recommendationWorked: o.recommendationWorked,
-        aiScore: o.aiScore, loggedAt: o.loggedAt,
-      }));
-
-    let totalDays = 0; let daysCount = 0;
-    for (const o of outcomes) {
-      if ((o as any).submittedAt && (o as any).loggedAt) {
-        const days = (new Date((o as any).loggedAt).getTime() - new Date((o as any).submittedAt).getTime()) / 86_400_000;
-        if (days >= 0) { totalDays += days; daysCount++; }
-      }
-    }
-    const avgDaysToClose = daysCount > 0 ? Math.round(totalDays / daysCount) : null;
-
-    console.log(`✅ /cortex/learning-loop: ${total} outcomes, ${converted.length} won, ${lost.length} lost`);
-    return c.json({
-      success: true, isEmpty: false,
-      data: {
-        totalOutcomes: total, totalConverted: converted.length, totalLost: lost.length,
-        conversionRate, totalRevenue, avgDealSize, recommendationAccuracy,
-        byIndustry, scoreCorrelation, topLostReasons, recentOutcomes, improvementAreas, avgDaysToClose,
-      },
-    });
+    console.log(`✅ /cortex/learning-loop: ${data.totalOutcomes} outcomes, ${data.totalConverted} won, ${data.totalLost} lost`);
+    return c.json({ success: true, isEmpty: false, data });
   } catch (err) {
     console.log('Learning loop error:', err);
     return c.json({ error: `Failed to compute learning loop: ${err}` }, 500);

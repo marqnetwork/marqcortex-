@@ -864,24 +864,26 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-049',
       name: 'AIAssistant',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/AIAssistant.tsx',
-      description: 'General-purpose AI assistant component that can be embedded in any panel to answer contextual questions about the current submission.',
-      dependencies: ['MQC-CORE-001', 'MQC-HOOK-006'],
-      dependents: [],
+      description: 'Floating diagnostic helper shown during the diagnostic form. Provides deterministic, keyword-driven contextual guidance and industry example prompts per question — no LLM, no API call, no fabricated authoritative data. Purely a completion-rate UX aid.',
+      dependencies: [],
+      dependents: ['MQC-COMP-004'],
+      notes: 'Batch 6: reclassified DEMO → LIVE. Behavior is fully deterministic (generateContextualHelp keyword matcher); it never computes scores/ROI/outcomes and never calls a backend, so there is nothing to gate. Mounted in DiagnosticForm (MQC-COMP-004).',
     },
 
     'MQC-COMP-050': {
       id: 'MQC-COMP-050',
       name: 'InlineAITrigger',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/InlineAITrigger.tsx',
-      description: 'Small trigger button that opens the AI assistant inline within a specific form field or section. Provides contextual AI help without leaving the flow.',
+      description: 'Reusable "Generate: [action]" pill (and AIToolbar row) that opens the Global AI Chat with the current section context pre-loaded. Pure presentational delegator — it calls GlobalAIChatContext.openChat and holds no AI logic of its own.',
       dependencies: ['MQC-HOOK-006'],
-      dependents: [],
+      dependents: ['MQC-COMP-019', 'MQC-COMP-038', 'MQC-COMP-045'],
+      notes: 'Batch 6: reclassified DEMO → LIVE. The actual generation runs through GlobalAIChat (MQC-COMP-046), which is gateway-wired (chatWithAI → POST /ai/chat, feature "chat") with a demo-safe getMockResponse fallback. This trigger fabricates nothing; it only opens the chat with context.',
     },
 
     'MQC-COMP-051': {
@@ -1015,13 +1017,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-061',
       name: 'LearningLoopPanel',
       type: 'COMP',
-      status: 'GATED',
+      status: 'LIVE',
       domain: 'ANALYTICS',
       filePath: 'src/app/components/LearningLoopPanel.tsx',
-      description: 'Feedback loop panel that feeds win/loss outcomes back into the scoring model to improve future predictions.',
-      dependencies: ['MQC-CORE-030', 'MQC-SVC-002'],
-      dependents: [],
-      notes: 'Gated — requires minimum 50 closed submissions to produce meaningful feedback signal. Not yet exposed in UI.',
+      description: 'Read-only win/loss intelligence view: conversion rate, score↔conversion correlation, lost-reason tally, per-industry breakdown, improvement areas, and cycle time — aggregated deterministically from persisted outcomes. Displays insights for human review; it does NOT self-modify scoring rules or prompts.',
+      dependencies: ['MQC-SVC-001', 'MQC-SVC-019'],
+      dependents: ['MQC-COMP-044'],
+      notes: 'Batch 6: reclassified GATED → LIVE. Wired frontend → dataService.getLearningLoop → api → GET /cortex/learning-loop (team auth). Aggregation is deterministic (learningLoop.ts, MQC-SVC-019); no LLM. Empty state handled (isEmpty); demo mode returns isEmpty (no fabrication). The prior "50 closed submissions" note was a signal-quality guideline, not a hard gate — the endpoint returns isEmpty gracefully and the panel renders an empty state. Governance: no autonomous rule/prompt changes.',
     },
 
     // ── BLOCKS / REGISTRY ────────────────────────────────────────────────────
@@ -1884,7 +1886,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 018)
+    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 019)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-SVC-001': {
@@ -2006,7 +2008,7 @@ export const manifest: SystemManifest = {
       domain: 'SYSTEM',
       filePath: 'supabase/functions/server/index.tsx',
       description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, auth middleware, and error handling. 70 routes total (Batch 5 added POST /proposal/section-copilot and GET /analytics/revenue-snapshots).',
-      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010', 'MQC-SVC-017', 'MQC-SVC-018'],
+      dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010', 'MQC-SVC-017', 'MQC-SVC-018', 'MQC-SVC-019'],
       dependents: [],
       notes: 'Rate limit: 120 requests/minute per IP. Add new routes by importing handlers and registering them here with the /make-server-324f4fbe/ prefix.',
     },
@@ -2145,6 +2147,22 @@ export const manifest: SystemManifest = {
       notes: 'Batch 5. Pure module (no Deno/KV imports) — unit-tested under the Node runner. The Hono route (MQC-SVC-009) loads the KV records and calls deriveDealSnapshots/summarizeSnapshots.',
     },
 
+    'MQC-SVC-019': {
+      id: 'MQC-SVC-019',
+      name: 'learningLoop (backend)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'ANALYTICS',
+      filePath: 'supabase/functions/server/learningLoop.ts',
+      description: 'Deterministic read-only aggregation of persisted outcomes into win/loss intelligence (conversion rate, score↔conversion correlation, lost-reason tally, per-industry breakdown, improvement areas, cycle time). No LLM; never self-modifies rules or prompts; empty input → isEmpty (no fabrication).',
+      dependencies: [],
+      dependents: ['MQC-COMP-061'],
+      backendRoute: 'GET /make-server-324f4fbe/cortex/learning-loop',
+      inputs: ['LearningOutcome[]'],
+      outputs: ['LearningLoopData'],
+      notes: 'Batch 6. Pure module extracted from the inline route handler (no Deno/KV imports) — unit-tested under the Node runner (tests/features/learningLoop.test.ts). The Hono route (MQC-SVC-009) loads outcome:* records and calls aggregateLearningLoop.',
+    },
+
     'MQC-TYPE-009': {
       id: 'MQC-TYPE-009',
       name: 'diagnostic.database.types',
@@ -2232,7 +2250,7 @@ export const manifest: SystemManifest = {
       filePath: 'src/app/contexts/GlobalAIChatContext.tsx',
       description: 'Context for the global AI chat. Holds chat history, open/closed state, and the active context payload injected from the current view.',
       dependencies: [],
-      dependents: ['MQC-COMP-036', 'MQC-COMP-046', 'MQC-COMP-047', 'MQC-COMP-049', 'MQC-COMP-050'],
+      dependents: ['MQC-COMP-036', 'MQC-COMP-046', 'MQC-COMP-047', 'MQC-COMP-050'],
     },
 
     // ══════════════════════════════════════════════════════════════════════════
