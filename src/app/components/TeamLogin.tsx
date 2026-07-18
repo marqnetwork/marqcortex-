@@ -22,17 +22,12 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
     setError('');
     setIsLoading(true);
     try {
-      if (FEATURES.BACKEND_INTEGRATION) {
-        const result = await teamLogin(email, password);
-        onLogin(result.accessToken);
-      } else {
-        // Demo mode: accept demo credentials without API call
-        if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
-          onLogin('demo_access_token_12345');
-        } else {
-          throw new Error('Invalid credentials. Use demo credentials shown below.');
-        }
-      }
+      // Single source of truth: dataService.teamLogin routes to the real
+      // backend, a passwordless demo session, or an "unavailable" error
+      // based on the BACKEND_INTEGRATION / DEMO_MODE flags. No credential
+      // literal or demo branch lives in this component.
+      const result = await teamLogin(email, password);
+      onLogin(result.accessToken);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
@@ -185,16 +180,11 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               className="w-full p-4 bg-[#1a1a1a] border-2 border-[#242424] rounded-xl text-white placeholder:text-[#70707C] focus:border-[#8B5CF6] focus:outline-none transition-all"
               style={{ fontFamily: 'Inter' }}
             />
-            <p className="mt-1.5 text-xs text-[#70707C] flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
-              Use:&nbsp;
-              <button
-                type="button"
-                onClick={() => setEmail('admin@marqcortex.com')}
-                className="text-[#06D7F6] hover:text-white font-mono bg-[#06D7F6]/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-              >
-                admin@marqcortex.com
-              </button>
-            </p>
+            {FEATURES.DEMO_MODE && (
+              <p className="mt-1.5 text-xs text-[#70707C]" style={{ fontFamily: 'Inter' }}>
+                Demo mode — any email is accepted.
+              </p>
+            )}
           </div>
 
           {/* Password Field */}
@@ -224,16 +214,11 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-[#70707C] flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
-              Use:&nbsp;
-              <button
-                type="button"
-                onClick={() => setPassword('CortexAdmin2026!')}
-                className="text-[#06D7F6] hover:text-white font-mono bg-[#06D7F6]/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-              >
-                CortexAdmin2026!
-              </button>
-            </p>
+            {FEATURES.DEMO_MODE && (
+              <p className="mt-1.5 text-xs text-[#70707C]" style={{ fontFamily: 'Inter' }}>
+                Demo mode — any password is accepted.
+              </p>
+            )}
           </div>
 
           {/* Remember Me & Forgot Password */}
@@ -308,21 +293,22 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
           )}
         </motion.form>
 
-        {/* Demo Credentials Info */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-6 p-5 bg-[#06D7F6]/10 border border-[#06D7F6]/30 rounded-xl"
-        >
-          <p className="text-xs font-semibold text-[#06D7F6] mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
-            Demo Credentials
-          </p>
-          <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
-            <p className="text-[#F5F5FF]"><span className="text-[#70707C]">Email:</span> admin@marqcortex.com</p>
-            <p className="text-[#F5F5FF]"><span className="text-[#70707C]">Password:</span> CortexAdmin2026!</p>
-          </div>
-        </motion.div>
+        {/* Demo Mode Notice — no credentials, dev-only */}
+        {FEATURES.DEMO_MODE && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mt-6 p-5 bg-[#06D7F6]/10 border border-[#06D7F6]/30 rounded-xl"
+          >
+            <p className="text-xs font-semibold text-[#06D7F6] mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
+              Demo Mode
+            </p>
+            <p className="text-sm text-[#F5F5FF]" style={{ fontFamily: 'Inter' }}>
+              Backend integration is off. Sign in with any email and password to explore the dashboard with sample data — no account required.
+            </p>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );

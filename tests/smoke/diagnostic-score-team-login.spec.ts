@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('diagnostic answers produce score and team login accepts demo credentials', async ({ page }) => {
+test('diagnostic answers produce score and team login opens a demo session', async ({ page }) => {
   await page.goto('/#/diagnostic');
 
   await expect(page.getByRole('heading', { name: /what industry are you in/i })).toBeVisible();
@@ -28,8 +28,10 @@ test('diagnostic answers produce score and team login accepts demo credentials',
 
   await page.goto('/#/team/login');
   await expect(page.getByRole('heading', { name: /team login/i })).toBeVisible();
-  await page.locator('#team-email').fill('admin@marqcortex.com');
-  await page.locator('#team-password').fill('CortexAdmin2026!');
+  // Demo mode (VITE_DEMO_MODE=true, set via .env.development) mints a
+  // passwordless session — any non-secret placeholder input is accepted.
+  await page.locator('#team-email').fill('demo@local');
+  await page.locator('#team-password').fill('demo');
   await page.getByRole('button', { name: /sign in to marq cortex/i }).click();
 
   await expect(page).toHaveURL(/#\/team\/dashboard/);

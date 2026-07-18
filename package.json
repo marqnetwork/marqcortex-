@@ -4,7 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-bundle.mjs",
+    "build:only": "vite build",
+    "verify:bundle": "node scripts/verify-bundle.mjs",
     "dev": "vite",
     "test:smoke": "playwright test",
     "test:intelligence": "node --experimental-strip-types --test supabase/functions/server/intelligence/*.test.ts",

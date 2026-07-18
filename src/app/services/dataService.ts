@@ -120,23 +120,42 @@ export async function saveExitIntentLead(email: string) {
 // 1. AUTH
 // ============================================================================
 
-/** Team login — demo mode accepts fixed credentials */
+/**
+ * Mint a throwaway demo session token.
+ *
+ * Generated at runtime so no fixed token literal ever ships in the bundle.
+ * The value carries no authority against the real backend — it only unlocks
+ * the local demo dashboard while DEMO_MODE is on.
+ */
+function createDemoSessionToken(): string {
+  return `demo_session_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Team login.
+ *
+ * - Backend on  → delegate to the real /auth/team/login endpoint.
+ * - Backend off + DEMO_MODE on → mint a passwordless demo session (no
+ *     credential is checked; this is the dev-only demo path).
+ * - Backend off + DEMO_MODE off → login is unavailable (secure default; the
+ *     value ships this way in every production build).
+ */
 export async function teamLogin(
   email: string,
   password: string,
 ): Promise<{ success: boolean; accessToken: string; user: { id: string; email: string; name: string } }> {
-  if (isDemo()) {
-    log('Team login (demo mode)');
-    if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
-      return {
-        success: true,
-        accessToken: 'demo_access_token_12345',
-        user: { id: 'user_001', email, name: 'Admin User' },
-      };
-    }
-    throw new Error('Invalid credentials. Use demo credentials shown below.');
+  if (FEATURES.BACKEND_INTEGRATION) {
+    return api.teamLogin(email, password);
   }
-  return api.teamLogin(email, password);
+  if (FEATURES.DEMO_MODE) {
+    log('Team login (demo mode — passwordless demo session)');
+    return {
+      success: true,
+      accessToken: createDemoSessionToken(),
+      user: { id: 'user_001', email: email || 'demo@local', name: 'Demo User' },
+    };
+  }
+  throw new Error('Login is unavailable while backend integration is disabled.');
 }
 
 /** Client email verification — demo mode checks DEMO_CLIENTS */

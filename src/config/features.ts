@@ -26,6 +26,24 @@ export const FEATURES = {
   BACKEND_INTEGRATION: envFlag('VITE_BACKEND_INTEGRATION', false),
 
   /**
+   * DEMO_MODE
+   *
+   * Development-only flag that enables a passwordless demo session for team
+   * login when BACKEND_INTEGRATION is off. It exists SOLELY to let developers
+   * and presenters explore the dashboard locally without a live backend.
+   *
+   * When true: team login mints a throwaway demo session for any input —
+   *   no credential is checked and no secret is stored in source.
+   * When false (the default, and the value in every production build): the
+   *   demo session path is disabled and team login requires the real backend.
+   *
+   * Set VITE_DEMO_MODE=true in .env.development / .env.local for local demos.
+   * NEVER set it in a production build, and NEVER pair it with a frontend
+   * credential — demo mode is intentionally passwordless.
+   */
+  DEMO_MODE: envFlag('VITE_DEMO_MODE', false),
+
+  /**
    * SHOW_API_ERRORS
    * 
    * When true: Shows error banners when API calls fail
