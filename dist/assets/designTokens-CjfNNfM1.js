@@ -1,1 +1,0 @@
-const r={purple:"#8B5CF6",purpleGlow:"rgba(139,92,246,0.35)",blue:"#3B82F6",cyan:"#06D7F6",green:"#10B981",orange:"#FB923C",red:"#FD4438"},e={primaryButton:`linear-gradient(135deg, ${r.purple}, ${r.blue})`,orbPurple:`radial-gradient(circle, ${r.purple}, transparent)`,orbBlue:`radial-gradient(circle, ${r.blue}, transparent)`};export{r as B,e as G};
