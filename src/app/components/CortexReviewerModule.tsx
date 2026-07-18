@@ -8,7 +8,7 @@
  * and only diagnose what you can defend.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import {
   CheckCircle2,
@@ -25,7 +25,9 @@ import {
   Target,
   Flag,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Save,
+  Loader2
 } from 'lucide-react';
 import type { ReviewerChecklist, CheckItem } from '@/app/types/reviewer-checklist';
 import {
@@ -34,17 +36,23 @@ import {
   getCompletionPercentage,
   getFlaggedItems
 } from '@/app/types/reviewer-checklist';
+import { getReview, saveReview } from '@/app/services/dataService';
+import { isBackendEnabled } from '@/config/runtime';
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 interface CortexReviewerModuleProps {
   leadId: string;
   companyName: string;
   reviewType: 'report' | 'call-prep' | 'proposal';
+  accessToken?: string;
 }
 
 export function CortexReviewerModule({
   leadId,
   companyName,
-  reviewType
+  reviewType,
+  accessToken
 }: CortexReviewerModuleProps) {
   const [checklist, setChecklist] = useState<ReviewerChecklist>({
     ...EMPTY_CHECKLIST,
@@ -57,6 +65,78 @@ export function CortexReviewerModule({
 
   const [expandedSection, setExpandedSection] = useState<string | null>('intake');
   const [reviewStartTime] = useState(Date.now());
+
+  // ── Persistence state ──────────────────────────────────────────────────────
+  const persistEnabled = Boolean(accessToken) && isBackendEnabled();
+  const [isLoading, setIsLoading] = useState(persistEnabled);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  // Gates autosave until the initial load has completed (avoids clobbering
+  // a stored review with the empty factory checklist on first render).
+  const hasLoadedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Signature of the checklist currently persisted on the server, so autosave
+  // can skip a write when nothing has actually changed (e.g. right after load).
+  const lastPersistedRef = useRef<string | null>(null);
+
+  // Persist the given checklist to the backend (no-op unless enabled).
+  const persist = useCallback(async (next: ReviewerChecklist): Promise<boolean> => {
+    if (!persistEnabled || !accessToken) return false;
+    lastPersistedRef.current = JSON.stringify(next);
+    setSaveStatus('saving');
+    try {
+      const res = await saveReview(leadId, reviewType, next, accessToken);
+      setSaveStatus('saved');
+      setLastSavedAt(res.review?.updated_at ?? new Date().toISOString());
+      return true;
+    } catch (err) {
+      console.error('CortexReviewerModule save error:', err);
+      setSaveStatus('error');
+      return false;
+    }
+  }, [persistEnabled, accessToken, leadId, reviewType]);
+
+  // ── Load any previously saved review on mount ──
+  useEffect(() => {
+    let cancelled = false;
+    if (!persistEnabled || !accessToken) {
+      hasLoadedRef.current = true;
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    getReview(leadId, reviewType, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.review) {
+          setChecklist(res.review);
+          setLastSavedAt(res.review.updated_at ?? null);
+          setSaveStatus('saved');
+          // Baseline the loaded content so autosave doesn't immediately re-save it.
+          lastPersistedRef.current = JSON.stringify(res.review);
+        }
+      })
+      .catch((err) => console.error('CortexReviewerModule load error:', err))
+      .finally(() => {
+        if (cancelled) return;
+        hasLoadedRef.current = true;
+        setIsLoading(false);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId, reviewType, accessToken, persistEnabled]);
+
+  // ── Debounced autosave whenever the checklist changes post-load ──
+  useEffect(() => {
+    if (!persistEnabled || !hasLoadedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      // Skip if the checklist is unchanged from what's already persisted.
+      if (JSON.stringify(checklist) === lastPersistedRef.current) return;
+      void persist(checklist);
+    }, 1200);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [checklist, persistEnabled, persist]);
 
   const overallStatus = getOverallReviewStatus(checklist);
   const completionPct = getCompletionPercentage(checklist);
@@ -81,22 +161,31 @@ export function CortexReviewerModule({
     }));
   };
 
-  const handleFinalDecision = (decision: 'ready-to-send' | 'needs-revision' | 'not-a-fit') => {
+  const handleFinalDecision = async (decision: 'ready-to-send' | 'needs-revision' | 'not-a-fit') => {
     const timeSpent = Math.round((Date.now() - reviewStartTime) / 1000 / 60); // minutes
-    
-    setChecklist(prev => ({
-      ...prev,
+
+    // Build the finalized checklist up-front so we can both update state and
+    // persist the exact same object (setState is async, so we can't read it back).
+    const finalized: ReviewerChecklist = {
+      ...checklist,
       time_spent_minutes: timeSpent,
       final_decision: {
         decision,
-        approved_by: prev.reviewer_name,
+        approved_by: checklist.reviewer_name,
         approved_at: new Date().toISOString(),
-        reviewer_signature: prev.reviewer_name
+        reviewer_signature: checklist.reviewer_name,
+        notes: checklist.revision_notes,
       }
-    }));
+    };
 
-    // In production: Save to database and trigger appropriate action
-    alert(`Review ${decision}!\n\nTime spent: ${timeSpent} minutes\nCompletion: ${completionPct}%\n\n(In production, this saves to database)`);
+    setChecklist(finalized);
+
+    // Cancel any pending debounced autosave — this explicit save supersedes it.
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    if (persistEnabled) {
+      await persist(finalized);
+    }
   };
 
   return (
@@ -113,7 +202,15 @@ export function CortexReviewerModule({
               {companyName} • {reviewType === 'report' ? 'Readiness Report' : reviewType === 'call-prep' ? 'Call Preparation' : 'Proposal'} Review
             </p>
           </div>
-          <ReviewStatusBadge status={overallStatus} />
+          <div className="flex items-center gap-3">
+            <SaveIndicator
+              persistEnabled={persistEnabled}
+              isLoading={isLoading}
+              status={saveStatus}
+              lastSavedAt={lastSavedAt}
+            />
+            <ReviewStatusBadge status={overallStatus} />
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -354,6 +451,29 @@ export function CortexReviewerModule({
           Reviewer must select ONE. No silent approvals.
         </p>
 
+        {checklist.final_decision && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-[#06D7F6]/30 bg-[#06D7F6]/10 p-4">
+            <CheckCircle2 className="size-5 text-[#06D7F6] flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-white">
+                Decision recorded: {DECISION_LABELS[checklist.final_decision.decision]}
+              </p>
+              <p className="text-white/60">
+                by {checklist.final_decision.approved_by} ·{' '}
+                {new Date(checklist.final_decision.approved_at).toLocaleString()}
+                {typeof checklist.time_spent_minutes === 'number' && (
+                  <> · {checklist.time_spent_minutes} min</>
+                )}
+              </p>
+              {!persistEnabled && (
+                <p className="text-white/40 text-xs mt-1">
+                  Demo mode — this decision is not saved to the server.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-4">
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -427,6 +547,61 @@ export function CortexReviewerModule({
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
+
+const DECISION_LABELS: Record<'ready-to-send' | 'needs-revision' | 'not-a-fit', string> = {
+  'ready-to-send': 'Ready to Send',
+  'needs-revision': 'Needs Revision',
+  'not-a-fit': 'Not a Fit',
+};
+
+function SaveIndicator({
+  persistEnabled,
+  isLoading,
+  status,
+  lastSavedAt,
+}: {
+  persistEnabled: boolean;
+  isLoading: boolean;
+  status: SaveStatus;
+  lastSavedAt: string | null;
+}) {
+  if (!persistEnabled) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white/5 text-white/50 border border-white/10">
+        <Eye className="size-3" />
+        Demo — not saved
+      </div>
+    );
+  }
+  if (isLoading || status === 'saving') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30">
+        <Loader2 className="size-3 animate-spin" />
+        {isLoading ? 'Loading…' : 'Saving…'}
+      </div>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#FD4438]/15 text-[#FD4438] border border-[#FD4438]/30">
+        <AlertTriangle className="size-3" />
+        Save failed
+      </div>
+    );
+  }
+  if (status === 'saved') {
+    return (
+      <div
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#06D7F6]/15 text-[#06D7F6] border border-[#06D7F6]/30"
+        title={lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleString()}` : undefined}
+      >
+        <Save className="size-3" />
+        Saved
+      </div>
+    );
+  }
+  return null;
+}
 
 function ReviewSection({
   title,

@@ -453,6 +453,7 @@ export const manifest: SystemManifest = {
       description: 'The Schedule a Call tab of the client portal. Allows clients to book a consultation call directly from their portal.',
       dependencies: ['MQC-COMP-017'],
       dependents: ['MQC-COMP-010'],
+      notes: 'Batch 4 (2026-07-18): migrated to KV. The no-op bookPriorityMeeting() stub is replaced by POST /bookings (public) which validates + persists the booking (KV key booking:{id}, schemaVersion 2); team reads via GET /bookings. Legacy stub payloads are forward-migrated on read by bookings/bookingRecord.ts (migrateBookingRecord). Demo mode echoes without persisting. Contract covered by tests/features/bookingMigration.test.ts.',
     },
 
     'MQC-COMP-017': {
@@ -887,13 +888,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-051',
       name: 'ObjectionHandlerPanel',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/ObjectionHandlerPanel.tsx',
       description: 'AI-powered panel that generates responses to common client objections based on the submission data and proposal context.',
       dependencies: ['MQC-CORE-020', 'MQC-SVC-005'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Requires cortexAnalysis backend (MQC-SVC-005) for live responses.',
+      notes: 'Batch 4 (2026-07-18): escalation protocol migrated to KV. At-risk objections (confidence > 0.65) persist via POST /submissions/:id/escalations; the panel restores history + server-authoritative recurrence count on mount (GET) and supports resolve (PATCH). Objection classification + playbooks remain deterministic (objectionEngine, MQC-CORE-020) — no LLM decides outcomes. Demo mode keeps local-only behavior. Contract covered by tests/features/escalationModule.test.ts.',
     },
 
     'MQC-COMP-052': {
@@ -925,12 +926,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-054',
       name: 'CortexReviewerModule',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/CortexReviewerModule.tsx',
       description: 'Cortex AI module for automated proposal review. Checks for consistency, completeness, and alignment with the diagnostic findings.',
       dependencies: ['MQC-SVC-005', 'MQC-SVC-002'],
       dependents: ['MQC-COMP-052'],
+      notes: 'Batch 4 (2026-07-18): review persistence migrated to KV. Checklist loads on mount, debounced-autosaves on edit, and saves immediately on final decision via GET/PUT /submissions/:id/review/:reviewType (team auth). Demo mode keeps local-only behavior (no persistence). Contract covered by tests/features/reviewModule.test.ts.',
     },
 
     // ── ANALYTICS ────────────────────────────────────────────────────────────
@@ -1046,6 +1048,7 @@ export const manifest: SystemManifest = {
       description: 'Registry of all reusable execution blocks. Team members can browse, search, and insert blocks into execution plans.',
       dependencies: ['MQC-CORE-002', 'MQC-SVC-003'],
       dependents: ['MQC-COMP-037'],
+      notes: 'Batch 4 (2026-07-18): CRUD, revisions, and locks migrated to KV. The panel loads a per-proposal snapshot on mount, overlays it onto the engine stores (blockRegistrySync.ts), and debounce-autosaves every edit/accept/reject/approve/lock via GET/PUT /proposals/:proposalId/blocks (team auth). Writes are optimistic-locked by a monotonic `rev` (409 → reload/reconcile). Demo mode keeps local-only behavior. Split/merge contract covered by tests/features/blockRegistrySync.test.ts.',
     },
 
     'MQC-COMP-064': {

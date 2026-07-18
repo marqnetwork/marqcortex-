@@ -209,6 +209,97 @@
 
 ---
 
+## Group 8b — Reviewer Checklist (Batch 4)
+
+Powers the CortexReviewerModule quality gate. One review per submission per
+`reviewType` (`report` | `call-prep` | `proposal`), stored at KV key
+`review:{submissionId}:{reviewType}`.
+
+### 24a. `GET /submissions/:id/review/:reviewType`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, review: ReviewerChecklist | null }`  
+**Notes:** `reviewType` must be one of `report`, `call-prep`, `proposal` (400 otherwise). `review` is `null` when nothing has been saved yet.
+
+---
+
+### 24b. `PUT /submissions/:id/review/:reviewType`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ checklist: ReviewerChecklist }`  
+**Returns:** `{ success, review: ReviewerChecklist }`  
+**Notes:** Creates or replaces the stored review. `lead_id`, `review_type`, `reviewer_name`, `reviewer_email`, and `updated_at` are set server-side from the team JWT — client-supplied values for these are overwritten. The frontend autosaves (debounced) on checklist edits and saves immediately on a final decision.
+
+---
+
+## Group 8c — Objection Escalations (Batch 4)
+
+Powers the ObjectionHandlerPanel escalation protocol. One record per detected
+at-risk objection, stored at KV key `escalation:{submissionId}:{escalationId}`.
+
+### 24c. `GET /submissions/:id/escalations`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, escalations: EscalationRecord[] }` (newest first)  
+**Notes:** Used on mount to restore the detection history and recurrence count.
+
+---
+
+### 24d. `POST /submissions/:id/escalations`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ proposalId?, objectionType, confidence, atRisk, inputExcerpt?, companyName?, contactName? }`  
+**Returns:** `{ success, escalation: EscalationRecord, detectionCount }`  
+**Notes:** `objectionType` ∈ `price | risk | timing | trust | internal_alignment` (400 otherwise). The server computes the authoritative `detectionCount` = (still-active same-type escalations) + 1 and sets `status = "persistent"` once that reaches 2, else `"active"`. `inputExcerpt` is truncated to 500 chars. Only filed when the objection is at-risk (confidence > 0.65).
+
+---
+
+### 24e. `PATCH /submissions/:id/escalations/:escalationId`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ status: "resolved" }`  
+**Returns:** `{ success, escalation: EscalationRecord }`  
+**Notes:** Only `resolved` is accepted. Sets `resolvedAt`. Resolved escalations no longer count toward recurrence.
+
+---
+
+## Group 8d — Instant Booking (Batch 4)
+
+Persists priority-call bookings placed from the score page (pre-auth) or the
+client portal. Stored at KV key `booking:{bookingId}` (schemaVersion 2) with an
+email index `booking_email:{email} → bookingId`.
+
+### 24f. `POST /bookings`
+**Auth:** PUBLIC (anon key — booking happens before login)  
+**Body:** `{ contactName?, contactEmail, companyName?, scheduledAt, priority?, submissionId?, source? }`  
+**Returns:** `{ success, booking: Booking }`  
+**Notes:** Server validates `contactEmail` and `scheduledAt` (400 `INVALID_EMAIL` / `INVALID_SCHEDULED_AT`). Email is lowercased, `scheduledAt` normalized to ISO, `status` set to `requested`. `source` defaults to `score-page`. Replaces the old no-op `bookPriorityMeeting()` stub.
+
+---
+
+### 24g. `GET /bookings`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, bookings: Booking[], count }` (newest first)  
+**Notes:** Every record passes through `migrateBookingRecord` on read — legacy v1 stub payloads (`{ email, name, scheduledAt, priority }`) are forward-migrated to the canonical v2 shape so the team side always sees a uniform structure. See `supabase/functions/server/bookings/bookingRecord.ts`.
+
+---
+
+## Group 8e — Block Registry (Batch 4)
+
+Persists the BlockRegistryPanel's blocks / revisions / locks per proposal at KV
+key `blockreg:{proposalId}`. Only the proposal's slice is stored; the panel
+overlays it onto the global engine stores on load (`blockRegistrySync.ts`).
+
+### 24h. `GET /proposals/:proposalId/blocks`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, registry: { proposalId, blocks, revisions, locks, rev, updatedAt } | null }`  
+**Notes:** `rev` is the document revision used for optimistic locking. `null` when nothing has been saved.
+
+---
+
+### 24i. `PUT /proposals/:proposalId/blocks`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ blocks: Block[], revisions: BlockRevision[], locks: BlockLock[], baseRev? }`  
+**Returns:** `{ success, registry }` — or **409** `{ error, conflict: true, currentRev }` on a stale `baseRev`  
+**Notes:** Optimistic concurrency: when `baseRev` is supplied and does not match the stored `rev`, the write is rejected so concurrent editors never silently clobber each other; the panel then reloads and surfaces a "Reloaded" state. On success `rev` is incremented. The frontend debounce-autosaves after each block edit / revision accept-reject / approve / lock change.
+
+---
+
 ## Group 9 — Messaging
 
 ### 25. `GET /submissions/:id/messages/team`

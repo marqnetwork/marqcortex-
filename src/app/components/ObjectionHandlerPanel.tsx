@@ -13,13 +13,13 @@
  *   D. Escalation Protocol — persist tracking, priority flag, strategic call trigger
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   AlertTriangle, MessageSquare, ChevronDown, ChevronRight,
   Check, X, Copy, Send, AlertCircle, Eye,
   TrendingDown, Shield, Clock, Users, DollarSign,
   RefreshCw, History, Zap, Activity, PhoneCall,
-  Flag, ArrowUpCircle, FileWarning,
+  Flag, ArrowUpCircle, FileWarning, Loader2, CheckCircle2,
 } from 'lucide-react';
 import type { ObjectionType, ObjectionDetected, ObjectionPlaybook, ProposalDraft } from '@/app/types/cortex-types';
 import {
@@ -27,6 +27,13 @@ import {
   getPlaybook,
   hydratePlaybook,
 } from '@/app/core/objectionEngine';
+import {
+  getEscalations,
+  createEscalation,
+  resolveEscalation,
+  type EscalationRecord,
+} from '@/app/services/dataService';
+import { isBackendEnabled } from '@/config/runtime';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -193,11 +200,22 @@ function EscalationProtocol({
   detected,
   draft,
   detectionCount,
+  persisted = false,
+  activeEscalation = null,
+  syncing = false,
+  error = null,
+  onResolve,
 }: {
-  detected:       ObjectionDetected;
-  draft:          ProposalDraft;
-  detectionCount: number;
+  detected:          ObjectionDetected;
+  draft:             ProposalDraft;
+  detectionCount:    number;
+  persisted?:        boolean;
+  activeEscalation?: EscalationRecord | null;
+  syncing?:          boolean;
+  error?:            string | null;
+  onResolve?:        () => void;
 }) {
+  const isResolved   = activeEscalation?.status === 'resolved';
   const isPersistent = detectionCount >= 2;
   const color        = '#FD4438';
 
@@ -243,11 +261,42 @@ function EscalationProtocol({
         </div>
         <span
           className="text-[9px] px-1.5 py-0.5 rounded font-bold border"
-          style={{ color, borderColor: `${color}30`, background: `${color}10` }}
+          style={{
+            color:       isResolved ? '#10B981' : color,
+            borderColor: isResolved ? '#10B98130' : `${color}30`,
+            background:  isResolved ? '#10B98110' : `${color}10`,
+          }}
         >
-          {isPersistent ? 'PERSISTENT — CRITICAL' : 'ACTIVE'}
+          {isResolved ? 'RESOLVED' : isPersistent ? 'PERSISTENT — CRITICAL' : 'ACTIVE'}
         </span>
+        {persisted && activeEscalation && !isResolved && onResolve && (
+          <button
+            onClick={onResolve}
+            disabled={syncing}
+            className="ml-auto flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded border transition-colors disabled:opacity-50"
+            style={{ color: '#10B981', borderColor: '#10B98130', background: '#10B98110' }}
+          >
+            {syncing ? <Loader2 className="size-2.5 animate-spin" /> : <CheckCircle2 className="size-2.5" />}
+            Mark Resolved
+          </button>
+        )}
       </div>
+
+      {persisted && (
+        <div className="flex items-center gap-1.5 text-[9px] text-gray-600">
+          <Shield className="size-2.5 text-[#06D7F6]" />
+          {activeEscalation
+            ? <>Escalation <span className="font-mono text-gray-500">{activeEscalation.id}</span> persisted{isResolved && activeEscalation.resolvedAt ? ` · resolved ${new Date(activeEscalation.resolvedAt).toLocaleTimeString()}` : ''}.</>
+            : <>Escalation persistence active.</>}
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-1.5 text-[9px] font-semibold text-[#FD4438]">
+          <AlertCircle className="size-2.5" />
+          {error}
+        </div>
+      )}
 
       {isPersistent && (
         <div
@@ -428,46 +477,144 @@ function PlaybookDisplay({
 
 export interface ObjectionHandlerPanelProps {
   draft: ProposalDraft;
+  submissionId?: string;
+  accessToken?: string;
 }
 
-export function ObjectionHandlerPanel({ draft }: ObjectionHandlerPanelProps) {
+export function ObjectionHandlerPanel({ draft, submissionId, accessToken }: ObjectionHandlerPanelProps) {
   const [inputText,   setInputText]   = useState('');
   const [manualType,  setManualType]  = useState<ObjectionType | 'auto'>('auto');
   const [detected,    setDetected]    = useState<ObjectionDetected | null>(null);
   const [history,     setHistory]     = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Count same-type detections for escalation persistence check
-  const detectionCount = useMemo(
+  // ── Escalation persistence ────────────────────────────────────────────────
+  const persistEnabled = Boolean(submissionId) && Boolean(accessToken) && isBackendEnabled();
+  const [escalations,   setEscalations]   = useState<EscalationRecord[]>([]);
+  const [escLoading,    setEscLoading]    = useState(persistEnabled);
+  const [escSyncing,    setEscSyncing]    = useState(false);
+  const [escError,      setEscError]      = useState<string | null>(null);
+  // The escalation record created for the currently-detected objection.
+  const [activeEscalationId, setActiveEscalationId] = useState<string | null>(null);
+
+  // Load persisted escalations on mount and seed the detection history.
+  useEffect(() => {
+    let cancelled = false;
+    if (!persistEnabled || !submissionId || !accessToken) {
+      setEscLoading(false);
+      return;
+    }
+    setEscLoading(true);
+    getEscalations(submissionId, accessToken)
+      .then((res) => {
+        if (cancelled) return;
+        setEscalations(res.escalations);
+        // Reflect persisted escalations in the detection-history log.
+        setHistory(res.escalations.slice(0, 10).map((e) => ({
+          id:        e.id,
+          input:     e.inputExcerpt || `[${OBJECTION_LABELS[e.objectionType]}]`,
+          detected:  { type: e.objectionType, confidence: e.confidence, at_risk: e.atRisk },
+          timestamp: new Date(e.createdAt).toLocaleTimeString(),
+        })));
+      })
+      .catch((err) => { if (!cancelled) setEscError(err?.message || 'Failed to load escalations'); })
+      .finally(() => { if (!cancelled) setEscLoading(false); });
+    return () => { cancelled = true; };
+  }, [persistEnabled, submissionId, accessToken]);
+
+  // Server-authoritative recurrence count for the active objection type
+  // (active/persistent escalations of the same type, incl. the one just filed).
+  const persistedDetectionCount = useMemo(() => {
+    if (!detected) return 0;
+    return escalations.filter(
+      e => e.objectionType === detected.type && e.status !== 'resolved',
+    ).length;
+  }, [detected, escalations]);
+
+  // Local (in-session) count used when persistence is off.
+  const localDetectionCount = useMemo(
     () => detected ? history.filter(h => h.detected.type === detected.type).length + 1 : 0,
     [detected, history],
   );
 
-  const handleDetect = useCallback(() => {
+  const detectionCount = persistEnabled
+    ? Math.max(persistedDetectionCount, 1)
+    : localDetectionCount;
+
+  const handleDetect = useCallback(async () => {
     const result: ObjectionDetected = manualType !== 'auto'
       ? { type: manualType, confidence: 0.92, at_risk: true }
       : detectObjection(inputText);
 
+    const excerpt = manualType !== 'auto' ? `[Manual: ${OBJECTION_LABELS[manualType]}]` : inputText;
+
     setDetected(result);
+    setActiveEscalationId(null);
     setHistory(prev => [
       {
         id:        `h-${Date.now()}`,
-        input:     manualType !== 'auto' ? `[Manual: ${OBJECTION_LABELS[manualType]}]` : inputText,
+        input:     excerpt,
         detected:  result,
         timestamp: new Date().toLocaleTimeString(),
       },
       ...prev.slice(0, 9),
     ]);
     console.log(`[ObjectionEngine] Detected: ${result.type} conf:${(result.confidence * 100).toFixed(0)}% at_risk:${result.at_risk} threshold:0.65`);
-  }, [inputText, manualType]);
+
+    // Persist the escalation when the objection crosses the at-risk threshold.
+    if (result.at_risk && persistEnabled && submissionId && accessToken) {
+      setEscSyncing(true);
+      setEscError(null);
+      try {
+        const res = await createEscalation(submissionId, {
+          proposalId:    draft.proposal_id,
+          objectionType: result.type,
+          confidence:    result.confidence,
+          atRisk:        result.at_risk,
+          inputExcerpt:  excerpt,
+          companyName:   draft.client.company_name,
+          contactName:   draft.client.primary_contact.name,
+        }, accessToken);
+        setEscalations(prev => [res.escalation, ...prev]);
+        setActiveEscalationId(res.escalation.id);
+      } catch (err: any) {
+        setEscError(err?.message || 'Failed to record escalation');
+      } finally {
+        setEscSyncing(false);
+      }
+    }
+  }, [inputText, manualType, persistEnabled, submissionId, accessToken, draft]);
+
+  const handleResolve = useCallback(async () => {
+    if (!persistEnabled || !submissionId || !accessToken || !activeEscalationId) return;
+    setEscSyncing(true);
+    setEscError(null);
+    try {
+      await resolveEscalation(submissionId, activeEscalationId, accessToken);
+      setEscalations(prev => prev.map(e =>
+        e.id === activeEscalationId
+          ? { ...e, status: 'resolved', resolvedAt: new Date().toISOString() }
+          : e,
+      ));
+      setActiveEscalationId(null);
+    } catch (err: any) {
+      setEscError(err?.message || 'Failed to resolve escalation');
+    } finally {
+      setEscSyncing(false);
+    }
+  }, [persistEnabled, submissionId, accessToken, activeEscalationId]);
 
   const handleClear = useCallback(() => {
     setDetected(null);
     setInputText('');
     setManualType('auto');
+    setActiveEscalationId(null);
   }, []);
 
   const playbook = detected ? getPlaybook(detected.type) : null;
+  const activeEscalation = activeEscalationId
+    ? escalations.find(e => e.id === activeEscalationId) ?? null
+    : null;
 
   return (
     <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
@@ -483,13 +630,36 @@ export function ObjectionHandlerPanel({ draft }: ObjectionHandlerPanelProps) {
             Phase 6
           </span>
         </span>
-        <button
-          onClick={() => setShowHistory(h => !h)}
-          className="flex items-center gap-1.5 text-[9px] font-bold text-gray-600 hover:text-gray-300 transition-colors"
-        >
-          <History className="size-3" />
-          {history.length > 0 ? `${history.length} logged` : 'No history'}
-        </button>
+        <div className="flex items-center gap-2.5">
+          {persistEnabled ? (
+            <span
+              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border"
+              style={{ color: '#06D7F6', borderColor: '#06D7F633', background: '#06D7F614' }}
+              title="Escalations are persisted to the backend"
+            >
+              {escLoading || escSyncing
+                ? <Loader2 className="size-2.5 animate-spin" />
+                : <Shield className="size-2.5" />}
+              {escLoading ? 'Loading…' : escSyncing ? 'Saving…' : 'Persisted'}
+            </span>
+          ) : (
+            <span
+              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border"
+              style={{ color: '#6B7280', borderColor: '#ffffff10', background: '#ffffff06' }}
+              title="Demo mode — escalations are not saved"
+            >
+              <Eye className="size-2.5" />
+              Demo
+            </span>
+          )}
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className="flex items-center gap-1.5 text-[9px] font-bold text-gray-600 hover:text-gray-300 transition-colors"
+          >
+            <History className="size-3" />
+            {history.length > 0 ? `${history.length} logged` : 'No history'}
+          </button>
+        </div>
       </div>
 
       <div className="p-5 space-y-5">
@@ -593,6 +763,11 @@ export function ObjectionHandlerPanel({ draft }: ObjectionHandlerPanelProps) {
             detected={detected}
             draft={draft}
             detectionCount={detectionCount}
+            persisted={persistEnabled}
+            activeEscalation={activeEscalation}
+            syncing={escSyncing}
+            error={escError}
+            onResolve={handleResolve}
           />
         )}
 

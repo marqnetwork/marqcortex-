@@ -1319,9 +1319,11 @@ function NextStepOfferCard({
 interface ProposalDraftEditorProps {
   initialDraft: ProposalDraft;
   onDraftChange?: (updated: ProposalDraft) => void;
+  submissionId?: string;
+  accessToken?: string;
 }
 
-export function ProposalDraftEditor({ initialDraft, onDraftChange }: ProposalDraftEditorProps) {
+export function ProposalDraftEditor({ initialDraft, onDraftChange, submissionId, accessToken }: ProposalDraftEditorProps) {
   const [draft, setDraft]             = useState<ProposalDraft>(initialDraft);
   const [gateResult,  setGateResult]  = useState<GateResult | null>(null);
   const [gateResult2, setGateResult2] = useState<GateResult | null>(null);
@@ -1582,7 +1584,7 @@ export function ProposalDraftEditor({ initialDraft, onDraftChange }: ProposalDra
 
       {/* §9 Objection Handling Intelligence (Phase 6) — visible once proposal is sent */}
       {(draft.status === 'sent' || draft.status === 'viewed') && (
-        <ObjectionHandlerPanel draft={draft} />
+        <ObjectionHandlerPanel draft={draft} submissionId={submissionId} accessToken={accessToken} />
       )}
 
       {/* §10 CRM Sync Layer (Phase 7) — always visible; deal auto-created at diagnostic start */}

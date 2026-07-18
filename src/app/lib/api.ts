@@ -666,6 +666,237 @@ export async function deleteNote(
 }
 
 // ============================================================================
+// REVIEWER CHECKLIST — CortexReviewerModule quality-gate persistence (team auth)
+// ============================================================================
+
+import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
+
+export type ReviewType = 'report' | 'call-prep' | 'proposal';
+
+/** Server-stored review = the checklist plus server-set identity/timestamps */
+export type StoredReview = ReviewerChecklist & {
+  reviewer_email?: string;
+  updated_at?: string;
+};
+
+/** Fetch the stored review checklist for a submission + type (null if none saved) */
+export async function getReview(
+  submissionId: string,
+  reviewType: ReviewType,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/review/${reviewType}`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch review');
+  return data as { success: boolean; review: StoredReview | null };
+}
+
+/** Save (create or replace) the review checklist for a submission + type */
+export async function saveReview(
+  submissionId: string,
+  reviewType: ReviewType,
+  checklist: ReviewerChecklist,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/review/${reviewType}`, {
+    method: 'PUT',
+    headers: headers(accessToken),
+    body: JSON.stringify({ checklist }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save review');
+  return data as { success: boolean; review: StoredReview };
+}
+
+// ============================================================================
+// OBJECTION ESCALATIONS — ObjectionHandlerPanel escalation persistence (team auth)
+// ============================================================================
+
+export type ObjectionTypeName = 'price' | 'risk' | 'timing' | 'trust' | 'internal_alignment';
+
+export interface EscalationRecord {
+  id:             string;
+  submissionId:   string;
+  proposalId:     string | null;
+  objectionType:  ObjectionTypeName;
+  confidence:     number;
+  atRisk:         boolean;
+  detectionCount: number;
+  status:         'active' | 'persistent' | 'resolved';
+  inputExcerpt:   string;
+  companyName:    string;
+  contactName:    string;
+  createdBy?:     string;
+  createdAt:      string;
+  resolvedAt:     string | null;
+}
+
+export interface CreateEscalationPayload {
+  proposalId?:   string | null;
+  objectionType: ObjectionTypeName;
+  confidence:    number;
+  atRisk:        boolean;
+  inputExcerpt?: string;
+  companyName?:  string;
+  contactName?:  string;
+}
+
+/** List all escalations recorded for a submission (newest first) */
+export async function getEscalations(submissionId: string, accessToken: string) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch escalations');
+  return data as { success: boolean; escalations: EscalationRecord[] };
+}
+
+/** Record a new escalation; server computes the authoritative detectionCount */
+export async function createEscalation(
+  submissionId: string,
+  payload: CreateEscalationPayload,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations`, {
+    method: 'POST',
+    headers: headers(accessToken),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to record escalation');
+  return data as { success: boolean; escalation: EscalationRecord; detectionCount: number };
+}
+
+/** Resolve an escalation (marks status: resolved) */
+export async function resolveEscalation(
+  submissionId: string,
+  escalationId: string,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations/${escalationId}`, {
+    method: 'PATCH',
+    headers: headers(accessToken),
+    body: JSON.stringify({ status: 'resolved' }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to resolve escalation');
+  return data as { success: boolean; escalation: EscalationRecord };
+}
+
+// ============================================================================
+// INSTANT BOOKING — priority-call bookings (POST public, GET team auth)
+// ============================================================================
+
+export interface Booking {
+  id:            string;
+  schemaVersion: number;
+  submissionId:  string | null;
+  contactName:   string;
+  contactEmail:  string;
+  companyName:   string;
+  scheduledAt:   string;
+  priority:      boolean;
+  status:        'requested' | 'confirmed' | 'cancelled';
+  source:        'score-page' | 'client-portal' | 'legacy';
+  createdAt:     string;
+}
+
+export interface CreateBookingPayload {
+  contactName?:  string;
+  contactEmail:  string;
+  companyName?:  string;
+  scheduledAt:   string;
+  priority?:     boolean;
+  submissionId?: string | null;
+  source?:       'score-page' | 'client-portal';
+}
+
+/** Create a priority-call booking. Public — no auth needed (books pre-login). */
+export async function createBooking(payload: CreateBookingPayload) {
+  const res = await fetch(`${BASE}/bookings`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create booking');
+  return data as { success: boolean; booking: Booking };
+}
+
+/** List all bookings (team auth) */
+export async function getBookings(accessToken: string) {
+  const res = await fetch(`${BASE}/bookings`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch bookings');
+  return data as { success: boolean; bookings: Booking[]; count: number };
+}
+
+// ============================================================================
+// BLOCK REGISTRY — BlockRegistryPanel persistence (team auth)
+// ============================================================================
+
+import type { Block, BlockRevision, BlockLock } from '@/app/core/blockEngine';
+
+export interface BlockRegistrySnapshot {
+  proposalId: string;
+  blocks:     Block[];
+  revisions:  BlockRevision[];
+  locks:      BlockLock[];
+  rev:        number;
+  updatedBy?: string;
+  updatedAt:  string;
+}
+
+export interface SaveBlockRegistryPayload {
+  blocks:    Block[];
+  revisions: BlockRevision[];
+  locks:     BlockLock[];
+  /** Document revision the client last loaded — enables optimistic-lock 409s */
+  baseRev?:  number;
+}
+
+/** Fetch the stored block-registry snapshot for a proposal (null if none saved) */
+export async function getBlockRegistry(proposalId: string, accessToken: string) {
+  const res = await fetch(`${BASE}/proposals/${proposalId}/blocks`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch block registry');
+  return data as { success: boolean; registry: BlockRegistrySnapshot | null };
+}
+
+/**
+ * Save the block-registry snapshot. On a stale baseRev the server responds 409;
+ * the thrown error carries `conflict: true` and `currentRev` so the caller can reconcile.
+ */
+export async function saveBlockRegistry(
+  proposalId: string,
+  payload: SaveBlockRegistryPayload,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/proposals/${proposalId}/blocks`, {
+    method: 'PUT',
+    headers: headers(accessToken),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Failed to save block registry') as Error & {
+      conflict?: boolean;
+      currentRev?: number;
+    };
+    err.conflict = data.conflict;
+    err.currentRev = data.currentRev;
+    throw err;
+  }
+  return data as { success: boolean; registry: BlockRegistrySnapshot };
+}
+
+// ============================================================================
 // PROPOSALS
 // ============================================================================
 

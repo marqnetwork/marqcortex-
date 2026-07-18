@@ -16,7 +16,8 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles } from 'lucide-react';
+import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
+import { createBooking } from '@/app/services/dataService';
 
 interface InstantBookingProps {
   contactInfo: {
@@ -24,12 +25,15 @@ interface InstantBookingProps {
     email: string;
     companyName: string;
   };
-  onBooked: (meetingData: { scheduledAt: string; priority: boolean }) => void;
+  /** Optional submission this booking belongs to (set when booking from the portal) */
+  submissionId?: string;
+  onBooked: (meetingData: { scheduledAt: string; priority: boolean; bookingId?: string }) => void;
 }
 
-export function InstantBookingOffer({ contactInfo, onBooked }: InstantBookingProps) {
+export function InstantBookingOffer({ contactInfo, submissionId, onBooked }: InstantBookingProps) {
   const [showBooking, setShowBooking] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   const handleBookNow = () => {
     setShowBooking(true);
@@ -37,19 +41,31 @@ export function InstantBookingOffer({ contactInfo, onBooked }: InstantBookingPro
 
   const handleTimeSelected = async (time: string) => {
     setIsBooking(true);
-    
-    // Book the meeting with priority flag
-    await bookPriorityMeeting({
-      email: contactInfo.email,
-      name: contactInfo.name,
-      scheduledAt: time,
-      priority: true
-    });
-    
-    onBooked({
-      scheduledAt: time,
-      priority: true
-    });
+    setBookingError(null);
+
+    try {
+      // Persist the booking with priority flag (KV-backed; demo mode echoes).
+      const { booking } = await createBooking({
+        contactName:  contactInfo.name,
+        contactEmail: contactInfo.email,
+        companyName:  contactInfo.companyName,
+        scheduledAt:  time,
+        priority:     true,
+        submissionId: submissionId ?? null,
+        source:       submissionId ? 'client-portal' : 'score-page',
+      });
+
+      onBooked({
+        scheduledAt: booking.scheduledAt,
+        priority:    booking.priority,
+        bookingId:   booking.id,
+      });
+    } catch (err: any) {
+      console.error('InstantBooking createBooking error:', err);
+      setBookingError(err?.message || 'Could not confirm your booking. Please try again.');
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
@@ -143,9 +159,10 @@ export function InstantBookingOffer({ contactInfo, onBooked }: InstantBookingPro
         {showBooking && (
           <InstantBookingModal
             contactInfo={contactInfo}
-            onClose={() => setShowBooking(false)}
+            onClose={() => { setShowBooking(false); setBookingError(null); }}
             onTimeSelected={handleTimeSelected}
             isBooking={isBooking}
+            bookingError={bookingError}
           />
         )}
       </AnimatePresence>
@@ -162,13 +179,15 @@ interface InstantBookingModalProps {
   onClose: () => void;
   onTimeSelected: (time: string) => void;
   isBooking: boolean;
+  bookingError?: string | null;
 }
 
 function InstantBookingModal({
   contactInfo,
   onClose,
   onTimeSelected,
-  isBooking
+  isBooking,
+  bookingError
 }: InstantBookingModalProps) {
   const availableSlots = getNextAvailableSlots();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -234,6 +253,14 @@ function InstantBookingModal({
             </button>
           ))}
         </div>
+
+        {/* Booking error */}
+        {bookingError && (
+          <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl bg-[#FD4438]/10 border border-[#FD4438]/30">
+            <AlertCircle className="size-4 text-[#FD4438] flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-[#FD4438]">{bookingError}</p>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex gap-3">
@@ -368,18 +395,4 @@ function getNextAvailableSlots() {
   }
 
   return slots;
-}
-
-async function bookPriorityMeeting(data: {
-  email: string;
-  name: string;
-  scheduledAt: string;
-  priority: boolean;
-}) {
-  // In production, call backend API to book priority meeting
-  // await fetch('/api/meetings/book-priority', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(data)
-  // });
 }

@@ -22,6 +22,11 @@ import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
 import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
 import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
+import {
+  normalizeBooking,
+  migrateBookingRecord,
+  type BookingRecord,
+} from "./bookings/bookingRecord.ts";
 
 const app = new Hono();
 
@@ -1851,6 +1856,314 @@ app.delete("/make-server-324f4fbe/submissions/:id/notes/:noteId", async (c) => {
   } catch (err) {
     console.log('Delete note error:', err);
     return c.json({ error: `Failed to delete note: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// REVIEWER CHECKLIST — persist CortexReviewerModule quality-gate reviews
+// KV key pattern: review:{submissionId}:{reviewType}  →  JSON ReviewerChecklist
+// reviewType ∈ { report, call-prep, proposal }
+// Team auth required — reviews are internal quality-control artifacts.
+// ============================================================================
+
+const REVIEW_TYPES = new Set(['report', 'call-prep', 'proposal']);
+
+// GET /submissions/:id/review/:reviewType — fetch stored review (or null)
+app.get("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const reviewType   = c.req.param('reviewType');
+    if (!REVIEW_TYPES.has(reviewType)) {
+      return c.json({ error: `Invalid reviewType: ${reviewType}` }, 400);
+    }
+
+    const raw = await kv.get(`review:${submissionId}:${reviewType}`);
+    const review = raw ? safeJsonParse(raw) : null;
+    return c.json({ success: true, review });
+  } catch (err) {
+    console.log('Get review error:', err);
+    return c.json({ error: `Failed to fetch review: ${err}` }, 500);
+  }
+});
+
+// PUT /submissions/:id/review/:reviewType — save/replace the review checklist
+app.put("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) => {
+  try {
+    const token  = c.req.header('Authorization');
+    const userId = await verifyTeamToken(token);
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const reviewType   = c.req.param('reviewType');
+    if (!REVIEW_TYPES.has(reviewType)) {
+      return c.json({ error: `Invalid reviewType: ${reviewType}` }, 400);
+    }
+
+    const body = await c.req.json();
+    const checklist = body?.checklist;
+    if (!checklist || typeof checklist !== 'object') {
+      return c.json({ error: "Missing checklist payload" }, 400);
+    }
+
+    // Resolve reviewer identity from the auth token (authoritative over client)
+    const rawToken = token?.split(' ')[1];
+    let reviewerName = 'Team Member';
+    let reviewerEmail = '';
+    try {
+      const { data: { user } } = await supabaseAdmin.auth.getUser(rawToken!);
+      reviewerName  = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Team Member';
+      reviewerEmail = user?.email || '';
+    } catch { /* demo/service tokens — keep defaults */ }
+
+    const record = {
+      ...checklist,
+      lead_id:       submissionId,
+      review_type:   reviewType,
+      reviewer_name: reviewerName,
+      reviewer_email: reviewerEmail,
+      updated_at:    new Date().toISOString(),
+    };
+
+    await kv.set(`review:${submissionId}:${reviewType}`, JSON.stringify(record));
+    console.log(`✅ Review saved for ${submissionId} (${reviewType}) by ${reviewerEmail || userId}`);
+    return c.json({ success: true, review: record });
+  } catch (err) {
+    console.log('Save review error:', err);
+    return c.json({ error: `Failed to save review: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// OBJECTION ESCALATIONS — persist ObjectionHandlerPanel escalation protocol
+// KV key pattern: escalation:{submissionId}:{escalationId}  →  JSON record
+// Team auth required — escalations are internal revenue-control artifacts.
+// ============================================================================
+
+const OBJECTION_TYPES = new Set(['price', 'risk', 'timing', 'trust', 'internal_alignment']);
+
+// GET /submissions/:id/escalations — list escalations for a submission (newest first)
+app.get("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const raw = await kv.getByPrefix(`escalation:${submissionId}:`);
+    const rawArray = Array.isArray(raw) ? raw : [];
+    const escalations = rawArray
+      .map(e => { try { return safeJsonParse(e); } catch { return null; } })
+      .filter(e => e && typeof e === 'object' && e.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json({ success: true, escalations });
+  } catch (err) {
+    console.log('List escalations error:', err);
+    return c.json({ error: `Failed to fetch escalations: ${err}` }, 500);
+  }
+});
+
+// POST /submissions/:id/escalations — record a new escalation
+app.post("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const body = await c.req.json();
+    const {
+      proposalId, objectionType, confidence, atRisk,
+      inputExcerpt, companyName, contactName,
+    } = body;
+
+    if (!OBJECTION_TYPES.has(objectionType)) {
+      return c.json({ error: `Invalid objectionType: ${objectionType}` }, 400);
+    }
+
+    // Server computes recurrence from previously stored, still-active escalations
+    // of the same objection type — this is the authoritative detection count.
+    const raw = await kv.getByPrefix(`escalation:${submissionId}:`);
+    const prior = (Array.isArray(raw) ? raw : [])
+      .map(e => { try { return safeJsonParse(e); } catch { return null; } })
+      .filter(e => e && e.objectionType === objectionType && e.status !== 'resolved');
+    const detectionCount = prior.length + 1;
+    const status = detectionCount >= 2 ? 'persistent' : 'active';
+
+    const id = `esc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const escalation = {
+      id,
+      submissionId,
+      proposalId:   proposalId ?? null,
+      objectionType,
+      confidence:   typeof confidence === 'number' ? confidence : 0,
+      atRisk:       Boolean(atRisk),
+      detectionCount,
+      status,
+      inputExcerpt: typeof inputExcerpt === 'string' ? inputExcerpt.slice(0, 500) : '',
+      companyName:  companyName ?? '',
+      contactName:  contactName ?? '',
+      createdBy:    userId,
+      createdAt:    new Date().toISOString(),
+      resolvedAt:   null as string | null,
+    };
+
+    await kv.set(`escalation:${submissionId}:${id}`, JSON.stringify(escalation));
+    console.log(`⚑ Escalation recorded for ${submissionId}: ${objectionType} ×${detectionCount} (${status})`);
+    return c.json({ success: true, escalation, detectionCount });
+  } catch (err) {
+    console.log('Create escalation error:', err);
+    return c.json({ error: `Failed to record escalation: ${err}` }, 500);
+  }
+});
+
+// PATCH /submissions/:id/escalations/:escalationId — resolve an escalation
+app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const escalationId = c.req.param('escalationId');
+    const body = await c.req.json().catch(() => ({}));
+    const status = body?.status === 'resolved' ? 'resolved' : null;
+    if (!status) return c.json({ error: "Only { status: 'resolved' } is supported" }, 400);
+
+    const kvKey = `escalation:${submissionId}:${escalationId}`;
+    const existing = safeJsonParse(await kv.get(kvKey));
+    if (!existing) return c.json({ error: "Escalation not found" }, 404);
+
+    const updated = { ...existing, status: 'resolved', resolvedAt: new Date().toISOString() };
+    await kv.set(kvKey, JSON.stringify(updated));
+    console.log(`✅ Escalation ${escalationId} resolved on ${submissionId}`);
+    return c.json({ success: true, escalation: updated });
+  } catch (err) {
+    console.log('Resolve escalation error:', err);
+    return c.json({ error: `Failed to resolve escalation: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// INSTANT BOOKING — persist priority-call bookings from the score page / portal
+// KV key pattern: booking:{bookingId}  →  JSON BookingRecord (schemaVersion 2)
+// Email index:    booking_email:{email} → latest bookingId
+// POST is public (booking happens pre-auth on the score page). GET is team-only.
+// ============================================================================
+
+// POST /bookings — create a booking (public — anon key)
+app.post("/make-server-324f4fbe/bookings", async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const result = normalizeBooking(body, id, new Date().toISOString());
+
+    if (!result.ok) {
+      const message = result.reason === 'INVALID_EMAIL'
+        ? 'A valid contact email is required'
+        : 'A valid scheduled time is required';
+      return c.json({ error: message, reason: result.reason }, 400);
+    }
+
+    const booking = result.record;
+    await kv.set(`booking:${booking.id}`, JSON.stringify(booking));
+    await kv.set(`booking_email:${booking.contactEmail}`, booking.id);
+    console.log(`📅 Booking ${booking.id} stored for ${booking.contactEmail} @ ${booking.scheduledAt} (priority=${booking.priority})`);
+
+    return c.json({ success: true, booking });
+  } catch (err) {
+    console.log('Create booking error:', err);
+    return c.json({ error: `Failed to create booking: ${err}` }, 500);
+  }
+});
+
+// GET /bookings — list all bookings, newest first (team auth)
+app.get("/make-server-324f4fbe/bookings", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const raw = await kv.getByPrefix('booking:');
+    const rawArray = Array.isArray(raw) ? raw : [];
+    // migrateBookingRecord upgrades any legacy/stub record to the v2 shape on read.
+    const bookings: BookingRecord[] = rawArray
+      .map(b => { try { return migrateBookingRecord(safeJsonParse(b)); } catch { return null; } })
+      .filter((b): b is BookingRecord => Boolean(b && b.contactEmail))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json({ success: true, bookings, count: bookings.length });
+  } catch (err) {
+    console.log('List bookings error:', err);
+    return c.json({ error: `Failed to fetch bookings: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// BLOCK REGISTRY — persist BlockRegistryPanel blocks/revisions/locks per proposal
+// KV key: blockreg:{proposalId} → { proposalId, blocks, revisions, locks, rev, updatedAt }
+// `rev` is a monotonically-increasing document revision used for optimistic
+// locking: a PUT that carries a stale baseRev is rejected with 409 so concurrent
+// editors never silently clobber each other. Team auth required.
+// ============================================================================
+
+// GET /proposals/:proposalId/blocks — fetch the stored registry snapshot (or null)
+app.get("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const proposalId = c.req.param('proposalId');
+    const raw = await kv.get(`blockreg:${proposalId}`);
+    const registry = raw ? safeJsonParse(raw) : null;
+    return c.json({ success: true, registry });
+  } catch (err) {
+    console.log('Get block registry error:', err);
+    return c.json({ error: `Failed to fetch block registry: ${err}` }, 500);
+  }
+});
+
+// PUT /proposals/:proposalId/blocks — save snapshot (optimistic-locked by baseRev)
+app.put("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const proposalId = c.req.param('proposalId');
+    const body = await c.req.json();
+    const { blocks, revisions, locks, baseRev } = body;
+
+    if (!Array.isArray(blocks) || !Array.isArray(revisions) || !Array.isArray(locks)) {
+      return c.json({ error: "blocks, revisions and locks must be arrays" }, 400);
+    }
+
+    const existing = safeJsonParse(await kv.get(`blockreg:${proposalId}`));
+    const currentRev: number = existing?.rev ?? 0;
+
+    // Optimistic concurrency: reject stale writes when a baseRev is supplied.
+    if (typeof baseRev === 'number' && existing && baseRev !== currentRev) {
+      return c.json({
+        error: "Registry was modified by another session",
+        conflict: true,
+        currentRev,
+      }, 409);
+    }
+
+    const registry = {
+      proposalId,
+      blocks,
+      revisions,
+      locks,
+      rev: currentRev + 1,
+      updatedBy: userId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await kv.set(`blockreg:${proposalId}`, JSON.stringify(registry));
+    console.log(`🧱 Block registry ${proposalId} saved — rev ${registry.rev} (${blocks.length} blocks, ${revisions.length} revs, ${locks.length} locks)`);
+    return c.json({ success: true, registry });
+  } catch (err) {
+    console.log('Save block registry error:', err);
+    return c.json({ error: `Failed to save block registry: ${err}` }, 500);
   }
 });
 

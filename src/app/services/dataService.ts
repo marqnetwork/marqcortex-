@@ -71,7 +71,19 @@ export type {
   CopilotInterpretResponse,
   QueuedEmailPayload,
   LeadCapturePayload,
+  ReviewType,
+  StoredReview,
+  ObjectionTypeName,
+  EscalationRecord,
+  CreateEscalationPayload,
+  Booking,
+  CreateBookingPayload,
+  BlockRegistrySnapshot,
+  SaveBlockRegistryPayload,
 } from '@/app/lib/api';
+
+// Re-export the reviewer checklist type so components import it from dataService
+export type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 
 // Re-export demo types
 export type { DemoClient, DemoNurtureLead } from '@/app/utils/demoData';
@@ -81,6 +93,7 @@ export type { ClientReportData } from '@/app/utils/clientReportGenerator';
 
 // ── Internal imports (not re-exported) ──────────────────────────────────────
 import * as api from '@/app/lib/api';
+import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 import * as demo from '@/app/utils/demoData';
 import { generateClientReport as _generateClientReport } from '@/app/utils/clientReportGenerator';
 
@@ -693,6 +706,158 @@ export async function deleteNote(submissionId: string, noteId: string, accessTok
     return { success: true };
   }
   return api.deleteNote(submissionId, noteId, accessToken);
+}
+
+// ============================================================================
+// 10b. REVIEWER CHECKLIST — CortexReviewerModule quality-gate persistence
+// ============================================================================
+
+export async function getReview(
+  submissionId: string,
+  reviewType: api.ReviewType,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Get review (demo mode) — no persisted review');
+    return { success: true, review: null as api.StoredReview | null };
+  }
+  return api.getReview(submissionId, reviewType, accessToken);
+}
+
+export async function saveReview(
+  submissionId: string,
+  reviewType: api.ReviewType,
+  checklist: ReviewerChecklist,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Save review (demo mode) — echo only, not persisted');
+    const review = {
+      ...checklist,
+      lead_id: submissionId,
+      review_type: reviewType,
+      updated_at: new Date().toISOString(),
+    } as api.StoredReview;
+    return { success: true, review };
+  }
+  return api.saveReview(submissionId, reviewType, checklist, accessToken);
+}
+
+// ============================================================================
+// 10c. OBJECTION ESCALATIONS — ObjectionHandlerPanel escalation persistence
+// ============================================================================
+
+export async function getEscalations(submissionId: string, accessToken: string) {
+  if (isDemo()) {
+    log('Get escalations (demo mode) — none persisted');
+    return { success: true, escalations: [] as api.EscalationRecord[] };
+  }
+  return api.getEscalations(submissionId, accessToken);
+}
+
+export async function createEscalation(
+  submissionId: string,
+  payload: api.CreateEscalationPayload,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Create escalation (demo mode) — echo only, not persisted');
+    const detectionCount = 1;
+    const escalation: api.EscalationRecord = {
+      id: `esc_demo_${Date.now()}`,
+      submissionId,
+      proposalId: payload.proposalId ?? null,
+      objectionType: payload.objectionType,
+      confidence: payload.confidence,
+      atRisk: payload.atRisk,
+      detectionCount,
+      status: 'active',
+      inputExcerpt: payload.inputExcerpt ?? '',
+      companyName: payload.companyName ?? '',
+      contactName: payload.contactName ?? '',
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    };
+    return { success: true, escalation, detectionCount };
+  }
+  return api.createEscalation(submissionId, payload, accessToken);
+}
+
+export async function resolveEscalation(
+  submissionId: string,
+  escalationId: string,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Resolve escalation (demo mode) — no-op');
+    return { success: true, escalation: null as unknown as api.EscalationRecord };
+  }
+  return api.resolveEscalation(submissionId, escalationId, accessToken);
+}
+
+// ============================================================================
+// 10d. INSTANT BOOKING — priority-call booking persistence
+// ============================================================================
+
+export async function createBooking(payload: api.CreateBookingPayload) {
+  if (isDemo()) {
+    log('Create booking (demo mode) — echo only, not persisted');
+    const booking: api.Booking = {
+      id: `bk_demo_${Date.now()}`,
+      schemaVersion: 2,
+      submissionId: payload.submissionId ?? null,
+      contactName: payload.contactName ?? '',
+      contactEmail: (payload.contactEmail || '').toLowerCase(),
+      companyName: payload.companyName ?? '',
+      scheduledAt: payload.scheduledAt,
+      priority: Boolean(payload.priority),
+      status: 'requested',
+      source: payload.source ?? 'score-page',
+      createdAt: new Date().toISOString(),
+    };
+    return { success: true, booking };
+  }
+  return api.createBooking(payload);
+}
+
+export async function getBookings(accessToken: string) {
+  if (isDemo()) {
+    log('Get bookings (demo mode) — none persisted');
+    return { success: true, bookings: [] as api.Booking[], count: 0 };
+  }
+  return api.getBookings(accessToken);
+}
+
+// ============================================================================
+// 10e. BLOCK REGISTRY — BlockRegistryPanel persistence
+// ============================================================================
+
+export async function getBlockRegistry(proposalId: string, accessToken: string) {
+  if (isDemo()) {
+    log('Get block registry (demo mode) — none persisted');
+    return { success: true, registry: null as api.BlockRegistrySnapshot | null };
+  }
+  return api.getBlockRegistry(proposalId, accessToken);
+}
+
+export async function saveBlockRegistry(
+  proposalId: string,
+  payload: api.SaveBlockRegistryPayload,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Save block registry (demo mode) — echo only, not persisted');
+    const registry: api.BlockRegistrySnapshot = {
+      proposalId,
+      blocks: payload.blocks,
+      revisions: payload.revisions,
+      locks: payload.locks,
+      rev: (payload.baseRev ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    return { success: true, registry };
+  }
+  return api.saveBlockRegistry(proposalId, payload, accessToken);
 }
 
 // ============================================================================
