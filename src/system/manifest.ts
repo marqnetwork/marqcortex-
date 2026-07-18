@@ -888,13 +888,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-051',
       name: 'ObjectionHandlerPanel',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/ObjectionHandlerPanel.tsx',
       description: 'AI-powered panel that generates responses to common client objections based on the submission data and proposal context.',
       dependencies: ['MQC-CORE-020', 'MQC-SVC-005'],
       dependents: ['MQC-COMP-037'],
-      notes: 'Requires cortexAnalysis backend (MQC-SVC-005) for live responses.',
+      notes: 'Batch 4 (2026-07-18): escalation protocol migrated to KV. At-risk objections (confidence > 0.65) persist via POST /submissions/:id/escalations; the panel restores history + server-authoritative recurrence count on mount (GET) and supports resolve (PATCH). Objection classification + playbooks remain deterministic (objectionEngine, MQC-CORE-020) — no LLM decides outcomes. Demo mode keeps local-only behavior. Contract covered by tests/features/escalationModule.test.ts.',
     },
 
     'MQC-COMP-052': {

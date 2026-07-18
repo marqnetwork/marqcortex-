@@ -230,6 +230,34 @@ Powers the CortexReviewerModule quality gate. One review per submission per
 
 ---
 
+## Group 8c — Objection Escalations (Batch 4)
+
+Powers the ObjectionHandlerPanel escalation protocol. One record per detected
+at-risk objection, stored at KV key `escalation:{submissionId}:{escalationId}`.
+
+### 24c. `GET /submissions/:id/escalations`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, escalations: EscalationRecord[] }` (newest first)  
+**Notes:** Used on mount to restore the detection history and recurrence count.
+
+---
+
+### 24d. `POST /submissions/:id/escalations`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ proposalId?, objectionType, confidence, atRisk, inputExcerpt?, companyName?, contactName? }`  
+**Returns:** `{ success, escalation: EscalationRecord, detectionCount }`  
+**Notes:** `objectionType` ∈ `price | risk | timing | trust | internal_alignment` (400 otherwise). The server computes the authoritative `detectionCount` = (still-active same-type escalations) + 1 and sets `status = "persistent"` once that reaches 2, else `"active"`. `inputExcerpt` is truncated to 500 chars. Only filed when the objection is at-risk (confidence > 0.65).
+
+---
+
+### 24e. `PATCH /submissions/:id/escalations/:escalationId`
+**Auth:** TEAM_TOKEN  
+**Body:** `{ status: "resolved" }`  
+**Returns:** `{ success, escalation: EscalationRecord }`  
+**Notes:** Only `resolved` is accepted. Sets `resolvedAt`. Resolved escalations no longer count toward recurrence.
+
+---
+
 ## Group 9 — Messaging
 
 ### 25. `GET /submissions/:id/messages/team`

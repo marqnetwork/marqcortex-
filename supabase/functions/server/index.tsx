@@ -1932,6 +1932,114 @@ app.put("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) =>
 });
 
 // ============================================================================
+// OBJECTION ESCALATIONS — persist ObjectionHandlerPanel escalation protocol
+// KV key pattern: escalation:{submissionId}:{escalationId}  →  JSON record
+// Team auth required — escalations are internal revenue-control artifacts.
+// ============================================================================
+
+const OBJECTION_TYPES = new Set(['price', 'risk', 'timing', 'trust', 'internal_alignment']);
+
+// GET /submissions/:id/escalations — list escalations for a submission (newest first)
+app.get("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const raw = await kv.getByPrefix(`escalation:${submissionId}:`);
+    const rawArray = Array.isArray(raw) ? raw : [];
+    const escalations = rawArray
+      .map(e => { try { return safeJsonParse(e); } catch { return null; } })
+      .filter(e => e && typeof e === 'object' && e.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json({ success: true, escalations });
+  } catch (err) {
+    console.log('List escalations error:', err);
+    return c.json({ error: `Failed to fetch escalations: ${err}` }, 500);
+  }
+});
+
+// POST /submissions/:id/escalations — record a new escalation
+app.post("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const body = await c.req.json();
+    const {
+      proposalId, objectionType, confidence, atRisk,
+      inputExcerpt, companyName, contactName,
+    } = body;
+
+    if (!OBJECTION_TYPES.has(objectionType)) {
+      return c.json({ error: `Invalid objectionType: ${objectionType}` }, 400);
+    }
+
+    // Server computes recurrence from previously stored, still-active escalations
+    // of the same objection type — this is the authoritative detection count.
+    const raw = await kv.getByPrefix(`escalation:${submissionId}:`);
+    const prior = (Array.isArray(raw) ? raw : [])
+      .map(e => { try { return safeJsonParse(e); } catch { return null; } })
+      .filter(e => e && e.objectionType === objectionType && e.status !== 'resolved');
+    const detectionCount = prior.length + 1;
+    const status = detectionCount >= 2 ? 'persistent' : 'active';
+
+    const id = `esc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const escalation = {
+      id,
+      submissionId,
+      proposalId:   proposalId ?? null,
+      objectionType,
+      confidence:   typeof confidence === 'number' ? confidence : 0,
+      atRisk:       Boolean(atRisk),
+      detectionCount,
+      status,
+      inputExcerpt: typeof inputExcerpt === 'string' ? inputExcerpt.slice(0, 500) : '',
+      companyName:  companyName ?? '',
+      contactName:  contactName ?? '',
+      createdBy:    userId,
+      createdAt:    new Date().toISOString(),
+      resolvedAt:   null as string | null,
+    };
+
+    await kv.set(`escalation:${submissionId}:${id}`, JSON.stringify(escalation));
+    console.log(`⚑ Escalation recorded for ${submissionId}: ${objectionType} ×${detectionCount} (${status})`);
+    return c.json({ success: true, escalation, detectionCount });
+  } catch (err) {
+    console.log('Create escalation error:', err);
+    return c.json({ error: `Failed to record escalation: ${err}` }, 500);
+  }
+});
+
+// PATCH /submissions/:id/escalations/:escalationId — resolve an escalation
+app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const submissionId = c.req.param('id');
+    const escalationId = c.req.param('escalationId');
+    const body = await c.req.json().catch(() => ({}));
+    const status = body?.status === 'resolved' ? 'resolved' : null;
+    if (!status) return c.json({ error: "Only { status: 'resolved' } is supported" }, 400);
+
+    const kvKey = `escalation:${submissionId}:${escalationId}`;
+    const existing = safeJsonParse(await kv.get(kvKey));
+    if (!existing) return c.json({ error: "Escalation not found" }, 404);
+
+    const updated = { ...existing, status: 'resolved', resolvedAt: new Date().toISOString() };
+    await kv.set(kvKey, JSON.stringify(updated));
+    console.log(`✅ Escalation ${escalationId} resolved on ${submissionId}`);
+    return c.json({ success: true, escalation: updated });
+  } catch (err) {
+    console.log('Resolve escalation error:', err);
+    return c.json({ error: `Failed to resolve escalation: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
 // MESSAGING — TEAM (auth required) — defined BEFORE client routes to avoid clash
 // ============================================================================
 

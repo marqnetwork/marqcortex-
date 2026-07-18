@@ -2803,7 +2803,15 @@ function buildProposalDraftFromLead(data: CortexLeadData): ProposalDraft {
   };
 }
 
-export function ProposalSection({ data }: { data: CortexLeadData }) {
+export function ProposalSection({
+  data,
+  submissionId,
+  accessToken,
+}: {
+  data: CortexLeadData;
+  submissionId?: string;
+  accessToken?: string;
+}) {
   // Always render ProposalDraftEditor — use existing draft or auto-generate from lead data.
   // This means every lead (not just ExampleCo / lead_010) gets the full proposal system.
   const draft = data.proposal_draft ?? buildProposalDraftFromLead(data);
@@ -2811,6 +2819,8 @@ export function ProposalSection({ data }: { data: CortexLeadData }) {
   return (
     <ProposalDraftEditor
       initialDraft={draft}
+      submissionId={submissionId}
+      accessToken={accessToken}
       onDraftChange={(updated) => {
         // Production: POST /api/proposal/:id  with updated payload
         console.log('[ProposalDraft] Saved v' + updated.metadata.version, updated);

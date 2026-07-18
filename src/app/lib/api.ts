@@ -711,6 +711,81 @@ export async function saveReview(
 }
 
 // ============================================================================
+// OBJECTION ESCALATIONS — ObjectionHandlerPanel escalation persistence (team auth)
+// ============================================================================
+
+export type ObjectionTypeName = 'price' | 'risk' | 'timing' | 'trust' | 'internal_alignment';
+
+export interface EscalationRecord {
+  id:             string;
+  submissionId:   string;
+  proposalId:     string | null;
+  objectionType:  ObjectionTypeName;
+  confidence:     number;
+  atRisk:         boolean;
+  detectionCount: number;
+  status:         'active' | 'persistent' | 'resolved';
+  inputExcerpt:   string;
+  companyName:    string;
+  contactName:    string;
+  createdBy?:     string;
+  createdAt:      string;
+  resolvedAt:     string | null;
+}
+
+export interface CreateEscalationPayload {
+  proposalId?:   string | null;
+  objectionType: ObjectionTypeName;
+  confidence:    number;
+  atRisk:        boolean;
+  inputExcerpt?: string;
+  companyName?:  string;
+  contactName?:  string;
+}
+
+/** List all escalations recorded for a submission (newest first) */
+export async function getEscalations(submissionId: string, accessToken: string) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch escalations');
+  return data as { success: boolean; escalations: EscalationRecord[] };
+}
+
+/** Record a new escalation; server computes the authoritative detectionCount */
+export async function createEscalation(
+  submissionId: string,
+  payload: CreateEscalationPayload,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations`, {
+    method: 'POST',
+    headers: headers(accessToken),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to record escalation');
+  return data as { success: boolean; escalation: EscalationRecord; detectionCount: number };
+}
+
+/** Resolve an escalation (marks status: resolved) */
+export async function resolveEscalation(
+  submissionId: string,
+  escalationId: string,
+  accessToken: string,
+) {
+  const res = await fetch(`${BASE}/submissions/${submissionId}/escalations/${escalationId}`, {
+    method: 'PATCH',
+    headers: headers(accessToken),
+    body: JSON.stringify({ status: 'resolved' }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to resolve escalation');
+  return data as { success: boolean; escalation: EscalationRecord };
+}
+
+// ============================================================================
 // PROPOSALS
 // ============================================================================
 

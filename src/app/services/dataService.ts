@@ -73,6 +73,9 @@ export type {
   LeadCapturePayload,
   ReviewType,
   StoredReview,
+  ObjectionTypeName,
+  EscalationRecord,
+  CreateEscalationPayload,
 } from '@/app/lib/api';
 
 // Re-export the reviewer checklist type so components import it from dataService
@@ -734,6 +737,58 @@ export async function saveReview(
     return { success: true, review };
   }
   return api.saveReview(submissionId, reviewType, checklist, accessToken);
+}
+
+// ============================================================================
+// 10c. OBJECTION ESCALATIONS — ObjectionHandlerPanel escalation persistence
+// ============================================================================
+
+export async function getEscalations(submissionId: string, accessToken: string) {
+  if (isDemo()) {
+    log('Get escalations (demo mode) — none persisted');
+    return { success: true, escalations: [] as api.EscalationRecord[] };
+  }
+  return api.getEscalations(submissionId, accessToken);
+}
+
+export async function createEscalation(
+  submissionId: string,
+  payload: api.CreateEscalationPayload,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Create escalation (demo mode) — echo only, not persisted');
+    const detectionCount = payload.atRisk ? 1 : 1;
+    const escalation: api.EscalationRecord = {
+      id: `esc_demo_${Date.now()}`,
+      submissionId,
+      proposalId: payload.proposalId ?? null,
+      objectionType: payload.objectionType,
+      confidence: payload.confidence,
+      atRisk: payload.atRisk,
+      detectionCount,
+      status: 'active',
+      inputExcerpt: payload.inputExcerpt ?? '',
+      companyName: payload.companyName ?? '',
+      contactName: payload.contactName ?? '',
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    };
+    return { success: true, escalation, detectionCount };
+  }
+  return api.createEscalation(submissionId, payload, accessToken);
+}
+
+export async function resolveEscalation(
+  submissionId: string,
+  escalationId: string,
+  accessToken: string,
+) {
+  if (isDemo()) {
+    log('Resolve escalation (demo mode) — no-op');
+    return { success: true, escalation: null as unknown as api.EscalationRecord };
+  }
+  return api.resolveEscalation(submissionId, escalationId, accessToken);
 }
 
 // ============================================================================

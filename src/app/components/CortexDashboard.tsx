@@ -1624,7 +1624,7 @@ function CortexLeadDetail({
             {activeTab === 'recommendation' && <RecommendationSection data={data} onPortfolioUpdate={handlePortfolioUpdate} />}
             {activeTab === 'roi'            && <ROISection data={data} onPortfolioUpdate={handlePortfolioUpdate} />}
             {activeTab === 'proposal'       && (
-              <ProposalSection data={data} />
+              <ProposalSection data={data} submissionId={leadId} accessToken={accessToken} />
             )}
             {activeTab === 'callprep'       && <CallPrepSection data={data} />}
             {activeTab === 'reviewer'       && (
