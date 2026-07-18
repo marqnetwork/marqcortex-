@@ -22,6 +22,11 @@ import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
 import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
 import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
+import {
+  normalizeBooking,
+  migrateBookingRecord,
+  type BookingRecord,
+} from "./bookings/bookingRecord.ts";
 
 const app = new Hono();
 
@@ -2036,6 +2041,60 @@ app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", asy
   } catch (err) {
     console.log('Resolve escalation error:', err);
     return c.json({ error: `Failed to resolve escalation: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// INSTANT BOOKING — persist priority-call bookings from the score page / portal
+// KV key pattern: booking:{bookingId}  →  JSON BookingRecord (schemaVersion 2)
+// Email index:    booking_email:{email} → latest bookingId
+// POST is public (booking happens pre-auth on the score page). GET is team-only.
+// ============================================================================
+
+// POST /bookings — create a booking (public — anon key)
+app.post("/make-server-324f4fbe/bookings", async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const result = normalizeBooking(body, id, new Date().toISOString());
+
+    if (!result.ok) {
+      const message = result.reason === 'INVALID_EMAIL'
+        ? 'A valid contact email is required'
+        : 'A valid scheduled time is required';
+      return c.json({ error: message, reason: result.reason }, 400);
+    }
+
+    const booking = result.record;
+    await kv.set(`booking:${booking.id}`, JSON.stringify(booking));
+    await kv.set(`booking_email:${booking.contactEmail}`, booking.id);
+    console.log(`📅 Booking ${booking.id} stored for ${booking.contactEmail} @ ${booking.scheduledAt} (priority=${booking.priority})`);
+
+    return c.json({ success: true, booking });
+  } catch (err) {
+    console.log('Create booking error:', err);
+    return c.json({ error: `Failed to create booking: ${err}` }, 500);
+  }
+});
+
+// GET /bookings — list all bookings, newest first (team auth)
+app.get("/make-server-324f4fbe/bookings", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const raw = await kv.getByPrefix('booking:');
+    const rawArray = Array.isArray(raw) ? raw : [];
+    // migrateBookingRecord upgrades any legacy/stub record to the v2 shape on read.
+    const bookings: BookingRecord[] = rawArray
+      .map(b => { try { return migrateBookingRecord(safeJsonParse(b)); } catch { return null; } })
+      .filter((b): b is BookingRecord => Boolean(b && b.contactEmail))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json({ success: true, bookings, count: bookings.length });
+  } catch (err) {
+    console.log('List bookings error:', err);
+    return c.json({ error: `Failed to fetch bookings: ${err}` }, 500);
   }
 });
 

@@ -76,6 +76,8 @@ export type {
   ObjectionTypeName,
   EscalationRecord,
   CreateEscalationPayload,
+  Booking,
+  CreateBookingPayload,
 } from '@/app/lib/api';
 
 // Re-export the reviewer checklist type so components import it from dataService
@@ -789,6 +791,39 @@ export async function resolveEscalation(
     return { success: true, escalation: null as unknown as api.EscalationRecord };
   }
   return api.resolveEscalation(submissionId, escalationId, accessToken);
+}
+
+// ============================================================================
+// 10d. INSTANT BOOKING — priority-call booking persistence
+// ============================================================================
+
+export async function createBooking(payload: api.CreateBookingPayload) {
+  if (isDemo()) {
+    log('Create booking (demo mode) — echo only, not persisted');
+    const booking: api.Booking = {
+      id: `bk_demo_${Date.now()}`,
+      schemaVersion: 2,
+      submissionId: payload.submissionId ?? null,
+      contactName: payload.contactName ?? '',
+      contactEmail: (payload.contactEmail || '').toLowerCase(),
+      companyName: payload.companyName ?? '',
+      scheduledAt: payload.scheduledAt,
+      priority: Boolean(payload.priority),
+      status: 'requested',
+      source: payload.source ?? 'score-page',
+      createdAt: new Date().toISOString(),
+    };
+    return { success: true, booking };
+  }
+  return api.createBooking(payload);
+}
+
+export async function getBookings(accessToken: string) {
+  if (isDemo()) {
+    log('Get bookings (demo mode) — none persisted');
+    return { success: true, bookings: [] as api.Booking[], count: 0 };
+  }
+  return api.getBookings(accessToken);
 }
 
 // ============================================================================

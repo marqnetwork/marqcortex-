@@ -447,13 +447,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-016',
       name: 'InstantBooking',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'PORTAL',
       filePath: 'src/app/components/InstantBooking.tsx',
       description: 'The Schedule a Call tab of the client portal. Allows clients to book a consultation call directly from their portal.',
       dependencies: ['MQC-COMP-017'],
       dependents: ['MQC-COMP-010'],
-      notes: 'Batch 4 correction (2026-07-18): reclassified LIVE → DEMO. bookPriorityMeeting() is a no-op stub (commented-out fetch) — the booking is never persisted. Slated for Batch 4 migration to a KV-backed booking endpoint.',
+      notes: 'Batch 4 (2026-07-18): migrated to KV. The no-op bookPriorityMeeting() stub is replaced by POST /bookings (public) which validates + persists the booking (KV key booking:{id}, schemaVersion 2); team reads via GET /bookings. Legacy stub payloads are forward-migrated on read by bookings/bookingRecord.ts (migrateBookingRecord). Demo mode echoes without persisting. Contract covered by tests/features/bookingMigration.test.ts.',
     },
 
     'MQC-COMP-017': {

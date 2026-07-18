@@ -258,6 +258,27 @@ at-risk objection, stored at KV key `escalation:{submissionId}:{escalationId}`.
 
 ---
 
+## Group 8d — Instant Booking (Batch 4)
+
+Persists priority-call bookings placed from the score page (pre-auth) or the
+client portal. Stored at KV key `booking:{bookingId}` (schemaVersion 2) with an
+email index `booking_email:{email} → bookingId`.
+
+### 24f. `POST /bookings`
+**Auth:** PUBLIC (anon key — booking happens before login)  
+**Body:** `{ contactName?, contactEmail, companyName?, scheduledAt, priority?, submissionId?, source? }`  
+**Returns:** `{ success, booking: Booking }`  
+**Notes:** Server validates `contactEmail` and `scheduledAt` (400 `INVALID_EMAIL` / `INVALID_SCHEDULED_AT`). Email is lowercased, `scheduledAt` normalized to ISO, `status` set to `requested`. `source` defaults to `score-page`. Replaces the old no-op `bookPriorityMeeting()` stub.
+
+---
+
+### 24g. `GET /bookings`
+**Auth:** TEAM_TOKEN  
+**Returns:** `{ success, bookings: Booking[], count }` (newest first)  
+**Notes:** Every record passes through `migrateBookingRecord` on read — legacy v1 stub payloads (`{ email, name, scheduledAt, priority }`) are forward-migrated to the canonical v2 shape so the team side always sees a uniform structure. See `supabase/functions/server/bookings/bookingRecord.ts`.
+
+---
+
 ## Group 9 — Messaging
 
 ### 25. `GET /submissions/:id/messages/team`

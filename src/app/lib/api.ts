@@ -786,6 +786,56 @@ export async function resolveEscalation(
 }
 
 // ============================================================================
+// INSTANT BOOKING — priority-call bookings (POST public, GET team auth)
+// ============================================================================
+
+export interface Booking {
+  id:            string;
+  schemaVersion: number;
+  submissionId:  string | null;
+  contactName:   string;
+  contactEmail:  string;
+  companyName:   string;
+  scheduledAt:   string;
+  priority:      boolean;
+  status:        'requested' | 'confirmed' | 'cancelled';
+  source:        'score-page' | 'client-portal' | 'legacy';
+  createdAt:     string;
+}
+
+export interface CreateBookingPayload {
+  contactName?:  string;
+  contactEmail:  string;
+  companyName?:  string;
+  scheduledAt:   string;
+  priority?:     boolean;
+  submissionId?: string | null;
+  source?:       'score-page' | 'client-portal';
+}
+
+/** Create a priority-call booking. Public — no auth needed (books pre-login). */
+export async function createBooking(payload: CreateBookingPayload) {
+  const res = await fetch(`${BASE}/bookings`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create booking');
+  return data as { success: boolean; booking: Booking };
+}
+
+/** List all bookings (team auth) */
+export async function getBookings(accessToken: string) {
+  const res = await fetch(`${BASE}/bookings`, {
+    headers: headers(accessToken),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch bookings');
+  return data as { success: boolean; bookings: Booking[]; count: number };
+}
+
+// ============================================================================
 // PROPOSALS
 // ============================================================================
 
