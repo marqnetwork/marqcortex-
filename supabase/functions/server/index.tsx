@@ -22,6 +22,11 @@ import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
 import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
 import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
+import {
+  shadowReadOutcome,
+  shadowReadLeadByEmail,
+  shadowReadSubmission,
+} from "./runtime/index.ts";
 
 const app = new Hono();
 
@@ -621,6 +626,8 @@ app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
 
     // Check if we already have this lead
     const existingLeadId = await kv.get(`lead_email:${email}`);
+    // S7.6 shadow read — KV stays authoritative; compares SQL when enabled.
+    await shadowReadLeadByEmail(email, existingLeadId ?? null);
     if (existingLeadId) {
       console.log(`ℹ️ Exit-intent lead already exists: ${email}`);
       return c.json({ success: true, leadId: existingLeadId, alreadyExists: true });
@@ -1010,7 +1017,10 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
       return c.json({ error: "Submission not found" }, 404);
     }
 
-    return c.json({ success: true, submission: safeJsonParse(raw) });
+    const submission = safeJsonParse(raw);
+    // S7.7 shadow read — KV stays authoritative; compares SQL when enabled.
+    await shadowReadSubmission(id, submission as Record<string, unknown> | null);
+    return c.json({ success: true, submission });
   } catch (err) {
     console.log('Get submission error:', err);
     return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
@@ -3014,6 +3024,8 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
     const outcome = raw ? JSON.parse(raw) : null;
+    // S7.4 shadow read — KV stays authoritative; compares SQL when enabled.
+    await shadowReadOutcome(submissionId, outcome);
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);

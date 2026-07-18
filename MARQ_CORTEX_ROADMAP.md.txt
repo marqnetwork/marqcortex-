@@ -46,11 +46,11 @@ Status Legend
 | S7.1 | Runtime Gateway Planning | ✅ |
 | S7.2 | Runtime Gateway Implementation | ✅ |
 | S7.3 | Gateway Validation | ✅ |
-| S7.4 | Outcome Shadow Read | 🔄 |
-| S7.5 | Outcome Validation | ⏳ |
-| S7.6 | Lead Shadow Read | ⏳ |
-| S7.7 | Submission Shadow Read | ⏳ |
-| S7.8 | Full Runtime Validation | ⏳ |
+| S7.4 | Outcome Shadow Read | ✅ |
+| S7.5 | Outcome Validation | ✅ |
+| S7.6 | Lead Shadow Read | ✅ |
+| S7.7 | Submission Shadow Read | ✅ |
+| S7.8 | Full Runtime Validation | ✅ |
 
 ---
 
@@ -66,15 +66,15 @@ Status Legend
 
 # Current Sprint
 
-MCV2-S7.4 — Outcome Shadow Read
+MCV2-S8.1 — SQL Read Rollout (Batch 3 — NOT STARTED)
 
-Status: 🔄 In Progress
+Status: ⏳ Blocked — awaiting live shadow-read observation
 
 ---
 
 # Next Sprint
 
-MCV2-S7.5 — Outcome Shadow Read Validation
+MCV2-S8.2 — SQL Authority Validation
 
 ---
 
@@ -82,7 +82,7 @@ MCV2-S7.5 — Outcome Shadow Read Validation
 
 Storage Authority: KV
 
-Shadow Reads: Disabled (except current implementation work)
+Shadow Reads: Implemented (Outcome/Lead/Submission) — default OFF; enable via SHADOW_READ_* env flags for live observation
 
 SQL Authority: No
 
