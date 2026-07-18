@@ -19,7 +19,7 @@
  * Architecture note: production → pre-computed aggregate table (spec §3).
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ComposedChart, BarChart, Bar, Line, LineChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -46,8 +46,11 @@ import {
   deriveFilterOptions,
   type DashboardFilters,
   type KPITile,
+  type DealSnapshot,
 } from '@/app/core/dashboardAggregator';
 import type { ObjectionType } from '@/app/types/cortex-types';
+import * as dataService from '@/app/services/dataService';
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // COLOURS
@@ -110,6 +113,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 interface FilterBarProps {
   filters:   DashboardFilters;
+  snapshots: DealSnapshot[];
   onChange:  (f: DashboardFilters) => void;
   onReset:   () => void;
 }
@@ -164,8 +168,8 @@ function FilterPill({
   );
 }
 
-function FilterBar({ filters, onChange, onReset }: FilterBarProps) {
-  const opts = useMemo(() => deriveFilterOptions(MOCK_SNAPSHOTS), []);
+function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
+  const opts = useMemo(() => deriveFilterOptions(snapshots), [snapshots]);
 
   function set<K extends keyof DashboardFilters>(k: K, v: DashboardFilters[K]) {
     onChange({ ...filters, [k]: v });
@@ -784,17 +788,34 @@ interface RevenueIntelligenceDashboardProps {
   accessToken?: string;
 }
 
-export function RevenueIntelligenceDashboard(_props: RevenueIntelligenceDashboardProps) {
+export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenceDashboardProps) {
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
+  // Seed with MOCK_SNAPSHOTS so demo mode is unchanged; live mode replaces these
+  // with deterministically-derived snapshots from persisted data.
+  const [snapshots, setSnapshots] = useState<DealSnapshot[]>(MOCK_SNAPSHOTS);
+
+  useEffect(() => {
+    if (!isBackendEnabled()) return; // demo mode keeps the seed set
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await dataService.getRevenueSnapshots(accessToken ?? '');
+        if (!cancelled && res.snapshots.length > 0) setSnapshots(res.snapshots);
+      } catch (err) {
+        if (isVerboseLogging()) console.error('Revenue snapshots fetch failed; using seed data:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [accessToken]);
 
   const filtered = useMemo(
-    () => filterSnapshots(MOCK_SNAPSHOTS, filters),
-    [filters],
+    () => filterSnapshots(snapshots, filters),
+    [snapshots, filters],
   );
 
   const prevFiltered = useMemo(
-    () => prevPeriodSnapshots(MOCK_SNAPSHOTS, filters),
-    [filters],
+    () => prevPeriodSnapshots(snapshots, filters),
+    [snapshots, filters],
   );
 
   const kpiTiles = useMemo(
@@ -807,6 +828,7 @@ export function RevenueIntelligenceDashboard(_props: RevenueIntelligenceDashboar
       {/* Filter bar — sticky */}
       <FilterBar
         filters={filters}
+        snapshots={snapshots}
         onChange={setFilters}
         onReset={() => setFilters(DEFAULT_FILTERS)}
       />
