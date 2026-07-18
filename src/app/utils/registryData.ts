@@ -2212,7 +2212,7 @@ const BEF_NODES: RegistryNode[] = [
     demands: ['MQC-BEF-002','MQC-BEF-003','MQC-BEF-004','MQC-BEF-005','MQC-BEF-006','MQC-BEF-007','MQC-BEF-008'],
     supplies: ['Hono app (all routes)', 'verifyTeamToken', 'safeJsonParse', 'parseSubmissions', 'storeNotification'],
     keyFunctions: ['verifyTeamToken','safeJsonParse','parseSubmissions','storeNotification','getNotifPrefs','getTeamEmail','fireEmail','seedAdminUser','testDatabaseConnection'],
-    debugNotes: 'RATE LIMIT: 120 requests/min/IP. Rate limit map resets on cold start. ADMIN SEED: Admin user created idempotently on startup from TEAM_ADMIN_EMAIL env var (default: admin@marqcortex.com). DB TEST: KV connectivity test runs on startup.',
+    debugNotes: 'RATE LIMIT: 120 requests/min/IP. Rate limit map resets on cold start. ADMIN SEED: Admin user created idempotently on startup from the TEAM_ADMIN_EMAIL / TEAM_ADMIN_PASSWORD secrets — no hardcoded fallback; seeding is skipped (fail closed) if they are unset. DB TEST: KV connectivity test runs on startup.',
     status: 'stable',
   },
   {

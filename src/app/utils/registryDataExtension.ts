@@ -441,7 +441,7 @@ export const FN_NODES: RegistryNode[] = [
     id: 'MQC-FN-006', label: 'getTeamEmail()',
     path: '/supabase/functions/server/index.tsx',
     type: 'FN' as any, domain: 'backend-email',
-    description: 'Resolves the team admin email address. Priority: (1) Supabase Auth admin user with teamRole=admin (2) any team role user (3) any user with email (4) TEAM_ADMIN_EMAIL env var (5) hardcoded fallback admin@marqcortex.com.',
+    description: 'Resolves the team admin email address. Priority: (1) Supabase Auth admin user with teamRole=admin (2) any team role user (3) any user with email (4) TEAM_ADMIN_EMAIL secret. No hardcoded fallback — returns empty if none is configured.',
     demands: ['MQC-BEF-001'],
     supplies: ['teamEmail: string'],
     debugNotes: 'If team emails going to wrong address: check Supabase Auth users for user_metadata.role="team" and user_metadata.teamRole="admin". The function looks for this metadata.',

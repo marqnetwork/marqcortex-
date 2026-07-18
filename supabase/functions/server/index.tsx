@@ -22,6 +22,7 @@ import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
 import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
 import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
+import { validateStartupSecrets, REQUIRED_AUTH_SECRETS } from "./auth/validateSecrets.ts";
 
 const app = new Hono();
 
@@ -121,21 +122,32 @@ app.onError((err, c) => {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+const TEAM_ADMIN_EMAIL = Deno.env.get('TEAM_ADMIN_EMAIL');
+const TEAM_ADMIN_PASSWORD = Deno.env.get('TEAM_ADMIN_PASSWORD');
 
-if (!SUPABASE_URL) {
-  console.error('❌ CRITICAL: SUPABASE_URL environment variable is not set!');
-}
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('❌ CRITICAL: SUPABASE_SERVICE_ROLE_KEY environment variable is not set!');
-}
-if (!SUPABASE_ANON_KEY) {
-  console.error('❌ CRITICAL: SUPABASE_ANON_KEY environment variable is not set!');
-}
+// ── Startup secret validation (A1) ──────────────────────────────────────────
+// Backend auth FAILS CLOSED when any required secret is missing: no default
+// admin is seeded and the team-login route is disabled. No credential is ever
+// hardcoded as a fallback.
+const SECRET_CHECK = validateStartupSecrets({
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_ANON_KEY,
+  TEAM_ADMIN_EMAIL,
+  TEAM_ADMIN_PASSWORD,
+});
+const SECRETS_VALID = SECRET_CHECK.valid;
 
-console.log('✅ Environment variables check:');
-console.log(`   - SUPABASE_URL: ${SUPABASE_URL ? 'Set' : 'MISSING'}`);
-console.log(`   - SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY ? 'Set (length: ' + SUPABASE_SERVICE_ROLE_KEY.length + ')' : 'MISSING'}`);
-console.log(`   - SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? 'Set (length: ' + SUPABASE_ANON_KEY.length + ')' : 'MISSING'}`);
+console.log('✅ Required secrets check:');
+for (const key of REQUIRED_AUTH_SECRETS) {
+  const present = !SECRET_CHECK.missing.includes(key);
+  console.log(`   - ${key}: ${present ? 'Set' : 'MISSING'}`);
+}
+if (!SECRETS_VALID) {
+  console.error(
+    `❌ CRITICAL: Missing required secrets — authentication is DISABLED (fail closed): ${SECRET_CHECK.missing.join(', ')}`,
+  );
+}
 
 const supabaseAdmin = createClient(
   SUPABASE_URL!,
@@ -148,15 +160,25 @@ const supabaseAdmin = createClient(
 
 async function seedAdminUser() {
   try {
+    // FAIL CLOSED: never seed a default admin. Credentials come only from
+    // secrets — there is no hardcoded email or password fallback. If the
+    // required secrets are missing, refuse to create any account.
+    if (!SECRETS_VALID) {
+      console.error(
+        '❌ CRITICAL: Skipping admin seed — TEAM_ADMIN_EMAIL / TEAM_ADMIN_PASSWORD not configured. No default admin will be created (fail closed).',
+      );
+      return;
+    }
+
     console.log('🔧 Seeding admin user...');
-    // Read admin credentials from env vars with demo fallbacks
-    const adminEmail = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD') || 'CortexAdmin2026!';
+    // Non-empty by validateStartupSecrets; assert for the type checker.
+    const adminEmail = TEAM_ADMIN_EMAIL!;
+    const adminPassword = TEAM_ADMIN_PASSWORD!;
     const adminName = Deno.env.get('TEAM_ADMIN_NAME') || 'MARQ Admin';
 
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
-    if (!adminExists) {
+    const existingAdmin = existingUsers?.users?.find(u => u.email === adminEmail);
+    if (!existingAdmin) {
       const { error } = await supabaseAdmin.auth.admin.createUser({
         email: adminEmail,
         password: adminPassword,
@@ -169,7 +191,17 @@ async function seedAdminUser() {
         console.log(`✅ Admin user created: ${adminEmail}`);
       }
     } else {
-      console.log('✅ Admin user already exists');
+      // Idempotent rotation: keep the seeded admin's password in sync with the
+      // current TEAM_ADMIN_PASSWORD secret, so rotating the secret + redeploy
+      // rotates the live credential. Non-fatal on failure.
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(existingAdmin.id, {
+        password: adminPassword,
+      });
+      if (error) {
+        console.log('⚠️ Admin password sync error (non-fatal):', error.message);
+      } else {
+        console.log('✅ Admin user present; password synced to current secret');
+      }
     }
   } catch (err) {
     console.log('⚠️ Seed admin error (non-fatal):', err?.message || String(err));
@@ -373,9 +405,13 @@ async function getTeamEmail(): Promise<string> {
   } catch (err) {
     console.log('⚠️ getTeamEmail: Could not look up team users:', err);
   }
-  // Final fallback — reads from env or defaults
-  const fallback = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-  console.log(`⚠️ getTeamEmail: Using fallback email: ${fallback}`);
+  // Final fallback — the configured admin email only. No hardcoded literal.
+  const fallback = TEAM_ADMIN_EMAIL ?? '';
+  if (fallback) {
+    console.log(`⚠️ getTeamEmail: Using configured TEAM_ADMIN_EMAIL fallback: ${fallback}`);
+  } else {
+    console.log('⚠️ getTeamEmail: No team user found and TEAM_ADMIN_EMAIL is not set; returning empty.');
+  }
   return fallback;
 }
 
@@ -652,6 +688,12 @@ app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
 
 app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
   try {
+    // FAIL CLOSED: refuse to authenticate if required secrets are missing.
+    if (!SECRETS_VALID) {
+      console.error('❌ Team login blocked — required secrets missing (fail closed).');
+      return c.json({ error: "Authentication is not configured on the server." }, 503);
+    }
+
     const { email, password } = await c.req.json();
     if (!email || !password) {
       return c.json({ error: "Email and password are required" }, 400);
@@ -659,8 +701,8 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
 
     // Use Supabase Auth to sign in
     const supabaseAnon = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
+      SUPABASE_URL!,
+      SUPABASE_ANON_KEY!,
     );
 
     const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
