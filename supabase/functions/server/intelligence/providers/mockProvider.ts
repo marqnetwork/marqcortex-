@@ -111,7 +111,10 @@ export function createMockProvider(): AIProviderAdapter {
         content,
         model: ctx.resolvedModelId,
         provider: 'mock',
-        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+        // Deliberately omit usage: the mock does not call a real model, so
+        // reporting token counts would record fabricated telemetry. Leaving
+        // usage undefined keeps telemetry token fields honest (empty).
+        usage: undefined,
         finishReason: 'stop',
         generatedAt: new Date().toISOString(),
         attempt: ctx.attempt,
