@@ -42,8 +42,13 @@ import {
   migrateBookingRecord,
   type BookingRecord,
 } from "./bookings/bookingRecord.ts";
+import { resolveRequestId } from "./observability/requestContext.ts";
+import { buildReadinessReport } from "./observability/readiness.ts";
+import { getIntelligenceConfig } from "./intelligence/config.ts";
+import { checkAllProviderHealth } from "./intelligence/health.ts";
+import { getRecentTelemetry } from "./intelligence/telemetry.ts";
 
-const app = new Hono();
+const app = new Hono<{ Variables: { requestId: string } }>();
 
 // CORS MUST be first to handle preflight OPTIONS requests.
 // Production lockdown: set ALLOWED_ORIGINS (comma-separated list of exact origins,
@@ -68,6 +73,20 @@ app.use(
     credentials: ALLOWED_ORIGINS.length > 0,
   }),
 );
+
+// ── Request / correlation id ─────────────────────────────────────────────────
+// Assign every request a correlation id (reusing a safe caller-supplied
+// X-Request-Id / X-Correlation-Id when present, else a fresh UUID). The id is
+// stored on the context for error logging and echoed back via X-Request-Id so
+// support can trace a client-visible error to a server log line.
+app.use('*', async (c, next) => {
+  const requestId = resolveRequestId(
+    c.req.header('x-request-id') ?? c.req.header('x-correlation-id'),
+  );
+  c.set('requestId', requestId);
+  c.header('X-Request-Id', requestId);
+  await next();
+});
 
 app.use('*', logger(console.log));
 
@@ -127,21 +146,23 @@ app.use('*', async (c, next) => {
   console.log(`✅ Completed ${method} ${url} in ${duration}ms\n`);
 });
 
-// Global error handler — catch any unhandled errors and return proper JSON
+// Global error handler — log full detail INTERNALLY (with the correlation id
+// so it can be traced), but return a GENERIC, secret-free response to the
+// client. The request id is echoed so a client/support can quote it and an
+// operator can find the matching server log line.
 app.onError((err, c) => {
-  // Full detail is logged server-side only.
-  console.error('❌ UNHANDLED ERROR:', err);
-  console.error('Error name:', err?.name);
-  console.error('Error message:', err?.message);
-  console.error('Error stack:', err?.stack);
-  console.error('Error type:', typeof err);
-  console.error('Error stringified:', String(err));
+  const requestId = (c.get('requestId') as string | undefined) ?? 'unknown';
+  // Internal, operator-facing log — safe to include full detail here.
+  console.error(
+    `❌ UNHANDLED ERROR requestId=${requestId} method=${c.req.method} path=${c.req.path} name=${err?.name ?? 'Unknown'} message=${err?.message ?? String(err)}`,
+  );
+  if (err?.stack) console.error(err.stack);
 
-  // Never leak internal error messages, names, or stack traces to clients.
+  // Client-facing response — no error message, name, or stack leaked.
   return c.json({
-    error: 'Internal server error',
+    error: 'Internal server error.',
+    requestId,
     timestamp: new Date().toISOString(),
-    path: c.req.url,
   }, 500);
 });
 
@@ -543,6 +564,81 @@ app.get("/make-server-324f4fbe/health", async (c) => {
       error: String(err),
     }, 500);
   }
+});
+
+// ============================================================================
+// READINESS — operator-facing dependency + config snapshot (team auth required)
+// ============================================================================
+// Distinct from /health (liveness + KV): this honestly reports whether
+// required configuration and hard dependencies (config, KV, Intelligence
+// Gateway) are usable, plus optional integration status. It NEVER returns a
+// secret value — only booleans describing presence — and is auth-protected so
+// operational detail is not exposed on a public surface.
+app.get("/make-server-324f4fbe/readiness", async (c) => {
+  const userId = await verifyTeamToken(c.req.header('Authorization'));
+  if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+  // KV round-trip (best-effort; a failure is reported, not thrown).
+  let kvReachable = false;
+  try {
+    const testKey = 'readiness_check_test';
+    await kv.set(testKey, 'ok');
+    kvReachable = (await kv.get(testKey)) === 'ok';
+    await kv.del(testKey);
+  } catch (err) {
+    console.error(`Readiness KV check failed requestId=${c.get('requestId')}:`, err instanceof Error ? err.message : String(err));
+    kvReachable = false;
+  }
+
+  // Intelligence Gateway status (safe metadata only).
+  let activeProvider = 'unknown';
+  let providerHealth: Array<{
+    providerId: string;
+    status: string;
+    certificationStatus: string;
+    credentialsConfigured: boolean;
+  }> = [];
+  let credentialsConfigured = false;
+  let recent: { total: number; errors: number } | undefined;
+  try {
+    activeProvider = getIntelligenceConfig().activeProviderId;
+    providerHealth = checkAllProviderHealth().map((h) => ({
+      providerId: h.providerId,
+      status: h.status,
+      certificationStatus: h.certificationStatus,
+      credentialsConfigured: h.credentialsConfigured,
+    }));
+    credentialsConfigured =
+      providerHealth.find((h) => h.providerId === activeProvider)?.credentialsConfigured ?? false;
+    const telemetry = getRecentTelemetry(50);
+    recent = {
+      total: telemetry.length,
+      errors: telemetry.filter((t) => t.outcome === 'error').length,
+    };
+  } catch (err) {
+    console.error(`Readiness intelligence check failed requestId=${c.get('requestId')}:`, err instanceof Error ? err.message : String(err));
+  }
+
+  const report = buildReadinessReport({
+    config: {
+      supabaseUrl: Boolean(SUPABASE_URL),
+      serviceRoleKey: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+      anonKey: Boolean(SUPABASE_ANON_KEY),
+    },
+    kv: { reachable: kvReachable },
+    intelligence: {
+      activeProvider,
+      credentialsConfigured,
+      providerHealth,
+      recent,
+    },
+    integrations: {
+      email: { configured: isResendConfigured() },
+    },
+  });
+
+  const httpStatus = report.status === 'not_ready' ? 503 : 200;
+  return c.json({ requestId: c.get('requestId'), ...report }, httpStatus);
 });
 
 // ============================================================================

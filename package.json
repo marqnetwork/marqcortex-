@@ -8,6 +8,7 @@
     "dev": "vite",
     "test:smoke": "playwright test",
     "test:intelligence": "node --experimental-strip-types --test supabase/functions/server/intelligence/*.test.ts",
+    "test:observability": "node --experimental-strip-types --test supabase/functions/server/observability/*.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
