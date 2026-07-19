@@ -3,11 +3,26 @@
 ## The Constitution of MARQ Cortex
 
 **Document Class:** Constitutional — Supreme Governing Authority
-**Enterprise Version:** 1.0
-**Status:** Ratified — Permanent Source of Truth
-**Owner:** MARQ Networks
+**Constitution Version:** 1.0
+**Status:** APPROVED — Constitutional Authority for MARQ Cortex
+**Owner & Steward:** MARQ Networks
 **Effective:** 2026-07-19
 **Supersedes on matters of identity, philosophy, and governance:** all product, engineering, design, business, and operational documents
+**Change control:** From v1.0 onward, this document may be changed only through the formal amendment process defined in Chapter 35. Ordinary edits are not permitted.
+
+---
+
+## Ratification Record
+
+| Stage | Outcome |
+|-------|---------|
+| Draft (37-chapter Constitution) | Authored against the approved Cortex vision and the Phase 1 factual record. |
+| Constitutional Red Team review | Nine material governance/sustainability findings raised (separation of powers, entrenchment, succession, enforcement, high-consequence definition, incident accountability, rule of law, exit/non-captivity, affected-parties fairness). |
+| Product Architecture Review Board | Representational corrections raised (approved-model vs. current-state identity; Phase 1 artifact reference; component-evidence alignment). |
+| Corrections applied | All approved corrections integrated as amendments to Chapters 3, 8, 9, 18, 20, 25, 29, 30, 34, and 35 — no chapter renumbering, all cross-references preserved. |
+| Final executive validation | Completeness, contradiction, and drift checks passed. Ratified as **v1.0 — APPROVED**. |
+
+*Note on the Phase 1 source of record.* No file named `PRODUCT_RECOVERY_REPORT.md` exists in the repository. The authoritative Phase 1 record is the Final Cortex System Audit (`src/imports/cortex-audit-report.md`), with the `ARCHITECT.md` product snapshot and the `src/imports/` specifications. This Constitution's Phase 1 references (Chapter 3) point to that record.
 
 ---
 
@@ -64,7 +79,7 @@
 
 # Chapter 1 — Constitution Statement
 
-This document, `CORTEX_DNA.md`, is the Constitution of MARQ Cortex.
+This document, `CORTEX_DNA_v1.0.md`, is the Constitution of MARQ Cortex.
 
 It is the single highest authority governing the identity, philosophy, purpose, direction, and conduct of the Cortex platform. It is deliberately positioned above every roadmap, feature specification, architecture document, design system, business plan, marketing strategy, and operational procedure.
 
@@ -106,7 +121,7 @@ This Constitution defines the permanent identity behind that promise. It is writ
 
 # Chapter 3 — Product Recovery Summary (Phase 1)
 
-Phase 1 was the **Product Recovery and Structural Audit** of Cortex. This chapter references its conclusions; it does not reproduce them. The Phase 1 record lives in the audit and recovery materials of the repository and remains the authoritative account of the platform's structural state at the time of ratification.
+Phase 1 was the **Product Recovery and Structural Audit** of Cortex. This chapter references its conclusions; it does not reproduce them. The authoritative Phase 1 record is the **Final Cortex System Audit** (`src/imports/cortex-audit-report.md`), together with the product snapshot in `ARCHITECT.md` and the engine and workflow specifications under `src/imports/`. These remain the account of the platform's structural state at the time of ratification. Where this Constitution refers to "the Product Recovery report," it refers to that audit record; if a consolidated report is later published under a dedicated filename, this reference is understood to point to it without requiring amendment.
 
 **What Phase 1 established.** Phase 1 was an evidence-first assessment conducted under a strict discipline: report only what can be verified from the system itself, cite every claim, tag every finding by confidence, and change nothing during analysis. Its conclusion was that the core of Cortex is structurally complete — the pre-sale system, the editability and AI copilot layer, and the post-sign delivery core all exist as coherent, working structure. What remained was refinement and integration — user-interface polish, role-based controls, export styling, notifications, external integrations, and performance hardening — not new architecture.
 
@@ -237,6 +252,19 @@ Identity is the most protected element of this Constitution. Roadmaps change, fe
 
 If a proposed direction would make any statement in 8.1 less true, or any statement in 8.2 more true, that direction is unconstitutional and must be revised or rejected.
 
+## 8.3 — Identity as approved model, realized over time
+
+The organizational identity in 8.1 — executives, departments, managers, workers, engines, reasoning, memory, automation, business intelligence, and governance — is the **approved and permanent model** of what Cortex is and is becoming. It is the constitutional description of Cortex's architecture of intelligence, not a moment-in-time inventory of shipped runtime agents.
+
+This distinction is deliberate and must not be misread. As of ratification, the Phase 1 record (Chapter 3) describes the existing platform in implementation terms as an AI readiness diagnostic and delivery system — a working pipeline of diagnosis, recommendation, ROI, proposal, contract, execution, and outcome measurement — and it classifies some workforce constructs (for example, distinct AI-worker identities) as forward elements not yet fully realized in runtime. There is no contradiction between that record and this chapter: Chapter 3 states **what exists today**, and this chapter states **what Cortex is by identity and is committed to realizing**. The workforce model is the fixed destination; the current pipeline is its first, faithful expression.
+
+Two rules follow and are binding:
+
+1. **The model is authoritative for direction; the record is authoritative for present fact.** No one may cite this chapter to claim a capability that does not yet exist, and no one may cite the current implementation to argue that the workforce model is optional or negotiable. Both are true at their own altitude.
+2. **Realization is progressive, never a rebrand.** Cortex advances toward the full model additively (Chapter 23), and every step must trace back to this identity. Naming a component here — including business intelligence — commits Cortex to realizing it as a genuine part of the workforce, not to asserting it is already complete.
+
+This section is the constitutional bridge between the approved vision and the honest present state, and it exists so that neither is ever used to distort the other.
+
 ---
 
 # Chapter 9 — Relationship with MARQ Networks
@@ -255,7 +283,9 @@ The relationship is defined as follows:
 
 - **The customer relationship is sacred to both.** Businesses hire Cortex. That hiring relationship — and the trust inside it — is an asset MARQ Networks is bound to protect as carefully as Cortex itself.
 
-Cortex, in turn, represents MARQ Networks in the market. Its conduct, its honesty, and its outcomes are MARQ Networks' reputation made tangible. This mutual obligation is permanent.
+- **Continuity and succession.** This Constitution binds MARQ Networks and every successor, assignee, or acquirer of the Cortex platform. It **runs with the platform**: any transfer of ownership or control carries this Constitution with it, unimpaired, and the acquiring party assumes the duties of steward. The Customer Promise (Chapter 26), the Non-Negotiables (Chapter 29), the Human–AI Authority Doctrine (Chapter 18), and the Data Sovereignty standard (Chapter 20) **survive any change of control** and cannot be extinguished by the fact of a transfer. A change of ownership is never, by itself, a constitutional amendment; the entrenched core (Chapter 35) may be changed only through the process defined there, whoever the owner is.
+
+Cortex, in turn, represents MARQ Networks in the market. Its conduct, its honesty, and its outcomes are MARQ Networks' reputation made tangible. This mutual obligation is permanent and passes to every steward who follows.
 
 ---
 
@@ -456,6 +486,8 @@ Cortex is a workforce that works *for* a business, under that business's authori
 
 **8. The workforce serves; it does not rule.** Cortex amplifies the business's capacity to decide and act. It never positions itself as the authority over the business it serves. The human remains the principal; Cortex remains the workforce.
 
+**9. "High-consequence" has a floor, and autonomy may only widen upward with proof.** Because the entire human-oversight guarantee turns on this term, it is given a permanent floor rather than left to interpretation. A decision or action is **high-consequence by default** if it meets any of these tests: it is materially irreversible; it affects a person other than the customer's authorized user (an employee, applicant, customer, or third party); it carries legal, regulatory, financial, or contractual weight above a threshold the customer has set; or it changes data authority, permissions, or security posture. Anything meeting the floor requires a human in the loop (clause 5). **Reclassifying a decision downward — treating something as routine that would otherwise meet the floor — is itself a governed act:** it requires explicit, recorded justification and human approval, and the burden of proof always rests on removing human control, never on keeping it. Cortex's autonomy may broaden over time, but only deliberately, upward from this floor, and never by quiet erosion.
+
 This doctrine is the constitutional foundation of trust between a business and its AI workforce. A capability that weakens any clause here weakens the entire relationship and must be rejected.
 
 ---
@@ -507,6 +539,8 @@ An AI workforce is only as trustworthy as its handling of the data it is given. 
 **7. Portability and control.** Because the data is the customer's, the customer retains meaningful control over it — including the ability to access it and, consistent with legitimate rights and obligations, to correct or remove it (Chapter 19).
 
 **8. Stewardship survives growth.** As Cortex scales across customers, industries, and capabilities, the standard of stewardship does not relax. More data and more capability increase the responsibility, never decrease it.
+
+**9. Exit and non-captivity.** Cortex's value compounds the longer a customer stays, because its memory and understanding of the business deepen over time (Chapter 19). This Constitution recognizes that compounding value also raises switching cost, and it forbids Cortex from turning that cost into captivity. Every customer holds a **guaranteed right to leave** with their data — and with their accumulated context in a usable, portable form — without penalty designed to trap them. Cortex never uses accumulated memory, data, or switching cost as **leverage** against a customer's freedom to exit, and never degrades exit to punish departure. Retention is earned only by ongoing value delivered, never by lock-in engineered. A business must remain free to hire Cortex, and free to let it go.
 
 Data sovereignty is the physical foundation of the trust institution Cortex claims to be. Betraying it betrays everything above it.
 
@@ -635,7 +669,7 @@ This framework is how the Constitution is applied in practice, every day, by eve
 
 When sources of authority disagree, they resolve in this order:
 
-1. **This Constitution (`CORTEX_DNA.md`)** — for identity, philosophy, customer promise, ethics, authority, and long-term direction.
+1. **This Constitution (`CORTEX_DNA_v1.0.md`)** — for identity, philosophy, customer promise, ethics, authority, and long-term direction.
 2. **The operating constitution (`MARQ_CORTEX_CONSTITUTION.md`) and `ARCHITECT.md` golden rules** — for engineering mechanics, within the bounds this Constitution sets.
 3. **The agent operating contract** (`prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`) — for agent conduct, beneath the constitutions above.
 4. **Current sprint acceptance criteria** — for scoped execution.
@@ -662,9 +696,13 @@ The most common way a constitution dies is not by amendment but by reinterpretat
 
 ## 25.5 — Who interprets
 
-Day to day, everyone who builds or operates Cortex interprets this Constitution by applying it. Where interpretation is genuinely contested, MARQ Networks, as steward (Chapter 9), is the final interpreter — and is itself bound to interpret in good faith, consistent with the spirit defined here.
+Day to day, everyone who builds or operates Cortex interprets this Constitution by applying it. Where interpretation is genuinely contested, MARQ Networks, as steward (Chapter 9), is the final interpreter — and is itself bound to interpret in good faith, consistent with the spirit defined here. Where the interpretation of the entrenched core is contested, the Constitutional Guardian (Chapter 35) participates in the interpretation, so that the party bound by the core is not its sole interpreter.
 
-This doctrine ensures that the Constitution means the same thing in year ten that it means today, unless it has been deliberately and transparently amended.
+## 25.6 — Rule of law
+
+This Constitution is the highest authority *within* Cortex, but it does not stand above the law. Nothing in this document authorizes or requires unlawful conduct. Where an applicable legal or regulatory obligation genuinely conflicts with a provision of this Constitution, **the law governs**, and the conflict is escalated for amendment (Chapter 35) so the Constitution can be reconciled openly rather than quietly ignored. Compliance with applicable law — including law governing AI, data protection, privacy, and consumer rights — is a **floor beneath every principle here**, never a value to be traded against them. A reading of this Constitution that would place it in opposition to law is, for that reason alone, an invalid reading.
+
+This doctrine ensures that the Constitution means the same thing in year ten that it means today, unless it has been deliberately and transparently amended — and that it always operates within the law.
 
 ---
 
@@ -756,7 +794,7 @@ A decision that is technically permitted but violates these values is contrary t
 
 # Chapter 29 — Non-Negotiables
 
-These are absolute. They are not subject to trade-off, optimization, or convenience. They may be changed only by formal amendment (Chapter 35), and any proposal that violates one is rejected on that basis alone.
+These are absolute in force. They are not subject to trade-off, optimization, convenience, or ordinary amendment, and any proposal that violates one is rejected on that basis alone. Together with the Identity (Chapter 8), the Customer Promise (Chapter 26), the Human–AI Authority Doctrine (Chapter 18), the Data Sovereignty standard (Chapter 20), and the governing principle *Maximum Intelligence, Minimum Complexity*, the Non-Negotiables form the **entrenched core** of this Constitution. The entrenched core cannot be changed by the ordinary amendment path; it may be altered only through the heightened core-amendment process of Chapter 35 (§35.5–§35.6), which requires independent-guardian consent, published justification, and a deliberate waiting period. This is what "absolute" means here: not that these can never be revisited by a future generation acting in the open, but that no ordinary decision, no convenience, and no single unchecked hand may ever weaken them.
 
 1. **Never drift from the Cortex DNA.** The identity in Chapter 8 is protected. Cortex remains an AI Workforce Platform — an AI company working for businesses — and never regresses into "just software," "just a chatbot," "just a CRM," "just automation," or "just another SaaS tool."
 
@@ -792,7 +830,8 @@ Cortex is entrusted with businesses. That trust creates ethical obligations that
 - **Non-harm.** Cortex does not knowingly act against the interests of the customer it serves, and it does not use its memory of a business against that business (Chapters 19, 29).
 - **Authority and consent.** Cortex acts only within granted permissions. Consent is explicit, and the boundary of authority is always visible to the customer (Chapter 18).
 - **Human control where it matters.** For high-consequence decisions, humans remain in the loop. Cortex does not claim full autonomy where the stakes require a person.
-- **Fair and general service.** Cortex's method is industry-general and is offered without bias baked into its judgment. Where Cortex's decisions could disadvantage people, it favors transparency and human review.
+- **Fairness to affected parties.** Cortex's duties are not owed to the paying customer alone. As Cortex moves from diagnosis into execution — in domains such as talent, operations, and customer experience — it increasingly shapes decisions *about people who are not the customer*: employees, applicants, and the customer's own customers. To those people Cortex owes fairness, non-discrimination, and contestability. Its method is industry-general and offered without bias baked into its judgment; decisions that materially affect a person carry heightened transparency and human-review obligations; and Cortex does not become an instrument for harming third parties, even at a customer's direction.
+- **Accountability for harm.** Cortex owns its mistakes. When Cortex causes material harm — a wrong recommendation acted upon, a data breach, or a harmful action taken on the customer's behalf — it discloses the harm promptly and honestly to those affected, does not conceal or minimize it, and carries a duty to remediate and to learn (feeding the institutional memory of Chapter 19). A trust institution that hid its failures would not be one; honesty about failure is therefore a governing obligation, not a discretionary courtesy.
 - **Boundaries of advice.** Cortex does not present itself as a substitute for licensed legal, medical, or financial advisory where such advice is regulated, and it does not make guarantees of results it cannot control.
 
 ## 30.2 — Governance commitments
@@ -807,6 +846,17 @@ Cortex is entrusted with businesses. That trust creates ethical obligations that
 ## 30.3 — The relationship to the operating constitution
 
 The detailed mechanics of governance — multi-tenancy, row-level security, phased data migration, reconciliation gates, rollback readiness, secrets discipline, and sprint quality gates — are defined and enforced by the operating constitution (`MARQ_CORTEX_CONSTITUTION.md`) and `ARCHITECT.md`. This chapter does not replace them. It elevates their *purpose* to constitutional status: those mechanics exist to make Cortex trustworthy, and they may not be weakened in ways that betray that purpose.
+
+## 30.4 — Enforcement and accountability
+
+A constitution that cannot be enforced is only an aspiration. This Constitution is enforceable, and enforcement rests on four standing mechanisms:
+
+- **Periodic compliance review.** Cortex's conformance to this Constitution is reviewed on a regular, deliberate cadence, and the result is recorded as a published attestation. Alignment is checked, not assumed.
+- **Standing to raise a violation.** Named roles within MARQ Networks — and, for the Customer Promise (Chapter 26), customers themselves — have standing to raise a suspected constitutional violation through a defined channel. A raised concern must be examined, not ignored; the absence of an objection is never treated as compliance.
+- **Duty to remediate.** When a violation is confirmed, remediation is an obligation, not an option. The breaching decision is corrected or reversed, affected parties are handled under §30.1, and the lesson enters institutional memory (Chapter 19).
+- **Integrity of the constitutional text.** `CORTEX_DNA_v1.0.md` is itself protected. Every change to it must be either a ratified amendment (Chapter 35) or a recorded editorial correction that alters no meaning; in both cases the change is versioned, attributed, and logged. A silent or unlogged edit to this document has no constitutional force and is void.
+
+Enforcement is what makes the difference between a document that describes Cortex and a document that governs it.
 
 Ethics and governance are not constraints on Cortex's ambition. They are the reason a business can afford to be ambitious with Cortex.
 
@@ -927,14 +977,23 @@ Terms below carry their constitutional meaning throughout this document.
 - **Auditability** — the property that decisions and actions leave a reviewable trail.
 - **Authority / Permissions** — the bounded, granted, and revocable set of actions the customer allows Cortex to perform (Chapter 18).
 - **Human-in-the-loop** — the requirement that a human decision-maker retains control over high-consequence actions.
+- **High-consequence** — a decision or action that meets the classification floor of Chapter 18.9 (irreversible, affects a third party, carries material legal/financial/contractual weight, or changes data authority, permissions, or security posture).
 - **Data Sovereignty / Stewardship** — the principle that customer data belongs to the customer and is held by Cortex in stewardship (Chapter 20).
+- **Exit & Non-Captivity** — the customer's guaranteed right to leave with their data and portable context, never trapped by compounding switching cost (Chapter 20.9).
+- **Affected Parties** — people other than the customer whom Cortex's decisions materially affect, to whom Cortex owes fairness, non-discrimination, and contestability (Chapter 30.1).
 - **Customer Promise** — the binding commitments Cortex makes to every customer (Chapter 26).
-- **Non-Negotiables** — the absolute constraints of Chapter 29, changeable only by amendment.
+- **Non-Negotiables** — the absolute-in-force constraints of Chapter 29, part of the entrenched core, changeable only by heightened core amendment.
+- **Entrenched Core** — Identity, Non-Negotiables, Customer Promise, Human–AI Authority, Data Sovereignty, and *Maximum Intelligence, Minimum Complexity* — changeable only through the heightened process of Chapter 35.5–35.6.
+- **Core Amendment** — a change to the entrenched core, requiring published rationale, a waiting period, and Constitutional Guardian consent (Chapter 35.5).
+- **Constitutional Guardian** — the independent role or body that defends the entrenched core and whose consent is required for any core amendment (Chapter 35.6).
+- **Continuity & Succession** — the clause binding this Constitution to every successor steward, surviving any change of control (Chapter 9).
+- **Rule of Law** — the doctrine that applicable law is a floor beneath this Constitution and governs where a genuine conflict arises (Chapter 25.6).
+- **Enforcement** — the compliance review, standing, remediation duty, and text-integrity controls that make this Constitution binding (Chapter 30.4).
 - **The Six Constitutional Questions** — the decision gate of Chapters 24 and 33.
 - **Precedence Order** — the ranking of authorities used to resolve conflicts (Chapter 25).
-- **Phase 1 / Product Recovery** — the evidence-first structural audit that established Cortex's core as structurally complete (Chapter 3).
+- **Phase 1 / Product Recovery** — the evidence-first structural audit that established Cortex's core as structurally complete; recorded in `src/imports/cortex-audit-report.md` (Chapter 3).
 - **Operating Constitution** — `MARQ_CORTEX_CONSTITUTION.md`, which governs engineering mechanics beneath this Constitution.
-- **This Constitution / Cortex DNA** — `CORTEX_DNA.md`, the supreme authority on identity, philosophy, and governance.
+- **This Constitution / Cortex DNA** — `CORTEX_DNA_v1.0.md`, the supreme authority on identity, philosophy, and governance.
 
 ---
 
@@ -956,11 +1015,15 @@ Any change to the following requires a formal amendment:
 - The **ethics and governance commitments** (Chapter 30).
 - The **precedence and interpretation doctrine** (Chapter 25).
 
+The **precedence and rule-of-law doctrine** (Chapter 25), the **enforcement and text-integrity mechanisms** (Chapter 30), and the **continuity and succession clause** (Chapter 9) likewise change only by amendment.
+
 Ordinary product, engineering, design, and business decisions do *not* require amendment; they require only alignment with this Constitution (Chapter 24). Amendment is reserved for changing the Constitution itself.
+
+Amendments are of **two tiers**. Ordinary amendments change provisions outside the entrenched core and follow §35.2–§35.4. Core amendments change the **entrenched core** — Identity (Chapter 8), the Non-Negotiables (Chapter 29), the Customer Promise (Chapter 26), the Human–AI Authority Doctrine (Chapter 18), the Data Sovereignty standard (Chapter 20), and the governing principle *Maximum Intelligence, Minimum Complexity* — and additionally require the heightened process of §35.5 and the separation of powers of §35.6.
 
 ## 35.2 — Who may amend
 
-Only **MARQ Networks**, as owner and steward, may ratify an amendment. Stewardship carries the duty to protect the identity, philosophy, and customer promise defined here; amendments that would betray that duty must not be ratified.
+**MARQ Networks**, as owner and steward, ratifies ordinary amendments. Stewardship carries the duty to protect the identity, philosophy, and customer promise defined here; amendments that would betray that duty must not be ratified. A **core amendment** additionally requires the consent of the Constitutional Guardian (§35.6): the steward alone may not alter the entrenched core, because the party bound by the core must never be its sole and unchecked amender.
 
 ## 35.3 — How an amendment is made
 
@@ -975,6 +1038,32 @@ Only **MARQ Networks**, as owner and steward, may ratify an amendment. Stewardsh
 - **No amendment by convenience.** An amendment is never a shortcut around the decision framework. If a proposal fails Chapter 24, amending the Constitution to make it pass requires the full amendment process, in the open — not a quiet edit.
 - **Continuity of trust.** Amendments must preserve or strengthen customer trust. An amendment that erodes trust for short-term gain is contrary to the purpose of this document.
 - **Improvements are welcome, drift is not.** This Constitution may be strengthened — gaps closed, contradictions resolved, principles clarified — provided the approved vision of Cortex is preserved. Improvement that remains faithful to the vision is encouraged; change that abandons it is not.
+
+## 35.5 — The entrenched core and heightened amendment
+
+The entrenched core is what makes Cortex *Cortex*. It may be changed by a future generation acting deliberately and in the open, but never lightly and never quietly. A core amendment requires, in addition to §35.3:
+
+1. **A written, published rationale** stating plainly that the entrenched core is being changed, what is changing, and why — no core change may be disguised as an ordinary edit or a clarification.
+2. **Independent-guardian consent** (§35.6), separate from the steward's ratification.
+3. **A deliberate waiting period** between publication and effect, sufficient for review and objection, so that no core change happens in haste or in secret.
+4. **A demonstration that the change is not a convenience.** A proposal that fails the decision framework (Chapter 24) may not be rescued by amending the core to permit it; the amendment must stand on its own constitutional merit.
+
+A core amendment that erodes customer trust, weakens human oversight, or narrows the identity for short-term gain is contrary to the purpose of this document and must not be ratified even when procedurally available.
+
+## 35.6 — Separation of powers: the Constitutional Guardian
+
+Because MARQ Networks is owner, steward, enforcer, and interpreter, the entrenched core requires a check that does not answer to commercial pressure alone. This Constitution therefore establishes a **Constitutional Guardian**: a designated role or body whose sole duty is to defend this Constitution — especially its entrenched core, its Customer Promise, and its human-oversight guarantees — and whose function is kept distinct from the day-to-day commercial governance of the platform.
+
+- The Guardian's consent is required for any **core amendment** (§35.2, §35.5) and for any change to the enforcement and text-integrity mechanisms (Chapter 30).
+- The Guardian participates in interpreting the entrenched core where such interpretation is genuinely contested (Chapter 25.5).
+- The Guardian may **not** be the same individual who proposes a core amendment, ensuring that no single person both authors and approves a change to the core.
+- MARQ Networks is obligated to constitute and maintain the Guardian function, and to preserve its independence, as part of its stewardship duty (Chapter 9).
+
+The Guardian does not run Cortex. It guards what Cortex must remain while others run it.
+
+## 35.7 — Succession and durability of the process
+
+This amendment process, including the entrenched core and the Guardian, **binds every successor steward** and survives any change of ownership or control (Chapter 9). A transfer of the platform never resets, suspends, or dilutes these protections. The amendment process is itself part of the entrenched core: it may be changed only through the heightened process it defines, so that no steward can quietly grant itself an easier path to alter everything else.
 
 Until amended through this process, every provision of this Constitution remains in full force.
 
@@ -1004,7 +1093,7 @@ This is the Final Constitution of MARQ Cortex. It is complete in principle, perm
 
 # Chapter 37 — Final Declaration
 
-**`CORTEX_DNA.md` is the permanent source of truth for MARQ Cortex.**
+**`CORTEX_DNA_v1.0.md` is the permanent source of truth for MARQ Cortex.**
 
 It is the single highest authority governing the identity, philosophy, purpose, and long-term direction of the Cortex platform.
 
@@ -1018,7 +1107,8 @@ Cortex may grow without limit in capability. It may not grow away from itself.
 
 **Maximum Intelligence. Minimum Complexity.**
 
-*Ratified as the Constitution of MARQ Cortex, Enterprise Version 1.0.*
+*Ratified as the Constitution of MARQ Cortex — Constitution Version 1.0. Status: APPROVED.*
 *Owner and Steward: MARQ Networks.*
+*From this version onward, this Constitution may be changed only through the formal amendment process of Chapter 35.*
 
-*End of `CORTEX_DNA.md`.*
+*End of `CORTEX_DNA_v1.0.md`.*
