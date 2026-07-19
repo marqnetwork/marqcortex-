@@ -27,11 +27,18 @@ export const FEATURES = {
 
   /**
    * SHOW_API_ERRORS
-   * 
-   * When true: Shows error banners when API calls fail
-   * When false: Silently falls back to demo data (seamless UX)
-   * 
-   * Recommended: false for production demos, true for development/debugging
+   *
+   * Controls the VISIBILITY of error banners only — it does NOT change data.
+   *   When true:  shows a detailed error banner when an API call fails.
+   *   When false: suppresses the banner; the surface still renders an honest
+   *               empty/error state.
+   *
+   * IMPORTANT (Batch 6 — Workstream 6): this flag never causes fabricated demo
+   * data to be shown in live mode. Demo/seed data is gated by canUseDemoFallback()
+   * (src/config/runtime.ts), which is true only when BACKEND_INTEGRATION=false.
+   * A failed live request always yields an honest state — never fake data.
+   *
+   * Recommended: false for production demos, true for development/debugging.
    */
   SHOW_API_ERRORS: envFlag('VITE_SHOW_API_ERRORS', false),
 

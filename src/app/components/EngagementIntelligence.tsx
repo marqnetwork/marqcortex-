@@ -22,7 +22,7 @@ import {
   BarChart3, Target,
 } from 'lucide-react';
 import { getEngagementAnalytics, type EngagementAnalytics } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { isBackendEnabled, isVerboseLogging, canUseDemoFallback } from '@/config/runtime';
 
 // ── Colours ────────────────────────────────────────────────────────────────
 
@@ -190,10 +190,9 @@ export function EngagementIntelligence({ accessToken }: Props) {
         console.error('❌ Engagement analytics error:', err);
       }
       
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load engagement data');
-      } else {
-        // Fall back to demo data
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // isBackendEnabled() guard above early-returns demo data before the fetch).
         const demoData: EngagementAnalytics = {
           reportDelivery: {
             reportAvailable: 15,
@@ -219,6 +218,10 @@ export function EngagementIntelligence({ accessToken }: Props) {
         };
         setData(demoData);
         setLastUpdated(new Date());
+      } else {
+        // Live mode: never fabricate engagement metrics. Show an honest error state.
+        setError(err.message || 'Failed to load engagement data');
+        setData(null);
       }
     } finally {
       setIsLoading(false);

@@ -462,6 +462,26 @@ CLIENT_PORTAL_URL=https://yourapp.com/client-portal
 PDF_STORAGE_URL=https://your-cdn.com/pdfs
 ```
 
+#### Edge Function Secrets — authoritative (matches runtime as of Batch 6)
+
+Set these on the Supabase Edge Function (`supabase secrets set …` or the
+dashboard). These names are what the server code actually reads:
+
+| Secret | Required? | Behavior when missing |
+|--------|-----------|-----------------------|
+| `SUPABASE_URL` | Yes | Server cannot reach the database. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Privileged DB/auth operations fail. |
+| `SUPABASE_ANON_KEY` | Yes | Token verification degraded. |
+| `OPENAI_API_KEY` | For AI features | AI routes **fail closed** — they return an error (`OPENAI_API_KEY is not configured` / `MISSING_CREDENTIALS`). No mock/fabricated AI output is served in production. |
+| `RESEND_API_KEY` | For email | Email delivery disabled (see `emailService.ts`). |
+| `EMAIL_FROM` | Optional | Defaults to `MARQ Cortex <onboarding@resend.dev>`. |
+| `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD` | To bootstrap admin | **Fail closed (Batch 6):** the startup admin seed runs **only when both are set**. If either is missing, seeding is skipped — **no default/hardcoded admin credential is ever created**. `TEAM_ADMIN_NAME` is optional (defaults to `MARQ Admin`). |
+| `INTELLIGENCE_PROVIDER` | Optional | Defaults to `openai`. Set to `mock` only for non-production testing — never in production. |
+| `INTELLIGENCE_USE_GATEWAY_*`, `INTELLIGENCE_MODEL_*`, `INTELLIGENCE_TIMEOUT_MS`, `INTELLIGENCE_MAX_RETRIES` | Optional | Safe defaults in `intelligence/config.ts`. |
+
+> Frontend (`VITE_*`) variables never carry secrets — only the publishable
+> Supabase URL/anon key and demo/live flags. See `.env.example`.
+
 ---
 
 ### **Phase 7: Deploy Frontend (Week 3)**

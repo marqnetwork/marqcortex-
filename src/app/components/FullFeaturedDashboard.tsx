@@ -27,6 +27,7 @@ import {
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { SkeletonCardGrid, SkeletonTable } from '@/app/components/Skeletons';
 import { FEATURES } from '@/config/features';
+import { canUseDemoFallback } from '@/config/runtime';
 import { useDebounce } from '@/app/hooks/usePerformance';
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
@@ -153,18 +154,27 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
         console.log('✅ Submissions loaded:', result);
       }
       
-      const data = result.submissions?.length ? result.submissions : SEED_SUBMISSIONS;
+      // Live mode: reflect the real dataset, even when it is empty. Never
+      // substitute seed data for a genuine (but empty) backend response.
+      const data = canUseDemoFallback()
+        ? (result.submissions?.length ? result.submissions : SEED_SUBMISSIONS)
+        : (result.submissions ?? []);
       setSubmissions(data);
       setSearchableSubmissions(data);
     } catch (err: any) {
       if (FEATURES.VERBOSE_LOGGING) {
         console.error('❌ Failed to load submissions:', err);
       }
-      
+
       const errorMessage = err?.message || String(err);
-      
-      // Only show error UI if feature flag is enabled
-      if (FEATURES.SHOW_API_ERRORS) {
+
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // BACKEND_INTEGRATION guard above early-returns demo data before the fetch).
+        setSubmissions(SEED_SUBMISSIONS);
+        setSearchableSubmissions(SEED_SUBMISSIONS);
+      } else {
+        // Live mode: never fabricate submissions. Show an honest error + empty state.
         let displayError = 'Failed to load submissions from server';
         if (errorMessage.includes('Unauthorized')) {
           displayError = 'Authentication error: Please log in again.';
@@ -174,11 +184,9 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
           displayError = 'Database connection error: ' + errorMessage;
         }
         setError(displayError);
+        setSubmissions([]);
+        setSearchableSubmissions([]);
       }
-      
-      // Always fall back to demo data
-      setSubmissions(SEED_SUBMISSIONS);
-      setSearchableSubmissions(SEED_SUBMISSIONS);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

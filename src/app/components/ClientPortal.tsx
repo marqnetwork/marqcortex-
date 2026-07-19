@@ -29,7 +29,7 @@ import { ClientMessaging } from '@/app/components/ClientMessaging';
 import { ProposalViewer } from '@/app/components/ProposalViewer';
 import { StageTracker } from '@/app/components/StageTracker';
 import { EngagementActivityFeed } from '@/app/components/EngagementActivityFeed';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { isBackendEnabled, isVerboseLogging, canUseDemoFallback } from '@/config/runtime';
 import { SkeletonClientPortal } from '@/app/components/Skeletons';
 import { ClientQAReview } from '@/app/components/ClientQAReview';
 import { ClientReportDashboard } from '@/app/components/ClientReportDashboard';
@@ -204,18 +204,20 @@ export default function ClientPortal({
         console.error('❌ Failed to load client submission:', err);
       }
       
-      // Only show error if feature flag is enabled
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load your submission data.');
-      } else {
-        // Silently fall back to demo data
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // isBackendEnabled() guard above early-returns demo data before the fetch).
         if (isVerboseLogging()) {
-          console.log('📦 Falling back to demo data after error');
+          console.log('📦 Demo mode: loading demo submission');
         }
         const demoSubmission = getDemoClientSubmission({ submissionId, companyName, clientEmail });
         setSubmission(demoSubmission);
         setReportData(generateClientReport(demoSubmission));
         setIsAIPowered(false);
+      } else {
+        // Live mode: NEVER show a fabricated submission/report to a real client.
+        // Surface an honest error; leave submission unset so the error screen renders.
+        setError(err.message || 'Failed to load your submission data.');
       }
     } finally {
       setIsLoading(false);
