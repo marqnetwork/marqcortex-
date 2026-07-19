@@ -122,7 +122,7 @@ const APP_NODES: RegistryNode[] = [
     path: '/src/config/features.ts',
     type: 'CFG',
     domain: 'config',
-    description: 'Master feature flag file. BACKEND_INTEGRATION: false → all API calls bypassed, demo data served. SHOW_API_ERRORS: false → silent fallback. VERBOSE_LOGGING: false → minimal console output. THE single switch for demo↔production cutover.',
+    description: 'Master feature flag file. BACKEND_INTEGRATION: false → all API calls bypassed, demo data served (demo mode). SHOW_API_ERRORS: false → hides the error banner only (never fabricates data; live failures still render an honest empty/error state). VERBOSE_LOGGING: false → minimal console output. THE single switch for demo↔production cutover.',
     demands: [],
     supplies: ['FEATURES'],
     keyFunctions: ['FEATURES'],

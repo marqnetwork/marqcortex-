@@ -20,7 +20,7 @@ import {
   getDemoTeamMembers, getDemoTeamFallback,
   type TeamMemberRecord,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { isBackendEnabled, isVerboseLogging, canUseDemoFallback } from '@/config/runtime';
 
 interface Props {
   accessToken?: string;
@@ -75,12 +75,15 @@ export function TeamManagement({ accessToken }: Props) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load team members:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load team members');
-      } else {
-        // Fall back to demo data
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // isBackendEnabled() guard above early-returns demo data before the fetch).
         const demoMembers: TeamMemberRecord[] = getDemoTeamFallback();
         setMembers(demoMembers);
+      } else {
+        // Live mode: never fabricate a team roster. Show an honest error + empty state.
+        setError(err.message || 'Failed to load team members');
+        setMembers([]);
       }
     } finally {
       setIsLoading(false);

@@ -25,7 +25,7 @@ import {
   sendTestEmailRequest, sendWeeklyDigestRequest,
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { isBackendEnabled, isVerboseLogging, canUseDemoFallback } from '@/config/runtime';
 
 interface Props {
   accessToken?: string;
@@ -103,9 +103,9 @@ export function SettingsPage({ accessToken }: Props) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load settings:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load settings');
-      } else {
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // isBackendEnabled() guard above early-returns demo data before the fetch).
         const demoSettings: SettingsResponse = {
           success: true,
           currentUser: {
@@ -140,6 +140,11 @@ export function SettingsPage({ accessToken }: Props) {
           },
         };
         setData(demoSettings);
+      } else {
+        // Live mode: never fabricate settings or a stand-in admin identity.
+        // Show an honest error; leave data unset so no fabricated values render.
+        setError(err.message || 'Failed to load settings');
+        setData(null);
       }
     } finally {
       setIsLoading(false);

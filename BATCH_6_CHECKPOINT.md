@@ -1,7 +1,7 @@
 # MARQ Cortex — Stabilization Batch 6 Checkpoint
 
 **Branch:** `claude/marq-cortex-batch-6-resume-b6t5kc`
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-19 (Workstream 6 complete)
 **Governance:** Intelligence Gateway only · provider-independent · deterministic authority · LLM = language tasks only.
 
 ---
@@ -36,7 +36,7 @@ No work was discarded — there was none to discard.
 | 3 | Learning loop (LearningLoopPanel) | **GATED BY EXTERNAL PREREQUISITE** | Manifest: needs ≥50 closed submissions |
 | 4 | CRM integration (CRMSyncPanel) | **GATED BY EXTERNAL PREREQUISITE** | Manifest: needs CRM API credentials + webhook |
 | 5 | Storage authority & SQL cutover | **IN PROGRESS (roadmap-paced) / DEFERRED** | Roadmap at MCV2-S7.4 (Outcome Shadow Read); blanket cutover prohibited |
-| 6 | Feature flags & configuration | **NOT STARTED (this session)** | `src/config/features.ts` exists; not re-assessed |
+| 6 | Feature flags & configuration | **COMPLETE** (fixes require deployment) | Audit + fixes executed — see §8 |
 | 7 | Security & data protection | **NOT STARTED (this session)** | Not re-assessed |
 | 8 | Observability & operations | **NOT STARTED (this session)** | Not re-assessed |
 | 9 | Deployment & production readiness | **NOT STARTED (this session)** | `DEPLOYMENT_GUIDE.md` exists; not re-assessed |
@@ -133,4 +133,70 @@ core rule. Batch 5's `proposalSectionCopilot` fact-lock precedent protects autho
 5. **Workstream 10 (finish):** full manifest/API_SPECIFICATIONS reconciliation pass.
 6. **Workstream 5:** advance only the current roadmap sprint (S7.4) if in scope — no blanket cutover.
 
-**Recommended next action:** Workstream 6 (feature-flag & configuration audit) — smallest, self-contained, and unblocks honest classification of the remaining surfaces.
+**Recommended next action:** Workstream 7 (security & data protection) — see §8 for the completed Workstream 6 audit.
+
+---
+
+## 8. Workstream 6 — Feature-flag & configuration audit (COMPLETE)
+
+Scope: configuration, flags, runtime mode selection, secrets, provider config, auth
+boundaries, demo/live behavior. Fixes limited to production-safety and config accuracy.
+
+### Findings & dispositions
+
+| # | Finding | Severity | Disposition |
+|---|---------|----------|-------------|
+| F1 | `seedAdminUser()` created a Supabase admin with a **hardcoded default password** (`TEAM_ADMIN_PASSWORD \|\| 'CortexAdmin2026!'`) when the secret was unset — fail-**open**. | **LAUNCH BLOCKER** | **FIXED** — now fails closed via `resolveAdminSeed()`; seeds only when both `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD` are set, else skips with a clear log. No default credential exists. |
+| F2 | `ClientPortal` showed a **fabricated client-facing submission + report** on a live API failure. | **LAUNCH BLOCKER** | **FIXED** — live failure now surfaces an honest error screen; demo data gated behind `canUseDemoFallback()`. |
+| F3 | `FullFeaturedDashboard` substituted `SEED_SUBMISSIONS` on a live error **and** whenever a successful live response was empty. | **LAUNCH BLOCKER** | **FIXED** — live mode reflects the real (possibly empty) dataset; seed only in demo mode. |
+| F4 | `AnalyticsDashboard` fabricated analytics on live error. | **HIGH** | **FIXED** — honest error + empty state in live mode. |
+| F5 | `EngagementIntelligence` fabricated engagement metrics (`viewRate: 80`, …) on live error. | **HIGH** | **FIXED** — honest error state in live mode. |
+| F6 | `TeamManagement` fabricated a team roster on live error. | **HIGH** | **FIXED** — honest error + empty state in live mode. |
+| F7 | `SettingsPage` fabricated settings **and a stand-in admin identity** (`teamRole: 'admin'`) on live error. | **HIGH** | **FIXED** — honest error; no fabricated identity in live mode. |
+| F8 | `features.ts` / `registryData.ts` documented `SHOW_API_ERRORS=false` as "silent fallback to demo data" — misleading and dangerous framing. | **DOCUMENTATION** | **FIXED** — clarified the flag controls only the error banner and never fabricates data. |
+| F9 | `DEPLOYMENT_GUIDE.md` env section listed non-runtime names (`SENDGRID_API_KEY`, `SUPABASE_SERVICE_KEY`). | **DOCUMENTATION** | **FIXED** — added an authoritative Edge Function Secrets table matching runtime. |
+
+### Root-cause pattern (F2–F7)
+Each affected `load()` early-returns demo data when `!isBackendEnabled()`, so its
+`catch` block only ever runs in **live** mode. The former "fall back to demo data on
+error" branches therefore substituted fabricated data **exclusively in production**.
+All are now funneled through **`canUseDemoFallback()`** (`src/config/runtime.ts`),
+which is true only in demo mode — so live failures render an honest error/empty state.
+The demo branch is retained as documented defence-in-depth (unreachable in live mode).
+
+### Validations that PASSED (no change needed)
+1. Secrets are server-side only (`Deno.env`); **no secret is exposed via any `VITE_` var** (#8).
+2. AI routes **fail closed** when `OPENAI_API_KEY` is missing — legacy path throws; the
+   gateway's OpenAI adapter throws `MISSING_CREDENTIALS`; active provider is `openai`,
+   not `mock`; no auto-fallback to the mock provider (#2, #7, #9).
+3. Team routes enforce `verifyTeamToken()` → 401; client vs team auth is separated (#3).
+4. `BACKEND_INTEGRATION` / `SHOW_API_ERRORS` / `VERBOSE_LOGGING` have explicit safe
+   defaults (all `false`) via `envFlag()` (#4).
+5. LIVE manifest features require no undocumented flags; GATED features (CRM/A-B/Learning)
+   remain honestly gated (#5, #6).
+6. `ProposalViewer`, `ClientMessaging`, `TeamMessageThread` already handled live failures
+   honestly (error or empty `[]`, no fabrication) — left unchanged.
+
+### Files changed (Workstream 6)
+- **Added:** `supabase/functions/server/adminSeedPolicy.ts`, `tests/features/adminSeedPolicy.test.ts`
+- **Modified:** `src/config/runtime.ts` (+`canUseDemoFallback`), `src/config/features.ts` (doc),
+  `src/app/utils/registryData.ts` (doc), `DEPLOYMENT_GUIDE.md` (secrets table),
+  `supabase/functions/server/index.tsx` (fail-closed admin seed),
+  `src/app/components/{ClientPortal,FullFeaturedDashboard,AnalyticsDashboard,EngagementIntelligence,TeamManagement,SettingsPage}.tsx`
+
+### Tests & build (Workstream 6)
+- `adminSeedPolicy.test.ts` — **7/7 pass** (fail-closed matrix).
+- `npm run test:features` — **72/72 pass** (22 suites).
+- `npm run test:intelligence` — **8/8 pass**.
+- `npm run build` — **✓** (frontend compiles with all 6 component fixes).
+
+### Known limitations / manual actions
+- **Deployment-gated:** the fixes take effect on the next Edge Function + frontend deploy.
+  In production, **set `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD`** or no admin is seeded
+  (by design). This is a required manual action before go-live.
+- `canUseDemoFallback()` is a trivial derivation of `isDemoMode()`; it is validated by the
+  production build (not a standalone unit test) because `src/config` depends on Vite's
+  `import.meta.env` and the `@/` alias, which the node test runner does not resolve.
+- The Deno edge function (`index.tsx`) is not runnable in this environment (no Deno); the
+  changed decision logic is covered by `adminSeedPolicy.test.ts`, and the wiring is a simple
+  import + call of that tested helper.

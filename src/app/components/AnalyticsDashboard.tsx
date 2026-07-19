@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { getAnalytics, getSubmissions, type Submission } from '@/app/services/dataService';
 import { EngagementIntelligence } from '@/app/components/EngagementIntelligence';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { isBackendEnabled, isVerboseLogging, canUseDemoFallback } from '@/config/runtime';
 
 // ============================================================================
 // COLOURS
@@ -129,16 +129,20 @@ export function AnalyticsDashboard({ accessToken }: Props) {
       if (isVerboseLogging()) {
         console.error('❌ Analytics load error:', err);
       }
-      
-      if (shouldShowApiErrors()) {
+
+      if (canUseDemoFallback()) {
+        // Demo mode only (defence-in-depth; unreachable in live mode because the
+        // isBackendEnabled() guard above early-returns demo data before the fetch).
+        const demoSubmissions: Submission[] = generateDemoSubmissions();
+        setSubmissions(demoSubmissions);
+        setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
+        setLastUpdated(new Date());
+      } else {
+        // Live mode: never fabricate analytics. Show an honest error + empty state.
         setError(err.message || 'Failed to load analytics');
+        setSubmissions([]);
+        setAnalytics(null);
       }
-      
-      // Fall back to demo data
-      const demoSubmissions: Submission[] = generateDemoSubmissions();
-      setSubmissions(demoSubmissions);
-      setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
-      setLastUpdated(new Date());
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

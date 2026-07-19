@@ -36,6 +36,7 @@ import {
   type RawEscalation,
 } from "./revenueSnapshot.ts";
 import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
+import { resolveAdminSeed } from "./adminSeedPolicy.ts";
 import {
   normalizeBooking,
   migrateBookingRecord,
@@ -168,17 +169,27 @@ const supabaseAdmin = createClient(
 async function seedAdminUser() {
   try {
     console.log('🔧 Seeding admin user...');
-    // Read admin credentials from env vars with demo fallbacks
-    const adminEmail = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD') || 'CortexAdmin2026!';
-    const adminName = Deno.env.get('TEAM_ADMIN_NAME') || 'MARQ Admin';
+    // Fail closed: only seed when BOTH email and password are explicitly
+    // configured. No default/hardcoded credential is ever used (Batch 6 — W6).
+    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD');
+    const decision = resolveAdminSeed({
+      email: Deno.env.get('TEAM_ADMIN_EMAIL'),
+      password: adminPassword,
+      name: Deno.env.get('TEAM_ADMIN_NAME'),
+    });
+    if (!decision.seed) {
+      console.log(`⏭️ Admin seed skipped — ${decision.reason}`);
+      return;
+    }
+    const adminEmail = decision.email!;
+    const adminName = decision.name!;
 
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
     if (!adminExists) {
       const { error } = await supabaseAdmin.auth.admin.createUser({
         email: adminEmail,
-        password: adminPassword,
+        password: adminPassword!,
         user_metadata: { name: adminName, role: 'team', teamRole: 'admin' },
         email_confirm: true,
       });
