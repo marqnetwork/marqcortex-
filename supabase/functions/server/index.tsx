@@ -44,16 +44,27 @@ import {
 
 const app = new Hono();
 
-// CORS MUST be first to handle preflight OPTIONS requests
+// CORS MUST be first to handle preflight OPTIONS requests.
+// Production lockdown: set ALLOWED_ORIGINS (comma-separated list of exact origins,
+// e.g. "https://app.marqcortex.com,https://marqcortex.com"). When set, only those
+// origins are allowed and credentialed requests are permitted. When unset, we fall
+// back to permissive '*' WITHOUT credentials — auth uses Authorization: Bearer
+// tokens (not cookies), and the '*' + credentials:true combination is invalid per
+// the CORS spec and must never be shipped.
+const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : "*",
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
-    credentials: true,
+    credentials: ALLOWED_ORIGINS.length > 0,
   }),
 );
 
@@ -117,16 +128,17 @@ app.use('*', async (c, next) => {
 
 // Global error handler — catch any unhandled errors and return proper JSON
 app.onError((err, c) => {
+  // Full detail is logged server-side only.
   console.error('❌ UNHANDLED ERROR:', err);
   console.error('Error name:', err?.name);
   console.error('Error message:', err?.message);
   console.error('Error stack:', err?.stack);
   console.error('Error type:', typeof err);
   console.error('Error stringified:', String(err));
-  
+
+  // Never leak internal error messages, names, or stack traces to clients.
   return c.json({
-    error: `Server error: ${err?.message || err?.name || String(err)}`,
-    errorType: err?.name || 'Unknown',
+    error: 'Internal server error',
     timestamp: new Date().toISOString(),
     path: c.req.url,
   }, 500);
@@ -168,10 +180,22 @@ const supabaseAdmin = createClient(
 async function seedAdminUser() {
   try {
     console.log('🔧 Seeding admin user...');
-    // Read admin credentials from env vars with demo fallbacks
+    // Read admin credentials from env vars.
     const adminEmail = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD') || 'CortexAdmin2026!';
+    const adminPasswordEnv = Deno.env.get('TEAM_ADMIN_PASSWORD');
+    const allowDemoAdmin = Deno.env.get('ALLOW_DEMO_ADMIN') === 'true';
     const adminName = Deno.env.get('TEAM_ADMIN_NAME') || 'MARQ Admin';
+
+    // Fail closed: never create an admin account with a built-in, source-committed
+    // password. Seeding requires an explicit TEAM_ADMIN_PASSWORD, or an explicit
+    // ALLOW_DEMO_ADMIN=true opt-in for local/demo environments. Without either,
+    // skip seeding so the well-known demo credential can never exist in production.
+    if (!adminPasswordEnv && !allowDemoAdmin) {
+      console.warn('⚠️ Admin seeding skipped: set TEAM_ADMIN_PASSWORD to seed a real admin, '
+        + 'or ALLOW_DEMO_ADMIN=true for local demos. Refusing to create an account with a built-in password.');
+      return;
+    }
+    const adminPassword = adminPasswordEnv || 'CortexAdmin2026!';
 
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
@@ -273,6 +297,45 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
     console.error('   Error details:', err?.message);
     return null;
   }
+}
+
+// ============================================================================
+// HELPER — require team ADMIN role (server-side authorization)
+// ============================================================================
+// verifyTeamToken only proves a caller is an authenticated team user. Sensitive
+// team-management operations (creating members, changing roles, removing members)
+// additionally require an admin role, enforced here on the server — the frontend
+// hiding a button is not an authorization control. Roles that are explicitly
+// non-admin are rejected; 'admin'/'super_admin' and legacy-unset roles are
+// allowed (matching the existing display default of `teamRole || 'admin'`), so
+// no existing admin loses access.
+
+const NON_ADMIN_TEAM_ROLES = new Set(['viewer', 'reviewer', 'member', 'client']);
+
+async function getTeamRole(userId: string): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const role = user?.user_metadata?.teamRole;
+    return typeof role === 'string' ? role : null;
+  } catch {
+    return null;
+  }
+}
+
+type AdminAuthResult =
+  | { ok: true; userId: string }
+  | { ok: false; res: Response };
+
+/** Require an authenticated team ADMIN. Returns the caller id or a ready-to-return error response. */
+async function requireTeamAdmin(c: any): Promise<AdminAuthResult> {
+  const userId = await verifyTeamToken(c.req.header('Authorization'));
+  if (!userId) return { ok: false, res: c.json({ error: "Unauthorized" }, 401) };
+  const role = await getTeamRole(userId);
+  if (role && NON_ADMIN_TEAM_ROLES.has(role)) {
+    console.log(`🚫 requireTeamAdmin: caller ${userId} role="${role}" denied admin action`);
+    return { ok: false, res: c.json({ error: "Forbidden — team admin role required" }, 403) };
+  }
+  return { ok: true, userId };
 }
 
 // ============================================================================
@@ -2682,8 +2745,9 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
 // POST /team/invite  — create a new team member
 app.post("/make-server-324f4fbe/team/invite", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = await requireTeamAdmin(c);
+    if (!auth.ok) return auth.res;
+    const callerId = auth.userId;
 
     const { name, email, teamRole = 'viewer', tempPassword } = await c.req.json();
     if (!name || !email) return c.json({ error: "name and email are required" }, 400);
@@ -2731,8 +2795,8 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
 // PATCH /team/members/:id  — update role or name
 app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = await requireTeamAdmin(c);
+    if (!auth.ok) return auth.res;
 
     const memberId = c.req.param('id');
     const updates = await c.req.json();   // { name?, teamRole? }
@@ -2763,8 +2827,9 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
 // DELETE /team/members/:id  — remove a team member
 app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = await requireTeamAdmin(c);
+    if (!auth.ok) return auth.res;
+    const callerId = auth.userId;
 
     const memberId = c.req.param('id');
     if (memberId === callerId) return c.json({ error: "Cannot remove yourself" }, 400);
@@ -3978,6 +4043,9 @@ app.post("/make-server-324f4fbe/cortex/narrative", async (c) => {
 
 app.post("/make-server-324f4fbe/blocks/ai-assist", async (c) => {
   try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
+
     const body = await c.req.json() as BlockAIAssistRequest;
 
     const required = ['block_id', 'block_type', 'title', 'current_content', 'action', 'context'];
@@ -4020,6 +4088,9 @@ app.post("/make-server-324f4fbe/blocks/ai-assist", async (c) => {
 
 app.post("/make-server-324f4fbe/blocks/copilot-interpret", async (c) => {
   try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
+
     const body = await c.req.json() as CopilotInterpretRequest;
 
     if (!body.user_input?.trim()) {
