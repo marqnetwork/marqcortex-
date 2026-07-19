@@ -62,8 +62,8 @@
  * │  No AI service may determine an outcome. It may only narrate one.         │
  * └────────────────────────────────────────────────────────────────────────────┘
  *
- * Total nodes: 172  (PAGE ×12 · COMP ×89 · CORE ×37 · SVC ×18 · HOOK ×6 · TYPE ×9)
- * Last verified: 2026-07-19  (Batch 6 — node counts reconciled to actual)
+ * Total nodes: 172  (PAGE ×12 · COMP ×89 · CORE ×37 · SVC ×19 · HOOK ×6 · TYPE ×9)
+ * Last verified: 2026-07-19  (Batch 6 WS10 — node counts reconciled to actual; SVC breakdown corrected 18→19 so the type breakdown sums to the 172 total)
  * BACKEND_INTEGRATION: false (demo mode — target: flip to true)
  */
 
@@ -998,7 +998,7 @@ export const manifest: SystemManifest = {
       description: 'A/B testing panel for proposal variants. Tracks which proposal formats have higher acceptance rates.',
       dependencies: ['MQC-SVC-002'],
       dependents: [],
-      notes: 'Gated — not exposed in any current navigation. Will be added to AnalyticsDashboard when sufficient data volume exists.',
+      notes: 'GATED (Batch 6 WS11 certification): rendered inside EmailNurturePanel ("A/B Subject Line Testing"), but driven by the client-side emailNurtureQueue (locally seeded variants), not a production A/B backend. Activation requirement: sufficient real send-volume through MQC-SVC-002. Not production-certified for live A/B decisions. Prior "not exposed in navigation" note was stale — corrected.',
     },
 
     'MQC-COMP-060': {
@@ -1023,7 +1023,7 @@ export const manifest: SystemManifest = {
       description: 'Feedback loop panel that feeds win/loss outcomes back into the scoring model to improve future predictions.',
       dependencies: ['MQC-CORE-030', 'MQC-SVC-002'],
       dependents: [],
-      notes: 'Gated — requires minimum 50 closed submissions to produce meaningful feedback signal. Not yet exposed in UI.',
+      notes: 'GATED (Batch 6 WS11 certification): reachable via CortexDashboard insights section (activeSection === "insights"). Renders honest loading/empty/error/ready states (EmptyState) — production-safe in its gated state, no fabricated data. Activation requirement: minimum ~50 closed submissions to produce a meaningful feedback signal. Prior "not yet exposed in UI" note was stale — corrected.',
     },
 
     // ── BLOCKS / REGISTRY ────────────────────────────────────────────────────
@@ -1101,7 +1101,7 @@ export const manifest: SystemManifest = {
       description: 'CRM integration panel. Syncs submission data to external CRMs (HubSpot, Salesforce). Currently gated — integration not yet configured.',
       dependencies: ['MQC-CORE-009', 'MQC-SVC-001'],
       dependents: [],
-      notes: 'Gated until CRM API credentials are configured. crmEngine is built but the backend webhook endpoint is not yet wired.',
+      notes: 'GATED (Batch 6 WS11 certification): rendered in ProposalDraftEditor (§10 CRM Sync Layer). crmEngine is built but external CRM sync remains uncertified — activation requirement: CRM API credentials (HubSpot/Salesforce) plus the backend webhook wiring. Live certification requires those credentials and was NOT available in this environment; kept GATED (not certified LIVE). Prior wording retained in intent — remains gated pending credential configuration.',
     },
 
     'MQC-COMP-068': {
@@ -2020,7 +2020,7 @@ export const manifest: SystemManifest = {
       status: 'LIVE',
       domain: 'SYSTEM',
       filePath: 'supabase/functions/server/index.tsx',
-      description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, auth middleware, and error handling. 70 routes total (Batch 5 added POST /proposal/section-copilot and GET /analytics/revenue-snapshots).',
+      description: 'The Hono web server entry point on Supabase Edge Functions. Registers all routes, CORS, rate limiting, request-id + auth middleware, and safe error handling. 80 routes total (Batch 6 WS8 added GET /readiness; WS7 added in-handler auth to /blocks/ai-assist, /blocks/copilot-interpret and requireTeamAdmin on team-member mutations; WS8 added request/correlation-id middleware and a secret-free global error handler).',
       dependencies: ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-008', 'MQC-SVC-010', 'MQC-SVC-017', 'MQC-SVC-018'],
       dependents: [],
       notes: 'Rate limit: 120 requests/minute per IP. Add new routes by importing handlers and registering them here with the /make-server-324f4fbe/ prefix.',

@@ -1,12 +1,11 @@
 # MARQ Cortex — Batch 6 Checkpoint (Authoritative)
 
-**Status:** Phase A complete — Batch 6 integration & continuity reconciliation.
+**Status:** Phases A–E complete — integration + reconciliation + **WS10 Final Reconciliation** + **WS11 Gated Feature Certification (offline)** + final regression. Live WS11 certification (real OpenAI round-trip) remains **gated on credentials**.
 **Date:** 2026-07-19
 **Integration branch:** `claude/marq-cortex-batch-6-integration`
 **Pushed as:** `claude/marq-cortex-batch-6-integration-q63cgc` (harness-designated branch; same content)
 **Base:** `origin/main` @ `b25233a0` (`chore: untrack node_modules, dist, and test-results (#5)`)
-**HEAD:** `06126741`
-**Commits ahead of `origin/main`:** 4
+**Commits ahead of `origin/main`:** 6 (WS1, WS6, WS7, WS8, reconciliation docs, WS10+WS11)
 
 > This is the single authoritative Batch 6 checkpoint. It supersedes every
 > per-workstream `BATCH_6_CHECKPOINT.md` that existed on the isolated WS1/WS6/WS7/
@@ -89,8 +88,8 @@ because the code proving it false is now integrated.
 | WS7 | Security & Data Protection | ✅ Integrated (`bfee3014`) |
 | WS8 | Observability & Operational Readiness | ✅ Integrated (`06126741`) |
 | WS9 | Deployment & Production Readiness | ✅ Reconciled — report retained & corrected; stale findings resolved |
-| WS10 | Final Reconciliation | ⏭️ **NEXT — not started** |
-| WS11 | Gated Feature Certification | ⏳ Remains after WS10 (live AI/OpenAI certification — gated) |
+| WS10 | Final Reconciliation | ✅ Complete — manifest node-count + route-count drift reconciled; no doc contradictions remain |
+| WS11 | Gated Feature Certification | ⚠️ Offline-certified — 3 GATED UI features assessed; provider certification machinery verified. **Live OpenAI certification gated on credentials** (unavailable here) |
 
 > WS2–WS5 were reported in earlier Batch 6 activity and are not among the five
 > commits supplied for this integration; they are noted for completeness and are
@@ -132,21 +131,70 @@ because the code proving it false is now integrated.
 - protected AI routes (`ai-assist`, `copilot-interpret` require team token) — ✅
 - No SQL cutover; KV remains authoritative (no migration files changed) — ✅
 
-## 8. Unavailable live checks (reported honestly)
+## 8. WS10 — Final Reconciliation (complete)
+
+Documentation/manifest drift reconciled against the integrated code (no product
+behavior changed):
+
+| Item | Was | Now | Evidence |
+|------|-----|-----|----------|
+| `manifest.ts` header type breakdown | `SVC ×18` (breakdown summed to 171, contradicting its own `Total: 172`) | `SVC ×19` (breakdown now sums to 172) | Actual `type: 'SVC'` count = 19; total ids = 172 |
+| `honoServer` node route count | "70 routes total (Batch 5 …)" | "80 routes total" + Batch 6 additions noted | Actual `app.<verb>()` count = 80 (WS8 added `GET /readiness`; WS7 added in-handler auth) |
+| Doc contradiction scan | — | No stale "no /readiness" / "password falls back" claims remain in tracked `.md` outside the reconciled report/checkpoint | `grep` scan clean |
+
+Status/id/GATED counts unchanged (172 / 172 unique / 3 GATED) — reconciliation
+was documentation-only.
+
+## 9. WS11 — Gated Feature Certification (offline; live portion gated)
+
+**Provider certification machinery** (`intelligence/certification.ts`,
+`bootstrap.ts`) verified:
+
+- OpenAI adapter registered `Unverified`; mock registered `Testing`.
+- `runCertificationChecks()` promotes to `Certified` only when
+  `credentialsConfigured` is true (a real key) and health is available; the mock
+  maps to `Testing` and **can never reach `Certified`** → mock cannot silently
+  appear production-ready (consistent with WS8).
+- In this environment (no `OPENAI_API_KEY`, no Deno) OpenAI would resolve to
+  `Degraded`/`Unverified`, **not** `Certified`. **Live certification to
+  `Certified` is UNAVAILABLE** and is the outstanding gated item.
+
+**Three GATED UI features** assessed and manifest notes reconciled to reality
+(each still kept `GATED` — conservatively not promoted to LIVE without live
+verification):
+
+| Node | Feature | Certification finding | Activation requirement |
+|------|---------|-----------------------|------------------------|
+| `MQC-COMP-059` | ABTestingPanel | Rendered in EmailNurturePanel; driven by client-side `emailNurtureQueue`, not a production A/B backend | Real send-volume through `MQC-SVC-002` |
+| `MQC-COMP-061` | LearningLoopPanel | Reachable via CortexDashboard insights; renders honest loading/empty/error/ready states — **production-safe** in gated state | ~50 closed submissions for a meaningful signal |
+| `MQC-COMP-067` | CRMSyncPanel | Rendered in ProposalDraftEditor; `crmEngine` built, external sync uncertified | CRM API credentials + webhook wiring (unavailable here) |
+
+The stale "not exposed in navigation / not yet exposed in UI" notes were
+corrected — the panels do render, but remain gated at the data/integration layer.
+
+## 10. Unavailable live checks (reported honestly)
 
 - **Deno** — not installed; edge function not booted live (unit tests run under `node --test`).
 - **Live Supabase** — no `/health`/`/readiness` 200, auth, RLS, or `migration list --linked`.
-- **Live OpenAI** — AI gateway certification deferred to WS11 (gated).
+- **Live OpenAI** — WS11 live provider certification to `Certified` requires a real key + round-trip: **gated/unavailable**.
 - **Vercel** — build/deploy and SPA rewrite not exercised.
 
-## 9. Next step
+## 11. Next step
 
-**WS10 — Final Reconciliation** is the exact next step. It has **not** been started.
+Batch 6 offline work (WS1–WS11) is complete on this branch. The remaining items
+are **live-gated**, not code work:
 
-**WS11 — Gated Feature Certification** (live AI/OpenAI certification) **remains
-afterward** and is gated on live credentials.
+1. **WS11 live certification** — set `OPENAI_API_KEY` (+ CRM credentials for
+   `MQC-COMP-067`) and run provider certification against the live gateway to move
+   OpenAI from `Unverified`/`Degraded` → `Certified`.
+2. **Deployment** — follow `DEPLOYMENT_READINESS_REPORT.md` §7 (blockers B2/B3 +
+   admin secrets), then the live smoke checklist (§8).
+3. **WS5** — remains Deferred (Roadmap); no SQL cutover performed or planned here.
+
+No PR was opened and nothing was merged to `main`, per instruction.
 
 ---
 
-*Git evidence: branch `claude/marq-cortex-batch-6-integration-q63cgc`, HEAD
-`06126741`, 4 commits ahead of `origin/main` (`b25233a0`), working tree clean.*
+*Git evidence: branch `claude/marq-cortex-batch-6-integration-q63cgc`, base
+`b25233a0`; working tree clean after commit. HEAD hash and ahead-count recorded in
+the final report.*
