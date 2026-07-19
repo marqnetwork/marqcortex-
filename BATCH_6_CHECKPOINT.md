@@ -1,202 +1,152 @@
-# MARQ Cortex — Stabilization Batch 6 Checkpoint
+# MARQ Cortex — Batch 6 Checkpoint (Authoritative)
 
-**Branch:** `claude/marq-cortex-batch-6-resume-b6t5kc`
-**Last updated:** 2026-07-19 (Workstream 6 complete)
-**Governance:** Intelligence Gateway only · provider-independent · deterministic authority · LLM = language tasks only.
+**Status:** Phase A complete — Batch 6 integration & continuity reconciliation.
+**Date:** 2026-07-19
+**Integration branch:** `claude/marq-cortex-batch-6-integration`
+**Pushed as:** `claude/marq-cortex-batch-6-integration-q63cgc` (harness-designated branch; same content)
+**Base:** `origin/main` @ `b25233a0` (`chore: untrack node_modules, dist, and test-results (#5)`)
+**HEAD:** `06126741`
+**Commits ahead of `origin/main`:** 4
 
----
-
-## 1. Recovered starting checkpoint
-
-Batch 6 was resumed from repository state, not conversational memory. Evidence at recovery:
-
-| Signal | Finding |
-|--------|---------|
-| Branch | `claude/marq-cortex-batch-6-resume-b6t5kc` |
-| HEAD / origin/main / origin(resume) | **all identical** → `b25233a0` (`chore: untrack node_modules… (#5)`) |
-| Working tree | clean (no uncommitted, staged, or untracked work) |
-| Stash | empty |
-| Reflog | branch freshly created from `b25233a0`; no intervening commits |
-| `claude/marq-cortex-batch-6` branch | **does not exist** locally or on origin |
-| Batch 6 references in tracked files | **none** |
-| Batch 6 checkpoint/status doc | **did not exist** (this file is the first) |
-
-**Conclusion:** No prior Batch 6 work (commits, branch, uncommitted work, or docs) existed. The previous
-session left nothing to preserve. Batch 6 is effectively a fresh start on top of the merged Batch 5 baseline.
-No work was discarded — there was none to discard.
+> This is the single authoritative Batch 6 checkpoint. It supersedes every
+> per-workstream `BATCH_6_CHECKPOINT.md` that existed on the isolated WS1/WS6/WS7/
+> WS8/WS9 branches. It is derived from Git and repository evidence only.
 
 ---
 
-## 2. Workstream classification (evidence-based)
+## 1. Integrated workstream commits
 
-| # | Workstream | Status | Basis |
-|---|------------|--------|-------|
-| 1 | Remaining AI surfaces (AIAssistant, InlineAITrigger) | **RECONCILED — see below** | Executed this session |
-| 2 | A/B testing (ABTestingPanel) | **GATED BY EXTERNAL PREREQUISITE** | Manifest: not in nav; needs data volume |
-| 3 | Learning loop (LearningLoopPanel) | **GATED BY EXTERNAL PREREQUISITE** | Manifest: needs ≥50 closed submissions |
-| 4 | CRM integration (CRMSyncPanel) | **GATED BY EXTERNAL PREREQUISITE** | Manifest: needs CRM API credentials + webhook |
-| 5 | Storage authority & SQL cutover | **IN PROGRESS (roadmap-paced) / DEFERRED** | Roadmap at MCV2-S7.4 (Outcome Shadow Read); blanket cutover prohibited |
-| 6 | Feature flags & configuration | **COMPLETE** (fixes require deployment) | Audit + fixes executed — see §8 |
-| 7 | Security & data protection | **NOT STARTED (this session)** | Not re-assessed |
-| 8 | Observability & operations | **NOT STARTED (this session)** | Not re-assessed |
-| 9 | Deployment & production readiness | **NOT STARTED (this session)** | `DEPLOYMENT_GUIDE.md` exists; not re-assessed |
-| 10 | Manifest & documentation reconciliation | **IN PROGRESS** | AI-surface nodes + header node-counts reconciled this session |
+All four were cherry-picked from their origin branches onto a fresh branch cut
+from the latest `origin/main`, in logical order (WS1 → WS6 → WS7 → WS8). Every
+source commit was confirmed to exist, was **not** already in `origin/main`, and
+belongs to its stated workstream.
 
-### Why the GATED workstreams stay GATED
-Per Batch 6 governance ("Do not create fake CRM/experimentation/learning integrations… retain a
-production-safe GATED state and document the exact activation requirement"), workstreams 2–4 are **correctly
-gated by genuine external prerequisites** and must not be promoted:
+| WS | Source commit (verified) | Source branch | Integrated as | Scope |
+|----|--------------------------|---------------|---------------|-------|
+| WS1 | `a3617861e2e267a65f66890cd3445172ee8150e7` | `origin/claude/marq-cortex-batch-6-resume-b6t5kc` | `a926912c` | AI surfaces reconciled; deterministic `diagnosticAssistantHelp`; manifest update; tests |
+| WS6 | `b133d36b2a9f7635345ef1713d98eccfda4d03dc` | `origin/claude/marq-cortex-batch-6-resume-b6t5kc` | `0cad5f68` | Fail-closed admin seed policy; demo-fallback gating; stop live-mode data fabrication; tests |
+| WS7 | `79777b60c91fc5c0d8bad5b258562fd4f652f754` | `origin/claude/marq-cortex-batch-6-ws7-34tkuh` | `bfee3014` | Fail-closed admin seed; admin authz; AI-route auth; CORS allowlist; error hardening |
+| WS8 | `4990769cbbd612f32afe1d071a95e4c0533ffe81` | `origin/claude/marq-cortex-batch-6-ws8-y0y1zf` | `06126741` | Request/correlation IDs; safe error handler; `GET /readiness`; honest mock telemetry |
 
-- **ABTestingPanel (MQC-COMP-059):** activation = wired into AnalyticsDashboard once sufficient variant/
-  outcome data volume exists. No fake experiment assignment/winner logic added.
-- **LearningLoopPanel (MQC-COMP-061):** activation = ≥50 closed submissions to produce a meaningful
-  win/loss feedback signal. No fabricated learning loop added.
-- **CRMSyncPanel (MQC-COMP-067):** activation = CRM API credentials configured + backend webhook endpoint
-  wired (HubSpot/Salesforce). `crmEngine` exists; the outbound integration does not. No fake CRM sync added.
+**Base/parent verification**
 
-### Storage authority (workstream 5)
-`MARQ_CORTEX_ROADMAP.md.txt` is the single source of truth: current sprint **MCV2-S7.4 Outcome Shadow Read
-(🔄)**, storage authority = **KV**, SQL authority = **No**. A blanket SQL cutover is explicitly out of scope.
-Cutover proceeds only per the roadmap's per-domain shadow-read → validation → authority sprints (S7.4–S8.3),
-each gated by migration parity, tenant isolation, and rollback. **No KV data or fallback path was deleted.**
+- WS1 parent = `b25233a0` (origin/main HEAD) — clean.
+- WS6 parent = `a3617861` (WS1) — WS6 builds directly on WS1; cherry-picked after WS1, applied cleanly.
+- WS7 parent = `b25233a0` — independent of WS1/WS6.
+- WS8 parent = `b25233a0` — independent of WS1/WS6/WS7.
+- WS9 parent = `b25233a0` — **independent; did not contain WS1/WS6/WS7/WS8** → root cause of the contradictory findings.
+
+Only narrowly-scoped, non-merge commits were cherry-picked. No merge commits were
+picked blindly.
+
+## 2. Missing / rejected / not-integrated commits
+
+| WS | Commit | Decision | Reason |
+|----|--------|----------|--------|
+| WS9 | `86935a7a1c289b1aed257f338b538052864b5b81` | **Not cherry-picked (superseded)** | Docs-only audit produced from a branch lacking WS1/6/7/8. Its `DEPLOYMENT_READINESS_REPORT.md` **artifact is retained but rewritten** to describe the integrated state; its stale checkpoint is superseded by this file. |
+
+- **No listed commit was missing** — all five supplied hashes exist in the remote.
+- **No commit was rejected as invalid.** WS9 is reconciled, not discarded.
+- No reflog/branch search was needed to locate work, since every commit resolved.
+
+## 3. Resolved conflicts
+
+All conflicts were resolved toward the **latest secure, production-safe** behavior.
+
+| File | Conflict | Resolution |
+|------|----------|------------|
+| `supabase/functions/server/index.tsx` — `seedAdminUser()` | WS6 (`resolveAdminSeed`, no fallback) vs WS7 (`ALLOW_DEMO_ADMIN` + `CortexAdmin2026!` demo fallback) | **Took WS6's strictest policy.** Removed WS7's `ALLOW_DEMO_ADMIN` escape hatch and its `CortexAdmin2026!` fallback entirely. No code path can create an admin with a source-committed password. WS7's authz/CORS/error changes were kept. |
+| `supabase/functions/server/index.tsx` — `app.onError()` | WS7 (generic message) vs WS8 (generic message **+ requestId** correlation) | **Took WS8's superset** — generic client body plus `requestId`, full detail logged internally only. |
+| `BATCH_6_CHECKPOINT.md` | add/add on every pick | Resolved provisionally during picks; **replaced wholesale by this authoritative file.** |
+
+Non-conflicting regions (WS7 CORS allowlist, `requireTeamAdmin`, AI-route auth;
+WS8 request-ID middleware, `/readiness` route, imports, `mockProvider`,
+observability modules) merged cleanly and were verified present post-integration.
+
+## 4. WS9 contradiction reconciliation
+
+| # | WS9 finding | Classification | Basis |
+|---|-------------|----------------|-------|
+| 1 | "No `/readiness` endpoint" | **Fixed by integrated earlier work (WS8)** | `GET …/readiness` present, team-auth, 503-when-not-ready, secret-free. |
+| 2 | "`TEAM_ADMIN_PASSWORD` falls back to `CortexAdmin2026!`" | **Fixed by integrated earlier work (WS6 + WS7)** | `resolveAdminSeed()` fail-closed; no hardcoded password on any server seed path. |
+| 3 | "Startup does not fail closed" | **Partially true** | Admin seeding now fails closed. Required-Supabase-secret boot still logs-and-continues, but those vars are platform-injected — descriptive note, not a blocker. |
+| 4 | "No `BATCH_6_CHECKPOINT.md` existed" | **Stale branch artifact — fixed by WS1** | WS1 (`a3617861`) creates the file; present on the integration branch. WS9 branch lacked WS1. |
+
+`DEPLOYMENT_READINESS_REPORT.md` has been rewritten to describe the integrated
+repository state. Stale launch blocker **B1 (default admin password) was removed**
+because the code proving it false is now integrated.
+
+## 5. Workstream status (WS1–WS11)
+
+| WS | Title | Status |
+|----|-------|--------|
+| WS1 | Remaining AI Surfaces | ✅ Integrated (`a926912c`) |
+| WS2 | (prior Batch 6) | Present in history / not in Batch-6 integration scope |
+| WS3 | (prior Batch 6) | Present in history / not in Batch-6 integration scope |
+| WS4 | (prior Batch 6) | Present in history / not in Batch-6 integration scope |
+| WS5 | (prior Batch 6) | Present in history / not in Batch-6 integration scope |
+| WS6 | Feature Flags & Production Fallback Safety | ✅ Integrated (`0cad5f68`) |
+| WS7 | Security & Data Protection | ✅ Integrated (`bfee3014`) |
+| WS8 | Observability & Operational Readiness | ✅ Integrated (`06126741`) |
+| WS9 | Deployment & Production Readiness | ✅ Reconciled — report retained & corrected; stale findings resolved |
+| WS10 | Final Reconciliation | ⏭️ **NEXT — not started** |
+| WS11 | Gated Feature Certification | ⏳ Remains after WS10 (live AI/OpenAI certification — gated) |
+
+> WS2–WS5 were reported in earlier Batch 6 activity and are not among the five
+> commits supplied for this integration; they are noted for completeness and are
+> out of scope for this reconciliation (no evidence of missing work surfaced).
+
+## 6. Corrected deployment blockers
+
+- ❌ **Removed:** default admin password fallback (was WS9 B1) — resolved by WS6+WS7.
+- ✅ **Remaining (configuration, not code):**
+  - **B2** — set `VITE_BACKEND_INTEGRATION=true` (frontend defaults to demo mode).
+  - **B3** — set `OPENAI_API_KEY` for live AI (else `MISSING_CREDENTIALS`).
+  - Set `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD` if an admin account is required
+    (by design, no admin is seeded otherwise).
+- Non-blocking follow-ups: source maps, `vercel.json` + CI, migration rollback
+  coverage, `DEPLOYMENT_GUIDE.md` refresh, bundle chunking, distributed rate limiting.
+
+## 7. Tests & build results (this branch)
+
+| Check | Result |
+|-------|--------|
+| `npm run test:observability` | ✅ 14/14 |
+| `npm run test:intelligence` | ✅ 8/8 |
+| `npm run test:features` | ✅ 72/72 |
+| `npm run test:database` | ✅ 19/19 |
+| `npm run test:migration` | ✅ 36/36 |
+| `npm run build` (Vite) | ✅ PASS (~16s; chunk-size warnings only) |
+| Manifest | ✅ compiles via build; 172 entries (159 LIVE / 8 DEMO / 3 GATED / 2 SYSTEM); no duplicate IDs |
+
+**Total offline automated checks: 149 passing.**
+
+### Targeted source verification (all present)
+
+- `/readiness` route (team-auth, 503-when-not-ready, secret-free) — ✅
+- request-ID middleware (`resolveRequestId`, `X-Request-Id`) — ✅
+- global error handler (generic body + `requestId`, no leak) — ✅
+- admin seed policy (`resolveAdminSeed`, fail-closed, no hardcoded password) — ✅
+- demo-fallback policy (`canUseDemoFallback` = demo-mode only) — ✅
+- mock provider usage reporting (`usage: undefined`, no fabricated tokens) — ✅
+- protected AI routes (`ai-assist`, `copilot-interpret` require team token) — ✅
+- No SQL cutover; KV remains authoritative (no migration files changed) — ✅
+
+## 8. Unavailable live checks (reported honestly)
+
+- **Deno** — not installed; edge function not booted live (unit tests run under `node --test`).
+- **Live Supabase** — no `/health`/`/readiness` 200, auth, RLS, or `migration list --linked`.
+- **Live OpenAI** — AI gateway certification deferred to WS11 (gated).
+- **Vercel** — build/deploy and SPA rewrite not exercised.
+
+## 9. Next step
+
+**WS10 — Final Reconciliation** is the exact next step. It has **not** been started.
+
+**WS11 — Gated Feature Certification** (live AI/OpenAI certification) **remains
+afterward** and is gated on live credentials.
 
 ---
 
-## 3. Work executed this session
-
-### Workstream 1 — Remaining AI surfaces (RECONCILED)
-
-**AIAssistant (MQC-COMP-049): DEMO → LIVE.**
-- Finding: the component is **100% deterministic** — its guidance comes from keyword routing + a static
-  industry table, with **no LLM, no network, no mock bypass**. Its prior manifest dependencies on the
-  Intelligence Gateway (MQC-CORE-001) and useAI hook (MQC-HOOK-006) were **inaccurate** — it imports neither.
-- Change: extracted the deterministic logic into a new pure core module **`diagnosticAssistantHelp.ts`
-  (MQC-CORE-037)** so it is unit-testable and cleanly separated from presentation; `AIAssistant.tsx` now
-  imports it. Reclassified LIVE (works end-to-end, real deterministic output, no mock) with corrected deps
-  (`MQC-CORE-037`) and dependents (`MQC-COMP-004` DiagnosticForm).
-- Governance: the assistant only explains/guides; it never scores, prices, or determines any outcome.
-  Locked by `tests/features/diagnosticAssistantHelp.test.ts` (17 assertions incl. a determinism check and a
-  "no LLM/network import" source assertion).
-
-**InlineAITrigger (MQC-COMP-050): stays DEMO (correctly).**
-- Finding: purely presentational — it only calls `openChat()` on GlobalAIChatContext (**MQC-HOOK-006**, which
-  is the correct existing dependency). It holds no data path of its own. The panel it opens, **GlobalAIChat
-  (MQC-COMP-046), is itself DEMO** ("responses are mocked" until the `cortexChat` gateway live path is
-  validated & promoted). Promoting the trigger to LIVE would over-claim a live state that does not exist.
-- Change: corrected metadata only — added the four verified consumers as dependents
-  (`MQC-COMP-019`, `MQC-COMP-038`, `MQC-COMP-045`, `MQC-PAGE-010`) and documented the gating relationship.
-  Status intentionally unchanged. It promotes to LIVE only when GlobalAIChat does.
-
-**AI governance verification (chat path):** `cortexChat.ts` routes through the Intelligence Gateway
-(`isGatewayEnabledForFeature('chat')` → `featureBridge.gatewayGenerateChat`), which is provider-independent
-(openai + mock adapters). It is a **language-only** task (writing/tone/narrative) and explicitly honors the
-core rule. Batch 5's `proposalSectionCopilot` fact-lock precedent protects authoritative fields server-side.
-
-### Workstream 10 — Manifest reconciliation (partial)
-- Added node **MQC-CORE-037** (`diagnosticAssistantHelp`).
-- Corrected MQC-COMP-049 and MQC-COMP-050 status/deps/dependents/notes.
-- Fixed stale manifest header counts: was `158 (… SVC ×9 … TYPE ×7)`; actual is
-  **172 (PAGE ×12 · COMP ×89 · CORE ×37 · SVC ×18 · HOOK ×6 · TYPE ×9)**. Bumped `lastVerified` → 2026-07-19.
-
----
-
-## 4. Tests & builds executed
-
-| Check | Command | Result |
-|-------|---------|--------|
-| New governance test | `node --experimental-strip-types --test tests/features/diagnosticAssistantHelp.test.ts` | **17 pass / 0 fail** |
-| Full feature suite (regression) | `npm run test:features` | **65 pass / 0 fail** (20 suites) |
-| Production build | `npm run build` (after `npm install`) | **✓ built in ~12.6s** (pre-existing chunk-size warnings only) |
-| Typecheck | — | No `tsconfig.json` in repo; Vite/esbuild is the compile gate (build passed). |
-
----
-
-## 5. Files changed this session
-- **Added:** `src/app/core/diagnosticAssistantHelp.ts`, `tests/features/diagnosticAssistantHelp.test.ts`, `BATCH_6_CHECKPOINT.md`
-- **Modified:** `src/app/components/AIAssistant.tsx` (import extracted logic), `src/system/manifest.ts` (nodes + header)
-- **Deleted:** none
-
----
-
-## 6. Known risks / blockers
-- None introduced this session. AIAssistant refactor is behavior-preserving (logic moved verbatim, covered by tests + build).
-- Workstreams 6–9 (feature flags, security, observability, deployment) have **not yet been re-assessed** in Batch 6.
-- SQL cutover remains roadmap-paced; do not accelerate without the S7.x/S8.x gates.
-
----
-
-## 7. Exact remaining Batch 6 tasks (next-action order)
-1. **Workstream 6 — Feature flags & configuration:** audit `src/config/features.ts` + gateway config; confirm each DEMO/GATED surface's flag and activation requirement is documented and production-safe.
-2. **Workstream 7 — Security & data protection:** verify server-side authoritative-field protection, tenant isolation, and auth on any newly-exposed endpoints.
-3. **Workstream 8 — Observability & operations:** confirm logging/metrics/error surfaces for the gateway and storage runtime.
-4. **Workstream 9 — Deployment & production readiness:** reconcile `DEPLOYMENT_GUIDE.md` against current state; no live Supabase/Vercel/CRM verification claimed unless actually run.
-5. **Workstream 10 (finish):** full manifest/API_SPECIFICATIONS reconciliation pass.
-6. **Workstream 5:** advance only the current roadmap sprint (S7.4) if in scope — no blanket cutover.
-
-**Recommended next action:** Workstream 7 (security & data protection) — see §8 for the completed Workstream 6 audit.
-
----
-
-## 8. Workstream 6 — Feature-flag & configuration audit (COMPLETE)
-
-Scope: configuration, flags, runtime mode selection, secrets, provider config, auth
-boundaries, demo/live behavior. Fixes limited to production-safety and config accuracy.
-
-### Findings & dispositions
-
-| # | Finding | Severity | Disposition |
-|---|---------|----------|-------------|
-| F1 | `seedAdminUser()` created a Supabase admin with a **hardcoded default password** (`TEAM_ADMIN_PASSWORD \|\| 'CortexAdmin2026!'`) when the secret was unset — fail-**open**. | **LAUNCH BLOCKER** | **FIXED** — now fails closed via `resolveAdminSeed()`; seeds only when both `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD` are set, else skips with a clear log. No default credential exists. |
-| F2 | `ClientPortal` showed a **fabricated client-facing submission + report** on a live API failure. | **LAUNCH BLOCKER** | **FIXED** — live failure now surfaces an honest error screen; demo data gated behind `canUseDemoFallback()`. |
-| F3 | `FullFeaturedDashboard` substituted `SEED_SUBMISSIONS` on a live error **and** whenever a successful live response was empty. | **LAUNCH BLOCKER** | **FIXED** — live mode reflects the real (possibly empty) dataset; seed only in demo mode. |
-| F4 | `AnalyticsDashboard` fabricated analytics on live error. | **HIGH** | **FIXED** — honest error + empty state in live mode. |
-| F5 | `EngagementIntelligence` fabricated engagement metrics (`viewRate: 80`, …) on live error. | **HIGH** | **FIXED** — honest error state in live mode. |
-| F6 | `TeamManagement` fabricated a team roster on live error. | **HIGH** | **FIXED** — honest error + empty state in live mode. |
-| F7 | `SettingsPage` fabricated settings **and a stand-in admin identity** (`teamRole: 'admin'`) on live error. | **HIGH** | **FIXED** — honest error; no fabricated identity in live mode. |
-| F8 | `features.ts` / `registryData.ts` documented `SHOW_API_ERRORS=false` as "silent fallback to demo data" — misleading and dangerous framing. | **DOCUMENTATION** | **FIXED** — clarified the flag controls only the error banner and never fabricates data. |
-| F9 | `DEPLOYMENT_GUIDE.md` env section listed non-runtime names (`SENDGRID_API_KEY`, `SUPABASE_SERVICE_KEY`). | **DOCUMENTATION** | **FIXED** — added an authoritative Edge Function Secrets table matching runtime. |
-
-### Root-cause pattern (F2–F7)
-Each affected `load()` early-returns demo data when `!isBackendEnabled()`, so its
-`catch` block only ever runs in **live** mode. The former "fall back to demo data on
-error" branches therefore substituted fabricated data **exclusively in production**.
-All are now funneled through **`canUseDemoFallback()`** (`src/config/runtime.ts`),
-which is true only in demo mode — so live failures render an honest error/empty state.
-The demo branch is retained as documented defence-in-depth (unreachable in live mode).
-
-### Validations that PASSED (no change needed)
-1. Secrets are server-side only (`Deno.env`); **no secret is exposed via any `VITE_` var** (#8).
-2. AI routes **fail closed** when `OPENAI_API_KEY` is missing — legacy path throws; the
-   gateway's OpenAI adapter throws `MISSING_CREDENTIALS`; active provider is `openai`,
-   not `mock`; no auto-fallback to the mock provider (#2, #7, #9).
-3. Team routes enforce `verifyTeamToken()` → 401; client vs team auth is separated (#3).
-4. `BACKEND_INTEGRATION` / `SHOW_API_ERRORS` / `VERBOSE_LOGGING` have explicit safe
-   defaults (all `false`) via `envFlag()` (#4).
-5. LIVE manifest features require no undocumented flags; GATED features (CRM/A-B/Learning)
-   remain honestly gated (#5, #6).
-6. `ProposalViewer`, `ClientMessaging`, `TeamMessageThread` already handled live failures
-   honestly (error or empty `[]`, no fabrication) — left unchanged.
-
-### Files changed (Workstream 6)
-- **Added:** `supabase/functions/server/adminSeedPolicy.ts`, `tests/features/adminSeedPolicy.test.ts`
-- **Modified:** `src/config/runtime.ts` (+`canUseDemoFallback`), `src/config/features.ts` (doc),
-  `src/app/utils/registryData.ts` (doc), `DEPLOYMENT_GUIDE.md` (secrets table),
-  `supabase/functions/server/index.tsx` (fail-closed admin seed),
-  `src/app/components/{ClientPortal,FullFeaturedDashboard,AnalyticsDashboard,EngagementIntelligence,TeamManagement,SettingsPage}.tsx`
-
-### Tests & build (Workstream 6)
-- `adminSeedPolicy.test.ts` — **7/7 pass** (fail-closed matrix).
-- `npm run test:features` — **72/72 pass** (22 suites).
-- `npm run test:intelligence` — **8/8 pass**.
-- `npm run build` — **✓** (frontend compiles with all 6 component fixes).
-
-### Known limitations / manual actions
-- **Deployment-gated:** the fixes take effect on the next Edge Function + frontend deploy.
-  In production, **set `TEAM_ADMIN_EMAIL` + `TEAM_ADMIN_PASSWORD`** or no admin is seeded
-  (by design). This is a required manual action before go-live.
-- `canUseDemoFallback()` is a trivial derivation of `isDemoMode()`; it is validated by the
-  production build (not a standalone unit test) because `src/config` depends on Vite's
-  `import.meta.env` and the `@/` alias, which the node test runner does not resolve.
-- The Deno edge function (`index.tsx`) is not runnable in this environment (no Deno); the
-  changed decision logic is covered by `adminSeedPolicy.test.ts`, and the wiring is a simple
-  import + call of that tested helper.
+*Git evidence: branch `claude/marq-cortex-batch-6-integration-q63cgc`, HEAD
+`06126741`, 4 commits ahead of `origin/main` (`b25233a0`), working tree clean.*
