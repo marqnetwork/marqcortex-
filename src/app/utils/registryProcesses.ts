@@ -166,7 +166,7 @@ export const PROCESSES: MQCProcess[] = [
     outcome: 'JWT access_token stored in React state, team dashboard rendered, seedAdminUser ran on cold start',
     featureFlag: 'BACKEND_INTEGRATION',
     status: 'stable',
-    notes: 'Default credentials: admin@marqcortex.com / CortexAdmin2026! (set by MQC-FN-008 on cold start). If BACKEND_INTEGRATION=false, login is bypassed and demo data loads.',
+    notes: 'Admin is seeded only when TEAM_ADMIN_PASSWORD is set (or ALLOW_DEMO_ADMIN=true for local demos) — no built-in password is ever seeded in production. If BACKEND_INTEGRATION=false, login is bypassed and demo data loads.',
   },
   {
     id: 'MQC-PRC-007',
