@@ -62,8 +62,8 @@
  * │  No AI service may determine an outcome. It may only narrate one.         │
  * └────────────────────────────────────────────────────────────────────────────┘
  *
- * Total nodes: 158  (PAGE ×12 · COMP ×89 · CORE ×35 · SVC ×9 · HOOK ×6 · TYPE ×7)
- * Last verified: 2026-03-05
+ * Total nodes: 172  (PAGE ×12 · COMP ×89 · CORE ×37 · SVC ×18 · HOOK ×6 · TYPE ×9)
+ * Last verified: 2026-07-19  (Batch 6 — node counts reconciled to actual)
  * BACKEND_INTEGRATION: false (demo mode — target: flip to true)
  */
 
@@ -71,7 +71,7 @@ import type { SystemManifest } from './types';
 
 export const manifest: SystemManifest = {
   version: '2.0.0',
-  lastVerified: '2026-07-11',
+  lastVerified: '2026-07-19',
   coreRule: 'Math decides priority. LLM only explains decisions.',
   backendIntegration: false,
 
@@ -864,12 +864,13 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-049',
       name: 'AIAssistant',
       type: 'COMP',
-      status: 'DEMO',
+      status: 'LIVE',
       domain: 'AI',
       filePath: 'src/app/components/AIAssistant.tsx',
-      description: 'General-purpose AI assistant component that can be embedded in any panel to answer contextual questions about the current submission.',
-      dependencies: ['MQC-CORE-001', 'MQC-HOOK-006'],
-      dependents: [],
+      description: 'In-diagnostic assistant widget mounted in DiagnosticForm. Surfaces contextual guidance, progress encouragement, and quick-answer suggestions as the user moves through the questionnaire.',
+      dependencies: ['MQC-CORE-037'],
+      dependents: ['MQC-COMP-004'],
+      notes: 'Batch 6 (2026-07-19): reconciled. Prior manifest deps on the Intelligence Gateway (MQC-CORE-001) and useAI hook (MQC-HOOK-006) were inaccurate — the component uses neither. Guidance is 100% deterministic via diagnosticAssistantHelp (MQC-CORE-037): pure keyword routing + a static industry table, no LLM and no network. It works end-to-end with no mock bypass, so it is LIVE by the manifest definition. Governance: the assistant only explains/guides; it never determines any authoritative outcome.',
     },
 
     'MQC-COMP-050': {
@@ -879,9 +880,10 @@ export const manifest: SystemManifest = {
       status: 'DEMO',
       domain: 'AI',
       filePath: 'src/app/components/InlineAITrigger.tsx',
-      description: 'Small trigger button that opens the AI assistant inline within a specific form field or section. Provides contextual AI help without leaving the flow.',
+      description: 'Pill-shaped "Generate: [action]" trigger (plus the AIToolbar row helper) that opens the Global AI Chat pre-loaded with section context and an optional quick prompt.',
       dependencies: ['MQC-HOOK-006'],
-      dependents: [],
+      dependents: ['MQC-COMP-019', 'MQC-COMP-038', 'MQC-COMP-045', 'MQC-PAGE-010'],
+      notes: 'Batch 6 (2026-07-19): reconciled. Purely presentational — it only calls openChat() on GlobalAIChatContext (MQC-HOOK-006); it holds no data path of its own. Wiring verified in ProposalDraftEditor, TeamHomeDashboard, CortexDashboardSections, and SystemArchitecture. Stays DEMO to stay consistent with the panel it opens (GlobalAIChat, MQC-COMP-046, still DEMO — chat responses are mocked until the cortexChat gateway live path is validated & promoted). The trigger itself needs no further wiring; it promotes to LIVE only when GlobalAIChat does.',
     },
 
     'MQC-COMP-051': {
@@ -1881,6 +1883,19 @@ export const manifest: SystemManifest = {
       dependencies: [],
       dependents: ['MQC-COMP-021', 'MQC-SVC-001'],
       notes: 'Batch 5. Fact-lock policy here mirrors supabase/functions/server/proposalSectionCopilot.ts (defence-in-depth). AI never determines authoritative values.',
+    },
+
+    'MQC-CORE-037': {
+      id: 'MQC-CORE-037',
+      name: 'diagnosticAssistantHelp',
+      type: 'CORE',
+      status: 'LIVE',
+      domain: 'DIAGNOSTIC',
+      filePath: 'src/app/core/diagnosticAssistantHelp.ts',
+      description: 'Deterministic contextual-help generator for the in-diagnostic AIAssistant. Maps the current question / progress / industry to a guidance message via pure keyword routing and a static industry table.',
+      dependencies: [],
+      dependents: ['MQC-COMP-049'],
+      notes: 'Batch 6. Extracted from AIAssistant.tsx so the deterministic guidance is unit-testable. Contains NO LLM call, NO network I/O, NO randomness — same inputs always yield the same output. Governance: the assistant explains/guides; it never scores, prices, or determines any authoritative outcome. Locked by tests/features/diagnosticAssistantHelp.test.ts.',
     },
 
     // ══════════════════════════════════════════════════════════════════════════
