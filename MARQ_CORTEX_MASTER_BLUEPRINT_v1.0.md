@@ -3,22 +3,28 @@
 **Document:** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0`
 **Class:** Enterprise Master Blueprint — Definitive Source of Truth
 **Owner & Steward:** MARQ Networks
-**Status:** Part I LOCKED · Part II LOCKED · Part III IN PROGRESS
+**Status:** Part I LOCKED · Part II LOCKED · Part III IN PROGRESS · Parts IV–VI PLANNED
 **Governing authority:** Subordinate to `CORTEX_DNA_v1.0.md` (Part II). Where this blueprint and the Constitution conflict on identity, philosophy, or governance, the Constitution prevails (Part II, Chapter 25).
+**Master rule:** The Master Blueprint is the authority; the codebase is the implementation. On conflict, Blueprint first, code second. Every future feature must exist in this Blueprint before implementation.
 
 ---
 
 ## How this document is organized
 
-This Master Blueprint is a single, continuous document composed of three Parts. Together they are intended to be complete enough that, if all source code were permanently lost, a world-class engineering organization could faithfully rebuild MARQ Cortex from these three Parts alone.
+This Master Blueprint is a single, continuous, permanent document composed of **six Parts**. It is never split into separate documents. Together, the six Parts are intended to be complete enough that, if all source code were permanently lost, a world-class engineering organization could faithfully rebuild MARQ Cortex — and its approved future — from this document alone.
 
 | Part | Phase | Subject | Status |
 |------|-------|---------|--------|
 | **Part I** | Phase 1 | Product Recovery — the verified structural state of the platform | **LOCKED** |
 | **Part II** | Phase 2 | Cortex DNA — the Constitution: identity, philosophy, governance | **LOCKED** |
 | **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **IN PROGRESS** |
+| **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **PLANNED** |
+| **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **PLANNED** |
+| **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **PLANNED** |
 
-**Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. Part III cross-references them (Golden Rules 1 and 8) and never contradicts them.
+Parts IV, V, and VI are approved elements of the final architecture and are reserved in this structure; they are authored in later phases and appended to this same document with continuous numbering. Until written, they exist as PLANNED placeholders in this table only — no content is invented ahead of its phase (Golden Rule 5).
+
+**Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
 ---
 
@@ -947,4 +953,801 @@ Engine inventory by domain (file → domain):
 
 ---
 
-*Part III continues. Next pass: III-43 (Permissions) through multi-tenancy, billing, notifications, reporting/analytics, administration, and the rules/quality sections, maintaining continuous numbering.*
+## III-43 — Permissions
+
+**Why it exists.** Permissions are the atomic units of authority — the finest grain at which "never execute beyond approved permissions" (DNA Ch 29.6) is enforced.
+
+**CURRENT STATE (PARTIAL).** Effective permissions today are expressed at two levels: (1) **endpoint auth scheme** (ANON/TEAM_TOKEN/CLIENT_TOKEN) enforced by the edge, and (2) **UI capability gating** driven by `roleEngine` + `user_metadata.teamRole` (e.g., who sees reviewer/revenue panels, who can manage team members). A formal permission catalog exists in the relational foundation (`permissions`, `role_permissions`) but is **not yet enforced at runtime**. Client permissions are implicit and scoped to one `submissionId`.
+
+**Inputs/Outputs.** In: actor token + role. Out: allow/deny per route; visible/hidden per UI action.
+
+**Business/Validation rules.** Least privilege; deny by default on protected routes; high-consequence actions require human authorization regardless of permission (DNA Ch 18.9).
+
+**Failure/Recovery.** Unauthorized → `401/403`; missing UI gating is a known polish item (role-based UI controls, Part I "what's left").
+
+**APPROVED FUTURE STATE.** Enforced relational permission checks per action (e.g., `proposal.send`, `scope.accept`, `member.remove`, `org.settings.write`), org-scoped, surfaced consistently in UI and API.
+
+**Traceability.** DNA Ch 18/29 · Operating Constitution Art. 5/8 · Objective: least-privilege enforcement · Module: RBAC · Workflow: §III-31 · Engine: `roleEngine` · AI: n/a · Roadmap: enforced permissions.
+
+---
+
+## III-44 — Multi-Tenancy
+
+**Why it exists.** Tenant isolation is a data-stewardship non-negotiable: one customer's data must never be exposed to another (DNA Ch 20.3; Operating Constitution Art. 5).
+
+**CURRENT STATE (PARTIAL).** The tenant boundary is the **organization**. The relational foundation implements org scoping with mandatory RLS on tenant and diagnostic tables via `cortex.*` helper functions (`supabase/migrations/20260711050000_*`, `20260714050001_*`). At runtime, KV remains authoritative and tenant scoping is enforced at the application layer with org context seeded manually; relational RLS provides defense-in-depth once authoritative. Service-role bypass is restricted to migration/backfill/platform-admin with explicit org scoping in engine logic.
+
+**Business rules.** All relational business data is organization-scoped; RLS is mandatory; no cross-tenant reads; service-role use is bounded and scoped (Operating Constitution Art. 5; DNA Ch 20). Memory is isolated per organization (DNA Ch 19.5; §III-20).
+
+**Failure/Recovery.** RLS denies unscoped access; migration reconciliation ensures no tenant data is dropped or crossed (quarantine on anomaly). Anon-policy hardening migration (`20260714060000_*`) tightens public access.
+
+**APPROVED FUTURE STATE.** Organization-scoped RLS as the primary, enforced runtime isolation after SQL cutover (§III-37); per-org configuration, memory, billing, and licensing keyed to the tenant.
+
+**Traceability.** DNA Ch 19/20 · Operating Constitution Art. 5 · Objective: absolute isolation · Module: tenancy · Workflow: §III-9/45 · Engine: repositories · AI: n/a · Roadmap: enforced RLS.
+
+---
+
+## III-45 — Organizations
+
+**Why it exists.** The organization is the unit a business "is" inside Cortex — the owner of data, members, settings, and (future) billing.
+
+**CURRENT STATE (PARTIAL).** Entities: `organizations`, `organization_memberships` (user↔org with role), `organization_settings`. Membership bootstrap is currently manual (seed), documented in `architecture/database/MEMBERSHIP_BOOTSTRAP.md`. Team auth carries org/role via Supabase `user_metadata` today; relational membership is the target model.
+
+**Inputs/Outputs.** In: org creation/membership/settings operations (schema-level today). Out: scoped tenant context.
+
+**Business rules.** Every member belongs to an organization; settings are org-scoped; org context governs data visibility (DNA Ch 20).
+
+**APPROVED FUTURE STATE.** Self-serve organization creation, member invitation/management, and settings management as first-class runtime flows post-cutover; org lifecycle per §III-9.
+
+**Traceability.** DNA Ch 20 · Operating Constitution Art. 5 · Objective: tenant identity · Module: tenancy · Workflow: §III-9 · Engine: `tenancyRepository` · AI: n/a · Roadmap: self-serve org.
+
+---
+
+## III-46 — Billing
+
+**Why it exists.** Cortex is a commercial product hired by businesses; billing captures the value exchange (DNA Ch 21 — business philosophy; durable over extractive).
+
+**CURRENT STATE (NOT IMPLEMENTED).** There is **no billing system** in the codebase — no payment provider, no subscription entities, no invoicing. Commercial terms today are handled out-of-band (the platform's own generated **contract**, §III-23, documents the engagement's commercial scope, but is not a billing engine). This is stated plainly to avoid any undocumented assumption.
+
+**APPROVED FUTURE STATE.** Per-organization billing (subscription and/or engagement-based) tied to licensing (§III-47), honoring the constitutional constraints: measurable, honest value; no extraction via lock-in; guaranteed exit/portability (DNA Ch 20.9, 21.5–21.6). Billing must never gate a customer's right to leave with their data.
+
+**Business rules (future, constitutional).** Pricing and packaging must not weaponize switching cost (DNA Ch 20.9); value claims must be honest and measurable (DNA Ch 21.5).
+
+**Traceability.** DNA Ch 20.9/21 · Objective: sustainable monetization · Module: (future) billing · Workflow: §III-9 · Engine: n/a · AI: n/a · Roadmap: billing system.
+
+---
+
+## III-47 — Licensing
+
+**Why it exists.** Licensing governs which capabilities an organization may use — the mechanism behind progressive complexity tiers (DNA Ch 14).
+
+**CURRENT STATE (NOT IMPLEMENTED).** No entitlement/licensing system exists in code. Capability availability today is effectively uniform per authenticated role; there are no per-tenant feature entitlements beyond feature flags (`features.ts`) which are build/environment-level, not per-organization.
+
+**APPROVED FUTURE STATE.** Per-organization entitlements enabling the progressive-complexity model — beginner → growing → power user → enterprise — where advanced capability unlocks only when it creates value (DNA Ch 14). Entitlements tie to billing (§III-46) and never raise the floor of simplicity (DNA Ch 14 rule 3).
+
+**Traceability.** DNA Ch 14 · Objective: value-aligned capability disclosure · Module: (future) entitlements · Workflow: §III-7 personas · Engine: n/a · AI: n/a · Roadmap: licensing/entitlements.
+
+---
+
+## III-48 — Notifications
+
+**Why it exists.** Notifications keep operators and clients informed of events that need attention (new submission, message, status change) without forcing them to watch dashboards.
+
+**CURRENT STATE (PROVEN).**
+- **In-app notifications:** stored in KV; read via `getNotifications`, cleared via `markNotificationsRead`; created on key events (submission created, message posted).
+- **Email notifications:** via Resend (`emailService.ts`); team alerts on lead capture and new submission, gated by preference flags (e.g., `newSubmission`).
+- **Preferences:** platform/notification preferences via settings (`getPlatformSettings/savePlatformSettings`).
+
+**Inputs/Outputs.** In: event + preference. Out: KV notification and/or email.
+
+**Business rules.** Notifications respect user preference gates; side effects are synchronous with the triggering write (§III-32).
+
+**Failure/Recovery.** Email send failures are surfaced/logged; no durable retry beyond the manual email queue (§III-33) — a known limitation.
+
+**APPROVED FUTURE STATE.** Slack/email/in-app alerts for tasks/incidents/QBR (Part I "what's left"); durable, retriable delivery via the future eventing/job layer (§III-32/33); per-role subscription policies.
+
+**Traceability.** DNA Ch 22/30 · Objective: timely awareness · Module: notifications/email · Workflow: §III-30/32 · Engine: `crmEngine` · AI: n/a · Roadmap: multi-channel durable notifications.
+
+---
+
+## III-49 — Reporting
+
+**Why it exists.** Reports are the client-facing artifacts that convey diagnosis, solution, readiness, and strategy — the deliverables that make value legible (DNA Ch 10 outcomes-over-outputs).
+
+**CURRENT STATE (PROVEN).**
+- **Client reports:** readiness report and strategic report surfaced in the portal (`ClientReadinessReport`, `ClientReportDashboard`, strategic report tab); generated via `dataService.generateClientReport`/`getClientReport`; relational entities `reports`, `report_versions`.
+- **Proposal/export documents:** executive summary PDF, full technical proposal PDF, contract attachment — produced by the export engine from the **immutable snapshot** only (`exportEngine.ts`, `utils/pdfExport.ts` dynamic import; `proposal-p2-implementation.md` structured export order).
+- **Readiness gating:** the readiness-report tab is locked until the report is ready (`ARCHITECT.md` §10).
+
+**Business/Validation rules.** Exports read only from the frozen snapshot; export blocked if `roi_recalc_required | !validation_passed | contract_invalidated`; structured export order enforced (cover → executive brief → diagnosis → solutions → timeline → financials → governance/assumptions → next steps/signature).
+
+**Failure/Recovery.** Export blockers return actionable reasons; PDF generation isolated via dynamic import to avoid bundle bloat.
+
+**APPROVED FUTURE STATE.** Premium PDF export styling templates (Part I "what's left"); additional report types; per-org branding.
+
+**Traceability.** DNA Ch 10 · Objective: legible deliverables · Module: reporting/proposal/export · Workflow: §III-29 · Engine: `exportEngine`, `snapshotEngine` · AI: narrative assist · Roadmap: export styling.
+
+---
+
+## III-50 — Analytics
+
+**Why it exists.** Analytics turn platform activity into insight for operators and, in future, for clients (business intelligence — DNA Ch 8).
+
+**CURRENT STATE (PROVEN).**
+- **Engagement analytics:** `trackEngagement` + `getEngagementSummary/getEngagementAnalytics` over the engagement log.
+- **Platform analytics:** `getAnalytics`; aggregated by `dashboardAggregator` and surfaced in `AnalyticsDashboard`.
+- **Portfolio/revenue intelligence:** `portfolioEngine`, `RevenueIntelligenceDashboard`.
+- **Legacy portfolio (mock, non-LLM):** `CortexDashboard → cortexDataService → mockCortexData` for portfolio visualization (`ARCHITECT.md` §7).
+
+**Inputs/Outputs.** In: engagement/submission/proposal data. Out: aggregated metrics, charts (recharts).
+
+**Business rules.** Analytics are derived/deterministic; AI may narrate trends but not fabricate figures (DNA Ch 17).
+
+**APPROVED FUTURE STATE.** Per-organization business intelligence as a realized workforce component (DNA Ch 8); predictive/opportunity analytics feeding QBR; relational-backed analytics post-cutover.
+
+**Traceability.** DNA Ch 8/17 · Objective: activity→insight · Module: analytics · Workflow: §III-30 · Engine: `dashboardAggregator`, `portfolioEngine` · AI: narrate · Roadmap: BI component.
+
+---
+
+## III-51 — Dashboards
+
+**Why it exists.** Dashboards are the primary operator and client surfaces — where capability is presented simply (DNA Ch 11).
+
+**CURRENT STATE (PROVEN).**
+- **Team dashboard** (`TeamDashboardNew` in `TeamDashboardLayout`): panels `dashboard` (`TeamHomeDashboard`), `cortex` (`CortexDashboard`), `team` (`TeamManagement`), `settings` (`SettingsPage`), `reviewer` (`ReviewerDashboard`), `analytics` (`AnalyticsDashboard`), `emails` (`EmailNurturePanel`), `revenue` (`RevenueIntelligenceDashboard`), `mapping` (`MappingEnginePanel`), plus hash-routed `execution` and `architecture`. Shell provides sidebar, command palette, notifications, global AI chat.
+- **Execution dashboard** (`ExecutionDashboard`, `#/team/execution`): workstreams/milestones/tasks/gates.
+- **Client portal** (`ClientPortal`): 8 fixed tabs (§III-28).
+- **Developer dashboards:** `#/architecture` (`SystemArchitecture`), `#/registry` (`RegistryViewer`).
+
+**Business/Validation rules.** Fixed provider nesting and fixed client-tab order are product decisions (§III-27). Pipeline kanban positions persist per operator (`DashboardContext` → localStorage; server positions via API).
+
+**APPROVED FUTURE STATE.** Progressive-complexity dashboards per tier (DNA Ch 14); client-facing analytics; NL/voice command surfaces (DNA Ch 15–16).
+
+**Traceability.** DNA Ch 11/13/14 · Objective: simple presentation of capability · Module: dashboards · Workflow: §III-28/30 · Engine: `dashboardAggregator` · AI: global chat · Roadmap: progressive dashboards.
+
+---
+
+## III-52 — Administration
+
+**Why it exists.** Administration lets operators manage the platform, team, and configuration safely (DNA Ch 30 governance).
+
+**CURRENT STATE (PROVEN).**
+- **Team administration:** `TeamManagement` panel + member CRUD (`getTeamMembers/inviteTeamMember/updateTeamMember/removeTeamMember`).
+- **Platform settings:** `SettingsPage` + `getPlatformSettings/savePlatformSettings` (notification prefs, platform config).
+- **System administration/inspection:** `#/registry` (manifest viewer), `#/architecture` (system diagram), health/diagnostics endpoints.
+
+**Business rules.** Member/role changes are high-risk (auth) and require review (Operating Constitution Art. 8); settings changes are audited via notes/engagement where applicable.
+
+**APPROVED FUTURE STATE.** Org-scoped admin console (members, roles, entitlements, billing, org settings) post-cutover; platform-admin tooling with explicit scoping (DNA Ch 20).
+
+**Traceability.** DNA Ch 30 · Operating Constitution Art. 8 · Objective: safe management · Module: admin · Workflow: §III-30 · Engine: `roleEngine` · AI: n/a · Roadmap: org admin console.
+
+---
+
+## III-53 — Configuration
+
+**Why it exists.** Configuration controls runtime behavior across environments without code changes — the seam between build and deployment.
+
+**CURRENT STATE (PROVEN).**
+- **Frontend feature flags** (`src/config/features.ts`): `BACKEND_INTEGRATION` (demo vs live, default false), `SHOW_API_ERRORS` (default false), `VERBOSE_LOGGING` (default false); overridable via `VITE_*` env in `.env.local`.
+- **API config** (`config/api.config.ts`): endpoint definitions; **runtime config** (`config/runtime.ts`).
+- **Supabase info** (`utils/supabase/info.tsx`): `projectId`, `publicAnonKey`.
+- **Intelligence Gateway config** (edge secrets/env): `INTELLIGENCE_PROVIDER`, `INTELLIGENCE_TIMEOUT_MS`, `INTELLIGENCE_MAX_RETRIES`, `INTELLIGENCE_USE_GATEWAY_*`, model overrides.
+- **Env template:** `.env.example`.
+
+**Business rules.** Secrets never in config committed to VCS (Operating Constitution Art. 13); demo mode must never call providers/edge from engines.
+
+**APPROVED FUTURE STATE.** Per-organization runtime configuration (entitlements, branding, notification policy) as data, not build flags (§III-47).
+
+**Traceability.** Operating Constitution Art. 13 · DNA Ch 14 · Objective: environment control · Module: config · Workflow: §III-72/73 · Engine: n/a · AI: gateway config · Roadmap: per-org config.
+
+---
+
+## III-54 — Business Rules
+
+**Why it exists.** This section consolidates the authoritative, deterministic business rules that define correct behavior, so they cannot be lost or reinterpreted (Golden Rule 10). Rules are specified where they operate (§III-5/22/29) and indexed here.
+
+**CURRENT STATE (PROVEN — canonical rules).**
+1. **Recommendation qualification:** create a recommendation iff `problem_density ≥ 6 AND impact_potential ≥ 6`.
+2. **Priority ranking:** `priority = impact×0.4 + automation_feasibility×0.3 + problem_density×0.2 − risk_exposure×0.1`, sorted descending.
+3. **Portfolio guardrail:** 5–7 recommendations max; keep top 7 by priority.
+4. **Execution sequencing:** constraints before optimization; bottlenecks before growth; stabilize data before advanced AI; reduce risk before scaling spend.
+5. **Dependency mapping:** auto-detect `required_before` from shared KPIs/systems.
+6. **Proposal Ready Gate:** all boardroom checks must pass to leave `draft` (§III-22).
+7. **Snapshot immutability:** freeze on send with `version_hash`; post-snapshot edits increment `version_number`; exports read only from snapshot.
+8. **Export safety:** blocked if `roi_recalc_required | !validation_passed | contract_invalidated`.
+9. **Math authority:** deterministic engines own numbers; AI never overrides (DNA Ch 17).
+10. **Human authority:** high-consequence actions require human authorization (DNA Ch 18.9).
+11. **Tenant scoping:** all business data organization-scoped; RLS mandatory on tenant/diagnostic tables.
+12. **Runtime authority:** KV authoritative until per-domain cutover; no authority change without reconciliation + review.
+
+**APPROVED FUTURE STATE.** Additional domain-calibrated rules per industry; entitlement-gated rule variations (never weakening trust or simplicity).
+
+**Traceability.** DNA Ch 6/17/18/20 · Operating Constitution Art. 4/5/6/17 · Objective: correctness preserved · Modules: all · Workflow: §III-29 · Engines: all deterministic · AI: none authoritative · Roadmap: industry rule packs. Sources: `src/imports/cortex-rules.md`, `phase1-gate-criteria.md`, `proposal-p2-implementation.md`.
+
+---
+
+## III-55 — Validation Rules
+
+**Why it exists.** Validation protects data integrity and content quality at every boundary (input, gate, export).
+
+**CURRENT STATE (PROVEN).**
+- **Input validation (API):** email required on lead/submission (`400` otherwise); idempotent exit-intent; auth field presence on login (`400`); token validity (`401`).
+- **Content validation (Ready Gate):** executive brief ≥600 words, ≥2 quantified statements, no vague phrases; ≥3 diagnosis blocks with root cause + system explanation + financial translation + evidence + severity + confidence ≥70; ≥1 High/Critical; no duplicate financial impact; each diagnosis maps to a solution with defined exposure; bounded scope excluding regulated advisory + full-autonomy claims; readability limits; strategic coherence (`phase1-gate-criteria.md`).
+- **Export validation:** recalc/validation/contract checks (§III-54 rule 8).
+- **Form validation (UI):** `react-hook-form` on inputs; diagnostic completeness.
+- **Cross-engine validation:** `consistencyValidator`.
+
+**Failure/Recovery.** Validation failures return actionable messages and hold state (draft/blocked); UI surfaces field errors.
+
+**APPROVED FUTURE STATE.** Schema-level validation at the relational layer (constraints + RLS) as authority moves to SQL; richer content-quality scoring.
+
+**Traceability.** DNA Ch 17/30 · Operating Constitution Art. 8 · Objective: integrity + quality · Modules: diagnostic/proposal/export · Workflow: §III-29 · Engines: `proposalGateEngine`, `consistencyValidator` · AI: n/a · Roadmap: relational constraints.
+
+---
+
+## III-56 — Error Handling
+
+**Why it exists.** Graceful error handling preserves trust and keeps the product usable under failure (DNA Ch 11 experience; Ch 30.1 accountability).
+
+**CURRENT STATE (PROVEN).**
+- **Boot/render errors:** `main.tsx` mount guard + global error UI; `ErrorBoundary` in `RootLayout` renders a fallback rather than a white screen.
+- **API errors:** governed by `SHOW_API_ERRORS` — when false, the app silently falls back to demo/seed data (seamless UX for demos); when true, error banners show (dev/debug). `VERBOSE_LOGGING` controls console detail.
+- **Connectivity:** `useOnlineStatus` + `OfflineBanner`.
+- **Backend error semantics:** documented in `features.ts` (Failed to fetch = not deployed; CORS; 401/403 auth; 500 crash; 200 ok).
+
+**Business rules.** Errors must not corrupt authoritative state; snapshots and deterministic outputs are unaffected by transient API errors.
+
+**Failure/Recovery.** Demo fallback maintains a working UI; health/diagnostics endpoints aid triage; rate-limit headers guide clients.
+
+**APPROVED FUTURE STATE.** Structured error taxonomy + user-facing recovery guidance; incident disclosure per DNA Ch 30.1; durable retry for side effects (§III-32).
+
+**Traceability.** DNA Ch 11/30 · Objective: resilient UX · Modules: all · Workflow: §III-57 · Engine: n/a · AI: n/a · Roadmap: error taxonomy, incident disclosure.
+
+---
+
+## III-57 — Edge Cases
+
+**Why it exists.** Documenting known edge cases prevents regressions and captures reality honestly (Golden Rule 6).
+
+**CURRENT STATE (PROVEN / known).**
+- **Backend undeployed / unreachable:** demo fallback keeps UI functional (`BACKEND_INTEGRATION`/`SHOW_API_ERRORS`).
+- **Expired session:** team `401` on protected routes; client verification required; **debt:** `isClientSessionExpired` missing may affect client-portal guard (§III-78).
+- **Dual scoring divergence:** public keyword instant score vs authoritative engine score can differ; mitigated by passing client-computed `readinessScore` into `createSubmission` (F-001), but the two code paths remain (drift debt).
+- **Empty portfolio:** if no domain qualifies (`density/impact < 6`), no recommendations generated — intended (prevents fluff).
+- **Ready Gate fail:** proposal held in `draft` with reasons.
+- **Post-snapshot edit:** creates a new version; old snapshot immutable; exports never reflect unsent edits.
+- **Duplicate lead email:** exit-intent idempotent; returns existing `leadId`.
+- **Session key drift:** some components read alternate keys (`team_access_token`/`team_user`) — debt.
+- **Offline mid-flow:** offline banner; writes fail and surface per error settings.
+
+**APPROVED FUTURE STATE.** Unified scoring path (resolve dual scoring); unified session store (resolve key drift); durable retries for failed writes.
+
+**Traceability.** DNA Ch 11/17 · Objective: honest robustness · Modules: affected · Workflow: §III-29 · Engines: scoring/snapshot · AI: n/a · Roadmap: scoring/session unification.
+
+---
+
+## III-58 — Performance
+
+**Why it exists.** Performance is part of the effortless experience (DNA Ch 11) and is engineered via explicit contracts.
+
+**CURRENT STATE (PROVEN).**
+- **Frontend:** only the landing route is eager; all others lazy-loaded (`makeLazy()`); heavy `jsPDF` loaded via dynamic `import()`; search inputs debounced (`usePerformance`); charts via `recharts` (heavy — isolated to analytics surfaces).
+- **Edge:** stateless Hono handlers; 120 req/min/IP rate limit; `/ping` is a no-KV liveness path.
+- **Data:** KV reads are keyed lookups; batch analysis available (`analyzeSubmissionsBatch`).
+
+**Business rules.** Performance contracts are enforced by golden rules (`ARCHITECT.md` §0): eager-route minimization, dynamic PDF import, debounced search.
+
+**Failure/Recovery.** Rate limiting sheds load; lazy loading bounds initial payload.
+
+**APPROVED FUTURE STATE.** Caching, pagination, and audit-log indexing (Part I "what's left" — performance hardening); relational query optimization post-cutover.
+
+**Traceability.** DNA Ch 11 · Objective: fast, effortless UX · Modules: routing/UI/edge · Workflow: §III-28 · Engine: n/a · AI: gateway timeouts · Roadmap: caching/pagination.
+
+---
+
+## III-59 — Scalability
+
+**Why it exists.** The platform must grow across customers and load without redesign (DNA Ch 23 evolution).
+
+**CURRENT STATE (PROVEN / constrained).** The edge function is stateless and horizontally scalable by the Supabase platform; persistence is Postgres-backed (KV table + relational). Deterministic engines run client-side, distributing compute to the browser. Current constraints: single Supabase project/region; KV key-scan patterns and lack of pagination limit very large datasets (performance-hardening item); no background job runtime for heavy async work (§III-33).
+
+**APPROVED FUTURE STATE.** Relational store with proper indexing/pagination as authoritative (§III-37); job runner for async scale (§III-33); potential multi-region; server-side engine execution where needed. Scalability must never compromise tenant isolation (DNA Ch 20).
+
+**Traceability.** DNA Ch 20/23 · Operating Constitution Art. 4 · Objective: growth without redesign · Modules: edge/data/engines · Workflow: §III-37 · Engine: repositories · AI: n/a · Roadmap: relational scale, jobs.
+
+---
+
+## III-60 — Reliability
+
+**Why it exists.** Reliability is trust made operational — the system does what it says, repeatably (DNA Ch 17/30).
+
+**CURRENT STATE (PROVEN / constrained).** Determinism is the core reliability guarantee: pure engines produce identical outputs for identical inputs; snapshots are immutable; migrations are idempotent with reconciliation and quarantine. Constraint: side effects (notifications/emails) are synchronous with writes and lack durable retry (§III-32/33) — a reliability gap for delivery guarantees.
+
+**Failure/Recovery.** Idempotent lead capture; migration checkpoints enable resumable runs; rollback scripts; health/diagnostics for detection.
+
+**APPROVED FUTURE STATE.** Durable eventing with retries/dead-letter (§III-32); delivery guarantees for notifications; automated reconciliation sweeps (§III-34).
+
+**Traceability.** DNA Ch 17/30 · Operating Constitution Art. 7/11 · Objective: repeatable correctness · Modules: engines/migration/eventing · Workflow: §III-29/32 · Engine: `snapshotEngine`, migration engine · AI: n/a · Roadmap: durable delivery.
+
+---
+
+## III-61 — Availability
+
+**Why it exists.** The product must be reachable when customers need it.
+
+**CURRENT STATE (PROVEN / dependent).** Availability derives from the Supabase platform (Edge Functions, Postgres) and static hosting of the SPA. There is no application-level multi-region or failover today. The frontend degrades gracefully to demo data when the backend is unreachable (`SHOW_API_ERRORS=false`), preserving a usable UI even during backend outages (though writes are unavailable).
+
+**APPROVED FUTURE STATE.** Defined availability targets/SLOs (§III-83); redundancy/failover as scale warrants; status/health surfacing to operators.
+
+**Traceability.** DNA Ch 22 · Objective: reachability · Modules: hosting/edge · Workflow: §III-30 · Engine: n/a · AI: n/a · Roadmap: SLOs/redundancy.
+
+---
+
+## III-62 — Observability
+
+**Why it exists.** You cannot govern or trust what you cannot see; observability underpins auditability and enforcement (DNA Ch 30).
+
+**CURRENT STATE (PROVEN / partial).**
+- **Intelligence telemetry:** `intelligence/telemetry.ts` records gateway events; `health.ts` reports gateway state.
+- **Health/diagnostics endpoints:** `/ping`, `/health` (KV read/write/delete cycle), `/test-auth`, `/diagnostic` (counts/types/samples).
+- **Frontend logging:** `VERBOSE_LOGGING` flag; console diagnostics.
+- **Edge logs:** available via Supabase dashboard.
+
+**Constraint:** no centralized APM/tracing/metrics dashboard; observability is endpoint- and log-based.
+
+**APPROVED FUTURE STATE.** Centralized metrics/tracing; per-feature AI telemetry dashboards; constitutional-compliance observability feeding enforcement (DNA Ch 30.4).
+
+**Traceability.** DNA Ch 30 · Objective: visibility for trust · Modules: intelligence/health · Workflow: §III-63 · Engine: n/a · AI: gateway telemetry · Roadmap: APM/metrics.
+
+---
+
+## III-63 — Monitoring
+
+**Why it exists.** Monitoring detects problems before customers do.
+
+**CURRENT STATE (PROVEN / manual).** Liveness/health via `/ping` and `/health`; database stats via `/diagnostic`; gateway health via `intelligence/health.ts`; Supabase dashboard for edge/DB monitoring. Monitoring is currently pull-based/manual — no automated alerting pipeline.
+
+**APPROVED FUTURE STATE.** Automated monitors + alerting (integrating notifications, §III-48) for health, error rates, gateway failures, and reconciliation anomalies; SLO-based alerts (§III-83).
+
+**Traceability.** DNA Ch 30 · Objective: proactive detection · Modules: health/notifications · Workflow: §III-30 · Engine: n/a · AI: gateway health · Roadmap: alerting.
+
+---
+
+## III-64 — Logging
+
+**Why it exists.** Logs are the record of what happened — the substrate for debugging, audit, and enforcement.
+
+**CURRENT STATE (PROVEN / partial).** Frontend console logging gated by `VERBOSE_LOGGING`; edge-function logs captured by the Supabase platform; intelligence telemetry as structured events. Migration operations write to `migration_reconciliation_log`. Constraint: no centralized, queryable application log store; log retention is platform-default.
+
+**Business rules.** Secrets and credentials must never be logged or written to reports (Operating Constitution Art. 13).
+
+**APPROVED FUTURE STATE.** Structured, centralized, queryable logging with retention policy; correlation IDs across SPA→edge→provider; PII-aware redaction (§III-69).
+
+**Traceability.** DNA Ch 30 · Operating Constitution Art. 13 · Objective: reliable record · Modules: edge/intelligence/migration · Workflow: §III-65 · Engine: n/a · AI: telemetry · Roadmap: centralized logging.
+
+---
+
+## III-65 — Audit Trails
+
+**Why it exists.** Auditability is a constitutional governance commitment: decisions and actions must leave a reviewable trail (DNA Ch 30.2; Ch 17.3).
+
+**CURRENT STATE (PROVEN / partial).**
+- **Proposal audit:** immutable snapshots with `version_hash` + `version_number` history preserve exactly what a client received and how it changed (`proposal-p2-implementation.md`).
+- **Migration audit:** `migration_runs`, `migration_checkpoints`, `migration_reconciliation_log`, `migration_quarantine` provide a full, idempotent migration trail.
+- **Engagement audit:** engagement log (tracked events) and notes.
+- **Validation audit:** Ready-Gate outcome logs `validation_timestamp`, `reviewer_id`, `version_hash` (`phase1-gate-criteria.md`).
+
+**Constraint:** no single unified, tamper-evident audit log across all actions (auth changes, permission changes, data edits) — a governance gap relative to DNA Ch 30.4.
+
+**APPROVED FUTURE STATE.** Comprehensive, append-only audit trail across authority-, permission-, and data-changing actions, supporting the enforcement mechanisms of DNA Ch 30.4; audit indexing (performance hardening).
+
+**Traceability.** DNA Ch 17/30 · Objective: reviewable accountability · Modules: proposal/migration/engagement · Workflow: §III-29 · Engine: `snapshotEngine`, migration engine · AI: n/a · Roadmap: unified audit log.
+
+---
+
+## III-66 — Backup
+
+**Why it exists.** Backups protect customer data — a stewardship duty (DNA Ch 20).
+
+**CURRENT STATE (PROVEN / platform-provided).** Persistence lives in Supabase Postgres (KV table + relational); backups are provided by the Supabase platform's managed Postgres backup capabilities. Migration rollback scripts (`supabase/migrations/rollbacks/`) provide schema-level reversibility. There is no separate application-level backup export today.
+
+**Business rules.** Backups inherit tenant isolation and secrets discipline; no secret material in backups outside the secure platform (Operating Constitution Art. 13).
+
+**APPROVED FUTURE STATE.** Documented backup policy (frequency, retention, restore testing); per-tenant export aligned with the exit/portability guarantee (DNA Ch 20.9).
+
+**Traceability.** DNA Ch 20 · Objective: data protection · Modules: data platform · Workflow: §III-67 · Engine: n/a · AI: n/a · Roadmap: backup policy + tenant export.
+
+---
+
+## III-67 — Disaster Recovery
+
+**Why it exists.** DR defines how Cortex returns to service after a major failure.
+
+**CURRENT STATE (PARTIAL).** DR currently relies on the Supabase platform's managed recovery for the database and edge runtime, plus in-repo migration rollback scripts and resumable migration checkpoints. There is **no formal DR runbook, RTO/RPO targets, or tested failover** at the application level — stated honestly as a limitation (§III-79).
+
+**APPROVED FUTURE STATE.** A documented DR plan with RTO/RPO targets, restore drills, and (as scale warrants) redundancy/failover; DR aligned with the availability SLOs (§III-61/83).
+
+**Traceability.** DNA Ch 20/22 · Objective: recoverability · Modules: data platform · Workflow: §III-66 · Engine: migration rollback · AI: n/a · Roadmap: DR runbook + RTO/RPO.
+
+---
+
+## III-68 — Compliance
+
+**Why it exists.** Compliance keeps Cortex within the law — a floor beneath the Constitution (DNA Ch 25.6 Rule of Law).
+
+**CURRENT STATE (PROVEN / product-level).** Compliance today is expressed through product boundaries and discipline rather than external certification:
+- **Advisory boundaries:** proposals must not offer regulated legal/medical/financial advice or guarantee results (Ready Gate; §III-4).
+- **Autonomy boundaries:** no full-autonomy claims; human-in-the-loop for high-consequence actions (DNA Ch 18).
+- **Data discipline:** tenant isolation/RLS, secrets discipline, human review for high-risk changes (Operating Constitution Art. 5/8/13).
+
+**Constraint:** no formal external compliance certifications (e.g., SOC 2, ISO 27001) or documented regulatory mappings exist yet.
+
+**APPROVED FUTURE STATE.** Formal compliance program mapped to applicable regimes; the Rule-of-Law reconciliation process (DNA Ch 25.6) governs any conflict between law and blueprint; enforcement/attestation cadence (DNA Ch 30.4).
+
+**Traceability.** DNA Ch 25.6/30 · Operating Constitution Art. 5/8/13 · Objective: lawful operation · Modules: proposal/data/security · Workflow: §III-29 · Engine: `proposalGateEngine` · AI: n/a · Roadmap: compliance program.
+
+---
+
+## III-69 — Privacy
+
+**Why it exists.** Privacy is data sovereignty in practice — the customer's data belongs to the customer (DNA Ch 20).
+
+**CURRENT STATE (PROVEN / partial).**
+- **PII handled:** contact details (name/email/phone/website), diagnostic answers, messages — stored in KV (leads/submissions) and, in schema, relational (`contacts`, `contact_methods`, `leads`).
+- **Isolation & scoping:** client tokens scoped to one submission; org scoping + RLS on relational tenant data; secrets discipline.
+- **Control:** schema supports correction/removal (`report_versions`, relational entities); data belongs to the customer (DNA Ch 20.1).
+
+**Constraint:** no formal privacy policy engine, consent management, or automated data-subject-request (DSR) tooling yet.
+
+**APPROVED FUTURE STATE.** Consent management; DSR workflows (access/correct/delete/export) realizing DNA Ch 20.7/20.9; PII-aware logging/redaction (§III-64); retention policies.
+
+**Traceability.** DNA Ch 19/20 · Objective: data sovereignty · Modules: data/tenancy · Workflow: §III-9/44 · Engine: repositories · AI: n/a · Roadmap: consent/DSR tooling.
+
+---
+
+## III-70 — Accessibility
+
+**Why it exists.** Accessibility serves the constitutional respect-for-the-customer value (DNA Ch 28) and broadens who can use Cortex (DNA Ch 5 democratize).
+
+**CURRENT STATE (PROVEN / partial).** The UI is built on shadcn/ui over Radix primitives, which provide accessible interaction patterns (focus management, ARIA, keyboard navigation) by default; keyboard shortcuts exist (`useKeyboardShortcuts`). The product is dark-first (Eclipse `#0A0A0F`). **Constraint:** no formal WCAG audit, no documented contrast/AA conformance, no screen-reader test record — accessibility is inherited from primitives, not verified.
+
+**APPROVED FUTURE STATE.** WCAG 2.x AA conformance target with audit; light-theme option; verified contrast and screen-reader support; accessibility as an acceptance criterion (§III-77).
+
+**Traceability.** DNA Ch 5/28 · Objective: inclusive access · Modules: UI · Workflow: §III-27 · Engine: n/a · AI: n/a · Roadmap: WCAG conformance.
+
+---
+
+## III-71 — Versioning
+
+**Why it exists.** Versioning enables safe evolution and honest history (DNA Ch 23; auditability Ch 30).
+
+**CURRENT STATE (PROVEN).**
+- **Manifest:** `src/system/manifest.ts` v2.0.0 with `lastVerified` date.
+- **Proposal:** `version_number` + `version_hash` per snapshot.
+- **Migrations:** timestamped migration files + rollbacks; sprint IDs (MCV2-Sx).
+- **Documents:** Constitution `CORTEX_DNA_v1.0`; this Blueprint `v1.0`; Operating Constitution v1.1 (changelog).
+- **API:** fixed base path `/make-server-324f4fbe`; **no semantic API version** in the route path yet.
+
+**Business rules.** Structural changes update `ARCHITECT.md`, `system_map.json`, and the manifest (`ARCHITECT.md` §18); manifest ID before code (Art. 14).
+
+**APPROVED FUTURE STATE.** Explicit API versioning scheme; coordinated blueprint/constitution/version tagging; deprecation policy (DNA Ch 23.6).
+
+**Traceability.** DNA Ch 23/30 · Operating Constitution Art. 14/15 · Objective: safe evolution · Modules: manifest/proposal/migrations · Workflow: §III-74/75 · Engine: `versionEngine` · AI: n/a · Roadmap: API versioning.
+
+---
+
+## III-72 — Deployment
+
+**Why it exists.** Deployment is how the blueprint becomes running software.
+
+**CURRENT STATE (PROVEN).** Go-live procedure (`ARCHITECT.md` §16):
+1. Deploy edge function: `supabase functions deploy make-server-324f4fbe` (`npm run supabase:deploy`).
+2. Set `BACKEND_INTEGRATION: true` (via `VITE_BACKEND_INTEGRATION` in `.env.local`).
+3. Set edge secrets: `OPENAI_API_KEY`, `RESEND_API_KEY` (+ Supabase keys).
+4. Apply DB migrations: `npm run supabase:db-push`; link via `supabase link`.
+5. Verify endpoints (`API_SPECIFICATIONS.md` / `api.config.ts`).
+6. Frontend build: `npm run build` (Vite) → static hosting.
+No component changes are required to switch demo↔live (gateway pattern).
+
+**Business rules.** Secrets set only in the secure environment; deployment must not change runtime authority (KV) except via governed cutover (Operating Constitution Art. 12/17).
+
+**APPROVED FUTURE STATE.** CI/CD pipeline; automated migration gating; environment-promotion automation.
+
+**Traceability.** Operating Constitution Art. 12/13/17 · Objective: reproducible deploys · Modules: edge/db/frontend · Workflow: §III-74 · Engine: n/a · AI: n/a · Roadmap: CI/CD.
+
+---
+
+## III-73 — Environments
+
+**Why it exists.** Distinct environments isolate risk between development, demonstration, and production.
+
+**CURRENT STATE (PROVEN).**
+- **Demo mode:** `BACKEND_INTEGRATION=false` — no backend calls; demo/seed data; safe for presentations.
+- **Live/integrated mode:** `BACKEND_INTEGRATION=true` — Supabase edge + KV + gateway.
+- **Local dev:** `npm run dev` → Vite dev server (`host:true`, port 5173); local DB setup (`architecture/database/LOCAL_DATABASE_SETUP.md`).
+- **Config:** `.env.local` / `.env.example`; Supabase project `oqybniefkbppptfatoae` (`ARCHITECT.md` §1).
+
+**Business rules.** Secrets differ per environment and never cross into VCS (Art. 13); demo mode must not reach providers.
+
+**APPROVED FUTURE STATE.** Formal staging environment mirroring production; per-environment gateway provider config; ephemeral preview environments.
+
+**Traceability.** Operating Constitution Art. 13 · Objective: risk isolation · Modules: config/deploy · Workflow: §III-72 · Engine: n/a · AI: gateway env · Roadmap: staging/preview envs.
+
+---
+
+## III-74 — Release Management
+
+**Why it exists.** Release management ensures changes reach production safely and are recorded.
+
+**CURRENT STATE (PROVEN).** Releases are governed by the sprint model and its quality gates (Operating Constitution Art. 9): architecture-compliance check, regression tests for touched domains, security review for auth/secrets/tenant changes, documentation updates (`ARCHITECT.md`, `system_map.json`, completion report), and a verified rollback path where data/schema changes occur. The roadmap file (`MARQ_CORTEX_ROADMAP.md`) is the single source of sprint progress and is append-only (do not renumber/rewrite).
+
+**Business rules.** No sprint begins beyond assigned scope (Art. 16); completion requires verifiable evidence (Art. 10).
+
+**APPROVED FUTURE STATE.** Automated release pipeline with gate enforcement; release notes tied to manifest/version; feature-flagged rollouts per organization (§III-47).
+
+**Traceability.** Operating Constitution Art. 9/10/16 · DNA Ch 22 · Objective: safe delivery · Modules: all · Workflow: §III-75/76 · Engine: n/a · AI: n/a · Roadmap: release automation.
+
+---
+
+## III-75 — Change Management
+
+**Why it exists.** Change management preserves architectural integrity as the system evolves (DNA Ch 23; Operating Constitution Art. 1).
+
+**CURRENT STATE (PROVEN).** The change checklist (`ARCHITECT.md` §18): update `ARCHITECT.md` (if routes/data flow/key files change), `architecture/system_map.json` (machine snapshot), `src/system/manifest.ts` (new/moved/deleted files, ID before code), and the manifest `lastVerified` date. Authority order for resolving conflicts is defined (Operating Constitution "Authority Order"; DNA Ch 25 precedence): Constitution → Operating Constitution/ARCHITECT → sprint criteria → verified behavior → other docs. Evolution is additive; rebuilds require explicit approval + rollback + evidence (Art. 1).
+
+**Master-rule addition (this program).** Every future feature must exist in this Master Blueprint before implementation; on Blueprint-vs-code conflict, Blueprint wins.
+
+**APPROVED FUTURE STATE.** Automated drift detection (manifest↔filesystem, blueprint↔code); change advisory tied to constitutional decision framework (DNA Ch 24).
+
+**Traceability.** DNA Ch 23/24/25 · Operating Constitution Art. 1/14/15 · Objective: integrity under change · Modules: all · Workflow: §III-74 · Engine: `consistencyValidator` · AI: n/a · Roadmap: drift detection.
+
+---
+
+## III-76 — Testing Strategy
+
+**Why it exists.** Tests are the evidence discipline made executable (Operating Constitution Art. 10 — evidence over assertion).
+
+**CURRENT STATE (PROVEN / partial).** Implemented test suites (npm scripts):
+- **Intelligence Gateway:** `npm run test:intelligence` (`intelligence/*.test.ts`).
+- **Database migrations (static):** `npm run test:database`.
+- **Migration engine:** `npm run test:migration`.
+- **Features:** `npm run test:features`.
+- **Smoke (E2E):** `npm run test:smoke` (Playwright, `playwright.config.ts`).
+
+**Constraint:** coverage is concentrated on the gateway, migration, and DB layers; there is **no broad unit-test suite for the 35 core engines or UI components** — a gap relative to the load-bearing status of the engines (§III-78). (Note: this refines the older `ARCHITECT.md` §17 "no test suite" entry, which predates the current targeted suites.)
+
+**APPROVED FUTURE STATE.** Unit tests for every deterministic engine (especially scoring/ROI/gate/snapshot); component and integration tests; regression tests per touched domain as a release gate (Art. 9); property-based tests for ROI math.
+
+**Traceability.** Operating Constitution Art. 9/10 · DNA Ch 22 · Objective: verifiable correctness · Modules: engines/gateway/data · Workflow: §III-74 · Engine: all · AI: gateway tests · Roadmap: engine/component test coverage.
+
+---
+
+## III-77 — Acceptance Criteria
+
+**Why it exists.** Acceptance criteria define "done" objectively, preventing drift between intent and delivery.
+
+**CURRENT STATE (PROVEN).** Codified acceptance gates exist for the load-bearing flows:
+- **Diagnostic/recommendation:** qualification + ranking + portfolio rules satisfied (§III-54).
+- **Proposal P1:** Ready Gate passes (all boardroom checks) to reach `internal_review` (`phase1-gate-criteria.md`).
+- **Proposal P2:** snapshot created on send; export reads only from snapshot; version history preserved; export blocked on validation failure; immutable record exists (`proposal-p2-implementation.md`).
+- **Sprint acceptance:** per-sprint criteria + quality gates (Art. 9); completion reports with evidence tags (PROVEN/LIKELY/SUSPECTED/MISSING EVIDENCE).
+
+**APPROVED FUTURE STATE.** Acceptance criteria extended to accessibility (§III-70), performance budgets (§III-58), and per-feature enterprise-template completeness (the 15-point quality standard).
+
+**Traceability.** Operating Constitution Art. 9/10 · DNA Ch 24/33 · Objective: objective "done" · Modules: diagnostic/proposal/sprint · Workflow: §III-29 · Engine: `proposalGateEngine` · AI: n/a · Roadmap: expanded acceptance.
+
+---
+
+## III-78 — Technical Debt
+
+**Why it exists.** Honest debt tracking is required by the evidence-first culture (DNA Ch 22.4) and prevents silent decay.
+
+**CURRENT STATE (PROVEN — known debt).** (from `ARCHITECT.md` §17, reconciled to current repo):
+| Item | Type | Notes |
+|------|------|-------|
+| `src/app/lib/session.ts` missing | **BREAK** | `api.ts` imports `ClientAuthContext` from it. |
+| `isClientSessionExpired` missing from `AppContext` | **BREAK** | `ClientPortalRoute.tsx` references it. |
+| Dual scoring | **DRIFT** | Public `instantScoring.ts` (keywords) vs team `scoringEngine.ts`; mitigated by F-001 but two paths remain. |
+| Session key drift | **DRIFT** | Some components use `team_access_token`/`team_user` vs `marq_cortex_team_session`. |
+| Legacy registry utils | **ORPHAN** | `utils/registryData*.ts` unused; do not extend (use manifest). |
+| No broad engine/component unit tests | **GAP** | Targeted suites exist (intelligence/db/migration/features/smoke); engines/UI uncovered (§III-76). |
+| RBAC/tenancy not runtime-authoritative | **GAP** | Relational roles/permissions/RLS present but not enforced at runtime (§III-41/44). |
+| Repositories not wired to routes | **GAP** | `server/repositories/*` exist; KV remains the live path (§III-37). |
+| No durable eventing/jobs/scheduler | **GAP** | Synchronous side effects; manual email queue (§III-32/33/34). |
+
+**Note/correction:** `API_SPECIFICATIONS.md` (previously listed MISSING in `ARCHITECT.md` §17) **now exists** at repo root and is the API reference for §III-35.
+
+**APPROVED FUTURE STATE.** Each debt item has a resolution path recorded in §III-79/80 and the roadmap (Part VI, when authored). Debt is burned down under change management (§III-75), never normalized.
+
+**Traceability.** DNA Ch 22 · Operating Constitution Art. 10 · Objective: honest decay control · Modules: affected · Workflow: §III-75 · Engine: n/a · AI: n/a · Roadmap: debt burndown.
+
+---
+
+## III-79 — Current Limitations
+
+**Why it exists.** Limitations are the honest edges of the current implementation — distinct from debt (things wrong) these are things not yet built (DNA Ch 8.3 reality-vs-model).
+
+**CURRENT STATE (PROVEN).**
+1. **KV is authoritative; relational is not** — full relational benefits (constraints, RLS enforcement, rich queries) await cutover (§III-37).
+2. **No background jobs / scheduler** — async and recurring work is request- or CLI-bound (§III-33/34).
+3. **Synchronous side effects, no durable retry** — notification/email delivery is best-effort (§III-32/60).
+4. **No billing/licensing** — commercial terms are out-of-band (§III-46/47).
+5. **Partial RBAC/tenancy at runtime** — enforcement is route-scheme + UI, not full permission checks (§III-41/44).
+6. **No formal DR/backup policy or compliance certifications** (§III-66/67/68).
+7. **Accessibility unaudited; dark-theme only** (§III-70).
+8. **Workforce model not yet literal** — executives/managers/workers are the approved model, realized today as the engine orchestra + gateway (DNA Ch 8.3; §III-18).
+9. **Memory does not yet compound automatically** (§III-20).
+10. **Interaction is GUI-only** — natural language/voice are future (DNA Ch 15–16).
+
+**APPROVED FUTURE STATE.** Each limitation maps to an approved enhancement (§III-80) or roadmap phase; none contradicts the Constitution.
+
+**Traceability.** DNA Ch 8.3/15/16/19/20 · Objective: honest scope of "now" · Modules: all · Workflow: n/a · Engine: n/a · AI: n/a · Roadmap: see §III-80.
+
+---
+
+## III-80 — Approved Future Enhancements
+
+**Why it exists.** To record what is approved-but-unbuilt, so vision is captured without inventing features (Golden Rule 5). Every item traces to Part I "what's left," the roadmap, or Part II.
+
+**APPROVED FUTURE STATE (sources cited).**
+- **From Part I ("only 6 things left"):** UI layout refinement (team + client); role-based UI controls; premium export styling templates; notifications (Slack/email/in-app for tasks/incidents/QBR); external integrations (Zoho/HubSpot, email provider, doc-sign); performance hardening (caching, pagination, audit-log indexing).
+- **From the roadmap (`MARQ_CORTEX_ROADMAP.md`):** Runtime Storage Gateway completion (outcome/lead/submission shadow reads → full runtime validation) → SQL cutover (read rollout → authority validation → KV retirement).
+- **From the Constitution (Part II):** literal AI-Workforce realization (executives/managers/workers with authority bounds — DNA Ch 8/18); compounding memory engine (Ch 19); data exit/portability + DSR tooling (Ch 20.7/20.9); enforcement/attestation + unified audit (Ch 30.4); natural-language then voice interaction (Ch 15–16); progressive-complexity entitlements (Ch 14).
+- **Engineering (from §III-78/79):** durable eventing + job runner + scheduler; enforced relational RBAC; billing/licensing; DR runbook + backup policy; WCAG conformance; broad engine/component test coverage; API versioning.
+
+**Governing rule.** None of the above may be implemented before it is written into this Master Blueprint (Master Rule) and passes the constitutional decision framework (DNA Ch 24).
+
+**Traceability.** DNA Ch 8/14/15/16/18/19/20/30 · Part I audit · `MARQ_CORTEX_ROADMAP.md` · Objective: captured, disciplined vision · Modules: all · Workflow: Part VI (future) · Engine: future · AI: future · Roadmap: Part VI.
+
+---
+
+## III-81 — Product Metrics
+
+**Why it exists.** Product metrics measure whether the product creates the value it claims (DNA Ch 33), without rewarding vanity (Ch 33.3).
+
+**CURRENT STATE (PARTIAL).** The platform captures raw signals that support product metrics but does not yet compute formal metric definitions: submissions created, diagnostic completion, instant-score distribution, recommendation counts, proposal status progression, engagement events, client responses. Surfaced via `getAnalytics`, engagement analytics, and dashboards (§III-50). Formal, named product KPIs are largely undefined in code today.
+
+**APPROVED FUTURE STATE (constitutionally anchored).** Define product metrics such as **time-to-first-value** (prospect → confident score), **Ready-Gate pass rate**, **diagnosis-to-proposal conversion**, **proposal acceptance rate**, and **experienced simplicity** — all subordinate to trust and outcome delivery (DNA Ch 33.2), never to feature count or engagement-for-its-own-sake (Ch 33.3).
+
+**Traceability.** DNA Ch 33 · Objective: measure real value · Modules: analytics · Workflow: §III-30 · Engine: `dashboardAggregator` · AI: narrate · Roadmap: metric definitions.
+
+---
+
+## III-82 — Operational Metrics
+
+**Why it exists.** Operational metrics measure the health of running the platform.
+
+**CURRENT STATE (PARTIAL).** Signals available: health/KV connectivity (`/health`), DB counts (`/diagnostic`), rate-limit headers, gateway telemetry/health, email-queue status. No consolidated operational dashboard/SLO reporting yet.
+
+**APPROVED FUTURE STATE.** Operational KPIs — API latency/error rate, gateway success/latency, reconciliation health during migration, notification delivery success, uptime/availability against SLOs (§III-61/83) — surfaced via monitoring/alerting (§III-63).
+
+**Traceability.** DNA Ch 22/30 · Objective: operational health · Modules: health/intelligence/email · Workflow: §III-62/63 · Engine: n/a · AI: gateway telemetry · Roadmap: ops dashboards/SLOs.
+
+---
+
+## III-83 — Success Metrics
+
+**Why it exists.** Success is measured by fulfillment of purpose, not accumulation of features — these metrics are constitutional (DNA Ch 33) and govern what "winning" means.
+
+**CURRENT STATE (inherited from Part II).** The constitutional success test applies now: every capability must pass the Six Constitutional Questions (DNA Ch 24/33.1). The constitutional success dimensions (DNA Ch 33.2) — outcome delivery, effortless capability, trust, workforce coherence, simplicity under growth, compounding judgment, integrity, durability, breadth — are the standing definition of success. Explicit numeric targets are not yet instrumented (see §III-81/82).
+
+**APPROVED FUTURE STATE.** Instrument the success dimensions with concrete targets/SLOs; **trust** as the north-star metric (DNA Ch 33.2.3); exclude anti-metrics (complexity, opacity, trust-erosion, extraction — Ch 33.3) from any decision weighting.
+
+**Traceability.** DNA Ch 24/33 · Objective: purpose-fulfillment measurement · Modules: analytics/governance · Workflow: §III-30 · Engine: n/a · AI: narrate · Roadmap: instrumented success dimensions.
+
+---
+
+## III-84 — Governance
+
+**Why it exists.** Governance is how the product stays aligned with the Constitution over time (DNA Ch 30/35).
+
+**CURRENT STATE (PROVEN).** Governance operates through: the **Constitution** (Part II) as supreme authority; the **Operating Constitution** (`MARQ_CORTEX_CONSTITUTION.md`) enforcing engineering mechanics (17 articles) and the authority order; **ARCHITECT.md** golden rules; **sprint quality gates** (Art. 9); the **manifest/registry** as the component authority; and this **Master Blueprint** as the product/architecture authority (Master Rule: blueprint before code). The precedence order (DNA Ch 25.1) resolves conflicts.
+
+**APPROVED FUTURE STATE.** The constitutional enforcement mechanisms (compliance review, standing, remediation, text integrity — DNA Ch 30.4), the entrenched-core amendment process and Constitutional Guardian (DNA Ch 35.5–35.7), and blueprint↔code drift governance (§III-75) operationalized.
+
+**Traceability.** DNA Ch 25/30/35 · Operating Constitution (all) · Objective: durable alignment · Modules: all · Workflow: §III-75 · Engine: `consistencyValidator` · AI: n/a · Roadmap: enforcement operationalization.
+
+---
+
+## III-85 — Ownership
+
+**Why it exists.** Clear ownership prevents orphaned responsibility (DNA Ch 9 stewardship).
+
+**CURRENT STATE (PROVEN).** **MARQ Networks** owns and stewards Cortex, the brand, the IP, and this Blueprint (DNA Ch 9). Within the artifact set: the Constitution owns identity/philosophy/governance; the Operating Constitution owns engineering mechanics; `ARCHITECT.md` owns the repository map; the manifest owns component identity; this Blueprint owns the product/architecture description. Ownership binds all successor stewards (DNA Ch 9 continuity/succession).
+
+**APPROVED FUTURE STATE.** Named role-level ownership (product, architecture, AI, security) mapped to decision authority (§III-86); Constitutional Guardian constituted (DNA Ch 35.6).
+
+**Traceability.** DNA Ch 9/35 · Objective: unambiguous responsibility · Modules: all · Workflow: §III-86 · Engine: n/a · AI: n/a · Roadmap: role ownership + guardian.
+
+---
+
+## III-86 — Decision Authority
+
+**Why it exists.** Decisions must have owners and a resolution order, or governance stalls or drifts (DNA Ch 24/25).
+
+**CURRENT STATE (PROVEN).**
+- **Identity/philosophy/ethics/boundaries:** the Constitution (Part II); amendments only via DNA Ch 35 (steward + Guardian for core).
+- **Product/architecture:** this Master Blueprint (Master Rule); features must be blueprinted before build.
+- **Engineering mechanics:** Operating Constitution + `ARCHITECT.md`.
+- **Scoped execution:** sprint acceptance criteria.
+- **Authoritative computation:** deterministic engines (math decides).
+- **High-consequence runtime actions:** humans (DNA Ch 18.9).
+- **Conflict resolution order:** DNA Ch 25.1 precedence (Constitution → Operating Constitution/ARCHITECT → agent contract → sprint criteria → verified behavior → other docs), with this Blueprint governing product/architecture beneath the Constitution.
+
+**APPROVED FUTURE STATE.** A decision registry (§III-16) binding each recurring decision type to its authority; Guardian participation for entrenched-core interpretation (DNA Ch 25.5/35.6).
+
+**Traceability.** DNA Ch 18/24/25/35 · Objective: owned decisions · Modules: all · Workflow: §III-31 · Engine: deterministic engines · AI: narrate · Roadmap: decision registry.
+
+---
+
+## III-87 — Traceability Matrix
+
+**Why it exists.** The traceability matrix guarantees Golden Rule "nothing exists without a traceable purpose" by mapping each major capability to its constitutional principle, engine(s), workflow, API surface, data, and future roadmap.
+
+**CURRENT STATE (PROVEN — representative matrix).**
+
+| Capability | Constitution (Part II) | Core Engine(s) | Business Workflow | API Group | Data | Roadmap |
+|-----------|------------------------|----------------|-------------------|-----------|------|---------|
+| Lead capture | Ch 5 (democratize) | `crmEngine` | §III-29(1) | Grp 2 | KV `lead:*` / `leads` | CRM sync |
+| Diagnostic & scoring | Ch 6/17 | `inputNormalizer`,`scoringEngine` | §III-29(2) | Grp 4 | `submissions`,`diagnostic_*` | SQL cutover |
+| Recommendation portfolio | Ch 6 (math decides) | `decisionEngine`,`portfolioEngine` | §III-29(2) | (derived) | `domain_scores` | dept realization |
+| ROI modeling | Ch 17/18 | `roiEngine`,`dcf/irr/monteCarlo/scenario/cost` | §III-29(3) | (derived) | proposal/ROI state | ROI expansion |
+| Proposal governance | Ch 18 (authority) | `proposalGateEngine` | §III-29(4) | Grp 7 | KV proposal | — |
+| Snapshot & export | Ch 17.3/30 (audit) | `snapshotEngine`,`versionEngine`,`exportEngine` | §III-29(5) | Grp 7 | immutable snapshot | export styling |
+| Contract | Ch 18 | `contractEngine` | §III-29(6) | Grp 7 | KV contract | e-sign |
+| Execution delivery | Ch 8/31 | `executionEngine`,`templateAssembler`,`scopeEngine` | §III-29(7) | (team) | KV execution | automation |
+| ROI actuals & QBR | Ch 19/33 | `roiActualsEngine`,`qbrEngine` | §III-29(8) | Grp 8/9 | `outcomes` | scheduling |
+| CORTEX AI (chat/narrative/assist/copilot/objection) | Ch 17 | `copilotEngine`,`aiAssistEngine`,`objectionEngine` | §III-18 | Grp 13 | via gateway | multi-provider/agents |
+| Client portal | Ch 11/13 | (UI) | §III-28 | Grp 5 | scoped submission | progressive UI |
+| Multi-tenancy | Ch 20 | repositories | §III-44 | (all) | `organizations`,RLS | enforced RLS |
+| Migration/data authority | Ch 20 | migration engine | §III-37 | (CLI) | `migration_*` | SQL authority |
+
+**APPROVED FUTURE STATE.** Expand to a complete row-per-manifest-node matrix; auto-generate from manifest + this Blueprint; extend to Parts IV–VI capabilities when authored.
+
+**Traceability.** DNA Ch 24 · Operating Constitution Art. 15 · Objective: full purpose-traceability · Modules: all · Workflow: all · Engines: all · AI: gateway · Roadmap: generated matrix.
+
+---
+
+## III-88 — Appendix References
+
+**Why it exists.** The blueprint governs; the referenced artifacts carry exhaustive detail (Golden Rule 8 — cross-reference, don't duplicate). This appendix indexes the authoritative sources a rebuild would consult.
+
+**Part I / II source documents.**
+- Constitution (Part II): `CORTEX_DNA_v1.0.md`.
+- Operating Constitution: `MARQ_CORTEX_CONSTITUTION.md` (v1.1, 17 articles + authority order).
+- Product Recovery / audit (Part I): `src/imports/cortex-audit-report.md`.
+- Repository map & golden rules: `ARCHITECT.md`; machine snapshot: `architecture/system_map.json`.
+- Agent operating contract: `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`.
+
+**Architecture & data.**
+- API: `API_SPECIFICATIONS.md`.
+- Database: `DATABASE_SCHEMA.md`; `architecture/database/MCV2-S3-ENTITY-RELATIONSHIP-DIAGRAM.md`, `MCV2-S3-TABLE-CATALOG.md`, `MCV2-S3-MIGRATION-ROADMAP.md`, `MCV2-S5-KV-RELATIONAL-MAPPING.md`, `MEMBERSHIP_BOOTSTRAP.md`, `LOCAL_DATABASE_SETUP.md`.
+- Migrations: `supabase/migrations/*` (+ `rollbacks/`).
+- Intelligence Gateway: `src/imports/MCV2-S1-AUDIT-001-*`, `MCV2-S1-IMPLEMENT-001.5-*`, `MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`, `MCV2-intelligence-gateway-provider-extension-guide.md`; code `supabase/functions/server/intelligence/`.
+
+**Engine & feature specifications (`src/imports/`).**
+- Diagnostic/recommendation: `cortex-rules.md`, `diagnostic-schema.md`, `recommendation-engine-guide.md`, `recommendation-portfolio.md`, `scope-engine-logic.md`, `mapping-engine-process.md`.
+- ROI suite: `roi-engine-math-doc.md`, `roi-modeling-guide.md`, `dcf-integration-spec.md`, `irr-integration-spec.md`, `monte-carlo-spec.md`, `scenario-modeling-spec.md`, `cost-modeling-layer.md`, `cashflow-timeline-model.md`, `roi-actuals-engine.md`, `roi-tracking-spec.md`, `roi-system-integration-spec.md`, `roi-dependency-spec.md`, `financial-summary-binding-1.md`.
+- Proposal/contract/QBR: `phase1-gate-criteria.md`, `phase1-gate-requirements.md`, `ready-gate-rules.md`, `proposal-p2-implementation.md`, `proposal-control-export.md`, `contract-auto-gen.md`, `qbr-generator-overview.md`, `revenue-control-process.md`.
+- Execution/blocks/copilot: `execution-blueprint.md`, `implementation-architecture.md`, `system-build-order.md`, `ai-assist-per-block.md`, `copilot-patch-plan.md`, `solution-architecture-binding.md`.
+- CRM/comms: `crm-sync-spec.md`.
+- Dashboards: `dashboard-specs.md`, `roi-dashboard-specs.md`, `roi-wireframe.md`.
+- Data platform: `MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`.
+
+**Roadmap / governance.**
+- `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+- System memory: `memory/failure_library.md`, `memory/regression_cases.md`.
+- Component registry: `src/system/manifest.ts` (158 nodes); config: `src/config/features.ts`, `api.config.ts`, `runtime.ts`.
+
+**Traceability.** Operating Constitution Art. 15 (documentation as contract) · Golden Rule 8 · Objective: exhaustive detail preserved by reference · Modules: all · Roadmap: Parts IV–VI reference additions.
+
+---
+
+## Part III — Completion Status
+
+**Part III (Phase 3 — Product Blueprint) is complete: Sections III-1 through III-88 plus Appendix References (§III-88).** It documents the MARQ Cortex product reality-first, separates CURRENT STATE from APPROVED FUTURE STATE throughout, traces every capability to Part II and to the engines/workflows/data/roadmap, and preserves exhaustive detail by reference to the artifacts indexed in §III-88. Nothing in Part III rewrites, summarizes, or contradicts Parts I or II.
+
+**Continuity note.** The Master Blueprint remains a single document. The next authoring phases append **Part IV — AI Company Architecture**, **Part V — Future Vision**, and **Part VI — Execution Roadmap** (currently PLANNED per the organization table), continuing the same numbering and formatting conventions, with no restart and no split.
+
+*End of Part III.*
