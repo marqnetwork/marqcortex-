@@ -3,7 +3,7 @@
 **Document:** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0`
 **Class:** Enterprise Master Blueprint — Definitive Source of Truth
 **Owner & Steward:** MARQ Networks
-**Status:** Part I LOCKED · Part II LOCKED · Part III IN PROGRESS · Parts IV–VI PLANNED
+**Status:** Part I LOCKED · Part II LOCKED · Part III LOCKED · Part IV LOCKED · Part V IN PROGRESS · Part VI PLANNED
 **Governing authority:** Subordinate to `CORTEX_DNA_v1.0.md` (Part II). Where this blueprint and the Constitution conflict on identity, philosophy, or governance, the Constitution prevails (Part II, Chapter 25).
 **Master rule:** The Master Blueprint is the authority; the codebase is the implementation. On conflict, Blueprint first, code second. Every future feature must exist in this Blueprint before implementation.
 
@@ -17,12 +17,12 @@ This Master Blueprint is a single, continuous, permanent document composed of **
 |------|-------|---------|--------|
 | **Part I** | Phase 1 | Product Recovery — the verified structural state of the platform | **LOCKED** |
 | **Part II** | Phase 2 | Cortex DNA — the Constitution: identity, philosophy, governance | **LOCKED** |
-| **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **IN PROGRESS** |
-| **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **PLANNED** |
-| **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **PLANNED** |
+| **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **LOCKED** |
+| **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **LOCKED** |
+| **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **IN PROGRESS** |
 | **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **PLANNED** |
 
-Parts IV, V, and VI are approved elements of the final architecture and are reserved in this structure; they are authored in later phases and appended to this same document with continuous numbering. Until written, they exist as PLANNED placeholders in this table only — no content is invented ahead of its phase (Golden Rule 5).
+Parts IV, V, and VI are approved elements of the final architecture. Part IV is authored and LOCKED and Part V is authored and IN PROGRESS — each appended to this same document with continuous numbering — while Part VI remains PLANNED and, until written, exists as a placeholder in this table only. No content is invented ahead of its phase (Golden Rule 5).
 
 **Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
@@ -54,7 +54,7 @@ Part III derives its authority from Part II. Every capability documented in Part
 
 # PART III — PHASE 3: PRODUCT BLUEPRINT
 
-**Status:** IN PROGRESS · **Numbering:** Sections III-1 through III-88 (plus appendices) · **Continuity:** this Part is generated across multiple passes; numbering and formatting are continuous and are never restarted.
+**Status:** LOCKED · **Numbering:** Sections III-1 through III-88 (plus appendices) · **Continuity:** this Part is generated across multiple passes; numbering and formatting are continuous and are never restarted.
 
 ## Reading conventions for Part III
 
@@ -1748,7 +1748,7 @@ No component changes are required to switch demo↔live (gateway pattern).
 
 **Part III (Phase 3 — Product Blueprint) is complete: Sections III-1 through III-88 plus Appendix References (§III-88).** It documents the MARQ Cortex product reality-first, separates CURRENT STATE from APPROVED FUTURE STATE throughout, traces every capability to Part II and to the engines/workflows/data/roadmap, and preserves exhaustive detail by reference to the artifacts indexed in §III-88. Nothing in Part III rewrites, summarizes, or contradicts Parts I or II.
 
-**Continuity note.** The Master Blueprint remains a single document. The next authoring phases append **Part IV — AI Company Architecture**, **Part V — Future Vision**, and **Part VI — Execution Roadmap** (currently PLANNED per the organization table), continuing the same numbering and formatting conventions, with no restart and no split.
+**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** is now authored and LOCKED and **Part V — Future Vision** is authored and IN PROGRESS, each appended below with continuous numbering; **Part VI — Execution Roadmap** remains PLANNED. All continue the same numbering and formatting conventions, with no restart and no split.
 
 *End of Part III.*
 
@@ -3548,9 +3548,9 @@ Each section additionally answers the enterprise quality template used across th
 
 **Approved Future State.** Progressive, additive realization of the full AI-company model — deeper workforce runtime, compounding memory, natural-language then voice/multimodal interaction, industry and regional breadth, and an ecosystem architecture — all under unchanged identity, principles, and success standard (DNA Ch 7/8.3/15/19/23/31/33). Direction is approved; sequencing is deferred to Part VI.
 
-**Dependencies.** Part II (Constitution) as governing authority; Part III as the current-state record and evidence base; Part IV — AI Company Architecture (PLANNED) and Part VI — Execution Roadmap (PLANNED) as the downstream Parts that realize this vision. Part V never authorizes building; it authorizes aiming.
+**Dependencies.** Part II (Constitution) as governing authority; Part III as the current-state record and evidence base; Part IV — AI Company Architecture (LOCKED) as the authored organizational architecture and Part VI — Execution Roadmap (PLANNED) as the Part that will realize this vision. Part V never authorizes building; it authorizes aiming.
 
-**Traceability.** DNA Ch 5/6/7/8/8.3/15/17/18/19/20/22/23/24/25/27/29/30/31/32/33 · Objective: approved long-horizon strategic direction · Modules: all · Workflow: §III-28/29 (current expression) · Engines: deterministic engine orchestra · AI: Intelligence Gateway (narration) · Roadmap: Parts IV and VI (PLANNED).
+**Traceability.** DNA Ch 5/6/7/8/8.3/15/17/18/19/20/22/23/24/25/27/29/30/31/32/33 · Objective: approved long-horizon strategic direction · Modules: all · Workflow: §III-28/29 (current expression) · Engines: deterministic engine orchestra · AI: Intelligence Gateway (narration) · Roadmap: Part VI (PLANNED); Part IV LOCKED.
 
 ---
 
