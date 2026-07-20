@@ -2295,3 +2295,340 @@ The **AI Supervisor** archetype is the structural anchor of AI oversight (elabor
 **Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.3** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phase 4.1 is unchanged.
 
 *End of Phase 4.2. Part IV continues in a later phase.*
+
+---
+
+## Phase 4.3 — AI Workforce Architecture
+
+*This phase designs how the AI workforce of MARQ Cortex exists as an **organizational capability**: its overview, taxonomy, lifecycle, responsibilities, human–AI collaboration model, authority framework, governance and safety, collaboration architecture, capability framework, memory and knowledge principles, and security and trust principles. It builds on the organizational layers of §IV-7, the department architecture of §IV-14, and the role archetypes of §IV-16, and it defines **how the AI workforce is organized** — not who is in it. It introduces **no** individual AI employees, prompts, prompt libraries, tool definitions, LLM providers, API specifications, technical memory implementation, workflow diagrams, department workflows, KPIs, metrics, or implementation details. Those belong to later Phase 4.x sections and are not authored ahead of their phase (Golden Rule 5).*
+
+**Reading note carried from Phases 4.1–4.2.** Every section separates CURRENT STATE from APPROVED FUTURE STATE. For this phase, CURRENT STATE claims additionally carry an implementation label — **IMPLEMENTED**, **PARTIAL**, or **NOT IMPLEMENTED** — grounded in repository evidence or the LOCKED Parts I–III. No AI-workforce capability is asserted as implemented that is not. The load-bearing current fact throughout Phase 4.3: today's AI is **feature-scoped narration and assistance mediated by the Intelligence Gateway** (§III-15/§III-17/§III-18), never an organization of AI workers; runtime `ai_worker` identity is reserved as *Future* (DNA Ch 8.3; §III-1/§III-18).
+
+**Section template.** Each section answers: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability.*
+
+---
+
+## IV-23 — AI Workforce Overview
+
+**Purpose.** To establish what the AI workforce *is* as an organizational capability — its purpose, vision, scope, enterprise role, and relationship to the human organization — before any category, lifecycle, or authority is defined.
+
+**Why it exists.** Cortex's identity is *an AI company operating on behalf of businesses* whose intelligence is organized as executives, departments, managers, and workers (DNA Ch 8.1). The AI workforce is the layer that turns that identity into working capability. This overview fixes the frame so the rest of Phase 4.3 elaborates one coherent workforce rather than disconnected features.
+
+**Scope.** The AI workforce as an organizational capability: its reason for being, its long-horizon direction, what it covers, its role in the enterprise, and how it relates to humans. It does not define categories (§IV-24), lifecycle (§IV-25), or authority (§IV-28) — those follow.
+
+- **Purpose.** To execute the work of the company reliably and at scale, under human authority, producing measurable business value while carrying complexity inward (DNA Ch 8.1, Ch 21.1, Ch 27).
+- **Vision.** A coherent AI workforce — executives, managers, workers — that strengthens as one coordinated company rather than fragmenting into features (DNA Ch 33.2 workforce coherence).
+- **Scope.** The AI workforce spans every department (§IV-14) as an approved model; it never owns identity, governance, or authoritative computation (those remain with the Constitution, humans, and deterministic engines).
+- **Enterprise role.** The AI workforce is the *doing* layer beneath the executive and leadership layers (§IV-13/§IV-15), sitting on top of the deterministic Business Engines that own truth (§III-21).
+- **Relationship with the human organization.** Humans are the principal; the AI workforce serves and never rules (DNA Ch 18.8). Authority is granted, bounded, and revocable (DNA Ch 18.1–18.2).
+
+**Current State (PARTIAL).** An AI *capability* exists today, but not an AI *workforce*. **IMPLEMENTED:** feature-scoped assistive intelligence via the Intelligence Gateway — chat, submission analysis, portfolio/narrative, block assist, copilot, objection handling (§III-15) — all narration/assistance, never authority. **IMPLEMENTED:** the deterministic Business Engines that the workforce will sit atop (35 engines, §III-21). **NOT IMPLEMENTED:** an organization of AI workers with identity, categories, lifecycle, and bounded authority; `ai_worker` identity is reserved as *Future* (DNA Ch 8.3; §III-1/§III-18).
+
+**Approved Future State.** Progressive, additive realization of the coherent AI workforce under human authority and deterministic-engine truth (DNA Ch 8.1/8.3, Ch 18, Ch 23), never a rebrand. Individual workers are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8 (identity/workforce), Ch 18 (authority), Ch 21/27/33 (value/principles/success); §IV-7/§IV-13/§IV-14/§IV-16; §III-15/§III-18/§III-21.
+
+**Traceability.** Part I: assistive-AI and engine reality evidenced in `ARCHITECT.md` §0/§7/§11. Part II: DNA Ch 8/18/21/27/33. Part III: §III-1, §III-15, §III-18, §III-21. Roadmap: workforce realization.
+
+---
+
+## IV-24 — AI Workforce Taxonomy
+
+**Purpose.** To define the **categories** of AI workers — what each category is *for* — as the organizing vocabulary of the workforce, without naming or defining any individual worker.
+
+**Why it exists.** A workforce needs categories so responsibility maps cleanly onto the department architecture (§IV-14). This section fixes the categories so later phases can populate them without inventing a taxonomy each time.
+
+**Scope.** AI-worker **categories and their purpose only**. No individual workers, no counts, no prompts, no tools. Each category aligns to a department (§IV-14) and an executive portfolio (§IV-13).
+
+| AI category | Purpose (what this category of worker is for) |
+|---|---|
+| **Executive AI** | Set direction and own outcomes for a portfolio within bounded authority (§IV-13) |
+| **Product AI** | Reason about what Cortex should be and why; steward scope and customer-value framing |
+| **Engineering AI** | Build and maintain the platform through additive, evidence-first change |
+| **Design AI** | Shape the experience toward Maximum Intelligence, Minimum Complexity |
+| **QA AI** | Verify correctness and protect trustworthiness (evidence over assertion) |
+| **Marketing AI** | Communicate Cortex honestly to the market (no guaranteed-results claims) |
+| **Sales AI** | Qualify and scope within advisory boundaries and proposal governance |
+| **Customer Success AI** | Drive realized, measured customer outcomes and retention through value |
+| **Operations AI** | Coordinate delivery and keep the company running reliably |
+| **Finance AI** | Steward economics, ROI honesty, and durable-over-extractive discipline |
+| **Security AI** | Protect the trust institution — isolation, permissions, safe execution posture |
+| **Knowledge AI** | Retain, organize, and retrieve organizational knowledge under stewardship (§IV-32) |
+
+**Current State (NOT IMPLEMENTED).** None of these categories exists today as a distinct class of AI worker. The **closest current analogues** are the assistive AI *features* (Product/Sales-adjacent: narrative, objection handling; Engineering-adjacent: copilot patch; QA-adjacent: none automated) surfaced through the gateway (§III-15) and the deterministic engines that hold the underlying domain logic (§III-21). These are features and functions, not a staffed AI taxonomy.
+
+**Approved Future State.** Progressive realization of each category as bounded AI roles under their executive and department, additively (DNA Ch 8.1/8.3, Ch 23), preserving one-canonical-authority-per-responsibility (DNA Ch 22.5, Ch 29.2). Individual workers within each category are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1 (departments/workers); §IV-13/§IV-14/§IV-16; §III-15/§III-21 for current analogues; §IV-32 (Knowledge AI principles).
+
+**Traceability.** Part I: assistive features and engines evidenced in `ARCHITECT.md`. Part II: DNA Ch 8/22/29. Part III: §III-15, §III-17, §III-21. Roadmap: category realization.
+
+---
+
+## IV-25 — AI Worker Lifecycle
+
+**Purpose.** To define the lifecycle stages an AI worker passes through as an organizational entity — from creation to retirement — as a governance structure, not an implementation.
+
+**Why it exists.** A workforce that can be created but not registered, supervised, suspended, or retired is ungovernable. This section fixes the lifecycle so every AI worker is accountable at every stage (DNA Ch 18.7 accountability follows authority).
+
+**Scope.** The lifecycle **stages and their governance intent only**. No provisioning code, no APIs, no identity implementation. The stages:
+
+- **Creation.** An AI worker is brought into being only to fill a defined role in a category (§IV-24) that passes the constitutional admission gate (DNA Ch 24/33.1). Creation without a traceable purpose is forbidden (Golden Rule: nothing exists without a traceable purpose).
+- **Registration.** Every worker is registered with a distinct organizational identity before it may act (identity precedes authority; §IV-33). Registration is the analogue, at the workforce layer, of the manifest/registry discipline that governs components today (Operating Constitution Art. 14).
+- **Activation.** A registered worker becomes active only with explicitly granted, bounded authority (DNA Ch 18.1). Activation grants no authority by default.
+- **Assignment.** A worker is assigned to work within its category and authority; assignment never widens authority (DNA Ch 18.4 — reasoning free, action bounded).
+- **Supervision.** Every active worker is supervised via the AI Supervisor line (§IV-16/§IV-18), ensuring explainability, escalation over overreach, and human-in-the-loop at the high-consequence floor (DNA Ch 18.5/18.6/18.9).
+- **Evolution.** A worker improves additively, learning from outcomes including failures (DNA Ch 19.7), without silent authority expansion — autonomy widens only upward from the floor, with proof (DNA Ch 18.9).
+- **Suspension.** Authority is immediately revocable; a worker can be suspended at any time, honoring "stop" unconditionally (DNA Ch 18.2).
+- **Retirement.** A worker is retired when its purpose ends, avoiding orphaned or duplicate authority (DNA Ch 29.2), with its accountable record preserved (DNA Ch 30.2 auditability).
+
+**Current State (NOT IMPLEMENTED).** No AI-worker lifecycle exists in runtime today. **Related current mechanisms** that prefigure it: the reserved `ai_worker` service-account identity (*Future*; DNA Ch 8.3; §III-18); the manifest/registry discipline for component identity (Art. 14; §III-26); gateway provider **certification** (`certification.ts`) as a registration/certification analogue (§III-17); and the revocable, bounded, human-reviewed authority already enforced for AI action (Art. 8; DNA Ch 18; §III-16). These govern features and components, not AI workers.
+
+**Approved Future State.** A governed AI-worker lifecycle realized under the authority doctrine, additively (DNA Ch 8.3, Ch 18, Ch 23). Provisioning, identity, and registry *implementation* are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 18 (authority), Ch 19.7 (learning), Ch 24/33.1 (admission), Ch 29.2/30.2 (no duplication/auditability); Operating Constitution Art. 8/14; §III-17/§III-18/§III-26; §IV-16/§IV-18/§IV-33.
+
+**Traceability.** Part I: reserved `ai_worker` identity and manifest discipline evidenced in `architecture/system_map.json` and `src/system/manifest.ts`. Part II: DNA Ch 8/18/19/24/29/30/33. Part III: §III-17, §III-18, §III-26. Roadmap: worker lifecycle realization.
+
+---
+
+## IV-26 — AI Responsibilities
+
+**Purpose.** To classify the kinds of responsibility the AI workforce may hold — strategic, tactical, operational, advisory, and autonomous — so responsibility is legible before any authority is granted.
+
+**Why it exists.** Not all AI responsibility is equal: some sets direction, some executes, some only advises. Distinguishing the classes lets authority (§IV-28) and boundaries (§IV-20) attach to the right altitude (DNA Ch 18).
+
+**Scope.** Responsibility **classes and their meaning only**. No individual assignments, no workflows, no KPIs.
+
+- **Strategic responsibilities.** Setting direction and owning outcomes for a portfolio — held by Executive AI within bounded authority (§IV-13), never over identity/governance.
+- **Tactical responsibilities.** Coordinating and sequencing work across a department — the manager altitude (DNA Ch 8.1 "AI Managers").
+- **Operational responsibilities.** Executing defined work reliably and at scale — the worker altitude (DNA Ch 8.1 "AI Workers").
+- **Advisory responsibilities.** Reasoning, analysing, and recommending across the full breadth of the business *without acting* — the freedom-of-reasoning that all AI holds (DNA Ch 18.4). This is the dominant class today.
+- **Autonomous responsibilities.** Acting *within granted authority* without step-by-step human direction — permitted only below the high-consequence floor, widening upward only with proof (DNA Ch 18.5/18.9). Autonomy is the most constrained class, never the default.
+
+**Current State (PARTIAL).** **IMPLEMENTED (advisory only):** today's AI holds advisory responsibility — it analyses submissions, narrates scores and portfolios, suggests block edits, proposes copilot patches, and drafts objection responses (§III-15/§III-16), always as proposals that humans and deterministic gates dispose. **NOT IMPLEMENTED:** strategic, tactical, operational, and autonomous AI responsibility as staffed classes; no AI holds acting authority today beyond bounded, human-gated assistance.
+
+**Approved Future State.** Progressive realization of tactical, operational, and (floor-bounded) autonomous responsibility under supervision, additively (DNA Ch 8.1/8.3, Ch 18, Ch 23), with strategic responsibility always subordinate to the Constitution and human principal.
+
+**Dependencies.** DNA Ch 8.1 (layers), Ch 18 (authority doctrine); §III-15/§III-16 (current advisory reality); §IV-13/§IV-16/§IV-28.
+
+**Traceability.** Part I: advisory-only AI evidenced in `ARCHITECT.md` §0. Part II: DNA Ch 8/18. Part III: §III-15, §III-16. Roadmap: responsibility-class realization.
+
+---
+
+## IV-27 — Human–AI Collaboration Model
+
+**Purpose.** To define the modes of collaboration between humans and the AI workforce — from human-led to AI-led — and the escalation and approval rules that bound them.
+
+**Why it exists.** The company's trustworthiness rests on a clear division of who leads which work. This section names the collaboration modes so every piece of work has an unambiguous lead and an unambiguous approval path (DNA Ch 18; §IV-8/§IV-20).
+
+**Scope.** Collaboration **modes and the rules that bound them**. No workflows, no procedures, no communication mechanics (later Phase 4.x).
+
+- **Human-led work.** Identity, philosophy, governance, and high-consequence decisions — humans lead; AI advises (DNA Ch 18.5/18.9; §III-84).
+- **AI-assisted work.** Humans lead; AI accelerates through analysis, drafting, and recommendation. This is the dominant current mode (see Current State).
+- **AI-led execution.** AI executes defined work within granted authority below the high-consequence floor, under supervision (DNA Ch 8.1, Ch 18.5). Approved-future.
+- **Shared ownership.** Outcome delivery, quality, explainability, and auditability are shared — AI produces and explains; humans verify and remain accountable (DNA Ch 22.7, Ch 30.2; §IV-20).
+- **Escalation principles.** At the edge of authority or confidence, AI escalates to a human rather than acting; silence is never approval (DNA Ch 18.6).
+- **Human approval requirements.** Any action meeting the high-consequence floor requires human approval before effect; reclassifying downward is a governed, recorded act (DNA Ch 18.9; Operating Constitution Art. 8).
+
+**Current State (PARTIAL / IMPLEMENTED).** **IMPLEMENTED:** human-led and AI-assisted modes are the operating reality — AI drafts and explains while humans (operators/clients) authorize state changes (proposal send, scope acceptance, status transitions), and high-risk domains require human review (§III-16/§III-41; Art. 8). **IMPLEMENTED:** escalation-over-overreach and human-approval discipline are enforced by the Ready Gate and the authority doctrine (`phase1-gate-criteria.md`; DNA Ch 18). **NOT IMPLEMENTED:** AI-led execution as a staffed mode.
+
+**Approved Future State.** Progressive introduction of AI-led execution below the floor under supervision, additively (DNA Ch 8.3, Ch 18), with human-led and shared-ownership modes preserved and tightened.
+
+**Dependencies.** DNA Ch 18/22/30; Operating Constitution Art. 8; §III-16/§III-41/§III-84; §IV-8/§IV-20.
+
+**Traceability.** Part I: gating and review evidenced in `ARCHITECT.md`, `src/imports/phase1-gate-criteria.md`. Part II: DNA Ch 18/22/30. Part III: §III-16, §III-40–§III-44, §III-84. Roadmap: AI-led-execution realization.
+
+---
+
+## IV-28 — AI Authority Framework
+
+**Purpose.** To define precisely what the AI workforce may recommend, analyse, plan, execute, and approve — and what it may never perform autonomously — fixing the authority boundaries of the workforce.
+
+**Why it exists.** Authority without explicit boundaries drifts into overreach. This section states the workforce's authority frame at the capability level so no category or worker can quietly exceed it (DNA Ch 18; Ch 29.6).
+
+**Scope.** Authority **boundaries only** — the verbs of authority and their limits. It does not implement permissions or define per-action checks (those are §III-43 product permissions and later Phase 4.x).
+
+- **May analyse.** Freely, across the full breadth of the business — reasoning is unbounded (DNA Ch 18.4). *Advisory.*
+- **May recommend.** Freely — proposals, options, and prioritizations that humans/engines dispose (DNA Ch 18.4; §III-16). *Advisory.*
+- **May plan.** Freely — prepare plans and drafts; preparation is not action (DNA Ch 18.4). *Advisory.*
+- **May execute.** Only within explicitly granted authority, below the high-consequence floor, under supervision (DNA Ch 18.5/18.9). *Bounded, approved-future.*
+- **May approve.** Only where a human has explicitly delegated approval below the floor; high-consequence approval is never AI's by default (DNA Ch 18.9). *Bounded, approved-future.*
+- **May never perform autonomously.** Anything at or above the high-consequence floor — irreversible, third-party-affecting, legally/financially material, or authority/security/permission-changing actions; overriding authoritative computation (Art. 6); changing identity/governance (DNA Ch 35). These are permanently outside autonomous authority.
+
+**Authority invariants.** Authority is granted, bounded, revocable, and visible (DNA Ch 18.1–18.3); reasoning is free while action is bounded (18.4); accountability always accompanies authority (18.7); autonomy widens only upward from the floor, with proof, never by erosion (18.9).
+
+**Current State (PARTIAL / IMPLEMENTED).** **IMPLEMENTED:** AI's analyse/recommend/plan authority is live (assistive features, §III-15/§III-16); AI's inability to override authoritative numbers is enforced (Art. 6; §III-16). **NOT IMPLEMENTED:** AI execute/approve authority — no AI worker holds acting or approval authority today; all state changes are human-gated (§III-16/§III-41). The "never autonomously" boundary is **IMPLEMENTED** and enforced now (DNA Ch 18.9; Art. 8).
+
+**Approved Future State.** Progressive, floor-bounded grant of execute/approve authority under supervision, additively (DNA Ch 8.3, Ch 18), with the "never autonomously" set held permanent.
+
+**Dependencies.** DNA Ch 17/18/35; Operating Constitution Art. 6/8; §III-16/§III-41/§III-43; §IV-20/§IV-27.
+
+**Traceability.** Part I: authority enforcement evidenced in `ARCHITECT.md` §0 and core engines. Part II: DNA Ch 17/18/35. Part III: §III-16, §III-41, §III-43. Roadmap: bounded-authority realization; decision registry (§III-16).
+
+---
+
+## IV-29 — AI Governance & Safety
+
+**Purpose.** To fix the governance and safety frame around the AI workforce — human oversight, constitutional alignment, guardrails, risk controls, accountability, and auditability — as principles, not implementation.
+
+**Why it exists.** An AI workforce is only as trustworthy as the governance around it. This section elevates the constitutional governance commitments (DNA Ch 30) to the workforce layer so safety is structural, not bolted on (§IV-9).
+
+**Scope.** Governance and safety **principles for the workforce**. It does **not** define security implementation, risk-scoring mechanics, or audit implementation (those are Part III mechanics and later Phase 4.x).
+
+- **Human oversight.** Every AI worker operates under the AI Supervisor line and the human principal; high-consequence work keeps a human in the loop (DNA Ch 18.5/18.9; §IV-16/§IV-18).
+- **Constitutional alignment.** Every worker, category, and grant must pass the constitutional admission-and-success gate (DNA Ch 24/33.1) and may never violate the entrenched core (DNA Ch 29).
+- **Guardrails.** Deterministic authority (math decides; AI narrates — Art. 6), provider independence (Art. 2), granted-and-bounded authority (DNA Ch 18), and explainability-before-action (DNA Ch 30.2 — "unexplainable decisions do not act") are the standing guardrails.
+- **Risk controls.** The high-consequence floor (DNA Ch 18.9) and human-review-for-high-risk-change (Art. 8) are the workforce's primary risk controls; downward reclassification is itself governed.
+- **Accountability.** Every AI action is attributable, explainable, and auditable; authority without accountability is forbidden (DNA Ch 18.7, Ch 30.2).
+- **Auditability.** Decisions and actions leave a reviewable trail (DNA Ch 30.2; §III-65).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** the guardrails and risk controls above are enforced today for AI features — deterministic authority (Art. 6; §III-16), provider independence (Art. 2; §III-17), human review for high-risk change (Art. 8; §III-40–§III-44), and audit trails (§III-65). **PARTIAL:** governance is enforced over AI *features* and the bounded build-agent (agent contract; Art. 16), not yet over an organization of AI *workers*. The four constitutional enforcement mechanisms (compliance review, standing, remediation, text integrity — DNA Ch 30.4) are defined but not yet operationalized (§III-84).
+
+**Approved Future State.** The same governance extended to the realized AI workforce, additively and tightening under growth (DNA Ch 20.8, Ch 30); enforcement mechanisms operationalized (§III-84 approved-future).
+
+**Dependencies.** DNA Ch 18/24/29/30/33; Operating Constitution Art. 2/6/8/16; §III-16/§III-17/§III-40–§III-44/§III-65/§III-84; §IV-9/§IV-16/§IV-18.
+
+**Traceability.** Part I: guardrails evidenced in `ARCHITECT.md` and the gateway/engine code. Part II: DNA Ch 18/24/29/30/33. Part III: §III-16, §III-17, §III-39–§III-44, §III-62–§III-65, §III-84. Roadmap: governance operationalization.
+
+---
+
+## IV-30 — AI Collaboration Architecture
+
+**Purpose.** To define the collaboration *architecture* of the AI workforce — the standing collaboration channels between AI and humans, AI and AI, AI and departments, AI and product, and AI and customers — as structure, not workflow.
+
+**Why it exists.** A coherent workforce requires defined collaboration channels, or it fragments into isolated agents (DNA Ch 33.2 workforce coherence). This section fixes the channels so later phases can define how work flows through them.
+
+**Scope.** Collaboration **architecture only** — which parties collaborate and along which channel. No workflows, no communication procedures, no message formats.
+
+- **AI ↔ Human.** The primary channel: humans direct and approve; AI advises, executes-within-authority, and escalates (DNA Ch 18; §IV-27). Non-removable AI-oversight line (§IV-18).
+- **AI ↔ AI.** Workers collaborate under managers and executives within one coherent company, sharing context via governed memory (§IV-32), never fragmenting authority (DNA Ch 8.1, Ch 27.10). Approved-future.
+- **AI ↔ Departments.** AI workers operate inside their department and collaborate across departments along the standing relationships of §IV-19, under the RACI of §IV-17.
+- **AI ↔ Product.** AI operates *on and through* the product surface — today via `dataService`-mediated features (§III-15); the product remains the governed surface through which AI acts (Operating Constitution Art. 3 frontend gateway).
+- **AI ↔ Customers.** AI collaborates with customers transparently — never hiding that it is AI (DNA Ch 28.4, Ch 29.7) — within the client portal surface and the advisory/honesty boundaries (§III-4). Deepens toward natural-language and voice over time (DNA Ch 15–16).
+
+**Current State (PARTIAL).** **IMPLEMENTED:** the AI↔Human and AI↔Product channels exist today — AI features are reached only through `dataService` → edge → gateway (§III-15/§III-17), and AI-narrated output reaches customers through the governed product surface (§III-27/§III-28) with AI disclosure. **NOT IMPLEMENTED:** AI↔AI collaboration (no multi-agent orchestration today — orchestration is feature-scoped and deterministic, §III-18) and AI-worker-mediated AI↔Departments collaboration.
+
+**Approved Future State.** Progressive realization of multi-agent AI↔AI and AI↔Departments collaboration under the workforce model, additively (DNA Ch 8.1/8.3, Ch 18), with memory-informed context (DNA Ch 19). Collaboration *workflows* are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8/15/16/18/19/27/28/29; Operating Constitution Art. 3; §III-4/§III-15/§III-17/§III-18/§III-27/§III-28; §IV-17/§IV-18/§IV-19/§IV-32.
+
+**Traceability.** Part I: gateway-mediated channels evidenced in `ARCHITECT.md` §7/§12. Part II: DNA Ch 8/18/19/27/28. Part III: §III-15, §III-17, §III-18, §III-27, §III-28. Roadmap: multi-agent collaboration.
+
+---
+
+## IV-31 — AI Capability Framework
+
+**Purpose.** To document the enterprise **capabilities** expected of the AI workforce — the classes of ability it must hold — with continuous-learning boundaries, as a capability frame rather than an implementation.
+
+**Why it exists.** Categories (§IV-24) say *what a worker is for*; capabilities say *what any worker must be able to do*. Fixing the capability classes lets later phases build to a known standard rather than an open-ended one.
+
+**Scope.** Capability **classes and their boundaries only**. No models, no prompts, no tools, no benchmarks, no KPIs.
+
+- **Reasoning.** Analyse a business situation and derive sound conclusions (DNA Ch 17). *Advisory, unbounded in thought.*
+- **Planning.** Prepare structured plans and options for human/engine disposition (DNA Ch 18.4).
+- **Analysis.** Interpret data and surface insight — always subordinate to deterministic authoritative numbers (Art. 6).
+- **Writing.** Produce clear, honest narration and documents that never overstate value (DNA Ch 21.5, Ch 28.2).
+- **Research.** Gather and synthesize relevant information under stewardship and isolation boundaries (DNA Ch 19/20).
+- **Decision support.** Frame decisions and trade-offs for human decision-makers (DNA Ch 18.5) — support, not substitution.
+- **Knowledge retrieval.** Retrieve organizational knowledge under permission and purpose (§IV-32; DNA Ch 19.3).
+- **Quality assurance.** Check work for correctness and constitutional alignment (evidence over assertion — Art. 10).
+- **Continuous-learning boundaries.** Learning is honest (including from failure — DNA Ch 19.7), per-customer isolated (DNA Ch 19.5), permissioned and purpose-bound (DNA Ch 19.3), correctable/forgettable (DNA Ch 19.6), and never used against the customer (DNA Ch 19.4, Ch 29.9). Learning never silently widens authority (DNA Ch 18.9).
+
+**Current State (PARTIAL).** **IMPLEMENTED (feature-scoped):** reasoning, analysis, writing, and decision-support capabilities exist today as gateway-mediated assistive features (chat, analysis, narrative, copilot, objection — §III-15), always subordinate to deterministic authority. **PARTIAL:** knowledge retrieval exists as static, version-controlled knowledge (registries/specs, §III-19) rather than governed per-org retrieval. **NOT IMPLEMENTED:** continuous learning as a runtime capability — compounding customer memory does not yet exist (§III-20); QA-as-AI-capability is not automated.
+
+**Approved Future State.** Progressive realization of the full capability set under the learning boundaries, additively (DNA Ch 8.3, Ch 19, Ch 23). Capability *implementation* (models, tools, retrieval) is deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 17/18/19/20/21/28/29; Operating Constitution Art. 6/10; §III-15/§III-19/§III-20; §IV-24/§IV-32.
+
+**Traceability.** Part I: assistive capabilities evidenced in `ARCHITECT.md` §7. Part II: DNA Ch 17/18/19/21/28. Part III: §III-15, §III-19, §III-20. Roadmap: capability realization.
+
+---
+
+## IV-32 — AI Memory & Knowledge Principles
+
+**Purpose.** To fix the **high-level principles** of AI memory and organizational knowledge — organizational knowledge, shared memory, context management, privacy boundaries, and knowledge ownership — without any technical implementation.
+
+**Why it exists.** Memory is how the workforce's judgment compounds and is one of Cortex's most sensitive responsibilities (DNA Ch 19). Fixing the principles at the architecture level ensures the workforce's memory is trustworthy by design before it is built (§III-20).
+
+**Scope.** Memory and knowledge **principles only**. It explicitly excludes technical memory implementation, storage schemas, retrieval mechanics, and vector/index design (those are later Phase 4.x and Part III mechanics).
+
+- **Organizational knowledge.** The workforce operates on structured, governed organizational knowledge; knowledge that drives authoritative decisions is deterministic and version-controlled, never model-generated (DNA Ch 17; §III-19).
+- **Shared memory.** Memory reinforces the coherence of the AI company — it lets executives, departments, and workers act with continuity and context, never fragmenting into disconnected silos (DNA Ch 19.8).
+- **Context management.** Workers act on context that is bounded by permission and purpose; context is retained only for the purpose the customer expects, and no further (DNA Ch 19.3).
+- **Privacy boundaries.** Memory is isolated per organization; what is learned about one business never leaks to another (DNA Ch 19.5, Ch 20.3); memory is never used against the customer (DNA Ch 19.4, Ch 29.9).
+- **Knowledge ownership.** Memory belongs to the customer, held in stewardship, correctable and forgettable, and portable on exit (DNA Ch 19.2/19.6, Ch 20.1/20.9).
+
+**Current State (PARTIAL).** **IMPLEMENTED:** operational memory of each engagement (KV state, immutable snapshots) and institutional/system memory (`memory/failure_library.md`, `memory/regression_cases.md`) exist and are governed (§III-20); static organizational knowledge (registries/specs) is version-controlled (§III-19); per-organization isolation is enforced by tenancy/RLS (§III-44). **NOT IMPLEMENTED:** compounding customer memory as a runtime construct that sharpens judgment over a client's lifetime (§III-20 marks this *PARTIAL / NOT YET*); governed per-org retrieval feeding AI context.
+
+**Approved Future State.** A governed memory-and-knowledge capability realized under the stewardship principles, additively (DNA Ch 19/20, Ch 23), with exit/portability guarantees. Technical implementation is deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 17/19/20/29; §III-19/§III-20/§III-44; §IV-31 (knowledge-retrieval capability), §IV-33 (privacy/trust).
+
+**Traceability.** Part I: KV/snapshot and system-memory reality evidenced in `memory/` and `architecture/`. Part II: DNA Ch 17/19/20/29. Part III: §III-19, §III-20, §III-44. Roadmap: memory-engine and per-org knowledge base.
+
+---
+
+## IV-33 — AI Security & Trust Principles
+
+**Purpose.** To fix the security and trust principles that govern the AI workforce — AI identity, least privilege, human approval, the trust model, secure execution, and compliance — as principles, not implementation.
+
+**Why it exists.** The workforce acts inside a trust institution handling sovereign customer data (DNA Ch 8, Ch 20). Its security and trust posture must be principled before it is built, so trust is structural (§IV-9/§IV-29).
+
+**Scope.** Security and trust **principles for the workforce**. It explicitly excludes security *implementation* — auth mechanics, RLS policy design, secret storage, encryption (those are Part III mechanics, §III-39–§III-44, and later Phase 4.x).
+
+- **AI identity.** Every AI worker has a distinct, attributable identity before it may act; actions are traceable to an identity (identity precedes authority; DNA Ch 18.7; §IV-25). The reserved `ai_worker` service-account identity is the approved-future anchor (§III-18).
+- **Least privilege.** A worker holds only the authority explicitly granted for its role — deny by default, minimum necessary (DNA Ch 18.1; Operating Constitution Art. 5; §III-43).
+- **Human approval.** High-consequence action requires human approval before effect; approval never migrates to AI by default (DNA Ch 18.9; Art. 8).
+- **Trust model.** Trust is earned through honesty, bounded authority, explainability, and auditability, and is never spent for short-term gain (DNA Ch 21.3, Ch 28.1, Ch 29.10). AI never hides that it is AI (DNA Ch 29.7).
+- **Secure execution.** Workers act only through governed surfaces (the gateway and product data gateway — Art. 2/3); secrets never live in code, reports, or worker context (Art. 13; DNA Ch 20.4).
+- **Compliance principles.** The workforce respects advisory boundaries and third-party fairness obligations (DNA Ch 30.1), and operates within the customer's authority and consent (DNA Ch 18).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** least-privilege and secure-execution principles are enforced today for AI features — auth-gated AI routes, secrets in edge secrets only, gateway/data-gateway mediation, tenant isolation via RLS (§III-15/§III-39–§III-44; Art. 2/3/5/13); human approval for high-consequence action (Art. 8; §III-16). **PARTIAL:** distinct AI-worker identity does not yet exist (reserved `ai_worker`, *Future*; §III-18); AI disclosure is a standing principle applied to features today. **NOT IMPLEMENTED:** a full AI-worker security/identity model.
+
+**Approved Future State.** A realized AI-worker security and trust model — distinct identities, per-worker least privilege, governed execution — extended additively under the same principles (DNA Ch 18/20/29, Ch 23). Security *implementation* is deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 18/20/21/28/29/30; Operating Constitution Art. 2/3/5/8/13; §III-15/§III-16/§III-39–§III-44; §IV-25/§IV-29.
+
+**Traceability.** Part I: auth/isolation/secrets discipline evidenced in `ARCHITECT.md` and `supabase/` code. Part II: DNA Ch 18/20/28/29/30. Part III: §III-15, §III-16, §III-39–§III-44. Roadmap: AI-worker identity and security model.
+
+---
+
+## IV-34 — Phase Summary
+
+**Purpose.** To close Phase 4.3 by recording what it designed, the key AI-workforce decisions it fixed, and how it connects to the phases that follow.
+
+**Why it exists.** A phased document needs an explicit boundary so the AI-workforce *architecture* is not mistaken for a staffed, implemented workforce, and so the next phase begins from a settled architecture.
+
+**Scope.** A summary of Phase 4.3 only. It designs nothing new and closes the phase.
+
+**Key decisions fixed in Phase 4.3.**
+1. The AI workforce is an organizational capability — the *doing* layer under human authority and deterministic-engine truth (§IV-23).
+2. A category taxonomy of AI workers by purpose, mapped to departments — no individuals (§IV-24).
+3. A governed AI-worker lifecycle from creation to retirement, with revocable authority throughout (§IV-25).
+4. Five responsibility classes — strategic, tactical, operational, advisory, autonomous — with advisory dominant today (§IV-26).
+5. A human–AI collaboration model spanning human-led, AI-assisted, AI-led, and shared ownership, with escalation and approval rules (§IV-27).
+6. An authority framework fixing what AI may recommend/analyse/plan/execute/approve and never perform autonomously (§IV-28).
+7. A governance-and-safety frame — oversight, alignment, guardrails, risk controls, accountability, auditability (§IV-29).
+8. A collaboration architecture across AI↔Human/AI/Departments/Product/Customers, structure only (§IV-30).
+9. An enterprise capability framework with continuous-learning boundaries (§IV-31).
+10. High-level memory and knowledge principles under customer stewardship (§IV-32).
+11. Security and trust principles — identity, least privilege, approval, trust model, secure execution, compliance (§IV-33).
+
+**Current State (PARTIAL).** Today MARQ Cortex has an AI **capability**, not an AI **workforce**: **IMPLEMENTED** feature-scoped assistive intelligence via the Intelligence Gateway (advisory only) atop 35 deterministic engines that own authoritative computation, with least-privilege, secure-execution, human-approval, and audit disciplines enforced now (§III-15–§III-21, §III-39–§III-44; Operating Constitution Art. 2/3/5/6/8/13). **NOT IMPLEMENTED** as runtime constructs: AI-worker categories, lifecycle, distinct identity, tactical/operational/autonomous responsibility, AI-led execution, multi-agent AI↔AI collaboration, and compounding customer memory — all reserved as *Future* (`ai_worker` identity; DNA Ch 8.3; §III-18/§III-20).
+
+**Approved Future State.** Progressive, additive realization of the AI workforce under human authority, deterministic-engine truth, and the constitutional authority/memory/security principles (DNA Ch 8.1/8.3, Ch 18, Ch 19, Ch 20, Ch 23, Ch 29, Ch 30), never a rebrand. Individual AI employees, prompts, prompt libraries, tool definitions, LLM providers, API specifications, technical memory implementation, workflow diagrams, department workflows, KPIs, metrics, and implementation details are **deferred to later Phase 4.x** and are not authored here.
+
+**Dependencies.** All Phase 4.3 sections (§IV-23–§IV-33); Phases 4.1–4.2 (§IV-1–§IV-22) as foundation and structure; Parts I–III as the grounding record; `MARQ_CORTEX_ROADMAP.md` and Part VI for sequence.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `memory/`, `supabase/functions/server/intelligence/`, `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`. Part II: DNA Ch 8/9/17/18/19/20/21/22/23/24/27/28/29/30/33/35. Part III: §III-1, §III-4, §III-15–§III-21, §III-26–§III-28, §III-39–§III-44, §III-62–§III-65, §III-84. Roadmap: Phase 4.x AI-workforce realization; Part VI execution roadmap.
+
+---
+
+## Phase 4.3 — Completion Status
+
+**Phase 4.3 (AI Workforce Architecture) is complete: Sections IV-23 through IV-34.** It designs how the AI workforce of MARQ Cortex exists as an organizational capability — overview, taxonomy, lifecycle, responsibilities, human–AI collaboration model, authority framework, governance and safety, collaboration architecture, capability framework, memory and knowledge principles, and security and trust principles — and deliberately defines **no** individual AI employees, prompts, prompt libraries, tool definitions, LLM providers, API specifications, technical memory implementation, workflow diagrams, department workflows, KPIs, metrics, or implementation details. Those belong to later Phase 4.x sections. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–III, and is explicitly labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: today's AI is feature-scoped assistive intelligence via the Intelligence Gateway atop deterministic engines, not a staffed AI workforce (`ai_worker` identity reserved as Future). No AI-workforce capability is invented; CURRENT STATE and APPROVED FUTURE STATE are distinguished in every section.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.4** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1 and 4.2 are unchanged.
+
+*End of Phase 4.3. Part IV continues in a later phase.*
