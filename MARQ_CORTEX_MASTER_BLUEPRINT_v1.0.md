@@ -2921,3 +2921,280 @@ The **AI Supervisor** archetype is the structural anchor of AI oversight (elabor
 **Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.5** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1, 4.2, and 4.3 are unchanged.
 
 *End of Phase 4.4. Part IV continues in a later phase.*
+
+---
+
+## Phase 4.5 — Enterprise Performance & Continuous Improvement
+
+*This phase defines how MARQ Cortex measures, evaluates, improves, and matures as an AI-first enterprise. It builds on the foundation (Phase 4.1), structure (Phase 4.2), AI workforce (Phase 4.3), and operational governance (Phase 4.4), and fixes the **performance philosophy** and **continuous-improvement framework** that govern the organization. It is **philosophy and framework, not instrumentation**: it defines no monitoring dashboards, Grafana/Prometheus/cloud monitoring, infrastructure, implementation metrics, numeric KPI targets, sprint/velocity metrics, engineering tooling, analytics/BI implementation, or technical monitoring. Those belong elsewhere and are not authored here (Golden Rule 5).*
+
+**Reading note carried from Phases 4.1–4.4.** Every section separates CURRENT STATE from APPROVED FUTURE STATE, and CURRENT STATE claims carry an implementation label — **IMPLEMENTED**, **PARTIAL**, or **NOT IMPLEMENTED** — grounded in repository evidence or the LOCKED Parts I–III. A load-bearing current fact throughout Phase 4.5: measurement today exists as **raw signals plus a constitutional success standard**, not as instrumented enterprise metrics — the platform captures product/operational signals (§III-81/§III-82, both *PARTIAL*) and the constitutional success dimensions apply now as the definition of "winning" (§III-83; DNA Ch 33.2), but formal named KPIs and numeric targets are largely undefined in code. This phase governs the *philosophy above* those metrics, never their instrumentation.
+
+**Governing subordination.** All performance measurement in this phase is subordinate to DNA Chapter 33: success is the fulfillment of purpose, **trust is the north-star**, and the anti-metrics — feature count, novelty, spectacle, engagement-for-its-own-sake, and extraction — never govern decisions (DNA Ch 33.2–33.3).
+
+**Section template.** Each section answers: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability.*
+
+---
+
+## IV-46 — Enterprise Performance Philosophy
+
+**Purpose.** To fix why MARQ Cortex measures performance at all, the principles that govern measurement, and the philosophy of enterprise maturity — the frame within which every other Phase 4.5 section sits.
+
+**Why it exists.** Measurement can either serve purpose or distort it. Before any framework, domain, or KPI category is named, the enterprise must fix *why* it measures and *what measurement may never become*, so performance strengthens trust rather than eroding it (DNA Ch 33.3).
+
+**Scope.** The performance philosophy and the enterprise-maturity philosophy. It defines no domains (§IV-47), KPI categories (§IV-48), or maturity stages (§IV-53) — those follow.
+
+- **Why performance is measured.** To verify that Cortex fulfills its purpose — that customers can trace its work to real, measurable value (DNA Ch 33.2.1) — and to make improvement honest and evidence-based (Art. 10; DNA Ch 22.4). Measurement exists to serve outcomes and trust, never to reward activity.
+- **Performance principles.** Measure purpose, not features (DNA Ch 33.1); trust is the north-star metric — when it falls, nothing else compensates (DNA Ch 33.2.3); measure honestly, never overstating value (DNA Ch 21.5); exclude anti-metrics from any decision weighting (DNA Ch 33.3); keep measurement simple for the customer (DNA Ch 33.2.5).
+- **Enterprise maturity philosophy.** Maturity is *additive deepening*, not reinvention — Cortex matures the way it evolves: bounded, verified, additive, and traceable to identity (DNA Ch 8.3, Ch 22.3, Ch 23). Growing more capable must never mean growing more complex for the customer (DNA Ch 33.2.5).
+
+**Current State (PARTIAL).** **IMPLEMENTED:** the performance *philosophy* is constitutional and in force now — the Six Constitutional Questions and success dimensions govern what counts as success today (§III-83; DNA Ch 24/33). **PARTIAL:** measurement exists as raw signals, not instrumented metrics (§III-81/§III-82). **NOT IMPLEMENTED:** a formal enterprise performance program; the philosophy is stated and governing, but its instrumentation is future.
+
+**Approved Future State.** Instrument the constitutional success dimensions with concrete definitions and (later) targets, always subordinate to trust and outcome delivery (§III-83 approved-future), additively. No new philosophy is introduced.
+
+**Dependencies.** DNA Ch 21/22/23/24/33; Operating Constitution Art. 10; §III-81/§III-82/§III-83; §IV-5/§IV-11.
+
+**Traceability.** Part I: raw-signal reality evidenced in `ARCHITECT.md` analytics/health surfaces. Part II: DNA Ch 21/22/23/24/33. Part III: §III-81, §III-82, §III-83. Roadmap: instrumented success dimensions.
+
+---
+
+## IV-47 — Enterprise Performance Framework
+
+**Purpose.** To define the high-level performance **domains** of the enterprise — the areas across which performance is understood — as an architecture, not an instrumentation.
+
+**Why it exists.** Performance must be organized by domain or it collapses into a single misleading number. This section fixes the domains so later measurement attaches to the right area, each subordinate to the constitutional success dimensions (DNA Ch 33.2).
+
+**Scope.** Performance **domains and their meaning only** — architecture, not metrics. No KPI definitions, no numeric targets, no dashboards.
+
+| Performance domain | What it measures (in principle) | Constitutional anchor |
+|---|---|---|
+| **Product** | Whether the product delivers real, effortless value | DNA Ch 33.2.1/33.2.2 (outcome delivery, effortless capability); §III-81 |
+| **Engineering** | Whether the platform is built with integrity and evidence | DNA Ch 22.4 (evidence); §III-76 |
+| **AI** | Whether AI is trustworthy, bounded, and helpful | DNA Ch 17/18 (governed intelligence); §IV-49 |
+| **Operations** | Whether the company and platform run reliably | DNA Ch 22/30; §III-82 |
+| **Customer** | Whether customers trust Cortex and realize value over time | DNA Ch 33.2.3/33.2.6 (trust, compounding judgment) |
+| **Business** | Whether value is honest, durable, and industry-broad | DNA Ch 21/33.2.8/33.2.9 (durability, breadth) |
+
+The domains are facets of one enterprise; each rolls up to **trust** as the north-star (DNA Ch 33.2.3), and none is optimized at the expense of another (DNA Ch 33.3).
+
+**Current State (PARTIAL).** **PARTIAL:** the domains are recognizable in current signals — Product (submissions/scores/proposal progression, §III-81), Operations (health/gateway telemetry, §III-82), and Customer/Business (engagement, outcomes tracking, §III-49/§III-50). **NOT IMPLEMENTED:** a formal cross-domain performance framework; domains exist here as an approved architecture, not as instrumented reporting.
+
+**Approved Future State.** Each domain given formal, trust-subordinate metric definitions (§III-81/§III-82/§III-83 approved-future), additively; the AI domain elaborated per §IV-49. Instrumentation is deferred and excluded from this phase.
+
+**Dependencies.** DNA Ch 17/18/21/22/30/33; §III-49/§III-50/§III-76/§III-81/§III-82/§III-83; §IV-49.
+
+**Traceability.** Part I: domain signals evidenced in `ARCHITECT.md` analytics/health. Part II: DNA Ch 17/18/21/22/33. Part III: §III-49, §III-50, §III-76, §III-81–§III-83. Roadmap: cross-domain metric definitions.
+
+---
+
+## IV-48 — Enterprise KPIs
+
+**Purpose.** To define the enterprise-level **KPI categories** — the classes of indicator the enterprise tracks — without defining any actual numeric target.
+
+**Why it exists.** KPIs need categories so indicators map to the right altitude and none is mistaken for an anti-metric. This section fixes the categories; numeric targets are explicitly out of scope and belong to later instrumentation.
+
+**Scope.** KPI **categories only**. **No numeric targets, no thresholds, no formulas, no dashboards.** Every category is subordinate to trust and the constitutional success dimensions (DNA Ch 33.2).
+
+- **Strategic KPIs.** Fulfillment of purpose at the enterprise altitude — trust (north-star), outcome delivery, breadth across industries, durability of relationships (DNA Ch 33.2.1/33.2.3/33.2.8/33.2.9).
+- **Operational KPIs.** Health of running the company and platform — reliability, availability, and operational integrity (DNA Ch 22/30; §III-82). *Signals only today.*
+- **Quality KPIs.** Correctness, evidence discipline, explainability, and auditability of what ships (Art. 9/10; DNA Ch 22.4/30.2; §III-76).
+- **Customer KPIs.** Effortless first value, realized value over time, and trust in what Cortex says and does (DNA Ch 33.2.2/33.2.3/33.2.6).
+
+**Anti-metric exclusion (binding).** No KPI category may reward feature count, novelty, interface spectacle, engagement-for-its-own-sake, or short-term extraction (DNA Ch 33.3). A category that would incentivize complexity, opacity, or trust-erosion is rejected.
+
+**Current State (PARTIAL).** **PARTIAL:** raw signals supporting these categories are captured today (submissions/completion/proposal progression for Strategic/Customer; health/gateway telemetry for Operational; test suites for Quality — §III-81/§III-82/§III-76). **NOT IMPLEMENTED:** formal named KPIs and numeric targets are largely undefined in code (§III-81/§III-83). The categories here are the approved structure, not instrumented indicators.
+
+**Approved Future State.** Formal KPI definitions per category with (later) concrete targets/SLOs, trust-subordinate and anti-metric-excluding (§III-81/§III-82/§III-83 approved-future), additively. Numeric targets remain out of scope for this phase.
+
+**Dependencies.** DNA Ch 22/30/33; Operating Constitution Art. 9/10; §III-76/§III-81/§III-82/§III-83.
+
+**Traceability.** Part I: KPI-supporting signals evidenced in `ARCHITECT.md`. Part II: DNA Ch 22/30/33. Part III: §III-76, §III-81, §III-82, §III-83. Roadmap: KPI definitions and targets.
+
+---
+
+## IV-49 — AI Performance Framework
+
+**Purpose.** To document how AI capability is **evaluated** as a performance concern — the dimensions along which the AI workforce is judged — without prescribing implementation or measurement mechanics.
+
+**Why it exists.** An AI-first enterprise must be able to judge whether its AI is trustworthy and helpful, not merely active. This section fixes the evaluation dimensions so AI performance is understood the way the Constitution requires — governed, bounded, and trust-first (DNA Ch 17/18/30).
+
+**Scope.** AI performance **evaluation dimensions only**. No benchmarks, no scoring implementation, no model evaluation tooling, no numeric targets.
+
+- **Quality.** Whether AI reasoning, analysis, and narration are correct, honest, and useful — always subordinate to deterministic authoritative numbers (Art. 6; DNA Ch 17).
+- **Reliability.** Whether AI behaves consistently and degrades safely (gateway timeouts/retries/rollback exist as the current safe-degradation substrate — §III-15/§III-17).
+- **Safety.** Whether AI stays within granted authority and the high-consequence floor, and escalates rather than overreaches (DNA Ch 18.5/18.6/18.9; §IV-28).
+- **Trust.** Whether customers can rely on what AI says and what it is allowed to do — the north-star, extended to AI (DNA Ch 33.2.3, Ch 28.1); AI never hides that it is AI (DNA Ch 29.7).
+- **Collaboration.** Whether AI strengthens workforce coherence — working under supervision and with humans, not fragmenting (DNA Ch 33.2.4; §IV-27/§IV-30).
+- **Governance.** Whether AI remains explainable and auditable — unexplainable decisions do not act (DNA Ch 30.2; §IV-29).
+
+**Current State (PARTIAL).** **IMPLEMENTED:** the *substrate* for evaluating Reliability, Safety, and Governance exists — gateway telemetry/health, timeouts/retries/rollback (§III-15/§III-17), bounded-authority enforcement (§III-16; Art. 8), and audit trails (§III-65). **PARTIAL/NOT IMPLEMENTED:** formal AI-performance evaluation (quality scoring, trust measurement, collaboration assessment) is not instrumented; today AI quality is governed by the deterministic-authority separation and human review, not by an AI-performance program.
+
+**Approved Future State.** A formal AI-performance evaluation across these dimensions under the governance frame, additively (DNA Ch 8.3, Ch 17/18/30; §IV-29), never displacing deterministic authority or human oversight. Evaluation *implementation* is deferred and excluded from this phase.
+
+**Dependencies.** DNA Ch 17/18/28/29/30/33; Operating Constitution Art. 6/8; §III-15/§III-16/§III-17/§III-65; §IV-27/§IV-28/§IV-29/§IV-30/§IV-31.
+
+**Traceability.** Part I: AI safe-degradation and audit evidenced in gateway code and `ARCHITECT.md` §7/§12. Part II: DNA Ch 17/18/28/29/30/33. Part III: §III-15, §III-16, §III-17, §III-65. Roadmap: AI-performance evaluation.
+
+---
+
+## IV-50 — Department Performance Principles
+
+**Purpose.** To fix the high-level performance **expectations** of departments — the principles by which any department's performance is judged — without defining department scorecards.
+
+**Why it exists.** Departments (§IV-14) need a common standard of what "performing well" means, or performance fragments into inconsistent local definitions. This section fixes the standard at the principle level, subordinate to the enterprise success dimensions.
+
+**Scope.** **High-level performance expectations only.** It explicitly does **not** define department scorecards, per-department KPIs, targets, or reviews (those are later Phase 4.x).
+
+- **Purpose-fulfillment over activity.** A department performs well when it advances the enterprise's purpose and its customers' outcomes, not when it is merely busy (DNA Ch 33.1/33.3).
+- **Constitutional alignment.** Every department's work passes the admission-and-success gate and never violates the entrenched core (DNA Ch 24/29/33.1).
+- **Trust contribution.** Each department is judged partly by whether it strengthens or spends customer and enterprise trust (DNA Ch 21.3, Ch 33.2.3).
+- **Workforce coherence.** A department performs well when it strengthens the coordinated company rather than optimizing locally at the whole's expense (DNA Ch 27.10, Ch 33.2.4).
+- **Evidence and honesty.** Performance claims require evidence and honest reporting (Art. 10; DNA Ch 22.4, Ch 33.2.7 integrity).
+
+**Current State (PARTIAL).** **PARTIAL:** these expectations apply today to the responsibilities exercised by MARQ Networks and the bounded build-agent (the departments exist as responsibilities, not staffed units — §IV-14), governed by the constitutional success standard (§III-83) and evidence discipline (Art. 10). **NOT IMPLEMENTED:** department-level performance instrumentation or scorecards — none exists and none is defined here.
+
+**Approved Future State.** These principles extended to AI-staffed departments as they are realized, additively (DNA Ch 8.3), with formal department performance handling deferred to later Phase 4.x. Scorecards remain out of scope.
+
+**Dependencies.** DNA Ch 21/22/24/27/29/33; Operating Constitution Art. 10; §III-83; §IV-14.
+
+**Traceability.** Part I: evidence discipline reflected in `ARCHITECT.md`. Part II: DNA Ch 21/22/24/27/33. Part III: §III-83. Roadmap: department performance handling.
+
+---
+
+## IV-51 — Operational Health Framework
+
+**Purpose.** To define, at a high level, what enterprise health means across the organization, product, platform, and AI — as a framework of health dimensions, not a monitoring implementation.
+
+**Why it exists.** An enterprise must be able to ask "are we healthy?" at several altitudes without confusing health with instrumentation. This section fixes the health dimensions so later monitoring (excluded here) attaches to a principled frame.
+
+**Scope.** **High-level health dimensions only.** It explicitly excludes monitoring dashboards, alerting, SLO instrumentation, and infrastructure (those are §III-62/§III-63 mechanics and excluded from this phase).
+
+- **Organizational health.** Whether the company operates coherently under its governance — clear authority, alignment to the Constitution, no drift (DNA Ch 25/30; §III-84).
+- **Product health.** Whether the product reliably delivers effortless value — completion, progression, and outcome signals (DNA Ch 33.2.1/33.2.2; §III-81).
+- **Platform health.** Whether the running platform is available, reliable, and observable — health/connectivity, gateway telemetry, error/degradation posture (DNA Ch 22; §III-60/§III-61/§III-62/§III-82).
+- **AI health.** Whether the AI layer is bounded, reliable, and safely degrading — gateway health, authority-boundedness, escalation discipline (DNA Ch 17/18; §III-15/§IV-49).
+
+**Current State (PARTIAL).** **IMPLEMENTED:** platform- and AI-health *signals* exist today — `/health` and `/diagnostic` endpoints, KV/DB connectivity, gateway telemetry/health, rate-limit headers (§III-62/§III-82) — as an observability foundation. **PARTIAL:** organizational and product health are governed by the constitutional/governance frame and raw product signals, not by a consolidated health view (§III-81/§III-84). **NOT IMPLEMENTED:** a unified operational-health framework or SLO reporting (§III-82 approved-future).
+
+**Approved Future State.** A principled operational-health framework rolling health signals up to the four dimensions, with SLO/monitoring instrumentation deferred to §III-63 and excluded from this phase; extended to AI health per §IV-49, additively.
+
+**Dependencies.** DNA Ch 17/18/22/25/30/33; §III-60/§III-61/§III-62/§III-63/§III-81/§III-82/§III-84; §IV-49.
+
+**Traceability.** Part I: health/observability signals evidenced in `ARCHITECT.md` and edge endpoints. Part II: DNA Ch 17/18/22/30/33. Part III: §III-60–§III-63, §III-81, §III-82, §III-84. Roadmap: operational-health framework; SLOs.
+
+---
+
+## IV-52 — Continuous Improvement Framework
+
+**Purpose.** To define how the enterprise improves over time — its feedback loops, lessons-learned discipline, review cycles, improvement philosophy, and innovation culture — as a governing framework, not a process specification.
+
+**Why it exists.** An AI-first enterprise that cannot learn honestly will repeat its mistakes and stagnate. This section fixes how improvement is governed so learning is continuous, honest, and additive (DNA Ch 19.7, Ch 23).
+
+**Scope.** Continuous-improvement **framework and philosophy only**. It does not define sprint retrospectives, meeting processes, velocity, or tooling (those are excluded from this phase).
+
+- **Feedback loops.** Improvement is fed by outcomes — including failures — captured and reused, not discarded (DNA Ch 19.7). Customer-realized-outcome learning feeds product direction (compounding judgment, DNA Ch 33.2.6; §IV-19).
+- **Lessons learned.** Failures and regressions are recorded so they are not repeated; hiding failure is forbidden (DNA Ch 19.7, Ch 30.1). The current institutional-memory files (`memory/failure_library.md`, `memory/regression_cases.md`) are the standing lessons-learned record (§III-20).
+- **Review cycles.** Alignment and quality are reviewed on a deliberate cadence, not assumed — architecture-compliance and quality gates each increment (Art. 9), and constitutional compliance review as a standing mechanism (DNA Ch 30.4).
+- **Improvement philosophy.** Improvement is additive and evidence-based — evolve, do not rebuild (Art. 1; DNA Ch 22.3/22.4); every improvement must keep the experience simpler, not more complex (DNA Ch 23).
+- **Innovation culture.** Innovation serves business value and trust, never technology for its own sake (DNA Ch 21.1, Ch 33.3); new capability must pass the admission gate (DNA Ch 24).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** the lessons-learned discipline (institutional failure/regression memory, §III-20; DNA Ch 19.7), per-increment review cycles (quality gates, Art. 9), and additive improvement philosophy (Art. 1; §III-75) operate today. **PARTIAL:** the standing constitutional compliance-review cadence is defined but not yet operationalized (DNA Ch 30.4; §III-84). **NOT IMPLEMENTED:** automated feedback loops or a formal continuous-improvement program beyond the document-and-memory discipline.
+
+**Approved Future State.** Operationalized compliance-review cadence and richer, memory-informed feedback loops extended to the AI workforce (DNA Ch 19; §III-84 approved-future), additively. Process mechanics remain excluded from this phase.
+
+**Dependencies.** DNA Ch 19/21/22/23/24/30/33; Operating Constitution Art. 1/9; §III-20/§III-75/§III-84; §IV-19/§IV-38.
+
+**Traceability.** Part I: institutional memory evidenced in `memory/failure_library.md`, `memory/regression_cases.md`. Part II: DNA Ch 19/22/23/30/33. Part III: §III-20, §III-75, §III-84. Roadmap: improvement operationalization.
+
+---
+
+## IV-53 — Enterprise Maturity Model
+
+**Purpose.** To describe the maturity stages through which MARQ Cortex matures as an AI-first enterprise — a model of deepening, not a schedule.
+
+**Why it exists.** Maturity must be understood as additive deepening of one identity, or growth invites reinvention and drift. This section fixes the stages so progress is legible and always traceable to identity (DNA Ch 8.3, Ch 23), and it aligns with the organizational scalability stages of §IV-21.
+
+**Scope.** Maturity **stages and their meaning only**. No timelines, no headcount, no metrics, no numeric targets.
+
+| Maturity stage | What characterizes it | Relationship to prior work |
+|---|---|---|
+| **Startup** | Compressed structure; responsibilities held by humans + deterministic systems + a bounded AI agent; direct oversight | Current shape (§IV-21 Current State) |
+| **Growth** | Portfolios and departments differentiate; AI-supervisor line formalizes as AI-staffed work begins | §IV-21 growth stage |
+| **Scale** | Repeatable, standardized operation across a broadening customer base; governance and quality hold under load | §IV-54 excellence principles |
+| **Enterprise** | Full department architecture and leadership layers; governance fully operationalized | §IV-21 enterprise stage; §IV-44 |
+| **Global** | Same structure replicated across markets/industries; isolation and governance scale without relaxing | §IV-21 global stage; DNA Ch 20.3/20.8 |
+| **AI-native** | The AI workforce realized as first-class runtime constructs under human authority; the identity fully expressed | DNA Ch 8.1/8.3 destination; §IV-23 |
+
+**Maturity invariants (hold at every stage).** One canonical authority per responsibility (DNA Ch 22.5); deterministic authority and human-in-the-loop at the high-consequence floor (Art. 6; DNA Ch 18.9); simplicity under growth (DNA Ch 33.2.5); trust as north-star (DNA Ch 33.2.3). Maturing never relaxes an invariant.
+
+**Current State (PARTIAL).** **IMPLEMENTED (Startup stage):** Cortex operates today at the startup maturity shape — compressed structure under MARQ Networks stewardship, with deterministic systems and a bounded AI agent (§IV-21/§IV-23 Current State). **NOT IMPLEMENTED:** the growth-through-AI-native stages are the approved trajectory, not present state; the AI-native destination is reserved as *Future* (DNA Ch 8.3).
+
+**Approved Future State.** Additive progression through the stages, deepening one identity without rebuild (DNA Ch 8.3, Ch 22.3, Ch 23), preserving every invariant. Stage sequencing/timing is deferred to Part VI (execution roadmap).
+
+**Dependencies.** DNA Ch 8.3/18/20/22/23/33; §IV-21/§IV-23/§IV-44/§IV-54; Part VI (future).
+
+**Traceability.** Part I: current startup shape evidenced in `ARCHITECT.md` and `architecture/system_map.json`. Part II: DNA Ch 8/18/20/22/23/33. Part III: §III-44, §III-59. Roadmap: staged maturity; Part VI execution roadmap.
+
+---
+
+## IV-54 — Operational Excellence Principles
+
+**Purpose.** To fix the principles of operational excellence — standardization, repeatability, automation, governance, quality, and continuous optimization — that keep the enterprise excellent as it matures.
+
+**Why it exists.** Excellence at scale comes from principled discipline, not heroics. This section names the excellence principles so maturity (§IV-53) is achieved by durable practice rather than effort that cannot scale.
+
+**Scope.** Operational-excellence **principles only**. No process implementation, no tooling, no automation infrastructure, no metrics.
+
+- **Standardization.** One canonical way per responsibility — one manifest, one source of truth, defined authority order (Art. 14; DNA Ch 22.5; §III-85). Standardization removes ambiguity, not judgment.
+- **Repeatability.** Work advances through repeatable, bounded, evidence-gated increments (Art. 9/16), so outcomes are reproducible and reviewable.
+- **Automation.** Repeatable work is carried by automation so humans are freed for judgment (DNA Ch 8.1 automation systems; Ch 27.1 reduce work) — automation carries complexity inward (DNA Ch 21.7), never onto the customer.
+- **Governance.** Excellence operates inside the governance frame of Phase 4.4 — deterministic authority, bounded authority, human-in-the-loop at the floor (§IV-44).
+- **Quality.** Evidence over assertion; explainability and auditability engineered in; one change that cannot be explained does not ship (Art. 10; DNA Ch 22.4/30.2; §IV-38).
+- **Continuous optimization.** Optimization is additive and trust-subordinate — it improves outcomes and simplicity, never trading trust or increasing customer complexity for local gain (DNA Ch 23, Ch 33.3).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** standardization (single manifest/authority order — Art. 14; §III-85), repeatability (bounded evidence-gated sprints — Art. 9/16), governance (Phase 4.4 frame, enforced now), and quality (evidence discipline — Art. 10) operate today. **PARTIAL:** automation exists for defined platform work (background jobs/scheduled processes, §III-33/§III-34) but not as an enterprise automation capability; continuous optimization is document-and-memory driven. **NOT IMPLEMENTED:** enterprise-wide automation of operational work by an AI workforce (reserved *Future*, DNA Ch 8.3).
+
+**Approved Future State.** The excellence principles extended to the maturing, increasingly AI-operated enterprise, additively (DNA Ch 8.3, Ch 23), with automation and optimization deepening under governance. Implementation is excluded from this phase.
+
+**Dependencies.** DNA Ch 8/21/22/23/27/30/33; Operating Constitution Art. 9/10/14/16; §III-33/§III-34/§III-85; §IV-38/§IV-44/§IV-53.
+
+**Traceability.** Part I: standardization and gates evidenced in `ARCHITECT.md` §11/§18 and manifest. Part II: DNA Ch 8/21/22/27/33. Part III: §III-33, §III-34, §III-85. Roadmap: enterprise automation; optimization.
+
+---
+
+## IV-55 — Phase Summary
+
+**Purpose.** To close Phase 4.5 by recording what it defined, the key performance-and-improvement decisions it fixed, and how it connects to the phases that follow.
+
+**Why it exists.** A phased document needs an explicit boundary so performance *philosophy and framework* are not mistaken for performance *instrumentation*, and so the next phase begins from a settled framework.
+
+**Scope.** A summary of Phase 4.5 only. It defines nothing new and closes the phase.
+
+**Key decisions fixed in Phase 4.5.**
+1. A performance philosophy: measure purpose not features, trust as north-star, anti-metrics excluded (§IV-46).
+2. A high-level performance framework across Product, Engineering, AI, Operations, Customer, and Business domains (§IV-47).
+3. Enterprise KPI categories — Strategic, Operational, Quality, Customer — with no numeric targets (§IV-48).
+4. An AI performance framework across Quality, Reliability, Safety, Trust, Collaboration, Governance (§IV-49).
+5. High-level department performance principles — no scorecards (§IV-50).
+6. An operational-health framework across organizational, product, platform, and AI health (§IV-51).
+7. A continuous-improvement framework — feedback loops, lessons learned, review cycles, improvement philosophy, innovation culture (§IV-52).
+8. An enterprise maturity model — Startup, Growth, Scale, Enterprise, Global, AI-native — with invariants (§IV-53).
+9. Operational-excellence principles — standardization, repeatability, automation, governance, quality, continuous optimization (§IV-54).
+
+**Current State (PARTIAL).** Measurement today is **raw signals plus a constitutional success standard**, not instrumented enterprise performance: **IMPLEMENTED** — the constitutional success dimensions govern "winning" now (§III-83; DNA Ch 33), institutional failure/regression memory and per-increment review cycles operate (§III-20; Art. 9), and platform/AI health signals exist (§III-62/§III-82); **PARTIAL** — product/operational metrics are raw signals without formal KPIs (§III-81/§III-82); **NOT IMPLEMENTED** — formal enterprise KPIs, numeric targets, AI-performance evaluation, unified health framework, department scorecards, and the growth-through-AI-native maturity stages (the enterprise operates at the *Startup* maturity shape today, §IV-53). No performance capability is invented.
+
+**Approved Future State.** Progressive instrumentation of the constitutional success dimensions and the frameworks above — trust-subordinate, anti-metric-excluding, and extended to the realized AI workforce — additively (DNA Ch 8.3, Ch 23, Ch 33). Monitoring dashboards, Grafana/Prometheus/cloud monitoring, infrastructure, implementation metrics, numeric KPI targets, sprint/velocity metrics, engineering tooling, analytics/BI implementation, and technical monitoring are **excluded from this phase** and belong elsewhere.
+
+**Dependencies.** All Phase 4.5 sections (§IV-46–§IV-54); Phases 4.1–4.4 (§IV-1–§IV-45) as foundation, structure, workforce, and governance; Parts I–III as the grounding record; `MARQ_CORTEX_ROADMAP.md` and Part VI for sequence.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `memory/failure_library.md`, `memory/regression_cases.md`, edge health/analytics surfaces. Part II: DNA Ch 8/17/18/19/20/21/22/23/24/25/27/28/29/30/33. Part III: §III-15–§III-17, §III-20, §III-33, §III-34, §III-49, §III-50, §III-59–§III-65, §III-76, §III-81–§III-85. Roadmap: performance instrumentation; maturity progression; Part VI execution roadmap.
+
+---
+
+## Phase 4.5 — Completion Status
+
+**Phase 4.5 (Enterprise Performance & Continuous Improvement) is complete: Sections IV-46 through IV-55.** It defines how MARQ Cortex measures, evaluates, improves, and matures as an AI-first enterprise — the performance philosophy, performance framework, enterprise KPI categories, AI performance framework, department performance principles, operational-health framework, continuous-improvement framework, enterprise maturity model, and operational-excellence principles — and deliberately excludes monitoring dashboards, Grafana/Prometheus/cloud monitoring, infrastructure, implementation metrics, numeric KPI targets, sprint/velocity metrics, engineering tooling, analytics/BI implementation, and technical monitoring. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–III and is labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: measurement today is raw signals plus a constitutional success standard, not instrumented enterprise performance, and the enterprise operates at the Startup maturity shape. All measurement is subordinate to trust and the constitutional success dimensions (DNA Ch 33); anti-metrics never govern. No performance capability is invented; CURRENT STATE and APPROVED FUTURE STATE are distinguished in every section.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.6** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1, 4.2, 4.3, and 4.4 are unchanged.
+
+*End of Phase 4.5. Part IV continues in a later phase.*
