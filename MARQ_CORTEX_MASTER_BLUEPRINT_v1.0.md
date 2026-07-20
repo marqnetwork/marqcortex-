@@ -3198,3 +3198,88 @@ The domains are facets of one enterprise; each rolls up to **trust** as the nort
 **Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.6** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1, 4.2, 4.3, and 4.4 are unchanged.
 
 *End of Phase 4.5. Part IV continues in a later phase.*
+
+---
+
+## Phase 4.6 — Enterprise Review, Audit & Lock
+
+*This is an **audit and ratification** phase, not a writing phase. It performs a complete enterprise review of Part IV (§IV-1 through §IV-55), records the result of the 18-point audit checklist, resolves any verified architectural gap (none was found), and — on a passing review — appends the official approval record and locks Part IV. No new architectural sections are created; no section IV-1..IV-55 is redesigned. After lock, Part IV may change only through the formal Amendment Process (DNA Ch 35).*
+
+### 4.6.1 — Audit scope and method
+
+The audit covered all 55 sections of Part IV across its five authored phases — Phase 4.1 Company Foundation (§IV-1–§IV-12), Phase 4.2 Organizational Structure (§IV-13–§IV-22), Phase 4.3 AI Workforce Architecture (§IV-23–§IV-34), Phase 4.4 Operations & Governance (§IV-35–§IV-45), and Phase 4.5 Enterprise Performance & Continuous Improvement (§IV-46–§IV-55). Method: structural enumeration (numbering continuity and template completeness), cross-reference range validation, and constitutional/product consistency verification against the LOCKED Parts I–III, the Constitution (`CORTEX_DNA_v1.0.md`), and the Operating Constitution (`MARQ_CORTEX_CONSTITUTION.md`).
+
+### 4.6.2 — Audit checklist results
+
+| # | Checklist item | Result | Evidence / basis |
+|---|----------------|--------|------------------|
+| 1 | No missing architectural sections | **PASS** | §IV-1 through §IV-55 present and continuous; five phases each with header and completion status. Foundation → structure → workforce → governance → performance is a complete enterprise operating model at the architectural altitude. |
+| 2 | No duplicated concepts | **PASS** | The three "principles" sections sit at distinct altitudes and cross-reference, not duplicate: §IV-5 (enterprise operating principles) and §IV-9 (governance principles) are foundational; §IV-44 explicitly is "the governance counterpart to the foundational principles of §IV-5/§IV-9" and "introduces no new rule." The three "collaboration" sections are likewise distinct: §IV-8 (foundational frame), §IV-27 (workforce collaboration *modes*), §IV-30 (collaboration *channels*/architecture). |
+| 3 | No conflicting governance | **PASS** | All governance defers to one stack — Constitution → Master Blueprint → Operating Constitution/`ARCHITECT.md` → sprint criteria → verified behavior (DNA Ch 25.1). §IV-9, §IV-29, §IV-35–§IV-44 are consistent facets of that stack. |
+| 4 | No conflicting authority | **PASS** | §IV-13/§IV-17/§IV-28/§IV-36 all resolve to the same standing overrides: deterministic engines own authoritative computation (Art. 6); the Human Principal is ultimate accountable at the high-consequence floor (DNA Ch 18.9); identity/governance stay with the Constitution + steward (DNA Ch 35). No competing authority claim exists. |
+| 5 | No contradictions with Part I | **PASS** | Every CURRENT STATE claim traces to the recovered structural record (`ARCHITECT.md`, `architecture/system_map.json`, `src/`, `supabase/`, `memory/`). No claim contradicts Part I fact. |
+| 6 | No contradictions with Part II | **PASS** | Part IV derives from and never overrides the DNA. The AI-company model is treated as approved-yet-progressive (DNA Ch 8.3); identity, authority doctrine, non-negotiables, and success test are cited and upheld throughout. |
+| 7 | No contradictions with Part III | **PASS** | Part IV builds on Part III sections (e.g., §III-1/§III-15–§III-21/§III-39–§III-44/§III-81–§III-88) and never restates or contradicts them; organizational roles are explicitly kept distinct from the product RBAC roles of §III-42/§III-43. |
+| 8 | CURRENT STATE is repository-grounded | **PASS** | Every section grounds CURRENT STATE in repository evidence or the LOCKED blueprint, tagged PROVEN/PARTIAL/DEBT (Phases 4.1–4.2) or IMPLEMENTED/PARTIAL/NOT IMPLEMENTED (Phases 4.3–4.5); 157 implementation-label usages; the AI workforce as runtime is consistently marked NOT IMPLEMENTED and tied to the reserved `ai_worker` *Future* identity. No invented capability. |
+| 9 | APPROVED FUTURE STATE clearly identified | **PASS** | All 55 sections carry an explicit Approved Future State, marked additive and traced to Part II or the roadmap (DNA Ch 8.3, Ch 23). |
+| 10 | Traceability is complete | **PASS** | All 55 sections close with a Traceability line to Part I, Part II, Part III, and the roadmap; all 55 carry Dependencies. |
+| 11 | Cross references are valid | **PASS** | All §III-NN references fall within III-1..III-88; all §IV-NN references fall within IV-1..IV-55. No dangling reference. |
+| 12 | Terminology is consistent | **PASS** | Canonical terms (AI Workforce, Intelligence Gateway, deterministic engines, high-consequence floor, Human Principal, Master Rule) used consistently. The two confidence-label conventions are each introduced in their phase reading notes and map cleanly (PROVEN≈IMPLEMENTED); this is documented, not drift. |
+| 13 | AI governance aligns with the Constitution | **PASS** | §IV-28/§IV-29/§IV-33 encode the Human–AI Authority Doctrine (DNA Ch 18), deterministic authority (Art. 6/DNA Ch 17), explainability/auditability (DNA Ch 30.2), and the high-consequence floor (DNA Ch 18.9) without deviation (42 deterministic-authority references, 44 floor references). |
+| 14 | Enterprise Operating Model internally consistent | **PASS** | §IV-35 operating model and §IV-44 governing principles are consistent with §IV-5/§IV-9/§IV-36–§IV-43 and with the maturity model (§IV-53) and excellence principles (§IV-54); invariants (single canonical authority, deterministic authority, human floor, simplicity under growth) hold across every stage. |
+| 15 | Human responsibilities remain ultimate authority where required | **PASS** | Human Principal / MARQ Networks ultimate authority at the high-consequence floor is affirmed pervasively (§IV-13/§IV-17/§IV-20/§IV-26/§IV-27/§IV-28/§IV-36/§IV-40/§IV-44); "the workforce serves; it does not rule" (DNA Ch 18.8) is upheld throughout. |
+| 16 | No implementation details accidentally entered | **PASS** | File-path citations appear only as CURRENT STATE *evidence* (the Part III convention), never as specifications. No prompts, tool definitions, APIs, schemas, dashboards, infrastructure, or numeric targets were introduced; each phase's exclusions were honored. |
+| 17 | No missing enterprise concepts | **PASS** | The enterprise operating model — identity/philosophy, structure, AI workforce, governance, and performance/improvement — is complete at the architectural altitude. Departments' workflows, individual AI workers, KPIs, and implementation are deliberately deferred to later phases (not gaps). |
+| 18 | No architectural drift | **PASS** | Part IV realizes exactly the AI-Workforce organizational model reserved for it in the document's front matter and DNA Ch 8, progressively and additively; no section drifts from identity (DNA Ch 8.3) or from the LOCKED Parts. |
+
+**Audit outcome:** **18 / 18 PASS.**
+
+### 4.6.3 — Gaps found and corrections
+
+**No genuine architectural gap was discovered.** Accordingly, no corrective edits were made to §IV-1..§IV-55 (scope was not expanded and the architecture was not redesigned, per the phase mandate).
+
+**One out-of-scope observation (recorded, not corrected).** The document front-matter status line reads "Part III IN PROGRESS · Parts IV–VI PLANNED." This line predates Part IV, lies outside the §IV-1..§IV-55 audit scope, and — by the convention established when Part III declared its own completion without editing the front matter — each Part declares status in its own completion/lock section. It is therefore left unchanged here under the append-only mandate; a future editorial correction to the shared header (a meaning-preserving change under DNA Ch 30.4) may reconcile it. This is a documentation-hygiene note, not an architectural gap in Part IV.
+
+### 4.6.4 — Lock conditions confirmed
+
+- ✓ Phase 4.1 complete (§IV-1–§IV-12)
+- ✓ Phase 4.2 complete (§IV-13–§IV-22)
+- ✓ Phase 4.3 complete (§IV-23–§IV-34)
+- ✓ Phase 4.4 complete (§IV-35–§IV-45)
+- ✓ Phase 4.5 complete (§IV-46–§IV-55)
+- ✓ Continuous numbering (IV-1 → IV-55, no restart, no gap)
+- ✓ CURRENT STATE verified (repository- or LOCKED-blueprint-grounded; labelled)
+- ✓ APPROVED FUTURE STATE identified (every section)
+- ✓ Traceability complete (every section; Parts I–III + roadmap)
+- ✓ Cross references valid (all in range)
+- ✓ Constitutional alignment confirmed (Part II / DNA + Operating Constitution)
+- ✓ Product alignment confirmed (Part III)
+- ✓ No unresolved architectural gaps
+
+### 4.6.5 — Official Approval Record
+
+| Field | Value |
+|-------|-------|
+| **Part** | Part IV — AI Company Architecture |
+| **Scope** | Sections §IV-1 through §IV-55 (Phases 4.1–4.5) |
+| **Version** | 1.0 |
+| **Approval** | **APPROVED** |
+| **Enterprise Architecture Review** | **PASS** |
+| **AI Architecture Review** | **PASS** |
+| **Repository Alignment** | **PASS** |
+| **Executive Review** | **PASS** |
+| **Audit checklist** | 18 / 18 PASS |
+| **Steward** | MARQ Networks |
+| **Status** | **LOCKED** |
+
+### 4.6.6 — Immutability
+
+**PART IV — AI COMPANY ARCHITECTURE — Status: LOCKED (Version 1.0, APPROVED).**
+
+Part IV is now constitutionally settled. It is preserved as authored; §IV-1 through §IV-55 are not restated, summarized, or altered by any subsequent Part. Future modifications to Part IV may occur **only through the formal Amendment Process** (DNA Ch 35) — ordinary amendment for non-entrenched content, and the heightened core-amendment process (DNA Ch 35.5–35.6) where a change would touch the entrenched core (identity, non-negotiables, the Human–AI Authority Doctrine, data sovereignty, or *Maximum Intelligence, Minimum Complexity*). Every such change must be versioned, attributed, and logged (DNA Ch 30.4). A silent or unlogged edit to Part IV has no force.
+
+### 4.6.7 — Continuity
+
+Parts I, II, and III remain LOCKED and unchanged. Part IV is LOCKED as of this record. The Master Blueprint remains a single, continuous document; the next authoring phase is **Part V — Future Vision** (PLANNED), appended later with continuous numbering and formatting. **This phase does not begin Part V.**
+
+*End of Part IV. Part IV is LOCKED.*
