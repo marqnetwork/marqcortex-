@@ -3283,3 +3283,289 @@ Part IV is now constitutionally settled. It is preserved as authored; §IV-1 thr
 Parts I, II, and III remain LOCKED and unchanged. Part IV is LOCKED as of this record. The Master Blueprint remains a single, continuous document; the next authoring phase is **Part V — Future Vision** (PLANNED), appended later with continuous numbering and formatting. **This phase does not begin Part V.**
 
 *End of Part IV. Part IV is LOCKED.*
+
+---
+
+# PART VI — PHASE 6: EXECUTION ROADMAP
+
+**Status:** IN PROGRESS · **Numbering:** Sections VI-1 onward (continuing the single-document numbering after §IV-55; Part V — Future Vision remains PLANNED and unauthored, so no §V-NN sections yet exist) · **Continuity:** Part VI appends to the same Master Blueprint; numbering and formatting are continuous and are never restarted. Parts I–IV remain LOCKED and are neither modified, restated, nor contradicted here (Preservation rule; Golden Rules 1 and 8).
+
+## Reading conventions for Part VI
+
+Part VI is the **Execution Roadmap** — the sequenced plan to realize the approved blueprint. It is authored in phases, beginning with **Phase 6.1 — Current State Assessment & Gap Analysis**, which establishes the execution baseline before any sequencing is proposed. It carries the discipline of Parts III–IV without exception:
+
+- **CURRENT STATE vs APPROVED FUTURE STATE.** Every section separates what exists today from what the blueprint approves. CURRENT STATE is grounded strictly in repository evidence or the LOCKED Parts I–IV; APPROVED FUTURE STATE is traced to the Constitution (Part II), the product blueprint (Part III), the enterprise architecture (Part IV), and the roadmap.
+- **Implementation labels.** CURRENT STATE is tagged **IMPLEMENTED**, **PARTIAL**, or **NOT IMPLEMENTED** (the Part III/IV convention, where IMPLEMENTED ≈ PROVEN). No capability is invented; nothing observed is normalized against the Constitution.
+- **Never invent.** Where a capability does not exist, it is marked NOT IMPLEMENTED and tied to its reserved future identity. Where the blueprint that a section would compare against is itself unauthored, that is stated plainly rather than assumed.
+
+**Note on Part V.** The task baseline for this phase names Parts I–V as the approved comparison surface. In the document as authored, **Parts I–IV are LOCKED and Part V — Future Vision is PLANNED but not yet written** (per the Part IV completion record and the organization table, §front-matter). Phase 6.1 therefore compares CURRENT STATE against the approved blueprint **as it exists today** — Parts I–IV (LOCKED) plus the Constitution — and treats the long-horizon strategic direction as it is currently carried: by the DNA (Part II, the constitutional source of vision and mission), by the APPROVED FUTURE STATE sections throughout Parts III–IV, and by `MARQ_CORTEX_ROADMAP.md`. Part V is recorded throughout as **NOT IMPLEMENTED (unauthored)**. This preserves traceability and invents nothing.
+
+**What this phase is not.** Phase 6.1 is not a sprint plan, not a delivery schedule, and not a backlog. It defines no milestones, tasks, assignments, budgets, hiring, timelines, or technical implementation. Those belong to later Part VI phases (6.2 onward). This phase ends at §VI-10 and neither begins Phase 6.2 nor locks Part VI.
+
+---
+
+## Phase 6.1 — Current State Assessment & Gap Analysis
+
+*This phase establishes the execution baseline for MARQ Cortex. It compares the CURRENT IMPLEMENTATION against the APPROVED BLUEPRINT (Parts I–IV LOCKED, plus the Constitution) to identify what already exists, what is partially implemented, and what remains to be built before Cortex reaches the approved future state. It categorizes gaps and dependencies without prioritizing or sequencing solutions.*
+
+---
+
+## VI-1 — Executive Assessment
+
+**Purpose.** To give a high-level, evidence-grounded assessment of the current MARQ Cortex implementation measured against the approved blueprint (Parts I–IV LOCKED, plus the Constitution).
+
+**Why it exists.** Execution cannot be sequenced honestly until the starting point is fixed. This section states, at the executive altitude, how far the realized system has traveled toward the approved architecture — so that every later gap, dependency, and principle is read against a settled baseline rather than an aspiration.
+
+**Scope.** The whole system at a glance: product (Part III), enterprise/AI-company architecture (Part IV), and strategic readiness (the DNA and the future-state sections, standing in for the unauthored Part V). No section-by-section detail — that follows in §VI-2 through §VI-4.
+
+**Current State (PARTIAL).** MARQ Cortex today is a **substantially implemented product on a settled constitutional and architectural foundation, operating as a single-operator (Startup-shape) enterprise, with data-authority migration and the AI-workforce runtime still ahead.**
+- **IMPLEMENTED.** The deterministic product core exists: 37 engines in `src/app/core/` (scoring, decision, portfolio, ROI/DCF/IRR/Monte-Carlo/scenario/cost/cashflow, proposal-gate, snapshot/version/export, contract, execution/scope/template, ROI-actuals, QBR, CRM, copilot/AI-assist/objection), a 171-node component manifest (`src/system/manifest.ts`), the full pre-sale → post-sign journey routes (`src/app/pages/`), the Intelligence Gateway with live provider adapters (`supabase/functions/server/intelligence/`), the CORTEX AI surfaces (chat, narrative, analysis, copilot-patch, block-assist, proposal-section copilot), a repository layer and KV store, a migration engine with CLI, and system memory (`memory/`). Governance doctrine is settled and LOCKED (Constitution → Blueprint → Operating Constitution → sprint criteria → verified behavior).
+- **PARTIAL.** Relational schema, RLS, and tenancy migrations exist, but **KV remains the runtime storage authority**; SQL cutover is in progress (roadmap Phase 4/5, currently S7.4 Outcome Shadow Read). The Intelligence Gateway is live single-provider; multi-provider/agent orchestration is future. Multi-tenant isolation is defined (RLS) but not yet the enforced runtime authority.
+- **NOT IMPLEMENTED.** The Part IV **AI Workforce as a runtime** (executives, departments, managers, AI workers) — reserved to the `ai_worker` future identity; enterprise performance instrumentation and formal KPIs (§IV-46–§IV-55 record raw signals plus the constitutional success standard); and **Part V — Future Vision** (unauthored).
+
+**Approved Future State.** The additive realization of the approved blueprint: SQL as authoritative data plane under enforced multi-tenancy; multi-provider/agent intelligence; progressive standing-up of the AI workforce against the reserved identity; and instrumented enterprise performance — each delivered without rebuild and subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 23, Ch 33). Authoring of Part V and later Part VI phases completes the approved comparison surface.
+
+**Dependencies.** Parts I–IV (LOCKED) as the grounding record; the Constitution (`CORTEX_DNA_v1.0.md`); `MARQ_CORTEX_ROADMAP.md` for runtime authority; §VI-2 through §VI-9 for the detail beneath this summary.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `src/imports/cortex-audit-report.md`. Part II: DNA Ch 8/17/18/23/33. Part III: §III-15–§III-21, §III-29, §III-59–§III-65, §III-81–§III-88. Part IV: §IV-23, §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md`; Part VI later phases.
+
+---
+
+## VI-2 — Current Product State
+
+**Purpose.** To assess the implementation status of the product defined in Part III, using only IMPLEMENTED, PARTIAL, or NOT IMPLEMENTED.
+
+**Why it exists.** The execution baseline must state precisely which product capabilities are realized, which are half-built, and which are only specified — so gap analysis (§VI-5) rests on fact, not impression.
+
+**Scope.** The product surface of Part III: the customer journey, the deterministic engines, the AI surfaces, data/persistence, tenancy, and the supporting platform. Enterprise/AI-company concerns belong to §VI-3.
+
+**Current State.**
+
+| Product capability (Part III) | Status | Evidence |
+|---|---|---|
+| Deterministic decision & scoring core | **IMPLEMENTED** | `scoringEngine`, `decisionEngine`, `portfolioEngine`, `inputNormalizer`, `mappingEngine` in `src/app/core/` |
+| ROI / financial modeling suite | **IMPLEMENTED** | `roiEngine`, `dcfEngine`, `irrEngine`, `monteCarloEngine`, `scenarioEngine`, `costEngine`, `cashflowEngine` |
+| Proposal governance & gating | **IMPLEMENTED** | `proposalGateEngine`, `proposalCopilotEngine`; server `proposalSectionCopilot.ts` |
+| Snapshot / version / export | **IMPLEMENTED** | `snapshotEngine`, `versionEngine`, `exportEngine`; server `revenueSnapshot.ts` |
+| Contract & execution delivery | **IMPLEMENTED** | `contractEngine`, `executionEngine`, `scopeEngine`, `templateAssembler`, `blockEngine`, `sprintTemplates` |
+| ROI actuals & QBR | **IMPLEMENTED** | `roiActualsEngine`, `roiTrackingEngine`, `qbrEngine`; `outcomeRepository.ts` |
+| Customer journey routes (pre-sale → post-sign) | **IMPLEMENTED** | `LeadMagnetRoute`, `DiagnosticRoute`, `ScoreRoute`, `ExecutionRoute`, `ClientPortalRoute`, `TeamDashboardRoute` |
+| CORTEX AI surfaces (chat, narrative, assist, copilot, objection) | **IMPLEMENTED** | `copilotEngine`, `aiAssistEngine`, `objectionEngine`; server `cortexChat/cortexNarrative/cortexAnalysis/blockAiAssist/copilotPatch` |
+| Intelligence Gateway (provider abstraction) | **PARTIAL** | Gateway live with `openaiAdapter` + `mockProvider`; multi-provider/agent orchestration is future |
+| CRM / lead capture | **PARTIAL** | `crmEngine`, `leadRepository`, `contactRepository`; external CRM sync is future |
+| Persistence & data authority | **PARTIAL** | `kv_store.tsx` + repositories are authoritative; **SQL not yet the runtime authority** (roadmap S7.x/S8.x) |
+| Relational schema & migrations | **PARTIAL** | Tenancy, RLS+seed, KV-foundation, migration-infra, diagnostic-foundation migrations exist; not the live authority |
+| Multi-tenancy / isolation | **PARTIAL** | `organizations` + RLS policies and `tenancyRepository`; enforced runtime isolation maturing |
+| Migration tooling | **IMPLEMENTED** | `scripts/migration/cli.ts` (inventory/simulate/backfill/reconcile/pipeline/validate); `supabase/functions/server/migration/` |
+| Client / instant booking | **IMPLEMENTED** | `supabase/functions/server/bookings/` |
+| Full analytics / BI product surface | **NOT IMPLEMENTED** | Raw signals only; no instrumented analytics product (see §VI-3, §IV-46–§IV-55) |
+
+**Approved Future State.** SQL as authoritative data plane under enforced RLS/tenancy; multi-provider and agentic intelligence; external CRM/e-sign/scheduling integrations; and progressive UI/analytics maturation — additive, contract-preserving, and traced to Part III future-state sections (§III-29, §III-37, §III-44, §III-59–§III-65).
+
+**Dependencies.** Part III (§III-1–§III-88); the roadmap runtime-authority record; the migration engine and relational migrations; §VI-6 (dependencies) and §VI-8 (constraints).
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`. Part II: DNA Ch 6/17/18/20. Part III: §III-15–§III-21, §III-26–§III-29, §III-37, §III-42–§III-44, §III-59–§III-65, §III-87. Roadmap: `MARQ_CORTEX_ROADMAP.md` (Phases 3–5).
+
+---
+
+## VI-3 — Current Enterprise State
+
+**Purpose.** To assess the implementation status of the AI Company Architecture defined in Part IV.
+
+**Why it exists.** Part IV approved MARQ Cortex *as a company* — executives, departments, managers, and an AI workforce. Execution must record honestly how much of that operating model is realized versus reserved, so the enterprise gap is not confused with the product gap.
+
+**Scope.** The Part IV enterprise operating model: identity/foundation, organizational structure, AI workforce, operations/governance, and enterprise performance. The product surface is §VI-2; strategic readiness is §VI-4.
+
+**Current State.**
+- **IMPLEMENTED (as doctrine and single-operator reality).** The enterprise identity, operating principles, governance stack, and authority doctrine are settled and LOCKED (§IV-1–§IV-12, §IV-35–§IV-45): one canonical authority chain (Constitution → Blueprint → Operating Constitution/`ARCHITECT.md` → sprint criteria → verified behavior), deterministic engines owning authoritative computation (Art. 6), and the Human Principal as ultimate accountable at the high-consequence floor (DNA Ch 18.9). Institutional memory (`memory/failure_library.md`, `regression_cases.md`, `pattern_violations.json`) and per-increment review cycles operate.
+- **PARTIAL.** The organizational *structure* exists as approved architecture and as the current single-operator (Startup-shape) reality; roles are defined (`roleEngine`, product RBAC in §III-42/§III-43) but the multi-department, multi-manager operating org is not staffed or running.
+- **NOT IMPLEMENTED.** The **AI Workforce as a runtime** — executive/department/manager/worker AI roles executing enterprise work — reserved to the `ai_worker` future identity (§IV-23–§IV-34). Enterprise performance instrumentation, formal KPIs, AI-performance evaluation, a unified health framework, and department scorecards are absent; measurement today is raw signals plus the constitutional success standard, and the enterprise operates at the **Startup maturity shape** (§IV-46–§IV-55). No workforce capability is invented.
+
+**Approved Future State.** Progressive, additive standing-up of the AI workforce against the reserved identity and the approved structure — deterministic authority, human floor, and the maturity invariants preserved at every stage — with performance instrumentation extended to the realized workforce (DNA Ch 8.3, Ch 23; §IV-53–§IV-55).
+
+**Dependencies.** Part IV (§IV-1–§IV-55, LOCKED); the reserved `ai_worker` identity; §VI-2 (product substrate the workforce operates on); §VI-6/§VI-7.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `memory/`. Part II: DNA Ch 8/9/17/18/23/33/35. Part III: §III-42–§III-44. Part IV: §IV-1–§IV-12, §IV-23–§IV-34, §IV-35–§IV-45, §IV-46–§IV-55. Roadmap: Part VI later phases.
+
+---
+
+## VI-4 — Current Strategic Readiness
+
+**Purpose.** To assess readiness against the strategic direction that would be defined in Part V.
+
+**Why it exists.** A gap analysis must weigh how ready the realized system is for its approved long-horizon direction. Because Part V is unauthored, this section is explicit about *what* strategic direction it measures against, so readiness is grounded and not fabricated.
+
+**Scope.** Long-horizon strategic readiness. Because **Part V — Future Vision is NOT IMPLEMENTED (unauthored)**, the strategic direction is read from its current constitutional carriers: the DNA (Part II — vision, mission, product/AI philosophy, progressive AI-company doctrine), the APPROVED FUTURE STATE sections throughout Parts III–IV, and `MARQ_CORTEX_ROADMAP.md`.
+
+**Current State.**
+- **Part V — Future Vision: NOT IMPLEMENTED (unauthored).** It exists only as a PLANNED placeholder in the organization table; no §V-NN content has been written (§front-matter; Part IV completion record).
+- **Strategic direction (as currently carried): IMPLEMENTED as constitutional intent.** The DNA fixes identity, mission, and the "Maximum Intelligence, Minimum Complexity" north-star, and approves the AI-company as progressive-yet-approved (DNA Ch 8.3). This direction is settled and LOCKED.
+- **Strategic *readiness* of the realized system: PARTIAL.** The deterministic product core and constitutional foundation are strong footing for the approved direction (IMPLEMENTED substrate, §VI-2). The two pillars the long horizon most depends on — an authoritative, multi-tenant SQL data plane and a standing AI workforce — are respectively **PARTIAL** (KV-authoritative, SQL cutover in progress) and **NOT IMPLEMENTED** (reserved identity). Enterprise instrumentation to steer strategy is **NOT IMPLEMENTED** (§IV-46–§IV-55).
+
+**Approved Future State.** Authoring of Part V — Future Vision to make the long-horizon direction explicit and comparable, followed by additive realization: SQL authority, enforced tenancy, multi-provider/agentic intelligence, and the AI workforce — each subordinate to the constitutional success test (DNA Ch 33). Until Part V is authored, the DNA and Parts III–IV future-state sections remain the authoritative strategic surface.
+
+**Dependencies.** Part II (DNA, strategic source); Parts III–IV future-state sections; `MARQ_CORTEX_ROADMAP.md`; authoring of Part V; §VI-2 and §VI-3.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 3/4/5/8/8.3/33 (mission/vision/philosophy/north-star). Part III: §III-59, §III-79, §III-80 (future-state/debt paths). Part IV: §IV-53 (maturity), §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md`; front-matter organization table (Part V PLANNED).
+
+---
+
+## VI-5 — Gap Analysis
+
+**Purpose.** To identify and categorize the major execution gaps between the CURRENT STATE and the approved blueprint, without prioritizing or proposing solutions.
+
+**Why it exists.** Naming and grouping the gaps — distinctly from sequencing them — lets later Part VI phases prioritize against a stable, agreed inventory rather than re-deriving it.
+
+**Scope.** The material gaps across product, data/platform, intelligence, enterprise/AI-workforce, performance, security/tenancy, and documentation. Categorization only; no ranking, no mitigation, no sequence (those are §VI-8 constraints and later phases).
+
+**Current State (gap inventory, categorized).**
+
+- **G1 — Data Authority gap (PARTIAL → SQL authority).** KV is the runtime authority; the approved relational data plane exists as schema/migrations but is not authoritative. Shadow-read/cutover work is in flight (roadmap S7.4→S8.x). *Category: Platform / Data.*
+- **G2 — Multi-tenancy enforcement gap (PARTIAL).** `organizations` + RLS policies and `tenancyRepository` exist; enforced runtime isolation across all paths is maturing. *Category: Security / Data.*
+- **G3 — Intelligence breadth gap (PARTIAL).** Gateway is live single-provider (`openaiAdapter` + `mockProvider`); multi-provider and agentic orchestration are approved but unbuilt. *Category: AI.*
+- **G4 — AI Workforce runtime gap (NOT IMPLEMENTED).** The Part IV executive/department/manager/worker runtime does not exist; reserved to the `ai_worker` identity. *Category: Enterprise / AI.*
+- **G5 — Enterprise performance instrumentation gap (NOT IMPLEMENTED).** No formal KPIs, AI-performance evaluation, unified health framework, or scorecards; raw signals plus constitutional success standard only. *Category: Operations / Performance.*
+- **G6 — External integration gap (PARTIAL/NOT IMPLEMENTED).** CRM sync, e-sign, scheduling, and comparable third-party integrations are specified but not live. *Category: Third-party services / Product.*
+- **G7 — Strategic-surface gap (NOT IMPLEMENTED).** Part V — Future Vision is unauthored; the long-horizon direction is carried only by the DNA and future-state sections. *Category: Governance / Documentation.*
+- **G8 — Maturity gap (PARTIAL).** The enterprise operates at the Startup shape; the Growth→Enterprise→Global→AI-native stages are approved but not realized (§IV-53). *Category: Organizational.*
+
+**Approved Future State.** Each gap has an approved destination already recorded in the LOCKED blueprint and roadmap; closing them is additive and constitution-subordinate. This section fixes the inventory only — prioritization, sequencing, and mitigation are deferred to later Part VI phases.
+
+**Dependencies.** §VI-2, §VI-3, §VI-4 (the state each gap is measured from); §VI-6 (dependencies that gate closure); §VI-8 (constraints).
+
+**Traceability.** Part II: DNA Ch 8/17/18/20/23/33. Part III: §III-29, §III-37, §III-44, §III-59–§III-65, §III-78–§III-80. Part IV: §IV-23–§IV-34, §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md` (Phases 4–5).
+
+---
+
+## VI-6 — Critical Dependencies
+
+**Purpose.** To document, at a high level, the execution dependencies on which realizing the approved blueprint rests.
+
+**Why it exists.** Gaps do not close in isolation; each depends on platform, data, AI, security, operational, and third-party foundations. Naming these dependencies prevents later phases from sequencing work against foundations that are not yet in place.
+
+**Scope.** High-level dependency classes only — not a technical design, not a task graph.
+
+**Current State (dependency classes).**
+- **Platform.** Supabase Edge Functions runtime, Vite/React frontend, KV store, and the deterministic-engine layer — **IMPLEMENTED** and load-bearing today.
+- **Infrastructure.** Deployment via Supabase functions (`supabase:deploy`) and DB push (`supabase:db-push`); relational schema present — **PARTIAL** (SQL not yet authoritative).
+- **Data.** The KV↔relational mapping, migration engine/CLI, and shadow-read/cutover pipeline — **PARTIAL** (authority migration in progress); authoritative SQL is the gating dependency for G1/G2/G8.
+- **AI.** The Intelligence Gateway provider abstraction — **PARTIAL** (single-provider live); the gating dependency for G3 and, downstream, the workforce (G4).
+- **Security.** Supabase auth, RLS policies, anon-policy hardening, tenant isolation — **PARTIAL**; the gating dependency for G2.
+- **Operations.** Execution rules, test protocol, roadmap discipline, and system memory — **IMPLEMENTED** as governing process; instrumentation for enterprise operations — **NOT IMPLEMENTED** (gates G5).
+- **Third-party services.** LLM provider(s), and future CRM/e-sign/scheduling integrations — **PARTIAL/NOT IMPLEMENTED** (gates G6).
+- **Governance / documentation.** The LOCKED Constitution and Parts I–IV; authoring of Part V — **NOT IMPLEMENTED** (gates G7).
+
+**Approved Future State.** Each dependency class matures additively to unblock its gaps — authoritative SQL, enforced tenancy, multi-provider AI, instrumented operations, live integrations, and an authored Part V — without violating existing platform, API, auth, or tenancy contracts (Execution Rules; DNA Ch 8.3).
+
+**Dependencies.** §VI-2–§VI-5 (what each dependency gates); §VI-7 (readiness to act on them); §VI-8 (constraints).
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`. Part II: DNA Ch 20/25/30. Part III: §III-37, §III-44, §III-56–§III-57, §III-84–§III-88. Part IV: §IV-35–§IV-45. Roadmap: `MARQ_CORTEX_ROADMAP.md`; `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-7 — Implementation Readiness
+
+**Purpose.** To assess readiness to execute across Engineering, Product, Operations, AI, Governance, Security, and Customer readiness.
+
+**Why it exists.** Even with gaps and dependencies mapped, execution depends on whether each discipline is ready to act. This section states that readiness plainly, so later sequencing is realistic.
+
+**Scope.** Cross-disciplinary readiness at a high level. No staffing, budget, or schedule (those are excluded from this phase).
+
+**Current State.**
+- **Engineering — IMPLEMENTED (ready).** A working codebase, 37 engines, repositories, migration tooling, and multi-suite tests (`test:smoke/intelligence/database/migration/features`) provide a disciplined, reversible engineering base (Execution Rules; Test Protocol).
+- **Product — IMPLEMENTED/PARTIAL.** The core journey and engines are live; integration breadth and analytics maturation remain (§VI-2).
+- **Operations — PARTIAL.** Sprint/roadmap discipline, execution rules, test protocol, and system memory operate; enterprise operational instrumentation does not (§IV-46–§IV-55).
+- **AI — PARTIAL.** Gateway and CORTEX surfaces are live single-provider; multi-provider/agentic readiness and the workforce runtime are ahead (§VI-3, G3/G4).
+- **Governance — IMPLEMENTED.** The constitutional authority stack, amendment process, and LOCKED Parts I–IV give a settled governing frame (DNA Ch 25/35); the one open governance item is authoring Part V (G7).
+- **Security — PARTIAL.** Auth, RLS, and anon-policy hardening exist; enforced multi-tenant isolation as runtime authority is maturing (G2).
+- **Customer readiness — PARTIAL.** The end-to-end customer journey is implemented; readiness at scale depends on SQL authority, enforced tenancy, and integrations (G1/G2/G6).
+
+**Approved Future State.** Each discipline advances to full readiness additively — SQL-authoritative and tenant-enforced engineering/security, multi-provider AI, instrumented operations, an authored strategic surface, and integration-complete product — while preserving the constitutional identity and the "quality/security/blueprint-first" order (§VI-9).
+
+**Dependencies.** §VI-2–§VI-6; the Execution Rules and Test Protocol; the LOCKED governance stack.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 18/25/30/33/35. Part III: §III-42–§III-44, §III-84–§III-88. Part IV: §IV-35–§IV-45, §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_ROADMAP.md`.
+
+---
+
+## VI-8 — Execution Constraints
+
+**Purpose.** To document the known constraints that bound execution, without defining mitigation plans.
+
+**Why it exists.** Constraints shape what any later sequence can and cannot do. Recording them now — separately from solutions — keeps the roadmap honest and prevents plans that assume away real limits.
+
+**Scope.** Technical, organizational, operational, compliance, and resource constraints, at a high level. No mitigations, no workarounds, no sequencing.
+
+**Current State (known constraints).**
+- **Technical.** KV is the runtime authority; contracts (API, DTOs, response envelopes, route behavior, auth) must be preserved through change; SQL cutover must proceed via shadow-read/validation, not a hard switch (Execution Rules; roadmap). Runtime behavior must remain unchanged unless a change is the explicit intent.
+- **Organizational.** The enterprise operates at the Startup shape (single-operator reality); the multi-department AI-workforce org is approved but not staffed (§IV-53, §VI-3).
+- **Operational.** Every change must be independently reviewable and reversible; work proceeds one bounded increment at a time; completed work is not re-audited without cause; enterprise operational instrumentation is absent (Execution Rules; §IV-46–§IV-55).
+- **Compliance / governance.** All change is subordinate to the Constitution and the LOCKED Parts; changes touching the entrenched core require the heightened amendment process (DNA Ch 35.5–35.6); data sovereignty and the human high-consequence floor are non-negotiable (DNA Ch 18.9).
+- **Resource.** Deployment, live credentials, and production environments may be unavailable in-session; such limits are deployment limitations, not engineering failures (Execution Rules) — they nonetheless constrain what can be validated end-to-end.
+
+**Approved Future State.** Constraints are respected, not removed by fiat: contract-preserving migration, reversible increments, and constitution-subordinate change remain permanent operating constraints even as the system matures. Mitigation and sequencing are deferred to later Part VI phases.
+
+**Dependencies.** The Execution Rules, Test Protocol, and roadmap; the Constitution (amendment and non-negotiables); §VI-5/§VI-6.
+
+**Traceability.** Part II: DNA Ch 18.9/20/25/35. Part III: §III-75–§III-79. Part IV: §IV-35–§IV-45, §IV-53. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_ROADMAP.md`.
+
+---
+
+## VI-9 — Execution Principles
+
+**Purpose.** To define the principles that must govern implementation of the approved blueprint.
+
+**Why it exists.** A roadmap needs invariant rules that hold across every phase, so that *how* Cortex is built never drifts from its constitution, regardless of what is being built.
+
+**Scope.** The governing principles for execution. These are rules, not tasks; they bind all later Part VI phases.
+
+**Current State (principles, each already in force).**
+- **Blueprint before code.** No capability is built before it exists in this Blueprint; the Blueprint is the authority, the codebase the implementation (Master rule; §front-matter).
+- **Incremental delivery.** Small, bounded, independently reviewable and reversible increments; no large refactors, no scope expansion without approval (Execution Rules).
+- **Quality first.** No increment is complete until it builds clean and passes its affected and regression tests (Test Protocol; Definition of Done).
+- **Security first.** Auth, authorization, tenant isolation, and data sovereignty are preserved through every change; the human high-consequence floor is inviolable (DNA Ch 18.9; Execution Rules).
+- **Backward compatibility.** API contracts, DTOs, response envelopes, route behavior, and runtime authority are preserved unless a change is the explicit, approved intent (Execution Rules).
+- **Customer impact.** Runtime behavior and the customer journey stay stable unless deliberately changed; customer trust is the north-star that measurement never overrides (DNA Ch 33; §IV-46).
+- **Constitution-subordinate & traceable.** Every change defers to the Constitution and the LOCKED Parts, is versioned/attributed/logged, and touching the entrenched core invokes the heightened amendment process (DNA Ch 30.4, Ch 35).
+- **Determinism preserved.** Deterministic engines remain the authoritative computation; AI assists and never overrides authoritative results (Art. 6; DNA Ch 17/18).
+
+**Approved Future State.** These principles are permanent; they govern Phase 6.2 onward and every subsequent execution phase unchanged. They are not superseded by delivery pressure, maturity stage, or the standing-up of the AI workforce.
+
+**Dependencies.** The Constitution; the Execution Rules and Test Protocol; §VI-5–§VI-8.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35; Operating Constitution Art. 6/15. Part III: §III-75, §III-84–§III-88. Part IV: §IV-5, §IV-9, §IV-44, §IV-54. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-10 — Phase Summary
+
+**Purpose.** To close Phase 6.1 by recording what it established — the execution baseline — and how it connects to the phases that follow, without beginning them.
+
+**Why it exists.** A phased document needs an explicit boundary so the *baseline and gap inventory* are not mistaken for a *plan*, and so later Part VI phases begin from a settled assessment.
+
+**Scope.** A summary of Phase 6.1 only (§VI-1–§VI-10). It defines no new state, prioritizes nothing, and sequences nothing.
+
+**Key Findings.**
+1. MARQ Cortex is a substantially implemented product (37 engines, 171-node manifest, full journey, live Intelligence Gateway and CORTEX AI, repository/KV layer, migration tooling, test suites, system memory) on a settled, LOCKED constitutional and architectural foundation (§VI-1, §VI-2).
+2. The two most load-bearing forward pillars are **authoritative SQL under enforced tenancy** (PARTIAL; roadmap S7.4→S8.x) and the **AI Workforce runtime** (NOT IMPLEMENTED; reserved `ai_worker` identity) (§VI-3, §VI-5).
+3. Enterprise performance instrumentation is NOT IMPLEMENTED — measurement is raw signals plus the constitutional success standard; the enterprise operates at the Startup maturity shape (§VI-3, §IV-46–§IV-55).
+4. **Part V — Future Vision is unauthored (NOT IMPLEMENTED)**; strategic direction is currently carried by the DNA and the Parts III–IV future-state sections (§VI-4).
+5. Eight categorized gaps (G1–G8) and their high-level dependencies and constraints are inventoried without prioritization (§VI-5, §VI-6, §VI-8).
+
+**Current State.** Product core and governance: **IMPLEMENTED**. Data authority, tenancy enforcement, intelligence breadth, integrations, and maturity: **PARTIAL**. AI workforce runtime, enterprise instrumentation, and Part V: **NOT IMPLEMENTED**. Everything is grounded in repository evidence or the LOCKED Parts I–IV; nothing is invented.
+
+**Approved Future State.** Additive realization of the approved blueprint — SQL authority, enforced tenancy, multi-provider/agentic AI, a progressively standing AI workforce, instrumented performance, and an authored Part V — each subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 33). Prioritization and sequencing are deferred to later Part VI phases.
+
+**Dependencies.** All Phase 6.1 sections (§VI-1–§VI-9); Parts I–IV (LOCKED) and the Constitution as the grounding record; `MARQ_CORTEX_ROADMAP.md` and `MARQ_CORTEX_EXECUTION_RULES.md`; the unauthored Part V as an open governance item.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `src/imports/cortex-audit-report.md`. Part II: DNA Ch 8/8.3/17/18/23/25/30/33/35. Part III: §III-15–§III-21, §III-29, §III-37, §III-44, §III-59–§III-65, §III-78–§III-80, §III-84–§III-88. Part IV: §IV-1–§IV-12, §IV-23–§IV-34, §IV-35–§IV-45, §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## Phase 6.1 — Completion Status
+
+**Phase 6.1 (Current State Assessment & Gap Analysis) is complete: Sections VI-1 through VI-10.** It establishes the execution baseline for MARQ Cortex by comparing the current implementation against the approved blueprint (Parts I–IV LOCKED, plus the Constitution): an executive assessment, the current product state, the current enterprise state, current strategic readiness, a categorized gap inventory (G1–G8), critical dependencies, implementation readiness across seven disciplines, execution constraints, and the execution principles that must govern all later phases. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–IV and is labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: the product core and governance are IMPLEMENTED; data authority, tenancy enforcement, intelligence breadth, integrations, and maturity are PARTIAL; the AI workforce runtime, enterprise instrumentation, and **Part V — Future Vision (unauthored)** are NOT IMPLEMENTED. No capability is invented. This phase defines no sprints, milestones, tasks, assignments, budgets, hiring, timelines, or technical implementation — those belong to later Part VI phases.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–IV remain LOCKED and unchanged. Authoring of Part V — Future Vision remains PLANNED, and the next Part VI phase (6.2) is not begun here. This phase is neither reviewed nor locked.
+
+*End of Phase 6.1. Part VI continues in a later phase.*
