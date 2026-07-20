@@ -2632,3 +2632,292 @@ The **AI Supervisor** archetype is the structural anchor of AI oversight (elabor
 **Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.4** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1 and 4.2 are unchanged.
 
 *End of Phase 4.3. Part IV continues in a later phase.*
+
+---
+
+## Phase 4.4 — Operations & Governance
+
+*This phase defines how MARQ Cortex operates as an enterprise — the **operational governance** that determines how work moves through the company. It builds on the company foundation (Phase 4.1), the organizational structure (Phase 4.2), and the AI workforce architecture (Phase 4.3), and it fixes the enterprise operating rules for decisions, work, quality, risk, security, compliance, knowledge, and change. It is **governance, not implementation**: it defines no department workflows, sprint/meeting processes, prompt engineering, technical implementation, KPIs, metrics, monitoring dashboards, infrastructure, API behavior, or security implementation. Those belong elsewhere and are not authored here (Golden Rule 5).*
+
+**Reading note carried from Phases 4.1–4.3.** Every section separates CURRENT STATE from APPROVED FUTURE STATE, and CURRENT STATE claims carry an implementation label — **IMPLEMENTED**, **PARTIAL**, or **NOT IMPLEMENTED** — grounded in repository evidence or the LOCKED Parts I–III. A load-bearing current fact throughout Phase 4.4: Cortex's operational governance today is **document-and-steward based** — the Constitution (Part II), this Master Blueprint, the Operating Constitution (`MARQ_CORTEX_CONSTITUTION.md`, 17 articles + authority order), and `ARCHITECT.md`, enforced through bounded, evidence-gated sprints under MARQ Networks stewardship (§III-84–§III-86). It is not yet governance exercised by an organization of AI roles.
+
+**Section template.** Each section answers: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability.*
+
+---
+
+## IV-35 — Enterprise Operating Model
+
+**Purpose.** To describe how MARQ Cortex operates as an enterprise — its operating philosophy and its model of operational governance — as the frame within which every other Phase 4.4 governance domain sits.
+
+**Why it exists.** Governance of decisions, work, quality, risk, and change only cohere if there is a single operating model beneath them. This section fixes that model so the domains that follow are facets of one enterprise, not disconnected policies.
+
+**Scope.** The operating model and operational-governance philosophy. It does not define operational *workflows*, sprint or meeting processes, or any implementation (those are excluded from this phase).
+
+- **How Cortex operates.** Cortex operates as a **document-governed, evolution-based enterprise**: the Constitution sets identity and philosophy; this Master Blueprint governs product and architecture (blueprint-before-build); the Operating Constitution and `ARCHITECT.md` govern engineering mechanics; work advances through bounded, evidence-gated increments (DNA Ch 22–23; Operating Constitution Art. 1/9/10/16).
+- **Operating philosophy.** *Evolve, do not rebuild* (Art. 1; DNA Ch 22.3); *maximum intelligence, minimum complexity* carried inward (DNA Ch 21.7, Ch 27); *math decides, AI narrates* (Art. 6; DNA Ch 17); *evidence over assertion* (Art. 10); *scope discipline* (Art. 16).
+- **Operational governance.** Authority is resolved by a defined precedence order (Constitution → Operating Constitution/ARCHITECT → sprint criteria → verified behavior → other docs; DNA Ch 25.1); high-consequence work keeps a human in the loop (DNA Ch 18.9); nothing exists without a traceable purpose (Golden Rule).
+
+**Current State (IMPLEMENTED).** This operating model is the reality today: MARQ Networks stewards Cortex; the four-document authority stack governs (Constitution, Blueprint, Operating Constitution, `ARCHITECT.md`); sprints carry work under quality gates (Art. 9); and the roadmap file is the append-only record of progress (§III-74/§III-75/§III-84–§III-86). It is a human-and-document operating model; an AI-role-operated model is **NOT IMPLEMENTED** (reserved as *Future*, DNA Ch 8.3).
+
+**Approved Future State.** The same operating model exercised progressively by the AI workforce under human authority, additively (DNA Ch 8.3, Ch 23), with drift-detection and enforcement operationalized (§III-75/§III-84 approved-future). No new operating philosophy is introduced.
+
+**Dependencies.** DNA Ch 17/18/21/22/23/25; Operating Constitution Art. 1/6/9/10/16 + authority order; §III-74/§III-75/§III-84–§III-86; Phases 4.1–4.3.
+
+**Traceability.** Part I: document-governed operation evidenced in `ARCHITECT.md` and the artifact set. Part II: DNA Ch 17/18/21/22/23/25. Part III: §III-74, §III-75, §III-84–§III-86. Roadmap: enforcement/drift operationalization.
+
+---
+
+## IV-36 — Decision Governance
+
+**Purpose.** To govern how decisions are made in the enterprise — their categories, ownership, approval hierarchy, and escalation authority.
+
+**Why it exists.** Decisions stall or drift without owners and a resolution order (DNA Ch 24/25). This section makes decision-making governable at the enterprise level, extending §III-86 (Decision Authority) to the company as a whole.
+
+**Scope.** Decision **governance** — categories, ownership, approval, escalation. It does not define decision workflows, meeting processes, or metrics.
+
+- **Decision categories.** (1) *Constitutional* — identity, philosophy, governance; (2) *Product/architecture* — what Cortex is and how it is built; (3) *Engineering-mechanics* — how change is executed; (4) *Scoped-execution* — within an assigned increment; (5) *Authoritative computation* — scoring/ROI/prioritization; (6) *High-consequence runtime* — irreversible/third-party/material/authority-changing actions.
+- **Decision ownership.** Constitutional → Constitution + human steward (amend only via DNA Ch 35); Product/architecture → this Master Blueprint (Master Rule); Engineering-mechanics → Operating Constitution + `ARCHITECT.md`; Scoped-execution → sprint acceptance criteria; Authoritative computation → deterministic engines (Art. 6); High-consequence runtime → humans (DNA Ch 18.9). (This mirrors §III-86 and §IV-17.)
+- **Approval hierarchy.** Approval rises with consequence: routine within scope → the assigned owner; product/architecture → blueprint governance; high-consequence → human principal; entrenched-core change → heightened amendment with Constitutional Guardian (DNA Ch 35.5–35.6).
+- **Escalation authority.** At the edge of authority or confidence, the decision escalates upward rather than being taken; silence is never approval (DNA Ch 18.6). Downward reclassification of a high-consequence decision is itself a governed, recorded act (DNA Ch 18.9).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** decision categories, ownership, and the precedence/escalation order are defined and operative today (§III-86; DNA Ch 24/25; Art. 6/8). Deterministic engines already own authoritative computation; humans own high-consequence transitions (§III-16). **PARTIAL:** a formal **decision registry** binding each recurring decision type to its authority is approved but not yet built (§III-16/§III-86 approved-future). **NOT IMPLEMENTED:** the Constitutional Guardian is defined but not yet constituted (DNA Ch 35.6).
+
+**Approved Future State.** A decision registry and constituted Guardian operationalized, additively (DNA Ch 35; §III-16/§III-86), with AI participation in lower-consequence decision categories under supervision (§IV-28).
+
+**Dependencies.** DNA Ch 18/24/25/35; Operating Constitution Art. 6/8 + authority order; §III-16/§III-86; §IV-17/§IV-28.
+
+**Traceability.** Part I: precedence and gating evidenced in `ARCHITECT.md` §0/§18. Part II: DNA Ch 18/24/25/35. Part III: §III-16, §III-86. Roadmap: decision registry; Guardian constitution.
+
+---
+
+## IV-37 — Work Governance
+
+**Purpose.** To define, at a high level, how the enterprise governs its major classes of work — product, engineering, AI, and business — so that work of every kind moves under consistent rules.
+
+**Why it exists.** Different work carries different risk and authority, but all of it must obey the same constitutional floor. This section fixes the governing rules per work class without prescribing how the work is performed.
+
+**Scope.** **High-level governance of work classes only.** No workflows, sprint/meeting processes, or task-level procedures.
+
+- **Product work.** Governed by the Master Rule: every feature must exist in this Master Blueprint before implementation; on blueprint-vs-code conflict, blueprint wins (§III-75). Product work must pass the constitutional admission gate (DNA Ch 24/33.1).
+- **Engineering work.** Governed by the Operating Constitution: additive evolution (Art. 1), quality gates (Art. 9), evidence over assertion (Art. 10), scope discipline (Art. 16), manifest-before-code (Art. 14), and no unauthorized runtime cutover (Art. 12).
+- **AI work.** Governed by the AI doctrines: deterministic authority (Art. 6; DNA Ch 17), provider independence (Art. 2), bounded/granted authority with human-in-the-loop at the high-consequence floor (DNA Ch 18), and the AI-workforce authority framework (§IV-28).
+- **Business work.** Governed by the business philosophy and boundaries: honest, measurable value (DNA Ch 21.5); advisory/honesty boundaries — no regulated advice, no guaranteed results (§III-4; Ready Gate); durable over extractive (DNA Ch 21.6).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** engineering-work and AI-work governance are enforced today through the Operating Constitution articles and the gateway/engine separation (§III-15/§III-16; Art. 1/2/6/9/10/12/14/16); business-work boundaries are enforced by the Ready Gate (§III-4). **PARTIAL:** the Master Rule (blueprint-before-build) is established and in force for this program but is a young discipline layered onto an existing codebase (§III-75). Work governance is exercised by humans and the bounded build-agent today, not by AI departments (**NOT IMPLEMENTED** for AI-role-exercised governance).
+
+**Approved Future State.** The same work-governance rules exercised progressively by the AI workforce under supervision, additively (DNA Ch 8.3, Ch 23), with automated blueprint↔code drift governance (§III-75).
+
+**Dependencies.** DNA Ch 17/18/21/24/33; Operating Constitution Art. 1/2/6/9/10/12/14/16; §III-4/§III-15/§III-16/§III-75; §IV-28.
+
+**Traceability.** Part I: work discipline evidenced in `ARCHITECT.md` §11/§18. Part II: DNA Ch 17/18/21/24. Part III: §III-4, §III-15, §III-16, §III-75. Roadmap: drift governance; AI-exercised work governance.
+
+---
+
+## IV-38 — Quality Governance
+
+**Purpose.** To govern quality across the enterprise — the quality principles, review expectations, approval philosophy, and continuous improvement that keep Cortex trustworthy.
+
+**Why it exists.** Quality is a precondition of trust, and trust is the core asset (DNA Ch 21.3). This section fixes how quality is governed so correctness is structural, not incidental — without prescribing test implementation or metrics.
+
+**Scope.** Quality **governance principles** only. It does not define test suites, coverage targets, KPIs, or QA workflows (test *strategy* lives at §III-76; this section governs the *principles* above it).
+
+- **Quality principles.** Evidence over assertion — completion is claimed only with verifiable evidence, tagged by confidence (Art. 10; DNA Ch 22.4); one canonical authority per responsibility (Art. 14; DNA Ch 22.5); explainability and auditability engineered in (DNA Ch 22.7, Ch 30.2).
+- **Review expectations.** High-risk change (auth, permissions, isolation, secrets, data authority, provider/shared contracts) requires human review before effect (Art. 8); every sprint carries an architecture-compliance check, regression tests for touched domains, and documentation updates (Art. 9).
+- **Approval philosophy.** Deny-by-default for high-consequence steps; approval rises with consequence (DNA Ch 18.9); a change that cannot be explained does not ship (DNA Ch 30.2).
+- **Continuous improvement.** Learn from outcomes including failures; record them so they are not repeated (DNA Ch 19.7; system memory `memory/failure_library.md`, `memory/regression_cases.md`).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** the quality-governance principles are enforced today — sprint quality gates (Art. 9), evidence discipline (Art. 10), human review for high-risk change (Art. 8), and institutional failure memory (§III-20; DNA Ch 19.7). **PARTIAL:** test *coverage* is concentrated on gateway/migration/DB layers with no broad engine/component unit suite yet (§III-76) — a known quality gap, governed but not closed. Continuous improvement is human-and-document driven; automated improvement is **NOT IMPLEMENTED**.
+
+**Approved Future State.** Broader test coverage as a release gate and automated compliance/drift checks (§III-75/§III-76 approved-future); continuous improvement extended to the AI workforce (DNA Ch 19), additively.
+
+**Dependencies.** DNA Ch 18/19/22/30; Operating Constitution Art. 8/9/10/14; §III-20/§III-76; §IV-29.
+
+**Traceability.** Part I: gates and failure memory evidenced in `ARCHITECT.md` and `memory/`. Part II: DNA Ch 18/19/22/30. Part III: §III-20, §III-76. Roadmap: coverage and improvement automation.
+
+---
+
+## IV-39 — Risk Governance
+
+**Purpose.** To govern enterprise risk — how risk is identified, owned, escalated, and mitigated — so consequential change is handled deliberately.
+
+**Why it exists.** An AI-first enterprise handling sovereign data must treat risk as a first-class governed concern, not an afterthought. This section fixes the risk-governance frame at the principle level, without defining scoring mechanics or metrics.
+
+**Scope.** Risk **governance principles** only — identification, ownership, escalation, mitigation. No risk-scoring implementation, no dashboards, no metrics.
+
+- **Risk identification.** Risk is classified against the high-consequence floor (DNA Ch 18.9) and the high-risk domains named by the Operating Constitution (auth, permissions, secrets, isolation, RLS design, production data migration/authority, provider/shared-contract changes — Art. 8). Known limitations and technical debt are logged, not hidden (§III-78/§III-79).
+- **Risk ownership.** High-risk domains are owned by the human principal for approval (Art. 8; DNA Ch 18.9); security-classed risk carries a standing dotted-line to the Security concern (§IV-18/§IV-40); authoritative-computation risk is owned by the deterministic engines' correctness discipline (Art. 6).
+- **Risk escalation.** At the edge of authority or confidence, risk escalates to a human rather than being absorbed silently (DNA Ch 18.6); downward reclassification of a high-consequence risk is governed and recorded (DNA Ch 18.9).
+- **Risk mitigation principles.** Rollback readiness where data/schema change (Art. 9/17); no unauthorized runtime cutover (Art. 12); idempotent, quarantined migration (Art. 11); additive evolution over rebuild (Art. 1); accountability and remediation for harm (DNA Ch 30.1/30.4).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** the risk-governance principles are enforced today — high-risk-domain human review (Art. 8), rollback readiness and no-unauthorized-cutover (Art. 9/12/17), idempotent migration with quarantine (Art. 11), and logged technical debt/limitations (§III-78/§III-79). Error/edge handling is documented (§III-56/§III-57). **PARTIAL:** risk handling is document-and-review based; a formal enterprise risk register or automated risk classification is **NOT IMPLEMENTED**.
+
+**Approved Future State.** A formal risk register and constitutional change-advisory tied to the decision framework (DNA Ch 24; §III-75 approved-future), additively; risk governance extended to AI-worker actions under supervision (§IV-29).
+
+**Dependencies.** DNA Ch 18/24/30; Operating Constitution Art. 1/8/9/11/12/17; §III-56/§III-57/§III-78/§III-79; §IV-18/§IV-29/§IV-40.
+
+**Traceability.** Part I: risk disciplines evidenced in `ARCHITECT.md` and migration/rollback artifacts. Part II: DNA Ch 18/24/30. Part III: §III-56, §III-57, §III-78, §III-79. Roadmap: risk register; change advisory.
+
+---
+
+## IV-40 — Security Governance
+
+**Purpose.** To govern security at the enterprise level — security ownership, responsibilities, human oversight, and AI responsibilities — as high-level governance, not implementation.
+
+**Why it exists.** Security is a non-negotiable of the Constitution (DNA Ch 29.3) and the foundation of the trust institution (DNA Ch 20). This section fixes *who owns security and how it is overseen* at the governance level; the *mechanics* are already documented in Part III and are not restated.
+
+**Scope.** **High-level security governance only.** It explicitly excludes security implementation — auth mechanics, RLS policy design, secret storage, encryption (those are §III-39–§III-44 and later Phase 4.x).
+
+- **Security ownership.** Security is a standing enterprise concern owned by the Security function/department (§IV-14) with a dotted-line into every department it governs (§IV-18); ultimate accountability for security posture rests with the human principal (Art. 8; §IV-17).
+- **Security responsibilities.** Tenant isolation, permission enforcement, secrets discipline, and human review for high-risk change are governed as inviolable responsibilities (Art. 5/8/13; DNA Ch 20/29.3) — never traded for convenience (DNA Ch 22.6).
+- **Human oversight.** High-risk security domains require human review before effect (Art. 8); security posture changes meet the high-consequence floor (DNA Ch 18.9) and stay under human control.
+- **AI responsibilities.** AI may analyse, recommend, and monitor security within bounded authority; AI never autonomously changes authority, permissions, or security posture (DNA Ch 18.9; §IV-28) and never holds secrets in its context (Art. 13; §IV-33).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** the security-governance responsibilities are enforced today — tenant isolation/RLS, secrets in edge secrets only, auth-gated routes, human review for high-risk change (§III-39–§III-44; Art. 5/8/13). **PARTIAL:** governance is exercised by humans and the build-agent discipline, not by a Security AI function (**NOT IMPLEMENTED** as an AI role); no formal external security certification exists yet (§III-68).
+
+**Approved Future State.** Security governance extended to a Security AI function under human oversight, additively (DNA Ch 8.3, Ch 18); formal security/compliance program (§III-68 approved-future). Security *implementation* remains deferred to Part III mechanics and later Phase 4.x.
+
+**Dependencies.** DNA Ch 18/20/22/29; Operating Constitution Art. 5/8/13; §III-39–§III-44/§III-68; §IV-14/§IV-17/§IV-18/§IV-28/§IV-33.
+
+**Traceability.** Part I: security disciplines evidenced in `ARCHITECT.md` and `supabase/` code. Part II: DNA Ch 18/20/22/29. Part III: §III-39–§III-44, §III-68. Roadmap: Security-AI governance; compliance program.
+
+---
+
+## IV-41 — Compliance Governance
+
+**Purpose.** To govern compliance across the enterprise — internal, external, and constitutional compliance, and policy management.
+
+**Why it exists.** Compliance keeps Cortex within both the law and its own Constitution (DNA Ch 25.6 Rule of Law; Ch 30). This section fixes how compliance is governed so alignment is checked, not assumed.
+
+**Scope.** Compliance **governance** — the categories of compliance and how policy is managed. It does not define audit implementation, certification procedures, or metrics.
+
+- **Internal compliance.** Conformance to the Operating Constitution, `ARCHITECT.md` golden rules, sprint acceptance criteria, and the Master Blueprint — checked via architecture-compliance checks and quality gates (Art. 9; §III-84).
+- **External compliance.** Conformance to applicable law and regulation — a floor beneath the Constitution (DNA Ch 25.6); today expressed through product boundaries (advisory/autonomy/data discipline) rather than external certification (§III-68).
+- **Constitutional compliance.** Conformance to the DNA — every capability passes the admission-and-success gate (DNA Ch 24/33.1), respects the entrenched core (DNA Ch 29), and is checked on a deliberate cadence with standing to raise violations, a duty to remediate, and protected constitutional-text integrity (DNA Ch 30.4).
+- **Policy management.** Policy authority follows the precedence order (DNA Ch 25.1); policy changes to identity/governance require amendment (DNA Ch 35); every change to the constitutional text is a ratified amendment or a logged editorial correction, never a silent edit (DNA Ch 30.4).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** internal and constitutional compliance are governed today — architecture-compliance checks and quality gates (Art. 9), the precedence/authority order, and product-boundary compliance via the Ready Gate (§III-4/§III-68). **PARTIAL:** the four constitutional enforcement mechanisms (compliance review, standing, remediation, text integrity) are *defined* but not yet operationalized as a running program (DNA Ch 30.4; §III-84). **NOT IMPLEMENTED:** formal external compliance certifications (e.g., SOC 2, ISO 27001) or documented regulatory mappings (§III-68).
+
+**Approved Future State.** A formal compliance program mapped to applicable regimes, with operationalized enforcement cadence and attestations (§III-68/§III-84 approved-future; DNA Ch 30.4), additively.
+
+**Dependencies.** DNA Ch 24/25/29/30/33/35; Operating Constitution Art. 9 + authority order; §III-4/§III-68/§III-84.
+
+**Traceability.** Part I: compliance-by-discipline evidenced in `ARCHITECT.md` and gate artifacts. Part II: DNA Ch 24/25/29/30/35. Part III: §III-4, §III-68, §III-84. Roadmap: compliance program; enforcement operationalization.
+
+---
+
+## IV-42 — Knowledge Governance
+
+**Purpose.** To govern the enterprise's knowledge — knowledge ownership, documentation principles, version authority, and blueprint authority — at a high level.
+
+**Why it exists.** An enterprise that cannot govern its own knowledge cannot stay coherent or auditable (DNA Ch 30.2; Art. 15). This section fixes how documentation and authoritative knowledge are governed, distinct from the AI-workforce knowledge principles of §IV-32.
+
+**Scope.** **High-level knowledge governance only.** It excludes technical knowledge/memory implementation, storage, and retrieval (those are §IV-32 principles and later Phase 4.x). It governs the company's own documentation and authority artifacts.
+
+- **Knowledge ownership.** MARQ Networks owns and stewards the knowledge corpus (DNA Ch 9; §III-85); within it, each artifact has a single canonical owner (Constitution owns identity; Blueprint owns product/architecture; Operating Constitution owns mechanics; `ARCHITECT.md` owns the repo map; manifest owns component identity — §III-85).
+- **Documentation principles.** Documentation is a contract, not a courtesy: structural changes update `ARCHITECT.md` and `architecture/system_map.json`; sprint completion is recorded (Art. 15); cross-reference rather than duplicate (Golden Rule 8; §III-88).
+- **Version authority.** Versioning follows the Operating Constitution changelog and the manifest `lastVerified` discipline (Art. 14/15; §III-71); the roadmap file is append-only (§III-74); constitutional-text changes are versioned, attributed, and logged (DNA Ch 30.4).
+- **Blueprint authority.** This Master Blueprint is the authority for product and architecture; the codebase is the implementation; on conflict, blueprint first, code second (Master Rule; §III-75). Every future feature exists in the Blueprint before implementation.
+
+**Current State (IMPLEMENTED).** **IMPLEMENTED:** knowledge governance is operative today — single-owner artifacts (§III-85), documentation-as-contract with the change checklist (Art. 15; §III-75), append-only roadmap and manifest versioning (§III-71/§III-74), and the Master Rule governing blueprint authority (§III-75). Static, version-controlled organizational knowledge exists (registries/specs, §III-19). **PARTIAL:** automated drift detection (manifest↔filesystem, blueprint↔code) is approved but not yet built (§III-75). Governed per-org *customer* knowledge is **NOT IMPLEMENTED** (§III-19/§IV-32).
+
+**Approved Future State.** Automated drift detection and an auto-generated traceability corpus (§III-75/§III-87 approved-future), additively; governed knowledge extended to the Knowledge AI category under stewardship (§IV-24/§IV-32).
+
+**Dependencies.** DNA Ch 9/25/30; Operating Constitution Art. 14/15; §III-19/§III-71/§III-74/§III-75/§III-85/§III-87/§III-88; §IV-32.
+
+**Traceability.** Part I: documentation-as-contract evidenced in `ARCHITECT.md` §18 and `architecture/`. Part II: DNA Ch 9/25/30. Part III: §III-71, §III-74, §III-75, §III-85, §III-87, §III-88. Roadmap: drift detection; generated traceability.
+
+---
+
+## IV-43 — Change Governance
+
+**Purpose.** To govern change across the enterprise — the amendment process and how product, architecture, AI, and governance changes are made — so the company evolves without breaking integrity.
+
+**Why it exists.** Change is constant; integrity must be too. This section fixes how each class of change is governed so evolution stays additive, reversible, and traceable (DNA Ch 23; Art. 1).
+
+**Scope.** Change **governance** — amendment, product change, architecture change, AI evolution, governance updates. It does not define release pipelines, sprint mechanics, or deployment implementation (those are §III-72–§III-74 and excluded from this phase).
+
+- **Amendment process.** Changes to identity, philosophy, or governance are made only through the constitutional amendment process (DNA Ch 35); entrenched-core change requires the heightened path — independent-guardian consent, published justification, waiting period (DNA Ch 35.5–35.6).
+- **Product change.** Governed by the Master Rule: blueprint-before-build; blueprint wins on conflict (§III-75). Product change passes the admission gate (DNA Ch 24).
+- **Architecture change.** Additive by default; rebuilds require explicit approval, rollback readiness, and evidence that incremental change cannot achieve the objective safely (Art. 1); no unauthorized runtime cutover (Art. 12); the change checklist updates `ARCHITECT.md`, `system_map.json`, and the manifest (Art. 14/15; §III-75).
+- **AI evolution.** Progressive and additive — never a rebrand (DNA Ch 8.3, Ch 23); autonomy widens only upward from the high-consequence floor, with proof (DNA Ch 18.9); each step traces back to identity (DNA Ch 8.3).
+- **Governance updates.** Changes to governance itself follow the precedence order and, where they touch identity/governance, the amendment process (DNA Ch 25.1/35); governance changes are versioned, attributed, and logged (DNA Ch 30.4).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** change governance is operative today — additive-evolution discipline and rebuild constraints (Art. 1), no-unauthorized-cutover (Art. 12), the change checklist (Art. 14/15; §III-75), the Master Rule (blueprint-before-build), and the defined amendment process (DNA Ch 35). AI evolution is governed as additive/progressive (DNA Ch 8.3). **PARTIAL:** automated drift detection and change-advisory tooling are approved but not built (§III-75). **NOT IMPLEMENTED:** the Constitutional Guardian for heightened core amendment is defined but not yet constituted (DNA Ch 35.6).
+
+**Approved Future State.** Constituted Guardian, automated drift detection, and constitutional change-advisory (DNA Ch 35; §III-75 approved-future), additively; change governance extended to AI-workforce evolution under supervision (§IV-25/§IV-29).
+
+**Dependencies.** DNA Ch 8.3/18/23/24/25/30/35; Operating Constitution Art. 1/12/14/15; §III-72–§III-75; §IV-25/§IV-29.
+
+**Traceability.** Part I: change discipline evidenced in `ARCHITECT.md` §18 and migration artifacts. Part II: DNA Ch 8/18/23/24/25/35. Part III: §III-74, §III-75. Roadmap: Guardian; drift detection; change advisory.
+
+---
+
+## IV-44 — Enterprise Governance Principles
+
+**Purpose.** To summarize the governing principles of Cortex — the standing enterprise-governance principles that hold across every domain of Phase 4.4.
+
+**Why it exists.** The preceding sections govern specific domains; this section states the principles common to all of them, so governance reads as one coherent commitment rather than a set of policies. It is the governance counterpart to the foundational principles of §IV-5/§IV-9.
+
+**Scope.** A **synthesis of governing principles** only. It introduces no new rule; it names the principles already ratified and applies them at the enterprise-governance altitude.
+
+**The governing principles of Cortex.**
+1. **Constitution supreme.** Identity, philosophy, and governance are governed by Part II; on conflict, the Constitution prevails (DNA Ch 25.1).
+2. **Blueprint before build.** Product and architecture are governed by this Master Blueprint; blueprint wins over code (Master Rule; §III-75).
+3. **Deterministic authority.** Math decides; AI narrates; authoritative numbers are never overridden by intelligence (Art. 6; DNA Ch 17).
+4. **Bounded authority, human principal.** Authority is granted, bounded, revocable, and visible; humans stay in control at the high-consequence floor (DNA Ch 18).
+5. **Evidence over assertion.** Completion and correctness require verifiable evidence (Art. 10; DNA Ch 22.4).
+6. **Evolve, do not rebuild.** Change is additive, reversible, and traceable (Art. 1; DNA Ch 23).
+7. **One canonical authority per responsibility.** No duplicate engines, registries, or sources of truth (Art. 14; DNA Ch 22.5, Ch 29.2).
+8. **Security and stewardship never traded.** Isolation, permissions, secrets, and data sovereignty hold over convenience (Art. 5/8/13; DNA Ch 20/29.3).
+9. **Explainability and auditability.** Every governed decision carries a reason and leaves a trail; unexplainable decisions do not act (DNA Ch 30.2).
+10. **Traceable purpose.** Nothing exists without a traceable purpose; every capability passes the admission-and-success gate (DNA Ch 24/33.1; Golden Rule).
+11. **Enforceable governance.** Compliance is reviewed not assumed; violations may be raised, must be remediated, and the constitutional text is protected (DNA Ch 30.4).
+12. **Simplicity under governance.** Governance carries complexity inward; it never pushes it onto the customer (DNA Ch 21.7, Ch 33.2).
+
+**Current State (IMPLEMENTED / PARTIAL).** **IMPLEMENTED:** principles 1–10 and 12 are enforced today through the four-document authority stack, the Operating Constitution articles, the deterministic engines, and the Ready Gate (§III-4/§III-15/§III-16/§III-84–§III-86). **PARTIAL:** principle 11 (enforceable governance) is defined but its standing enforcement mechanisms are not yet operationalized (DNA Ch 30.4; §III-84).
+
+**Approved Future State.** Full operationalization of enforceable governance (principle 11) and extension of all principles to the realized AI workforce, additively (DNA Ch 8.3, Ch 30). No new principle is added.
+
+**Dependencies.** DNA Ch 17/18/20/21/22/23/24/25/29/30/33; Operating Constitution Art. 1/5/6/8/10/13/14 + authority order; §III-4/§III-15/§III-16/§III-84–§III-86; §IV-5/§IV-9.
+
+**Traceability.** Part I: principle enforcement evidenced across `ARCHITECT.md` and the codebase. Part II: DNA Ch 17–33 (governance chapters). Part III: §III-84–§III-87. Roadmap: enforceable-governance operationalization.
+
+---
+
+## IV-45 — Phase Summary
+
+**Purpose.** To close Phase 4.4 by recording what it governed, the key operational-governance decisions it fixed, and how it connects to the phases that follow.
+
+**Why it exists.** A phased document needs an explicit boundary so operational *governance* is not mistaken for operational *implementation*, and so the next phase begins from a settled governance base.
+
+**Scope.** A summary of Phase 4.4 only. It governs nothing new and closes the phase.
+
+**Key decisions fixed in Phase 4.4.**
+1. A document-governed, evolution-based enterprise operating model under MARQ Networks stewardship (§IV-35).
+2. Decision governance — categories, ownership, approval hierarchy, escalation authority — extending §III-86 (§IV-36).
+3. High-level work governance for product, engineering, AI, and business work (§IV-37).
+4. Quality governance — evidence, review, approval philosophy, continuous improvement (§IV-38).
+5. Risk governance — identification, ownership, escalation, mitigation principles (§IV-39).
+6. High-level security governance — ownership, responsibilities, human oversight, AI responsibilities (§IV-40).
+7. Compliance governance — internal, external, constitutional, policy management (§IV-41).
+8. High-level knowledge governance — ownership, documentation, version authority, blueprint authority (§IV-42).
+9. Change governance — amendment, product/architecture change, AI evolution, governance updates (§IV-43).
+10. A synthesis of the twelve governing principles of Cortex (§IV-44).
+
+**Current State (IMPLEMENTED / PARTIAL).** Cortex's operational governance is **IMPLEMENTED today in document-and-steward form**: the Constitution, this Master Blueprint, the Operating Constitution (17 articles + authority order), and `ARCHITECT.md` govern through bounded, evidence-gated sprints, with deterministic authority, human-in-the-loop at the high-consequence floor, and documentation-as-contract all enforced now (§III-74/§III-75/§III-84–§III-86; Operating Constitution Art. 1–17). **PARTIAL/NOT IMPLEMENTED:** the constitutional enforcement mechanisms and Constitutional Guardian (DNA Ch 30.4/35.6), the decision registry (§III-16/§III-86), automated drift detection (§III-75), a formal risk register, and external compliance certification (§III-68) are defined/approved but not yet operationalized; governance is exercised by humans and the bounded build-agent, not yet by AI roles.
+
+**Approved Future State.** Progressive operationalization of the approved-future governance mechanisms and extension of every governance domain to the realized AI workforce under human authority, additively (DNA Ch 8.3, Ch 23, Ch 30), never a rebrand. Department workflows, sprint/meeting processes, prompt engineering, technical implementation, KPIs, metrics, monitoring dashboards, infrastructure, API behavior, and security implementation are **excluded from this phase** and belong elsewhere.
+
+**Dependencies.** All Phase 4.4 sections (§IV-35–§IV-44); Phases 4.1–4.3 (§IV-1–§IV-34) as foundation, structure, and workforce; Parts I–III as the grounding record; `MARQ_CORTEX_ROADMAP.md` and Part VI for sequence.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `memory/`, migration/rollback artifacts. Part II: DNA Ch 8/9/17/18/19/20/21/22/23/24/25/27/29/30/33/35. Part III: §III-4, §III-15, §III-16, §III-19, §III-20, §III-39–§III-44, §III-56, §III-57, §III-68, §III-71, §III-74–§III-79, §III-84–§III-88. Roadmap: Phase 4.x governance operationalization; Part VI execution roadmap.
+
+---
+
+## Phase 4.4 — Completion Status
+
+**Phase 4.4 (Operations & Governance) is complete: Sections IV-35 through IV-45.** It defines how MARQ Cortex operates as an enterprise through operational governance — the enterprise operating model, decision governance, work governance, quality governance, risk governance, security governance (high level), compliance governance, knowledge governance (high level), change governance, and a synthesis of enterprise governance principles — and deliberately excludes department workflows, sprint/meeting processes, prompt engineering, technical implementation, KPIs, metrics, monitoring dashboards, infrastructure, API behavior, and security implementation. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–III and is labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: governance today is document-and-steward based, enforced through bounded evidence-gated sprints, with several approved enforcement mechanisms defined but not yet operationalized. No governance capability is invented; CURRENT STATE and APPROVED FUTURE STATE are distinguished in every section.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.5** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phases 4.1, 4.2, and 4.3 are unchanged.
+
+*End of Phase 4.4. Part IV continues in a later phase.*
