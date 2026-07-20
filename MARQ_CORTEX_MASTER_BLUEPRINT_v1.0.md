@@ -1751,3 +1751,252 @@ No component changes are required to switch demo↔live (gateway pattern).
 **Continuity note.** The Master Blueprint remains a single document. The next authoring phases append **Part IV — AI Company Architecture**, **Part V — Future Vision**, and **Part VI — Execution Roadmap** (currently PLANNED per the organization table), continuing the same numbering and formatting conventions, with no restart and no split.
 
 *End of Part III.*
+
+---
+
+# PART IV — PHASE 4: AI COMPANY ARCHITECTURE
+
+**Status:** IN PROGRESS · **Numbering:** Sections IV-1 onward (continuing the single-document numbering after §III-88) · **Continuity:** Part IV appends to the same Master Blueprint; numbering and formatting are continuous and are never restarted. Parts I–III remain LOCKED and are neither modified, restated, nor contradicted here (Preservation rule; Golden Rules 1 and 8).
+
+## Reading conventions for Part IV
+
+Part IV describes MARQ Cortex **as a company** — the AI-first operating model beneath the product documented in Part III and the identity ratified in Part II. It carries forward the Part III discipline without exception:
+
+- **CURRENT STATE** — what is true today, grounded in the repository and in the approved blueprint (Parts I–III). Confidence tags apply: *PROVEN* (verified in code/artifact or in a LOCKED Part), *PARTIAL* (defined but not fully realized in runtime), *DEBT* (present but drifting from the Constitution). Nothing is asserted as implemented that is not.
+- **APPROVED FUTURE STATE** — approved by the Constitution (Part II) or the roadmap but **not yet implemented**. Every future item traces to Part II or to `MARQ_CORTEX_ROADMAP.md`. Realization is progressive and additive (DNA Ch 8.3, Ch 23), never a rebrand.
+
+**Scope discipline for Phase 4.1.** This phase establishes only the **company foundation** — principles, philosophy, governance foundations, layers, the human–AI collaboration frame, enterprise architecture principles, and success principles. It deliberately does **not** define departments, individual AI executives/managers/workers, organization charts, KPIs, operational or communication workflows, knowledge-management or AI-memory implementation, security implementation, metrics, or department responsibilities. Those belong to later Phase 4.x sections and are not invented ahead of their phase (Golden Rule 5).
+
+**Section template.** Every Phase 4.1 section answers, in order: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability to Parts I–III.* Each section closes with a **Traceability** line to the Constitution (Part II), the Product Blueprint (Part III), the recovered structural state (Part I), and the roadmap where applicable.
+
+---
+
+## Phase 4.1 — Company Foundation
+
+*This phase defines the foundational operating model of MARQ Cortex as an AI-first company: the principles, philosophy, governance foundations, and enterprise operating model on which every later Part IV phase is built. It sits between the constitutional identity of Part II (which says **what Cortex is**) and the later Phase 4.x phases (which will say **how the AI company is organized and operated**). It introduces no departments, roles, or workflows.*
+
+---
+
+## IV-1 — Executive Summary
+
+**Purpose.** To state, in one place, what Part IV is, what Phase 4.1 establishes, and how the AI-company foundation relates to everything already locked in Parts I–III.
+
+**Why it exists.** Part II ratified Cortex's identity as *an AI company operating on behalf of businesses* (DNA Ch 8.1). Part III documented the product that is the first faithful expression of that identity (§III-1). Part IV is where the **company** behind the product is architected. Phase 4.1 exists so that the foundation — principles, philosophy, governance, operating model — is settled and constitutional before any organizational structure, role, or workflow is drawn. Foundation precedes structure; structure precedes operation.
+
+**Scope.** Phase 4.1 covers the foundational operating model only: the vision, mission, philosophy, operating principles, the AI-first operating model, organizational layers (as concept, not chart), the human–AI collaboration frame, governance principles, enterprise architecture principles, and success principles. It excludes all structure, roles, workflows, and metrics (deferred to later Phase 4.x).
+
+**Current State (PROVEN).** The AI-company model is **defined and constitutionally approved** (Part II, DNA Ch 8) and **documented as identity** in Part III (§III-1, §III-3). Its first realization is the running product: a deterministic engine orchestra plus a provider-agnostic Intelligence Gateway that narrates, presented behind a single calm interface (`ARCHITECT.md` §0 "Math decides; AI narrates"; §III-15/§III-17/§III-21). The mechanics that make it governable — provider independence, deterministic authority, phased data platform, multi-tenancy/RLS, human review for high-risk change — are already codified in the Operating Constitution (`MARQ_CORTEX_CONSTITUTION.md`, Articles 1–17). What does **not** yet exist in runtime is the company *as an organization of named executive/manager/worker constructs*; the data platform records `ai_worker` service-account identity as **Future** (DNA Ch 8.3; §III-1 APPROVED FUTURE STATE).
+
+**Approved Future State.** Progressive realization of the full AI-Workforce organization as first-class runtime constructs, authored across later Phase 4.x phases and built additively (DNA Ch 8.3, Ch 23). Phase 4.1 authorizes none of that structure; it fixes the foundation on which it will stand.
+
+**Dependencies.** Part II (identity and governing authority), Part III (the product the company operates), the Operating Constitution (governance mechanics), and `MARQ_CORTEX_ROADMAP.md` (sequence of realization).
+
+**Traceability.** Part I: recovered structural state as the source of every CURRENT STATE claim (`ARCHITECT.md`; `architecture/system_map.json`). Part II: DNA Ch 8/8.3 (identity as approved-yet-progressive model), Ch 2 (executive summary altitude). Part III: §III-1 (product overview), §III-84–§III-86 (governance/ownership/authority). Roadmap: full-workforce realization.
+
+---
+
+## IV-2 — Company Vision
+
+**Purpose.** To translate Cortex's constitutional Vision (DNA Ch 7) into a *company-level* north star — what MARQ Cortex is becoming as an AI-first company — without inventing capability or restating Part II.
+
+**Why it exists.** A company needs a fixed destination that outlives any roadmap so that every later structural and operational decision can be checked against it. This section provides that destination at the company altitude, distinct from the product-vision altitude of §III-3.
+
+**Scope.** The long-horizon direction of the company only. It does not enumerate the departments, roles, or milestones that will realize the vision (those are later Phase 4.x and Part V/VI work).
+
+**Current State (PROVEN).** The vision is already expressed *in miniature* by the running platform: a business's answers mobilize a coordinated set of engines and gateway-mediated AI to produce a boardroom-grade result through a simple, guided experience (§III-3 CURRENT STATE). Today that coordination is the deterministic engine orchestra (`runCortexEngine`, §III-21) rather than a literal organization of AI executives and workers.
+
+**Approved Future State.** MARQ Cortex becomes the literal AI company its identity describes — an intelligent digital workforce any business can hire — realized progressively toward named executive/manager/worker roles operating with authority bounds, compounding memory, and progressive disclosure (DNA Ch 7/8/14/18/19; §III-3 APPROVED FUTURE STATE). Interaction advances GUI → natural language → voice → multimodal (DNA Ch 15–16). No element of this future is claimed as present.
+
+**Dependencies.** DNA Ch 7 (Vision) as the governing statement; §III-3 (product-vision implementation) as the current expression; DNA Ch 8.3 (progressive realization) as the mode.
+
+**Traceability.** Part I: current expression grounded in `ARCHITECT.md`. Part II: DNA Ch 7/8/14/15/16. Part III: §III-3. Roadmap: interaction-model progression and full-workforce realization.
+
+---
+
+## IV-3 — Company Mission
+
+**Purpose.** To state the company-level mission of MARQ Cortex — what the company does, for whom, and to what measurable end — derived from the constitutional Mission (DNA Ch 6) and Purpose (DNA Ch 5).
+
+**Why it exists.** Vision fixes the destination; mission fixes the ongoing work. The company needs a durable statement of its everyday purpose so that structure and operations, when later defined, serve outcomes rather than activity.
+
+**Scope.** The enduring mission of the company. It does not assign the mission to any department or role, and it defines no metrics for measuring it (later Phase 4.x and §III-83 already hold constitutional success dimensions).
+
+**Current State (PROVEN).** The mission is already operative in the product: Cortex diagnoses a business, quantifies readiness, prioritizes recommendations, models ROI, governs proposals, and delivers execution with live outcome measurement — the full advisory lifecycle (§III-1/§III-2 CURRENT STATE). Authoritative value is produced by deterministic engines and narrated by AI (DNA Ch 17; Operating Constitution Art. 6). The mission today is fulfilled through this pipeline, not through an organization of AI roles.
+
+**Approved Future State.** The same mission — creating measurable business value with minimum complexity — extended across industries and deepened toward the full workforce model, additively (DNA Ch 5/6/23; §III-2 APPROVED FUTURE STATE). No new mission is introduced by Part IV; the company's mission is the constitutional mission, operated at company scale.
+
+**Dependencies.** DNA Ch 5 (Purpose) and Ch 6 (Mission) as governing statements; §III-1/§III-2 as the current realization; Operating Constitution Art. 6 (deterministic authority) as the guarantee of honest value.
+
+**Traceability.** Part I: pipeline evidenced in `ARCHITECT.md` §0–§1. Part II: DNA Ch 5/6/17. Part III: §III-1/§III-2. Roadmap: industry and workforce expansion.
+
+---
+
+## IV-4 — Organizational Philosophy
+
+**Purpose.** To state the beliefs about *how MARQ Cortex organizes intelligence* — the philosophy that will later justify (or reject) every department, role, and workflow.
+
+**Why it exists.** Structure without philosophy drifts. Before any organization is drawn, the company must fix *why* it is organized as a company of intelligence at all, so later structural choices are checked against belief rather than convenience.
+
+**Scope.** Organizing beliefs only. It defines no actual organization — no departments, no roles, no charts. It states the principles by which a future organization will be judged coherent.
+
+**Current State (PROVEN).** The organizing philosophy is inherited from Part II and is already visible in the codebase's shape: one canonical authority per responsibility (Operating Constitution Art. 14, DNA Ch 22.5), deterministic engines owning math while AI narrates (DNA Ch 17; Art. 6), and capability organized to *strengthen the AI Workforce model rather than fragment it* (DNA Ch 27.10). Today this coherence is realized in engines, services, and the manifest registry (`src/system/manifest.ts`, 158 nodes; §III-26) — not yet in an organization of AI roles.
+
+**Approved Future State.** The same coherence principle governs the future organization: any department, manager, or worker exists only if it strengthens the coordinated AI company and avoids duplicating an existing authority (DNA Ch 8.1, Ch 27.10, Ch 29.2). The concrete organization is deferred to later Phase 4.x; only the philosophy is fixed here.
+
+**Dependencies.** DNA Ch 8 (identity as an organized company), Ch 22 (engineering philosophy: one canonical source), Ch 27 (core principles); Operating Constitution Art. 14 (manifest/registry discipline).
+
+**Traceability.** Part I: canonical-authority shape evidenced in `ARCHITECT.md` and `src/system/manifest.ts`. Part II: DNA Ch 8/22/27/29. Part III: §III-21 (core engines), §III-26 (component inventory). Roadmap: workforce-model realization.
+
+---
+
+## IV-5 — Enterprise Operating Principles
+
+**Purpose.** To record the standing enterprise principles by which the company operates — the operational expression of Part II's philosophy at company altitude.
+
+**Why it exists.** The company needs a compact, checkable set of operating principles so that later structure and operations inherit a consistent standard rather than re-deriving one. These principles are the enterprise-level restatement of constitutional commitments, not new law.
+
+**Scope.** Enterprise operating principles as principles. It defines no operational workflows, no procedures, and no metrics; those are later work and remain governed by §III-29–§III-36 and later Phase 4.x.
+
+**Current State (PROVEN).** The enterprise already operates under a codified principle set: **evolve, do not rebuild** (Art. 1; DNA Ch 22.3); **provider-independent intelligence** (Art. 2; DNA Ch 17); **deterministic logic is authoritative** (Art. 6; DNA Ch 17); **multi-tenancy and RLS** (Art. 5; DNA Ch 20); **human review for high-risk change** (Art. 8; DNA Ch 18); **evidence over assertion** (Art. 10; DNA Ch 22.4); **scope discipline** (Art. 16; DNA Ch 22.8). These are enforced today across the repository and documented in Part III (§III-39–§III-44, §III-72–§III-75). This is PROVEN foundation, not aspiration.
+
+**Approved Future State.** As the company grows into an organization of AI roles, these principles hold and tighten rather than relax (DNA Ch 20.8, Ch 32). New enterprise principles enter only through the Constitution's process (DNA Ch 35); Phase 4.1 adds none beyond restating those already ratified.
+
+**Dependencies.** The Operating Constitution (Articles 1–17) for mechanics; DNA Ch 17–23, 27, 29 for intent; Part III governance and deployment sections for current enforcement evidence.
+
+**Traceability.** Part I: enforcement evidenced across `ARCHITECT.md` and the codebase. Part II: DNA Ch 17/18/20/22/27/29. Part III: §III-39–§III-44, §III-72–§III-75, §III-84. Roadmap: principles carried into workforce realization.
+
+---
+
+## IV-6 — AI-First Operating Model
+
+**Purpose.** To define what it means for MARQ Cortex to operate as an **AI-first** company: AI does the work of the company, under human authority, with deterministic systems owning truth and AI narrating it.
+
+**Why it exists.** "AI-first" is easily misread as "AI-autonomous." This section fixes the correct meaning at the foundation so that no later structure or workflow can quietly convert AI-first into unbounded autonomy.
+
+**Scope.** The operating model as a foundational concept — the division between deterministic authority and AI reasoning, and the human-over-AI authority frame. It does not implement the model, staff it with roles, or define its workflows.
+
+**Current State (PROVEN).** The AI-first model is **already operative in its foundational form**: deterministic engines own scoring, ROI, prioritization, proposals, and execution math; AI explains and narrates but never overrides authoritative numbers (Operating Constitution Art. 6; DNA Ch 17; `ARCHITECT.md` §0). Intelligence is provider-agnostic through the Intelligence Gateway (Art. 2; §III-17), and action is bounded by granted authority with human review for high-consequence steps (Art. 8; DNA Ch 18; §III-4). What exists today is AI-*assisted* operation (copilot, narrative, assist, objection features — §III-18) rather than a fully AI-*operated* organization of roles.
+
+**Approved Future State.** Progressive advance toward AI-operated departments, managers, and workers executing defined work reliably and at scale — always under the human-over-AI authority doctrine, with reasoning free and action bounded, and with autonomy widening only upward from the high-consequence floor and only with proof (DNA Ch 18.4/18.9, Ch 8.3). Runtime `ai_worker` identity is recorded as **Future** (DNA Ch 8.3; §III-1). No autonomy expansion is authorized by Phase 4.1.
+
+**Dependencies.** DNA Ch 17 (AI philosophy) and Ch 18 (human–AI authority) as governing doctrine; Operating Constitution Art. 2/6/8; §III-15/§III-17/§III-18 (AI architecture, gateway, orchestration) as the current implementation surface.
+
+**Traceability.** Part I: deterministic-authority separation evidenced in `ARCHITECT.md` §0 and `src/app/core/`. Part II: DNA Ch 8/17/18. Part III: §III-4, §III-15, §III-17, §III-18. Roadmap: autonomy governance; multi-provider/agents.
+
+---
+
+## IV-7 — Organizational Layers
+
+**Purpose.** To name the **layers** of the AI company as a conceptual model — the altitudes at which intelligence is organized — without drawing an organization chart or assigning any role.
+
+**Why it exists.** A company needs a shared vocabulary of altitude (who sets direction, who coordinates, who executes, what owns truth) before it can define specific roles. This section fixes the layer concept so later Phase 4.x work can populate it precisely and without ambiguity.
+
+**Scope.** The layers as constitutional concepts only. It does **not** define departments, individual executives/managers/workers, reporting lines, an org chart, or responsibilities. It lists the layers the Constitution already names and stops there.
+
+**Current State (PARTIAL).** The layers are **defined in the Constitution** as the architecture of Cortex's intelligence: AI Executives, AI Departments, AI Managers, AI Workers, Business Engines, Reasoning Systems, Memory Systems, Automation Systems, Business Intelligence, and Enterprise Governance (DNA Ch 8.1). Of these, the layers realized in runtime today are the **Business Engines** (deterministic core — §III-21/§III-22), the **Reasoning Systems** (gateway-mediated AI narration — §III-15/§III-18), the foundations of **Memory** (§III-20), and **Enterprise Governance** (auth/RLS/audit — §III-39–§III-44, §III-65). The Executive/Department/Manager/Worker layers are **defined but not yet realized as runtime constructs** (DNA Ch 8.3; `ai_worker` identity recorded as Future).
+
+**Approved Future State.** Progressive realization of the full layer stack as first-class runtime constructs, additively and without rebrand (DNA Ch 8.3, Ch 23). The concrete population of each layer — which departments, which roles, which responsibilities — is explicitly deferred to later Phase 4.x and is not authored here.
+
+**Dependencies.** DNA Ch 8.1 (the named layers) and Ch 8.3 (progressive realization); §III-15/§III-18/§III-20/§III-21/§III-22/§III-39 for the layers already realized.
+
+**Traceability.** Part I: realized layers evidenced in `src/app/core/` and `supabase/functions/server/intelligence/`. Part II: DNA Ch 8.1/8.3. Part III: §III-15, §III-18, §III-20, §III-21, §III-22, §III-39–§III-44. Roadmap: layer-by-layer workforce realization.
+
+---
+
+## IV-8 — Human & AI Collaboration Framework
+
+**Purpose.** To fix, at the foundation, how humans and AI collaborate inside and around the company: who holds authority, who reasons, who acts, and where a human must remain in control.
+
+**Why it exists.** The company's entire trustworthiness rests on the human–AI authority relationship. This section states the collaboration frame as foundation so that every later role and workflow inherits it and none can weaken it.
+
+**Scope.** The collaboration *frame* — principles of authority, reasoning, action, and escalation. It does not define specific collaboration workflows, communication workflows, approval procedures, or role-level responsibilities (later Phase 4.x).
+
+**Current State (PROVEN).** The framework is **already enforced in the product**: authority is granted, never assumed; action is bounded to granted permission while reasoning is free; high-consequence steps keep a human in the loop; and the platform escalates rather than overreaches (DNA Ch 18.1–18.9; Operating Constitution Art. 8). In the running system this appears as gated state changes (proposal send, scope changes, status transitions), the Phase 1 Ready Gate blocking unquantified or over-claiming output, and human review required for high-risk domains (§III-4, §III-29, §III-41; `src/imports/phase1-gate-criteria.md`). Today the "AI side" of the collaboration is assistive (copilot/assist/narrative), not an organization of autonomous AI colleagues.
+
+**Approved Future State.** As AI executives, managers, and workers are realized, the same frame governs them: humans remain the principal, Cortex remains the workforce (DNA Ch 18.8); autonomy broadens only upward from the high-consequence floor and only with recorded justification and human approval (DNA Ch 18.9). Concrete collaboration and escalation workflows are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 18 (Human–AI Authority Doctrine) as the governing frame; DNA Ch 17 (explainability), Ch 30.2 (auditability); Operating Constitution Art. 8; §III-4/§III-40–§III-43 for current enforcement.
+
+**Traceability.** Part I: gating and review evidenced in `ARCHITECT.md` and `src/imports/phase1-gate-criteria.md`. Part II: DNA Ch 17/18/30. Part III: §III-4, §III-29, §III-40–§III-43. Roadmap: autonomy governance and role realization.
+
+---
+
+## IV-9 — Governance Principles
+
+**Purpose.** To state the governance principles of the company at the foundation — the *why* and the *standard* of governance — without implementing any governance mechanism.
+
+**Why it exists.** The company is a trust institution (DNA Ch 8, Ch 21.3). Governance is what makes that claim real. This section fixes the governing principles so that later structure and operations are accountable by design rather than by afterthought.
+
+**Scope.** Governance *principles* only: explainability, auditability, deterministic authority, security-and-isolation as purpose, evidence-first culture, change control, and enforcement. It does **not** define security implementation, audit implementation, permission mechanics, or metrics — those are Part III (already implemented mechanics) and later Phase 4.x, and are not restated as new here.
+
+**Current State (PROVEN).** Governance principles are **codified and enforced today**. The Operating Constitution defines the mechanics — multi-tenancy/RLS (Art. 5), human review for high-risk change (Art. 8), sprint quality gates (Art. 9), evidence over assertion (Art. 10), secrets discipline (Art. 13), documentation as contract (Art. 15), runtime authority protection (Art. 17) — and Part III documents them as implemented (§III-39–§III-44, §III-62–§III-65, §III-84–§III-86). DNA Ch 30 elevates their *purpose* to constitutional status. The four standing enforcement mechanisms (periodic compliance review, standing to raise a violation, duty to remediate, integrity of the constitutional text) are defined in DNA Ch 30.4.
+
+**Approved Future State.** As the company scales into an organization of AI roles, governance holds and tightens (DNA Ch 20.8, Ch 30); explainability and auditability remain engineered-in preconditions for any AI role to act (DNA Ch 22.7, Ch 30.2). Concrete governance bodies, cadences, and role-level accountability are deferred to later Phase 4.x; Phase 4.1 fixes only the principles.
+
+**Dependencies.** DNA Ch 30 (Ethics & Governance) as governing intent; the Operating Constitution (Articles 5/8/9/10/13/15/17) for mechanics; §III-39–§III-44, §III-62–§III-65, §III-84 for current implementation evidence.
+
+**Traceability.** Part I: enforcement evidenced across `ARCHITECT.md`, `architecture/system_map.json`, and the codebase. Part II: DNA Ch 18/20/22/30. Part III: §III-39–§III-44, §III-62–§III-65, §III-84–§III-86. Roadmap: governance carried into workforce realization.
+
+---
+
+## IV-10 — Enterprise Architecture Principles
+
+**Purpose.** To state the enterprise-architecture principles that hold the AI company together as one coherent system — the identity-level architectural beliefs, not their implementation.
+
+**Why it exists.** A company of intelligence fragments unless its architecture is principled. This section fixes the architectural convictions (single canonical authority, deterministic core, additive evolution, no duplication, security never traded) so later structure is built on one coherent system rather than a collection of features.
+
+**Scope.** Architecture *principles* at the enterprise altitude. It does not restate Part III's concrete platform, system, data, or security architecture (§III-13/§III-14/§III-37/§III-39), and it defines no new components, schemas, or implementation.
+
+**Current State (PROVEN).** The enterprise-architecture principles are **already in force and evidenced**: deterministic engines are authoritative and AI narrates (DNA Ch 22.2; Art. 6); one canonical source per responsibility with no unnecessary duplication (DNA Ch 22.5; Art. 14; the single manifest at `src/system/manifest.ts`); evolve-not-rebuild through bounded additive change (DNA Ch 22.3; Art. 1); provider independence via the Intelligence Gateway (Art. 2; §III-17); phased data platform with KV authoritative until per-domain cutover (Art. 4/17; §III-37); explainability and auditability engineered-in (DNA Ch 22.7); and security never traded for convenience (DNA Ch 22.6; Art. 8/13). Part III documents the realized architecture these principles govern (§III-13/§III-14/§III-15/§III-37/§III-39).
+
+**Approved Future State.** The same principles govern the architecture of the future AI organization: new executive/manager/worker constructs must preserve single-authority, deterministic-core, and no-duplication guarantees, and must be added additively (DNA Ch 22, Ch 23, Ch 29.2). The concrete architecture of the workforce organization is deferred to later Phase 4.x and later Parts.
+
+**Dependencies.** DNA Ch 22 (Engineering Philosophy) as intent; the Operating Constitution (Articles 1/2/4/6/14/17) for mechanics; §III-13/§III-14/§III-15/§III-37/§III-39 for the realized architecture.
+
+**Traceability.** Part I: architecture evidenced in `ARCHITECT.md` and `architecture/system_map.json`. Part II: DNA Ch 22/29. Part III: §III-13, §III-14, §III-15, §III-17, §III-37, §III-39. Roadmap: architecture extended to workforce constructs.
+
+---
+
+## IV-11 — Success Principles
+
+**Purpose.** To fix how the *company* judges its own success at the foundation — the constitutional success principle, restated at company altitude — without defining any metric or KPI.
+
+**Why it exists.** A company that measures the wrong thing optimizes the wrong thing. This section fixes the success *principle* before any structure or metric exists, so later phases derive measures from the right standard (DNA Ch 33.1).
+
+**Scope.** Success *principles* only. It explicitly excludes KPIs, product metrics, operational metrics, and success metrics — those are Part III (§III-81–§III-83, already documented) and later Phase 4.x. Phase 4.1 introduces no metric.
+
+**Current State (PROVEN).** The success principle is **already constitutional and documented**: every future feature, workflow, AI capability, role, automation, department, integration, or architectural decision must pass the single admission-and-success gate — aligns with the DNA, creates measurable business value, strengthens the AI Workforce model, avoids unnecessary duplication, maintains simplicity, increases enterprise trust (DNA Ch 33.1; identical to the decision gate of DNA Ch 24). The constitutional success dimensions (outcome delivery, effortless capability, trust as north-star, workforce coherence, simplicity under growth, compounding judgment, integrity, durability, breadth) are ratified in DNA Ch 33.2 and carried into Part III (§III-83). What is explicitly *not* success — feature count, novelty, spectacle, extractive short-term revenue — is fixed in DNA Ch 33.3.
+
+**Approved Future State.** The same success principle governs the future AI company: no department, role, or workflow is judged successful by activity or sophistication, only by the constitutional dimensions (DNA Ch 33.2–33.3). Concrete company-level metrics that *derive from* these principles are deferred to later Phase 4.x; they will never replace the principle (DNA Ch 33).
+
+**Dependencies.** DNA Ch 33 (Success Metrics) and Ch 24 (Decision Framework) as the governing standard; §III-83 (success metrics) as the current derivation.
+
+**Traceability.** Part I: outcome-orientation reflected in the delivered pipeline (`ARCHITECT.md` §1). Part II: DNA Ch 24/33. Part III: §III-81–§III-83. Roadmap: company-level measures derived in later phases.
+
+---
+
+## IV-12 — Phase Summary
+
+**Purpose.** To close Phase 4.1 by confirming what it established, what it deliberately withheld, and how it connects to the phases that follow.
+
+**Why it exists.** A phased document needs an explicit boundary marker so that no reader mistakes the foundation for the full architecture, and so the next phase begins from a settled base.
+
+**Scope.** A summary of Phase 4.1 only. It defines nothing new and closes the phase.
+
+**Current State (PROVEN).** Phase 4.1 established the **company foundation** of MARQ Cortex as an AI-first company across §IV-1 through §IV-11: executive summary, company vision, company mission, organizational philosophy, enterprise operating principles, the AI-first operating model, organizational layers (as concept), the human–AI collaboration framework, governance principles, enterprise architecture principles, and success principles. Every section separated CURRENT STATE from APPROVED FUTURE STATE, grounded each CURRENT STATE claim in the repository or the LOCKED blueprint (Parts I–III), invented no implemented capability, and traced back to the Constitution (Part II), the Product Blueprint (Part III), and the recovered structural state (Part I). Nothing in Phase 4.1 rewrote, summarized, or contradicted Parts I–III.
+
+**Approved Future State.** Later Phase 4.x sections will build on this foundation to define the AI company's departments, AI executives/managers/workers, organization structure, responsibilities, operational and communication workflows, knowledge management, AI-memory implementation, security implementation, and metrics — each additively, each traceable, and none authored ahead of its phase (Golden Rule 5; DNA Ch 8.3, Ch 23). Phase 4.1 authorizes the foundation only and stops here.
+
+**Dependencies.** All Phase 4.1 sections (§IV-1–§IV-11); Parts I–III as the grounding record; `MARQ_CORTEX_ROADMAP.md` for sequence.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`. Part II: DNA Ch 8/8.3/17/18/22/24/30/33. Part III: §III-1–§III-4, §III-15–§III-22, §III-39–§III-44, §III-81–§III-88. Roadmap: Phase 4.x realization.
+
+---
+
+## Phase 4.1 — Completion Status
+
+**Phase 4.1 (Company Foundation) is complete: Sections IV-1 through IV-12.** It defines the foundational operating model of MARQ Cortex as an AI-first company — principles, philosophy, governance foundations, and enterprise operating model — and deliberately defines no departments, individual AI roles, organization charts, KPIs, operational or communication workflows, knowledge management, AI-memory implementation, security implementation, metrics, or department responsibilities. Those belong to later Phase 4.x sections. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–III; no implemented capability is invented; CURRENT STATE and APPROVED FUTURE STATE are distinguished in every section.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.2** (next Part IV phase), then Parts V–VI, using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED.
+
+*End of Phase 4.1. Part IV continues in a later phase.*
