@@ -2000,3 +2000,298 @@ Part IV describes MARQ Cortex **as a company** — the AI-first operating model 
 **Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.2** (next Part IV phase), then Parts V–VI, using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED.
 
 *End of Phase 4.1. Part IV continues in a later phase.*
+
+---
+
+## Phase 4.2 — Organizational Structure
+
+*This phase designs the enterprise organizational structure of MARQ Cortex as an AI-first company: the executive organization, departments, hierarchy, organizational roles, decision authority, reporting relationships, cross-functional collaboration, boundaries, and scalability. It builds on the foundation set in Phase 4.1 (§IV-1–§IV-12) and populates the organizational-layers concept of §IV-7 with an actual structure. It defines **structure only** — how the organization is arranged — and deliberately introduces **no** individual AI workers, department workflows, communication procedures, knowledge management, KPIs, operational metrics, performance management, security implementation, AI-memory architecture, or business processes. Those belong to later Phase 4.x sections and are not authored ahead of their phase (Golden Rule 5).*
+
+**Reading note carried from Phase 4.1.** Every section separates CURRENT STATE (grounded in the repository or the LOCKED Parts I–III; confidence-tagged *PROVEN / PARTIAL / DEBT*) from APPROVED FUTURE STATE (approved by Part II or the roadmap, not yet implemented, realized additively per DNA Ch 8.3). A recurring, load-bearing distinction in this phase: the **organizational roles** defined here (Executive, Director, Manager, Lead, Specialist, AI Supervisor) are *company-organization* constructs and are **distinct from** the *product* RBAC roles of §III-42/§III-43 (operator, reviewer, client, team-admin), which govern in-product access and are already partially implemented. The two role systems must never be conflated.
+
+**Section template.** Each section answers: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability.*
+
+---
+
+## IV-13 — Executive Organization
+
+**Purpose.** To define the executive layer of the AI company — its hierarchy, responsibilities, authority, and role in strategic oversight — as an organizational structure, not as staffed individuals.
+
+**Why it exists.** Every company needs an accountable top layer that sets direction and owns outcomes. Cortex's identity names *AI Executives* as the layer that "set direction, own outcomes, and make senior-level decisions within their authority" (DNA Ch 8.1). This section fixes how that layer is organized so later phases can realize it without redesigning it.
+
+**Scope.** The executive layer only: the executive hierarchy, the portfolios executives own, the bounds of executive authority, and how executives exercise strategic oversight. It does not define individual AI workers, executive workflows, KPIs, or procedures.
+
+- **Executive hierarchy.** A single **Chief Executive function** (whole-company direction and outcome ownership) over a set of **Functional Executive portfolios** aligned to the major domains of the company: Product, Engineering/Technology, AI Platform, Design, Quality, Growth (Marketing + Sales), Customer, Operations, Finance, Legal, Security, and People. Each functional executive owns one portfolio; the Chief Executive function integrates them.
+- **Executive responsibilities.** Set strategic direction within constitutional bounds; own the outcomes of their portfolio; allocate priority across their departments; and uphold the DNA in every decision. Executives own *direction and outcomes*, not the execution of individual tasks.
+- **Executive authority.** Authority is **granted, bounded, and revocable** (DNA Ch 18.1–18.2). Executives reason freely across their portfolio but act only within granted authority (DNA Ch 18.4); high-consequence decisions keep a human in the loop (DNA Ch 18.5/18.9). No executive holds authority over identity, philosophy, or governance — those remain with the Constitution and the human steward (§III-84–§III-86).
+- **Strategic oversight.** Executives keep the company aligned to the constitutional success dimensions (DNA Ch 33.2) and the decision gate (DNA Ch 24), escalating to the human principal rather than overreaching (DNA Ch 18.6).
+
+**Current State (PARTIAL).** The executive *function* exists today and is held by **MARQ Networks as human steward**: MARQ Networks sets direction, owns outcomes, and holds amendment authority (DNA Ch 9; §III-85 Ownership; §III-86 Decision Authority). Senior decisions today are governed by the Constitution, the Master Blueprint (Master Rule), and the Operating Constitution — not by an organization of AI executives. AI executives as first-class runtime constructs do **not** yet exist (`ai_worker` identity recorded as Future; DNA Ch 8.3; §IV-7).
+
+**Approved Future State.** Progressive realization of AI Executive portfolios operating with bounded, revocable authority under the human principal, additively and without rebrand (DNA Ch 8.1/8.3, Ch 18, Ch 23). The *staffing* of these portfolios with specific AI roles is deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1 (executive layer), Ch 9 (steward), Ch 18 (authority), Ch 24/33 (decision/success); §III-85/§III-86 (current ownership and decision authority); §IV-7 (organizational layers).
+
+**Traceability.** Part I: current human ownership evidenced via `ARCHITECT.md` and steward record. Part II: DNA Ch 8/9/18/24/33. Part III: §III-84–§III-86. Roadmap: executive-layer realization.
+
+---
+
+## IV-14 — Department Architecture
+
+**Purpose.** To define the enterprise departments of the AI company — each department's purpose and responsibilities only — as the structural containers beneath the executive layer.
+
+**Why it exists.** A company organizes work into departments so that each fundamental domain is owned with rigor. Cortex's identity names *AI Departments* that "cover the fixed domains of a business… each analyzing its domain with rigor" (DNA Ch 8.1). This section names the company's own departments and fixes their purpose so later phases can staff and operate them.
+
+**Scope.** Department **purpose and responsibilities only**. No workflows, no KPIs, no procedures, no individual workers. The enterprise departments are:
+
+| Department | Purpose | Core responsibilities (structural, not procedural) |
+|---|---|---|
+| **Executive** | Direct the company and own outcomes | Strategy, priority allocation, constitutional alignment, cross-department integration (§IV-13) |
+| **Product** | Define what Cortex should be and why | Product direction, scope stewardship, blueprint-before-build discipline, customer-value framing |
+| **Engineering** | Build and maintain the platform | System and application engineering, additive evolution, evidence-first delivery, technical integrity |
+| **AI Platform** | Own the intelligence layer | Intelligence Gateway stewardship, provider independence, deterministic-authority/AI-narration separation, AI capability integration |
+| **Design** | Own the experience surface | Interaction and visual design, Maximum-Intelligence/Minimum-Complexity experience, progressive disclosure |
+| **Quality (QA)** | Guarantee correctness and trustworthiness | Verification, regression protection, acceptance discipline, evidence-over-assertion enforcement |
+| **Marketing** | Communicate Cortex honestly to the market | Positioning, honest value communication, brand stewardship (no guaranteed-results claims) |
+| **Sales** | Bring businesses into the relationship | Qualification, proposal-governed selling, honest scoping within advisory boundaries |
+| **Customer Success** | Ensure customers realize measured value | Onboarding stewardship, outcome realization, QBR ownership, retention through delivered value (not lock-in) |
+| **Operations** | Run the company reliably | Cross-department coordination, delivery/execution oversight, operational continuity |
+| **Finance** | Steward the economics | Financial modeling integrity, ROI honesty, pricing/cost discipline, durable-over-extractive economics |
+| **Legal** | Keep the company inside its boundaries | Advisory-boundary compliance, contracts, regulatory posture, third-party fairness obligations |
+| **Security** | Protect the trust institution | Tenant isolation, permission enforcement, secrets discipline, high-risk-change review (as governance owner, not implementer here) |
+| **Human Resources / People** | Steward the workforce (human and AI) | Role definition, oversight of the human–AI collaboration frame, stewardship of AI roles as they are realized |
+
+Each department maps to a functional executive portfolio (§IV-13) and to one or more organizational layers (§IV-7).
+
+**Current State (PARTIAL).** The **responsibilities** these departments name are already exercised today, but by **MARQ Networks (human) plus bounded AI assistance and deterministic systems**, not by AI-staffed departments. Evidence of the responsibilities in current form: Product/Engineering discipline via the Master Blueprint + `ARCHITECT.md` + Operating Constitution; AI Platform via the Intelligence Gateway (§III-17, `supabase/functions/server/intelligence/`); Quality via the test protocol and gates (`MARQ_CORTEX_TEST_PROTOCOL.md`, §III-76); Security/Finance/Operations responsibilities via §III-39–§III-46, §III-30, §III-62–§III-67. The bounded AI agent that assists engineering operates under an explicit contract (`prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`; Operating Constitution Art. 16). No AI-staffed department organization exists in runtime yet.
+
+**Approved Future State.** Each department progressively realized as an AI-staffed organization under its executive, additively (DNA Ch 8.1/8.3, Ch 23), preserving one-canonical-authority-per-responsibility (DNA Ch 22.5, Ch 29.2). Department *workflows, responsibilities-in-detail, and staffing* are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1 (department layer); §IV-7 (layers), §IV-13 (executives); Part III governance/security/finance/operations sections for current-responsibility evidence.
+
+**Traceability.** Part I: responsibilities evidenced across `ARCHITECT.md`, `src/imports/`, `MARQ_CORTEX_TEST_PROTOCOL.md`. Part II: DNA Ch 8/22/29. Part III: §III-17, §III-30, §III-39–§III-46, §III-62–§III-67, §III-76, §III-84–§III-86. Roadmap: department realization.
+
+---
+
+## IV-15 — Organizational Hierarchy
+
+**Purpose.** To document the company hierarchy — the leadership layers, how departments relate, and the reporting model — as a single coherent structure.
+
+**Why it exists.** Layers and departments (§IV-7, §IV-13, §IV-14) must resolve into one hierarchy, or authority and coordination fragment. This section fixes the shape of the whole so the organization reads as one company, not a set of parts.
+
+**Scope.** The hierarchy as structure: the vertical leadership layers, the horizontal department relationships, and the reporting model at the structural level. Detailed reporting relationships are elaborated in §IV-18; this section fixes the overall shape.
+
+- **Company hierarchy (top to bottom).** Human Principal / Steward (MARQ Networks) → Chief Executive function → Functional Executives → Directors → Managers / AI Supervisors → Leads → Specialists (the organizational roles of §IV-16). Deterministic Business Engines and Enterprise Governance sit *across* the hierarchy as authoritative substrates (they own truth and enforce rules for every layer), not as a rung within it (DNA Ch 8.1; §IV-7).
+- **Leadership layers.** Three leadership altitudes: **Executive** (direction and outcomes), **Director/Manager** (coordination and sequencing), and **Lead** (local ownership of a slice of work). AI Supervisors sit at the manager altitude for AI-staffed work (§IV-16).
+- **Department relationships.** Departments are peers under the executive layer; none owns another. Shared concerns (e.g., Security, Quality, Finance) exert *governance influence across* departments without owning them — a matrix relationship, not a command one.
+- **Organizational reporting model.** Primarily hierarchical (each role reports upward to its layer) with defined cross-functional links (§IV-18/§IV-19). The human principal remains above the entire hierarchy for high-consequence authority (DNA Ch 18.9).
+
+**Current State (PARTIAL).** The **authority hierarchy that exists today is document-and-steward based**, not an org of AI roles: the Constitution is supreme; the Master Blueprint governs product/architecture; the Operating Constitution and `ARCHITECT.md` govern engineering mechanics; MARQ Networks is the human principal; sprint acceptance criteria govern scoped execution (§III-84–§III-86; DNA Ch 25.1 precedence). Deterministic engines already sit as the authoritative substrate across all work (Operating Constitution Art. 6; §III-21). The multi-layer AI leadership hierarchy is defined but not yet realized in runtime (DNA Ch 8.3).
+
+**Approved Future State.** Progressive realization of the leadership layers as AI roles under the human principal, additively (DNA Ch 8.1/8.3, Ch 23), with governance and deterministic substrates preserved across the hierarchy.
+
+**Dependencies.** §IV-7 (layers), §IV-13 (executive), §IV-14 (departments), §IV-16 (roles), §IV-18 (reporting); DNA Ch 8.1/25.1; §III-84–§III-86.
+
+**Traceability.** Part I: document-based hierarchy evidenced in `ARCHITECT.md` and the artifact set. Part II: DNA Ch 8/18/25. Part III: §III-84–§III-86, §III-21. Roadmap: leadership-layer realization.
+
+---
+
+## IV-16 — Roles & Responsibilities
+
+**Purpose.** To define the **high-level organizational roles** of the AI company and the responsibility each carries — as archetypes, not as staffed individuals.
+
+**Why it exists.** A hierarchy needs named role archetypes so that responsibility has a consistent grammar at every layer. This section fixes those archetypes so later phases can instantiate them without inventing a new vocabulary each time.
+
+**Scope.** Organizational role **archetypes only**. It explicitly does **not** define individual AI workers, and it is **distinct from** the product RBAC roles of §III-42/§III-43. The archetypes:
+
+| Role archetype | Layer (§IV-15) | Responsibility (structural) |
+|---|---|---|
+| **Executive** | Executive | Sets direction and owns outcomes for a portfolio within bounded authority (§IV-13) |
+| **Director** | Leadership | Owns a domain within a department; translates executive direction into organized capability |
+| **Manager** | Leadership | Coordinates work, sequences priorities, holds the line between teams (DNA Ch 8.1 "AI Managers") |
+| **Lead** | Leadership (local) | Owns a defined slice of work and the quality of its output |
+| **Specialist** | Execution | Holds deep responsibility for a specific capability area (not an individual worker — a role archetype) |
+| **AI Supervisor** | Leadership (AI oversight) | Oversees AI-staffed work: ensures bounded authority, explainability, escalation over overreach, and human-in-the-loop at the high-consequence floor (DNA Ch 18.5/18.6/18.9) |
+
+The **AI Supervisor** archetype is the structural anchor of AI oversight (elaborated for reporting in §IV-18 and boundaries in §IV-20): it is the role that keeps AI-executed work inside the human–AI authority frame.
+
+**Current State (PARTIAL).** Today these organizational archetypes are held by **human MARQ Networks roles plus the bounded AI agent contract**; they are not yet a staffed AI-role catalog. Distinct and already-implemented are the *product* roles (§III-42: operator, reviewer, revenue/analytics, team-admin, client) carried via `roleEngine` + `user_metadata.teamRole` — these govern product access, not company organization. The AI Supervisor function exists today only as the human-review-and-authority discipline enforced by the Operating Constitution (Art. 8) and DNA Ch 18, not as an AI role.
+
+**Approved Future State.** Progressive instantiation of the organizational role archetypes as AI roles under human oversight, additively (DNA Ch 8.1/8.3, Ch 18, Ch 23). Individual AI workers that fill these archetypes are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1 (executives/managers/workers), Ch 18 (oversight); §IV-13/§IV-15 (executive/hierarchy); §III-42/§III-43 (distinct product roles) for disambiguation.
+
+**Traceability.** Part I: current product roles evidenced via `roleEngine`; AI-agent contract in `prompts/`. Part II: DNA Ch 8/18. Part III: §III-42/§III-43, §III-86. Roadmap: organizational-role realization.
+
+---
+
+## IV-17 — Decision Authority Matrix
+
+**Purpose.** To document, in RACI form, who is **Responsible, Accountable, Consulted, and Informed** for each major decision domain of the company.
+
+**Why it exists.** Decisions stall or drift without owners and a resolution order (DNA Ch 24/25; §III-86). This section makes ownership explicit per domain so authority is legible before any workflow is defined.
+
+**Scope.** Decision **ownership** across the domains named for this phase — Product, Engineering, AI, Security, Finance, Operations. It defines RACI at the organizational-role level (§IV-13/§IV-16); it does not define decision *workflows* or approval *procedures* (later Phase 4.x) beyond the constitutional escalation floor.
+
+**Approved organizational RACI (the designed structure).**
+
+| Decision domain | Responsible (does the work) | Accountable (owns the outcome) | Consulted | Informed |
+|---|---|---|---|---|
+| **Product** | Product Department | Product Executive | Engineering, AI Platform, Design, Customer Success | Executive layer; all departments |
+| **Engineering** | Engineering Department | Engineering/Technology Executive | AI Platform, Security, Quality, Product | Executive layer |
+| **AI** | AI Platform Department | AI Platform Executive | Engineering, Security, Product, Design | Executive layer |
+| **Security** | Security Department | Security Executive | Engineering, AI Platform, Legal, Operations | Executive layer; **Human Principal** |
+| **Finance** | Finance Department | Finance Executive | Operations, Legal, Sales, Customer Success | Executive layer |
+| **Operations** | Operations Department | Operations Executive | Engineering, Finance, Customer Success | Executive layer |
+
+**Standing overrides (constitutional, non-negotiable).**
+- **Authoritative computation** is Responsible-to the deterministic engines in every domain — *math decides; AI narrates* (Operating Constitution Art. 6; DNA Ch 17). No executive or department overrides authoritative numbers.
+- **High-consequence decisions** (DNA Ch 18.9 floor: irreversible, third-party-affecting, legally/financially material, or authority/security/permission changes) make the **Human Principal the ultimate Accountable/Approver**, regardless of the row above. Reclassifying a decision downward is itself a governed act requiring recorded human approval (DNA Ch 18.9).
+- **Identity, philosophy, governance** decisions are Accountable-to the **Constitution and human steward**, amendable only via DNA Ch 35 — never delegated to an executive (§III-84/§III-86).
+
+**Current State (PARTIAL).** Today the "Responsible/Accountable" columns collapse onto **MARQ Networks (human) and the governing documents**: deterministic engines are already Responsible for authoritative computation (PROVEN — Art. 6, §III-21); the Master Blueprint is Accountable for product/architecture; the Operating Constitution/`ARCHITECT.md` for engineering mechanics; the Human Principal for high-consequence actions (§III-86). The per-department executive RACI above is the **approved structure**, not yet staffed by AI roles.
+
+**Approved Future State.** The RACI matrix realized with AI executives/departments in the Responsible/Consulted roles under the standing human-principal and deterministic-authority overrides, additively (DNA Ch 8.3, Ch 18, Ch 24). A decision registry binding each recurring decision type to its authority is already an approved future item (§III-16/§III-86).
+
+**Dependencies.** DNA Ch 17/18/24/25/35; Operating Constitution Art. 6/8; §III-16/§III-86 (decision authority + future registry); §IV-13/§IV-14/§IV-16.
+
+**Traceability.** Part I: deterministic authority and human review evidenced in `ARCHITECT.md` §0 and `src/app/core/`. Part II: DNA Ch 17/18/24/25/35. Part III: §III-16, §III-84–§III-86. Roadmap: decision registry; RACI realization.
+
+---
+
+## IV-18 — Reporting Relationships
+
+**Purpose.** To document how the organization reports — executive, department, cross-functional, and AI-oversight reporting lines — at the structural level.
+
+**Why it exists.** A hierarchy (§IV-15) needs explicit reporting lines so accountability flows upward and information flows where it must. This section fixes the lines; it does not define the reporting *content* or *cadence* (later Phase 4.x).
+
+**Scope.** Reporting **relationships** as structure only: who reports to whom, and along which axis. No report formats, no metrics, no schedules.
+
+- **Executive reporting.** Functional Executives report to the Chief Executive function; the Chief Executive function reports to the **Human Principal (MARQ Networks)** for direction and for all high-consequence authority (DNA Ch 18.8/18.9; §III-85).
+- **Department reporting.** Each department reports through its Director/Manager to its Functional Executive (§IV-15). Deterministic engines and Enterprise Governance report *evidence* (authoritative results, audit trails) across the hierarchy rather than up a single line (DNA Ch 30.2; §III-65).
+- **Cross-functional reporting.** Shared-concern departments (Security, Quality, Finance) hold **dotted-line** reporting into every department they govern, so their concern is represented without owning the department (matrix relationship, §IV-15).
+- **AI oversight reporting.** Every AI-staffed unit reports through an **AI Supervisor** (§IV-16) whose line ensures bounded authority, explainability, and escalation to a human at the high-consequence floor (DNA Ch 18.5/18.6/18.9). AI oversight reporting is a **first-class, non-removable line** — it may not be bypassed as autonomy grows (DNA Ch 18.9 "no quiet erosion").
+
+**Current State (PARTIAL).** Reporting today is **evidence-and-review based, human-terminated**: completion is reported as verifiable evidence (Operating Constitution Art. 10; DNA Ch 22.4), high-risk changes report to human review before taking effect (Art. 8; §III-40–§III-44), and audit trails provide reviewable reporting of decisions and actions (§III-65; DNA Ch 30.2). The bounded AI agent reports through the human review discipline of the agent contract (`prompts/…`). Multi-line AI-role reporting does not yet exist in runtime (DNA Ch 8.3).
+
+**Approved Future State.** Realized executive/department/cross-functional/AI-oversight reporting lines under the human principal, additively (DNA Ch 8.1/8.3, Ch 18, Ch 30). Reporting content, cadence, and dashboards are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1/18/30; Operating Constitution Art. 8/10; §III-40–§III-44, §III-65, §III-85; §IV-15/§IV-16.
+
+**Traceability.** Part I: evidence-based reporting via `ARCHITECT.md` and audit surfaces. Part II: DNA Ch 8/18/22/30. Part III: §III-40–§III-44, §III-62–§III-65, §III-85. Roadmap: reporting-line realization.
+
+---
+
+## IV-19 — Cross-Functional Collaboration
+
+**Purpose.** To describe how departments collaborate across the hierarchy — the standing collaboration relationships — without defining any workflow.
+
+**Why it exists.** Value is produced at the seams between departments. Naming the standing collaboration relationships fixes where those seams are, so later phases can define how work crosses them without re-discovering the map.
+
+**Scope.** Collaboration **relationships** as structure — which departments collaborate and toward what shared purpose. Explicitly **no workflows, no procedures, no communication mechanics** (later Phase 4.x).
+
+**Standing collaboration relationships (representative, not exhaustive).**
+- **Engineering ↔ Product** — translate product direction into buildable, additive capability; protect scope discipline (DNA Ch 22.8).
+- **Engineering ↔ AI Platform** — integrate gateway-mediated intelligence while preserving deterministic authority and provider independence (Art. 2/6; §III-17).
+- **AI Platform ↔ Security** — keep AI action inside granted authority and the high-consequence floor (DNA Ch 18).
+- **Marketing ↔ Sales** — align honest positioning with honest scoping; forbid guaranteed-results language (§III-4 advisory boundary).
+- **Customer Success ↔ Product** — feed realized-outcome learning back into product direction (compounding judgment, DNA Ch 19/33.2).
+- **Security ↔ Engineering** — enforce isolation, permissions, secrets, and high-risk-change review across the build (Art. 5/8/13).
+- **Finance ↔ Product/Sales** — keep ROI and pricing honest and durable over extractive (DNA Ch 21.5/21.6).
+- **Quality ↔ all departments** — verification and evidence-over-assertion as a cross-cutting relationship (Art. 9/10).
+
+**Current State (PARTIAL).** These collaboration *concerns* are already enforced today as **cross-cutting document-and-gate disciplines**, not as inter-department AI collaboration: deterministic-authority + gateway separation (§III-15/§III-17), advisory/honesty boundaries (§III-4), security-across-engineering (§III-39–§III-44), and quality gates (§III-76; Art. 9) all operate now. The collaborating parties today are human roles plus deterministic systems and a bounded AI agent, not AI departments.
+
+**Approved Future State.** The same collaboration relationships realized between AI-staffed departments, additively (DNA Ch 8.1/8.3, Ch 27.10 workforce coherence). Collaboration *workflows and communication procedures* are deferred to later Phase 4.x.
+
+**Dependencies.** DNA Ch 8.1/18/19/21/22/27; Operating Constitution Art. 2/5/6/8/9/13; §III-4, §III-15, §III-17, §III-39–§III-44, §III-76; §IV-14/§IV-18.
+
+**Traceability.** Part I: cross-cutting disciplines evidenced in `ARCHITECT.md` and `src/imports/`. Part II: DNA Ch 8/18/21/22/27. Part III: §III-4, §III-15, §III-17, §III-39–§III-44, §III-76. Roadmap: inter-department collaboration realization.
+
+---
+
+## IV-20 — Organizational Boundaries
+
+**Purpose.** To define, at the organizational level, the boundaries between human responsibility, AI responsibility, and shared responsibility — including approval and escalation boundaries.
+
+**Why it exists.** An AI-first company's trustworthiness depends on an unambiguous line between what AI may own and what a human must own. This section fixes those boundaries at the org level so no later role or workflow can blur them (DNA Ch 18; §IV-8).
+
+**Scope.** Boundaries as structure: which responsibilities are human, which are AI, which are shared, and where approval and escalation boundaries sit. It restates the constitutional authority frame at organizational altitude; it does not implement security or define procedures.
+
+- **Human responsibilities (non-delegable).** Identity/philosophy/governance and their amendment (DNA Ch 35; §III-84); high-consequence decisions and their downward reclassification (DNA Ch 18.5/18.9); ultimate accountability for outcomes; granting, bounding, and revoking authority (DNA Ch 18.1–18.2). These sit with the Human Principal and remain human even as AI roles are realized.
+- **AI responsibilities (bounded).** Reasoning, analysis, recommendation, and preparation across the full breadth of the company (DNA Ch 18.4); execution of defined work **within granted authority** (DNA Ch 8.1 workers); narration of authoritative results (Art. 6). AI never owns authoritative computation or identity.
+- **Shared responsibilities.** Outcome delivery, quality, explainability, and auditability are shared: AI produces and explains; humans verify and remain accountable (DNA Ch 22.7, Ch 30.2). The deterministic engines are the shared authoritative substrate both rely on.
+- **Approval boundary.** Any action meeting the high-consequence floor requires human approval before it takes effect (DNA Ch 18.5/18.9; Operating Constitution Art. 8). Approval authority never migrates to AI by default; widening it upward requires deliberate, recorded human action (DNA Ch 18.9).
+- **Escalation boundary.** At the edge of authority or confidence, AI **escalates to a human rather than acting** (DNA Ch 18.6). Silence is never approval. The escalation line is the AI Supervisor path (§IV-16/§IV-18) and is non-removable.
+
+**Current State (PROVEN).** These boundaries are **enforced today**: authority is granted/bounded/revocable and action is gated (proposal send, scope changes, status transitions — §III-4/§III-29/§III-41); high-risk domains require human review (Art. 8; §III-40–§III-44); deterministic engines own numbers and AI cannot override them (Art. 6; §III-15). The bounded AI agent operates strictly within assigned scope and escalates rather than expanding it (Art. 16; agent contract). This is PROVEN foundation, not aspiration.
+
+**Approved Future State.** The same boundaries hold and tighten as AI roles are realized (DNA Ch 32, Ch 18.9); autonomy widens only upward from the floor and only with proof. No boundary is relaxed by Phase 4.2.
+
+**Dependencies.** DNA Ch 18/30/32/35; Operating Constitution Art. 6/8/16; §III-4, §III-40–§III-44, §III-84; §IV-8 (collaboration frame).
+
+**Traceability.** Part I: gating and review evidenced in `ARCHITECT.md`, `src/imports/phase1-gate-criteria.md`. Part II: DNA Ch 18/30/32/35. Part III: §III-4, §III-40–§III-44, §III-84. Roadmap: autonomy-governance realization.
+
+---
+
+## IV-21 — Organizational Scalability
+
+**Purpose.** To document how the organizational structure scales across the company's growth stages — startup, growth, enterprise, and global — without changing its identity.
+
+**Why it exists.** A structure that cannot scale forces a rebuild, and Cortex evolves rather than rebuilds (DNA Ch 22.3, Ch 23). This section shows that the *same* structure expands additively across stages, so growth never triggers reorganization-by-rebuild.
+
+**Scope.** Scalability of the **structure** across stages. It describes how layers and departments expand; it defines no headcount, no KPIs, no capacity metrics.
+
+- **Startup stage.** The full structure exists in *compressed* form: one executive function may hold several portfolios; departments exist as responsibilities rather than staffed units; oversight is direct. This is the current shape (see Current State).
+- **Growth stage.** Portfolios separate into distinct executives; departments gain Directors/Managers; the AI Supervisor line formalizes as AI-staffed work begins. Structure deepens; it does not change kind.
+- **Enterprise stage.** Full department architecture (§IV-14) with the complete leadership layers (§IV-15); cross-functional and dotted-line relationships (§IV-18/§IV-19) fully instantiated; the decision RACI (§IV-17) fully staffed under standing human/deterministic overrides.
+- **Global stage.** The same structure replicates across markets/industries while preserving the industry-general method (DNA Ch 21.4, Ch 31) and absolute tenant isolation (DNA Ch 20.3); governance, deterministic authority, and the human-principal floor scale with it, never relaxing (DNA Ch 20.8, Ch 30).
+
+**Scaling invariants (hold at every stage).** One canonical authority per responsibility (DNA Ch 22.5, Ch 29.2); deterministic authority and AI narration (Art. 6); the human-in-the-loop high-consequence floor (DNA Ch 18.9); simplicity under growth (DNA Ch 33.2). Scale multiplies capability, never complexity for the customer (DNA Ch 23).
+
+**Current State (PARTIAL).** MARQ Cortex operates today at the **startup shape**: compressed structure with MARQ Networks holding the executive function, departments realized as responsibilities held by humans + deterministic systems + a bounded AI agent, and direct human oversight (§IV-13/§IV-14 Current State). The platform's *technical* scalability foundations are separately documented and partly proven (§III-59 Scalability; multi-tenancy §III-44) — organizational scaling rides on, but is distinct from, that technical capacity.
+
+**Approved Future State.** Additive progression through growth → enterprise → global stages, deepening the same structure without rebuild (DNA Ch 8.3, Ch 22.3, Ch 23), preserving every scaling invariant. Stage-specific staffing, capacity, and metrics are deferred to later Phase 4.x and Part VI (execution roadmap).
+
+**Dependencies.** DNA Ch 8.3/20/21/22/23/29/31/33; §III-44 (multi-tenancy), §III-59 (scalability); §IV-13–§IV-18 (the structure being scaled).
+
+**Traceability.** Part I: current compressed shape and technical scalability evidenced in `ARCHITECT.md` and `architecture/system_map.json`. Part II: DNA Ch 8/20/21/22/23/29/31/33. Part III: §III-44, §III-59. Roadmap: staged organizational realization; Part VI execution roadmap.
+
+---
+
+## IV-22 — Phase Summary
+
+**Purpose.** To close Phase 4.2 by recording what it designed, the key organizational decisions it fixed, and how it connects to the phases that follow.
+
+**Why it exists.** A phased document needs an explicit boundary so the organizational *structure* is not mistaken for the organization's *operation*, and so the next phase begins from a settled structure.
+
+**Scope.** A summary of Phase 4.2 only. It designs nothing new and closes the phase.
+
+**Key decisions fixed in Phase 4.2.**
+1. A single executive function over functional executive portfolios, under the human principal (§IV-13).
+2. A named enterprise department architecture — purpose and responsibilities only (§IV-14).
+3. A single company hierarchy with three leadership altitudes and deterministic/governance substrates *across* it (§IV-15).
+4. A high-level organizational role vocabulary — Executive/Director/Manager/Lead/Specialist/AI Supervisor — distinct from product RBAC roles (§IV-16).
+5. A per-domain decision RACI with standing deterministic-authority and human-principal overrides (§IV-17).
+6. Executive, department, cross-functional, and non-removable AI-oversight reporting lines (§IV-18).
+7. A map of standing cross-functional collaboration relationships, no workflows (§IV-19).
+8. Explicit human / AI / shared responsibility boundaries, with approval and escalation boundaries (§IV-20).
+9. Additive scalability of the same structure across startup → growth → enterprise → global, with scaling invariants (§IV-21).
+
+**Current State (PARTIAL/PROVEN).** The organization today exists in **compressed, human-and-document form**: MARQ Networks holds the executive function; departments are responsibilities exercised by humans, deterministic systems, and a bounded AI agent; governance, deterministic authority, and the human-in-the-loop boundaries are **PROVEN and enforced now** (§III-84–§III-86; Operating Constitution Art. 6/8/16; DNA Ch 18). The AI-staffed organization — executives, departments, managers, workers as runtime roles — is **defined but not yet realized** (DNA Ch 8.3; `ai_worker` identity recorded as Future).
+
+**Approved Future State.** Progressive, additive realization of the designed structure as AI roles under the human principal, preserving every constitutional override and invariant (DNA Ch 8.1/8.3, Ch 18, Ch 22, Ch 23, Ch 29). Individual AI workers, department workflows, communication procedures, knowledge management, KPIs, operational metrics, performance management, security implementation, AI-memory architecture, and business processes are **deferred to later Phase 4.x** and are not authored here.
+
+**Dependencies.** All Phase 4.2 sections (§IV-13–§IV-21); Phase 4.1 (§IV-1–§IV-12) as foundation; Parts I–III as the grounding record; `MARQ_CORTEX_ROADMAP.md` and Part VI for sequence.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`. Part II: DNA Ch 8/9/17/18/19/20/21/22/23/24/25/27/29/30/31/32/33/35. Part III: §III-4, §III-15–§III-17, §III-21, §III-39–§III-46, §III-59, §III-62–§III-65, §III-76, §III-84–§III-86. Roadmap: Phase 4.x realization; Part VI execution roadmap.
+
+---
+
+## Phase 4.2 — Completion Status
+
+**Phase 4.2 (Organizational Structure) is complete: Sections IV-13 through IV-22.** It designs the enterprise organizational structure of MARQ Cortex as an AI-first company — executive organization, department architecture, hierarchy, organizational roles, decision authority (RACI), reporting relationships, cross-functional collaboration, organizational boundaries, and scalability — and deliberately defines **no** individual AI workers, department workflows, communication procedures, knowledge management, KPIs, operational metrics, performance management, security implementation, AI-memory architecture, or business processes. Those belong to later Phase 4.x sections. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–III (with the organization existing today in compressed, human-and-document form); no implemented capability is invented; CURRENT STATE and APPROVED FUTURE STATE are distinguished in every section; and the organizational roles are kept distinct from the product RBAC roles of §III-42/§III-43.
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Authoring continues with **Phase 4.3** (next Part IV phase), using the same numbering and formatting conventions, with no restart and no split. Parts I–III remain LOCKED; Phase 4.1 is unchanged.
+
+*End of Phase 4.2. Part IV continues in a later phase.*
