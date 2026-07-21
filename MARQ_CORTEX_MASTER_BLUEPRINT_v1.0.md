@@ -5359,3 +5359,301 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.4 — Execution Governance & Delivery Control
+
+**Status:** COMPLETE (Phase 6.4) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-31 through VI-40, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.4 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.3 settled *how MARQ Cortex delivers* an approved capability — the delivery unit (§VI-21), the wave cohort (§VI-22), the readiness bar (§VI-23), cross-stream synchronization (§VI-24), the unlock matrix (§VI-25), the release categories (§VI-26), the incremental principles (§VI-27), the release-validation evidence set (§VI-28), and release governance under existing constitutional authority (§VI-29). Phase 6.4 answers the single question that follows once a wave has *entered delivery* and is being built toward one of those releases: **how is execution governed after capability delivery has been approved?** It defines the standing discipline that keeps in-flight work controlled, evidenced, healthy, and correctable between the moment a capability is admitted to a wave and the moment it clears the release gate — not the priorities it realizes, not the delivery model it moves through, and not the release that promotes it.
+
+**What this phase is.** An execution-governance architecture — the execution-governance philosophy (§VI-31), the delivery control framework (§VI-32), execution decision authority applied from the Constitution (§VI-33), change control during delivery (§VI-34), the execution evidence model for in-flight work (§VI-35), qualitative delivery-health monitoring (§VI-36), escalation and exception management (§VI-37), the controlled-execution principles that prevent uncontrolled work (§VI-38), and execution continuity across releases and contributors (§VI-39), closed by a completion record (§VI-40).
+
+**What this phase is not.** Phase 6.4 does **not** redefine priorities, dependencies, the delivery model, the release categories, governance, or security — those are LOCKED or settled by Phases 6.2–6.3 and Parts I–V and are only *applied* here. It creates no new governing body and no new approval right; it invokes the authority already constituted (DNA Ch 17/18/25/35; §VI-29). It is not a sprint plan, a status-report template, a project-management method, a dashboard, a KPI set, a ticket workflow, a staffing model, or an implementation checklist. It assigns no dates, no story points, no owners, no hours, no numeric targets, and it writes no code. It governs execution that is already underway; it does not perform that execution. Phase 6.5 is not begun here, and Part VI is not locked.
+
+**Grounding.** The execution-governance model below is grounded in the same repository verified for Phases 6.2–6.3 — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `featureBridge.ts`, and `providers/`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/`, the SQL migrations under `supabase/migrations/`, the tenancy and anon-policy hardening in those migrations, the test suites declared in `package.json`, and the deployment scripts (`supabase:deploy`, `supabase:db-push`) — together with the LOCKED Parts I–V and the Constitution. Execution labels (VERIFIED / UNVERIFIED, REVERSIBLE / IRREVERSIBLE, IN-SCOPE / OUT-OF-SCOPE, RELEASABLE / NOT-YET-RELEASABLE) are used where they add precision. Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-31 — Execution Governance Philosophy
+
+**Purpose.** To define the principles that govern *execution* once a capability has been approved into a wave (§VI-22) and work is actively underway — distinct from how Cortex prioritizes (§VI-11–§VI-15), delivers (§VI-21), or releases (§VI-26) that capability.
+
+**Why it exists.** Approval to deliver is not a licence to execute freely. Between admission to a wave and passage through the release gate (§VI-23, §VI-28) lies a span of active work during which the architecture is most exposed: a substrate is half-migrated, a gateway contract is mid-change, a tenancy boundary is being enforced but not yet proven. Prior phases govern the *endpoints* — what is chosen and what is released — but say nothing about the discipline that must hold *in between*. This section fixes that discipline so that in-flight work cannot silently drift, fork, or degrade while it is too incomplete to be release-judged and too committed to be abandoned.
+
+**Scope.** The value system of in-flight execution only. It names no control mechanism, no evidence type, and no escalation path; those derive from this philosophy in §VI-32 onward.
+
+**Approved Execution Governance State (governing principles).**
+
+- **Execution is governed continuously, not only at the gates.** The release gate (§VI-23) judges a wave at its frontier; execution governance holds the wave *between* frontiers. Governance is a standing condition of doing the work, not an event that happens to the work at the end. A capability that is well-governed only at its release moment was ungoverned for the whole span in which it could have drifted.
+- **In-flight work remains subordinate to the blueprint at every step.** The LOCKED Constitution and Parts I–V bind not just the finished increment but every intermediate state of it. No half-built capability may pass through an intermediate form that contradicts a locked decision on the theory that it will be corrected before release; the intermediate states are themselves governed (DNA Ch 35; §VI-19).
+- **The platform stays whole while it is being changed.** Execution never leaves Cortex in a state where authoritative data, tenancy enforcement, or gateway routing is broken for consumers not party to the change. Work proceeds so that the platform is operable at each committed step, not only once the increment completes — the execution-time expression of *cohesive increments over isolated features* (§VI-21).
+- **Reversibility is preserved throughout, not restored at the end.** An increment must remain withdrawable at every intermediate state, not merely be reversible once whole. Execution that passes through an irreversible intermediate — a destructive migration with no contract-preserving path back — has already violated governance even if its endpoint would be reversible (§VI-27, expand/contract).
+- **Governed correction over silent adjustment.** When execution reveals that the approved shape is wrong, the response is a governed change (§VI-34) or an escalation (§VI-37) — never a quiet in-place adjustment that leaves the record describing work that is no longer being done. The truth of what is being executed is itself a governed asset (§VI-8, §VI-38).
+
+**Clarification (execution governance vs release governance).** Release governance (§VI-29) decides *whether a finished wave may be promoted*; execution governance decides *how work is conducted while it is not yet finished*. They share the same constitutional authority (§VI-33) but act at different times: release governance is terminal and gate-bound; execution governance is continuous and span-bound. This phase defines only the latter.
+
+**Dependencies.** §VI-21 (the delivery unit execution advances); §VI-19 (the anti-drift controls execution must not violate); §VI-27 (the reversibility and compatibility execution preserves in-flight); §VI-29 (the release authority this philosophy is distinct from but shares); the LOCKED Constitution (DNA Ch 17/18/25/35).
+
+**Risks.** If execution is treated as ungoverned until the release gate, the wave accumulates undocumented drift and irreversible intermediate states that the gate can only reject wholesale — converting a correctable in-flight deviation into a failed release. The control framework (§VI-32) and controlled-execution principles (§VI-38) hold the span.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-19, §VI-21, §VI-27, §VI-29. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`.
+
+---
+
+## VI-32 — Delivery Control Framework
+
+**Purpose.** To define how execution remains *controlled* while a capability wave (§VI-22) is being developed — the standing control surface that keeps in-flight work inside its approved envelope between admission and release.
+
+**Why it exists.** The execution philosophy (§VI-31) states that work must stay governed throughout; it does not describe the mechanism by which control is actually exercised on live work. Without a control framework, "stay governed" is an aspiration with no purchase on a commit that has already landed. This section fixes the control surface — the points at which in-flight work is checked against its approved envelope — so that deviation is caught while it is small and correctable, not discovered at the gate.
+
+**Scope.** The control surface for in-flight execution only. It defines no evidence type (§VI-35), no health indicator (§VI-36), and no escalation path (§VI-37); it defines where and against what live work is held.
+
+**Approved Delivery Control Framework.**
+
+- **The approved envelope is the control reference.** Every increment executes against a fixed reference: its approved scope (the capability it carries, §VI-15/§VI-21), its approved position (the layer and wave it belongs to, §VI-13/§VI-14/§VI-22), and the contracts it must honor (the relational data contract, the repository interface, the Intelligence Gateway contract, §VI-24). Control is the continuous comparison of live work to that envelope. Work that moves outside the envelope is OUT-OF-SCOPE and is either brought back or taken through change control (§VI-34).
+- **Control is exercised at commit-grained checkpoints, not continuously and not only at the end.** Live work is checked at the natural boundaries where it becomes inspectable — where a migration is authored, where a gateway contract is touched, where a repository interface changes, where a tenancy policy is added. These are the framework's checkpoints: coarse enough not to police every keystroke, fine enough that no increment reaches the release gate having drifted unobserved across many commits.
+- **Contracts are the primary control instrument.** Because streams synchronize through contracts (§VI-24), the contracts are also where control bites hardest: an in-flight change that would break the gateway abstraction, fork data authority, or alter the repository interface is a control event the moment it is proposed, not the moment it ships. Holding the contracts stable while their implementations change is the core of keeping execution controlled.
+- **Reversibility and compatibility are standing control conditions.** At every checkpoint the framework asks not only "is this in scope?" but "is the platform still whole and is this step still reversible?" (§VI-27, §VI-31). A step that is in-scope but irreversible, or in-scope but breaks an existing consumer, fails control exactly as an out-of-scope step does.
+- **Control informs the gate; it does not replace it.** The framework keeps work inside its envelope during execution; it makes no release decision. A perfectly controlled wave is still NOT-YET-RELEASABLE until it satisfies the readiness bar (§VI-23) and its evidence set (§VI-28). Control raises the probability that the gate will pass on evidence; it never substitutes for the gate.
+
+**Governing rule.** Control is *envelope-relative and continuous*: work is held against its approved scope, position, and contracts at every checkpoint, not judged once at the end. A deviation detected at a checkpoint is resolved before the next — brought back into scope, taken through change control (§VI-34), or escalated (§VI-37) — never carried silently forward.
+
+**Dependencies.** §VI-31 (the philosophy this framework operationalizes); §VI-15/§VI-21 (the approved scope that forms the envelope); §VI-13/§VI-14/§VI-22 (the approved position); §VI-24 (the contracts that are the control instrument); §VI-27 (reversibility and compatibility as control conditions); §VI-34 (the change control a deviation is routed to).
+
+**Risks.** The dominant risk is control deferred to the gate — allowing many commits to accumulate unchecked and discovering an out-of-envelope wave only when it is judged for release, too late to correct cheaply. Commit-grained, contract-anchored checkpoints foreclose this.
+
+**Traceability.** Part II: DNA Ch 17/18/25/33/35. Part III: §III-37, §III-44, §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-13, §VI-21, §VI-22, §VI-24, §VI-27. Repository: `supabase/functions/server/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `src/app/core/`, `src/system/manifest.ts`.
+
+---
+
+## VI-33 — Execution Decision Authority
+
+**Purpose.** To explain how *execution* decisions — the choices made while in-flight work is underway — are made using the constitutional authority already established, without creating any new authority.
+
+**Why it exists.** Execution generates a steady stream of decisions that are not release decisions: whether a mid-flight deviation is in-scope, whether an intermediate state is acceptable, whether a contract may change, whether a step is reversible enough to proceed. Someone must be entitled to make these, and the entitlement must already exist — inventing an execution authority would fork governance, the exact failure §VI-19 prohibits. This section maps execution decisions onto the authority the Constitution and §VI-29 already constitute. It **applies** governance; it does not redefine it.
+
+**Scope.** The application of existing authority to in-flight execution decisions only. It defines no new body, no new right, and no new approval class. Where a decision is a release decision, it belongs to §VI-29, not here.
+
+**Approved Application of Authority.**
+
+- **Execution decisions inherit the constitutional hierarchy.** The authority that governs execution is the authority already LOCKED in the Constitution (DNA Ch 17/18/25) and applied to release in §VI-29 — blueprint supremacy, server-verified trust, and the amendment process for locked decisions. No execution decision may exceed that authority; the most an executor may decide is how to conduct approved work within the envelope (§VI-32), never to re-approve, re-scope, or re-govern it.
+- **Decisions are tiered by what they touch, using the existing tiers.** A decision confined to *how* an in-scope increment is built — internal structure that honors every contract and touches no locked decision — is an ordinary execution decision, made within the work. A decision that would change an approved *scope*, a shared *contract*, or an *architectural* commitment is not an execution decision at all: it is a change-control event (§VI-34) or, where it touches a locked decision, an amendment (DNA Ch 35). Execution authority extends only to the first tier; it can *initiate* the others but never *conclude* them alone.
+- **The blueprint decides ties.** Where an execution decision is genuinely ambiguous — two in-scope paths, unclear which the blueprint prefers — the tie is broken by whichever path better converges the architecture toward the LOCKED Parts I–V and Constitution, never by whichever is faster or more expedient (§VI-19, Golden Rules). Expediency is not an authority.
+- **No execution decision is client-side or self-certifying.** Consistent with the trust model (§VI-16, DNA Ch 18), an execution decision that asserts a capability is correct, isolated, or reversible must rest on server-verified evidence (§VI-35), not on the executor's assertion. The authority to *decide* is separate from the authority to *declare done*; the latter requires evidence the gate will re-test (§VI-8, §VI-23).
+- **Escalation is the release valve on authority, not a bypass of it.** When a decision exceeds execution authority — it would change scope, break a contract, or contradict a locked decision — the entitled response is escalation (§VI-37), which routes the decision to the authority that *can* conclude it. Escalating is exercising governance correctly, never failing at it.
+
+**Governing rule.** Execution authority is *bounded and derivative*: it authorizes only decisions internal to approved, in-envelope work, and it inherits every limit the Constitution and §VI-29 already impose. Any decision that changes scope, contract, or architecture, or that touches a locked decision, leaves execution authority and enters change control (§VI-34) or amendment (DNA Ch 35).
+
+**Dependencies.** §VI-29 (the release authority this section is bounded by and distinct from); the LOCKED Constitution (DNA Ch 17/18/25/35); §VI-16 (the trust model authority rests on); §VI-32 (the envelope decisions are made within); §VI-34 (where a scope/contract/architecture decision is routed); §VI-37 (the escalation that concludes a decision beyond execution authority).
+
+**Risks.** The central risk is execution authority silently expanding to conclude decisions it may only initiate — an executor re-scoping or changing a contract under the banner of "just building it." The tiered mapping and the escalation valve confine authority to its granted range.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-16, §VI-19, §VI-29. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-34 — Change Control During Delivery
+
+**Purpose.** To define how approved work *changes* while it is being executed — how a wave already in delivery absorbs a scope adjustment, an architectural change, an emergency change, or a rollback, without abandoning governance.
+
+**Why it exists.** No non-trivial capability survives contact with execution unchanged: a scope proves too broad or too narrow, an architectural assumption proves wrong, a production incident forces an urgent step, or an increment must be withdrawn. If these changes are made informally, the record and the reality diverge and the wave drifts (§VI-38). This section defines the governed channels through which in-flight change is admitted, so that change is expected and controlled rather than illicit and hidden.
+
+**Scope.** Change to work already in delivery only. It does not re-open prioritization (§VI-15), redefine the delivery model (§VI-21–§VI-27), or alter release authority (§VI-29); it defines how an approved, in-flight increment is amended under existing authority.
+
+**Approved Change Control Model.**
+
+- **Scope adjustments.** A change to *what* an in-flight increment carries — narrowing it to keep it whole and reversible, or widening it because the approved slice proved to strand a consumer — is governed by re-testing it against the same scope and position rules that admitted it (§VI-15/§VI-21, §VI-13/§VI-14). A narrowing that preserves wholeness is an ordinary execution decision (§VI-33); a widening that pulls in another capability class is a new admission, not a silent expansion. Scope never grows to absorb unrelated work merely because a stream is already open (§VI-38).
+- **Architectural changes.** A change to a shared contract or architectural commitment — the gateway abstraction, the data-authority model, the repository interface, the engine responsibilities — is never an ordinary execution decision (§VI-33). If it converges the architecture toward the blueprint, it is a change-control event evaluated against the anti-drift controls (§VI-19) and the compatibility rule (§VI-27). If it would contradict a LOCKED decision in Parts I–V or the Constitution, the *only* channel is the heightened amendment process (DNA Ch 35); change control cannot substitute for amendment. No architectural change is admitted that forks the architecture to ship faster.
+- **Emergency changes.** An urgent change forced by a production incident is admitted through an expedited path that compresses *timing*, never *governance*: it is still server-verified, still routed through the gateway where AI is involved, still reversible, and still recorded. The emergency path may reorder when evidence is produced relative to the change, but it never waives the evidence (§VI-35) or the blueprint-preservation requirement (§VI-31). An emergency is a reason to move carefully faster, never a licence to move ungoverned.
+- **Rollback authority.** The authority to *withdraw* an in-flight increment or a just-released one is a first-class execution power, held under the same constitutional authority as release (§VI-29, §VI-33) and exercisable without waiting for a full approval cycle when the platform's wholeness is at risk. Because every increment is reversible by construction (§VI-27, §VI-31), rollback is always an available move; its authority is deliberately broad so that safety is never blocked on process. A rollback is itself recorded as a change (§VI-35), and the withdrawn work returns to execution, not to production.
+
+**Governing rule.** In-flight change is *channeled, not suppressed*: every scope, architectural, emergency, or rollback change flows through a named channel that preserves the blueprint, reversibility, and the truthful record — while rollback specifically is privileged so that withdrawing unsafe work is never harder than shipping it. A change that cannot pass through any channel without contradicting a locked decision is an amendment matter (DNA Ch 35), not a delivery matter.
+
+**Dependencies.** §VI-33 (the authority that admits or escalates a change); §VI-19 (the anti-drift controls architectural change is tested against); §VI-27 (the reversibility and compatibility every change preserves); §VI-31 (the blueprint-preservation and reversibility-throughout principles); §VI-35 (the evidence a change must leave); §VI-37 (the escalation a change beyond authority triggers); the LOCKED Constitution (DNA Ch 35).
+
+**Risks.** The chief risks are scope creep disguised as adjustment, architectural forks disguised as fixes, and emergencies used to waive governance. Each channel names its own guard — wholeness for scope, anti-drift for architecture, timing-not-governance for emergencies — and rollback stays privileged so no unsafe state is retained for want of authority.
+
+**Traceability.** Part II: DNA Ch 17/18/25/30/33/35. Part III: §III-56–§III-65, §III-75, §III-84–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-13, §VI-19, §VI-21, §VI-27, §VI-33. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-35 — Execution Evidence Model
+
+**Purpose.** To define what evidence must exist *while work is progressing* — the in-flight evidence that substantiates that an increment is being executed under governance, distinct from the release-validation evidence set that precedes production (§VI-28).
+
+**Why it exists.** The readiness bar (§VI-23) and its validation set (§VI-28) test a wave at the release gate; by then, evidence that was never produced cannot be reconstructed. Execution governance therefore requires evidence to *accrue as work is done*, not to be assembled retroactively at the gate. This section defines the classes of evidence that in-flight work must generate so that control (§VI-32), change (§VI-34), and health (§VI-36) all rest on demonstrated fact rather than assertion, and so the gate inherits a body of evidence rather than commissioning one.
+
+**Scope.** The evidence classes that must exist during execution only. It defines no numeric coverage target, no template, and no checklist of tasks; it names *what kinds of evidence must accrue* and lets each capability produce them in the form its work dictates. It does not restate the release-gate evidence set (§VI-28), which it feeds.
+
+**Approved Execution Evidence Classes (accrued in-flight).**
+
+- **Verification evidence.** Demonstration that each capability behaves as claimed against authoritative state — that data reads from the relational plane and not from KV or client-held state, that tenancy isolation holds where the increment touches it, that a gateway path routes as governed. This is the standing answer to "is this actually true?" and it accrues at each checkpoint (§VI-32), not once at the end (§VI-8, G1/G2).
+- **Architectural evidence.** Demonstration that the increment converges the architecture rather than forking it — that no second engine, no parallel data authority, and no AI path around the gateway has been introduced, and that shared contracts remain intact (§VI-19, §VI-24). Architectural evidence is what makes a change-control decision (§VI-34) reviewable against fact.
+- **Testing evidence.** The test signal that the increment carries — the presence and outcome of the relevant suites declared in `package.json` for the surfaces the increment touches. Testing evidence is qualitative here (the signal exists and is honest), not a coverage percentage; the release gate (§VI-28) judges its sufficiency.
+- **Operational evidence.** Demonstration that the increment is observable while in flight — that it emits enough health, telemetry, and certification signal (`health.ts`, `telemetry.ts`, `certification.ts`) to be diagnosed as it is built, so that delivery-health monitoring (§VI-36) has something real to read. A capability that cannot be observed in progress cannot be governed in progress.
+- **Documentation evidence.** A truthful record of what is being executed, what changed and through which channel (§VI-34), and where the work stands against its envelope (§VI-32). This is the evidentiary basis of the no-undocumented-work principle (§VI-38): the record must describe the work actually being done, kept current as the work changes, never reconstructed after the fact.
+
+**Governing rule.** Evidence is *accrued, not assembled*: each class must exist and stay current *as the work progresses*, so that control, change, and health decisions rest on it in real time and the release gate inherits it. Evidence produced only to pass the gate, and not generated by the work itself, is the retroactive substantiation this model exists to prevent (§VI-8, §VI-38). This model creates no implementation checklist; it names the evidence classes and requires that they be genuine.
+
+**Dependencies.** §VI-28 (the release-gate evidence set this in-flight evidence feeds and is distinct from); §VI-32 (the checkpoints at which evidence accrues); §VI-34 (the changes documentation evidence records); §VI-36 (the health monitoring operational evidence supplies); §VI-8/§VI-19 (the honesty and anti-drift standards evidence upholds).
+
+**Risks.** The dominant risk is retroactive evidence — a wave built without accruing evidence, then papered over at the gate. Because the readiness bar is all-of and evidence-based (§VI-23), such a wave is correctly NOT-YET-RELEASABLE; requiring in-flight accrual surfaces the gap early rather than at the gate.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-19, §VI-23, §VI-24, §VI-28. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`. Repository: `supabase/functions/server/intelligence/` (`certification.ts`, `telemetry.ts`, `health.ts`), `package.json`.
+
+---
+
+## VI-36 — Delivery Health Monitoring
+
+**Purpose.** To define how the *health* of in-flight execution is evaluated — the qualitative indicators by which a wave in delivery is judged to be progressing soundly or drifting toward trouble — without introducing KPIs, dashboards, or numeric targets.
+
+**Why it exists.** Control (§VI-32) catches a specific deviation at a checkpoint; it does not answer the broader question of whether a wave, taken as a whole, is *healthy* — converging, evidenced, reversible, and honest — or quietly deteriorating in ways no single checkpoint reveals. Execution governance needs a standing read of health so that a wave in trouble is recognized before it fails the gate. This section defines that read as a set of qualitative indicators, deliberately not as metrics, because a numeric target invites gaming the number rather than improving the work (§VI-8).
+
+**Scope.** Qualitative health indicators for in-flight waves only. It defines no KPI, no dashboard, no score, no percentage, and no threshold. It states the qualities a healthy execution exhibits and the signs of an unhealthy one.
+
+**Approved Health Indicators (qualitative).** A wave in delivery is *healthy* to the extent that the following hold — read as judgments against evidence (§VI-35), not as measurements:
+
+- **Convergence, not divergence.** The wave is moving the architecture toward the blueprint — closing the distance to VERIFIED foundations — rather than accumulating surfaces ahead of foundations or forking contracts. A wave that adds breadth while its foundation stays UNVERIFIED is unhealthy however active it looks (§VI-19, §VI-21).
+- **Evidence is keeping pace with the work.** Each evidence class (§VI-35) is current, not lagging — verification, architectural, testing, operational, and documentation evidence describe the work as it actually stands. Evidence falling behind the code is the earliest sign of an unhealthy wave (§VI-8).
+- **Reversibility is intact.** The wave has not passed through, and is not sitting in, an irreversible intermediate state; every increment remains withdrawable (§VI-27, §VI-31). A wave that has become hard to roll back is unhealthy regardless of how complete it appears.
+- **Blockers are surfaced, not absorbed.** Dependency, governance, architectural, and operational blockers are being escalated (§VI-37) rather than quietly worked around. A wave with no visible blockers is not necessarily healthy — it may be absorbing them silently, which is worse than reporting them.
+- **The record is honest.** What is documented matches what is being executed; scope, change, and status are described truthfully (§VI-34, §VI-38). Divergence between record and reality is itself a primary indicator of ill health, independent of the work's technical state.
+- **The envelope is holding.** The wave is progressing inside its approved scope, position, and contracts (§VI-32), with any change flowing through a governed channel (§VI-34) rather than accruing as undocumented drift.
+
+**Governing rule.** Health is read *qualitatively and holistically*: it is a judgment about convergence, evidence-currency, reversibility, honesty, and envelope-adherence, never a number on a dashboard. An unhealthy indicator is a signal to slow, correct, or escalate (§VI-37) — never a metric to be optimized. No indicator in this section is to be converted into a KPI or a target; doing so is itself a governance failure (§VI-8).
+
+**Dependencies.** §VI-32 (the envelope adherence health reads); §VI-35 (the evidence health is judged against); §VI-27/§VI-31 (the reversibility health requires); §VI-37 (the escalation an unhealthy indicator triggers); §VI-38 (the honesty of record that is a health indicator).
+
+**Risks.** The central risk is metricizing health — reducing it to a green dashboard that is optimized while the wave rots beneath it. Keeping the indicators qualitative and evidence-anchored, and explicitly forbidding their conversion to KPIs, is the guard.
+
+**Traceability.** Part II: DNA Ch 8.3/18.9/25/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-8, §VI-19, §VI-27, §VI-31, §VI-32, §VI-35, §VI-37. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-37 — Escalation & Exception Management
+
+**Purpose.** To define how *blocked* execution is escalated — the paths by which a wave that cannot proceed under its own authority (§VI-33) surfaces the block and routes it to a resolution — covering dependency failures, governance conflicts, architectural conflicts, and operational blockers.
+
+**Why it exists.** Execution authority is bounded (§VI-33); some blocks cannot be resolved from within the work and must be raised. If escalation is absent or discouraged, executors route *around* blocks — consuming an UNVERIFIED prerequisite, quietly forking a contract, or waiving a governance step — which is precisely the uncontrolled execution §VI-38 prohibits. This section makes escalation the sanctioned, expected response to a block, so that a stuck wave stops cleanly and visibly rather than proceeding illicitly.
+
+**Scope.** Escalation of blocked in-flight execution only. It creates no new authority; it routes a block to the authority already constituted (§VI-29, §VI-33, DNA Ch 35). It defines the *kinds* of block and where each is routed, not a ticketing procedure.
+
+**Approved Escalation Model (by block class).**
+
+- **Dependency failures.** When a wave's prerequisite is not RELEASABLE — a Foundation capability the wave depends on is UNVERIFIED, or an unlock (§VI-25) has not fired — the wave does not proceed on the unverified prerequisite. It escalates by *holding at the dependency line* (§VI-13): the block is surfaced, the dependent work stops at the frontier, and delivery attention moves to the prerequisite. Routing around a failed dependency is the specific violation this path prevents.
+- **Governance conflicts.** When execution reveals a tension with a governance rule — a step would require a client-side trust decision, a direct-provider bypass of the gateway, or an unenforced tenant boundary — the conflict is escalated to governance authority (§VI-29, §VI-33), never resolved by waiving the rule. If the conflict is with a LOCKED decision, the only resolution channel is amendment (DNA Ch 35); execution may not settle it.
+- **Architectural conflicts.** When two in-flight increments contend over a shared contract, or an approved increment cannot be built without changing an architectural commitment, the conflict is escalated as a change-control event (§VI-34) and adjudicated against the anti-drift controls (§VI-19) — resolved toward blueprint convergence, never by whichever stream ships first. An architectural conflict is never resolved by forking the contract so both sides proceed.
+- **Operational blockers.** When a wave cannot be made observable, cannot be safely deployed, or cannot be operated — the deployment path fails, health or telemetry cannot be emitted, an environment cannot verify isolation — the block is raised as an operational exception. Because operational readiness gates growth (§VI-11, §VI-23), an operational blocker holds the wave rather than being deferred as a post-release concern.
+
+**Exception handling.** An *exception* — a sanctioned, temporary deviation from a normal execution rule — is admitted only through escalation to the authority that owns the rule, is bounded in scope and reversible by construction (§VI-27), leaves evidence (§VI-35), and is never self-granted. No exception may waive blueprint supremacy, server-side trust, gateway routing, or reversibility; those are not exception-eligible. An exception is a governed, recorded, temporary allowance — never a standing hole in governance (§VI-38).
+
+**Governing rule.** A block is *escalated, never routed around*: the sanctioned response to work that cannot proceed under execution authority is to surface it and route it to the authority that can resolve it — holding the wave in the meantime. An exception is admissible only when granted by the rule's owner, bounded, reversible, and recorded; it is never self-granted and never permanent.
+
+**Dependencies.** §VI-33 (the bounded authority a block exceeds); §VI-13/§VI-25 (the dependency line a dependency failure holds at); §VI-29 (the governance authority conflicts route to); §VI-19/§VI-34 (the anti-drift adjudication of architectural conflicts); §VI-23 (the operational-readiness bar an operational blocker invokes); §VI-27/§VI-35 (the reversibility and evidence an exception requires); the LOCKED Constitution (DNA Ch 35).
+
+**Risks.** The dominant risk is the unspoken block — an executor routing around a failed dependency, a waived governance rule, or a self-granted exception rather than escalating. Making escalation the sanctioned response, and forbidding self-granted or permanent exceptions, closes the route-around.
+
+**Traceability.** Part II: DNA Ch 17/18/25/30/33/35. Part III: §III-56–§III-65, §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-11, §VI-13, §VI-19, §VI-23, §VI-25, §VI-29, §VI-33, §VI-34. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-38 — Controlled Execution Principles
+
+**Purpose.** To define the principles that *prevent uncontrolled execution* — the standing prohibitions that make undocumented, ungoverned, hidden, or out-of-scope work inadmissible in MARQ Cortex.
+
+**Why it exists.** Every preceding section of this phase defines a positive discipline — govern continuously, control against the envelope, decide within authority, channel change, accrue evidence, monitor health, escalate blocks. This section states the same discipline as its negative: the small set of things that uncontrolled execution *does*, each of which is prohibited. It exists so that "controlled execution" has a clear, testable complement — if any of these is present, execution is by definition uncontrolled, regardless of how healthy it otherwise appears.
+
+**Scope.** The prohibitions that bound execution only. Each restates, as a prohibition, a principle already established positively elsewhere in this phase or in Parts I–V; none introduces a new rule. Together they are the anti-drift controls (§VI-19) applied to *in-flight execution* specifically.
+
+**Approved Controlled-Execution Principles (prohibitions).**
+
+- **No undocumented work.** No increment is executed whose nature, scope, and current state are not truthfully recorded (§VI-35). Work that exists in the codebase but not in the record is uncontrolled by definition, because nothing can be governed that is not known. The record must track the work as it changes (§VI-34), never be reconstructed after it.
+- **No bypassing governance.** No execution waives server-side trust, gateway routing, tenancy enforcement, or the readiness gate by deciding — from within the work — that the rule does not apply this time (§VI-16, §VI-23, §VI-33). A rule that seems to block correct work is escalated (§VI-37), never bypassed.
+- **No hidden architectural changes.** No change to a shared contract, a data-authority model, or an engine responsibility is made silently inside an increment framed as something smaller (§VI-24, §VI-34). Every architectural change is surfaced as a change-control event; an architectural change that hides inside a scope-level commit is the specific drift §VI-19 exists to catch.
+- **No execution outside approved scope.** No work proceeds that is not admitted to a wave in its approved position (§VI-15/§VI-21, §VI-13/§VI-14/§VI-22). An open stream is not a licence to build adjacent, unapproved capability; out-of-scope work is either brought into scope through change control (§VI-34) or not done.
+- **No irreversible or platform-breaking intermediate state.** No increment passes through a state that cannot be withdrawn or that leaves authoritative data, tenancy, or the gateway broken for consumers not party to the change (§VI-27, §VI-31). Reversibility and wholeness are conditions of *every* step, not just the endpoint.
+- **No self-certified completion.** No increment is declared done, verified, or releasable on the executor's assertion; completion rests on evidence the gate re-tests (§VI-8, §VI-23, §VI-35). Deployment-limited verification never yields a done claim.
+
+**Governing rule.** These prohibitions are *jointly necessary*: execution is controlled only while *all* of them hold. The presence of any one — undocumented work, a bypassed rule, a hidden architectural change, out-of-scope work, an irreversible intermediate, or a self-certified completion — renders execution uncontrolled and is itself a governance breach (§VI-19), to be corrected or escalated (§VI-37) at once.
+
+**Dependencies.** §VI-19 (the anti-drift controls these prohibitions apply to execution); §VI-35 (the documentation and evidence the no-undocumented and no-self-certified rules require); §VI-34 (the change control the no-hidden-change and no-out-of-scope rules route to); §VI-27/§VI-31 (the reversibility the no-irreversible-intermediate rule preserves); §VI-16/§VI-23/§VI-33 (the governance the no-bypass rule protects); §VI-37 (the escalation a blocked-but-prohibited path takes instead).
+
+**Risks.** The risk each prohibition names is the drift it forbids; stated together they leave no ambiguity about what uncontrolled execution is. The residual risk is a prohibition treated as advisory rather than binding — met by making any breach a governance failure requiring correction or escalation, not a discretionary matter.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-59–§III-65, §III-75, §III-84–§III-88. Part IV: §IV-23–§IV-34, §IV-46–§IV-55. Part VI: §VI-8, §VI-16, §VI-19, §VI-21, §VI-23, §VI-24, §VI-27, §VI-31, §VI-34, §VI-35, §VI-37. Repository: `supabase/functions/server/`, `supabase/functions/server/intelligence/`, `supabase/migrations/`, `src/app/core/`.
+
+---
+
+## VI-39 — Execution Continuity
+
+**Purpose.** To define how execution continues *safely* across releases, across a changing set of contributors, and across future platform evolution — the continuity of governed execution over time, independent of who is executing.
+
+**Why it exists.** Every governing mechanism in this phase acts on a wave in the present. But Cortex is executed over a long horizon, across many releases and many contributors, and a discipline that holds only while its originators are present is not a discipline — it is a habit that lapses. This section defines how execution governance *persists* through change of release, change of contributor, and change of the platform itself, so that a later increment is governed by the same architecture as an earlier one, without re-deriving it. Continuity here is a property of the *governance and the artifacts*, not of any staffing arrangement.
+
+**Scope.** The continuity of governed execution only. It defines no roles, no headcount, no ownership assignment, and no team structure. It describes how the *governance* carries forward, not who carries it.
+
+**Approved Continuity Model.**
+
+- **Continuity across releases.** A capability delivered in one release becomes the *verified substrate* the next release executes against (§VI-25). Execution continuity means each release inherits a known-good baseline — authoritative data, enforced tenancy, governed gateway — and never re-opens it; later work converges on the same architecture rather than re-litigating it. A release closes cleanly (its evidence recorded, §VI-35) precisely so the next can begin from settled ground.
+- **Continuity across contributors.** Governed execution does not depend on any contributor's memory because its reference is external and durable: the LOCKED Constitution and Parts I–V, this phase's controls, the shared contracts (§VI-24), and the accrued evidence (§VI-35). Any contributor — present or future — governs their work by reading the same blueprint and honoring the same envelope (§VI-32). The blueprint is the continuity mechanism; the record makes in-flight work legible to whoever continues it, so a handover transfers no tacit knowledge that is not written down.
+- **Continuity across platform evolution.** As Cortex evolves — new gateway providers, new engines, new product surfaces, and eventually the `ai_worker` workforce — the *governance* of execution does not change with the technology it governs. New capability classes are admitted through the same waves, the same readiness bar, the same change control, and the same prohibitions; evolution extends what is built, never how building is governed. Where evolution would require changing the governance itself, that is an amendment (DNA Ch 35), not an execution choice.
+- **Continuity through amendment, not erosion.** Governance persists by being *amended deliberately* when it must change and *preserved otherwise* — never eroded silently by accumulated exceptions (§VI-37) or drift (§VI-38). A rule that no longer serves is amended through the heightened process and the blueprint updated; it is never left formally in force while informally ignored. This is what keeps the governance real across a long horizon rather than becoming a fiction.
+
+**Governing rule.** Execution continuity is a property of *durable artifacts and governed amendment*, not of continuous staffing: each release hands the next a verified baseline, each contributor governs against the same external blueprint, platform evolution extends what is built without changing how it is governed, and governance changes only by amendment — never by erosion.
+
+**Dependencies.** §VI-25 (the verified substrate each release hands forward); §VI-24 (the durable contracts continuity rests on); §VI-32 (the envelope any contributor governs against); §VI-35 (the record that makes in-flight work legible across contributors); §VI-37/§VI-38 (the exceptions and prohibitions that must not erode governance); the LOCKED Constitution (DNA Ch 35, the amendment path continuity uses).
+
+**Risks.** The central risks are governance decaying into habit that lapses when its originators leave, and evolution outpacing its governance so new capability classes ship ungoverned. Anchoring continuity to the durable blueprint and to deliberate amendment — not to people and not to memory — is the guard.
+
+**Traceability.** Part II: DNA Ch 17/18/25/30/33/35. Part III: §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-24, §VI-25, §VI-32, §VI-35, §VI-37, §VI-38. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-40 — Phase 6.4 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.4 and record its completion without beginning Phase 6.5 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *execution-governance architecture* is not mistaken for a project-management method, a status process, or a plan of record, and so Phase 6.5 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.4 only (§VI-31–§VI-40) and its completion record. It defines no new priority, dependency, delivery model, release category, governance rule, or gate; it applies those already established and begins no later phase.
+
+**Summary of what Phase 6.4 established.**
+
+- **Execution governance.** A continuous discipline that holds in-flight work between admission to a wave and passage through the release gate — subordinate to the blueprint at every step, keeping the platform whole and reversible throughout, correcting by governed change rather than silent adjustment (§VI-31), and made operable by a control framework that holds live work against its approved scope, position, and contracts at commit-grained checkpoints (§VI-32).
+- **Decision authority.** In-flight execution decisions made under the *existing* constitutional authority, bounded to choices internal to approved, in-envelope work; any decision that changes scope, contract, or architecture leaves execution authority for change control or amendment (§VI-33). Governance is applied, never redefined.
+- **Change control.** Named channels through which approved work changes during execution — scope adjustment, architectural change, emergency change, and a privileged rollback authority — each preserving the blueprint, reversibility, and a truthful record, with locked-decision tensions routed to amendment (§VI-34).
+- **Evidence.** Five classes of evidence — verification, architectural, testing, operational, and documentation — that must *accrue as work progresses* rather than be assembled at the gate, feeding the release-validation set without restating it (§VI-35).
+- **Escalation.** Sanctioned paths for blocked execution — dependency failures held at the dependency line, governance and architectural conflicts routed to their owning authority, operational blockers holding the wave — with exceptions admissible only when granted by the rule's owner, bounded, reversible, and recorded (§VI-37).
+- **Controlled execution.** Six jointly-necessary prohibitions — no undocumented work, no bypassing governance, no hidden architectural changes, no execution outside approved scope, no irreversible or platform-breaking intermediate state, no self-certified completion — whose complement is qualitative delivery-health monitoring by convergence, evidence-currency, reversibility, honesty, and envelope-adherence, with no KPI or dashboard (§VI-36, §VI-38).
+- **Execution continuity.** Governance that persists across releases (each handing the next a verified baseline), across contributors (each governing against the same durable blueprint), and across platform evolution (extending what is built, never how it is governed), changing only by deliberate amendment and never by erosion (§VI-39).
+
+**Current State.** All CURRENT STATE claims in this phase remain grounded in the repository verified for Phases 6.2–6.3 and in the LOCKED Parts I–V; foundations are PARTIAL/UNVERIFIED where the runtime is not yet authoritative (data authority, tenancy), PARTIAL where breadth is incomplete (gateway providers, product surfaces, observability), and NOT IMPLEMENTED where absent (AI workforce runtime, enterprise instrumentation). This phase describes how such capabilities will be *governed while they are executed*; it implements none of them and claims no capability as verified or released. Nothing is invented.
+
+**Approved Execution-Governance State.** A continuously-governed execution discipline — in-flight work held against its approved envelope at commit-grained checkpoints, decided under existing constitutional authority, changed only through named channels, evidenced as it progresses, monitored by qualitative health, unblocked by escalation rather than route-around, bounded by six controlled-execution prohibitions, and carried forward by durable artifacts and governed amendment — applying the delivery model LOCKED in Phase 6.3 and the sequence LOCKED in Phase 6.2 without editing either.
+
+**Validation.**
+
+- Phase 6.4 authored.
+- Append-only; no previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- Sections VI-31 through VI-40 each appear exactly once; numbering continuous after §VI-30; no duplicate identifiers.
+- No implementation instructions, sprint planning, estimates, staffing, or calendar dates; no KPIs or dashboards introduced.
+- Phase 6.5 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.4 sections (§VI-31–§VI-39); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-39. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-31–§VI-40; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the absence of any dates, tasks, assignments, numeric KPIs, dashboards, or implementation instructions.
+
+**Phase 6.4 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.5 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked. The next Part VI phase (6.5) is not begun here.
+
+*End of Phase 6.4. Part VI continues in a later phase.*
