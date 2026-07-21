@@ -3,7 +3,7 @@
 **Document:** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0`
 **Class:** Enterprise Master Blueprint — Definitive Source of Truth
 **Owner & Steward:** MARQ Networks
-**Status:** Part I LOCKED · Part II LOCKED · Part III IN PROGRESS · Parts IV–VI PLANNED
+**Status:** Part I LOCKED · Part II LOCKED · Part III LOCKED · Part IV LOCKED · Part V LOCKED · Part VI IN PROGRESS
 **Governing authority:** Subordinate to `CORTEX_DNA_v1.0.md` (Part II). Where this blueprint and the Constitution conflict on identity, philosophy, or governance, the Constitution prevails (Part II, Chapter 25).
 **Master rule:** The Master Blueprint is the authority; the codebase is the implementation. On conflict, Blueprint first, code second. Every future feature must exist in this Blueprint before implementation.
 
@@ -17,12 +17,12 @@ This Master Blueprint is a single, continuous, permanent document composed of **
 |------|-------|---------|--------|
 | **Part I** | Phase 1 | Product Recovery — the verified structural state of the platform | **LOCKED** |
 | **Part II** | Phase 2 | Cortex DNA — the Constitution: identity, philosophy, governance | **LOCKED** |
-| **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **IN PROGRESS** |
-| **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **PLANNED** |
-| **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **PLANNED** |
-| **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **PLANNED** |
+| **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **LOCKED** |
+| **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **LOCKED** |
+| **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **LOCKED** |
+| **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **IN PROGRESS** |
 
-Parts IV, V, and VI are approved elements of the final architecture and are reserved in this structure; they are authored in later phases and appended to this same document with continuous numbering. Until written, they exist as PLANNED placeholders in this table only — no content is invented ahead of its phase (Golden Rule 5).
+Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phase 6.1 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
 
 **Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
@@ -54,7 +54,7 @@ Part III derives its authority from Part II. Every capability documented in Part
 
 # PART III — PHASE 3: PRODUCT BLUEPRINT
 
-**Status:** IN PROGRESS · **Numbering:** Sections III-1 through III-88 (plus appendices) · **Continuity:** this Part is generated across multiple passes; numbering and formatting are continuous and are never restarted.
+**Status:** LOCKED · **Numbering:** Sections III-1 through III-88 (plus appendices) · **Continuity:** this Part is generated across multiple passes; numbering and formatting are continuous and are never restarted.
 
 ## Reading conventions for Part III
 
@@ -1748,7 +1748,7 @@ No component changes are required to switch demo↔live (gateway pattern).
 
 **Part III (Phase 3 — Product Blueprint) is complete: Sections III-1 through III-88 plus Appendix References (§III-88).** It documents the MARQ Cortex product reality-first, separates CURRENT STATE from APPROVED FUTURE STATE throughout, traces every capability to Part II and to the engines/workflows/data/roadmap, and preserves exhaustive detail by reference to the artifacts indexed in §III-88. Nothing in Part III rewrites, summarizes, or contradicts Parts I or II.
 
-**Continuity note.** The Master Blueprint remains a single document. The next authoring phases append **Part IV — AI Company Architecture**, **Part V — Future Vision**, and **Part VI — Execution Roadmap** (currently PLANNED per the organization table), continuing the same numbering and formatting conventions, with no restart and no split.
+**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** and **Part V — Future Vision** are authored and LOCKED, and **Part VI — Execution Roadmap** is authored and IN PROGRESS (Phase 6.1 complete), each appended below with continuous numbering. All continue the same numbering and formatting conventions, with no restart and no split.
 
 *End of Part III.*
 
@@ -3286,9 +3286,883 @@ Parts I, II, and III remain LOCKED and unchanged. Part IV is LOCKED as of this r
 
 ---
 
+# PART V — PHASE 5: STRATEGIC FUTURE VISION
+
+**Status:** IN PROGRESS · **Phase:** 5.1 — Vision & Strategic Direction · **Numbering:** Sections V-1 through V-10 · **Continuity:** this Part appends to the same Master Blueprint with continuous numbering and formatting; nothing is restarted or split.
+
+## Reading conventions for Part V
+
+Part V defines the **long-horizon strategic direction** of MARQ Cortex — where the company intends to go over the next decade. It is the approved future *direction*, not the plan to reach it. Roadmaps, milestones, delivery schedules, budgets, hiring, feature lists, and technical specifications are explicitly excluded from Part V and belong to **Part VI — Execution Roadmap**.
+
+Part V is governed by Part II (the Constitution) and is subordinate to it. Every strategic statement in Part V traces back to a constitutional principle — most often the Purpose (DNA Ch 5), Mission (DNA Ch 6), Vision (DNA Ch 7), and Identity (DNA Ch 8/8.3) — and never contradicts them. Where Part V speaks of the future, it echoes and extends the already-ratified constitutional future; it does not invent a new one (Golden Rule 5).
+
+Each section separates:
+
+- **CURRENT STATE** — grounded in repository evidence or in previously LOCKED Blueprint (Parts I–III) and DNA. Confidence is tagged **IMPLEMENTED** (present and verifiable today), **PARTIAL** (present but incomplete or not authoritative), or **NOT IMPLEMENTED** (approved by identity/constitution but not yet built).
+- **APPROVED FUTURE STATE** — the approved strategic direction, distinct from any execution plan.
+
+Each section additionally answers the enterprise quality template used across this Blueprint: *Purpose · Why it exists · Scope · Current State · Approved Future State · Dependencies · Traceability.*
+
+**Boundary note.** Part V describes intent and direction. When a reader wants "how" and "when," they are reaching for Part VI, which is PLANNED and not yet authored. Part V must never be read as authorization to build; it is authorization to *aim*.
+
+---
+
+## V-1 — Executive Vision
+
+**Purpose.** Establish, at the highest altitude, why MARQ Cortex exists for the long term, the future impact it intends to create, and the aspiration that outlives any single release.
+
+**Why it exists.** An enterprise needs one durable statement of intent that survives changes in market, technology, and roadmap. Without it, near-term decisions drift and the platform fragments into features (DNA Ch 33.3). The Executive Vision is the fixed point that every later Part orients toward.
+
+**Scope.** The decade-horizon reason for Cortex's existence and the impact it intends to have on the businesses it serves. Not a roadmap, not features, not implementation.
+
+**Why Cortex exists long-term.** Cortex exists to give every business — of any size, in any industry — access to an intelligent workforce that produces measurable business outcomes without requiring the business to manage complexity (DNA Ch 5). The long-term reason is unchanged from the Constitution: to close the permanent gap between the work a business needs done and the capable capacity available to do it, by being an AI company that works on behalf of other companies (DNA Ch 5, Ch 8.1).
+
+**The future impact Cortex intends to create.** A world in which enterprise-grade thinking — historically reserved for organizations that could afford large teams of senior experts — is available to a first-time business owner within minutes (DNA Ch 5). Cortex intends to convert intelligence into outcomes at scale: time saved, money made or protected, decisions improved, risk reduced (DNA Ch 5), while carrying complexity inside the platform and returning simplicity to the customer (DNA Ch 5).
+
+**The long-term aspiration.** That any business can hire a complete intelligent workforce as easily as it hires a single employee — a workforce that operates with the competence of a world-class company and the simplicity of a conversation (DNA Ch 7). The aspiration is deliberately ambitious in capability and deliberately humble in presentation: the measure is not how advanced Cortex becomes, but how effortless that advancement feels to the people it serves (DNA Ch 7).
+
+**CURRENT STATE (PARTIAL).** The vision is expressed today in miniature and grounded in the LOCKED Blueprint: a working pipeline — public diagnostic funnel → readiness scoring → recommendation → ROI modeling → proposal governance/export → contract → post-sign execution → live ROI actuals → QBR — mobilizes coordinated engines and gateway-mediated AI narration behind a single, calm interface (§III-1, §III-3). The "workforce" is realized today as the deterministic engine orchestra plus AI narration, not yet as named executive/manager/worker runtime constructs (§III-1 CURRENT STATE; DNA Ch 8.3).
+
+**APPROVED FUTURE STATE.** Progressive, additive realization of the full AI-company model as the enduring destination (DNA Ch 8.3, Ch 23): the platform deepens toward literal executives, departments, managers, and workers operating under governed authority, with compounding memory and progressive disclosure, without ever forcing the customer through complexity they did not ask for. The *direction* is approved here; the *sequence* is deferred to Part VI.
+
+**Dependencies.** Part II (DNA Ch 5/6/7/8/8.3) as governing authority; Part III as the current-state record; Part VI (future) for execution.
+
+**Traceability.** DNA Ch 5/7/8/8.3 · Objective: durable reason-for-being · Modules: all · Workflow: §III-28/29 (current expression) · Engines: `runCortexEngine` orchestra · AI: Intelligence Gateway (narration) · Roadmap: full-workforce realization (Part VI).
+
+---
+
+## V-2 — Strategic Mission
+
+**Purpose.** State the long-term mission, the strategic objectives that carry it, and the enduring purpose beneath it — the horizon Cortex walks toward and why the horizon is worth reaching.
+
+**Why it exists.** The Executive Vision (V-1) names the destination; the mission names the *commitments* that hold in every era of the product and keep the platform coherent as it grows (DNA Ch 6). It exists so strategy is expressed as durable commitments rather than shifting goals.
+
+**Scope.** Mission commitments and strategic objectives at decade horizon. Not initiatives, not milestones, not delivery plans.
+
+**Long-term mission.** To become the trusted digital workforce that businesses hire to run and grow their operations — delivering the coordinated intelligence of an entire company through an experience simple enough for anyone to use (DNA Ch 6).
+
+**Strategic objectives (enduring commitments).**
+- **Deliver a workforce, not a toolset.** Organize intelligence as executives, departments, managers, and workers so the customer receives coordinated output, not a pile of features to assemble (DNA Ch 6, Ch 8.1).
+- **Produce measurable value, repeatedly.** Every engagement traces to outcomes the customer can see and verify (DNA Ch 6, Ch 33.2).
+- **Make sophistication effortless.** Make complexity unnecessary for the customer rather than making the customer more capable of operating it (DNA Ch 6, Ch 11–14).
+- **Earn and protect trust continuously.** Treat trust as the platform's most valuable and most fragile asset (DNA Ch 6, Ch 33.2 §3).
+- **Scale across industries.** Keep the method — diagnose, quantify, prioritize, plan, execute, measure — industry-general (DNA Ch 6, Ch 31).
+
+**Enduring purpose.** Beneath the mission lies the unchanging purpose: democratize enterprise-grade capability, convert intelligence into outcomes, and absorb complexity so the customer never has to (DNA Ch 5). Purpose is the deepest test; when valid options compete, the one that better serves purpose is chosen (DNA Ch 5, Ch 24).
+
+**CURRENT STATE (PARTIAL).** The mission's commitments are partially realized and verifiable in the LOCKED Blueprint: measurable value is produced through deterministic ROI and outcome tracking (§III-21/25); coordinated output is produced by the engine orchestra (§III-21); trust is enforced through governance, explainability, and tenant isolation as designed, with several controls recorded as PARTIAL/DEBT (§III-31 onward). "A workforce, not a toolset" is expressed structurally but not yet as first-class workforce runtime roles (DNA Ch 8.3).
+
+**APPROVED FUTURE STATE.** The mission holds unchanged as the long-term strategic direction; realization deepens additively toward the full workforce model and broader industry coverage, always keeping the experience simpler rather than more complex (DNA Ch 23). No new mission is introduced by Part V.
+
+**Dependencies.** V-1 (Executive Vision); Part II (DNA Ch 5/6/24/31/33); Part III current-state evidence.
+
+**Traceability.** DNA Ch 5/6/24/31/33 · Objective: durable mission commitments · Modules: all · Workflow: §III-29 · Engines: ROI/scoring/proposal engines · AI: gateway narration · Roadmap: industry/workforce expansion (Part VI).
+
+---
+
+## V-3 — Strategic Positioning
+
+**Purpose.** Declare how Cortex intends to position itself globally — the single category it claims — so that market perception, product decisions, and communication align to one identity.
+
+**Why it exists.** Positioning is where identity meets the market. A platform that positions itself as many things becomes none of them. This section records only the *approved* positioning and rejects the alternatives it is often mistaken for (DNA Ch 8.2).
+
+**Scope.** The approved global positioning statement and the categories Cortex explicitly does not occupy. Not messaging campaigns, not go-to-market plans, not pricing.
+
+**Approved strategic positioning.** Cortex is positioned as an **AI Workforce Platform** — an AI company that operates on behalf of businesses (DNA Ch 8.1; §III-1). This is the approved and permanent positioning. Among the candidate framings — *AI Company Platform*, *Enterprise AI Operating System*, *AI Workforce Platform*, *Enterprise Transformation Platform* — the ratified identity is the **AI Workforce Platform**; the others may describe facets of what Cortex enables, but the workforce framing is the one Cortex claims and defends.
+
+**Positioning boundaries (what Cortex is NOT positioned as).** Not "just software," not "just a chatbot," not "just a CRM," not "just automation," not "just another SaaS tool," and never a single-industry tool (DNA Ch 8.2, Ch 32). A direction that makes any of these more true is unconstitutional and must be revised or rejected (DNA Ch 8.2).
+
+**CURRENT STATE (PARTIAL).** The LOCKED Blueprint records the identity as an AI Workforce Platform while the shipped implementation presents as an "AI Readiness Diagnostic Platform" — the first faithful expression of the workforce model, not a competing position (§III-1; DNA Ch 8.3). The workforce positioning is therefore constitutionally IMPLEMENTED as identity and PARTIAL as realized runtime.
+
+**APPROVED FUTURE STATE.** The AI Workforce Platform positioning holds and strengthens as the runtime model is progressively realized; market presentation converges on the workforce framing as capability catches up to identity (DNA Ch 8.3). Positioning is never rebranded away from the workforce model (DNA Ch 8.3, rule 2).
+
+**Dependencies.** V-1/V-2; Part II (DNA Ch 8/8.2/8.3/32); §III-1 identity record.
+
+**Traceability.** DNA Ch 8/8.2/8.3/32 · Objective: one defended category · Modules: all · Workflow: §III-1 · Engines: n/a (identity) · AI: n/a · Roadmap: positioning convergence (Part VI).
+
+---
+
+## V-4 — North Star
+
+**Purpose.** Define the single long-term guiding objective that acts as the decision filter and enterprise compass whenever direction is uncertain.
+
+**Why it exists.** Strategy needs one tie-breaker. When two valid options compete, teams need a fixed reference that decides — not by opinion, but by principle (DNA Ch 24/25). The North Star is that reference.
+
+**Scope.** The one guiding objective and how it is applied as a filter. Not a scorecard, not KPIs (those derive downstream and belong to measurement, not to the North Star statement).
+
+**Long-term guiding objective.** **Trust earned through measurable outcomes delivered with effortless simplicity.** Trust is the north-star metric of the Constitution: when it falls, nothing else compensates (DNA Ch 33.2 §3). The guiding objective binds three inseparable things — outcomes that are real and measurable, trust that is earned and protected, and simplicity that never degrades as capability grows.
+
+**Decision filter.** Every strategic choice is filtered through the Success Principle (DNA Ch 33.1 / Ch 24): does it align with the DNA, create measurable business value, strengthen the AI Workforce model, avoid unnecessary duplication, maintain simplicity, and increase enterprise trust? If the answer is *no* to any, the direction is revised before it is pursued.
+
+**Enterprise compass.** When altitude or ambiguity makes a decision hard, the compass points to purpose (DNA Ch 5): the option that better democratizes capability, better converts intelligence into outcomes, and better absorbs complexity on the customer's behalf is the chosen direction.
+
+**CURRENT STATE (IMPLEMENTED, as governance).** The North Star's decision filter is already operative as the LOCKED constitutional decision gate (DNA Ch 24; §III-84 decision framework) and is applied in the Blueprint's own authoring discipline (reality-first, traceability, no invention). It is IMPLEMENTED as a governance instrument; it is NOT IMPLEMENTED as an automated, instrumented compass surfaced in-product.
+
+**APPROVED FUTURE STATE.** The North Star remains the fixed decision filter for all future Parts and directions; over the horizon it is increasingly reflected in how Cortex itself explains and governs its decisions (auditable, explainable, permission-bounded), consistent with DNA Ch 30. The *statement* is approved; instrumentation is Part VI.
+
+**Dependencies.** V-1/V-2; Part II (DNA Ch 5/24/25/33); §III-84 decision framework.
+
+**Traceability.** DNA Ch 5/24/25/33 · Objective: one tie-breaking compass · Modules: all · Workflow: §III-84 · Engines: deterministic engines (value), governance · AI: narration (explainability) · Roadmap: instrumented decision registry (Part VI).
+
+---
+
+## V-5 — Strategic Principles
+
+**Purpose.** Record the high-level principles that govern future strategic decisions, so that direction stays coherent across a decade of change.
+
+**Why it exists.** Principles are the compression of the Constitution into decision-usable rules. They let independent teams make aligned choices without re-deriving the DNA each time (DNA Ch 27).
+
+**Scope.** Enduring governing principles for future decisions. Not policies, not procedures, not controls (those are downstream).
+
+**Governing strategic principles.**
+- **Customer-first.** The customer's outcome and experience outrank internal preference; complexity belongs inside the platform, simplicity belongs to the customer (DNA Ch 5/11).
+- **AI-first, math-authoritative.** Intelligence is organized as an AI workforce, but authoritative numbers are produced by deterministic engines and AI narrates them — *math decides; AI narrates* (DNA Ch 17; §III-1).
+- **Human accountability.** Cortex never claims autonomy beyond granted authority; high-consequence decisions keep a human in control (DNA Ch 18/30).
+- **Trust above all.** Security, tenant isolation, transparency, explainability, and honesty are never traded for speed, convenience, or short-term revenue (DNA Ch 29/30/33.3).
+- **Long-term thinking.** Decisions are judged by durable purpose-fulfillment, not by feature count or novelty (DNA Ch 33.3).
+- **Sustainable growth.** Capability compounds while experienced complexity does not; the platform grows additively and never rebuilds without cause or drifts beyond scope (DNA Ch 22/23).
+- **Industry-general method.** The diagnose→measure method stays general; the platform is never narrowed to a single vertical (DNA Ch 31/32).
+
+**CURRENT STATE (IMPLEMENTED, as constitution).** These principles are LOCKED in Part II and are already the governing standard used throughout Part III's traceability lines (e.g., "math decides / AI narrates," tenant isolation, additive change control). They are IMPLEMENTED as governance; their in-product enforcement is IMPLEMENTED in parts and PARTIAL/DEBT in others per §III-31 onward.
+
+**APPROVED FUTURE STATE.** The principles are permanent and govern every future Part unchanged; future work operationalizes them further (e.g., enforced RBAC, unified audit, drift detection are approved *directions* here and sequenced in Part VI). Part V adds no new principle beyond the constitutional set.
+
+**Dependencies.** Part II (DNA Ch 11/17/18/22/23/27/29/30/31/32/33); §III-31–§III-86 (current enforcement evidence).
+
+**Traceability.** DNA Ch 17/18/22/23/27/29/30/33 · Objective: aligned autonomous decisions · Modules: all · Workflow: §III-84/85 · Engines: deterministic engines + governance · AI: gateway narration · Roadmap: enforcement operationalization (Part VI).
+
+---
+
+## V-6 — Future Customer Vision
+
+**Purpose.** Describe the long-term customer relationship, the outcomes customers experience, and the transformation Cortex intends to enable — expressed as relationship and outcome, not as features.
+
+**Why it exists.** Strategy must be anchored in what changes for the customer, not in what the platform contains. This section keeps the vision honest by describing the future in the customer's terms (DNA Ch 33.2).
+
+**Scope.** Future customer relationships, outcomes, and transformation. Explicitly not features, screens, or capabilities.
+
+**Future customer relationships.** The customer relates to Cortex as a **hired workforce and long-term partner**, not as a tool they operate. Over time the relationship compounds: Cortex remembers the business, so each engagement makes the next one sharper, and value grows with the length of the relationship (DNA Ch 19; Ch 33.2 §6/§8). The customer describes a goal in natural language and an AI organization mobilizes around it, while the machinery stays invisible (DNA Ch 7).
+
+**Customer outcomes.** Customers can trace Cortex's work to real, measurable value — time saved, money made or protected, decisions improved, risk reduced (DNA Ch 33.2 §1). First-time, non-technical customers reach confident first results quickly, and the experience stays simple as their needs grow (DNA Ch 33.2 §2/§5).
+
+**Customer transformation.** A business moves from *not knowing what to do* to *knowing, deciding, and executing with confidence* — from ad-hoc effort to a governed, measured operating rhythm — without having to build internal expertise or absorb platform complexity. The transformation is from operating alone to operating with a trusted intelligent workforce.
+
+**CURRENT STATE (PARTIAL).** The LOCKED Blueprint already delivers a partial form of this relationship: a prospect becomes a diagnosed, quantified, proposed, contracted, executing, and measured customer through one governed pipeline (§III-28/29), with ROI actuals and QBR closing the outcome loop (§III-21/25). Compounding memory across engagements and natural-language mobilization are NOT IMPLEMENTED as runtime (DNA Ch 8.3/15/19).
+
+**APPROVED FUTURE STATE.** The relationship deepens toward a durable, memory-compounding partnership with natural-language (later voice/multimodal) interaction, always in service of the same simplicity (DNA Ch 7/15/16/19). The customer's *experience* of transformation is approved here; the surfaces that deliver it are Part VI.
+
+**Dependencies.** V-1/V-2/V-4; Part II (DNA Ch 7/15/16/19/33); §III-21/25/28/29 (current outcome loop).
+
+**Traceability.** DNA Ch 7/15/16/19/33 · Objective: compounding customer partnership · Modules: diagnostic/proposal/execution/outcomes · Workflow: §III-28/29 · Engines: ROI/actuals/QBR · AI: narration; future NL interface · Roadmap: memory + NL/voice (Part VI).
+
+---
+
+## V-7 — Future Enterprise Vision
+
+**Purpose.** Describe the long-term enterprise MARQ Cortex intends to become — as an architecture of the organization, not as an org chart, hiring plan, or delivery schedule.
+
+**Why it exists.** The platform's identity is an AI company; the enterprise vision states what kind of enterprise realizes that identity durably (DNA Ch 8/8.3). It keeps future structural direction aligned to identity.
+
+**Scope.** The architectural shape of the future enterprise. Not departments-to-hire, not budgets, not staffing — those are execution (Part VI).
+
+**Future enterprise (architecture only).**
+- **AI-native organization.** Cortex's own operating model reflects its product: intelligence organized as executives, departments, managers, and workers, coordinated by governance, with deterministic engines owning the math and reasoning systems owning explanation (DNA Ch 8.1). The enterprise is AI-native by identity, realized progressively (DNA Ch 8.3).
+- **Platform ecosystem.** A provider-agnostic Intelligence Gateway and a component/manifest architecture position Cortex as a platform others extend, rather than a closed application (§III-17/26; §III-1). The long-term shape is an ecosystem with governed extension points, never at the cost of tenant isolation or governance (DNA Ch 20/29/30).
+- **Global enterprise.** An enterprise capable of serving businesses across industries and regions under one general method and one governance model (DNA Ch 31; V-8).
+
+**CURRENT STATE (PARTIAL / NOT IMPLEMENTED).** IMPLEMENTED: provider-agnostic gateway and a manifest/component architecture (§III-17/26; §III-1). PARTIAL: multi-tenant foundation with isolation and RBAC recorded as designed with enforcement gaps (§III-41–§III-45). NOT IMPLEMENTED: named AI executive/manager/worker runtime roles as first-class constructs, and a formal external extension ecosystem (DNA Ch 8.3; §III-1 CURRENT STATE).
+
+**APPROVED FUTURE STATE.** Cortex becomes a progressively AI-native, ecosystem-capable, globally-serving enterprise whose internal architecture mirrors the workforce it sells — additively, never by rebuild or rebrand (DNA Ch 8.3/22/23). The architectural *direction* is approved; structural execution is Part VI.
+
+**Dependencies.** V-1/V-3; Part II (DNA Ch 8/8.3/20/29/30/31); §III-1/17/26/41–45.
+
+**Traceability.** DNA Ch 8/8.3/20/29/30/31 · Objective: identity-consistent enterprise architecture · Modules: gateway/manifest/tenancy · Workflow: §III-17/26/41 · Engines: repositories/gateway · AI: gateway · Roadmap: workforce runtime + ecosystem (Part VI).
+
+---
+
+## V-8 — Future Market Vision
+
+**Purpose.** Document the markets, industries, and global reach Cortex intends to serve, and its long-term market positioning.
+
+**Why it exists.** Scope generality is a constitutional commitment (DNA Ch 31/32). The market vision states how far that generality is intended to reach, so the platform is never accidentally narrowed to a single vertical.
+
+**Scope.** Long-term market direction: industries, breadth, and reach. Not target-account lists, not pricing, not sales plans.
+
+**Markets and industries.** Cortex intends to serve businesses **across industries** with one general method — diagnose, quantify, prioritize, plan, execute, measure — expressed through industry-specific questionnaires and rule packs while keeping the underlying method general (DNA Ch 31; §III-2/§III-54). Specific industry expressions are welcome; narrowing the platform to a single industry is not (DNA Ch 31/32).
+
+**Global reach.** Cortex intends to serve businesses of any size, from a first-time owner's first diagnostic to a large enterprise's full operational platform, and across regions — under one governance and data-stewardship model that respects tenant isolation and data sovereignty (DNA Ch 19/20; §III-44). Global reach is bounded by the trust and security commitments, which are never traded for expansion (DNA Ch 32).
+
+**Long-term positioning in the market.** As the **AI Workforce Platform** category leader (V-3): the enterprise that businesses hire as their intelligent workforce, distinguished not by feature count but by measurable outcomes, trust, and effortless simplicity (DNA Ch 33). Breadth across industries — without abandoning the general method — is itself a constitutional success dimension (DNA Ch 33.2 §9).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: industry-selectable diagnostic and a general method that already spans verticals structurally (§III-2/§III-5). PARTIAL: industry rule packs and multi-region data-sovereignty tooling recorded as approved future/DEBT in Part III (§III-44/§III-54). NOT IMPLEMENTED: broad multi-industry rollout and formal global market presence.
+
+**APPROVED FUTURE STATE.** Expansion across industries and regions under the same general method and governance model, keeping generality and trust intact as reach grows (DNA Ch 31/32/33). The market *direction* is approved; sequencing, prioritization, and go-to-market are Part VI.
+
+**Dependencies.** V-2/V-3; Part II (DNA Ch 19/20/31/32/33); §III-2/44/54.
+
+**Traceability.** DNA Ch 19/20/31/32/33 · Objective: industry-general global reach · Modules: diagnostic/rules/tenancy · Workflow: §III-2/29 · Engines: scoring/rule packs · AI: gateway · Roadmap: industry/region expansion (Part VI).
+
+---
+
+## V-9 — Vision Success Principles
+
+**Purpose.** Define how the success of this vision will be *judged* — the qualitative dimensions that determine whether Cortex is fulfilling its purpose. No metrics.
+
+**Why it exists.** Success must be defined before it is pursued, and it must be defined by purpose-fulfillment rather than by feature accumulation (DNA Ch 33). This section fixes the standard so later measurement (Part VI) instruments the right things.
+
+**Scope.** The qualitative principles by which vision success is judged. Explicitly **no metrics, no KPIs, no targets** — those derive downstream and belong to execution.
+
+**How success will be judged.**
+- **Customer impact.** Customers can trace Cortex's work to real business value; the vision succeeds only if outcomes are real and visible (DNA Ch 33.2 §1).
+- **Trust.** Customers trust what Cortex tells them and what it is allowed to do; trust is the paramount judgment and, when it falls, nothing else compensates (DNA Ch 33.2 §3).
+- **Quality.** Explainability, auditability, permission-boundedness, transparency, and security hold or improve as the platform grows (DNA Ch 33.2 §7).
+- **Sustainability.** Capability compounds while experienced complexity does not; growth is additive and durable, and relationships deepen over time (DNA Ch 33.2 §5/§8; Ch 23).
+- **Innovation.** Innovation is judged by whether it strengthens the AI Workforce model and serves purpose — never by novelty or spectacle for its own sake (DNA Ch 33.2 §4; Ch 33.3).
+
+**What is explicitly NOT success.** Feature count, technological novelty, interface spectacle, engagement for its own sake, and short-term revenue extracted at the cost of trust are not measures of success (DNA Ch 33.3). A standard that rewards complexity, opacity, or trust-erosion is contrary to the Constitution and must not govern the vision.
+
+**CURRENT STATE (IMPLEMENTED, as standard).** These judgment principles are LOCKED in Part II (DNA Ch 33) and already govern Part III's success and governance sections (§III-81/82/83). They are IMPLEMENTED as the standard; their *instrumentation* into operational measures is NOT IMPLEMENTED here and is reserved for Part VI (metric definitions are excluded from Part V by rule).
+
+**APPROVED FUTURE STATE.** The judgment principles remain permanent; future work instruments them into concrete, honest measures without ever letting a metric replace the constitutional dimension it serves (DNA Ch 33; §III-81). Part V defines the standard; Part VI defines the measurement.
+
+**Dependencies.** V-1/V-2/V-4; Part II (DNA Ch 23/33); §III-81/82/83 (current success framing).
+
+**Traceability.** DNA Ch 23/33 · Objective: purpose-based success standard · Modules: analytics/governance · Workflow: §III-81/82/83 · Engines: aggregation (future instrumentation) · AI: narration · Roadmap: metric definitions (Part VI).
+
+---
+
+## V-10 — Phase Summary
+
+**Purpose.** Close Phase 5.1 by consolidating its purpose, key decisions, current state, approved future state, dependencies, and traceability into one enterprise summary.
+
+**Purpose of Phase 5.1.** To define the long-term strategic direction of MARQ Cortex — the decade-horizon vision, mission, positioning, North Star, principles, and success standard — as approved *direction*, strictly separated from any roadmap, plan, or implementation (which belong to Part VI).
+
+**Key Decisions.**
+1. The Executive Vision and Strategic Mission are ratified unchanged from Part II and restated at strategic altitude, not reinvented (V-1/V-2; Golden Rule 5).
+2. The approved global positioning is the **AI Workforce Platform** — one defended category, with explicit non-positions (V-3).
+3. The North Star is **trust earned through measurable outcomes delivered with effortless simplicity**, applied via the constitutional decision filter (V-4).
+4. Seven strategic principles govern future decisions (V-5); the future enterprise is AI-native, ecosystem-capable, and global by architecture (V-7); the market vision is industry-general and global under one governance model (V-8).
+5. Vision success is judged by customer impact, trust, quality, sustainability, and innovation — **no metrics** (V-9).
+
+**Current State.** Grounded in the LOCKED Blueprint and repository evidence: the vision is expressed in miniature by a working, governed pipeline with deterministic engines and gateway-mediated narration (IMPLEMENTED in part), a multi-tenant foundation and provider-agnostic architecture (PARTIAL), and named workforce runtime roles, compounding memory, natural-language interaction, and broad multi-industry/global rollout (NOT IMPLEMENTED). Every current-state claim traces to Part III or Part II.
+
+**Approved Future State.** Progressive, additive realization of the full AI-company model — deeper workforce runtime, compounding memory, natural-language then voice/multimodal interaction, industry and regional breadth, and an ecosystem architecture — all under unchanged identity, principles, and success standard (DNA Ch 7/8.3/15/19/23/31/33). Direction is approved; sequencing is deferred to Part VI.
+
+**Dependencies.** Part II (Constitution) as governing authority; Part III as the current-state record and evidence base; Part IV — AI Company Architecture (LOCKED) as the authored organizational architecture and Part VI — Execution Roadmap (PLANNED) as the Part that will realize this vision. Part V never authorizes building; it authorizes aiming.
+
+**Traceability.** DNA Ch 5/6/7/8/8.3/15/17/18/19/20/22/23/24/25/27/29/30/31/32/33 · Objective: approved long-horizon strategic direction · Modules: all · Workflow: §III-28/29 (current expression) · Engines: deterministic engine orchestra · AI: Intelligence Gateway (narration) · Roadmap: Part VI (PLANNED); Part IV LOCKED.
+
+---
+
+*End of Phase 5.1 (Sections V-1 through V-10). Part V is IN PROGRESS and is not reviewed or locked in this phase. Phase 5.2 is not begun.*
+
+---
+
+## Phase 5.2 — Product & Platform Evolution
+
+**Status:** IN PROGRESS · **Phase:** 5.2 — Product & Platform Evolution · **Numbering:** Sections V-11 through V-20 (continuing Part V numbering) · **Continuity:** appends after Phase 5.1 with continuous numbering and formatting; the Part V reading conventions (above) govern this phase unchanged.
+
+*This phase defines the long-horizon evolution of the Cortex product and platform as approved strategic **direction** — how the product deepens and the platform matures toward the constitutional identity — without roadmaps, feature lists, timelines, budgets, or implementation. It sits between the vision fixed in Phase 5.1 and the innovation/leadership direction of Phase 5.3. Everything here echoes and extends the already-ratified future (Parts II and IV); it invents no new destination (Golden Rule 5).*
+
+---
+
+## V-11 — Product Evolution Philosophy
+
+**Purpose.** State the enduring principles by which the Cortex product evolves, so that a decade of change compounds capability without ever compromising identity or simplicity.
+
+**Why it exists.** A product that evolves without a philosophy accretes features and loses coherence (DNA Ch 33.3). The evolution philosophy fixes *how* change is allowed to happen, so growth strengthens the AI Workforce rather than fragmenting it.
+
+**Scope.** The principles governing product evolution. Not the roadmap, not the features, not the sequence — those are Part VI.
+
+**Evolution principles.**
+- **Additive, never disruptive.** Every advance is additive and must keep the experience simpler, not more complex (DNA Ch 23; §III-3 business rule). Cortex does not rebuild without cause or drift beyond scope (DNA Ch 22).
+- **Identity-preserving.** Each step traces back to the ratified identity — an AI company operating on behalf of businesses (DNA Ch 8.1; §III-1) — and makes no statement in DNA Ch 8.1 less true or any in Ch 8.2 more true.
+- **Simplicity as a constraint on growth.** Capability may compound while the customer's experienced complexity does not (DNA Ch 33.2 §5; Ch 11–14).
+- **Reality-first.** Evolution is documented before it is built; nothing enters the product without passing the decision framework (DNA Ch 24; §III-2 business rule).
+
+**CURRENT STATE (IMPLEMENTED, as discipline).** These principles are already operative: Part III documents the product reality-first and separates CURRENT from APPROVED FUTURE STATE throughout; Part IV Phase 4.5 ratified a continuous-improvement philosophy (§IV-46, §IV-52). The discipline is IMPLEMENTED; the deeper product it governs is realized only in part (§III-1).
+
+**APPROVED FUTURE STATE.** The philosophy is permanent and governs all subsequent product evolution; the product deepens toward the full workforce model additively (DNA Ch 8.3, Ch 23). Direction is approved here; sequence is Part VI.
+
+**Dependencies.** Part II (DNA Ch 8/11–14/22/23/33); Part III (§III-1/2/3); Part IV (§IV-46/52); Phase 5.1 (V-1/V-5).
+
+**Traceability.** DNA Ch 8/22/23/33 · Part IV §IV-46/52 · Objective: coherent, identity-preserving growth · Modules: all · Workflow: §III-29 · Engines: all deterministic · AI: gateway narration · Roadmap: additive evolution (Part VI).
+
+---
+
+## V-12 — Platform Architecture Evolution
+
+**Purpose.** Describe the long-horizon direction of the platform's architecture — how the technical foundation matures — at the level of architectural principle, not implementation.
+
+**Why it exists.** The product's future depends on a foundation that can grow without redesign (§III-37). This section fixes the architectural direction so the platform scales toward the workforce model without rebuild.
+
+**Scope.** Architectural direction only: authority of the data foundation, provider-agnostic intelligence, modularity, and separation of deterministic computation from narration. No schemas, no migrations, no code, no timelines.
+
+**Architectural evolution direction.**
+- **Toward relational authority.** The runtime store is KV-authoritative today with a relational foundation present but not yet authoritative; the approved direction is per-domain cutover to relational authority without a big-bang rewrite (§III-1, §III-37).
+- **Provider-agnostic intelligence, permanently.** The Intelligence Gateway keeps intelligence swappable and governed; the platform never couples its correctness to a single provider (§III-1, §III-17; DNA Ch 17).
+- **Deterministic core, narrated surface.** The separation "math decides; AI narrates" is architectural and endures: authoritative numbers come from deterministic engines, AI explains them (§III-1, §III-21; DNA Ch 17).
+- **Modular, manifest-governed composition.** The component/manifest architecture (a registry of nodes) remains the way capability is composed and governed as it grows (§III-1; Part IV §IV-10 enterprise architecture principles).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: provider-agnostic gateway (OpenAI + mock), deterministic engine orchestra, and a manifest/component registry (§III-1). PARTIAL: relational foundation exists but KV remains authoritative (§III-1, §III-37). NOT IMPLEMENTED: full relational authority across domains.
+
+**APPROVED FUTURE STATE.** The foundation matures to relational authority per domain, keeps intelligence provider-agnostic, and preserves the deterministic-core/narrated-surface split as it scales (§III-37; DNA Ch 17/20/23). Architectural direction only; execution is Part VI.
+
+**Dependencies.** Part III (§III-1/17/21/37/38); Part IV (§IV-10); DNA Ch 17/20/23.
+
+**Traceability.** DNA Ch 17/20/23 · Part IV §IV-10 · Objective: growth without redesign · Modules: edge/data/engines/gateway · Workflow: §III-37 · Engines: repositories, orchestra · AI: gateway · Roadmap: relational cutover, scale (Part VI).
+
+---
+
+## V-13 — AI Workforce Realization Evolution
+
+**Purpose.** Describe the long-horizon direction by which the AI Workforce advances from today's engine-and-narration expression toward first-class executive/manager/worker constructs.
+
+**Why it exists.** The workforce model is the constitutional destination (DNA Ch 8.1/8.3) and is architected in Part IV; this section states the *evolutionary direction* of its realization, keeping identity and honest present-state in view at once (DNA Ch 8.3).
+
+**Scope.** The direction of workforce realization as architecture and identity. Not agent implementation, not runtime engineering, not role staffing.
+
+**Realization direction.**
+- **From orchestra to organization.** Today's coordinated deterministic engines plus gateway narration evolve toward named AI executives, departments, managers, and workers operating within governed authority bounds (Part IV §IV-13/§IV-23/§IV-24; DNA Ch 8.1, Ch 18).
+- **Authority-bounded throughout.** Every increment keeps humans in control of high-consequence decisions and never claims autonomy beyond granted permission (Part IV §IV-28; DNA Ch 18).
+- **Progressive, never a rebrand.** Realization is additive and traces to identity; naming a construct commits Cortex to realizing it genuinely, not to asserting it is already complete (DNA Ch 8.3, rule 2).
+
+**CURRENT STATE (NOT IMPLEMENTED as runtime; IMPLEMENTED as architecture).** The workforce is expressed today as the engine orchestra plus AI narration (§III-1, §III-21); named executive/manager/worker runtime constructs are NOT IMPLEMENTED (DNA Ch 8.3; the data platform records `ai_worker` identity as *Future* — §III-1). The organizational architecture that governs their future realization IS authored and LOCKED in Part IV (§IV-13…§IV-34).
+
+**APPROVED FUTURE STATE.** Progressive realization of the full workforce as first-class, governed runtime constructs, built additively on the Part IV architecture (DNA Ch 8.3, Ch 23). Direction approved here; sequencing is Part VI.
+
+**Dependencies.** Part IV (§IV-13/23/24/28); Part III (§III-1/21); DNA Ch 8.1/8.3/18/23.
+
+**Traceability.** DNA Ch 8.1/8.3/18/23 · Part IV §IV-13/23/28 · Objective: realize the workforce, governed and additive · Modules: engines/gateway/governance · Workflow: §III-29 · Engines: orchestra · AI: gateway · Roadmap: workforce runtime (Part VI).
+
+---
+
+## V-14 — Interaction Evolution Vision
+
+**Purpose.** Describe how the customer's way of interacting with Cortex evolves over the long horizon, always in service of the same simplicity.
+
+**Why it exists.** Interaction is where sophistication either becomes effortless or becomes burden. The Constitution fixes an interaction roadmap (DNA Ch 15–16); this section carries it as strategic direction without specifying surfaces or timelines.
+
+**Scope.** The direction of interaction evolution as experience. Not UI specifications, not voice engineering, not release timing.
+
+**Interaction direction.**
+- **GUI → natural language → voice → multimodal.** Interaction advances along the constitutional sequence, each stage in service of the same calm simplicity (DNA Ch 15; §III-3).
+- **Voice deferred until maturity.** Voice is approved in direction but deliberately deferred until production maturity (DNA Ch 16; §III-3).
+- **Simplicity is invariant.** Every interaction advance must keep the experience simpler, never add cognitive load without measurable benefit (DNA Ch 11–14, Ch 32 experience boundaries).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: a single, calm graphical interface with a guided pipeline and a global/assistive AI surface (§III-1, §III-3). PARTIAL/NOT IMPLEMENTED: natural-language mobilization of the workforce is not the primary interaction; voice and multimodal are NOT IMPLEMENTED (DNA Ch 15/16; §III-3 APPROVED FUTURE STATE).
+
+**APPROVED FUTURE STATE.** Interaction deepens toward natural language and later voice/multimodal, always subordinate to simplicity (DNA Ch 15/16). Direction approved; surfaces and timing are Part VI.
+
+**Dependencies.** Part III (§III-1/3/27); DNA Ch 11–16, Ch 32; Phase 5.1 (V-6).
+
+**Traceability.** DNA Ch 11–16/32 · Objective: effortless interaction at every stage · Modules: UI/routing/gateway · Workflow: §III-28 · Engines: n/a · AI: gateway (NL) · Roadmap: NL → voice → multimodal (Part VI).
+
+---
+
+## V-15 — Intelligence & Reasoning Evolution
+
+**Purpose.** Describe the long-horizon direction of Cortex's intelligence and reasoning — how it grows more capable while remaining governed, explainable, and subordinate to authoritative math.
+
+**Why it exists.** Intelligence is the platform's differentiator and its greatest governance risk. This section fixes how reasoning may deepen without ever overriding the deterministic core or eroding trust (DNA Ch 17).
+
+**Scope.** The direction of intelligence and reasoning as principle. Not model selection, not prompts, not provider procurement, not benchmarks.
+
+**Intelligence evolution direction.**
+- **Math decides; AI narrates — permanently.** Reasoning grows richer but never becomes authoritative over the deterministic engines; AI explains, translates, and recommends, and does not override governed math (DNA Ch 17; §III-1/21).
+- **Provider-agnostic and swappable.** Capability advances by improving the gateway and its governance, never by coupling correctness to one provider (§III-17; DNA Ch 17).
+- **Explainable by construction.** As reasoning deepens, explainability, auditability, and permission-boundedness hold or improve (DNA Ch 30; Part IV §IV-29/§IV-33).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: gateway-mediated narration over deterministic engines with provider-agnostic routing (§III-1, §III-17). PARTIAL: explainability/audit surfaces exist in parts and are recorded as maturing (§III-64/§III-65). NOT IMPLEMENTED: richer multi-role reasoning tied to the future workforce (DNA Ch 8.3).
+
+**APPROVED FUTURE STATE.** Reasoning deepens under the same governance — narrating, never overriding; provider-agnostic; explainable — consistent with Part IV's AI governance and safety principles (§IV-29/§IV-33; DNA Ch 17/30). Direction approved; implementation is Part VI.
+
+**Dependencies.** Part III (§III-1/17/21/64/65); Part IV (§IV-29/31/33); DNA Ch 17/30.
+
+**Traceability.** DNA Ch 17/30 · Part IV §IV-29/31/33 · Objective: capable, governed, explainable intelligence · Modules: intelligence/gateway/engines · Workflow: §III-29 · Engines: orchestra · AI: gateway · Roadmap: reasoning depth under governance (Part VI).
+
+---
+
+## V-16 — Memory & Knowledge Evolution
+
+**Purpose.** Describe the long-horizon direction for how Cortex remembers each business so its judgment compounds over time — as stewardship principle, not storage design.
+
+**Why it exists.** Compounding memory is what turns Cortex from a tool into a partner whose value grows with the relationship (DNA Ch 19; Ch 33.2 §6). This section fixes the direction while protecting the trust that memory puts at stake.
+
+**Scope.** The direction of memory and knowledge as stewardship. Not database design, not retention schedules, not vendor storage.
+
+**Memory evolution direction.**
+- **Compounding judgment.** Cortex's understanding of each business deepens over engagements, so value grows with the length of the relationship (DNA Ch 19; Ch 33.2 §6/§8).
+- **Memory in service of the customer, never against them.** Cortex will not use its memory of a business against that business; memory is stewarded under tenant isolation and data sovereignty (DNA Ch 19/20, Ch 32 trust boundaries).
+- **Governed knowledge.** Knowledge is retained, curated, and governed consistent with Part IV's knowledge-governance and AI memory principles (§IV-32/§IV-42).
+
+**CURRENT STATE (PARTIAL / NOT IMPLEMENTED).** IMPLEMENTED (system memory): the platform keeps engineering memory artifacts (`memory/failure_library.md`, `memory/regression_cases.md`) and immutable proposal snapshots (§III-29). PARTIAL: per-business persistence exists through the KV store and outcomes (§III-1, §III-25). NOT IMPLEMENTED: compounding, cross-engagement business memory as a governed workforce capability (DNA Ch 8.3/19).
+
+**APPROVED FUTURE STATE.** Memory matures into compounding, governed business knowledge that sharpens judgment over time, always under isolation and sovereignty (DNA Ch 19/20; Part IV §IV-32/§IV-42). Direction approved; implementation is Part VI.
+
+**Dependencies.** Part III (§III-1/25/29/44); Part IV (§IV-32/42); DNA Ch 19/20/32.
+
+**Traceability.** DNA Ch 19/20/32 · Part IV §IV-32/42 · Objective: compounding, trustworthy memory · Modules: data/outcomes/knowledge · Workflow: §III-30 · Engines: repositories · AI: n/a (stewardship) · Roadmap: business memory (Part VI).
+
+---
+
+## V-17 — Data Platform Evolution
+
+**Purpose.** Describe the long-horizon direction of the data platform — the foundation of trust and correctness — as architectural principle.
+
+**Why it exists.** Every outcome, memory, and audit rests on the data platform. Its evolution must preserve isolation, sovereignty, and integrity as it scales (DNA Ch 20). This section fixes that direction without prescribing schemas or migrations.
+
+**Scope.** Data-platform direction only: authority, isolation, sovereignty, integrity, and recoverability as principles. No table designs, no migration scripts, no timelines.
+
+**Data evolution direction.**
+- **Relational authority, per-domain.** The data foundation matures from KV-authoritative to relational-authoritative through governed, per-domain cutover, never a big-bang rewrite (§III-1, §III-37/38).
+- **Isolation and sovereignty are invariant.** Tenant isolation and data sovereignty hold or strengthen as the platform grows; they are never traded for speed or convenience (DNA Ch 19/20, Ch 32; §III-44/45).
+- **Integrity and recoverability.** Correctness, auditability, backup, and recovery mature alongside authority (§III-66/67; Part IV §IV-40 security governance).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: KV-authoritative runtime store with tenant scoping and a relational foundation present (§III-1, §III-41–45). PARTIAL: relational authority and full data-sovereignty/DSR tooling are recorded as approved-future/DEBT (§III-37, §III-44). NOT IMPLEMENTED: relational store as system of record across domains.
+
+**APPROVED FUTURE STATE.** The data platform reaches relational authority per domain while strengthening isolation, sovereignty, integrity, and recoverability (§III-37; DNA Ch 20). Architectural direction only; execution is Part VI.
+
+**Dependencies.** Part III (§III-1/37/38/41–45/66/67); Part IV (§IV-40); DNA Ch 19/20/32.
+
+**Traceability.** DNA Ch 19/20/32 · Part IV §IV-40 · Objective: trustworthy, sovereign, scalable data · Modules: data/tenancy · Workflow: §III-37 · Engines: repositories, migration engine · AI: n/a · Roadmap: relational authority, sovereignty tooling (Part VI).
+
+---
+
+## V-18 — Ecosystem & Extensibility Evolution
+
+**Purpose.** Describe the long-horizon direction by which Cortex becomes a platform others can extend — an ecosystem — without ever weakening governance or isolation.
+
+**Why it exists.** A durable platform grows through governed extension, not a closed monolith (§III-17/26). This section fixes the ecosystem direction while keeping the trust and integrity boundaries absolute (DNA Ch 22/29/30).
+
+**Scope.** Ecosystem and extensibility as architectural direction. Not partner programs, not marketplaces, not integration engineering, not vendor selection.
+
+**Ecosystem evolution direction.**
+- **Governed extension points.** Capability is composed through the manifest/component architecture and integrated through the provider-agnostic gateway, so extension is governed rather than ad hoc (§III-1/17/26).
+- **Integrity boundaries hold.** Extensibility never permits AI to override authoritative math, never duplicates capability unnecessarily, and never weakens tenant isolation or governance (DNA Ch 22/29; §III-45).
+- **Interoperability by design.** The platform favors clean interfaces and standards so it can interoperate without coupling correctness to any external system (Part IV §IV-10).
+
+**CURRENT STATE (PARTIAL / NOT IMPLEMENTED).** IMPLEMENTED: provider-agnostic gateway and manifest-composed capability enable governed extension internally (§III-1/17/26). PARTIAL: external integration surfaces exist narrowly (intelligence/email/auth) (§III-36). NOT IMPLEMENTED: a formal external extension ecosystem or partner-facing extension surface.
+
+**APPROVED FUTURE STATE.** Cortex matures into an ecosystem with governed extension points and strong interoperability, never at the cost of governance or isolation (DNA Ch 22/29/30; Part IV §IV-10). Direction approved; execution is Part VI.
+
+**Dependencies.** Part III (§III-1/17/26/45); Part IV (§IV-10); DNA Ch 22/29/30.
+
+**Traceability.** DNA Ch 22/29/30 · Part IV §IV-10 · Objective: governed, interoperable ecosystem · Modules: gateway/manifest/integrations · Workflow: §III-17/26/36 · Engines: n/a · AI: gateway · Roadmap: extension ecosystem (Part VI).
+
+---
+
+## V-19 — Experience & Simplicity Evolution
+
+**Purpose.** Describe the long-horizon direction of the customer's experience — how the platform grows in capability while the experienced complexity does not.
+
+**Why it exists.** Simplicity under growth is a constitutional success dimension and a boundary (DNA Ch 33.2 §5, Ch 32). As capability compounds, the experience must stay calm and progressive. This section fixes that direction.
+
+**Scope.** Experience and simplicity as principle. Not visual design specs, not component libraries, not accessibility implementation detail.
+
+**Experience evolution direction.**
+- **Progressive disclosure.** The experience scales from beginner to enterprise without forcing customers through complexity they did not ask for (DNA Ch 14; §III-3).
+- **Simplicity as a boundary.** Cortex will not push internal complexity onto customers, will not require technical knowledge to begin, and will not add cognitive load without measurable benefit (DNA Ch 32 experience boundaries; Ch 11).
+- **Inclusive by direction.** Accessibility and inclusive access strengthen as the experience evolves (§III-70).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: a single, calm, guided interface presenting sophisticated engines simply (§III-1/3). PARTIAL: progressive-disclosure tiers (beginner → enterprise) and full accessibility conformance are recorded as maturing (§III-3, §III-70). NOT IMPLEMENTED: the full beginner-to-enterprise progression as an explicit runtime capability.
+
+**APPROVED FUTURE STATE.** The experience deepens with progressive disclosure and inclusive access while experienced complexity stays flat as capability grows (DNA Ch 11–14/32). Direction approved; design and delivery are Part VI.
+
+**Dependencies.** Part III (§III-1/3/27/70); DNA Ch 11–14, Ch 32; Phase 5.1 (V-6).
+
+**Traceability.** DNA Ch 11–14/32 · Objective: simplicity under growth · Modules: UI/experience · Workflow: §III-28 · Engines: n/a · AI: gateway (assist) · Roadmap: progressive disclosure, accessibility (Part VI).
+
+---
+
+## V-20 — Phase Summary
+
+**Purpose.** Close Phase 5.2 by consolidating its purpose, key decisions, current state, approved future state, dependencies, and traceability into one enterprise summary.
+
+**Purpose of Phase 5.2.** To define the long-horizon evolution of the Cortex product and platform as approved strategic direction — product, architecture, workforce realization, interaction, intelligence, memory, data, ecosystem, and experience — strictly separated from any roadmap, feature list, or implementation (Part VI).
+
+**Key Decisions.**
+1. Product evolution is additive, identity-preserving, simplicity-constrained, and reality-first (V-11).
+2. The platform matures toward relational authority per domain while staying provider-agnostic and preserving the deterministic-core/narrated-surface split (V-12/V-17).
+3. The AI Workforce is realized progressively from engine-orchestra to governed first-class constructs, on the Part IV architecture (V-13).
+4. Interaction advances GUI → NL → voice → multimodal, simplicity invariant; voice deferred until maturity (V-14).
+5. Intelligence deepens while "math decides; AI narrates," provider-agnostic and explainable, holds (V-15).
+6. Memory compounds under isolation and sovereignty, never used against the customer (V-16).
+7. The platform grows into a governed, interoperable ecosystem without weakening governance (V-18); experienced complexity stays flat as capability grows (V-19).
+
+**Current State.** Grounded in the LOCKED Blueprint and repository: IMPLEMENTED — provider-agnostic gateway, deterministic engine orchestra, manifest/component architecture, calm guided interface, KV-authoritative store with tenant scoping (§III-1). PARTIAL — relational foundation present but not authoritative, narrow external integrations, maturing explainability/accessibility/sovereignty tooling (§III-36/37/44/64/70). NOT IMPLEMENTED — named workforce runtime constructs, natural-language/voice interaction, compounding business memory, relational authority across domains, external extension ecosystem (DNA Ch 8.3/15/16/19).
+
+**Approved Future State.** Additive maturation across all nine dimensions toward the constitutional identity and the Part IV architecture, under unchanged principles, governance, and simplicity (DNA Ch 8.3/17/19/20/23; Part IV §IV-10/29/32/40). Direction is approved; sequencing is deferred to Part VI.
+
+**Dependencies.** Part II (Constitution) as governing authority; Part III as the current-state record; Part IV — AI Company Architecture (LOCKED) as the organizational architecture this evolution realizes; Part VI — Execution Roadmap (PLANNED) as the sequenced plan. Phase 5.1 (Vision) as the fixed direction this phase serves.
+
+**Traceability.** DNA Ch 8/8.3/11–20/22/23/29/30/32/33 · Part IV §IV-10/13/23/29/32/40/52 · Objective: approved product & platform evolution direction · Modules: all · Workflow: §III-28/29/37 · Engines: orchestra, repositories, gateway · AI: Intelligence Gateway (narration) · Roadmap: Part VI (PLANNED).
+
+---
+
+*End of Phase 5.2 (Sections V-11 through V-20). Part V remains IN PROGRESS and is not reviewed or locked in this phase. Phase 5.3 follows below with continuous numbering.*
+
+---
+
+## Phase 5.3 — Innovation & Market Leadership
+
+**Status:** IN PROGRESS · **Phase:** 5.3 — Innovation & Market Leadership · **Numbering:** Sections V-21 through V-30 (continuing Part V numbering) · **Continuity:** appends after Phase 5.2 with continuous numbering and formatting; the Part V reading conventions (above) govern this phase unchanged.
+
+*This phase defines how MARQ Cortex sustains long-term innovation, adapts to change, and maintains strategic leadership — as enduring strategic **principles** for innovation, research, technology adoption, partnerships, market leadership, global reach, competition, resilience, and long-term commitments. It is not an R&D roadmap, a feature backlog, implementation planning, budgeting, or hiring; those belong to Part VI or future operational documentation.*
+
+---
+
+## V-21 — Innovation Philosophy
+
+**Purpose.** State why innovation matters to Cortex, the principles that govern it, and how innovation is kept responsible and governed over the long horizon.
+
+**Why it exists.** Without a philosophy, innovation drifts toward novelty and spectacle — explicitly *not* success (DNA Ch 33.3). This section fixes innovation as a purpose-serving, governed activity so it strengthens the platform rather than fragmenting it.
+
+**Scope.** Innovation principles and governance as strategy. Not research projects, not experiments, not budgets or timelines.
+
+**Innovation direction.**
+- **Why innovation matters.** Cortex must keep converting advancing intelligence into measurable customer outcomes; standing still erodes the value it promises (DNA Ch 5/33.2).
+- **Innovation principles.** Innovation is judged by whether it strengthens the AI Workforce model, creates measurable value, avoids unnecessary duplication, maintains simplicity, and increases trust (DNA Ch 33.1; Ch 24).
+- **Responsible innovation.** Innovation never crosses the platform boundaries (DNA Ch 32) — never trades trust, security, isolation, transparency, or human accountability for capability (DNA Ch 18/29/30).
+- **Innovation governance.** New capability enters only through the decision framework and, where it would touch the entrenched core, only through the Amendment Process (DNA Ch 24/35; Part IV §IV-43 change governance).
+
+**CURRENT STATE (IMPLEMENTED, as governance).** The innovation gate is the LOCKED decision framework and success principle (DNA Ch 24/33; §III-84), reinforced by Part IV change governance and continuous improvement (§IV-43/§IV-52). It is IMPLEMENTED as governance; instrumented innovation processes are Part VI.
+
+**APPROVED FUTURE STATE.** Innovation remains permanent, purpose-serving, and governed; it deepens under the same gate and boundaries (DNA Ch 24/32/33). Direction approved; execution is Part VI.
+
+**Dependencies.** Part II (DNA Ch 5/18/24/29/30/32/33/35); Part IV (§IV-43/52); Phase 5.1 (V-5); Part VI.
+
+**Traceability.** DNA Ch 24/32/33/35 · Part IV §IV-43/52 · Objective: governed, responsible innovation · Modules: governance/all · Workflow: §III-84 · Engines: deterministic · AI: gateway · Roadmap: innovation process (Part VI).
+
+---
+
+## V-22 — Research Strategy
+
+**Purpose.** Describe, at high level, Cortex's enduring approach to research, continuous learning, evaluation of emerging technology, and knowledge acquisition.
+
+**Why it exists.** A platform whose differentiator is intelligence must learn continuously or fall behind. This section fixes the *philosophy* of research so learning stays disciplined, purpose-driven, and honest (DNA Ch 17/33).
+
+**Scope.** Research philosophy and priorities at a high level. Not research projects, not lab structure, not staffing, not budgets.
+
+**Research direction.**
+- **Research priorities.** Research serves the mission — deepening diagnosis, quantification, prioritization, planning, execution, and measurement, and advancing the workforce model (DNA Ch 6/8; §III-2). Priority follows purpose, not fashion.
+- **Continuous learning.** Cortex learns from outcomes and from its memory of each business, feeding reality back into judgment (DNA Ch 19; §III-25 outcomes).
+- **Evaluation of emerging technologies.** Emerging technology is evaluated against the decision framework and boundaries before adoption — capability alone is never sufficient reason (DNA Ch 24/32).
+- **Knowledge acquisition philosophy.** Knowledge is acquired, curated, and governed under Part IV knowledge governance and AI memory principles (§IV-32/§IV-42).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: an outcomes/QBR loop that feeds measured reality back (§III-21/25) and engineering memory artifacts (`memory/*`). PARTIAL: systematic evaluation of emerging technology is exercised through the gateway's provider-agnostic design (§III-17). NOT IMPLEMENTED: a formal research function or knowledge-acquisition program.
+
+**APPROVED FUTURE STATE.** Research matures as a disciplined, purpose-driven learning capability governed by the decision framework and knowledge governance (DNA Ch 17/19/24; Part IV §IV-32/42). High-level direction only; programs are Part VI.
+
+**Dependencies.** Part III (§III-17/21/25); Part IV (§IV-32/42); DNA Ch 6/17/19/24/32.
+
+**Traceability.** DNA Ch 17/19/24/32 · Part IV §IV-32/42 · Objective: disciplined continuous learning · Modules: outcomes/knowledge/gateway · Workflow: §III-30 · Engines: dashboard/portfolio · AI: gateway · Roadmap: research function (Part VI).
+
+---
+
+## V-23 — Technology Evolution Principles
+
+**Purpose.** Document how Cortex evaluates and adopts new technologies over the long horizon, as principle rather than implementation.
+
+**Why it exists.** Technology changes faster than identity. Cortex needs durable rules for adopting AI advances, infrastructure, and standards without churn or lock-in (DNA Ch 22/23). This section fixes those rules.
+
+**Scope.** Technology adoption principles: AI advances, infrastructure evolution, standards, interoperability, future compatibility. No products, no vendors, no versions, no implementation.
+
+**Technology adoption direction.**
+- **AI advances.** Adopted through the provider-agnostic gateway so capability improves without coupling correctness to any provider, and never overriding authoritative math (DNA Ch 17; §III-1/17).
+- **Infrastructure evolution.** Adopted additively, preserving isolation, sovereignty, and recoverability; no rebuild without cause (DNA Ch 20/22; §III-37).
+- **Standards adoption & interoperability.** Cortex favors open standards and clean interfaces so it interoperates without lock-in (Part IV §IV-10).
+- **Future compatibility.** Change is versioned, attributed, and logged, preserving integrity under change (DNA Ch 23/30.4; §III-74/75).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: provider-agnostic gateway and manifest-governed composition enable low-churn adoption (§III-1/17/26); versioned change discipline exists (§III-74/75). PARTIAL: standards/interoperability posture is partial (§III-36). NOT IMPLEMENTED: a formal technology-evaluation standard beyond the constitutional gate.
+
+**APPROVED FUTURE STATE.** Technology is adopted additively, provider-agnostically, standards-favoring, and future-compatible, under the same governance (DNA Ch 17/22/23; Part IV §IV-10). Principles only; adoption decisions are Part VI.
+
+**Dependencies.** Part III (§III-1/17/26/37/74/75); Part IV (§IV-10); DNA Ch 17/20/22/23/30.
+
+**Traceability.** DNA Ch 17/22/23/30 · Part IV §IV-10 · Objective: low-churn, lock-in-free adoption · Modules: gateway/manifest/edge · Workflow: §III-74 · Engines: version engine · AI: gateway · Roadmap: adoption standard (Part VI).
+
+---
+
+## V-24 — Strategic Partnership Vision
+
+**Purpose.** Describe the enduring philosophy for partnerships and ecosystem participation — technology, enterprise, academic, and industry — as strategic direction.
+
+**Why it exists.** No platform succeeds alone over a decade. Partnerships extend reach and capability, but only if they preserve trust, governance, and identity (DNA Ch 29/32). This section fixes the philosophy.
+
+**Scope.** Partnership philosophy across partner types and ecosystem participation. Not partner programs, not contracts, not vendor selection, not procurement.
+
+**Partnership direction.**
+- **Technology partners.** Engaged through provider-agnostic, governed interfaces so no partner becomes a single point of correctness or lock-in (§III-17; DNA Ch 17).
+- **Enterprise partners.** Relationships deepen as long-term, trust-first partnerships that serve customer outcomes (DNA Ch 33.2 §3/§8).
+- **Academic & industry collaboration.** Collaboration advances the general method and responsible AI without compromising isolation, sovereignty, or transparency (DNA Ch 19/20/30).
+- **Ecosystem participation.** Cortex participates as a governed, interoperable platform (V-18), never weakening integrity boundaries for reach (DNA Ch 22/29).
+
+**CURRENT STATE (PARTIAL / NOT IMPLEMENTED).** IMPLEMENTED: governed technology integration via the gateway (§III-17/36). PARTIAL: enterprise relationships are expressed through the client lifecycle (§III-28). NOT IMPLEMENTED: formal academic/industry collaboration or a partner ecosystem program.
+
+**APPROVED FUTURE STATE.** Partnerships mature across all types under trust-first, governance-preserving principles and governed interoperability (DNA Ch 29/32; V-18). Philosophy only; programs are Part VI.
+
+**Dependencies.** Part III (§III-28/36); Part V (V-18); DNA Ch 17/19/20/29/30/32.
+
+**Traceability.** DNA Ch 29/30/32 · Objective: trust-preserving partnerships · Modules: integrations/gateway/CRM · Workflow: §III-17/36 · Engines: n/a · AI: gateway · Roadmap: partner ecosystem (Part VI).
+
+---
+
+## V-25 — Market Leadership Strategy
+
+**Purpose.** Describe how Cortex intends to remain a trusted market leader over the long horizon — through the qualities that earn leadership, not tactics.
+
+**Why it exists.** Leadership is earned and re-earned. This section fixes the durable sources of leadership so strategy is anchored in trust and outcomes, not in feature races (DNA Ch 33.3).
+
+**Scope.** The enduring sources of market leadership as principle. No metrics, no campaigns, no pricing, no go-to-market plans.
+
+**Leadership direction.**
+- **Trust.** Trust is the north-star of leadership; when it falls, nothing else compensates (DNA Ch 33.2 §3; Phase 5.1 V-4).
+- **Quality & customer outcomes.** Leadership rests on real, measurable outcomes and on explainable, auditable quality (DNA Ch 33.2 §1/§7).
+- **Operational excellence.** Reliability, security, and disciplined operation sustain leadership (Part IV §IV-54 operational excellence; §IV-51 operational health).
+- **Continuous innovation.** Leadership is renewed by governed, purpose-serving innovation (V-21), never by imitation or spectacle (DNA Ch 33.3).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED (as standard): the constitutional success dimensions and Part IV operational-excellence principles govern what leadership means (DNA Ch 33; §IV-54). PARTIAL: outcome and operational-health surfaces exist and are maturing (§III-25/62/63). NOT IMPLEMENTED: instrumented leadership measures (excluded here by rule; Part VI).
+
+**APPROVED FUTURE STATE.** Leadership is sustained through trust, quality, outcomes, operational excellence, and governed innovation — permanent sources, deepened over time (DNA Ch 33; Part IV §IV-51/54). Principles only; measurement and execution are Part VI.
+
+**Dependencies.** Part III (§III-25/62/63); Part IV (§IV-51/54); Phase 5.1 (V-4/V-9); DNA Ch 33.
+
+**Traceability.** DNA Ch 33 · Part IV §IV-51/54 · Objective: earned, durable leadership · Modules: outcomes/health/all · Workflow: §III-30 · Engines: dashboard aggregator · AI: narrate · Roadmap: leadership measures (Part VI).
+
+---
+
+## V-26 — Global Expansion Vision
+
+**Purpose.** Describe the long-term global strategy as architecture — geographic and industry reach, enterprise adoption, localization, and regulatory adaptability — without go-to-market planning.
+
+**Why it exists.** The method is industry-general and the mission is not confined to one region (DNA Ch 6/31). This section fixes how reach may expand while governance, isolation, and sovereignty stay intact (DNA Ch 32).
+
+**Scope.** Global expansion as architectural direction. Not target markets, not sales plans, not localization projects, not regulatory filings.
+
+**Expansion direction.**
+- **Geographic & industry expansion.** Reach expands across regions and industries under one general method and one governance model (DNA Ch 31; Phase 5.1 V-8).
+- **Enterprise adoption.** The platform scales from a first-time owner's diagnostic to a large enterprise's full operating platform without forcing graduation through complexity (DNA Ch 14; §III-3).
+- **Localization philosophy.** Localization adapts language and context while preserving the single method and identity (DNA Ch 8/31).
+- **Regulatory adaptability.** The platform adapts to regional regulation through data sovereignty, consent, and compliance governance, never trading trust for entry (DNA Ch 20/25.6; Part IV §IV-41; §III-44).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: industry-general method and industry-selectable diagnostic (§III-2/5). PARTIAL: data-sovereignty/consent tooling and compliance governance are approved-future/maturing (§III-44; §IV-41). NOT IMPLEMENTED: multi-region deployment, localization, and broad enterprise-scale adoption.
+
+**APPROVED FUTURE STATE.** Reach expands across geographies and industries under one method and governance model, with localization and regulatory adaptability preserving trust (DNA Ch 20/31/32; Part IV §IV-41). Architecture only; execution is Part VI.
+
+**Dependencies.** Part III (§III-2/3/44/54); Part IV (§IV-41); Phase 5.1 (V-8); DNA Ch 20/31/32.
+
+**Traceability.** DNA Ch 20/31/32 · Part IV §IV-41 · Objective: governed global reach · Modules: diagnostic/tenancy/compliance · Workflow: §III-9/44 · Engines: repositories, rule packs · AI: gateway · Roadmap: regions/localization (Part VI).
+
+---
+
+## V-27 — Competitive Strategy Principles
+
+**Purpose.** Document the enduring principles by which Cortex maintains competitive advantage — differentiation grounded in customer value and integrity, not imitation.
+
+**Why it exists.** Competitive pressure tempts platforms toward imitation, feature races, and shortcuts that erode trust. This section fixes principled sources of advantage that hold under pressure (DNA Ch 33.3, Ch 32).
+
+**Scope.** Competitive principles. No competitor analysis, no positioning tactics, no pricing, no campaigns.
+
+**Competitive direction.**
+- **Differentiation.** Cortex differentiates as an AI Workforce that produces measurable outcomes with effortless simplicity — a category it defines, not one it chases (Phase 5.1 V-3; DNA Ch 8).
+- **Sustainable advantage.** Advantage compounds through trust, compounding memory, and the coordinated workforce — sources that deepen with the relationship and resist imitation (DNA Ch 19; Ch 33.2 §6).
+- **Customer value first.** Every competitive choice is judged by customer outcome, never by matching a rival feature-for-feature (DNA Ch 5/33.1).
+- **Innovation over imitation; ethical competition.** Cortex leads by governed innovation and competes ethically and honestly, never trading integrity for advantage (DNA Ch 30/33.3).
+
+**CURRENT STATE (IMPLEMENTED, as principle).** These are LOCKED constitutional standards (DNA Ch 8/33) already governing the Blueprint's decisions. IMPLEMENTED as principle; competitive execution is out of scope for Part V.
+
+**APPROVED FUTURE STATE.** Advantage is sustained through differentiation, compounding trust/memory, customer value, and ethical, innovation-led competition — permanent principles (DNA Ch 8/19/30/33). Principles only; execution is Part VI.
+
+**Dependencies.** Phase 5.1 (V-3/V-4); Part III (§III-1); DNA Ch 5/8/19/30/33.
+
+**Traceability.** DNA Ch 8/19/30/33 · Objective: durable, ethical advantage · Modules: all · Workflow: §III-1 · Engines: orchestra · AI: gateway · Roadmap: n/a (principle) · Part VI for execution.
+
+---
+
+## V-28 — Future Risk & Resilience Vision
+
+**Purpose.** Describe Cortex's strategic resilience — how it endures technology disruption, market change, AI evolution, regulatory change, and organizational change — as principle.
+
+**Why it exists.** A decade brings disruption. Resilience must be designed as direction, not improvised in crisis (Part IV §IV-39 risk governance). This section fixes the resilience posture.
+
+**Scope.** Strategic resilience as principle. No incident plans, no DR runbooks, no continuity procedures, no timelines.
+
+**Resilience direction.**
+- **Technology disruption.** Provider-agnostic, additive, standards-favoring adoption keeps Cortex resilient to shifts in AI and infrastructure (V-23; DNA Ch 17/22).
+- **Market change.** The industry-general method and trust-first model let Cortex adapt across markets without abandoning identity (DNA Ch 31; Ch 8).
+- **AI evolution.** "Math decides; AI narrates," provider-agnosticism, and AI governance keep Cortex safe as AI advances (DNA Ch 17; Part IV §IV-29).
+- **Regulatory change.** Data sovereignty, consent, and compliance governance provide adaptability to new regulation (DNA Ch 20/25.6; Part IV §IV-41).
+- **Organizational adaptability.** The enterprise maturity model and continuous improvement keep the organization able to adapt (Part IV §IV-52/§IV-53).
+
+**CURRENT STATE (PARTIAL).** IMPLEMENTED: provider-agnostic gateway, deterministic core, versioned change, and Part IV risk/compliance governance frameworks (§III-17/74; §IV-39/41). PARTIAL: DR/backup and resilience tooling are approved-future/maturing (§III-66/67). NOT IMPLEMENTED: a fully instrumented resilience program.
+
+**APPROVED FUTURE STATE.** Resilience matures across all five vectors under the same governance and identity, adaptable without rebuild (DNA Ch 17/20/22/31; Part IV §IV-39/41/52/53). Direction only; execution is Part VI.
+
+**Dependencies.** Part III (§III-17/66/67/74); Part IV (§IV-39/41/52/53); DNA Ch 17/20/22/31.
+
+**Traceability.** DNA Ch 17/20/22/31 · Part IV §IV-39/41/52/53 · Objective: durable strategic resilience · Modules: gateway/data/governance · Workflow: §III-74 · Engines: version, migration · AI: gateway · Roadmap: resilience program (Part VI).
+
+---
+
+## V-29 — Long-Term Strategic Commitments
+
+**Purpose.** Define the enduring commitments Cortex holds regardless of era — the promises that outlast any strategy, technology, or market.
+
+**Why it exists.** Strategy changes; commitments must not. This section records the permanent commitments so every future decision is bound by them (DNA Ch 25/35).
+
+**Scope.** Enduring commitments as principle. No metrics, no programs, no plans.
+
+**Enduring commitments.**
+- **Trust.** Trust is the paramount commitment; it is never traded for speed, revenue, or reach (DNA Ch 33.2 §3, Ch 32).
+- **Human accountability.** Humans remain in control of high-consequence decisions; Cortex never claims autonomy beyond granted authority (DNA Ch 18; Part IV §IV-28).
+- **Product excellence.** Measurable outcomes, quality, and explainability are non-negotiable (DNA Ch 33.2 §1/§7).
+- **Responsible AI.** AI is honest about being AI, governed, safe, and never overrides authoritative math (DNA Ch 17/30; Part IV §IV-29/33).
+- **Sustainable growth.** Growth is additive and durable; capability compounds while experienced complexity does not (DNA Ch 23/33.2 §5).
+- **Continuous improvement.** Cortex improves continuously under governance, learning from measured reality (Part IV §IV-52; DNA Ch 19).
+
+**CURRENT STATE (IMPLEMENTED, as constitution).** Every commitment is LOCKED in Part II and reinforced in Part IV, and already governs the Blueprint (DNA Ch 17/18/23/30/32/33; §IV-28/29/33/52). IMPLEMENTED as governing commitment; their in-product enforcement is IMPLEMENTED in parts and maturing in others (§III-31 onward).
+
+**APPROVED FUTURE STATE.** The commitments are permanent and bind all future strategy and execution; future work strengthens their enforcement (DNA Ch 25/35). No new commitment is introduced by Part V beyond the constitutional set.
+
+**Dependencies.** Part II (DNA Ch 17/18/23/25/30/32/33/35); Part IV (§IV-28/29/33/52); Phase 5.1 (V-5/V-9).
+
+**Traceability.** DNA Ch 17/18/23/30/32/33 · Part IV §IV-28/29/33/52 · Objective: permanent, binding commitments · Modules: all · Workflow: §III-84/85 · Engines: deterministic + governance · AI: gateway · Roadmap: enforcement (Part VI).
+
+---
+
+## V-30 — Phase Summary
+
+**Purpose.** Close Phase 5.3 by consolidating its purpose, key decisions, current state, approved future state, dependencies, and traceability into one enterprise summary.
+
+**Purpose of Phase 5.3.** To define how MARQ Cortex sustains long-term innovation, adapts to change, and maintains strategic leadership — as enduring principles for innovation, research, technology adoption, partnerships, market leadership, global reach, competition, resilience, and long-term commitments — strictly separated from R&D roadmaps, backlogs, budgets, hiring, and implementation (Part VI and future operational documentation).
+
+**Key Decisions.**
+1. Innovation is purpose-serving, governed, and responsible — judged by the success principle, bounded by the platform boundaries (V-21).
+2. Research and technology adoption are disciplined, provider-agnostic, standards-favoring, and low-churn (V-22/V-23).
+3. Partnerships and ecosystem participation are trust-first and governance-preserving (V-24).
+4. Market leadership rests on trust, quality, outcomes, operational excellence, and governed innovation — not feature races (V-25).
+5. Global expansion is industry-general and governance-preserving, with localization and regulatory adaptability (V-26).
+6. Competitive advantage is principled and durable — differentiation, compounding trust/memory, customer value, innovation over imitation, ethical competition (V-27).
+7. Resilience is designed across technology, market, AI, regulatory, and organizational change (V-28); enduring commitments bind all future strategy (V-29).
+
+**Current State.** Grounded in the LOCKED Blueprint and repository: IMPLEMENTED (as governance/standard) — the decision framework, success dimensions, and Part IV governance/operational-excellence principles that govern innovation, leadership, competition, and commitments (DNA Ch 24/33; §IV-29/39/41/43/52/54). PARTIAL — outcome/health surfaces, sovereignty/compliance tooling, and resilience tooling are present and maturing (§III-25/44/62/66). NOT IMPLEMENTED — formal research, partner-ecosystem, multi-region, and instrumented leadership/resilience programs (Part VI).
+
+**Approved Future State.** Innovation, research, adoption, partnerships, leadership, expansion, competition, and resilience mature under permanent, purpose-serving principles and unchanged commitments (DNA Ch 24/32/33; Part IV §IV-29/41/52/54). Direction is approved; all programs, sequencing, and execution are deferred to Part VI.
+
+**Dependencies.** Part II (Constitution) as governing authority; Part III as the current-state record; Part IV — AI Company Architecture (LOCKED) as the organizational architecture; Phases 5.1 and 5.2 as the vision and evolution this phase serves; Part VI — Execution Roadmap (PLANNED) for execution.
+
+**Traceability.** DNA Ch 5/6/8/17/18/19/20/22/23/24/25/29/30/31/32/33/35 · Part IV §IV-10/28/29/32/39/41/43/51/52/53/54 · Objective: sustained innovation & durable leadership · Modules: all · Workflow: §III-30/84 · Engines: deterministic + governance · AI: Intelligence Gateway (narration) · Roadmap: Part VI (PLANNED).
+
+---
+
+*End of Phase 5.3 (Sections V-21 through V-30). Part V remains IN PROGRESS and is not reviewed or locked in this phase. Phase 5.4 is not begun.*
+
+---
+
+## Phase 5.4 — Enterprise Review, Audit & Lock
+
+**Status:** COMPLETE · **Phase:** 5.4 — Enterprise Review, Audit & Lock · **Scope:** Full enterprise audit of Part V — Sections V-1 through V-30 (Phases 5.1–5.3) · **Continuity:** appends after Phase 5.3; the Part V reading conventions govern. This phase reviews and locks Part V; it authors no new strategic sections.
+
+*This phase performs a complete enterprise audit of Part V against the Master Blueprint rules, the Constitution (Part II), the Product Blueprint (Part III), and the AI Company Architecture (Part IV). On passing, it records the official approval and locks Part V. It introduces no new vision, expands no scope, and adds no strategic initiative; the only changes it makes to Phases 5.1–5.3 are the verified cross-reference corrections recorded in §5.4.3.*
+
+### 5.4.1 — Audit Scope & Method
+
+Every section from V-1 through V-30 was reviewed against the 18-point enterprise audit checklist. Cross-references were verified mechanically: every `§III-N`, `§IV-N`, `V-N`, and `DNA Ch N` citation in Part V was resolved against the actual section and chapter headers of the LOCKED Parts (Part III §III-1…§III-88, Part IV §IV-1…§IV-55, Constitution Chapters 1–37, Part V §V-1…§V-30). CURRENT STATE claims were checked for grounding in repository evidence or previously LOCKED Blueprint; APPROVED FUTURE STATE was checked for explicit identification; and the text was checked for roadmap and implementation leakage against the Part V boundary rules.
+
+### 5.4.2 — Audit Checklist Results
+
+| # | Audit item | Result |
+|---|------------|--------|
+| 1 | No missing strategic sections (V-1 → V-30 continuous) | **PASS** |
+| 2 | No duplicated concepts (overlaps are cross-referenced, not repeated) | **PASS** |
+| 3 | No conflicting vision statements | **PASS** |
+| 4 | No conflicting strategic direction | **PASS** |
+| 5 | No contradictions with Part I | **PASS** |
+| 6 | No contradictions with Part II (Constitution) | **PASS** |
+| 7 | No contradictions with Part III (Product Blueprint) | **PASS** |
+| 8 | No contradictions with Part IV (AI Company Architecture) | **PASS** |
+| 9 | CURRENT STATE grounded in repository and LOCKED Blueprint | **PASS** |
+| 10 | APPROVED FUTURE STATE clearly identified | **PASS** |
+| 11 | Traceability complete | **PASS** |
+| 12 | Cross-references valid | **PASS** *(after §5.4.3 corrections)* |
+| 13 | Strategic vision aligns with the Cortex Constitution | **PASS** |
+| 14 | Future Vision aligns with the Product Blueprint | **PASS** |
+| 15 | Future Vision aligns with the AI Company Architecture | **PASS** |
+| 16 | No implementation details leaked into Part V | **PASS** |
+| 17 | No roadmap content leaked into Part V | **PASS** |
+| 18 | No unresolved strategic gaps | **PASS** |
+
+**No strategic gap was found.** Part V is complete, internally consistent, and constitutionally aligned. The single audit finding was a cross-reference defect (item 12), corrected in §5.4.3 as permitted for a verified correction required by the audit. No vision was redesigned, no scope expanded, and no strategic initiative introduced.
+
+### 5.4.3 — Corrections Applied (Audit-Required)
+
+The audit found a systematic cross-reference defect: several Part V citations pointed to the wrong Part III section (a habit of citing §III-33/§III-34 for the Intelligence Gateway and component registry that propagated through Phases 5.1–5.3), plus a non-existent DNA subsection label. These are **pure pointer corrections** — no strategic content, wording of principle, CURRENT/FUTURE classification, or scope was changed. Parts I–IV remain byte-identical.
+
+| Intended referent | Incorrect citation | Corrected citation | Basis |
+|---|---|---|---|
+| Intelligence Gateway (provider-agnostic intelligence) | §III-33 | **§III-17** (AI Gateway) | §III-33 = *Background Jobs* |
+| Component / manifest architecture | §III-34 | **§III-26** (Component Inventory) | §III-34 = *Scheduled Processes* |
+| External integrations; standards & interoperability | §III-33 | **§III-36** (Integration Contracts) | §III-33 = *Background Jobs* |
+| Industry rule packs; industry diagnostic domains | §III-46 | **§III-54** (Business Rules) / **§III-5** (Business Domains) | §III-46 = *Billing* |
+| Accessibility / inclusive access | §III-56 | **§III-70** (Accessibility) | §III-56 = *Error Handling* |
+| Outcomes / ROI actuals / QBR loop | §III-24 | **§III-25** (Business Modules) / **§III-21** (Core Engines) | §III-24 = *System Modules* |
+| Purpose dimensions of Chapter 5 | DNA "Ch 5.1/5.2/5.3" | **DNA Ch 5** | Chapter 5 lists unnumbered dimensions |
+
+Forty-four citation tokens across roughly fifteen sections were corrected (1:1 replacements). Post-correction, every `§III-N`, `§IV-N`, `V-N`, and `DNA Ch N` reference in Part V resolves to an existing target.
+
+### 5.4.4 — Lock Conditions
+
+| Condition | Confirmed |
+|-----------|-----------|
+| Phase 5.1 complete | ✓ |
+| Phase 5.2 complete | ✓ |
+| Phase 5.3 complete | ✓ |
+| Continuous numbering (V-1 → V-30) | ✓ |
+| CURRENT STATE verified | ✓ |
+| APPROVED FUTURE STATE identified | ✓ |
+| Traceability complete | ✓ |
+| Cross-references valid | ✓ |
+| Constitutional alignment confirmed | ✓ |
+| Product Blueprint alignment confirmed | ✓ |
+| AI Company Architecture alignment confirmed | ✓ |
+| No roadmap leakage | ✓ |
+| No implementation leakage | ✓ |
+| No unresolved strategic gaps | ✓ |
+
+### 5.4.5 — Approval Record
+
+| Field | Value |
+|-------|-------|
+| **Part** | Part V — Strategic Future Vision |
+| **Scope** | Sections §V-1 through §V-30 (Phases 5.1–5.3) |
+| **Version** | 1.0 |
+| **Status** | **LOCKED** |
+| **Approval** | **APPROVED** |
+| **Strategic Vision Review** | **PASS** |
+| **Enterprise Architecture Alignment** | **PASS** |
+| **Repository Alignment** | **PASS** |
+| **Executive Review** | **PASS** |
+| **Audit checklist** | 18 / 18 PASS |
+| **Steward** | MARQ Networks |
+
+### 5.4.6 — Immutability
+
+**PART V — STRATEGIC FUTURE VISION — Status: LOCKED (Version 1.0, APPROVED).**
+
+Part V is now constitutionally settled. It is preserved as authored; §V-1 through §V-30 are not restated, summarized, or altered by any subsequent Part. Future modifications to Part V may occur **only through the formal Amendment Process** (DNA Ch 35) — ordinary amendment for non-entrenched content, and the heightened core-amendment process (DNA Ch 35.5–35.6) where a change would touch the entrenched core (identity, non-negotiables, the Human–AI Authority Doctrine, data sovereignty, or *Maximum Intelligence, Minimum Complexity*). Every such change must be versioned, attributed, and logged (DNA Ch 30.4). A silent or unlogged edit to Part V has no force.
+
+### 5.4.7 — Continuity
+
+Parts I, II, III, and IV remain LOCKED and unchanged. Part V is LOCKED as of this record. The Master Blueprint remains a single, continuous document; the next authoring phase is **Part VI — Execution Roadmap** (PLANNED), appended later with continuous numbering and formatting. **This phase does not begin Part VI.**
+
+*End of Part V. Part V is LOCKED.*
+
+---
+
 # PART VI — PHASE 6: EXECUTION ROADMAP
 
-**Status:** IN PROGRESS · **Numbering:** Sections VI-1 onward (continuing the single-document numbering after §IV-55; Part V — Future Vision remains PLANNED and unauthored, so no §V-NN sections yet exist) · **Continuity:** Part VI appends to the same Master Blueprint; numbering and formatting are continuous and are never restarted. Parts I–IV remain LOCKED and are neither modified, restated, nor contradicted here (Preservation rule; Golden Rules 1 and 8).
+**Status:** IN PROGRESS · **Numbering:** Sections VI-1 onward (continuing the single-document numbering after Part V, §V-1–§V-30) · **Continuity:** Part VI appends to the same Master Blueprint; numbering and formatting are continuous and are never restarted. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here (Preservation rule; Golden Rules 1 and 8).
 
 ## Reading conventions for Part VI
 
@@ -3298,7 +4172,7 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 - **Implementation labels.** CURRENT STATE is tagged **IMPLEMENTED**, **PARTIAL**, or **NOT IMPLEMENTED** (the Part III/IV convention, where IMPLEMENTED ≈ PROVEN). No capability is invented; nothing observed is normalized against the Constitution.
 - **Never invent.** Where a capability does not exist, it is marked NOT IMPLEMENTED and tied to its reserved future identity. Where the blueprint that a section would compare against is itself unauthored, that is stated plainly rather than assumed.
 
-**Note on Part V.** The task baseline for this phase names Parts I–V as the approved comparison surface. In the document as authored, **Parts I–IV are LOCKED and Part V — Future Vision is PLANNED but not yet written** (per the Part IV completion record and the organization table, §front-matter). Phase 6.1 therefore compares CURRENT STATE against the approved blueprint **as it exists today** — Parts I–IV (LOCKED) plus the Constitution — and treats the long-horizon strategic direction as it is currently carried: by the DNA (Part II, the constitutional source of vision and mission), by the APPROVED FUTURE STATE sections throughout Parts III–IV, and by `MARQ_CORTEX_ROADMAP.md`. Part V is recorded throughout as **NOT IMPLEMENTED (unauthored)**. This preserves traceability and invents nothing.
+**Note on Part V.** The task baseline for this phase names Parts I–V as the approved comparison surface. **Parts I–V are now authored and LOCKED** — Part V — Future Vision was integrated into the canonical blueprint after this phase was first drafted (§front-matter). Phase 6.1's assessment of CURRENT STATE was authored against the then-available blueprint — Parts I–IV (LOCKED) plus the Constitution — reading the long-horizon strategic direction from the DNA (Part II, the constitutional source of vision and mission), the APPROVED FUTURE STATE sections throughout Parts III–IV, and `MARQ_CORTEX_ROADMAP.md`; that direction is now consolidated in the authored Part V. The strategic direction is therefore documented (Part V LOCKED); what remains **NOT IMPLEMENTED** is its runtime realization. This preserves traceability and invents nothing.
 
 **What this phase is not.** Phase 6.1 is not a sprint plan, not a delivery schedule, and not a backlog. It defines no milestones, tasks, assignments, budgets, hiring, timelines, or technical implementation. Those belong to later Part VI phases (6.2 onward). This phase ends at §VI-10 and neither begins Phase 6.2 nor locks Part VI.
 
@@ -3316,14 +4190,14 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 
 **Why it exists.** Execution cannot be sequenced honestly until the starting point is fixed. This section states, at the executive altitude, how far the realized system has traveled toward the approved architecture — so that every later gap, dependency, and principle is read against a settled baseline rather than an aspiration.
 
-**Scope.** The whole system at a glance: product (Part III), enterprise/AI-company architecture (Part IV), and strategic readiness (the DNA and the future-state sections, standing in for the unauthored Part V). No section-by-section detail — that follows in §VI-2 through §VI-4.
+**Scope.** The whole system at a glance: product (Part III), enterprise/AI-company architecture (Part IV), and strategic readiness (the DNA and the future-state sections, now consolidated in the authored Part V). No section-by-section detail — that follows in §VI-2 through §VI-4.
 
 **Current State (PARTIAL).** MARQ Cortex today is a **substantially implemented product on a settled constitutional and architectural foundation, operating as a single-operator (Startup-shape) enterprise, with data-authority migration and the AI-workforce runtime still ahead.**
 - **IMPLEMENTED.** The deterministic product core exists: 37 engines in `src/app/core/` (scoring, decision, portfolio, ROI/DCF/IRR/Monte-Carlo/scenario/cost/cashflow, proposal-gate, snapshot/version/export, contract, execution/scope/template, ROI-actuals, QBR, CRM, copilot/AI-assist/objection), a 171-node component manifest (`src/system/manifest.ts`), the full pre-sale → post-sign journey routes (`src/app/pages/`), the Intelligence Gateway with live provider adapters (`supabase/functions/server/intelligence/`), the CORTEX AI surfaces (chat, narrative, analysis, copilot-patch, block-assist, proposal-section copilot), a repository layer and KV store, a migration engine with CLI, and system memory (`memory/`). Governance doctrine is settled and LOCKED (Constitution → Blueprint → Operating Constitution → sprint criteria → verified behavior).
 - **PARTIAL.** Relational schema, RLS, and tenancy migrations exist, but **KV remains the runtime storage authority**; SQL cutover is in progress (roadmap Phase 4/5, currently S7.4 Outcome Shadow Read). The Intelligence Gateway is live single-provider; multi-provider/agent orchestration is future. Multi-tenant isolation is defined (RLS) but not yet the enforced runtime authority.
-- **NOT IMPLEMENTED.** The Part IV **AI Workforce as a runtime** (executives, departments, managers, AI workers) — reserved to the `ai_worker` future identity; enterprise performance instrumentation and formal KPIs (§IV-46–§IV-55 record raw signals plus the constitutional success standard); and **Part V — Future Vision** (unauthored).
+- **NOT IMPLEMENTED.** The Part IV **AI Workforce as a runtime** (executives, departments, managers, AI workers) — reserved to the `ai_worker` future identity; enterprise performance instrumentation and formal KPIs (§IV-46–§IV-55 record raw signals plus the constitutional success standard); and the **runtime realization of Part V — Future Vision** (the long-horizon direction is now authored and LOCKED in Part V; its realization is future work).
 
-**Approved Future State.** The additive realization of the approved blueprint: SQL as authoritative data plane under enforced multi-tenancy; multi-provider/agent intelligence; progressive standing-up of the AI workforce against the reserved identity; and instrumented enterprise performance — each delivered without rebuild and subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 23, Ch 33). Authoring of Part V and later Part VI phases completes the approved comparison surface.
+**Approved Future State.** The additive realization of the approved blueprint: SQL as authoritative data plane under enforced multi-tenancy; multi-provider/agent intelligence; progressive standing-up of the AI workforce against the reserved identity; and instrumented enterprise performance — each delivered without rebuild and subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 23, Ch 33). The authored Part V and later Part VI phases complete the approved comparison surface.
 
 **Dependencies.** Parts I–IV (LOCKED) as the grounding record; the Constitution (`CORTEX_DNA_v1.0.md`); `MARQ_CORTEX_ROADMAP.md` for runtime authority; §VI-2 through §VI-9 for the detail beneath this summary.
 
@@ -3391,22 +4265,22 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 
 ## VI-4 — Current Strategic Readiness
 
-**Purpose.** To assess readiness against the strategic direction that would be defined in Part V.
+**Purpose.** To assess readiness against the strategic direction defined in Part V.
 
-**Why it exists.** A gap analysis must weigh how ready the realized system is for its approved long-horizon direction. Because Part V is unauthored, this section is explicit about *what* strategic direction it measures against, so readiness is grounded and not fabricated.
+**Why it exists.** A gap analysis must weigh how ready the realized system is for its approved long-horizon direction. Because Part V was authored after this section was first drafted, this section is explicit about *what* strategic direction it measures against, so readiness is grounded and not fabricated.
 
-**Scope.** Long-horizon strategic readiness. Because **Part V — Future Vision is NOT IMPLEMENTED (unauthored)**, the strategic direction is read from its current constitutional carriers: the DNA (Part II — vision, mission, product/AI philosophy, progressive AI-company doctrine), the APPROVED FUTURE STATE sections throughout Parts III–IV, and `MARQ_CORTEX_ROADMAP.md`.
+**Scope.** Long-horizon strategic readiness. The strategic direction — now consolidated in the authored and LOCKED **Part V — Future Vision** — is read from its constitutional carriers: the DNA (Part II — vision, mission, product/AI philosophy, progressive AI-company doctrine), the APPROVED FUTURE STATE sections throughout Parts III–IV, and `MARQ_CORTEX_ROADMAP.md`.
 
 **Current State.**
-- **Part V — Future Vision: NOT IMPLEMENTED (unauthored).** It exists only as a PLANNED placeholder in the organization table; no §V-NN content has been written (§front-matter; Part IV completion record).
+- **Part V — Future Vision: AUTHORED & LOCKED.** Sections §V-1–§V-30 are written and locked, so the long-horizon direction is now an explicit blueprint surface (§front-matter). Its *runtime realization* remains future work.
 - **Strategic direction (as currently carried): IMPLEMENTED as constitutional intent.** The DNA fixes identity, mission, and the "Maximum Intelligence, Minimum Complexity" north-star, and approves the AI-company as progressive-yet-approved (DNA Ch 8.3). This direction is settled and LOCKED.
 - **Strategic *readiness* of the realized system: PARTIAL.** The deterministic product core and constitutional foundation are strong footing for the approved direction (IMPLEMENTED substrate, §VI-2). The two pillars the long horizon most depends on — an authoritative, multi-tenant SQL data plane and a standing AI workforce — are respectively **PARTIAL** (KV-authoritative, SQL cutover in progress) and **NOT IMPLEMENTED** (reserved identity). Enterprise instrumentation to steer strategy is **NOT IMPLEMENTED** (§IV-46–§IV-55).
 
-**Approved Future State.** Authoring of Part V — Future Vision to make the long-horizon direction explicit and comparable, followed by additive realization: SQL authority, enforced tenancy, multi-provider/agentic intelligence, and the AI workforce — each subordinate to the constitutional success test (DNA Ch 33). Until Part V is authored, the DNA and Parts III–IV future-state sections remain the authoritative strategic surface.
+**Approved Future State.** With Part V — Future Vision now authored and LOCKED, the long-horizon direction is explicit and comparable; realization follows additively: SQL authority, enforced tenancy, multi-provider/agentic intelligence, and the AI workforce — each subordinate to the constitutional success test (DNA Ch 33). The authored Part V, together with the DNA and Parts III–IV future-state sections, is the authoritative strategic surface.
 
-**Dependencies.** Part II (DNA, strategic source); Parts III–IV future-state sections; `MARQ_CORTEX_ROADMAP.md`; authoring of Part V; §VI-2 and §VI-3.
+**Dependencies.** Part II (DNA, strategic source); Parts III–IV future-state sections; `MARQ_CORTEX_ROADMAP.md`; the authored Part V; §VI-2 and §VI-3.
 
-**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 3/4/5/8/8.3/33 (mission/vision/philosophy/north-star). Part III: §III-59, §III-79, §III-80 (future-state/debt paths). Part IV: §IV-53 (maturity), §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md`; front-matter organization table (Part V PLANNED).
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 3/4/5/8/8.3/33 (mission/vision/philosophy/north-star). Part III: §III-59, §III-79, §III-80 (future-state/debt paths). Part IV: §IV-53 (maturity), §IV-46–§IV-55. Part V: §V-1–§V-30 (authored long-horizon direction). Roadmap: `MARQ_CORTEX_ROADMAP.md`; front-matter organization table (Part V LOCKED).
 
 ---
 
@@ -3426,7 +4300,7 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 - **G4 — AI Workforce runtime gap (NOT IMPLEMENTED).** The Part IV executive/department/manager/worker runtime does not exist; reserved to the `ai_worker` identity. *Category: Enterprise / AI.*
 - **G5 — Enterprise performance instrumentation gap (NOT IMPLEMENTED).** No formal KPIs, AI-performance evaluation, unified health framework, or scorecards; raw signals plus constitutional success standard only. *Category: Operations / Performance.*
 - **G6 — External integration gap (PARTIAL/NOT IMPLEMENTED).** CRM sync, e-sign, scheduling, and comparable third-party integrations are specified but not live. *Category: Third-party services / Product.*
-- **G7 — Strategic-surface gap (NOT IMPLEMENTED).** Part V — Future Vision is unauthored; the long-horizon direction is carried only by the DNA and future-state sections. *Category: Governance / Documentation.*
+- **G7 — Strategic-surface gap (RESOLVED — documentation axis).** Part V — Future Vision is now authored and LOCKED (§V-1–§V-30), so the long-horizon direction is an explicit blueprint surface rather than one carried only by the DNA and future-state sections; the residual gap is its *runtime realization*, tracked under the AI-workforce and data-authority gaps. *Category: Governance / Documentation.*
 - **G8 — Maturity gap (PARTIAL).** The enterprise operates at the Startup shape; the Growth→Enterprise→Global→AI-native stages are approved but not realized (§IV-53). *Category: Organizational.*
 
 **Approved Future State.** Each gap has an approved destination already recorded in the LOCKED blueprint and roadmap; closing them is additive and constitution-subordinate. This section fixes the inventory only — prioritization, sequencing, and mitigation are deferred to later Part VI phases.
@@ -3453,9 +4327,9 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 - **Security.** Supabase auth, RLS policies, anon-policy hardening, tenant isolation — **PARTIAL**; the gating dependency for G2.
 - **Operations.** Execution rules, test protocol, roadmap discipline, and system memory — **IMPLEMENTED** as governing process; instrumentation for enterprise operations — **NOT IMPLEMENTED** (gates G5).
 - **Third-party services.** LLM provider(s), and future CRM/e-sign/scheduling integrations — **PARTIAL/NOT IMPLEMENTED** (gates G6).
-- **Governance / documentation.** The LOCKED Constitution and Parts I–IV; authoring of Part V — **NOT IMPLEMENTED** (gates G7).
+- **Governance / documentation.** The LOCKED Constitution and Parts I–V; Part V — Future Vision is now authored and LOCKED (G7 resolved on the documentation axis).
 
-**Approved Future State.** Each dependency class matures additively to unblock its gaps — authoritative SQL, enforced tenancy, multi-provider AI, instrumented operations, live integrations, and an authored Part V — without violating existing platform, API, auth, or tenancy contracts (Execution Rules; DNA Ch 8.3).
+**Approved Future State.** Each dependency class matures additively to unblock its gaps — authoritative SQL, enforced tenancy, multi-provider AI, instrumented operations, and live integrations — building toward the direction now authored and LOCKED in Part V, without violating existing platform, API, auth, or tenancy contracts (Execution Rules; DNA Ch 8.3).
 
 **Dependencies.** §VI-2–§VI-5 (what each dependency gates); §VI-7 (readiness to act on them); §VI-8 (constraints).
 
@@ -3476,7 +4350,7 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 - **Product — IMPLEMENTED/PARTIAL.** The core journey and engines are live; integration breadth and analytics maturation remain (§VI-2).
 - **Operations — PARTIAL.** Sprint/roadmap discipline, execution rules, test protocol, and system memory operate; enterprise operational instrumentation does not (§IV-46–§IV-55).
 - **AI — PARTIAL.** Gateway and CORTEX surfaces are live single-provider; multi-provider/agentic readiness and the workforce runtime are ahead (§VI-3, G3/G4).
-- **Governance — IMPLEMENTED.** The constitutional authority stack, amendment process, and LOCKED Parts I–IV give a settled governing frame (DNA Ch 25/35); the one open governance item is authoring Part V (G7).
+- **Governance — IMPLEMENTED.** The constitutional authority stack, amendment process, and LOCKED Parts I–V give a settled governing frame (DNA Ch 25/35); Part V — Future Vision is now authored and LOCKED, closing the one open governance-documentation item (G7).
 - **Security — PARTIAL.** Auth, RLS, and anon-policy hardening exist; enforced multi-tenant isolation as runtime authority is maturing (G2).
 - **Customer readiness — PARTIAL.** The end-to-end customer journey is implemented; readiness at scale depends on SQL authority, enforced tenancy, and integrations (G1/G2/G6).
 
@@ -3549,14 +4423,14 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 1. MARQ Cortex is a substantially implemented product (37 engines, 171-node manifest, full journey, live Intelligence Gateway and CORTEX AI, repository/KV layer, migration tooling, test suites, system memory) on a settled, LOCKED constitutional and architectural foundation (§VI-1, §VI-2).
 2. The two most load-bearing forward pillars are **authoritative SQL under enforced tenancy** (PARTIAL; roadmap S7.4→S8.x) and the **AI Workforce runtime** (NOT IMPLEMENTED; reserved `ai_worker` identity) (§VI-3, §VI-5).
 3. Enterprise performance instrumentation is NOT IMPLEMENTED — measurement is raw signals plus the constitutional success standard; the enterprise operates at the Startup maturity shape (§VI-3, §IV-46–§IV-55).
-4. **Part V — Future Vision is unauthored (NOT IMPLEMENTED)**; strategic direction is currently carried by the DNA and the Parts III–IV future-state sections (§VI-4).
+4. **Part V — Future Vision is authored and LOCKED**; the long-horizon strategic direction — previously read from the DNA and the Parts III–IV future-state sections — is now consolidated as an explicit blueprint surface (§VI-4). Its runtime realization remains future work.
 5. Eight categorized gaps (G1–G8) and their high-level dependencies and constraints are inventoried without prioritization (§VI-5, §VI-6, §VI-8).
 
-**Current State.** Product core and governance: **IMPLEMENTED**. Data authority, tenancy enforcement, intelligence breadth, integrations, and maturity: **PARTIAL**. AI workforce runtime, enterprise instrumentation, and Part V: **NOT IMPLEMENTED**. Everything is grounded in repository evidence or the LOCKED Parts I–IV; nothing is invented.
+**Current State.** Product core and governance: **IMPLEMENTED**. Data authority, tenancy enforcement, intelligence breadth, integrations, and maturity: **PARTIAL**. AI workforce runtime and enterprise instrumentation: **NOT IMPLEMENTED**; the long-horizon vision is now authored and LOCKED in Part V, with its runtime realization **NOT IMPLEMENTED**. Everything is grounded in repository evidence or the LOCKED Parts I–V; nothing is invented.
 
-**Approved Future State.** Additive realization of the approved blueprint — SQL authority, enforced tenancy, multi-provider/agentic AI, a progressively standing AI workforce, instrumented performance, and an authored Part V — each subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 33). Prioritization and sequencing are deferred to later Part VI phases.
+**Approved Future State.** Additive realization of the approved blueprint — SQL authority, enforced tenancy, multi-provider/agentic AI, a progressively standing AI workforce, and instrumented performance — realizing the direction now authored and LOCKED in Part V, each subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 33). Prioritization and sequencing are deferred to later Part VI phases.
 
-**Dependencies.** All Phase 6.1 sections (§VI-1–§VI-9); Parts I–IV (LOCKED) and the Constitution as the grounding record; `MARQ_CORTEX_ROADMAP.md` and `MARQ_CORTEX_EXECUTION_RULES.md`; the unauthored Part V as an open governance item.
+**Dependencies.** All Phase 6.1 sections (§VI-1–§VI-9); Parts I–V (LOCKED) and the Constitution as the grounding record; `MARQ_CORTEX_ROADMAP.md` and `MARQ_CORTEX_EXECUTION_RULES.md`; the now-authored and LOCKED Part V, whose runtime realization remains future work.
 
 **Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`, `src/imports/cortex-audit-report.md`. Part II: DNA Ch 8/8.3/17/18/23/25/30/33/35. Part III: §III-15–§III-21, §III-29, §III-37, §III-44, §III-59–§III-65, §III-78–§III-80, §III-84–§III-88. Part IV: §IV-1–§IV-12, §IV-23–§IV-34, §IV-35–§IV-45, §IV-46–§IV-55. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
 
@@ -3564,8 +4438,8 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 
 ## Phase 6.1 — Completion Status
 
-**Phase 6.1 (Current State Assessment & Gap Analysis) is complete: Sections VI-1 through VI-10.** It establishes the execution baseline for MARQ Cortex by comparing the current implementation against the approved blueprint (Parts I–IV LOCKED, plus the Constitution): an executive assessment, the current product state, the current enterprise state, current strategic readiness, a categorized gap inventory (G1–G8), critical dependencies, implementation readiness across seven disciplines, execution constraints, and the execution principles that must govern all later phases. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–IV and is labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: the product core and governance are IMPLEMENTED; data authority, tenancy enforcement, intelligence breadth, integrations, and maturity are PARTIAL; the AI workforce runtime, enterprise instrumentation, and **Part V — Future Vision (unauthored)** are NOT IMPLEMENTED. No capability is invented. This phase defines no sprints, milestones, tasks, assignments, budgets, hiring, timelines, or technical implementation — those belong to later Part VI phases.
+**Phase 6.1 (Current State Assessment & Gap Analysis) is complete: Sections VI-1 through VI-10.** It establishes the execution baseline for MARQ Cortex by comparing the current implementation against the approved blueprint (Parts I–IV LOCKED, plus the Constitution): an executive assessment, the current product state, the current enterprise state, current strategic readiness, a categorized gap inventory (G1–G8), critical dependencies, implementation readiness across seven disciplines, execution constraints, and the execution principles that must govern all later phases. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–IV and is labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED: the product core and governance are IMPLEMENTED; data authority, tenancy enforcement, intelligence breadth, integrations, and maturity are PARTIAL; the AI workforce runtime and enterprise instrumentation are NOT IMPLEMENTED; and **Part V — Future Vision** is authored and LOCKED, with its runtime realization NOT IMPLEMENTED. No capability is invented. This phase defines no sprints, milestones, tasks, assignments, budgets, hiring, timelines, or technical implementation — those belong to later Part VI phases.
 
-**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–IV remain LOCKED and unchanged. Authoring of Part V — Future Vision remains PLANNED, and the next Part VI phase (6.2) is not begun here. This phase is neither reviewed nor locked.
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged. Part V — Future Vision is authored and LOCKED, and the next Part VI phase (6.2) is not begun here. This phase is neither reviewed nor locked.
 
 *End of Phase 6.1. Part VI continues in a later phase.*
