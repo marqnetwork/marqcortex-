@@ -4443,3 +4443,605 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged. Part V — Future Vision is authored and LOCKED, and the next Part VI phase (6.2) is not begun here. This phase is neither reviewed nor locked.
 
 *End of Phase 6.1. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.2 — Strategic Prioritization & Execution Sequencing
+
+**Status:** COMPLETE (Phase 6.2) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-11 through VI-20, continuing the single-document numbering after Phase 6.1 (§VI-1–§VI-10); numbering is never restarted. · **Continuity:** Phase 6.2 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10) is preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.1 established the verified baseline — current state, categorized gaps (G1–G8), critical dependencies, readiness, and constraints. Phase 6.2 converts that assessment into a disciplined execution *sequence*: what must happen first, what must happen later, what must not begin prematurely, which dependencies control ordering, how priorities are determined, and how delivery risk is reduced as the product moves from its current state toward the approved blueprint.
+
+**What this phase is.** Strategic execution architecture — a prioritization philosophy (§VI-11), a formal prioritization framework and priority classes (§VI-12), a dependency model (§VI-13), an approved layered execution sequence (§VI-14), the immediate priorities grounded in the current repository (§VI-15), the work that must be deferred or prohibited early (§VI-16), the parallel execution streams (§VI-17), the gates that govern advancement (§VI-18), and the anti-drift controls and mandatory repository workflow (§VI-19), closed by a completion record (§VI-20).
+
+**What this phase is not.** Phase 6.2 is **not** a sprint plan, a ticket backlog, a calendar, a staffing schedule, a coding task list, or implementation instructions. It assigns no dates, milestones, people, hours, or numeric KPIs, and it writes no code. It sequences work; it does not perform it. Phase 6.3 is not begun here, and Part VI is not locked.
+
+**Grounding.** CURRENT STATE claims below are grounded in the repository verified for this phase — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `featureBridge.ts`, and `providers/openaiAdapter.ts` + `providers/mockProvider.ts`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/`, the SQL migrations under `supabase/migrations/`, the test suites declared in `package.json`, and the deployment scripts (`supabase:deploy`, `supabase:db-push`) — together with the LOCKED Parts I–V and the Constitution. Labels IMPLEMENTED / PARTIAL / NOT IMPLEMENTED / VERIFIED / UNVERIFIED are used where they add precision. Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-11 — Execution Prioritization Philosophy
+
+**Purpose.** To define the governing philosophy that decides what MARQ Cortex executes first — the value system beneath every sequencing decision in the remainder of Part VI.
+
+**Why it exists.** Phase 6.1 produced a stable inventory of gaps and dependencies but deliberately refused to rank them. A ranking without a stated philosophy is arbitrary and drifts under pressure. This section fixes the *basis* for prioritization so that every later ordering — layers (§VI-14), immediate priorities (§VI-15), streams (§VI-17), gates (§VI-18) — is a consequence of stated principle rather than of convenience, visibility, or momentary preference.
+
+**Scope.** The prioritization value system only. It defines no order, names no work item, and sequences nothing; ordering derives from these principles in §VI-12 onward.
+
+**Approved Execution State (governing principles).**
+
+- **Value before volume.** Priority is set by enterprise and customer value delivered, not by the count of features shipped. A single load-bearing capability that unblocks the blueprint outranks many shallow surfaces. Feature quantity is never a prioritization signal.
+- **Foundations before expansion.** Capabilities that everything else stands on — identity, tenancy, authorization, data integrity, the gateway — precede any expansion that would depend on them. Expansion built on unfinished foundations is rework in advance.
+- **Trust before automation.** Nothing is automated until the state it acts on is trustworthy. Automation over unverified data or unenforced boundaries multiplies error at machine speed; trust in the substrate is a precondition, not a later refinement.
+- **Authority before autonomy.** A capability must have a clear, verified source of authority (deterministic engines, authoritative data, enforced permissions) before any autonomous or agentic behavior is layered above it. Autonomy without a settled authority model is ungoverned action.
+- **Data integrity before intelligence.** Intelligence — narration, analysis, agentic reasoning — is only as sound as the data beneath it. The relational data plane and its integrity (G1) precede any broadening of intelligence (G3) or workforce (G4) that would consume that data as truth.
+- **Reusable platform capability before isolated features.** A capability that many surfaces reuse (the gateway, the repository layer, the tenancy boundary, the migration engine) is prioritized over a feature usable by one surface only. Platform leverage compounds; isolated features do not.
+- **Dependency-aware sequencing.** Work is ordered by its position in the dependency graph (§VI-13), not by desirability. A wanted capability whose prerequisites are incomplete waits; a less glamorous prerequisite that unblocks many is elevated.
+- **Operational readiness before scaling.** The ability to observe, diagnose, and safely operate a capability precedes scaling it. Scale over an unobservable system converts small faults into outages; instrumentation (G5) is a gate to growth, not an afterthought.
+- **Preventing architecture drift.** Prioritization actively resists duplication and divergence — no second engine for an existing responsibility, no AI path around the gateway, no parallel data authority. Each increment converges the architecture toward the blueprint; none forks it.
+- **Preserving the locked blueprint during execution.** Every priority is subordinate to the LOCKED Constitution and Parts I–V. Execution realizes the blueprint; it never edits it. Where realization reveals a genuine need to change a locked decision, the heightened amendment process (DNA Ch 35) is the only path — never an unilateral implementation choice.
+
+**Clarification (basis of prioritization).** Prioritization under this Blueprint is determined by **strategic necessity, dependency position, delivery risk, and enterprise value** — never by developer convenience, ease of implementation, demo appeal, or the visibility of a feature. A capability is not prioritized because it is easy, impressive, or requested loudly; it is prioritized because the blueprint depends on it, because value or risk demands it, or because it unblocks a chain of downstream work.
+
+**Dependencies.** §VI-9 (execution principles, which these extend into prioritization); the LOCKED Constitution (DNA Ch 8.3/17/18/25/33/35); §VI-5–§VI-8 (the gaps, dependencies, readiness, and constraints being prioritized).
+
+**Risks.** If this philosophy is not held, prioritization reverts to visibility and convenience: shallow features precede foundations, automation precedes trust, and the architecture forks. The controls in §VI-19 exist to detect and reverse exactly this drift.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/23/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-5, §IV-9, §IV-44, §IV-53–§IV-55. Part VI: §VI-5, §VI-6, §VI-8, §VI-9. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Completion Evidence.** Ten governing principles stated; the basis of prioritization (strategic necessity, dependency, risk, enterprise value — not convenience or visibility) explicitly fixed; no work ordered or named; subordination to the LOCKED blueprint asserted.
+
+---
+
+## VI-12 — Prioritization Framework
+
+**Purpose.** To define the formal, qualitative framework used to evaluate any proposed unit of work, and the priority classes that framework assigns.
+
+**Why it exists.** A philosophy (§VI-11) sets values; a framework applies them consistently. Without a shared evaluation lens, every proposal is argued from first principles and the outcome depends on who argues hardest. This framework makes evaluation repeatable and its results comparable across streams and phases.
+
+**Scope.** The evaluation dimensions and the qualitative priority classes. **No numeric scores, weights, or rankings are assigned** — the framework is deliberately qualitative to avoid false precision and the gaming that numeric scoring invites. Individual work items are classified in later phases, not here.
+
+**Approved Execution State (evaluation dimensions).** Each proposed capability is assessed against the following, holistically rather than additively:
+
+- **Strategic alignment** — does it advance the approved blueprint (Parts III–V) and the constitutional mission, or is it orthogonal?
+- **Dependency criticality** — how many downstream capabilities are blocked until it exists? A high-fan-out prerequisite is more critical than a leaf.
+- **Customer value** — does it improve the customer's real outcome and trust (DNA Ch 33), or only internal aesthetics?
+- **Enterprise value** — does it build durable enterprise capability (platform, governance, workforce substrate), or one-off utility?
+- **Architectural leverage** — is it reused across many surfaces, or usable by one? Leverage favors platform capability (§VI-11).
+- **Operational necessity** — is it required to safely operate what already exists (diagnostics, observability, recovery)?
+- **Governance impact** — does it strengthen or weaken constitutional authority, traceability, and the amendment discipline?
+- **Security and trust impact** — does it strengthen auth, authorization, tenant isolation, and data sovereignty, or introduce exposure?
+- **Data readiness** — is the data it depends on authoritative and verified, or still KV-shadowed and unmigrated (G1)?
+- **Implementation risk** — how likely is it to destabilize existing contracts (API, DTOs, envelopes, route behavior, auth)?
+- **Reversibility** — can it be delivered as a bounded, independently reversible increment, or does it require an irreversible cutover?
+- **Learning value** — does completing it materially reduce uncertainty for later work (e.g., proving the shadow-read pipeline)?
+- **Platform-wide reuse** — distinct from leverage: does it become shared infrastructure other streams build on?
+- **Cost of delay** — what accrues (risk, rework, blocked streams, customer exposure) for each period it is *not* done?
+
+**Approved Execution State (priority classes).** Evaluation resolves each proposal into exactly one qualitative class:
+
+- **Foundation-Critical** — prerequisites the platform cannot stand without; block the largest number of downstream capabilities (authoritative data integrity, identity/tenancy foundations). Highest sequencing precedence.
+- **Governance-Critical** — capabilities required to preserve constitutional authority, traceability, and the amendment discipline during execution. Never traded away for delivery speed.
+- **Product-Critical** — capabilities the customer-facing product cannot be trustworthy or complete without, once foundations exist.
+- **Platform-Enabling** — reusable infrastructure (gateway breadth, repository consistency, shared services) that unlocks multiple downstream features. High leverage.
+- **Operational-Enabling** — observability, diagnostics, telemetry, and recovery capability required to safely run and scale what exists (addresses G5).
+- **Growth-Enabling** — capabilities that extend reach, scale, or market surface once foundations, product, platform, and operations are sound.
+- **Optimization** — refinements to performance, cost, or experience that improve an already-correct, already-trustworthy capability.
+- **Deferred** — work whose foundations are not yet present, whose value is not yet established, or which is strategically premature (see §VI-16). Explicitly not prioritized now.
+
+**Rule of application.** Classes carry sequencing precedence in the order listed: Foundation-Critical and Governance-Critical precede Product-Critical and Platform-Enabling, which precede Operational-Enabling, which precedes Growth-Enabling, which precedes Optimization; Deferred waits. A proposal may be re-classified only as its dependencies and evidence change, and only through the phase-entry checks in §VI-19 — never silently.
+
+**Dependencies.** §VI-11 (the philosophy the dimensions operationalize); §VI-5 (gaps being classified); §VI-13 (dependency criticality is read from the dependency model); §VI-18 (gates consume these classes).
+
+**Risks.** Numeric scoring would invite gaming and false precision; its absence is intentional. The residual risk is inconsistent qualitative judgment, mitigated by tying every classification to the stated dimensions and to the gate evidence in §VI-18.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-37, §III-44, §III-84–§III-88. Part IV: §IV-23–§IV-34, §IV-46–§IV-55. Part VI: §VI-5, §VI-11. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+**Completion Evidence.** Fourteen evaluation dimensions and eight priority classes defined with meanings and precedence; no numeric scores assigned; application rule stated; classification of individual items deferred to later phases.
+
+---
+
+## VI-13 — Execution Dependency Model
+
+**Purpose.** To define the dependency hierarchy that controls the order in which capabilities may be implemented, and to distinguish hard (blocking) from soft (advisory) dependencies.
+
+**Why it exists.** Prioritization classes (§VI-12) express *importance*; the dependency model expresses *feasibility of ordering*. A Foundation-Critical item can still be blocked by an even earlier prerequisite. This model is the graph that §VI-14's layers and §VI-17's streams are read from, and the reference the phase-entry checks (§VI-19) verify against.
+
+**Scope.** The dependency hierarchy across the platform's capability domains. It is a dependency graph at the capability level — not a task graph, not a technical design, and not a schedule.
+
+**Current State (dependency chain, grounded in the repository).** From foundation to surface:
+
+1. **Identity & tenancy** — `organizations` / `organization_memberships` / `organization_settings` with RLS (`supabase/migrations/20260711050000_*`, `..._050001_*`) and `tenancyRepository.ts`. IMPLEMENTED as schema and repository; enforced runtime isolation across all paths is PARTIAL (G2). Everything tenant-scoped depends on this.
+2. **Permissions & governance** — role/authority model from the Constitution and Part IV; `roleEngine.ts` in the engine layer. Governs which identity may act. Depends on (1).
+3. **Data models** — relational schema and the KV↔relational mapping (`DATABASE_SCHEMA.md`; `supabase/migrations/`). KV is the runtime authority; SQL authority is PARTIAL (G1). Domain correctness depends on (1)–(3).
+4. **Repositories & services** — server repository layer (`repositories/`: contact, lead, outcome, report, submission, tenancy) over `repositoryClient.ts`, and app services (`cortexDataService.ts`, `dataService.ts`). Depend on (1)–(3).
+5. **Intelligence gateway** — `intelligence/gateway.ts` with `providerRegistry`, `certification`, `modelRegistry`, `telemetry`, `health`, and `featureBridge`; providers `openaiAdapter` (registered Unverified) and `mockProvider` (Testing). IMPLEMENTED single-provider; multi-provider breadth is PARTIAL (G3). Depends on (4) for the data it narrates.
+6. **Knowledge systems** — the knowledge/decision substrate the intelligence layer reasons over. NOT IMPLEMENTED as a distinct system; today decision authority is the deterministic engine orchestra. Depends on (3)–(5).
+7. **AI workforce** — the Part IV executive/department/manager/worker runtime; reserved `ai_worker` identity. NOT IMPLEMENTED (G4). Depends on (1)–(6) — it cannot precede authoritative data, enforced tenancy, a governed gateway, or a knowledge substrate.
+8. **Workflow orchestration** — coordinated multi-step execution across engines/services/workforce. PARTIAL (deterministic engines and `executionEngine.ts` exist; workforce-driven orchestration does not). Depends on (4)–(7).
+9. **Product interfaces** — the React/Vite surfaces and `src/system/manifest.ts` node graph. IMPLEMENTED for the core journey; depends on (4)–(5) for trustworthy state.
+10. **Observability** — `intelligence/telemetry.ts` and `health.ts` exist for the gateway; enterprise-wide performance instrumentation is NOT IMPLEMENTED (G5). Cross-cuts (4)–(9).
+11. **Security** — Supabase auth, RLS, anon-policy hardening (`..._diagnostic_anon_policy_hardening.sql`). PARTIAL; cross-cuts every layer and gates (1)–(2).
+12. **Deployment** — `supabase:deploy`, `supabase:db-push`; relational schema present. PARTIAL (SQL not yet authoritative). Depends on (3)–(4).
+13. **Operations** — execution rules, test protocol, migration CLI (`migration:inventory/simulate/backfill/reconcile/pipeline`), system memory. IMPLEMENTED as process; enterprise operational instrumentation NOT IMPLEMENTED. Cross-cuts all.
+14. **Customer-facing automation** — automated action on customer state. Deferred; depends on the entire chain above being trustworthy (trust-before-automation, §VI-11).
+
+**Approved Execution State (hard vs. soft dependencies).**
+
+- **Hard (blocking) dependencies** — a downstream capability may not be implemented until the prerequisite is IMPLEMENTED **and** VERIFIED. Examples: the AI workforce (7) is hard-blocked by authoritative data (3), enforced tenancy (1–2), and a governed gateway (5); customer-facing automation (14) is hard-blocked by data integrity and observability; any intelligence broadening that treats SQL as truth is hard-blocked by SQL authority (G1). Multi-tenant enforcement (2) is a hard dependency for every tenant-scoped surface.
+- **Soft (advisory) dependencies** — a downstream capability benefits from, but is not blocked by, the prerequisite; it may proceed with a documented interim contract. Examples: broader observability (10) improves but does not block product interface work (9); knowledge-system maturation (6) improves but does not block single-provider gateway use (5). Soft dependencies are recorded so their eventual satisfaction is not forgotten.
+
+**Governing rule.** Work must not move downstream while a prerequisite capability is **incomplete or unverified**. A prerequisite that is IMPLEMENTED but UNVERIFIED does not satisfy a hard dependency; verification (VERIFIED) is required. This rule is enforced by the Architecture and Data Integrity gates (§VI-18) and the phase-entry checks (§VI-19).
+
+**Dependencies.** §VI-6 (the dependency classes this model orders); §VI-2/§VI-3 (the states depended upon); §VI-14 (the layers derived from this graph); §VI-12 (dependency criticality dimension).
+
+**Risks.** Treating a soft dependency as hard stalls deliverable work; treating a hard dependency as soft ships on an unverified foundation and creates rework or, worse, silent corruption. Misclassification is the primary risk and is checked at the gates.
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`. Part II: DNA Ch 17/18/20/25. Part III: §III-37, §III-44, §III-56–§III-57, §III-84–§III-88. Part IV: §IV-23–§IV-45. Part VI: §VI-6. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `DATABASE_SCHEMA.md`.
+
+**Completion Evidence.** A fourteen-domain dependency chain grounded in named repository artifacts; hard vs. soft dependencies distinguished with examples; the incomplete/unverified downstream-block rule stated and tied to the gates.
+
+---
+
+## VI-14 — Enterprise Execution Layers
+
+**Purpose.** To define the approved sequence of execution layers — the coarse ordering that every stream, priority, and gate is arranged within.
+
+**Why it exists.** The dependency model (§VI-13) is a graph; execution needs a legible layering of that graph so that "what precedes what" is unambiguous at the strategic level. The layers are the canonical sequence; nothing in a later layer may be treated as prerequisite-satisfied by work in an earlier layer that is not yet VERIFIED.
+
+**Scope.** Nine execution layers, from constitutional integrity to market expansion. **The layers are a sequence of capability readiness, not a set of dates or sprints.** A layer being "earlier" means its outcomes are prerequisites for later layers — not that it is time-boxed or staffed.
+
+**Approved Execution State (the layered model).**
+
+### Layer 1 — Constitutional and Governance Integrity
+- **Purpose.** Keep the LOCKED Constitution and Parts I–V authoritative throughout execution; preserve the amendment discipline and traceability.
+- **Why it precedes later layers.** Every subsequent decision derives authority from here; if governance drifts, all downstream work is ungoverned.
+- **Required outcomes.** Verified blueprint traceability; amendment process intact; no locked-Part modification outside formal amendment.
+- **Dependencies.** None upstream; it is the root.
+- **Risk of skipping.** Architecture drift and unauthorized change become undetectable.
+- **Relation to Parts III–V.** Enforces the Preservation rule and DNA Ch 35 across all of Parts III–V.
+
+### Layer 2 — Identity, Tenancy and Authorization Foundations
+- **Purpose.** Establish verified organizational identity, enforced tenant isolation, and role/authority enforcement at runtime.
+- **Why it precedes later layers.** Every tenant-scoped capability, every service, and the entire workforce depend on a trustworthy identity and permission boundary (G2).
+- **Required outcomes.** `organizations`/memberships/settings and RLS enforced as runtime authority across all paths, VERIFIED; role enforcement active.
+- **Dependencies.** Layer 1.
+- **Risk of skipping.** Cross-tenant exposure and ungoverned action — the highest-severity class of failure.
+- **Relation to Parts III–V.** Realizes Part IV's identity/authority model (§IV-35–§IV-45) and the DNA data-sovereignty floor (Ch 18.9).
+
+### Layer 3 — Data and Domain Integrity
+- **Purpose.** Make the relational data plane authoritative and correct; complete the KV→SQL authority migration with verified reconciliation (G1).
+- **Why it precedes later layers.** Intelligence, workforce, orchestration, and automation are only as sound as the data they treat as truth (data-integrity-before-intelligence, §VI-11).
+- **Required outcomes.** Shadow-read/validated cutover proven; reconciliation clean; SQL authoritative and VERIFIED; domain boundaries coherent.
+- **Dependencies.** Layers 1–2.
+- **Risk of skipping.** Intelligence and automation amplify silent data corruption at scale.
+- **Relation to Parts III–V.** Realizes the data authority described across Part III and the roadmap (S7.4→S8.x).
+
+### Layer 4 — Core Platform Services
+- **Purpose.** Consolidate the repository/service layer and deterministic engines into consistent, reusable platform capability over authoritative data.
+- **Why it precedes later layers.** Downstream surfaces and the workforce reuse these services; fragmentation here propagates upward.
+- **Required outcomes.** Consistent repositories over authoritative data; deterministic engines authoritative; no duplicate engines/services.
+- **Dependencies.** Layers 1–3.
+- **Risk of skipping.** Divergent implementations and per-surface data access — architecture drift.
+- **Relation to Parts III–V.** Realizes Part III's engine/service architecture (§III-37, §III-44).
+
+### Layer 5 — Intelligence and Knowledge Infrastructure
+- **Purpose.** Mature the Intelligence Gateway (provider neutrality, certification, model registry, telemetry, health) and establish the knowledge/decision substrate — all AI routed through the gateway only.
+- **Why it precedes later layers.** The workforce and agentic orchestration require a governed, provider-neutral intelligence surface over trustworthy data (authority-before-autonomy, §VI-11).
+- **Required outcomes.** Multi-provider gateway with certified providers (G3); knowledge substrate defined; deterministic authority preserved (AI assists, never overrides).
+- **Dependencies.** Layers 1–4.
+- **Risk of skipping.** Isolated AI integrations bypass governance; autonomy is built on an ungoverned base.
+- **Relation to Parts III–V.** Realizes the gateway and CORTEX intelligence of Part III and Part IV's intelligence infrastructure (§IV-23–§IV-34).
+
+### Layer 6 — AI Workforce and Orchestration
+- **Purpose.** Stand up the Part IV executive/department/manager/worker runtime and workforce-driven orchestration on the `ai_worker` identity.
+- **Why it precedes later layers.** Department/product experiences that depend on the workforce cannot precede its existence (G4).
+- **Required outcomes.** Governed workforce runtime; orchestration coordinating engines/services under enforced authority; deterministic results authoritative.
+- **Dependencies.** Layers 1–5 (hard).
+- **Risk of skipping.** Premature autonomy without data, tenancy, or gateway governance — the central prohibition of §VI-16.
+- **Relation to Parts III–V.** Realizes Part IV's AI-company architecture (§IV-1–§IV-45).
+
+### Layer 7 — Department and Product Experiences
+- **Purpose.** Complete and connect the customer-facing product surfaces on top of trustworthy foundations and the workforce.
+- **Why it precedes later layers.** Operational optimization and scale presuppose a complete, trustworthy product.
+- **Required outcomes.** Product surfaces backed by authoritative data and enforced tenancy; no mock-versus-production ambiguity; no client-trusted authority.
+- **Dependencies.** Layers 1–6 (workforce-dependent surfaces hard-depend on Layer 6; core journey soft-depends).
+- **Risk of skipping.** Surfaces built on unverified state present false trust to customers.
+- **Relation to Parts III–V.** Realizes Part III's product blueprint (§III-15–§III-65).
+
+### Layer 8 — Operational Intelligence and Optimization
+- **Purpose.** Instrument enterprise performance, health, diagnostics, and optimization (G5) across the now-complete system.
+- **Why it precedes later layers.** Scale is unsafe without the ability to observe, diagnose, and recover (operational-readiness-before-scaling, §VI-11).
+- **Required outcomes.** Unified health/telemetry framework; diagnostics and traceability; performance evaluation without overriding the customer-trust north star.
+- **Dependencies.** Layers 1–7.
+- **Risk of skipping.** Faults at scale become outages; optimization proceeds blind.
+- **Relation to Parts III–V.** Realizes Part IV's operational instrumentation (§IV-46–§IV-55).
+
+### Layer 9 — Scale, Ecosystem and Market Expansion
+- **Purpose.** Extend reach — ecosystem integrations, marketplace, international scale, growth systems — on a complete, observable, trustworthy platform.
+- **Why it is last.** Every expansion multiplies whatever it stands on; expansion precedes soundness only at the cost of multiplying faults.
+- **Required outcomes.** Integrations and scale added additively without violating platform, auth, tenancy, or gateway contracts.
+- **Dependencies.** Layers 1–8.
+- **Risk of skipping earlier layers into this one.** The prohibited-early-work failure mode of §VI-16.
+- **Relation to Parts III–V.** Realizes the long-horizon direction now LOCKED in Part V (§V-1–§V-30), whose *runtime* realization this layer completes.
+
+**Governing rule.** A layer's outcomes must be VERIFIED before work that hard-depends on it begins; earlier layers do not need to be *finished* in every optional respect, but their *load-bearing* outcomes must be verified (the incomplete/unverified rule, §VI-13). **The layers are not converted into dates or sprints here or anywhere in this phase.**
+
+**Dependencies.** §VI-13 (the dependency graph the layers order); §VI-11/§VI-12 (philosophy and classes the layering honors); §VI-17 (streams executing within these layers).
+
+**Risks.** The dominant risk is layer-skipping under delivery pressure — beginning Layer 6/7/9 work before Layers 2/3/5 are verified. The gates (§VI-18) and anti-drift controls (§VI-19) exist to prevent it.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/20/25/33/35. Part III: §III-15–§III-65, §III-84–§III-88. Part IV: §IV-1–§IV-55. Part V: §V-1–§V-30 (long-horizon direction). Part VI: §VI-11, §VI-12, §VI-13. Roadmap: `MARQ_CORTEX_ROADMAP.md`.
+
+**Completion Evidence.** Nine ordered layers, each with purpose, precedence rationale, required outcomes, dependencies, skip-risk, and Parts III–V relationship; the sequence explicitly not converted to dates or sprints.
+
+---
+
+## VI-15 — Immediate Execution Priorities
+
+**Purpose.** To identify, from the current repository and the Phase 6.1 assessment, the capabilities that require immediate attention — and to ground each in verified evidence.
+
+**Why it exists.** The philosophy, framework, dependency model, and layers establish *how* to order work; this section applies them to the *actual current state* to name what stands first. It names capability areas and their status, not tasks, dates, or code.
+
+**Scope.** Immediate priorities across five groupings. Each is grounded in repository evidence and labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED / VERIFIED / UNVERIFIED. No completed capability is invented; where the runtime is unverified in-session, it is marked UNVERIFIED rather than claimed.
+
+### A. Complete Existing Foundations
+- **KV→SQL data authority (G1) — PARTIAL, UNVERIFIED as authoritative.** The migration engine exists (`migration/orchestrator.ts`, `reconciliation.ts`, `rollback.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `normalizer.ts`, `kvReader.ts`) with a CLI (`migration:inventory/simulate/backfill/reconcile/pipeline`, `validate-s6.3`); KV remains the runtime authority. **Priority:** complete and verify the shadow-read/reconciled cutover so SQL becomes authoritative — the single most load-bearing foundation (Layer 3, Foundation-Critical).
+- **Tenancy enforcement (G2) — PARTIAL.** `organizations`/memberships/settings and RLS migrations plus `tenancyRepository.ts` exist; `tenancyRepository.ts` notes JWT pass-through "when runtime cutover begins," i.e., enforced isolation across all paths is not yet the runtime authority. **Priority:** make enforced tenant isolation the verified runtime authority (Layer 2, Foundation-Critical).
+- **Migration integrity — IMPLEMENTED (tooling), UNVERIFIED (full cutover).** Reconciliation and rollback exist; end-to-end authoritative cutover is unproven in-session. **Priority:** prove reconciliation-clean cutover with rollback rehearsed.
+
+### B. Resolve Architectural Fragmentation
+- **Repository/service consistency — PARTIAL.** A server repository layer (`repositories/`) and app services (`cortexDataService.ts`, `dataService.ts`) coexist with KV access; the concern is a single, consistent data-access path over authoritative data rather than divergent per-surface access. **Priority:** converge on one authoritative repository path (Layer 4, Platform-Enabling).
+- **Duplicate/parallel engines — GUARD (no evidence of proliferation; enforce).** The engine layer under `src/app/core/` holds 30 `*Engine.ts` modules with distinct responsibilities; the priority is to *prevent* a second engine for an existing responsibility, not to remediate a known duplication. **Priority:** hold no-duplicate-architecture (Governance-Critical; §VI-19).
+- **Mock-versus-production capability — PARTIAL.** The gateway registers `mockProvider` (Testing) alongside `openaiAdapter` (Unverified); mock paths must be unambiguously distinguished from production so no surface silently trusts a mock. **Priority:** make mock/production boundaries explicit and verified.
+
+### C. Establish Enterprise Controls
+- **Permission/role enforcement — PARTIAL.** `roleEngine.ts` and the constitutional authority model exist; runtime authorization enforcement across all server paths is maturing. **Priority:** enforce authority at every server boundary (Governance-Critical / Security).
+- **Security controls — PARTIAL.** Supabase auth, RLS, and anon-policy hardening (`..._diagnostic_anon_policy_hardening.sql`) exist; no client-trusted authority may remain. **Priority:** verify server-side authority for all trust decisions (Security Gate, §VI-18).
+- **Data ownership & traceability — PARTIAL.** Tenancy schema encodes ownership; end-to-end traceability of who-owns/who-changed is not yet instrumented enterprise-wide. **Priority:** establish verifiable data ownership and change traceability.
+
+### D. Enable Reliable Product Execution
+- **Product surface completeness — IMPLEMENTED (core journey) / PARTIAL (breadth).** The React/Vite surfaces and `src/system/manifest.ts` node graph back the core journey; some surfaces depend on authoritative data and enforced tenancy to be fully trustworthy. **Priority:** connect surfaces to authoritative, tenant-enforced state; eliminate client-trusted state (Layer 7, Product-Critical).
+- **Disconnected/incomplete surfaces — PARTIAL.** Any surface reading unmigrated or client-held state is a reliability risk until Layers 2–3 are verified. **Priority:** gate such surfaces behind verified foundations rather than shipping false trust.
+
+### E. Prepare the Intelligence Layer
+- **Gateway adoption (provider neutrality) — PARTIAL, VERIFIED as single-provider.** The gateway is live and multiple server surfaces route through `featureBridge` (`cortexAnalysis.ts`, `cortexNarrative.ts`, `proposalSectionCopilot.ts`, `blockAiAssist.ts`, `cortexChat.ts`, `copilotPatch.ts`); `openaiAdapter` is registered Unverified, `mockProvider` Testing (G3). **Priority:** broaden to certified multi-provider neutrality with no direct-provider bypass (Layer 5, Platform-Enabling).
+- **AI provider neutrality — PARTIAL.** Provider registry, certification, and model registry exist; only one real provider is registered. **Priority:** add and certify providers behind the existing abstraction — never around it.
+- **Knowledge architecture — NOT IMPLEMENTED (as distinct system).** Decision authority today is the deterministic engine orchestra; a separate knowledge/decision substrate is not present. **Priority:** define the knowledge substrate before workforce reasoning depends on it (Layer 5).
+- **Execution telemetry / operational diagnostics — PARTIAL (gateway) / NOT IMPLEMENTED (enterprise).** `intelligence/telemetry.ts` and `health.ts` instrument the gateway; enterprise-wide performance instrumentation is absent (G5). **Priority:** extend observability beyond the gateway before scaling (Layer 8, Operational-Enabling).
+
+**Approved Execution State (immediate order of attention).** Group A (complete foundations: data authority + tenancy) and the Governance-Critical items in B/C stand first, because they are the hard prerequisites (§VI-13) for everything in D, E, and Layers 6–9. Group E's gateway breadth may advance in parallel as a Platform-Enabling stream (§VI-17) precisely because it soft-depends on, and does not block, the foundation work — but any intelligence that treats SQL as truth waits on Group A. Nothing in this section is a schedule; it is an order of precedence.
+
+**Dependencies.** §VI-2/§VI-3/§VI-4 (states assessed); §VI-5 (G1–G8); §VI-13 (dependency order); §VI-14 (layers); §VI-12 (classes).
+
+**Risks.** The central risk is beginning Group D/E-dependent or Layer 6+ work before Group A is VERIFIED — building on KV-authoritative, tenant-unenforced state. Marked UNVERIFIED items must not be reported as production-ready (§VI-19).
+
+**Traceability.** Part I: `ARCHITECT.md`, `architecture/system_map.json`. Part II: DNA Ch 17/18/20/25/33. Part III: §III-29, §III-37, §III-44, §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-45, §IV-46–§IV-55. Part VI: §VI-2, §VI-5, §VI-13, §VI-14. Repository: `supabase/migrations/`, `supabase/functions/server/migration/`, `supabase/functions/server/repositories/`, `supabase/functions/server/intelligence/`, `src/app/core/`, `src/system/manifest.ts`, `package.json`.
+
+**Completion Evidence.** Five priority groups (A–E) with each item grounded in a named repository artifact and status-labelled; the immediate order of attention stated; no invented capability, no task, no date.
+
+---
+
+## VI-16 — Deferred and Prohibited Early Work
+
+**Purpose.** To define, explicitly, what must *not* be prioritized yet — and to classify why each item waits.
+
+**Why it exists.** A prioritization is incomplete without its negative space. Naming what is out of bounds now prevents the most common execution failure: building visible, exciting, or expansive capability before its foundations exist (§VI-11). This section makes premature work a documented violation, not a judgment call.
+
+**Scope.** Categories of work that are deferred, dependency-blocked, strategically unnecessary, or permanently rejected. Each is named with its reason and classification.
+
+**Approved Execution State (early work that must wait, with reason).**
+
+- **Autonomous AI executives — DEPENDENCY-BLOCKED.** Hard-blocked by Layers 2–5 (tenancy, data authority, governed gateway, knowledge substrate). Autonomy without verified authority violates authority-before-autonomy (§VI-11) and the deterministic-authority floor (DNA Ch 17/18).
+- **Broad agent proliferation — DEPENDENCY-BLOCKED.** Many agents before one governed workforce runtime (Layer 6) multiplies ungoverned action. Wait for the `ai_worker` runtime and orchestration.
+- **Marketplace expansion — DEFERRED (Layer 9).** Presupposes a complete, observable, trustworthy platform (Layers 1–8).
+- **Complex ecosystem integrations — DEPENDENCY-BLOCKED / DEFERRED.** External integrations (CRM sync, e-sign, scheduling — G6) depend on authoritative data and enforced tenancy; broad ecosystem work is Layer 9.
+- **Advanced predictive intelligence — DEPENDENCY-BLOCKED.** Prediction over unmigrated, unverified data (G1) amplifies error; blocked by Layer 3 and knowledge infrastructure (Layer 5).
+- **Large-scale workflow automation — DEPENDENCY-BLOCKED.** Automation over untrustworthy state violates trust-before-automation; blocked by Layers 2–6.
+- **International scale architecture — DEFERRED (Layer 9).** Scale multiplies faults; blocked until operational readiness (Layer 8) is verified.
+- **Aggressive growth systems — DEFERRED (Layer 9).** Growth over an unobservable platform converts faults into outages.
+- **Excessive dashboard expansion — STRATEGICALLY UNNECESSARY (now).** Dashboard volume is not value (value-before-volume, §VI-11); more surfaces over unverified data increase false-trust exposure without enterprise value.
+- **Cosmetic feature volume — STRATEGICALLY UNNECESSARY (now).** Feature count is not a prioritization signal; cosmetic breadth is Optimization-class at best and waits behind foundations.
+- **Duplicate engines / parallel architecture — PERMANENTLY REJECTED.** A second engine or data authority for an existing responsibility is prohibited outright (no-duplicate-architecture, §VI-19), not merely deferred.
+- **Isolated AI integrations outside the gateway — PERMANENTLY REJECTED.** Any AI-provider path that bypasses the Intelligence Gateway is prohibited outright; all AI is routed through the gateway (no-direct-AI-provider-bypass, §VI-19).
+
+**Classification of the deferrals.**
+- **Permanently rejected** — duplicate engines/parallel architecture; isolated AI integrations outside the gateway. These are never in scope, at any layer; they violate invariant controls.
+- **Deferred** — marketplace, international scale, aggressive growth, broad ecosystem breadth. Legitimate future work, sequenced to Layer 9 after foundations, product, and operations are verified.
+- **Dependency-blocked** — autonomous executives, agent proliferation, predictive intelligence, large-scale automation. Approved in the blueprint but hard-blocked until their prerequisite layers are VERIFIED.
+- **Strategically unnecessary (now)** — dashboard/cosmetic volume. Not blocked by dependency but by value: they deliver no enterprise value at the current stage and would divert from foundations.
+
+**Dependencies.** §VI-13 (the hard dependencies that block); §VI-14 (the layers that defer); §VI-11 (the value system that deems some work unnecessary now); §VI-19 (the invariant controls that permanently reject).
+
+**Risks.** Reclassifying a permanently-rejected item as merely deferred is itself a drift vector; the anti-drift controls treat gateway bypass and duplicate architecture as violations regardless of expedience.
+
+**Traceability.** Part II: DNA Ch 17/18/25/33/35. Part III: §III-59–§III-65, §III-78–§III-80. Part IV: §IV-23–§IV-34, §IV-46–§IV-55, §IV-53. Part V: §V-1–§V-30 (deferred long-horizon direction). Part VI: §VI-11, §VI-13, §VI-14, §VI-19.
+
+**Completion Evidence.** Twelve early-work items named with reasons; four-way classification (permanently rejected / deferred / dependency-blocked / strategically unnecessary) applied; each tied to a layer, dependency, or invariant control.
+
+---
+
+## VI-17 — Execution Streams
+
+**Purpose.** To define the major parallel execution streams that can proceed concurrently without violating the dependency model, and to mark which must remain sequential.
+
+**Why it exists.** Layers (§VI-14) express sequence; streams express *concurrency*. Much foundation work can proceed in parallel provided no stream consumes an unverified output of another. Naming the streams lets independent work advance without collision while the gates (§VI-18) hold the dependency line.
+
+**Scope.** Nine execution streams, each with objective, scope, prerequisites, outputs, coordination requirements, risks, and completion evidence. Streams describe *what may proceed together*; they contain no tasks, assignments, or dates.
+
+**Approved Execution State (streams).**
+
+**1. Governance and Security**
+- *Objective:* preserve constitutional authority and enforce server-side security/authorization.
+- *Scope:* traceability, amendment discipline, auth/RLS/anon-hardening, elimination of client-trusted authority.
+- *Prerequisites:* none upstream (Layer 1); enables all others.
+- *Outputs:* verified governance traceability; enforced server-side authority.
+- *Coordination:* sets constraints every other stream honors; the Security and Governance gates (§VI-18) draw evidence here.
+- *Risks:* if under-resourced, drift and exposure go undetected.
+- *Completion evidence:* server-side authority verified across paths; no locked-Part change outside amendment.
+
+**2. Identity and Tenancy**
+- *Objective:* make enforced tenant isolation and role enforcement the verified runtime authority (G2).
+- *Scope:* `organizations`/memberships/settings, RLS, `tenancyRepository.ts`, JWT pass-through cutover, `roleEngine.ts` enforcement.
+- *Prerequisites:* Stream 1 (Layer 1–2).
+- *Outputs:* VERIFIED enforced tenancy across all paths.
+- *Coordination:* hard prerequisite for Streams 3, 4, 6, 7; must lead them.
+- *Risks:* cross-tenant exposure if downstream streams proceed before this is VERIFIED.
+- *Completion evidence:* tenant isolation enforced and verified end-to-end.
+
+**3. Data and Domain Architecture**
+- *Objective:* make relational data authoritative with verified reconciliation (G1); coherent domain boundaries.
+- *Scope:* KV→SQL cutover via `migration/` engine and CLI; reconciliation; rollback rehearsal; schema integrity.
+- *Prerequisites:* Streams 1–2 (Layer 2–3, hard).
+- *Outputs:* SQL authoritative and VERIFIED; reconciliation clean.
+- *Coordination:* hard prerequisite for Streams 5 (as truth), 6, 7, 8.
+- *Risks:* premature cutover or unrehearsed rollback risks data loss/corruption.
+- *Completion evidence:* reconciliation-clean authoritative cutover with rollback proven.
+
+**4. Core Platform and Backend Services**
+- *Objective:* one consistent repository/service path over authoritative data; deterministic engines authoritative; no duplication.
+- *Scope:* `repositories/`, `repositoryClient.ts`, app services, the 30-module engine layer.
+- *Prerequisites:* Streams 2–3 (Layer 4).
+- *Outputs:* consistent platform services; no duplicate engines/services.
+- *Coordination:* consumed by Streams 6, 7; must not fork architecture (§VI-19).
+- *Risks:* divergent per-surface data access re-introduces fragmentation.
+- *Completion evidence:* single authoritative data path verified; no duplicate architecture.
+
+**5. Intelligence Gateway and AI Infrastructure**
+- *Objective:* certified multi-provider neutrality with telemetry/health; all AI through the gateway (G3).
+- *Scope:* `gateway.ts`, `providerRegistry`, `certification`, `modelRegistry`, `telemetry`, `health`, `featureBridge`, additional certified providers behind the abstraction.
+- *Prerequisites:* Layer 5; may **advance in parallel** with Streams 2–4 because it soft-depends on data (it narrates, it is not data-authority) — but any gateway use that treats SQL as truth waits on Stream 3.
+- *Outputs:* multi-provider certified gateway; no direct-provider bypass.
+- *Coordination:* hard prerequisite for Stream 6; feeds Stream 7 intelligence surfaces.
+- *Risks:* adding providers around, not behind, the abstraction (permanently rejected, §VI-16).
+- *Completion evidence:* ≥2 certified providers behind the registry; zero bypass paths.
+
+**6. Knowledge and Decision Systems**
+- *Objective:* define the knowledge/decision substrate the workforce reasons over; preserve deterministic authority.
+- *Scope:* knowledge substrate design; decision provenance; AI-assists-never-overrides boundary.
+- *Prerequisites:* Streams 3–5 (Layer 5, hard); precedes the workforce (Layer 6).
+- *Outputs:* defined knowledge substrate; deterministic results remain authoritative.
+- *Coordination:* hard prerequisite for the AI workforce runtime.
+- *Risks:* letting AI reasoning override deterministic authority (violates DNA Ch 17/18).
+- *Completion evidence:* substrate defined; deterministic-authority boundary verified.
+
+**7. Product Experience and Workflow Enablement**
+- *Objective:* complete customer-facing surfaces on authoritative, tenant-enforced state; eliminate client-trusted state and mock/production ambiguity.
+- *Scope:* React/Vite surfaces, `src/system/manifest.ts`, workflow enablement over engines/services.
+- *Prerequisites:* Streams 2–4 (hard for tenant-scoped surfaces); Stream 6 for workforce-driven surfaces.
+- *Outputs:* trustworthy product surfaces; no false trust.
+- *Coordination:* consumes Streams 2–6; must not ship surfaces over unverified state.
+- *Risks:* presenting mock/unmigrated state as production (false customer trust).
+- *Completion evidence:* surfaces verified over authoritative, tenant-enforced data.
+
+**8. Quality, Observability and Operations**
+- *Objective:* enterprise-wide telemetry, health, diagnostics, and traceability beyond the gateway (G5).
+- *Scope:* extend `intelligence/telemetry.ts`/`health.ts` patterns enterprise-wide; test suites (`test:smoke/intelligence/database/migration/features`); operational diagnostics.
+- *Prerequisites:* Streams 3–4 (observes real services); precedes scale (Layer 8→9).
+- *Outputs:* unified observability; verified operational readiness.
+- *Coordination:* cross-cuts all streams; gate evidence for Operational Readiness (§VI-18).
+- *Risks:* scaling (Stream 9) before this is verified converts faults into outages.
+- *Completion evidence:* enterprise observability and diagnostics verified.
+
+**9. Deployment and Infrastructure Readiness**
+- *Objective:* reliable, reversible deployment of authoritative schema and functions.
+- *Scope:* `supabase:deploy`, `supabase:db-push`, migration/rollback deployment discipline.
+- *Prerequisites:* Streams 3–4; constrained by in-session deployment limits (a deployment limitation, not an engineering failure — §VI-8).
+- *Outputs:* verified, reversible deployment path.
+- *Coordination:* supports all streams reaching production; Release Readiness gate evidence.
+- *Risks:* irreversible deploys; treating deployment-limited verification as production-ready (§VI-19).
+- *Completion evidence:* reversible deploy/rollback verified where the environment permits.
+
+**Parallel vs. sequential.** Streams **1 (Governance/Security)** and, with it, the foundation-enabling parts of **8 (Observability tooling)** may run alongside everything as cross-cutting streams. Stream **5 (Gateway breadth)** may advance in **parallel** with Streams 2–4 (it soft-depends on data). Streams **2 → 3 → 4** are largely **sequential** for their load-bearing outputs (tenancy before authoritative data before consolidated services). Stream **6** is **sequential after** 3–5; Stream **7** is **sequential after** 2–4 (and 6 for workforce surfaces); Streams **8** (enterprise scope) and **9** provide readiness that gates **Layer 9**. No stream may consume another's UNVERIFIED output (§VI-13).
+
+**Dependencies.** §VI-13 (hard/soft dependencies governing concurrency); §VI-14 (layers the streams execute within); §VI-18 (gates gating stream advancement).
+
+**Risks.** The principal risk is a parallel stream consuming an unverified upstream output; the gates and the incomplete/unverified rule (§VI-13) hold the line.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 17/18/20/25/33. Part III: §III-37, §III-44, §III-84–§III-88. Part IV: §IV-23–§IV-45, §IV-46–§IV-55. Part VI: §VI-13, §VI-14. Repository: `supabase/functions/server/`, `src/app/core/`, `src/system/manifest.ts`, `package.json`.
+
+**Completion Evidence.** Nine streams fully specified; parallel-vs-sequential relationships stated; the no-unverified-consumption rule applied; no tasks, assignments, or dates introduced.
+
+---
+
+## VI-18 — Execution Gates
+
+**Purpose.** To define the gates that work must pass before it advances — the verification checkpoints that convert the dependency model and layers into enforced control.
+
+**Why it exists.** Sequence and streams describe intended order; gates enforce it. A gate is where a capability's readiness is *verified* (moving it from UNVERIFIED to VERIFIED) before downstream work that hard-depends on it may begin. Gates are the mechanism by which "no downstream on an unverified foundation" (§VI-13) becomes operative.
+
+**Scope.** Eight gates. For each: purpose, entry conditions, required evidence, approval authority, failure response, exit conditions. **Approval authority is stated as constitutional roles/authorities from earlier Parts — no individuals are named.**
+
+**Approved Execution State (gates).**
+
+**Architecture Gate**
+- *Purpose:* prevent duplicate/parallel architecture and confirm blueprint traceability.
+- *Entry:* a capability proposes new structure (engine, service, data path, provider).
+- *Required evidence:* the capability exists in the Blueprint; no existing engine/service/data-authority duplicates it; it converges, not forks, the architecture.
+- *Approval authority:* the architectural authority established in Part I/Part IV (`ARCHITECT.md`; DNA Ch 25/30).
+- *Failure response:* reject or redirect to the existing capability; no build proceeds.
+- *Exit:* traceable, non-duplicative structure approved.
+
+**Data Integrity Gate**
+- *Purpose:* ensure downstream work consumes authoritative, reconciled data (G1).
+- *Entry:* work depends on data as truth, or a cutover is proposed.
+- *Required evidence:* reconciliation clean; shadow-read validated; rollback rehearsed; SQL authority VERIFIED where claimed.
+- *Approval authority:* data/architecture authority (DNA Ch 18 data sovereignty).
+- *Failure response:* hold downstream work; remain KV-authoritative until verified.
+- *Exit:* authoritative data verified for the consuming capability.
+
+**Security Gate**
+- *Purpose:* verify server-side authority, auth, and the absence of client-trusted state.
+- *Entry:* any change touching auth, authorization, or trust boundaries.
+- *Required evidence:* trust decisions enforced server-side; RLS/anon policies verified; no client-trusted authority.
+- *Approval authority:* security/governance authority (DNA Ch 18.9; Execution Rules).
+- *Failure response:* block; the human high-consequence floor is inviolable.
+- *Exit:* server-side authority verified.
+
+**Governance Gate**
+- *Purpose:* confirm subordination to the Constitution and LOCKED Parts, and traceability/attribution.
+- *Entry:* any change; heightened for entrenched-core impact.
+- *Required evidence:* change is constitution-subordinate, versioned, attributed, logged; entrenched-core changes invoke the amendment process (DNA Ch 35).
+- *Approval authority:* constitutional/governance authority (DNA Ch 30.4, Ch 35).
+- *Failure response:* block; require amendment for locked-Part impact.
+- *Exit:* governance-conformant change approved.
+
+**Product Readiness Gate**
+- *Purpose:* ensure customer-facing surfaces present trustworthy, not false, state.
+- *Entry:* a product surface is proposed for release.
+- *Required evidence:* backed by authoritative, tenant-enforced data; no mock-as-production; customer journey stable (DNA Ch 33).
+- *Approval authority:* product authority per Part III/Part IV.
+- *Failure response:* gate the surface behind verified foundations.
+- *Exit:* surface verified over trustworthy state.
+
+**AI Readiness Gate**
+- *Purpose:* ensure all AI is gateway-routed, provider-neutral, certified, and deterministic-subordinate.
+- *Entry:* any AI capability or provider addition.
+- *Required evidence:* routed through the gateway (no bypass); provider certified via `certification`/`modelRegistry`; deterministic results remain authoritative (AI assists, never overrides).
+- *Approval authority:* intelligence/architecture authority per Part IV (§IV-23–§IV-34).
+- *Failure response:* reject bypass or override; require gateway routing.
+- *Exit:* governed, certified, deterministic-subordinate AI verified.
+
+**Operational Readiness Gate**
+- *Purpose:* ensure a capability can be observed, diagnosed, and recovered before it scales (G5).
+- *Entry:* a capability approaches scale or production operation.
+- *Required evidence:* telemetry/health/diagnostics present; traceability; rollback path; affected and regression tests pass (`test:*`; Test Protocol).
+- *Approval authority:* operations authority per Part IV (§IV-46–§IV-55).
+- *Failure response:* hold scaling until observability verified.
+- *Exit:* operational readiness verified.
+
+**Release Readiness Gate**
+- *Purpose:* confirm a capability is complete, verified, and reversibly deployable.
+- *Entry:* a capability is proposed for merge/release.
+- *Required evidence:* clean build; affected + regression tests pass; reversible deployment (`supabase:deploy`/`db-push`) where the environment permits; no production claim without evidence; deployment-limited items marked UNVERIFIED, not production-ready.
+- *Approval authority:* release/governance authority per Execution Rules and DNA Ch 30.
+- *Failure response:* block release; return to the failing gate.
+- *Exit:* verified, reversibly deployable capability approved for the mandatory merge workflow (§VI-19).
+
+**Governing rule.** A gate converts a capability from UNVERIFIED to VERIFIED only on the stated evidence; no gate is passed by assertion. Downstream hard-dependent work may not begin until the gate its prerequisite passes is exited. Deployment-limited verification never yields a production-ready claim (§VI-8, §VI-19).
+
+**Dependencies.** §VI-13 (the dependencies gates enforce); §VI-14 (layer boundaries the gates guard); §VI-17 (streams the gates advance); §VI-9 (execution principles the gates operationalize).
+
+**Risks.** A gate passed by assertion rather than evidence silently re-admits the failure it exists to prevent; the anti-drift controls (§VI-19) require the evidence to be recorded, not claimed.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-23–§IV-34, §IV-35–§IV-45, §IV-46–§IV-55. Part VI: §VI-9, §VI-13. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+**Completion Evidence.** Eight gates defined with purpose, entry, evidence, authority (as roles, not individuals), failure response, and exit; the evidence-not-assertion rule stated; gates tied to dependencies, layers, and streams.
+
+---
+
+## VI-19 — Sequencing Principles and Anti-Drift Controls
+
+**Purpose.** To define the controls that keep execution converging on the blueprint, and to establish the mandatory repository workflow for every remaining Blueprint phase.
+
+**Why it exists.** Sequence, streams, and gates can all be undermined by drift — duplicate architecture, gateway bypass, client-trusted authority, unverified production claims, phase-jumping, branch accumulation, undocumented decisions. This section makes those failures explicit prohibitions and binds the process by which phases advance.
+
+**Scope.** The anti-drift controls (invariants) and the mandatory phase workflow. These are rules binding all later Part VI phases; they define no tasks and no dates.
+
+**Approved Execution State (anti-drift controls — invariants).**
+
+- **Blueprint traceability.** Every capability traces to an approved Blueprint section before it is built; the Blueprint is the authority, code the implementation.
+- **Phase-entry checks.** A phase begins only after verifying its prerequisites are merged and VERIFIED (the Architecture/Data/Governance gates, §VI-18).
+- **Dependency verification.** No downstream work begins on an incomplete or UNVERIFIED prerequisite (§VI-13).
+- **No duplicate architecture.** No second engine, service, or data authority for an existing responsibility. *Permanently rejected* (§VI-16).
+- **No direct AI-provider bypass.** All AI is routed through the Intelligence Gateway; no provider is called around the abstraction. *Permanently rejected* (§VI-16).
+- **No client-trusted authority.** Trust and authorization decisions are enforced server-side; the client is never the authority.
+- **No implementation without ownership.** No capability is built without a clear owning domain/authority in the architecture (§VI-13, §VI-18).
+- **No production claims without verification.** Nothing is called production-ready without gate evidence; deployment-limited work is marked UNVERIFIED (§VI-8, §VI-18).
+- **No new phase before the prior phase is merged and verified.** Phases advance only through the mandatory workflow below.
+- **No branch accumulation.** One phase, one working branch, merged and not left to accumulate; no stacking of unmerged phases (this phase's branch is `claude/marq-cortex-part-vi-phase-6-2`).
+- **No locked-Part modification without formal amendment.** Parts I–V and the Constitution change only via the heightened amendment process (DNA Ch 35) — never by implementation choice.
+- **No roadmap inflation.** No milestones, dates, staffing, or numeric KPIs are added to this strategic phase; scope is not inflated beyond the Blueprint.
+- **No undocumented architectural decisions.** Every architectural decision is recorded in the Blueprint or its governed records; none is implicit in code alone.
+
+**Approved Execution State (mandatory repository workflow).** For every remaining Blueprint phase, work advances in exactly this order, and only in this order:
+
+1. **Complete phase** — author/implement the phase in full against the Blueprint.
+2. **Review** — verify against the gates (§VI-18) and the validation checklist for the phase.
+3. **Commit** — record the change with a clear, attributed message.
+4. **Push** — publish the single phase branch.
+5. **Open pull request** — targeting `main`.
+6. **Merge into main** — after review approval.
+7. **Verify canonical main** — confirm `main` now contains the phase, in canonical order, with no regressions.
+8. **Begin next phase** — only now, and from the verified `main`.
+
+**This workflow is mandatory for all remaining Blueprint phases.** No phase may skip a step, and step 8 (begin next phase) is gated on step 7 (verified canonical main) — enforcing "no new phase before the prior phase is merged and verified."
+
+**Dependencies.** §VI-9 (execution principles); §VI-13 (dependency verification); §VI-16 (permanently-rejected work); §VI-18 (gates the controls invoke); the Constitution (DNA Ch 30/35) and Execution Rules.
+
+**Risks.** Each control names a real drift vector observed in complex builds; relaxing any one re-opens that vector. The controls are invariant, not situational.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-5, §IV-44, §IV-54. Part VI: §VI-9, §VI-13, §VI-16, §VI-18. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+**Completion Evidence.** Thirteen anti-drift invariants stated; the eight-step mandatory workflow established as binding on all remaining phases with step 8 gated on verified canonical main; no tasks or dates introduced.
+
+---
+
+## VI-20 — Phase 6.2 Summary and Completion Record
+
+**Purpose.** To summarize Phase 6.2 and record its completion without beginning Phase 6.3 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *prioritization and sequencing architecture* is not mistaken for a plan of record with dates, and so Phase 6.3 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.2 only (§VI-11–§VI-20) and its completion record.
+
+**Summary.**
+- **Prioritization model (§VI-11–§VI-12).** A philosophy (value before volume; foundations before expansion; trust before automation; authority before autonomy; data integrity before intelligence; reuse before isolated features; dependency-aware sequencing; operational readiness before scaling; anti-drift; blueprint preservation) operationalized by a qualitative framework of fourteen evaluation dimensions and eight priority classes (Foundation-Critical, Governance-Critical, Product-Critical, Platform-Enabling, Operational-Enabling, Growth-Enabling, Optimization, Deferred) — no numeric scores.
+- **Dependency model (§VI-13).** A fourteen-domain dependency chain grounded in the repository, distinguishing hard (blocking) from soft (advisory) dependencies, with the rule that no downstream work proceeds on an incomplete or UNVERIFIED prerequisite.
+- **Enterprise execution layers (§VI-14).** Nine ordered layers from Constitutional/Governance Integrity to Scale/Ecosystem/Market Expansion, each with purpose, precedence, outcomes, dependencies, skip-risk, and Parts III–V relationship — a sequence of readiness, never dates.
+- **Immediate priorities (§VI-15).** Five groups (complete foundations; resolve fragmentation; establish enterprise controls; enable reliable product execution; prepare intelligence), each item grounded in named repository artifacts and status-labelled, with data authority (G1) and enforced tenancy (G2) standing first.
+- **Deferred work (§VI-16).** Twelve early-work items classified as permanently rejected, deferred, dependency-blocked, or strategically unnecessary now.
+- **Execution streams (§VI-17).** Nine streams with objectives, prerequisites, outputs, coordination, risks, and completion evidence, and their parallel-vs-sequential relationships.
+- **Gates (§VI-18).** Eight gates (Architecture, Data Integrity, Security, Governance, Product Readiness, AI Readiness, Operational Readiness, Release Readiness), each with entry, evidence, role-based authority, failure response, and exit.
+- **Anti-drift controls (§VI-19).** Thirteen invariants and the mandatory eight-step repository workflow (complete → review → commit → push → open PR → merge → verify canonical main → begin next phase), binding on all remaining phases.
+
+**Current State.** All CURRENT STATE claims in this phase are grounded in the repository verified for Phase 6.2 or in the LOCKED Parts I–V; foundations are PARTIAL/UNVERIFIED where the runtime is not yet authoritative (data authority, tenancy), PARTIAL where breadth is incomplete (gateway providers, product surfaces, observability), and NOT IMPLEMENTED where absent (AI workforce runtime, enterprise instrumentation, distinct knowledge system). Nothing is invented.
+
+**Approved Execution State.** A dependency-true, gate-governed sequence — foundations (governance, tenancy, data integrity) first; platform, intelligence, workforce, product, operations, and scale in verified order — realizing the direction LOCKED in Part V without editing it, and advancing only through the mandatory workflow.
+
+**Completion Record.**
+- Phase 6.2 authored.
+- Sections VI-11 through VI-20 present, exactly once, in continuous numbering after §VI-10.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10) preserved unchanged.
+- No implementation performed; no application code modified.
+- No sprint schedule created.
+- No calendar dates assigned; no staffing, hours, or numeric KPIs assigned.
+- Repository claims grounded in evidence and status-labelled.
+- Phase 6.3 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.2 sections (§VI-11–§VI-19); Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-1–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-19. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-11–§VI-20; the unchanged Phase 6.1 and Parts I–V; the absence of any dates, tasks, assignments, or numeric KPIs.
+
+---
+
+**Phase 6.2 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) is preserved. Phase 6.2 (§VI-11–§VI-20) is authored and complete but not locked. The next Part VI phase (6.3) is not begun here.
+
+*End of Phase 6.2. Part VI continues in a later phase.*
