@@ -5359,3 +5359,244 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.4 — Execution Governance & Delivery Control
+
+**Status:** COMPLETE (Phase 6.4) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-31 through VI-40, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.4 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phases 6.1–6.3 settled the *plan*: the current-state assessment and gap analysis (§VI-1–§VI-10), the prioritization and sequencing model (§VI-11–§VI-20), and the capability delivery model — waves, readiness, synchronization, release categories, validation, and release governance (§VI-21–§VI-30). Those phases describe *what* is delivered, *in what order*, and *how* it is promoted to production. Phase 6.4 answers the question that stands between an approved plan and a demonstrated success: **while a capability increment is actually being executed, how is that execution governed and controlled?** It defines the enterprise **execution governance** that operates in the interval between roadmap planning (Phases 6.1–6.3) and execution success (Phase 6.5) — the control framework, decision authority, change control, evidence model, health monitoring, escalation discipline, controlled-execution principles, and continuity guarantees that keep in-flight delivery honest, bounded, reversible, and observable.
+
+**What this phase is.** An enterprise execution-governance architecture — an execution governance philosophy (§VI-31), a delivery control framework (§VI-32), the execution decision authority (§VI-33), change control during delivery (§VI-34), the execution evidence model (§VI-35), delivery health monitoring (§VI-36), escalation and exception management (§VI-37), the controlled-execution principles (§VI-38), and execution continuity (§VI-39), closed by a completion record (§VI-40). It governs the *act* of executing an already-approved, already-sequenced increment; it does not re-decide what to execute.
+
+**What this phase is not.** Phase 6.4 does **not** redefine priorities, dependencies, layers, streams, gates, waves, readiness criteria, release categories, or release governance — those are settled in Phases 6.2–6.3 and Parts I–V and are only *applied* here. It is not a project-management method, a sprint calendar, a ticket workflow, a staffing plan, an incident-response runbook, an engineering estimate, or an implementation task list. It assigns no dates, no story points, no owners, no hours, and it writes no code. It describes how execution is *controlled*; it does not perform any execution. Phase 6.5 (execution success) is not begun here, and Part VI is not locked.
+
+**Grounding.** The governance model below is grounded in the same repository verified for Phases 6.1–6.3 — the LOCKED execution contract in `MARQ_CORTEX_EXECUTION_RULES.md` (sprint discipline, the drift-prevention checklist, stop conditions, the Definition of Done, and the mandatory git workflow), the `MARQ_CORTEX_TEST_PROTOCOL.md` and `MARQ_CORTEX_DOCUMENTATION_RULES.md`, the four-document authority stack (Constitution, this Blueprint, the Operating Constitution, `ARCHITECT.md`), the append-only `MARQ_CORTEX_ROADMAP.md` progress record, the migration engine under `supabase/functions/server/migration/` (`orchestrator.ts`, `checkpointStore.ts`, `rollback.ts`, `reconciliation.ts`, `quarantineStore.ts`, `telemetry.ts`, `inventory.ts`), the Intelligence Gateway observability under `supabase/functions/server/intelligence/` (`certification.ts`, `telemetry.ts`, `health.ts`), the server repository layer under `supabase/functions/server/repositories/`, the SQL migrations under `supabase/migrations/`, and the manually invoked test suites declared in `package.json` (`test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke`) — together with the LOCKED Parts I–V and the Constitution. CURRENT STATE is distinguished from APPROVED FUTURE STATE in every section, tagged IMPLEMENTED / PARTIAL / NOT IMPLEMENTED. Nothing is invented ahead of its phase (Golden Rule 5); in particular, this phase does **not** claim any automated continuous-integration pipeline, which is absent from the repository (no `.github/workflows`).
+
+---
+
+## VI-31 — Execution Governance Philosophy
+
+**Purpose.** To define the value system that governs the *act of executing* an approved capability increment — the philosophy of controlled execution — distinct from how Cortex prioritizes (§VI-11), sequences (§VI-13–§VI-14), or delivers (§VI-21) that capability.
+
+**Scope.** The execution value system only. It names no control gate, no decision authority, no evidence artifact, and no escalation path; those derive from this philosophy in §VI-32 onward. It governs work already approved and already sequenced; it never re-opens the decision to do that work.
+
+**Why it exists.** Phase 6.3 fixes *how a capability is delivered* to the point of release; it says nothing about the discipline that must hold while the increment is in flight — between the moment execution begins and the moment success is demonstrated (Phase 6.5). Without an execution philosophy, a correctly prioritized, correctly sequenced increment can still fail in execution: scope can creep, an unreviewed change can land, an irreversible step can be taken under pressure, or "done" can be declared without evidence. This section fixes the governing intent so that execution is always **bounded, evidenced, reversible, and observable**, never merely *active*.
+
+**Current State.** PARTIAL / IMPLEMENTED-as-standard. An execution philosophy already governs the repository today, expressed as the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`: every sprint must be "independently reviewable and reversible," must keep "runtime behavior unchanged unless the sprint explicitly changes it," must satisfy a Definition of Done (scope completed, tests passed, documentation updated, rollback documented, no unintended drift), and must respect explicit Stop Conditions. This is a *human-and-document* execution discipline enforced by convention and review, not by an automated control plane; there is no CI enforcement in the repository (no `.github/workflows`). The philosophy is therefore IMPLEMENTED as a standard and PARTIAL as an enforced runtime.
+
+**Approved Future State.** The same controlled-execution intent, elevated from a per-sprint convention to the standing enterprise governance philosophy for all in-flight delivery, and progressively instrumented so that "bounded, evidenced, reversible, observable" is verified against recorded signal rather than asserted — additively, without weakening any existing rule (DNA Ch 8.3). Execution governance *applies* the Execution Rules and this Blueprint; it never overrides them and creates no new authority.
+
+**Dependencies.** §VI-11 (the value system execution realizes); §VI-19 (the anti-drift controls and mandatory workflow execution must obey); §VI-21 (the delivery philosophy execution enacts); §VI-32 (the control framework this philosophy instantiates); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Traceability to Parts I–V.** Part I: recovery discipline preserved by reference. Part II: DNA Ch 8.3/17/18/25/33/35 (identity, determinism, governance, judgment, amendment). Part III: §III-74/§III-75/§III-84–§III-88 (append-only progress record, quality gates). Part IV: §IV-35–§IV-55 (operating model and governance). Part V: §V-1–§V-30 (long-horizon direction the philosophy must not contradict). Part VI: §VI-11, §VI-19, §VI-21. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_ROADMAP.md`.
+
+---
+
+## VI-32 — Delivery Control Framework
+
+**Purpose.** To define the enterprise **delivery control framework** — the standing set of controls through which an in-flight capability increment is kept bounded, reviewable, and reversible from the moment execution begins until it reaches a release-readiness frontier (§VI-23).
+
+**Scope.** The control structure only — control points, control objects, and the disciplines that attach to them. It defines no new gate (the gates are §VI-18), no new readiness bar (§VI-23), and no decision authority (§VI-33); it is the connective control tissue that operates *between* those settled checkpoints while work is actually being done.
+
+**Why it exists.** Gates (§VI-18) and readiness criteria (§VI-23) are checkpoints; they verify state at boundaries. Execution, however, happens *between* boundaries, and that interval is where drift, scope creep, and irreversibility enter. A delivery control framework exists so that control is continuous rather than only at gates: every in-flight increment has a defined control surface — a bounded scope, a required rollback, a reviewable change set, and a tests-pass condition — that must hold throughout execution, not merely at the exit.
+
+**Current State.** PARTIAL. Real control machinery exists for the one domain that has executed non-trivial delivery — data migration: the migration engine provides checkpointing (`checkpointStore.ts`, `migration_checkpoints`), bounded rollback with dry-run preview (`rollback.ts`), reconciliation (`reconciliation.ts`), quarantine of bad records (`quarantineStore.ts`), run telemetry (`telemetry.ts`), and an orchestrated pipeline (`orchestrator.ts`) invoked through explicit `migration:*` scripts. Cross-cutting execution control is documented in the LOCKED Execution Rules (bounded scope, mandatory rollback, drift-prevention checklist, Definition of Done) and enforced by review. There is **no** automated control plane spanning all delivery (no CI, no pipeline gate that blocks a merge); controls are code-level where the migration engine reaches and document-level everywhere else.
+
+**Approved Future State.** A uniform delivery control framework in which every in-flight increment — not only migrations — carries the same four standing controls: **bounded scope** (the increment does exactly its approved slice, §VI-19), **required reversibility** (a demonstrated rollback path before the increment advances, §VI-27), **reviewable change** (§VI-34), and **verified exit** (tests/evidence pass, §VI-35), with the migration engine's checkpoint/rollback/reconciliation pattern generalized as the reference model. Introduced additively over the existing controls; it removes none of them.
+
+**Dependencies.** §VI-18 (the gates the framework operates between); §VI-23 (the readiness frontier it drives toward); §VI-27 (reversibility/compatibility the framework enforces in-flight); §VI-33 (the authority that operates the controls); §VI-34 (the change control it embeds); §VI-35 (the evidence its exits require). Repository: `supabase/functions/server/migration/`.
+
+**Traceability to Parts I–V.** Part I: reversible-change discipline preserved by reference. Part II: DNA Ch 17/18/25/33 (determinism, governance, auditability, judgment). Part III: §III-56–§III-65 (data plane), §III-84–§III-88 (quality gates and evidence). Part IV: §IV-35–§IV-55 (operations and governance). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-18, §VI-19, §VI-23, §VI-27. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-33 — Execution Decision Authority
+
+**Purpose.** To state *who decides what* while an increment is in flight — the mapping of in-execution decisions to already-existing constitutional authority — so that no execution-time choice is made by an authority that does not already hold it.
+
+**Scope.** Decision authority *during execution* only. It creates no new role, no new committee, and no new power; it *applies* the authorities already defined in Part II (the Constitution), Part IV (the operating model), §VI-18 (gate authorities), and §VI-29 (release governance) to the decisions that arise while work is being done.
+
+**Why it exists.** Execution surfaces decisions that planning cannot pre-resolve: whether an increment may proceed past an ambiguous control point, whether a change request is in-scope or a scope change, whether an exception is admissible, whether to roll back. If those decisions are made ad hoc by whoever is closest to the keyboard, authority drifts and governance becomes advisory. This section fixes that each such decision is routed to the authority already competent for it — decision authority is *applied*, never *invented* (mirroring §VI-29 for release, extended to in-flight execution).
+
+**Current State.** IMPLEMENTED (human-and-document model). Authority today is exercised by MARQ Networks stewardship under the four-document authority stack (Constitution, Blueprint, Operating Constitution, `ARCHITECT.md`); execution decisions are governed by the LOCKED Execution Rules, whose Stop Conditions explicitly reserve certain decisions (destructive change, security or authentication redesign, architecture contradiction) to human escalation and forbid others from being used as stop excuses (push restrictions, missing live environment). The append-only `MARQ_CORTEX_ROADMAP.md` records the decisions taken. The AI-role-operated authority model of Part IV (executives, managers, workers deciding) is **NOT IMPLEMENTED** — reserved to the `ai_worker` future identity.
+
+**Approved Future State.** The same authority map, held stable as execution decisions are progressively delegated to the Part IV AI-workforce roles under supervision — each role deciding only within the authority already assigned to it, the human high-consequence floor inviolable (DNA Ch 18.9), and every delegated decision attributable to an identity that holds it (identity precedes authority; §IV-25). Delegation is additive and reversible; it transfers no decision above the human floor.
+
+**Dependencies.** §VI-18 (gate authorities applied in-flight); §VI-29 (release-approval authority this section extends to execution); Part IV §IV-35–§IV-55 (the operating authorities); the Constitution (DNA Ch 30/35); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md` (Stop Conditions).
+
+**Traceability to Parts I–V.** Part I: recovery-era stewardship preserved by reference. Part II: DNA Ch 8.3/18.7/18.9/25/30/35 (identity, authority floor, governance, amendment). Part III: §III-75 (governed progress). Part IV: §IV-25, §IV-35–§IV-55 (identity-before-authority, operating model). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-18, §VI-29. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-34 — Change Control During Delivery
+
+**Purpose.** To define how a *change to an in-flight increment* is controlled — how a request that would alter scope, contract, or approach mid-execution is classified, routed, and either admitted or refused — so that execution stays faithful to the approved plan.
+
+**Scope.** Change *during delivery* only. It governs changes to work already in flight; it does not govern the amendment of LOCKED decisions (that is DNA Ch 35), nor the initial approval of a priority (§VI-15). It classifies and routes change; it does not re-plan.
+
+**Why it exists.** The most common way a sound plan fails in execution is uncontrolled change: a "small" addition expands scope, a "quick" contract tweak breaks a consumer, a "temporary" bypass becomes permanent. The Execution Rules already prohibit scope expansion without approval and forbid speculative abstractions and unnecessary refactoring; this section raises that prohibition into a standing change-control discipline so that every mid-flight change is explicitly typed (in-scope refinement vs. scope change vs. contract change vs. locked-decision conflict) and routed to the right authority (§VI-33) before it lands.
+
+**Current State.** PARTIAL / IMPLEMENTED-as-rule. Change discipline is codified in the LOCKED Execution Rules: "Only implement the scope of the current sprint," "Never expand scope without approval," "Avoid speculative abstractions," and the pre-completion drift check ("scope remained bounded," "no unrelated modules changed," "APIs unchanged unless intended"). Contract-preservation is a first-class rule (KV authority, API contracts, DTOs, response envelopes, route behavior, auth, tenant isolation "preserve unless explicitly instructed"). Enforcement is by review against these rules, not by automated policy checks; there is no merge-blocking change-control gate in the repository. So the *policy* is IMPLEMENTED; automated *enforcement* is NOT IMPLEMENTED.
+
+**Approved Future State.** A uniform change-control discipline applied to every in-flight increment: each proposed mid-flight change is classified and, if it crosses the scope or contract boundary, refused or escalated to the competent authority (§VI-33) — and, where it conflicts with a LOCKED decision, redirected to the heightened amendment path (DNA Ch 35) rather than absorbed silently. Progressively instrumented (change classification recorded alongside the increment's evidence, §VI-35) without weakening the existing preserve-by-default rules.
+
+**Dependencies.** §VI-19 (anti-drift controls and mandatory workflow); §VI-27 (compatibility a change must preserve); §VI-32 (the control framework this change discipline lives inside); §VI-33 (the authority a change escalates to); DNA Ch 35 (amendment path for locked-decision conflicts); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Traceability to Parts I–V.** Part I: contract-preservation during recovery preserved by reference. Part II: DNA Ch 17/18/25/35 (determinism, governance, auditability, amendment). Part III: §III-29 (workflow), §III-56–§III-65 (contracts). Part IV: §IV-35–§IV-55 (governance). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-19, §VI-27, §VI-33. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-35 — Execution Evidence Model
+
+**Purpose.** To define the **evidence** that in-flight execution must produce — the artifacts that substantiate that an increment did exactly its bounded scope, kept behavior unchanged where intended, remained reversible, and passed its tests — so that progress is demonstrated, never asserted.
+
+**Scope.** Execution-time evidence only. It is distinct from *release*-validation evidence (§VI-28), which aggregates a wave's evidence at the moment of promotion; the execution evidence model concerns the evidence generated *while the increment is being built*, which §VI-28 later draws upon. It defines evidence *kinds*, not numeric coverage targets.
+
+**Why it exists.** Cortex's cardinal execution failure mode is "complete-in-narrative, unverified-in-fact" — declaring done without proof, or reporting a deployment-limited result as a verified one (§VI-8). An execution evidence model exists to foreclose that: every increment leaves a defined evidentiary trail — the change set, the test results, the rollback demonstration, the drift check, and the completion record — so that the authority who advances it (§VI-33) decides against artifacts, not against a story.
+
+**Current State.** PARTIAL. Concrete evidence-producing machinery exists: the manually invoked test suites in `package.json` (`test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke`); the Intelligence Gateway's `certification.ts`, `telemetry.ts`, and `health.ts`; the migration engine's run telemetry (`telemetry.ts`), reconciliation (`reconciliation.ts`), checkpoints, and rollback preview; and the required Completion Report and Definition of Done in the Execution Rules (tests passed, rollback documented, no unintended drift). The append-only roadmap is the durable record. Evidence is generated and read by humans on demand; it is **not** collected automatically by a CI pipeline (none exists), so the evidence trail is IMPLEMENTED in substance but PARTIAL in automation and uniformity.
+
+**Approved Future State.** A uniform execution evidence model in which every in-flight increment produces the same evidence kinds — bounded-scope proof, behavior-preservation proof, reversibility demonstration, drift-check result, and test result — captured as a durable, attributable record and made available to the deciding authority and, later, to release validation (§VI-28). Progressively automated (evidence gathered as execution proceeds rather than reconstructed after) without lowering the qualitative "all-of, demonstrated-not-asserted" bar.
+
+**Dependencies.** §VI-8 (the no-unverified-claim rule this model enforces); §VI-18 (the gates whose exit consumes this evidence); §VI-28 (release validation that aggregates it); §VI-32 (the control framework whose exits require it); §VI-36 (health monitoring that reads the same signals). Repository: `package.json` test scripts, `supabase/functions/server/intelligence/`, `supabase/functions/server/migration/`.
+
+**Traceability to Parts I–V.** Part I: recovery evidence preserved by reference. Part II: DNA Ch 18.9/25/30/33 (verification, auditability, judgment). Part III: §III-75, §III-84–§III-88 (quality gates and evidence). Part IV: §IV-46–§IV-55 (raw signals plus the constitutional success standard). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-8, §VI-18, §VI-28. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-36 — Delivery Health Monitoring
+
+**Purpose.** To define what it means to know that in-flight delivery is **healthy** — the standing observation of an executing increment's condition (progressing, stalled, drifting, or failing) — so that trouble is seen while it is still correctable.
+
+**Scope.** Observation of *execution* health only. It is not production runtime observability (that is an Operations-wave capability, §VI-22) and not release readiness (§VI-23); it is the in-flight signal that tells whether the *act of delivering* is on a sound path. It defines *what to watch*, not numeric thresholds or alerting schedules.
+
+**Why it exists.** Uncontrolled execution fails silently: a migration stalls mid-backfill, a test suite quietly regresses, an increment drifts from its scope, and no one sees it until the boundary gate. Delivery health monitoring exists so that the control framework (§VI-32) is *observable while it operates* — health, progress, and reconciliation signal are watched continuously, so a stall or a drift is detected in-flight rather than at the exit.
+
+**Current State.** PARTIAL. Genuine health signal exists for instrumented domains: the Intelligence Gateway exposes `health.ts` and `telemetry.ts` (and `certification.ts` for provider state); the migration engine records run state via `telemetry.ts`, checkpoints progress (`checkpointStore.ts`), reconciles (`reconciliation.ts`), and quarantines anomalies (`quarantineStore.ts`) — together giving a real, inspectable view of a migration's in-flight health. There is **no** aggregated delivery-health dashboard and **no** automated monitoring across all execution (no CI, no pipeline telemetry); signals are per-domain and read on demand. Enterprise performance instrumentation and formal KPIs remain **NOT IMPLEMENTED** (§VI-8 / G-series gaps).
+
+**Approved Future State.** A uniform delivery-health view in which every in-flight increment emits comparable signal — progress, reconciliation/consistency, test status, and drift indication — surfaced continuously so that a stalled or drifting increment is caught in-flight and routed to escalation (§VI-37). Built additively on the existing gateway and migration telemetry as the reference pattern; it introduces no numeric KPI in this phase (metric instrumentation is deferred, consistent with Part V's exclusion of measures from vision).
+
+**Dependencies.** §VI-22 (Operations wave that later generalizes observability); §VI-32 (the control framework this monitors); §VI-35 (the evidence signals health reads); §VI-37 (the escalation an unhealthy signal triggers); §VI-39 (continuity that health monitoring protects). Repository: `supabase/functions/server/intelligence/` (`health.ts`, `telemetry.ts`, `certification.ts`), `supabase/functions/server/migration/` (`telemetry.ts`, `checkpointStore.ts`, `reconciliation.ts`).
+
+**Traceability to Parts I–V.** Part I: recovery-era diagnostics preserved by reference. Part II: DNA Ch 18/20/25/33 (governance, telemetry, auditability, judgment). Part III: §III-44, §III-84–§III-88 (observability and gates). Part IV: §IV-46–§IV-55 (operational signals; formal KPIs reserved). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-22, §VI-32, §VI-35. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-37 — Escalation & Exception Management
+
+**Purpose.** To define how an in-flight execution **exception** — a stall, a failed control, a change that crosses a boundary, a health signal that turns red, or a genuine architecture/security conflict — is escalated and managed, so that trouble is resolved by the competent authority rather than absorbed silently or worked around.
+
+**Scope.** In-flight exception handling and escalation routing only. It governs the *governance* response to an execution exception; it is not a technical incident-response runbook and not production on-call. It routes exceptions to authority (§VI-33); it does not itself decide the resolution.
+
+**Why it exists.** Controls, evidence, and health signals are only as useful as the response they trigger. Without a defined escalation discipline, a red signal becomes a silent workaround, a boundary-crossing change gets absorbed, and an irreversible or security-relevant decision gets made under delivery pressure by someone without the authority to make it. This section fixes that every exception has a defined path: classify it, route it to the authority competent for it (§VI-33), and — for the highest-consequence classes — stop rather than proceed.
+
+**Current State.** PARTIAL / IMPLEMENTED-as-rule. The LOCKED Execution Rules already define an escalation discipline: explicit **Stop Conditions** (destructive change required, security redesign required, authentication redesign required, architecture contradiction, missing mandatory access, three materially different repair attempts failed) that mandate escalation, and an explicit list of non-reasons to stop (push restrictions, missing live environment, missing credentials, known baseline failures, offline limitations) that must instead be reported and continued past. The migration engine's quarantine (`quarantineStore.ts`) and bounded rollback (`rollback.ts`) are concrete exception mechanisms for the data domain. There is **no** automated escalation routing; escalation is a documented human discipline. IMPLEMENTED as rule, PARTIAL as tooling.
+
+**Approved Future State.** A uniform escalation-and-exception discipline applied to every in-flight increment: every exception classified and routed to the competent authority (§VI-33), the human high-consequence floor always the terminus for the highest-consequence classes (DNA Ch 18.9), quarantine/rollback offered as first-class responses where reversibility applies (§VI-27, §VI-39), and each exception and its resolution recorded in the evidence trail (§VI-35). Delegated progressively to supervised AI-workforce roles without ever moving a floor decision below the human floor.
+
+**Dependencies.** §VI-33 (the authority exceptions escalate to); §VI-34 (boundary-crossing changes that become exceptions); §VI-36 (the health signals that raise exceptions); §VI-39 (continuity mechanisms exceptions invoke); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md` (Stop Conditions); the migration engine's `quarantineStore.ts` and `rollback.ts`.
+
+**Traceability to Parts I–V.** Part I: recovery-era stop-and-escalate discipline preserved by reference. Part II: DNA Ch 18.9/25/29/33 (human floor, auditability, retirement, judgment). Part III: §III-75, §III-84–§III-88 (governed progress and gates). Part IV: §IV-35–§IV-55 (governance and escalation authority). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-33, §VI-34, §VI-36. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-38 — Controlled Execution Principles
+
+**Purpose.** To state the enduring **principles** of controlled execution — the small set of invariants that must hold for any in-flight increment regardless of domain, wave, or authority — as the durable summary that binds §VI-31 through §VI-37 into one discipline.
+
+**Scope.** The execution invariants only. It introduces no new control, authority, evidence kind, or escalation path; it distills the ones already established into principles that any future execution can be checked against.
+
+**Why it exists.** Frameworks, authorities, and evidence models are detailed; execution under pressure needs a short, memorable invariant set that cannot be rationalized away in the moment. These principles exist so that "is this execution controlled?" has a fixed, all-of answer rather than a case-by-case negotiation.
+
+**Current State.** IMPLEMENTED-as-standard / PARTIAL-as-enforced. Every principle below is already an active rule in the LOCKED Execution Rules and is honored in the one domain with substantial delivery machinery (migration): bounded scope, preserved contracts, mandatory rollback, tests-before-done, no-drift, and stop-at-the-floor. They are enforced by discipline and review rather than by an automated control plane (no CI), so they are IMPLEMENTED as the standard and PARTIAL as machine-enforced invariants.
+
+**Approved Future State (governing principles).**
+
+- **Execution is bounded.** An in-flight increment does exactly its approved slice and no more; scope expansion requires re-approval (§VI-19, §VI-34).
+- **Execution is reversible.** No increment advances without a demonstrated rollback or withdrawal path; irreversible cutovers are prohibited (§VI-27, §VI-39).
+- **Execution is evidenced.** Progress is demonstrated by artifacts — tests, reconciliation, rollback proof, drift check — never asserted (§VI-8, §VI-35).
+- **Execution preserves contracts.** Data authority, tenancy, API contracts, DTOs, response envelopes, route behavior, and auth are preserved unless a change is the explicit, approved intent (§VI-16, §VI-27).
+- **Execution is observable.** An increment that cannot be watched in-flight is not under control; health and progress are visible while work proceeds (§VI-36).
+- **Execution defers to authority.** In-flight decisions are made by the authority already competent for them; the human high-consequence floor is inviolable (§VI-33, DNA Ch 18.9).
+- **Execution stops rather than drifts.** When a Stop Condition is met, execution halts and escalates; it never works around a floor decision under pressure (§VI-37).
+- **Execution preserves the blueprint.** In-flight work realizes LOCKED Parts I–V without editing them; a genuine conflict goes to amendment (DNA Ch 35), never to an ad-hoc execution choice.
+
+**Dependencies.** §VI-31–§VI-37 (the disciplines these principles distill); §VI-8, §VI-16, §VI-19, §VI-27 (the settled prohibitions and readiness conditions they restate); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Traceability to Parts I–V.** Part I: reversible-recovery invariants preserved by reference. Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-15–§III-88 (workflow, contracts, gates). Part IV: §IV-23–§IV-55 (operating model and governance). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-8, §VI-16, §VI-19, §VI-27. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-39 — Execution Continuity
+
+**Purpose.** To define how in-flight delivery **survives interruption** — how an increment that is paused, halted, rolled back, resumed, or handed off remains coherent and reversible — so that execution never leaves the platform in a stranded or half-migrated state.
+
+**Scope.** Continuity of *in-flight execution* only. It is not production disaster recovery, backup policy, or business continuity of the running service; it is the discipline that keeps an *interrupted increment* recoverable — resumable from a known point or reversible to a known-good state. It defines continuity guarantees, not operational recovery procedures.
+
+**Why it exists.** Execution is interrupted routinely — by a stop condition, an environment limit, a review pause, a session boundary, or a failed step. If an interruption can leave a partially applied increment with no way to resume and no way to reverse, then execution itself becomes a source of risk. Continuity exists so that every in-flight increment is always at, or recoverable to, a coherent state: it can resume from a checkpoint or roll back cleanly, and it never depends on an uninterruptible run.
+
+**Current State.** PARTIAL — and demonstrably real for the data domain. The migration engine is built for exactly this: `checkpointStore.ts` persists progress in `migration_checkpoints` so a run resumes from its last key rather than restarting; `rollback.ts` provides a bounded, dry-run-previewable reversal keyed to a migration run; `reconciliation.ts` re-establishes consistency; `quarantineStore.ts` isolates records that would block progress; and run telemetry preserves the record across interruption. The Execution Rules make "rollback exists" a Definition-of-Done condition and treat every sprint as "independently reversible." Outside the migration domain, continuity is a documented expectation rather than encoded machinery; there is **no** cross-domain resume/rollback orchestration, so continuity is IMPLEMENTED for migrations and PARTIAL elsewhere.
+
+**Approved Future State.** A uniform execution-continuity guarantee for every in-flight increment — always checkpointed to a resumable point and always reversible to a known-good state, with the migration engine's checkpoint/rollback/reconciliation/quarantine pattern generalized as the reference model — so that no interruption can strand the platform and no execution depends on an uninterruptible run. Introduced additively over the existing reversibility discipline (§VI-27); it weakens no rollback guarantee.
+
+**Dependencies.** §VI-27 (the reversibility principle continuity operationalizes in-flight); §VI-32 (the control framework continuity is part of); §VI-36 (health signals that detect an interruption); §VI-37 (escalation that may invoke rollback); §VI-40 (the completion boundary continuity supports). Repository: `supabase/functions/server/migration/` (`checkpointStore.ts`, `rollback.ts`, `reconciliation.ts`, `quarantineStore.ts`, `telemetry.ts`, `orchestrator.ts`).
+
+**Traceability to Parts I–V.** Part I: recovery-and-restore discipline preserved by reference. Part II: DNA Ch 17/18/25/33 (determinism, governance, auditability, judgment). Part III: §III-56–§III-65 (data plane), §III-84–§III-88 (gates and evidence). Part IV: §IV-35–§IV-55 (operations). Part V: §V-1–§V-30 (direction preserved). Part VI: §VI-27, §VI-32, §VI-37. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-40 — Phase 6.4 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.4 and record its completion without beginning Phase 6.5 or locking Part VI.
+
+**Scope.** A summary of Phase 6.4 only (§VI-31–§VI-40) and its completion record. It defines no new priority, dependency, governance rule, gate, wave, readiness bar, or release category, and it begins no later phase.
+
+**Why it exists.** A phased document needs an explicit boundary so the *execution governance model* is not mistaken for a project plan or an incident runbook, and so Phase 6.5 (execution success) begins from a settled, merged foundation. This record also closes the numbering interval that made Part VI continuous through §VI-40.
+
+**Summary of what Phase 6.4 established.**
+
+- **Execution governance philosophy (§VI-31).** The value system for the act of executing an approved increment: bounded, evidenced, reversible, and observable — applying, never overriding, the LOCKED Execution Rules and this Blueprint.
+- **Delivery control framework (§VI-32).** The standing controls that operate *between* gates — bounded scope, required reversibility, reviewable change, verified exit — with the migration engine's checkpoint/rollback/reconciliation pattern as the reference model.
+- **Execution decision authority (§VI-33).** In-flight decisions routed to already-existing constitutional authority; the human high-consequence floor inviolable; the AI-workforce runtime reserved (NOT IMPLEMENTED).
+- **Change control during delivery (§VI-34).** Mid-flight changes classified and routed — in-scope refinement admitted, scope/contract crossings refused or escalated, locked-decision conflicts sent to amendment (DNA Ch 35).
+- **Execution evidence model (§VI-35).** The in-flight evidence trail — bounded-scope proof, behavior-preservation proof, reversibility demonstration, drift check, test results — demonstrated, never asserted, feeding release validation (§VI-28).
+- **Delivery health monitoring (§VI-36).** Continuous observation of in-flight health — progress, reconciliation, test status, drift — built on the existing gateway and migration telemetry; no numeric KPI introduced.
+- **Escalation & exception management (§VI-37).** A defined path for every execution exception — classify, route to competent authority, stop at the floor — grounded in the Execution Rules' Stop Conditions and the migration engine's quarantine/rollback.
+- **Controlled execution principles (§VI-38).** The all-of invariant set — bounded, reversible, evidenced, contract-preserving, observable, authority-deferring, stop-not-drift, blueprint-preserving.
+- **Execution continuity (§VI-39).** In-flight increments always resumable from a checkpoint or reversible to a known-good state — real today for migrations, generalized as the approved future model — so no interruption strands the platform.
+
+**Current State.** All CURRENT STATE claims in this phase remain grounded in the repository verified for Phases 6.1–6.3 and in the LOCKED Parts I–V. Execution governance is IMPLEMENTED as a human-and-document discipline (the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md` and the four-document authority stack) and PARTIAL as encoded machinery — real and inspectable in the migration engine (checkpoints, rollback, reconciliation, quarantine, telemetry) and the Intelligence Gateway (health, telemetry, certification), but with **no** automated CI/control plane in the repository (no `.github/workflows`), **no** aggregated delivery-health dashboard, and the AI-workforce runtime and enterprise KPIs **NOT IMPLEMENTED**. This phase describes how execution is *governed*; it implements none of the missing capability and claims none as delivered. Nothing is invented.
+
+**Approved Future State.** A uniform enterprise execution-governance model — every in-flight increment bounded, reviewably changed, evidenced, health-monitored, escalated at the floor, and continuity-guaranteed — generalized additively from the migration engine's reference pattern and progressively delegated to supervised AI-workforce roles under the inviolable human floor, realizing the plan LOCKED in Phases 6.1–6.3 and the direction LOCKED in Part V without editing either.
+
+**Validation of this phase.**
+
+- Phase 6.4 authored.
+- Sections VI-31 through VI-40 present, exactly once, in continuous numbering after §VI-30.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- No priorities, dependencies, layers, streams, gates, waves, readiness criteria, release categories, or release governance redefined — only applied.
+- CURRENT STATE distinguished from APPROVED FUTURE STATE in every section; no implemented capability invented.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, numeric KPIs, or implementation instructions.
+- Part VI numbering is now continuous: §VI-1 → §VI-40, with no gap and no duplicate.
+- Phase 6.5 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.4 sections (§VI-31–§VI-39); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability to Parts I–V.** Part I: recovery discipline preserved by reference. Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-39. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-31–§VI-40; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the continuous §VI-1–§VI-40 numbering; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.4 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.5 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked, and Part VI is now continuously numbered §VI-1 → §VI-40. The next Part VI phase (6.5) is not begun here.
+
+*End of Phase 6.4. Part VI continues in a later phase.*
