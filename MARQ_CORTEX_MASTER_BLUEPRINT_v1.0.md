@@ -5600,3 +5600,252 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked, and Part VI is now continuously numbered §VI-1 → §VI-40. The next Part VI phase (6.5) is not begun here.
 
 *End of Phase 6.4. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.5 — Execution Success
+
+**Status:** COMPLETE (Phase 6.5) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-41 through VI-50, continuing the single-document numbering after Phase 6.4 (§VI-31–§VI-40); numbering is never restarted. · **Continuity:** Phase 6.5 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phases 6.1–6.3 settled the *plan* (assessment, prioritization, delivery model) and Phase 6.4 settled the *control of in-flight execution* (governance, evidence, health, escalation, continuity). Phase 6.5 answers the question that closes the roadmap arc: **when has execution actually succeeded?** It defines enterprise **execution success** — what success *means*, the qualitative criteria that constitute it, how success is *verified* rather than asserted, the evidence and record that substantiate it, how realized outcomes are confirmed against approved intent, the authority that pronounces success, and how learning from each success is carried forward — so that "done" is a governed, evidenced judgment and never a narrative.
+
+**What this phase is.** An enterprise execution-success architecture — an execution success philosophy (§VI-41), the definition of execution success (§VI-42), the success criteria model (§VI-43), success verification and proof (§VI-44), the success evidence and record (§VI-45), value realization and outcome confirmation (§VI-46), success governance and authority (§VI-47), continuous improvement and learning (§VI-48), and the enterprise success principles (§VI-49), closed by a completion record (§VI-50). It defines how success is *judged*; it declares no specific capability successful.
+
+**What this phase is not.** Phase 6.5 does **not** redefine priorities, dependencies, layers, streams, gates, waves, readiness criteria, release categories, release governance, or the execution-governance model — those are settled in Phases 6.2–6.4 and Parts I–V and are only *applied* here. It is not a KPI dashboard, a metrics catalog, an OKR framework, a benchmark, a performance-review process, a sprint report, or an implementation task list. It assigns no dates, no numeric targets, no scores, no owners, and it writes no code. It describes how success is *established*; it establishes no particular success. Phase 6.6 (enterprise review, audit & lock) is not begun here, and Part VI is not locked.
+
+**Grounding.** The success model below is grounded in the same repository verified for Phases 6.1–6.4 — the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md` (the Definition of Done and Completion Report), the `MARQ_CORTEX_TEST_PROTOCOL.md`, the append-only `MARQ_CORTEX_ROADMAP.md` progress record, the four-document authority stack (Constitution, this Blueprint, the Operating Constitution, `ARCHITECT.md`), the Intelligence Gateway's `certification.ts`, `telemetry.ts`, and `health.ts`, the migration engine's `reconciliation.ts` and run telemetry, the server repository layer, the SQL migrations, and the manually invoked test suites in `package.json` (`test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke`) — together with the LOCKED Parts I–V and the Constitution, and specifically the constitutional success standard and judgment principles (DNA Ch 33) and Part IV's performance and continuous-improvement sections (§IV-46–§IV-55). CURRENT STATE is distinguished from APPROVED FUTURE STATE in every section, tagged IMPLEMENTED / PARTIAL / NOT IMPLEMENTED. This phase introduces **no numeric KPI** (metric instrumentation remains reserved, consistent with Part V's exclusion of measures) and invents nothing ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-41 — Execution Success Philosophy
+
+**Purpose.** To define the value system by which MARQ Cortex judges an executed increment **successful** — the philosophy of evidenced, outcome-based success — distinct from how it controls execution (§VI-31) or promotes a wave to production (§VI-29).
+
+**Scope.** The success value system only. It names no criterion, no proof, and no authority; those derive from this philosophy in §VI-42 onward. It judges work already executed under governance; it never re-opens the decision to have done that work.
+
+**Why it exists.** Execution governance (Phase 6.4) keeps in-flight work bounded and reversible, but a bounded, reversible increment can still *not have achieved its purpose*. Without a success philosophy, "success" collapses into "the code merged" or "the release shipped" — activity mistaken for outcome. This section fixes that success in Cortex is the demonstrated realization of an approved capability's intended outcome, judged against evidence and the constitutional success standard, never against effort, output volume, or the visible completeness of a surface.
+
+**Current State.** PARTIAL / IMPLEMENTED-as-standard. A success standard already governs the repository: the LOCKED Execution Rules make success concrete per sprint via the Definition of Done (scope completed, tests passed, documentation updated, rollback documented, no unintended drift, runtime behavior matches objective), and the Constitution's judgment principles (DNA Ch 33) supply the standing success standard already applied in Part III (§III-81/82/83). This is a *qualitative, judgment-based* success philosophy enforced by review; there is no automated success measurement and no KPI instrumentation (formal KPIs are NOT IMPLEMENTED, §IV-46–§IV-55). IMPLEMENTED as standard, PARTIAL as instrumented.
+
+**Approved Future State.** The same evidenced, outcome-based success intent, elevated from a per-sprint Definition of Done to the standing enterprise success philosophy for all delivery, and progressively instrumented so that success is confirmed against recorded outcome signal rather than asserted — additively, without introducing numeric targets in this phase and without weakening the qualitative standard (DNA Ch 8.3, Ch 33).
+
+**Dependencies.** §VI-8 (the no-unverified-claim rule success obeys); §VI-31 (the execution governance success judges the result of); §VI-38 (controlled-execution principles success presupposes); §VI-42 (the definition this philosophy instantiates); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`; the Constitution (DNA Ch 33).
+
+**Traceability to Parts I–V.** Part I: recovery-era "correctness restored" success preserved by reference. Part II: DNA Ch 8.3/17/18/25/33 (identity, determinism, governance, judgment/success standard). Part III: §III-81–§III-83 (success and governance). Part IV: §IV-46–§IV-55 (performance signals; the constitutional success standard; KPIs reserved). Part V: §V-1–§V-30 (direction success must serve, measures excluded). Part VI: §VI-8, §VI-31, §VI-38. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-42 — Definition of Execution Success
+
+**Purpose.** To state, at the enterprise level, **what execution success is** — the standing definition that an executed increment must satisfy to be called successful — generalizing the per-sprint Definition of Done into a durable, all-of definition.
+
+**Scope.** The definition only. It states the constituents of success; it does not describe how they are proven (§VI-44), evidenced (§VI-45), or governed (§VI-47). It defines no numeric threshold and no score.
+
+**Why it exists.** "Done" is the single most abused word in delivery. A precise, shared definition of success exists so that no increment is declared successful on a partial or deployment-limited basis (§VI-8), and so that every stream, wave, and authority judges success against the same constituents rather than a local interpretation.
+
+**Current State.** IMPLEMENTED-as-rule (per sprint) / PARTIAL (enterprise). The Execution Rules already encode an operative definition: a sprint is complete only when scope is completed, tests pass, documentation is updated, rollback is documented, there is no unintended drift, and runtime behavior matches the objective — and, per the Git Workflow, changes are pushed and recorded. The append-only roadmap records each such completion. This definition is IMPLEMENTED at the sprint grain and applied by review; an *enterprise-capability* definition of success (outcome realized across a whole wave) is PARTIAL, and formal outcome metrics are NOT IMPLEMENTED.
+
+**Approved Future State (definition constituents).** An executed capability increment is **successful** only when all of the following hold as demonstrated evidence, not assertion:
+
+- **Intended outcome realized.** The approved capability does what it was prioritized to do (§VI-15), for the consumers it was meant to serve, over authoritative data.
+- **Correctness verified.** Deterministic results are correct and unchanged where preservation was intended; any AI path was governed through the gateway (§VI-16, §VI-19).
+- **Contracts preserved.** Data authority, tenancy, API contracts, DTOs, response envelopes, route behavior, and auth remain intact unless a change was the explicit, approved intent (§VI-27).
+- **Reversibility retained.** The increment remains reversible; success did not depend on an irreversible cutover (§VI-27, §VI-39).
+- **Observably operable.** The capability emits enough signal to be operated and diagnosed (§VI-36).
+- **Evidence complete.** The success is substantiated by a complete evidence record (§VI-45), not by narrative or deployment-limited claim (§VI-8).
+- **Blueprint preserved.** The result realizes LOCKED Parts I–V without editing them; any conflict was resolved by amendment (DNA Ch 35).
+
+**Dependencies.** §VI-8 (no partial-credit success); §VI-23 (release readiness, the delivery-side analogue); §VI-27 (reversibility/compatibility); §VI-36 (observability); §VI-41 (the philosophy this defines); §VI-44/§VI-45 (proof and evidence); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md` (Definition of Done).
+
+**Traceability to Parts I–V.** Part I: "correctness preserved" success preserved by reference. Part II: DNA Ch 6/17/18/25/33/35. Part III: §III-29, §III-81–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30 (direction served). Part VI: §VI-8, §VI-15, §VI-16, §VI-19, §VI-23, §VI-27. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-43 — Success Criteria Model
+
+**Purpose.** To define *how success criteria are formed* for any given increment or wave — the qualitative model that derives a specific increment's success test from the standing definition (§VI-42) — without prescribing numeric targets.
+
+**Scope.** The criteria-forming model only. It explains how to state what "success" means for a particular capability; it does not measure, score, or rank. It sets no threshold, coverage percentage, or benchmark.
+
+**Why it exists.** The definition of success (§VI-42) is general; each increment needs its own concrete, checkable success criteria drawn from that definition, or success remains an abstraction that cannot be tested at the point of delivery. This section fixes that criteria are derived, not invented per delivery — every increment's success test is a specialization of the same enterprise definition, expressed qualitatively and all-of.
+
+**Current State.** PARTIAL. Concrete, criteria-like pass conditions already exist in the repository: provider certification in `certification.ts` yields a defined certified/uncertified state; the test suites yield pass/fail; reconciliation yields consistent/inconsistent; the Definition of Done yields complete/incomplete. These are real, checkable success conditions for the domains they cover. What is NOT IMPLEMENTED is a uniform, enterprise-wide criteria model spanning all capability classes, and any *numeric* success criterion (none exists, by rule). So per-domain criteria are IMPLEMENTED/PARTIAL; a uniform model is APPROVED-FUTURE.
+
+**Approved Future State.** A uniform success-criteria model in which every increment's criteria are derived from the seven constituents of §VI-42, expressed qualitatively and all-of, and recorded with the increment so success is testable at delivery — with certification, test pass, and reconciliation generalized as the reference criteria kinds. No numeric target, score, or benchmark is introduced in this phase; measures remain reserved (Part V exclusion; §IV-46–§IV-55).
+
+**Dependencies.** §VI-23 (release readiness criteria, the wave-admission analogue this parallels); §VI-42 (the definition criteria specialize); §VI-44 (verification that tests the criteria); §VI-45 (the record criteria are stored in); the repository's `certification.ts`, test suites, and `reconciliation.ts`.
+
+**Traceability to Parts I–V.** Part I: gate-criteria discipline preserved by reference (`phase1-gate-criteria.md`). Part II: DNA Ch 18/25/33. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-23, §VI-42. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-44 — Success Verification & Proof
+
+**Purpose.** To define how success is **verified** — how an increment's success criteria (§VI-43) are proven by demonstration rather than accepted by claim — so that a success pronouncement always rests on proof.
+
+**Scope.** Verification of success only. It is distinct from in-flight execution evidence (§VI-35), which is generated *during* the build; success verification is the *terminal* act of proving the finished increment meets its criteria. It defines proof *kinds and standard*, not coverage numbers.
+
+**Why it exists.** The definitive Cortex failure mode is the unverified success claim — "it works" without demonstration, or a deployment-limited result reported as verified (§VI-8). Success verification exists to foreclose exactly that: each success criterion is proven by an act of demonstration (a passing test, a reconciliation, a certification, a rollback proof), and where verification is blocked by environment limits, that limit is reported honestly and the claim is withheld — never upgraded to "verified."
+
+**Current State.** PARTIAL. Real verification mechanisms exist and are exercised on demand: the test suites (`test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke`), gateway certification (`certification.ts`), migration reconciliation (`reconciliation.ts`) and rollback preview, and the Execution Rules' Definition-of-Done verification checklist. These constitute genuine proof for the domains they cover. There is **no** automated verification pipeline (no CI/`.github/workflows`), so verification is human-invoked and per-domain — IMPLEMENTED in substance, PARTIAL in automation and uniformity. The rule that a deployment-limited result is not a verified result is already explicit (§VI-8; Execution Rules).
+
+**Approved Future State.** A uniform success-verification discipline in which every increment's criteria are proven by demonstration and recorded, the migration/certification/test pattern generalized as the reference proof set, and the honest-limitation rule preserved (blocked verification withholds the claim). Progressively automated so proof is gathered as part of finishing an increment rather than reconstructed afterward — without lowering the "demonstrated, not asserted, all-of" standard.
+
+**Dependencies.** §VI-8 (the no-unverified-claim rule verification enforces); §VI-28 (release validation that consumes success proof); §VI-35 (in-flight evidence verification builds upon); §VI-43 (the criteria verification proves); §VI-45 (the record proof is filed in); the repository test suites, `certification.ts`, `reconciliation.ts`.
+
+**Traceability to Parts I–V.** Part I: gate-verification discipline preserved by reference. Part II: DNA Ch 18.9/25/30/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-8, §VI-28, §VI-35, §VI-43. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-45 — Success Evidence & Record
+
+**Purpose.** To define the durable **record** of a successful increment — the assembled evidence that substantiates a success pronouncement and preserves it as an auditable fact — so that success is never merely remembered but always recorded.
+
+**Scope.** The success record only. It aggregates the proof produced by verification (§VI-44) into a durable, attributable artifact; it neither verifies (that is §VI-44) nor governs approval (that is §VI-47). It defines the record's constituents, not a storage schema or a metrics store.
+
+**Why it exists.** A success that is not recorded cannot be audited, cannot inform the next increment, and cannot be defended at review or lock. The success record exists so that every pronounced success leaves a permanent, attributable trail — what was executed, which criteria applied, how each was proven, what remained reversible — that governance (§VI-47), release validation (§VI-28), and enterprise review (the future Phase 6.6) can read.
+
+**Current State.** PARTIAL. A durable success record already exists in practice: the append-only `MARQ_CORTEX_ROADMAP.md` records completed sprints; the Execution Rules mandate a Completion Report (Sprint, Status, Executive Summary, Files, Tests, Runtime Impact, Risks, Next Sprint) and record the commit SHA and branch; migration run telemetry preserves run outcomes; certification state is persisted. This is a real, auditable record, IMPLEMENTED as document-and-telemetry. What is NOT IMPLEMENTED is a uniform, structured success record spanning all capability classes and any KPI/metrics store (reserved).
+
+**Approved Future State.** A uniform success record for every increment — outcome realized, criteria applied, proof of each, reversibility state, and attribution — assembled as a durable, auditable artifact and made available to success governance, release validation, and enterprise review, with the roadmap/completion-report/telemetry pattern generalized as the reference record. Introduced additively; it replaces no existing record and adds no numeric KPI in this phase.
+
+**Dependencies.** §VI-28 (release validation the record feeds); §VI-35 (in-flight evidence the record incorporates); §VI-44 (the proof the record aggregates); §VI-47 (the authority that reads the record); §VI-50 (the phase record this discipline parallels); the append-only `MARQ_CORTEX_ROADMAP.md`, the Completion Report, migration telemetry, `certification.ts`.
+
+**Traceability to Parts I–V.** Part I: recovery record preserved by reference. Part II: DNA Ch 25/30/33 (auditability, governance, judgment). Part III: §III-74/§III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-28, §VI-35, §VI-44. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-46 — Value Realization & Outcome Confirmation
+
+**Purpose.** To define how a successful increment's **realized value** is confirmed against its approved intent — the closing of the loop between why a capability was prioritized (§VI-15) and what it actually achieved — so that success means *the intended outcome occurred*, not merely that the criteria passed.
+
+**Scope.** Outcome confirmation only. It confirms that the approved intent was realized; it introduces no benchmark, no ROI calculation, and no numeric value metric. It reads outcome qualitatively against the prioritization rationale.
+
+**Why it exists.** An increment can pass every technical success criterion and still fail to deliver the outcome it was approved for — a correctly built capability that no consumer needed, or that solved a different problem than the one prioritized. Outcome confirmation exists to close that gap: success is confirmed only when the realized outcome matches the approved intent that justified the work, so the roadmap remains honest about *value*, not just *completion*.
+
+**Current State.** PARTIAL / NOT IMPLEMENTED. The *rationale* against which outcomes would be confirmed is recorded — priorities and their justifications (§VI-15), the append-only roadmap, and Part IV's raw performance signals plus the constitutional success standard (§IV-46–§IV-55). Technical outcome (tests, certification, reconciliation) is confirmable today. However, *enterprise value/outcome instrumentation* — the systematic confirmation that a capability achieved its intended business outcome — is NOT IMPLEMENTED (no performance instrumentation, no KPIs), and the AI-workforce outcomes of Part IV are NOT IMPLEMENTED (reserved). So outcome confirmation is PARTIAL for technical outcomes and NOT IMPLEMENTED for enterprise value.
+
+**Approved Future State.** A qualitative outcome-confirmation discipline in which every successful increment's realized outcome is confirmed against the approved intent that prioritized it, recorded in the success record (§VI-45), and any shortfall fed back to prioritization (§VI-48) rather than hidden — with enterprise value instrumentation extended progressively over the realized capability and workforce (§IV-53–§IV-55). No numeric value metric is introduced in this phase; measures remain reserved (Part V exclusion).
+
+**Dependencies.** §VI-15 (the approved intent outcomes are confirmed against); §VI-42 (the "intended outcome realized" constituent this operationalizes); §VI-45 (the record outcomes are filed in); §VI-48 (the improvement loop shortfalls feed); Part IV §IV-46–§IV-55 (performance signals and the success standard).
+
+**Traceability to Parts I–V.** Part I: "value restored" outcome preserved by reference. Part II: DNA Ch 25/30/33 (governance, auditability, judgment/success). Part III: §III-81–§III-83 (success). Part IV: §IV-46–§IV-55 (performance, continuous improvement; KPIs reserved). Part V: §V-1–§V-30 (the long-horizon value success serves; measures excluded). Part VI: §VI-15, §VI-42, §VI-45. Roadmap: `MARQ_CORTEX_ROADMAP.md`.
+
+---
+
+## VI-47 — Success Governance & Authority
+
+**Purpose.** To state *who pronounces success* — the mapping of the success judgment to already-existing constitutional authority — so that "successful" is a governed pronouncement made against evidence, never a self-declaration by whoever did the work.
+
+**Scope.** Governance of the success judgment only. It creates no new role, committee, or power; it *applies* the authorities already defined in Part II, Part IV, §VI-18 (gate authorities), and §VI-29 (release governance) to the act of pronouncing an increment successful. It is the success-side analogue of §VI-33 (execution decision authority) and §VI-29 (release governance).
+
+**Why it exists.** If the party that executed an increment also unilaterally declares it successful, success governance is advisory and the success record self-serving. This section fixes that success is pronounced by an authority already competent for the capability class, against the success record (§VI-45), so that the pronouncement is separable from the execution and defensible at review.
+
+**Current State.** IMPLEMENTED (human-and-document model). Success is pronounced today by MARQ Networks stewardship under the four-document authority stack, against the Definition of Done and the Completion Report, and recorded in the append-only roadmap; the same authority that governs quality gates (Art. 9) governs the success judgment. The AI-role-operated success-governance model of Part IV (executives/managers pronouncing outcomes) is NOT IMPLEMENTED — reserved to the `ai_worker` future identity.
+
+**Approved Future State.** The same authority map, held stable as the success judgment is progressively delegated to the Part IV governance roles under supervision — each pronouncing success only within its already-assigned authority, against the success record, the human high-consequence floor inviolable (DNA Ch 18.9), every pronouncement attributable to an identity that holds it (§IV-25). Delegation is additive and reversible.
+
+**Dependencies.** §VI-18 (gate authorities applied at success); §VI-29 (release governance this parallels); §VI-33 (execution decision authority, the in-flight analogue); §VI-45 (the record authority pronounces against); Part IV §IV-35–§IV-55; the Constitution (DNA Ch 30/33/35).
+
+**Traceability to Parts I–V.** Part I: stewardship preserved by reference. Part II: DNA Ch 8.3/18.9/25/30/33/35. Part III: §III-75, §III-81–§III-83. Part IV: §IV-25, §IV-35–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-18, §VI-29, §VI-33, §VI-45. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-48 — Continuous Improvement & Learning
+
+**Purpose.** To define how the learning from each success — and each shortfall — is **carried forward** so that execution improves over time without re-opening settled decisions or introducing drift.
+
+**Scope.** The improvement loop only. It governs how learning feeds the *next* increment's execution; it does not re-plan priorities (§VI-15) or amend LOCKED decisions (DNA Ch 35). It defines a disciplined feedback loop, not a metrics program.
+
+**Why it exists.** Success and shortfall are only valuable if they change future behavior. Without a disciplined improvement loop, each increment repeats prior mistakes and rediscovers prior lessons. This section fixes that learning is captured in the success record (§VI-45), fed back into how subsequent increments are executed, and bounded so that "improvement" never becomes an excuse to re-open priorities, expand scope, or fork the architecture.
+
+**Current State.** PARTIAL / IMPLEMENTED-as-standard. Continuous improvement is already an approved concern: Part IV's Phase 4.5 (§IV-46–§IV-55) is explicitly *Enterprise Performance & Continuous Improvement*, recording raw signals plus the constitutional success standard; the append-only roadmap and Completion Reports (with a "Next Sprint" and "Risks" section, and technical-debt documentation discipline) constitute a working, if manual, learning loop; the Execution Rules require documenting a discovered defect as technical debt and continuing rather than expanding scope. What is NOT IMPLEMENTED is systematic performance instrumentation and any KPI-driven improvement (reserved).
+
+**Approved Future State.** A disciplined, bounded improvement loop in which each success record's lessons — including confirmed shortfalls (§VI-46) — inform how subsequent increments are executed, captured durably and fed back without re-opening priorities or amending locked decisions outside DNA Ch 35, and extended over the realized workforce as continuous improvement matures (§IV-53–§IV-55). No numeric KPI or performance target is introduced in this phase; measures remain reserved.
+
+**Dependencies.** §VI-15 (priorities the loop must not re-open); §VI-45 (the record learning is captured in); §VI-46 (shortfalls the loop consumes); §VI-19 (the anti-drift bound on "improvement"); Part IV §IV-46–§IV-55; DNA Ch 35 (the only path to change a locked decision).
+
+**Traceability to Parts I–V.** Part I: recovery-lessons preserved by reference. Part II: DNA Ch 25/33/35 (auditability, judgment, amendment). Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55 (continuous improvement). Part V: §V-1–§V-30 (direction improvement serves; measures excluded). Part VI: §VI-15, §VI-19, §VI-45, §VI-46. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-49 — Enterprise Success Principles
+
+**Purpose.** To state the enduring **principles** of enterprise execution success — the small set of invariants that must hold for any pronouncement of success regardless of domain, wave, or authority — as the durable summary binding §VI-41 through §VI-48 into one discipline.
+
+**Scope.** The success invariants only. It introduces no new criterion, proof, record, or authority; it distills the ones already established into principles any future success pronouncement can be checked against.
+
+**Why it exists.** Under delivery pressure, "success" is the easiest word to grant prematurely. These principles exist so that "has this actually succeeded?" has a fixed, all-of answer that cannot be negotiated down in the moment.
+
+**Current State.** IMPLEMENTED-as-standard / PARTIAL-as-instrumented. Every principle below is already an active standard — via the Definition of Done, the Constitution's judgment/success standard (DNA Ch 33), and Part IV's success sections — honored by review rather than by automated measurement. IMPLEMENTED as standard, PARTIAL as instrumented; no KPIs (reserved).
+
+**Approved Future State (governing principles).**
+
+- **Success is outcome, not activity.** An increment succeeds when its intended outcome is realized, never merely because work occurred or code merged (§VI-41, §VI-46).
+- **Success is evidenced.** Success is proven by demonstration and recorded, never asserted; a deployment-limited result is not a success (§VI-8, §VI-44, §VI-45).
+- **Success is all-of.** Every constituent of the definition (§VI-42) holds, or the increment is not successful; there is no partial-credit success.
+- **Success preserves reversibility and contracts.** A result that sacrificed reversibility or broke a contract is not a success regardless of function delivered (§VI-27).
+- **Success is governed.** Success is pronounced by the competent authority against the record, separable from the party that executed the work; the human floor is inviolable (§VI-47, DNA Ch 18.9).
+- **Success is honest.** Shortfalls are recorded and fed back, not hidden; an unconfirmed outcome is reported as unconfirmed (§VI-46, §VI-48).
+- **Success preserves the blueprint.** A successful result realizes LOCKED Parts I–V without editing them; conflicts go to amendment (DNA Ch 35).
+- **Success is measure-free in this phase.** Success is judged qualitatively; no numeric KPI, score, or target is introduced here (Part V exclusion; §IV-46–§IV-55).
+
+**Dependencies.** §VI-41–§VI-48 (the disciplines these principles distill); §VI-8, §VI-27, §VI-42 (the settled rules and definition they restate); the Constitution (DNA Ch 33); the LOCKED `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Traceability to Parts I–V.** Part I: correctness-restored invariants preserved by reference. Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-81–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-8, §VI-27, §VI-42. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-50 — Phase 6.5 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.5 and record its completion without beginning Phase 6.6 or locking Part VI.
+
+**Scope.** A summary of Phase 6.5 only (§VI-41–§VI-50) and its completion record. It defines no new priority, dependency, governance rule, gate, wave, readiness bar, release category, execution control, or success criterion, and it begins no later phase.
+
+**Why it exists.** A phased document needs an explicit boundary so the *execution-success model* is not mistaken for a KPI program or a performance-review process, and so Phase 6.6 (enterprise review, audit & lock) begins from a settled, merged foundation. This record also closes the numbering interval that makes Part VI continuous through §VI-50.
+
+**Summary of what Phase 6.5 established.**
+
+- **Success philosophy (§VI-41).** Success as the evidenced realization of an approved capability's intended outcome, judged against the constitutional standard — not effort, output, or surface completeness.
+- **Definition of success (§VI-42).** An all-of definition — intended outcome realized, correctness verified, contracts preserved, reversibility retained, observably operable, evidence complete, blueprint preserved — generalizing the Definition of Done.
+- **Success criteria model (§VI-43).** Each increment's qualitative, all-of criteria derived from the definition, with certification/test/reconciliation as the reference criteria kinds; no numeric target.
+- **Verification & proof (§VI-44).** Success proven by demonstration, not claim; blocked verification withholds the claim; the test/certification/reconciliation/rollback pattern as the reference proof set.
+- **Success evidence & record (§VI-45).** A durable, auditable success record — outcome, criteria, proof, reversibility, attribution — generalizing the roadmap/completion-report/telemetry record.
+- **Value realization & outcome confirmation (§VI-46).** Confirming realized outcome against approved intent, so success means the intended outcome occurred; enterprise value instrumentation reserved.
+- **Success governance & authority (§VI-47).** Success pronounced by already-existing constitutional authority against the record, separable from the executor; human floor inviolable; AI-workforce governance reserved.
+- **Continuous improvement & learning (§VI-48).** A bounded feedback loop carrying lessons forward without re-opening priorities or amending locked decisions outside DNA Ch 35.
+- **Enterprise success principles (§VI-49).** The all-of invariant set — outcome-not-activity, evidenced, all-of, reversibility/contract-preserving, governed, honest, blueprint-preserving, measure-free in this phase.
+
+**Current State.** All CURRENT STATE claims in this phase remain grounded in the repository verified for Phases 6.1–6.4 and in the LOCKED Parts I–V. Execution success is IMPLEMENTED as a qualitative, human-and-document standard (the Definition of Done, the Constitution's judgment/success standard, the append-only roadmap and Completion Reports) and PARTIAL as instrumented — real and inspectable via the test suites, gateway certification, and migration reconciliation/telemetry — while enterprise performance instrumentation, formal KPIs, value-outcome confirmation at the business level, and the AI-workforce success runtime remain **NOT IMPLEMENTED** (reserved). This phase defines how success is *judged*; it pronounces no specific capability successful and invents nothing. No numeric KPI is introduced.
+
+**Approved Future State.** A uniform enterprise execution-success model — every increment judged successful only on an all-of, evidenced, governed basis, its realized outcome confirmed against approved intent, its lessons fed back through a bounded improvement loop, and its success pronounced by existing constitutional authority under the inviolable human floor — realizing the plan LOCKED in Phases 6.1–6.3, the execution governance of Phase 6.4, and the direction LOCKED in Part V, without editing any of them, and with measures deferred consistent with Part V.
+
+**Validation of this phase.**
+
+- Phase 6.5 authored.
+- Sections VI-41 through VI-50 present, exactly once, in continuous numbering after §VI-40.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) preserved unchanged.
+- No priorities, dependencies, layers, streams, gates, waves, readiness criteria, release categories, release governance, or execution-governance controls redefined — only applied.
+- CURRENT STATE distinguished from APPROVED FUTURE STATE in every section; no implemented capability invented; no numeric KPI introduced.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, or implementation instructions.
+- Part VI numbering is now continuous: §VI-1 → §VI-50, with no gap and no duplicate.
+- Phase 6.6 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.5 sections (§VI-41–§VI-49); Phase 6.4 (§VI-31–§VI-40), Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability to Parts I–V.** Part I: recovery discipline preserved by reference. Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-49. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-41–§VI-50; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, Phase 6.4, and Parts I–V; the continuous §VI-1–§VI-50 numbering; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.5 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.6 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) are preserved. Phase 6.5 (§VI-41–§VI-50) is authored and complete but not locked, and Part VI is now continuously numbered §VI-1 → §VI-50. The next Part VI phase (6.6) is not begun here.
+
+*End of Phase 6.5. Part VI continues in a later phase.*
