@@ -22,7 +22,7 @@ This Master Blueprint is a single, continuous, permanent document composed of **
 | **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **LOCKED** |
 | **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **IN PROGRESS** |
 
-Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phase 6.1 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
+Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phases 6.1–6.3 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
 
 **Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
@@ -1748,7 +1748,7 @@ No component changes are required to switch demo↔live (gateway pattern).
 
 **Part III (Phase 3 — Product Blueprint) is complete: Sections III-1 through III-88 plus Appendix References (§III-88).** It documents the MARQ Cortex product reality-first, separates CURRENT STATE from APPROVED FUTURE STATE throughout, traces every capability to Part II and to the engines/workflows/data/roadmap, and preserves exhaustive detail by reference to the artifacts indexed in §III-88. Nothing in Part III rewrites, summarizes, or contradicts Parts I or II.
 
-**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** and **Part V — Future Vision** are authored and LOCKED, and **Part VI — Execution Roadmap** is authored and IN PROGRESS (Phase 6.1 complete), each appended below with continuous numbering. All continue the same numbering and formatting conventions, with no restart and no split.
+**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** and **Part V — Future Vision** are authored and LOCKED, and **Part VI — Execution Roadmap** is authored and IN PROGRESS (Phases 6.1–6.3 complete), each appended below with continuous numbering. All continue the same numbering and formatting conventions, with no restart and no split.
 
 *End of Part III.*
 
