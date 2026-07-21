@@ -5359,3 +5359,322 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.5 — Execution Success & Release Readiness
+
+**Status:** COMPLETE (Phase 6.5) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-41 through VI-50, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.5 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Reserved-range note (grounding, not invention).** In the canonical repository the Master Blueprint proceeds directly from Phase 6.3 (§VI-30) to this phase; **Phase 6.4 (§VI-31–§VI-40) is not yet authored** in the canonical lineage. Per the phase specification, Phase 6.5 is authored at its designated section numbers **§VI-41–§VI-50**, and **§VI-31–§VI-40 are held as a RESERVED range for a future Phase 6.4**. This note records the reserved range transparently so the document's continuity is explicit rather than silent; it authors no Phase 6.4 content, invents no completed capability, and modifies no prior section. When Phase 6.4 is authored, it occupies §VI-31–§VI-40 without disturbing this phase.
+
+**Purpose of this phase.** Phases 6.1–6.3 established the execution baseline (§VI-1–§VI-10), the prioritization and sequencing architecture (§VI-11–§VI-20), and the capability delivery and release model (§VI-21–§VI-30). Phase 6.5 answers the question those phases leave open: **how does MARQ Cortex determine that execution has succeeded and that a capability is ready for production at enterprise standard?** It defines the executive, product, technical, and operational success frameworks; the release-readiness framework; the enterprise quality gates; the Go / No-Go decision discipline; and the continuous-improvement principles that keep success durable after release.
+
+**What this phase is not.** Phase 6.5 defines **governance for execution success and release readiness only**. It is **not** a sprint plan, a project timeline, a staffing or hiring plan, a budget estimate, a story-point or velocity model, an implementation task list, a future-feature design, or a department reorganization. It assigns no dates, owners, hours, or numeric targets, and it writes no code. It redefines none of the priorities, dependencies, gates, or authorities LOCKED in earlier Parts and phases — it *applies* them to the determination of success. Phase 6.6 is not begun here, and Part VI is not locked.
+
+**Grounding.** Every CURRENT STATE claim below is grounded in the same repository verified for Phases 6.2–6.3 — the deterministic engine layer under `src/app/core/`, the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `modelRegistry.ts`, `certification.ts`, `telemetry.ts`, `health.ts`, `contracts.ts`, `featureBridge.ts`, `providers/`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/` with its CLI (`scripts/migration/cli.ts`) and validation harness (`scripts/migration/validate-s6.3.ts`), the SQL migrations under `supabase/migrations/`, the declared test suites in `package.json` (`test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`) and the `tests/` tree (`database/`, `features/`, `migration/`, `smoke/`), the deployment scripts (`supabase:deploy` → `make-server-324f4fbe`, `supabase:db-push`), and the governance record in `MARQ_CORTEX_CONSTITUTION.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, and `MARQ_CORTEX_DOCUMENTATION_RULES.md` — together with the LOCKED Parts I–V and the Constitution (`CORTEX_DNA_v1.0.md`). Success and readiness labels (SUCCEEDED / NOT-YET-SUCCEEDED, RELEASABLE / NOT-YET-RELEASABLE, VERIFIED / UNVERIFIED, GO / NO-GO) are used where they add precision. Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-41 — Executive Success Framework
+
+**Purpose.** To define, at the executive level, what it means for MARQ Cortex execution to have *succeeded* — the small set of enterprise-level success conditions against which every subordinate framework (product, technical, operational, release) is judged and to which each rolls up.
+
+**Scope.** The executive definition of execution success only — the top-level success conditions and the principle that governs them. It defines no metric target, no measurement cadence, no scorecard number, and no schedule. Subordinate criteria are elaborated in §VI-42–§VI-45; this section fixes the frame they report into.
+
+**Why it exists.** Without an executive definition of success, "done" degrades into whatever is most visible — a shipped surface, a green demo, a closed ticket — while the load-bearing conditions (verified truth, governed intelligence, enforced tenancy, reversibility, operability, blueprint fidelity) go unexamined. This section fixes success at the altitude of the blueprint's own commitments so that no subordinate framework can declare victory on a condition the enterprise never counted as success.
+
+**Approved executive success conditions (all-of, qualitative).** Execution has SUCCEEDED, at the executive level, only when every one of the following holds simultaneously:
+
+- **Blueprint fidelity.** The delivered capability realizes the approved direction of Parts I–V and the sequence of Phase 6.2 without editing, contradicting, or drifting from any LOCKED decision (§VI-19); any tension with a locked decision was resolved by amendment (DNA Ch 35), never by the delivery.
+- **Verified foundational truth.** The capability stands on the authoritative relational plane with enforced tenancy — not on unverified or client-held state (§VI-13, §VI-28).
+- **Governed intelligence.** Every AI path runs through the Intelligence Gateway; no direct-provider path exists (§VI-16).
+- **Demonstrated enterprise value.** The capability delivers the customer- or operator-facing outcome its wave promised (§VI-22), shown against evidence rather than asserted.
+- **Operability and reversibility.** The capability is observable, diagnosable, and withdrawable in production (§VI-27, §VI-44).
+- **Governed release.** Promotion occurred under existing constitutional authority against an antecedent validation record (§VI-28, §VI-29).
+
+**Governing rule.** Executive success is **all-of and qualitative**: partial satisfaction is NOT-YET-SUCCEEDED, and no condition is traded for another. Executive success is a *rollup*, never an *override* — it may not declare success where a product, technical, operational, or release criterion (§VI-42–§VI-45) reports NOT-YET.
+
+**Current State.** The executive success conditions are **defined here for the first time**; no prior phase stated them at this altitude. The repository supports the conditions unevenly, exactly as Phases 6.1–6.3 recorded: governance and the deterministic product core are IMPLEMENTED; data authority and tenancy enforcement are PARTIAL/UNVERIFIED; gateway breadth, product surfaces, and observability are PARTIAL; the AI workforce runtime and enterprise instrumentation are NOT IMPLEMENTED. **No capability is claimed as having SUCCEEDED at the executive level**; this section defines the test, it does not report a pass.
+
+**Approved Future State.** A standing executive success frame — the six all-of conditions above — into which every wave and release reports, so that "success" at MARQ Cortex means blueprint-faithful, truth-grounded, governed, valuable, operable, and governed-in-release, and means nothing less. The frame is permanent and applies unchanged to every subsequent execution phase.
+
+**Dependencies.** §VI-11 (the prioritization philosophy success honors); §VI-13 (the dependency truth condition); §VI-16/§VI-19 (governed-AI and anti-drift conditions); §VI-22 (the wave value promise); §VI-28/§VI-29 (validation and release governance); §VI-42–§VI-45 (the subordinate criteria that roll up here).
+
+**Traceability.** Part I: `ARCHITECT.md` (architectural intent success preserves). Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-56–§III-65, §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55 (enterprise governance and review authorities). Part V: §V-1–§V-30 (the approved direction success realizes). Part VI: §VI-11, §VI-13, §VI-16, §VI-19, §VI-22, §VI-28, §VI-29. Repository: `MARQ_CORTEX_CONSTITUTION.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-42 — Product Success Criteria
+
+**Purpose.** To define what constitutes *product* success for a MARQ Cortex capability — the criteria by which a delivered product surface or workflow is judged to have met its enterprise purpose.
+
+**Scope.** Product-facing success criteria only. It sets no adoption target, no usage metric, no conversion number, and no roadmap of future features. It defines the qualities a product increment must exhibit to count as successful, not the features it must contain.
+
+**Why it exists.** Product work is the most visible layer and therefore the easiest to declare "successful" on appearance — a rendered dashboard, a completed flow — while the state beneath it is unverified. This section binds product success to the blueprint's product commitments (Part III) and to verified state, so that a product is successful because it faithfully renders truth and delivers its promised outcome, never merely because it displays.
+
+**Approved product success criteria (all-of, qualitative).**
+
+- **Truthful rendering.** The surface renders authoritative, tenant-scoped state (§VI-13); it displays no client-fabricated or KV-residual truth, and what it shows is what the relational plane holds.
+- **Purpose realization.** The capability delivers the specific enterprise outcome its wave promised (§VI-22) — the analysis, narration, workflow, or workforce action defined for it — end to end, not partially.
+- **Governed intelligence at the surface.** Any AI-backed product behavior (narration, analysis, copilot, chat) resolves through the Intelligence Gateway (`cortexNarrative.ts`, `cortexAnalysis.ts`, `cortexChat.ts`, `proposalSectionCopilot.ts` consuming `intelligence/`), never a direct provider (§VI-16).
+- **Contract compatibility.** The increment preserves the contracts existing product consumers depend on; prior surfaces continue to function across the release (§VI-27).
+- **Accessibility and coherence.** The surface behaves coherently across the established product experience and degrades safely when a dependency is unavailable, rather than presenting unverified state as fact.
+- **Demonstrated, not asserted.** Product success is shown against the declared product/feature tests (`tests/features/`, `test:features`; `test:smoke`) and the release-validation record (§VI-28).
+
+**Governing rule.** A product increment is successful only when it renders verified truth *and* realizes its promised purpose *and* preserves existing contracts — appearance alone is never product success (§VI-41 rollup).
+
+**Current State.** Grounded in the repository: the deterministic product core and its engine layer (`src/app/core/`) and the AI-backed product handlers (`cortexNarrative.ts`, `cortexAnalysis.ts`, `cortexChat.ts`, `proposalSectionCopilot.ts`) are IMPLEMENTED, and product/feature and smoke tests exist (`tests/features/`, `tests/smoke/`, `playwright.config.ts`). **Truthful rendering is PARTIAL/UNVERIFIED** wherever the runtime is not yet authoritative on the relational plane (data authority and tenancy per §VI-13). No product capability is claimed to have met all criteria; this section defines the bar.
+
+**Approved Future State.** Product surfaces and workflows that are successful by construction — rendering authoritative tenant-scoped truth, realizing their promised enterprise purpose end to end, resolving all intelligence through the gateway, preserving consumer contracts, and demonstrating each against declared tests — with no surface counted successful on display alone.
+
+**Dependencies.** §VI-13 (authoritative, tenant-scoped state); §VI-16 (governed AI at the surface); §VI-22 (the promised product outcome); §VI-27 (contract compatibility); §VI-28 (product evidence in the release record); §VI-41 (the executive frame this rolls into).
+
+**Traceability.** Part II: DNA Ch 17/18/25/33. Part III: §III-37, §III-44, §III-56–§III-65 (product architecture and experience). Part IV: §IV-23–§IV-45. Part V: §V-1–§V-30 (product direction). Part VI: §VI-13, §VI-16, §VI-22, §VI-27, §VI-28, §VI-41. Repository: `src/app/core/`, `supabase/functions/server/cortexNarrative.ts`, `cortexAnalysis.ts`, `cortexChat.ts`, `proposalSectionCopilot.ts`, `tests/features/`, `tests/smoke/`, `API_SPECIFICATIONS.md`.
+
+---
+
+## VI-43 — Technical Success Criteria
+
+**Purpose.** To define what constitutes *technical* success for a MARQ Cortex capability — the criteria by which the engineering substrate beneath a delivered capability is judged sound.
+
+**Scope.** Technical, substrate-level success criteria only. It prescribes no implementation, no library choice, no code structure, and no performance number. It defines the technical properties a capability must exhibit to count as successful.
+
+**Why it exists.** Product success (§VI-42) can be real while the substrate beneath it is fragile — a direct-provider shortcut, a duplicated engine, an irreversible migration, an unenforced tenancy boundary. This section fixes the technical conditions that must hold independently of product appearance, binding them to the permanent architectural prohibitions (§VI-16, §VI-19) so that technical debt cannot masquerade as success.
+
+**Approved technical success criteria (all-of, qualitative).**
+
+- **Single data authority.** The capability reads and writes the authoritative relational plane through the repository layer (`supabase/functions/server/repositories/`); no parallel data authority and no KV-authoritative residue (§VI-13, §VI-19).
+- **Enforced tenancy.** Tenant isolation is enforced server-side on every path; cross-tenant access is denied, not undefined (§VI-13, §VI-28).
+- **Single intelligence path.** All provider access is mediated by the Intelligence Gateway with certification and provider-registry evidence (`gateway.ts`, `certification.ts`, `providerRegistry.ts`, `modelRegistry.ts`); no duplicate engine and no AI path around the gateway (§VI-16).
+- **Reversibility.** Schema- and platform-bearing changes follow expand → migrate → contract and are proven reversible through the migration engine (`supabase/functions/server/migration/`, `scripts/migration/cli.ts`, `validate-s6.3.ts`) (§VI-27).
+- **Contract stability.** The gateway, repository, deterministic-engine, and tenancy contracts remain stable under extension; new capability is added behind them, not by breaking them (§VI-27).
+- **Test-and-gate evidence.** The declared suites pass and the relevant gates exit on evidence — `test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke` — with results recorded, not asserted (§VI-18, §VI-28).
+
+**Governing rule.** Technical success is judged **against the permanent prohibitions**: no duplicate engine, no parallel data authority, no AI path around the gateway, no irreversible cutover, no broken load-bearing contract. A capability that violates any of these is NOT technically successful regardless of how well it demonstrates (§VI-16, §VI-19).
+
+**Current State.** Grounded in the repository: the Intelligence Gateway and its certification/registry machinery are IMPLEMENTED (`intelligence/gateway.ts`, `certification.ts`, `providerRegistry.ts`, `modelRegistry.ts`, `contracts.ts`), the repository layer and migration engine exist (`repositories/`, `migration/`, `scripts/migration/`), and the technical test suites are declared and runnable (`package.json`, `tests/`). **Single data authority and enforced tenancy remain PARTIAL/UNVERIFIED** at runtime (§VI-13); gateway *breadth* across providers is PARTIAL. No capability is claimed to have met all technical criteria; this section defines them.
+
+**Approved Future State.** A substrate whose success is defined by single data authority, enforced tenancy, a single governed intelligence path, proven reversibility, stable contracts, and recorded test/gate evidence — with the permanent prohibitions as the non-negotiable ceiling on technical debt, so that technical success can never be purchased by borrowing against architecture.
+
+**Dependencies.** §VI-13 (data authority and tenancy); §VI-16/§VI-19 (the prohibitions technical success is judged against); §VI-18 (the gates whose exit is technical evidence); §VI-27 (reversibility and contract stability); §VI-28 (the technical evidence set); §VI-41 (executive rollup).
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-59–§III-65, §III-78–§III-80, §III-84–§III-88. Part IV: §IV-23–§IV-34, §IV-46–§IV-55. Part VI: §VI-13, §VI-16, §VI-18, §VI-19, §VI-27, §VI-28, §VI-41. Repository: `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`, `scripts/migration/`, `package.json`, `DATABASE_SCHEMA.md`.
+
+---
+
+## VI-44 — Operational Readiness Framework
+
+**Purpose.** To define what it means for a capability to be *operationally ready* — able to be run, observed, diagnosed, and recovered in production at enterprise standard.
+
+**Scope.** Operational readiness only. It defines no on-call rotation, no staffing, no SLA number, no runbook schedule, and no tooling purchase. It fixes the operational properties a capability must exhibit before and after release, not the operations organization.
+
+**Why it exists.** A capability can be functionally correct and technically sound yet un-operable — invisible when it degrades, un-diagnosable when it fails, un-recoverable when it breaks. Part V and Phase 6.2 place operational readiness *before* scaling (§VI-11); this section makes that principle concrete as a readiness framework, so that no capability is counted ready to operate on the strength of working once in a demo.
+
+**Approved operational-readiness conditions (all-of, qualitative).**
+
+- **Observability.** Live health, telemetry, and certification signals exist and are sufficient to know the capability's state in production (`intelligence/health.ts`, `telemetry.ts`, `certification.ts`).
+- **Diagnosability.** Failures surface with enough signal to locate cause without guesswork; error contracts are explicit rather than silent (`intelligence/errors.ts`, `contracts.ts`).
+- **Recoverability.** A demonstrated withdrawal or rollback path exists for the increment (expand/contract reversibility, §VI-27); recovery is a proven path, not a hope.
+- **Safe degradation.** When a dependency is unavailable, the capability degrades to a safe, truthful posture rather than presenting unverified state as fact (§VI-42).
+- **Least-privilege posture.** The capability enters production at its most-guarded posture and hardens progressively as evidence accumulates (§VI-27, progressive hardening; anon-policy tightening in `supabase/migrations/`).
+- **Operability evidence.** Operational readiness is shown against the declared health/telemetry/certification signals and the release record (§VI-28), not asserted.
+
+**Governing rule.** Operational readiness **gates growth**: no capability is scaled or extended outward beyond the point its observability, diagnosability, and recoverability can support (§VI-11, operational readiness before scaling). Un-observable capability is NOT operationally ready however well it functions.
+
+**Current State.** Grounded in the repository: health, telemetry, certification, and error-contract modules are IMPLEMENTED within the Intelligence Gateway (`intelligence/health.ts`, `telemetry.ts`, `certification.ts`, `errors.ts`, `contracts.ts`), and anon-policy hardening is present in the SQL migrations. **Enterprise-wide instrumentation and observability across the whole platform are PARTIAL to NOT IMPLEMENTED** (Phase 6.1 recorded enterprise instrumentation as NOT IMPLEMENTED). No capability is claimed operationally ready at enterprise scale; this section defines the bar.
+
+**Approved Future State.** Every released capability observable, diagnosable, recoverable, safely degrading, and least-privileged by construction — with operational readiness standing as the gate on all outward growth, so the interior is always operable before it is scaled.
+
+**Dependencies.** §VI-11 (operational readiness before scaling); §VI-27 (reversibility and progressive hardening); §VI-28 (observability evidence in the release record); §VI-42 (safe degradation at the surface); §VI-45/§VI-46 (release readiness and quality gates that consume this framework); §VI-41 (executive rollup).
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55 (enterprise operations and continuous improvement). Part V: §V-1–§V-30 (operability before scale). Part VI: §VI-11, §VI-27, §VI-28, §VI-41, §VI-42. Repository: `supabase/functions/server/intelligence/` (`health.ts`, `telemetry.ts`, `certification.ts`, `errors.ts`, `contracts.ts`), `supabase/migrations/`, `DEPLOYMENT_GUIDE.md`.
+
+---
+
+## VI-45 — Release Readiness Framework
+
+**Purpose.** To define the integrated framework by which a capability is judged *ready for release* — the single readiness determination that combines executive, product, technical, and operational success into one release-readiness verdict.
+
+**Scope.** The release-readiness framework only. It restates neither the release-readiness *criteria* of §VI-23 nor the release-validation *evidence set* of §VI-28; it composes the success frameworks (§VI-41–§VI-44) into a unified readiness determination and states how they combine. It sets no cadence, no version scheme, and no date.
+
+**Why it exists.** Success is defined across four frameworks; release must be decided against all of them at once. Without an integrating framework, a capability could pass one dimension and be released while another silently fails. This section fixes the composition rule — how product, technical, and operational success, under the executive frame, jointly determine readiness — so that release readiness is one verdict, not four disconnected checks.
+
+**Approved release-readiness composition (all-of).** A capability is RELEASABLE only when **all** of the following hold together, each already defined and here composed:
+
+- **Executive conditions met (§VI-41).** Blueprint fidelity, verified truth, governed intelligence, demonstrated value, operability/reversibility, and governed release — all present.
+- **Product success met (§VI-42).** Truthful rendering, purpose realization, governed surface intelligence, contract compatibility, safe degradation, demonstrated.
+- **Technical success met (§VI-43).** Single data authority, enforced tenancy, single intelligence path, reversibility, contract stability, test/gate evidence.
+- **Operational readiness met (§VI-44).** Observability, diagnosability, recoverability, safe degradation, least-privilege posture, operability evidence.
+- **Readiness criteria satisfied (§VI-23) and validation record assembled (§VI-28).** The qualitative all-of readiness bar is met and the antecedent evidentiary release record exists **before** promotion.
+
+**Governing rule.** Release readiness is the **conjunction** of all frameworks: any single NOT-YET renders the capability NOT-YET-RELEASABLE, with no partial-credit and no averaging across dimensions. Evidence gathered only in a deployment-limited environment is UNVERIFIED and does not satisfy the framework (§VI-8, §VI-19).
+
+**Current State.** The composition is **defined here for the first time**; §VI-23 and §VI-28 supplied criteria and evidence, but no prior section integrated the four success frameworks into one readiness verdict (§VI-41–§VI-44 are themselves new to this phase). Grounded in the repository, the machinery each framework relies on exists in the states recorded in §VI-41–§VI-44; **no capability is claimed RELEASABLE under this composed framework**. This section defines the composite test; it reports no pass.
+
+**Approved Future State.** A single, composed release-readiness determination — executive, product, technical, and operational success conjoined with the §VI-23 criteria and the §VI-28 record — such that "ready to release" means every dimension is simultaneously satisfied against evidence, and a shortfall in any one dimension is dispositive.
+
+**Dependencies.** §VI-23 (the readiness criteria composed here); §VI-28 (the antecedent validation record); §VI-41 (executive frame); §VI-42 (product success); §VI-43 (technical success); §VI-44 (operational readiness); §VI-8/§VI-19 (UNVERIFIED handling and anti-drift).
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-8, §VI-19, §VI-23, §VI-28, §VI-41, §VI-42, §VI-43, §VI-44. Repository: `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `package.json`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-46 — Enterprise Quality Gates
+
+**Purpose.** To define the enterprise **quality gates** through which a capability must pass on its path to release — the checkpoints that convert the success and readiness frameworks (§VI-41–§VI-45) into enforced pass/refuse decisions.
+
+**Scope.** Quality gates as governance checkpoints only. It does not re-create the *execution gates* of §VI-18 (which govern advancement through delivery) and defines no new authority; it specifies the quality checkpoints a capability passes on the way to a release decision and what each verifies. It sets no schedule and prescribes no tooling.
+
+**Why it exists.** Frameworks state what success is; gates make success *enforceable*. Without quality gates, the success criteria remain aspirational and a capability could reach release having satisfied them only on paper. This section installs the checkpoints — each a refuse-by-default barrier — so that a capability advances only by producing the evidence the frameworks require, never by assertion.
+
+**Approved enterprise quality gates (each refuse-by-default; evidence, not assertion).**
+
+- **Foundation-integrity gate.** Verifies single data authority and enforced tenancy (§VI-43) against `test:database` and migration evidence; refuses on any parallel authority or unenforced boundary.
+- **Intelligence-governance gate.** Verifies the single gateway path with certification and registry evidence (§VI-16, §VI-43) against `test:intelligence` (`intelligence/gateway.test.ts`); refuses on any direct-provider path.
+- **Reversibility gate.** Verifies expand → migrate → contract reversibility (§VI-27) against `test:migration` and `scripts/migration/validate-s6.3.ts`; refuses on any irreversible cutover.
+- **Product-integrity gate.** Verifies truthful rendering and purpose realization (§VI-42) against `test:features` and `test:smoke`; refuses on client-fabricated or KV-residual truth.
+- **Operational-readiness gate.** Verifies observability, diagnosability, and recoverability (§VI-44) against health/telemetry/certification signals; refuses on un-observable capability.
+- **Blueprint-preservation gate.** Verifies no drift and no edit to LOCKED Parts I–V (§VI-19); refuses any capability that would contradict a locked decision outside the amendment process (DNA Ch 35).
+- **Validation-record gate.** Verifies the antecedent release-validation record is complete (§VI-28); refuses promotion where any evidence element is missing.
+
+**Governing rule.** Each quality gate is **refuse-by-default and evidence-bound**: a capability passes only by presenting the required evidence, and any gate may halt it. Quality gates *apply* the authority of the corresponding execution gate (§VI-18) and Part IV review authorities — they create none. UNVERIFIED evidence does not pass a gate (§VI-8).
+
+**Current State.** Grounded in the repository, the *evidence sources* each gate consumes exist: the test suites (`test:database`, `test:intelligence`, `test:migration`, `test:features`, `test:smoke`), the gateway certification/registry modules, the migration validation harness, and the health/telemetry signals are all present. **The gates as a governance construct are defined here for the first time** (Phase 6.2's §VI-18 defined execution gates for advancement; these are the quality checkpoints for release). No capability is claimed to have passed the full gate set. Enterprise instrumentation feeding the operational-readiness gate remains PARTIAL/NOT IMPLEMENTED.
+
+**Approved Future State.** A standing set of refuse-by-default enterprise quality gates — foundation-integrity, intelligence-governance, reversibility, product-integrity, operational-readiness, blueprint-preservation, and validation-record — each evidence-bound and each applying existing authority, through which every capability must pass before a release decision is taken.
+
+**Dependencies.** §VI-16/§VI-19 (the prohibitions and anti-drift the gates enforce); §VI-18 (the execution-gate authorities applied here); §VI-27/§VI-28 (reversibility and the validation record); §VI-42–§VI-45 (the success and readiness the gates verify); §VI-8 (UNVERIFIED handling).
+
+**Traceability.** Part II: DNA Ch 8.3/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55 (review and audit authorities). Part V: §V-1–§V-30. Part VI: §VI-8, §VI-16, §VI-18, §VI-19, §VI-27, §VI-28, §VI-42, §VI-43, §VI-44, §VI-45. Repository: `package.json`, `supabase/functions/server/intelligence/gateway.test.ts`, `tests/`, `scripts/migration/validate-s6.3.ts`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-47 — Go / No-Go Decision Framework
+
+**Purpose.** To define the disciplined **Go / No-Go decision** by which an authorized authority converts a passed set of quality gates and a complete validation record into an explicit release verdict.
+
+**Scope.** The Go / No-Go decision discipline only. It defines the form of the decision, its inputs, and the rule that governs it. It creates no new authority (authorities are matched in §VI-29), sets no meeting cadence, and assigns no date.
+
+**Why it exists.** Gates and records produce evidence; someone must still *decide*, on the record, to promote or to hold. Without an explicit decision framework, release becomes an implicit slide from "looks ready" into production. This section makes release a deliberate, recorded, binary act — GO or NO-GO — taken by the competent authority against the composed readiness verdict, so that promotion is always a decision, never a drift.
+
+**Approved Go / No-Go framework.**
+
+- **Binary and explicit.** The decision is GO or NO-GO — never "mostly go." Absence of a decision is NO-GO by default; nothing is promoted on silence.
+- **Decided against the record.** The authority decides against the §VI-45 composed readiness verdict, the §VI-46 gate outcomes, and the §VI-28 validation record — evidence, not narrative or demonstration.
+- **Authority matched to release category.** The deciding authority is the one already competent for the capability's release category (§VI-26, §VI-29): foundation/platform, intelligence/workforce, product, operational, or strategic — drawn from §VI-18 and Part IV, invented nowhere here.
+- **Any dispositive shortfall forces NO-GO.** A single failed gate, a missing validation element, an UNVERIFIED signal, or any drift against LOCKED Parts I–V compels NO-GO regardless of overall progress (§VI-8, §VI-19).
+- **Recorded with rationale.** Both GO and NO-GO are recorded with the evidence relied upon, so the decision is auditable and a NO-GO names precisely what must change to reach GO.
+- **Taken through the mandatory workflow.** A GO is executed only through the mandatory repository workflow (§VI-19: complete → review → commit → push → open PR → merge → verify canonical main); no promotion occurs outside it.
+
+**Governing rule.** Go / No-Go **applies** existing authority to a **binary, evidence-bound, recorded** decision; it grants no discretion to override a failed gate or an incomplete record. NO-GO is the default; GO is earned against the composed record and executed only through the mandatory workflow.
+
+**Current State.** The Go / No-Go framework is **defined here for the first time**; §VI-29 supplied release governance (who may approve and against what), and this section fixes the *form* of that approval as an explicit binary decision. Grounded in the repository, the workflow a GO runs through and the evidence a decision reads (tests, gateway certification, migration validation, health signals, PR-based promotion) all exist; **no GO decision is claimed for any capability**. This section defines the decision discipline, it records no verdict.
+
+**Approved Future State.** Every release preceded by an explicit, recorded, binary Go / No-Go decision — taken by the competent authority against the composed readiness verdict and validation record, defaulting to NO-GO, forced to NO-GO by any dispositive shortfall, and executed on GO only through the mandatory workflow.
+
+**Dependencies.** §VI-18 (gate authorities); §VI-19 (the mandatory workflow and anti-drift); §VI-26 (release categories); §VI-28 (validation record); §VI-29 (release governance authorities); §VI-45 (composed readiness verdict); §VI-46 (gate outcomes); §VI-8 (UNVERIFIED handling).
+
+**Traceability.** Part II: DNA Ch 8.3/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-8, §VI-18, §VI-19, §VI-26, §VI-28, §VI-29, §VI-45, §VI-46. Repository: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`, `package.json` (`supabase:deploy`, `supabase:db-push`).
+
+---
+
+## VI-48 — Continuous Improvement Framework
+
+**Purpose.** To define how MARQ Cortex *sustains and improves* success after release — the principles by which released capability is kept successful and made more so over time, without reopening LOCKED decisions.
+
+**Scope.** Post-release continuous-improvement principles only. It defines no metrics program, no cadence, no retrospective schedule, no tooling, and no organizational change. It states the principles that govern improvement, not a plan to perform it.
+
+**Why it exists.** Success determined at release (§VI-41–§VI-47) is a point-in-time verdict; enterprise capability must remain successful as it runs and as the platform grows. Part IV commits Cortex to enterprise performance and continuous improvement; this section carries that commitment into Part VI as a governance framework, so that improvement is continuous and disciplined rather than reactive, and never a vector for drift.
+
+**Approved continuous-improvement principles (all-of, qualitative).**
+
+- **Evidence-driven improvement.** Improvement is driven by the standing observability, telemetry, and certification signals (§VI-44; `intelligence/health.ts`, `telemetry.ts`, `certification.ts`), not by anecdote — the same evidence that determined readiness informs its improvement.
+- **Regression protection.** No improvement is accepted that regresses a met success criterion; the quality gates (§VI-46) and declared tests re-run on every change, so improvement never trades a satisfied dimension for another.
+- **Reversible and compatible by construction.** Improvements are delivered under the incremental-delivery principles (§VI-27) — reversible, compatible, migration-safe, debt-contained, progressively hardening — exactly as initial delivery is.
+- **No drift through improvement.** Continuous improvement operates strictly within the LOCKED Constitution and Parts I–V; any improvement that would edit or contradict a locked decision proceeds only through amendment (DNA Ch 35), never through the improvement itself (§VI-19).
+- **Debt reduction over time.** Progressive hardening continues after release — anon-policy tightening, authority verification, certification strengthening — so posture improves monotonically rather than decaying (§VI-27).
+- **Improvement re-enters the same gates.** Every improvement is a capability increment and re-passes the same readiness framework and quality gates (§VI-45, §VI-46); post-release change is governed identically to initial release.
+
+**Governing rule.** Continuous improvement is **bounded by the same governance as delivery**: it is evidence-driven, regression-protected, reversible, drift-free, and re-gated. Improvement that bypasses the gates, regresses a criterion, or drifts from a LOCKED decision is not improvement — it is drift, and it is refused (§VI-19).
+
+**Current State.** Grounded in the repository, the evidence surfaces continuous improvement would consume exist (`intelligence/health.ts`, `telemetry.ts`, `certification.ts`) and the test suites that protect against regression are declared and runnable (`package.json`, `tests/`). **A continuous-improvement *governance framework* is defined here for the first time in Part VI**; Part IV established the enterprise commitment, and this section binds it to the Part VI gates. No post-release improvement cycle is claimed as having run; this section defines its discipline.
+
+**Approved Future State.** A permanent continuous-improvement discipline — evidence-driven, regression-protected, reversible and compatible, drift-free, debt-reducing, and re-gated through the same readiness framework and quality gates — so that released capability stays successful and improves within governance, never outside it.
+
+**Dependencies.** §VI-27 (incremental-delivery principles improvement obeys); §VI-19 (anti-drift and the mandatory workflow); §VI-44 (the evidence signals that drive improvement); §VI-45/§VI-46 (the readiness framework and gates improvement re-enters); §VI-41 (the executive success it sustains).
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55 (enterprise performance & continuous improvement, LOCKED). Part V: §V-1–§V-30. Part VI: §VI-19, §VI-27, §VI-41, §VI-44, §VI-45, §VI-46. Repository: `supabase/functions/server/intelligence/` (`health.ts`, `telemetry.ts`, `certification.ts`), `package.json`, `tests/`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-49 — Phase 6.5 Summary
+
+**Purpose.** To summarize what Phase 6.5 established — the execution-success and release-readiness governance — without beginning Phase 6.6 or locking Part VI.
+
+**Scope.** A summary of Phase 6.5 only (§VI-41–§VI-48) and the frame it sits in. It defines no new framework, gate, authority, or decision, and it begins no later phase.
+
+**Why it exists.** A phased document needs an explicit internal summary so that the success-and-readiness governance is legible as a whole and is not mistaken for a metrics program, a scorecard, or a release schedule, and so that any later phase begins from a settled, merged foundation.
+
+**Summary of what Phase 6.5 established.**
+
+- **Executive success (§VI-41).** Six all-of, qualitative executive success conditions — blueprint fidelity, verified truth, governed intelligence, demonstrated value, operability/reversibility, governed release — into which every subordinate framework rolls up, as a rollup and never an override.
+- **Product success (§VI-42).** Truthful rendering, purpose realization, governed surface intelligence, contract compatibility, safe degradation, and demonstration — appearance is never product success.
+- **Technical success (§VI-43).** Single data authority, enforced tenancy, single intelligence path, reversibility, contract stability, and test/gate evidence — judged against the permanent prohibitions.
+- **Operational readiness (§VI-44).** Observability, diagnosability, recoverability, safe degradation, least-privilege posture, and operability evidence — gating all outward growth.
+- **Release readiness (§VI-45).** The conjunction of executive, product, technical, and operational success with the §VI-23 criteria and the §VI-28 record — one verdict, any NOT-YET dispositive.
+- **Quality gates (§VI-46).** Seven refuse-by-default, evidence-bound enterprise quality gates that make the success frameworks enforceable, applying existing authority and creating none.
+- **Go / No-Go (§VI-47).** An explicit, binary, recorded release decision defaulting to NO-GO, taken by the competent authority against the composed record, executed on GO only through the mandatory workflow.
+- **Continuous improvement (§VI-48).** A post-release discipline — evidence-driven, regression-protected, reversible, drift-free, debt-reducing, and re-gated — that keeps success durable within governance.
+
+**Current State.** All CURRENT STATE claims in this phase remain grounded in the repository verified for Phases 6.2–6.3 and in the LOCKED Parts I–V. The success, readiness, gate, decision, and improvement *frameworks are defined here for the first time*; the *evidence surfaces* they consume (test suites, gateway certification/registry, migration validation, health/telemetry/certification signals, the mandatory workflow) exist in the repository, while the underlying capabilities remain IMPLEMENTED / PARTIAL / UNVERIFIED / NOT IMPLEMENTED exactly as recorded in Phases 6.1–6.3. **No capability is claimed to have SUCCEEDED, to be RELEASABLE, or to have received a GO under these frameworks.** Nothing is invented, and Phase 6.4 (§VI-31–§VI-40) is authored nowhere in this phase.
+
+**Approved Future State.** A complete execution-success and release-readiness governance — executive success at the top, product/technical/operational success beneath it, composed into a single release-readiness verdict, enforced by refuse-by-default quality gates, decided by an explicit Go / No-Go against evidence, and sustained by continuous improvement — all *applying* the priorities, dependencies, gates, and authorities LOCKED in Parts I–V and Phases 6.1–6.3, and editing none of them.
+
+**Dependencies.** All Phase 6.5 sections (§VI-41–§VI-48); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-48. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-50 — Phase 6.5 Completion Record
+
+**Purpose.** To record the completion of Phase 6.5 with its validation evidence, without locking Part VI and without beginning Phase 6.6.
+
+**Scope.** The completion record of Phase 6.5 (§VI-41–§VI-50) only. It defines no new governance and begins no later phase.
+
+**Why it exists.** A phased, append-only document requires an explicit completion boundary so that Phase 6.5 is a settled, auditable unit and any subsequent phase begins from a merged foundation, with the reserved-range status of Phase 6.4 recorded transparently.
+
+**Current State.** Phase 6.5 is authored as §VI-41–§VI-50, appended after §VI-30, grounded throughout in the repository and the LOCKED Parts I–V. Phase 6.4 (§VI-31–§VI-40) remains a RESERVED, not-yet-authored range in the canonical lineage, recorded as such in this phase's preamble; no Phase 6.4 content is authored here. No prior Part or phase is modified.
+
+**Approved Future State.** Phase 6.5 stands COMPLETE and preserved (not locked), available to be reviewed and, in a later governance action, locked with the remainder of Part VI once Part VI is closed.
+
+**Validation of this phase.**
+
+- Phase 6.5 authored.
+- Sections VI-41 through VI-50 present, exactly once, in continuous numbering at their designated positions after §VI-30, with §VI-31–§VI-40 explicitly reserved for a future Phase 6.4.
+- Each of §VI-41–§VI-48 includes Purpose, Scope, Why it exists, Current State, Approved Future State, Dependencies, and Traceability back to Parts I–V.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- No priorities, dependencies, governance, security, gates, or authorities redefined — only applied to the determination of success and release readiness.
+- No sprint planning, timelines, staffing, hiring, budget estimates, story points, velocity, implementation tasks, future-feature design, or department restructuring.
+- Every CURRENT STATE claim grounded in the existing repository, the approved Master Blueprint, and previous Parts; no implemented capability invented.
+- Phase 6.6 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.5 sections (§VI-41–§VI-49); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Completion Evidence.** This record; the presence of §VI-41–§VI-50; the reserved-range note for §VI-31–§VI-40 (Phase 6.4); the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-49. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+**Phase 6.5 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.6 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is a reserved, not-yet-authored range. Phase 6.5 (§VI-41–§VI-50) is authored and complete but not locked. The next Part VI phase (6.6) is not begun here.
+
+*End of Phase 6.5. Part VI continues in a later phase.*
