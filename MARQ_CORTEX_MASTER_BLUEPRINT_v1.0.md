@@ -5045,3 +5045,317 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) is preserved. Phase 6.2 (§VI-11–§VI-20) is authored and complete but not locked. The next Part VI phase (6.3) is not begun here.
 
 *End of Phase 6.2. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.3 — Capability Delivery Roadmap & Release Sequencing
+
+**Status:** COMPLETE (Phase 6.3) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-21 through VI-30, continuing the single-document numbering after Phase 6.2 (§VI-11–§VI-20); numbering is never restarted. · **Continuity:** Phase 6.3 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.2 settled *what* MARQ Cortex builds and *in what order* — the prioritization philosophy and classes (§VI-11–§VI-12), the dependency model (§VI-13), the nine execution layers (§VI-14), the immediate priorities (§VI-15), the deferred and prohibited early work (§VI-16), the execution streams (§VI-17), the gates (§VI-18), and the anti-drift controls and mandatory workflow (§VI-19). Phase 6.3 answers the single question that follows once those priorities are approved: **how does MARQ Cortex deliver enterprise capabilities safely and progressively into production?** It converts an approved sequence into a disciplined capability *delivery model* — the shape of the increments that ship, the waves that group them, the readiness that admits them, the synchronization that coordinates them, the release categories that promote them, the incremental principles that keep the platform whole, the validation evidence that precedes production, and the constitutional approval that authorizes release.
+
+**What this phase is.** An enterprise delivery architecture — a capability-first delivery philosophy (§VI-21), the capability wave model (§VI-22), qualitative release-readiness criteria (§VI-23), cross-stream delivery synchronization (§VI-24), the capability unlock matrix that sequences delivery (§VI-25), the enterprise release model and its categories (§VI-26), the incremental delivery principles that keep Cortex whole as it grows (§VI-27), the release-validation evidence set (§VI-28), and release governance under existing constitutional authority (§VI-29), closed by a completion record (§VI-30).
+
+**What this phase is not.** Phase 6.3 does **not** redefine priorities, dependencies, governance, security, or the gates — those are LOCKED in place by Phase 6.2 and Parts I–V and are only *applied* here. It is not a sprint plan, a milestone chart, a release calendar, a ticket backlog, a staffing model, an engineering estimate, or an implementation task list. It assigns no dates, no story points, no owners, no hours, and it writes no code. It describes how capability increments move from a verified state to production; it does not perform that movement. Phase 6.4 is not begun here, and Part VI is not locked.
+
+**Grounding.** The delivery model below is grounded in the same repository verified for Phase 6.2 — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `featureBridge.ts`, and `providers/`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/`, the SQL migrations under `supabase/migrations/`, the tenancy and anon-policy hardening in those migrations, the test suites declared in `package.json`, and the deployment scripts (`supabase:deploy`, `supabase:db-push`) — together with the LOCKED Parts I–V and the Constitution. Delivery labels (RELEASABLE / NOT-YET-RELEASABLE, VERIFIED / UNVERIFIED, REVERSIBLE / IRREVERSIBLE) are used where they add precision. Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-21 — Enterprise Delivery Philosophy
+
+**Purpose.** To define how MARQ Cortex *delivers* an approved capability — the philosophy of capability-first delivery — distinct from how it *prioritizes* (§VI-11) or *sequences* (§VI-13–§VI-14) that capability.
+
+**Why it exists.** Phase 6.2 decides order; it says nothing about the *unit* in which work reaches production. Without a delivery philosophy, an approved priority degrades into a stream of isolated commits — a tenancy column here, a gateway provider there, a product surface elsewhere — each individually plausible and collectively incoherent. This section fixes the delivery unit so that what ships is always a whole, load-bearing capability rather than a fragment of one.
+
+**Scope.** The delivery value system only. It names no wave, defines no release category, and sets no readiness bar; those derive from this philosophy in §VI-22 onward.
+
+**Approved Delivery State (governing principles).**
+
+- **Capability-first, not feature-first.** The unit of delivery in Cortex is the **capability increment** — a cohesive slice that carries one load-bearing capability (for example, *enforced tenancy*, *authoritative relational data*, *governed intelligence through the gateway*) to a verified, operable, reversibly deployable state across every stream it touches. A capability increment is never "a feature"; it is the smallest change that leaves the platform *more whole* than before, not merely larger.
+- **Cohesive platform increments over isolated features.** Enterprise capabilities are delivered as platform increments precisely because Cortex is a platform, not a collection of surfaces: the deterministic engines, the Intelligence Gateway, the repository layer, the migration engine, and the tenancy boundary are shared by many consumers. Shipping an isolated feature over one of these before the underlying platform capability is whole strands the feature on an unfinished foundation and forks the architecture (§VI-16, §VI-19). A cohesive increment advances the platform capability *and* the surface that proves it, together.
+- **Delivery realizes priority; it never re-opens it.** Every increment realizes an already-approved priority (§VI-15) in its already-approved position (§VI-13–§VI-14). Delivery introduces no new priority, no new dependency, and no new governance rule. Where delivery reveals that a locked decision is genuinely unworkable, the heightened amendment path (DNA Ch 35) is the only recourse — never an ad-hoc delivery choice.
+- **Progressive over big-bang.** No capability arrives in a single decisive cutover. Cortex advances by increments that are individually verifiable and individually reversible, so that trust accumulates and blast radius stays bounded — the delivery-side expression of *trust before automation* and *foundations before expansion* (§VI-11).
+- **Whole-increment accountability.** An increment is "delivered" only when it is verified end to end — data authority proven, tenancy enforced, gateway-routed where AI is involved, observable, and reversible — not when its code merges. Partial delivery reported as complete is the failure this philosophy exists to prevent (§VI-8, §VI-19).
+
+**Clarification (what a capability increment is not).** A capability increment is not a UI addition, a single migration, or one gateway provider considered in isolation. Those are *components* of an increment. The increment is the coherent set of component changes — across data, platform, intelligence, governance, operations, and product as applicable — that together move one capability from UNVERIFIED to RELEASABLE without leaving any consuming stream stranded.
+
+**Dependencies.** §VI-11 (the value system delivery realizes); §VI-14 (the layers increments advance within); §VI-17 (the streams an increment coordinates across); §VI-19 (the anti-drift controls delivery must not violate); the LOCKED Constitution (DNA Ch 17/18/25/35).
+
+**Risks.** If delivery reverts to feature-first, Cortex accumulates surfaces faster than foundations, isolated features strand on unfinished platform capability, and the architecture forks — the exact drift §VI-16 and §VI-19 prohibit. The wave model (§VI-22) and readiness criteria (§VI-23) hold the increment whole.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-11, §VI-14, §VI-17, §VI-19. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`.
+
+---
+
+## VI-22 — Capability Wave Model
+
+**Purpose.** To define the **capability wave** — the delivery cohort in which related capability increments (§VI-21) move toward production together — and to describe what belongs in each wave and why each exists.
+
+**Why it exists.** The nine execution layers (§VI-14) express *readiness sequence*; the execution streams (§VI-17) express *concurrency*. Neither describes the *delivery cohort*: the set of increments that share a readiness frontier and are therefore promoted as one coherent advance rather than dribbled out piecemeal. A wave is that cohort. Waves exist so that delivery has a grain coarse enough to be coherent (a whole capability frontier moves) yet fine enough to stay reversible (a bounded set of increments, not the whole blueprint).
+
+**Distinction from layers.** A layer is a *position in the readiness order*; a wave is a *unit of delivery* that draws its increments from one or more layers once those layers' load-bearing outcomes are VERIFIED. Waves do not renumber, replace, or reorder the layers — they ride on them. A wave never crosses ahead of the dependency line the layers and gates hold (§VI-13, §VI-18).
+
+**Approved Wave Model (no dates, no milestones).**
+
+- **Foundation Wave.** *Contains:* the increments that make the substrate authoritative and bounded — enforced tenancy and the relational data plane as the single source of truth (G1, G2), with the migration engine's expand/contract path proven. *Why it exists:* every later wave treats this substrate as truth; delivering it as one cohort prevents any downstream surface from shipping over KV-authoritative or tenant-unenforced state. This wave is the delivery-side gate to all others.
+- **Platform Wave.** *Contains:* the reusable-leverage increments — Intelligence Gateway breadth behind its single abstraction, consolidation of the repository/service layer, and hardening of the shared engines. *Why it exists:* platform capability is reused by many consumers; delivering it as a cohort lets intelligence, workforce, and product waves draw on a stable, single platform contract rather than forking one.
+- **Intelligence Wave.** *Contains:* governed narration, analysis, and reasoning delivered strictly through the gateway over authoritative data. *Why it exists:* intelligence is only as sound as the substrate beneath it; this wave is admissible only after the Foundation and Platform waves are RELEASABLE, honoring *data integrity before intelligence* (§VI-11).
+- **Workforce Wave.** *Contains:* the `ai_worker` runtime and its orchestration — the governed enterprise workforce increments. *Why it exists:* autonomy requires a settled authority model; this wave rides on verified data authority, tenancy, and gateway governance, honoring *authority before autonomy* (§VI-11, §VI-16).
+- **Product Wave.** *Contains:* the enterprise product surfaces and workflows that prove the capability to customers, delivered over verified state. *Why it exists:* surfaces demonstrate value but never establish truth; this wave follows, never precedes, the foundations it renders.
+- **Operations Wave.** *Contains:* the enterprise instrumentation, observability, diagnosability, and operability increments. *Why it exists:* scale over an unobservable system converts small faults into outages; this wave delivers the ability to operate what earlier waves built, gating any growth wave (§VI-11, operational readiness before scaling).
+- **Strategic / Ecosystem Wave.** *Contains:* the scale, external-integration, and market-expansion increments. *Why it exists:* breadth over the outside world is admissible only once the interior is authoritative, governed, and observable; this is the last cohort by construction (Layer 9).
+
+**Governing rule.** A wave becomes eligible for delivery only when the layers it draws from have their load-bearing outcomes VERIFIED (§VI-13, §VI-14) and its readiness criteria (§VI-23) are met. Waves are cohorts of *readiness*, never cohorts of *calendar*: this section assigns no dates, no milestones, and no sequence numbers beyond the dependency order already fixed in Phase 6.2.
+
+**Dependencies.** §VI-14 (the layers waves ride on); §VI-13 (the dependency line waves must not cross); §VI-17 (the streams whose increments a wave gathers); §VI-23 (the readiness that admits a wave); §VI-26 (the release categories that promote a wave).
+
+**Risks.** The dominant risk is a wave promoted ahead of its readiness frontier — an Intelligence or Product Wave shipping over an unverified Foundation Wave. The readiness criteria (§VI-23) and gates (§VI-18) exist to refuse exactly this.
+
+**Traceability.** Part II: DNA Ch 17/18/20/25/33. Part III: §III-29, §III-37, §III-44, §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-13, §VI-14, §VI-17. Repository: `supabase/migrations/`, `supabase/functions/server/migration/`, `supabase/functions/server/repositories/`, `supabase/functions/server/intelligence/`, `src/app/core/`.
+
+---
+
+## VI-23 — Release Readiness Criteria
+
+**Purpose.** To define, qualitatively, what must be true before a capability wave (§VI-22) is considered **releasable** — the readiness bar that admits a wave to production.
+
+**Why it exists.** A wave is coherent as a delivery cohort but that coherence says nothing about whether it is *safe to release*. Release readiness is the standing test that converts a wave from NOT-YET-RELEASABLE to RELEASABLE. It exists so that release is a judgment against stated evidence, never a judgment against pressure, appetite, or the visible completeness of a surface.
+
+**Scope.** The qualitative readiness bar only. It defines no numeric threshold, no coverage percentage, no score, and no schedule; it states the conditions that must hold.
+
+**Approved Release Readiness Criteria (qualitative).** A wave is RELEASABLE only when all of the following hold — as demonstrated evidence, not assertion:
+
+- **Foundational truth is verified.** Every capability in the wave that treats data as truth reads from the authoritative relational plane, not from KV or client-held state; where the wave touches tenancy, isolation is demonstrated, not assumed (§VI-15, G1/G2).
+- **Governance and security authority hold end to end.** No trust decision in the wave is made client-side; all authority is server-verified, and every AI path is routed through the Intelligence Gateway with no direct-provider bypass (§VI-16, §VI-19).
+- **The wave is reversible.** Each increment in the wave can be withdrawn or rolled back without stranding data or consumers — schema changes follow the expand/contract discipline, and no step depends on an irreversible cutover (§VI-27).
+- **The wave is observable.** The capability emits enough signal — health, telemetry, certification state — to be diagnosed and operated in production; a wave that cannot be observed is not releasable regardless of functional completeness (§VI-11, operational readiness).
+- **Compatibility is preserved.** The wave does not break an existing platform contract — the gateway abstraction, the repository interface, the engine responsibilities — and existing consumers continue to function across the increment (§VI-27).
+- **No architecture drift is introduced.** The wave adds no second engine, no parallel data authority, and no AI path around the gateway; it converges the architecture toward the blueprint rather than forking it (§VI-19).
+- **The blueprint is preserved.** The wave realizes LOCKED Parts I–V without editing them; any tension with a locked decision is resolved through amendment (DNA Ch 35), not through the release.
+- **Its gates are exited on evidence.** Every gate the wave's capabilities depend on (§VI-18) has been passed on recorded evidence — not by claim — moving each capability from UNVERIFIED to VERIFIED.
+
+**Governing rule.** Readiness is *all-of*, not *most-of*: a wave that satisfies every criterion but reversibility, or every criterion but observability, is NOT-YET-RELEASABLE. There is no partial-credit release. Deployment-limited verification never yields a RELEASABLE claim (§VI-8, §VI-19).
+
+**Dependencies.** §VI-22 (the waves this bar admits); §VI-18 (the gates whose exit this bar requires); §VI-15/§VI-16 (the foundational and prohibited-drift conditions); §VI-27 (reversibility and compatibility); §VI-28 (the validation evidence that substantiates these criteria).
+
+**Risks.** The central risk is treating readiness as a percentage — declaring a wave "90% ready" and shipping. This section forecloses that: readiness is qualitative and all-of. The validation set (§VI-28) supplies the evidence each criterion is tested against.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-15, §VI-16, §VI-18. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-24 — Cross-Stream Synchronization
+
+**Purpose.** To explain how the Platform, AI, Data, Governance, Operations, and Product streams coordinate their increments *during delivery* so that a wave arrives as one coherent advance.
+
+**Why it exists.** The dependency theory (§VI-13) and the stream definitions and their parallel-vs-sequential relationships (§VI-17) are already fixed and are not restated here. What remains is a delivery problem: several streams contributing increments to the *same* wave must converge at the same readiness frontier, or the wave fractures — data lands without the governance to bound it, or a product surface lands ahead of the authoritative data it renders. This section describes that convergence.
+
+**Scope.** Coordinated delivery only — synchronization points, shared contracts, and convergence. It repeats no dependency direction and re-derives no ordering.
+
+**Approved Synchronization Model.**
+
+- **Stream mapping.** For delivery purposes the streams of §VI-17 present as six delivery faces — **Data** (tenancy, relational authority, migration engine), **Platform** (gateway, repository/service consolidation, shared engines), **AI** (governed intelligence and, later, the `ai_worker` workforce), **Governance** (the cross-cutting security/governance stream), **Operations** (observability and operability), and **Product** (enterprise surfaces). Governance and Operations are cross-cutting: they contribute to every wave rather than to one.
+- **Synchronization points.** Streams converge at a small number of named **delivery synchronization points** rather than continuously. The principal points are the shared **contracts**: the relational data contract (what the authoritative plane guarantees), the repository interface, and the Intelligence Gateway contract. An increment in one stream is synchronized when it satisfies the contract every other stream consumes — not when its own code is done.
+- **Contract-first convergence.** Streams synchronize *through contracts, not through calendars*. The Data stream publishes an authoritative-data guarantee; the Platform stream freezes the gateway and repository interfaces the wave depends on; the AI and Product streams build only against those frozen contracts. This is why breadth in the Platform stream (gateway providers) can proceed in parallel with Data work — it consumes the contract, not the unfinished implementation (§VI-17).
+- **Cross-cutting streams synchronize continuously.** Governance and Operations do not wait for a synchronization point; they attach to every increment as it forms — governance verifying server-side authority and gateway routing, operations verifying observability — so that no increment reaches a wave's readiness frontier without them.
+- **Convergence at the wave frontier.** A wave is *synchronized* when every contributing stream's increments meet the same readiness bar (§VI-23) at the same frontier. Until then the wave is held; a stream that lags does not ship its part early and does not force the others to wait in an unverified state — it converges or the wave waits.
+
+**Governing rule.** Synchronization is achieved by satisfying shared contracts, never by co-scheduling work. No stream consumes another stream's UNVERIFIED output to appear synchronized (§VI-13). A wave that cannot converge all contributing streams at one readiness frontier is not yet a deliverable wave.
+
+**Dependencies.** §VI-17 (the streams and their concurrency, not restated); §VI-13 (the dependency line synchronization must respect); §VI-22 (the waves streams converge into); §VI-23 (the readiness frontier convergence targets); §VI-18 (the gates that record convergence evidence).
+
+**Risks.** The chief risk is *false synchronization* — declaring a wave converged while one stream's contribution is UNVERIFIED, or synchronizing by schedule rather than by contract. The contract-first rule and the gates (§VI-18) hold the line.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 17/18/20/25/33. Part III: §III-37, §III-44, §III-84–§III-88. Part IV: §IV-23–§IV-55. Part VI: §VI-13, §VI-17, §VI-18. Repository: `supabase/functions/server/`, `src/app/core/`, `src/system/manifest.ts`.
+
+---
+
+## VI-25 — Capability Dependency Matrix
+
+**Purpose.** To describe, for delivery purposes, how a *completed* (RELEASABLE) capability unlocks the next capabilities — the unlock relationships that sequence delivery.
+
+**Why it exists.** Phase 6.2 fixed the dependency graph (§VI-13) as an ordering constraint — what may not begin before what. This section is the delivery-facing complement: not "what blocks what," but "what *becomes deliverable* once a given capability is released." The same relationships read forward, as enablers, not backward, as constraints. It exists so that delivery can see, at any moment, which waves the most recent release has just made admissible.
+
+**Scope.** Delivery-sequencing unlocks only. It neither recreates the fourteen-domain dependency chain of §VI-13 nor re-labels hard/soft dependencies; it reads them as delivery enablers.
+
+**Approved Unlock Matrix (delivered capability → what it makes deliverable).**
+
+- **Enforced tenancy (delivered)** → unlocks *any multi-tenant delivery at all*: authoritative data with tenant isolation, tenant-scoped product surfaces, and per-tenant governed intelligence. Until tenancy is RELEASABLE, no wave that persists or renders tenant data is deliverable.
+- **Authoritative relational data (delivered)** → unlocks the **Intelligence Wave** and the data-dependent parts of the **Product Wave**: narration and analysis may now treat SQL as truth, and surfaces may render verified state. This is the single most enabling release in the model.
+- **Migration engine proven (delivered)** → unlocks *reversible* delivery of every subsequent schema-bearing increment; without it, later data changes cannot be delivered safely (§VI-27).
+- **Intelligence Gateway breadth (delivered)** → unlocks governed multi-provider intelligence and is a prerequisite release for the **Workforce Wave**: the `ai_worker` runtime consumes the gateway, never a provider directly.
+- **Governed intelligence (delivered)** → unlocks the **Workforce Wave** and intelligence-backed product surfaces: agentic behavior may now be layered over a verified authority model (§VI-11, authority before autonomy).
+- **AI workforce runtime (delivered)** → unlocks workforce-driven product workflows and the automation-bearing parts of later waves.
+- **Enterprise observability (delivered)** → unlocks the **Strategic / Ecosystem Wave**: scale, external integration, and market expansion become deliverable only once the interior is operable (§VI-11, operational readiness before scaling).
+
+**Reading the matrix.** Each unlock is *release-gated, not begin-gated*: the enabled wave becomes *deliverable* when the enabling capability is RELEASABLE (§VI-23), which is a stronger condition than the enabling work merely having *begun*. This is the delivery-side sharpening of §VI-13's rule that no downstream work proceeds on an UNVERIFIED prerequisite — here, no downstream capability is *released* until its enabler is released.
+
+**Dependencies.** §VI-13 (the dependency relationships read forward here); §VI-22 (the waves these unlocks admit); §VI-23 (the RELEASABLE condition that fires each unlock); §VI-24 (the synchronization that assembles each unlocked wave).
+
+**Risks.** The risk is treating an unlock as fired by *started* rather than *released* enabling work — beginning to release a Product or Intelligence wave because its Foundation enabler is "in progress." The RELEASABLE condition forecloses this.
+
+**Traceability.** Part II: DNA Ch 17/18/25/33. Part III: §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-45. Part VI: §VI-13, §VI-22, §VI-23. Repository: `supabase/migrations/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`.
+
+---
+
+## VI-26 — Enterprise Release Model
+
+**Purpose.** To define the enterprise **release categories** — the classes of promotion event by which a wave (§VI-22) enters production — and to explain the purpose of each.
+
+**Why it exists.** A wave is a delivery cohort; a *release* is the act of promoting that cohort, or an admissible part of it, into production under governance. Naming release categories gives each promotion a defined purpose, a defined readiness expectation, and a defined approving authority (§VI-29), so that "releasing" is never an undifferentiated push but a typed, governed event.
+
+**Scope.** Release categories and their purposes only. No category carries a date, a cadence, a version number, or a schedule.
+
+**Approved Release Categories.**
+
+- **Foundation Release.** *Promotes:* the Foundation Wave — enforced tenancy and authoritative relational data with the migration engine proven. *Purpose:* to establish trustworthy, bounded substrate in production so that every later release stands on verified truth. This is the enabling release of the entire model; nothing intelligence- or product-facing is released before it.
+- **Platform Release.** *Promotes:* the Platform Wave — gateway breadth, repository/service consolidation, shared-engine hardening. *Purpose:* to put reusable platform leverage into production behind stable contracts, so that intelligence, workforce, and product releases draw on one platform rather than forking one.
+- **Intelligence Release.** *Promotes:* the Intelligence Wave — governed narration, analysis, and reasoning through the gateway over authoritative data. *Purpose:* to deliver enterprise intelligence that is sound because the substrate beneath it is verified and every AI path is governed.
+- **Product Release.** *Promotes:* the Product Wave — enterprise surfaces and workflows over verified state. *Purpose:* to deliver customer-facing value that demonstrates, but never establishes, the underlying capability.
+- **Operational Release.** *Promotes:* the Operations Wave — enterprise instrumentation, observability, and operability. *Purpose:* to make what has been released operable and diagnosable at enterprise scale, and to gate any growth that would otherwise outrun observability.
+- **Strategic Release.** *Promotes:* the Strategic / Ecosystem Wave — scale, external integration, and market expansion. *Purpose:* to extend Cortex outward once its interior is authoritative, governed, and observable; by construction the last category to fire.
+
+**Governing rule.** Release categories are *typed by capability class, not by time*. A category names *what kind of capability* is being promoted and *what must be true* to promote it (§VI-23), never *when*. The categories do not imply a fixed count of releases: a capability class may be advanced through more than one release of its category as its wave is delivered incrementally (§VI-27), always under the same category's readiness bar and approving authority (§VI-29).
+
+**Dependencies.** §VI-22 (the waves these categories promote); §VI-23 (the readiness each category requires); §VI-25 (the unlock order across categories); §VI-27 (incremental delivery within a category); §VI-29 (the authority that approves each category).
+
+**Risks.** The risk is collapsing the categories into an undifferentiated "release" that bypasses category-specific readiness and authority — for example, folding intelligence into a product push without the Intelligence Release's governance bar. Typing releases by capability class prevents this.
+
+**Traceability.** Part II: DNA Ch 17/18/25/30/33/35. Part III: §III-29, §III-37, §III-56–§III-65. Part IV: §IV-35–§IV-55. Part VI: §VI-22, §VI-23, §VI-25. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-27 — Incremental Delivery Principles
+
+**Purpose.** To state the principles by which Cortex *grows safely over time* — how successive releases enlarge the platform without destabilizing what already runs.
+
+**Why it exists.** Waves, readiness, and release categories describe *what* is promoted; they do not describe *how the platform stays whole* as promotions accumulate. Incremental delivery principles are the safety discipline of growth: they keep every release reversible, compatible, and debt-contained, so that a maturing Cortex never becomes a brittle one.
+
+**Scope.** The incremental-growth discipline only. It sets no schedule and prescribes no implementation.
+
+**Approved Incremental Delivery Principles.**
+
+- **Reversible evolution.** Every increment is delivered so that it can be withdrawn. Schema and platform changes follow an **expand → migrate → contract** shape — additive first, cut-over verified, removal last — so there is always a state to return to. The migration engine (`supabase/functions/server/migration/`) is the instrument of this reversibility; no increment depends on an irreversible one-way cutover.
+- **Compatibility.** Each increment preserves the contracts its consumers depend on — the Intelligence Gateway abstraction, the repository interface, the deterministic engine responsibilities, and the tenancy boundary. New capability is added *behind* stable contracts; existing consumers continue to function unchanged across the release.
+- **Migration safety.** Data-bearing increments never risk the authoritative plane: migrations are reversible, tenancy-preserving, and verified against parity before the old path is retired. Delivery never sacrifices the integrity of persisted enterprise data to move faster.
+- **Platform stability.** Growth does not destabilize the running core. The shared engines and gateway remain stable under extension; an increment that would force a breaking change to a load-bearing platform contract is redesigned or escalated (DNA Ch 35), not merged as a break.
+- **Technical-debt containment.** Debt is bounded at the moment it is incurred, not deferred indefinitely. The permanent prohibitions — no duplicate engine, no parallel data authority, no AI path around the gateway (§VI-16, §VI-19) — are the hard ceiling on architectural debt; delivery may not "borrow" against them for speed.
+- **Progressive hardening.** Capabilities enter production at their least-privileged, most-guarded posture and are hardened progressively as evidence accumulates — anon-policy tightening, authority verification, and certification strengthening over successive releases rather than a single late hardening step. Hardening is a continuous property of delivery, not a final gate.
+
+**Governing rule.** No increment is delivered that cannot be reversed, that breaks an existing contract, or that borrows against the permanent architectural prohibitions. Growth that violates any of these is not incremental delivery — it is drift, and it is refused (§VI-19).
+
+**Dependencies.** §VI-16/§VI-19 (the permanent prohibitions debt containment enforces); §VI-23 (reversibility and compatibility as readiness criteria); §VI-26 (the categories within which increments accumulate); the migration engine and gateway abstraction in the repository.
+
+**Risks.** The risk is trading a safety property for speed — an irreversible cutover, a broken contract, a duplicated engine "just this once." Each such trade converts maturity into brittleness; the governing rule refuses all of them.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-59–§III-65, §III-78–§III-80, §III-84–§III-88. Part IV: §IV-23–§IV-34, §IV-46–§IV-55. Part VI: §VI-16, §VI-19, §VI-23, §VI-26. Repository: `supabase/functions/server/migration/`, `supabase/migrations/`, `supabase/functions/server/intelligence/`, `src/app/core/`.
+
+---
+
+## VI-28 — Validation Before Release
+
+**Purpose.** To define the **evidence set** that must exist before a capability enters production — the release-validation record assembled at the point of promotion.
+
+**Why it exists.** The execution gates (§VI-18) verify a capability's readiness *as it advances through delivery*; they are not restated here. Release validation is the distinct, final act of *assembling the evidence into a promotion record* — the demonstrable proof, gathered in one place, that a wave meets every readiness criterion (§VI-23) at the moment of release. It exists so that the approving authority (§VI-29) decides against a record, not against a narrative.
+
+**Scope.** The release-validation evidence set only. It duplicates no execution gate and defines no new gate; it specifies what evidence the release record must contain.
+
+**Approved Release-Validation Evidence.** Before a capability enters production, its release record must contain:
+
+- **Data-authority evidence.** Demonstration that the capability reads and writes the authoritative relational plane, with — where migration is involved — verified parity between the retiring path and the authoritative one (no KV-authoritative residue, no client-held truth).
+- **Tenancy-isolation evidence.** Demonstration that tenant boundaries are enforced server-side for every path the capability exposes, with cross-tenant access shown to be denied, not merely undefined.
+- **Governed-AI evidence.** For any capability involving AI, demonstration that every provider call is routed through the Intelligence Gateway — certification and provider-registry evidence — with no direct-provider path present (§VI-16).
+- **Reversibility evidence.** A demonstrated rollback or withdrawal path for the increment — the expand/contract state proven reversible — so promotion is never a one-way door (§VI-27).
+- **Observability evidence.** Live health, telemetry, and certification signals sufficient to diagnose and operate the capability in production (`health.ts`, `telemetry.ts`, `certification.ts` where applicable).
+- **Contract-compatibility evidence.** Demonstration that existing consumers of the gateway, repository, engine, and tenancy contracts continue to function across the increment (§VI-27).
+- **Governance and blueprint-preservation evidence.** A record that the capability subordinates to the LOCKED Constitution and Parts I–V, introduces no drift, and — where any tension with a locked decision arose — resolved it through amendment (DNA Ch 35), not through the release.
+- **Test and gate evidence.** The results of the declared test suites (`package.json`, `MARQ_CORTEX_TEST_PROTOCOL.md`) and the recorded exit of every gate the capability depends on (§VI-18) — evidence, not assertion.
+
+**Governing rule.** Validation is *evidentiary and antecedent*: the record exists **before** promotion, not after. A capability whose release record is missing any element above is NOT-YET-RELEASABLE regardless of functional appearance. Evidence gathered only in a deployment-limited environment is marked UNVERIFIED and does not satisfy this set (§VI-8, §VI-19).
+
+**Dependencies.** §VI-18 (the gates whose exit this record aggregates); §VI-23 (the readiness criteria this evidence substantiates); §VI-27 (reversibility and compatibility evidence); §VI-29 (the authority that reads this record).
+
+**Risks.** The risk is retrospective validation — releasing, then assembling evidence to justify it. The antecedent rule forecloses this: no record, no release.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-18, §VI-23, §VI-27. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`. Repository: `supabase/functions/server/intelligence/` (`certification.ts`, `telemetry.ts`, `health.ts`), `package.json`.
+
+---
+
+## VI-29 — Release Governance
+
+**Purpose.** To explain how release approval occurs by *applying* the constitutional authorities already defined in earlier Parts — not by defining new ones.
+
+**Why it exists.** Delivery must terminate in an authorized act, or readiness evidence never becomes a governed release. The authorities that can authorize such an act already exist — the constitutional governance of the DNA (Part II), the enterprise governance and review authorities of Part IV (§IV-35–§IV-55), and the role-based authority attached to each execution gate (§VI-18). This section binds those existing authorities to the release categories (§VI-26); it redefines no governance.
+
+**Scope.** The application of existing authority to release approval only. It creates no new authority, no new gate, and no new escalation path.
+
+**Approved Release-Governance Application.**
+
+- **Release approval is a constitutional act.** Promoting a capability to production is an exercise of already-defined authority against the release-validation record (§VI-28), taken through the mandatory repository workflow (§VI-19: complete → review → commit → push → open PR → merge → verify canonical main). No release occurs outside that workflow.
+- **Authority is matched to release category.** Each release category (§VI-26) is approved by the authority already competent for that class of capability: **Foundation** and **Platform** releases by the architecture, data-integrity, and security authorities of the corresponding gates (§VI-18); **Intelligence** and **Workforce** releases by the AI-readiness authority; **Product** releases by the product-readiness authority; **Operational** releases by the operational-readiness authority; **Strategic** releases by the highest constitutional authority, since ecosystem and market expansion touch the blueprint's outermost commitments. These authorities are drawn from §VI-18 and Part IV, not invented here.
+- **Evidence precedes approval.** No authority approves a release by assertion; each approves against the antecedent validation record (§VI-28). An incomplete record is a refusal, not a discretionary override.
+- **Blueprint supremacy governs every approval.** No release authority may approve a capability that edits or contradicts the LOCKED Constitution or Parts I–V. Where a release would require such a change, the only path is the heightened amendment process (DNA Ch 35); release governance cannot substitute for it.
+- **Refusal and escalation reuse existing paths.** A refused release follows the failure-response and escalation paths already defined for the relevant gate (§VI-18) and the anti-drift controls (§VI-19); this phase adds none.
+
+**Governing rule.** Release governance *applies* constitutional authority; it never *creates* it. Every release is approved by an authority already defined in Part II, Part IV, or §VI-18, against evidence already required by §VI-28, through the workflow already mandated by §VI-19.
+
+**Dependencies.** §VI-18 (the gate authorities applied here); §VI-19 (the mandatory workflow releases run through); §VI-26 (the categories matched to authorities); §VI-28 (the evidence authority approves against); Part IV §IV-35–§IV-55 and the Constitution (DNA Ch 30/35).
+
+**Risks.** The risk is release governance quietly *becoming* a new governance layer — inventing approvals or overrides not grounded in existing authority. The governing rule forbids this: approval authority is only ever borrowed from what Parts II/IV and §VI-18 already define.
+
+**Traceability.** Part II: DNA Ch 8.3/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-18, §VI-19, §VI-26, §VI-28. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-30 — Phase 6.3 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.3 and record its completion without beginning Phase 6.4 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *capability delivery model* is not mistaken for a schedule or a plan of record, and so Phase 6.4 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.3 only (§VI-21–§VI-30) and its completion record. It defines no new priority, dependency, governance rule, or gate, and it begins no later phase.
+
+**Summary of what Phase 6.3 established.**
+
+- **Delivery philosophy (§VI-21).** Capability-first delivery: the unit of delivery is the cohesive **capability increment**, delivered as a whole platform increment rather than an isolated feature, realizing approved priority without re-opening it, progressively and reversibly, with whole-increment accountability.
+- **Capability waves (§VI-22).** A **wave** as the delivery cohort riding on the execution layers — Foundation, Platform, Intelligence, Workforce, Product, Operations, and Strategic/Ecosystem — each defined by what it contains and why it exists, none carrying dates or milestones.
+- **Release readiness (§VI-23).** A qualitative, all-of readiness bar — verified foundational truth, end-to-end governance and security authority, reversibility, observability, compatibility, no drift, blueprint preservation, and evidence-based gate exit — with no percentages and no partial-credit release.
+- **Cross-stream synchronization (§VI-24).** Contract-first convergence: streams synchronize by satisfying shared contracts (relational data, repository interface, gateway) at named synchronization points, with Governance and Operations attaching continuously, and a wave held until all contributing streams converge at one readiness frontier.
+- **Capability unlock matrix (§VI-25).** The dependency relationships read forward as delivery enablers — which RELEASABLE capability makes which later wave *deliverable* — release-gated, not begin-gated.
+- **Release model (§VI-26).** Six release categories — Foundation, Platform, Intelligence, Product, Operational, Strategic — typed by capability class and readiness, never by time.
+- **Incremental principles (§VI-27).** Reversible evolution (expand/contract), compatibility, migration safety, platform stability, technical-debt containment (bounded by the permanent prohibitions), and progressive hardening.
+- **Validation before release (§VI-28).** The antecedent, evidentiary release record — data-authority, tenancy-isolation, governed-AI, reversibility, observability, contract-compatibility, governance/blueprint-preservation, and test/gate evidence — assembled before promotion, never after.
+- **Release governance (§VI-29).** Existing constitutional authority *applied* to release: each category approved by the authority already competent for it, against the validation record, through the mandatory workflow, under blueprint supremacy — no new authority created.
+
+**Current State.** All CURRENT STATE claims in this phase remain grounded in the repository verified for Phase 6.2 and in the LOCKED Parts I–V; foundations are PARTIAL/UNVERIFIED where the runtime is not yet authoritative (data authority, tenancy), PARTIAL where breadth is incomplete (gateway providers, product surfaces, observability), and NOT IMPLEMENTED where absent (AI workforce runtime, enterprise instrumentation). This phase describes how such capabilities will be *delivered*; it implements none of them and claims no capability as released. Nothing is invented.
+
+**Approved Delivery State.** A capability-first delivery model — whole increments, grouped into readiness-defined waves, converged across streams by contract, admitted by an all-of qualitative readiness bar, promoted through typed release categories under existing constitutional authority, and grown by reversible, compatible, debt-contained increments — realizing the sequence LOCKED in Phase 6.2 and the direction LOCKED in Part V without editing either.
+
+**Validation of this phase.**
+
+- Phase 6.3 authored.
+- Sections VI-21 through VI-30 present, exactly once, in continuous numbering after §VI-20.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) preserved unchanged.
+- No priorities, dependencies, governance, security, or gates redefined — only applied.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, or implementation instructions.
+- Phase 6.4 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.3 sections (§VI-21–§VI-29); Phase 6.2 (§VI-11–§VI-20) and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-29. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-21–§VI-30; the unchanged Phase 6.1, Phase 6.2, and Parts I–V; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.3 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.4 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
+
+*End of Phase 6.3. Part VI continues in a later phase.*
