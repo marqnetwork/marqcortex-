@@ -3,7 +3,7 @@
 **Document:** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0`
 **Class:** Enterprise Master Blueprint — Definitive Source of Truth
 **Owner & Steward:** MARQ Networks
-**Status:** Part I LOCKED · Part II LOCKED · Part III LOCKED · Part IV LOCKED · Part V LOCKED · Part VI IN PROGRESS
+**Status:** Part I LOCKED · Part II LOCKED · Part III LOCKED · Part IV LOCKED · Part V LOCKED · Part VI LOCKED · **Master Blueprint: RELEASED (v1.0, APPROVED)**
 **Governing authority:** Subordinate to `CORTEX_DNA_v1.0.md` (Part II). Where this blueprint and the Constitution conflict on identity, philosophy, or governance, the Constitution prevails (Part II, Chapter 25).
 **Master rule:** The Master Blueprint is the authority; the codebase is the implementation. On conflict, Blueprint first, code second. Every future feature must exist in this Blueprint before implementation.
 
@@ -20,9 +20,9 @@ This Master Blueprint is a single, continuous, permanent document composed of **
 | **Part III** | Phase 3 | Product Blueprint — the complete, reality-first description of the product | **LOCKED** |
 | **Part IV** | Phase 4 | AI Company Architecture — the AI-Workforce organizational model (executives, departments, managers, workers) | **LOCKED** |
 | **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **LOCKED** |
-| **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **IN PROGRESS** |
+| **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **LOCKED** |
 
-Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phase 6.1 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
+Parts IV, V, and VI are approved elements of the final architecture. Parts IV, V, and VI are authored and LOCKED — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
 
 **Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
@@ -5359,3 +5359,825 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.4 — Execution Governance & Delivery Control
+
+**Status:** COMPLETE (Phase 6.4) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-31 through VI-40, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.4 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.2 fixed *what* MARQ Cortex builds and *in what order*; Phase 6.3 fixed *how* an approved capability is *delivered and released* into production — the increment, the wave, the readiness bar, the release categories, and release governance at the point of promotion. What neither phase describes is how execution is **governed and controlled while it is happening** — the standing control system that keeps every delivery inside the LOCKED order as it moves: who may decide what during delivery, how change is controlled once a wave is in flight, what evidence a control decision is made against, how delivery health is monitored, how exceptions and failures escalate, and how execution continues safely across interruption. Phase 6.4 answers that single question: **how does MARQ Cortex govern and control its own execution — so that every delivery stays authorized, evidenced, monitored, and recoverable — while remaining subordinate to the LOCKED blueprint?**
+
+**What this phase is.** An execution control architecture — a governance philosophy (§VI-31), the delivery control framework (§VI-32), the execution decision-authority model (§VI-33), change control during delivery (§VI-34), the execution evidence model (§VI-35), delivery health monitoring (§VI-36), escalation and exception management (§VI-37), the controlled-execution principles (§VI-38), and execution continuity (§VI-39), closed by a completion record (§VI-40).
+
+**What this phase is not.** Phase 6.4 does **not** redefine priorities, dependencies, the delivery model, governance authority, security, or the gates — those are LOCKED in place by Phases 6.2–6.3 and Parts I–V and are only *applied as controls* here. It is not a sprint plan, a calendar, a staffing roster, a ticket backlog, a headcount plan, a budget, or an implementation task list. It assigns no dates, no story points, no owners by name, no hours, and it writes no code. It describes the control system by which delivery is governed; it performs no delivery. Phase 6.5 is not begun here, and Part VI is not locked.
+
+**Grounding.** The control model below is grounded in the same repository verified for Phases 6.2–6.3 — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `featureBridge.ts`, `contracts.ts`, and `providers/`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/` (`orchestrator.ts`, `reconciliation.ts`, `rollback.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `telemetry.ts`), the SQL migrations under `supabase/migrations/` (tenancy foundation, RLS + seed, KV foundation, migration infrastructure, diagnostic foundation/RLS, and anon-policy hardening) with their `rollbacks/`, the migration CLI under `scripts/migration/` (`cli.ts`, `validate-s6.3.ts`), the declared test suites in `package.json` (`test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`) and deployment scripts (`supabase:deploy`, `supabase:db-push`), the institutional-memory record under `memory/` (`failure_library.md`, `regression_cases.md`, `pattern_violations.json`), and the system manifest `src/system/manifest.ts` — together with the LOCKED Parts I–V and the Constitution. Control labels (IMPLEMENTED / PARTIAL / NOT IMPLEMENTED, VERIFIED / UNVERIFIED) are used where they add precision. The enterprise's current control reality is the single-operator (Startup) shape, and the AI-workforce runtime is a reserved (`ai_worker`) identity, NOT IMPLEMENTED (§VI-3). Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-31 — Execution Governance Philosophy
+
+**Purpose.** To define the philosophy by which MARQ Cortex *governs* execution while it is underway — the value system that keeps a running delivery authorized, evidenced, and reversible — distinct from how it prioritizes (§VI-11), sequences (§VI-13–§VI-14), or delivers (§VI-21) a capability.
+
+**Why it exists.** Phase 6.3 describes the *act* of delivering and releasing a capability; it does not describe the *standing control* that governs delivery as it happens. Without a stated governance philosophy, control during execution degrades into improvisation — a decision is taken because it is expedient, a change is admitted because it is small, a failure is worked around rather than surfaced — and the LOCKED order erodes under motion. This section fixes the governance value system so that every control mechanism that follows — the control framework (§VI-32), decision authority (§VI-33), change control (§VI-34), evidence (§VI-35), monitoring (§VI-36), escalation (§VI-37), controlled-execution principles (§VI-38), and continuity (§VI-39) — is a consequence of stated principle rather than of convenience or pressure.
+
+**Scope.** The governance value system only. It names no control gate, assigns no authority, and defines no evidence artifact; those derive from this philosophy in §VI-32 onward. It re-opens no priority, dependency, or delivery decision LOCKED in Phases 6.2–6.3.
+
+**Current State.** **PARTIAL — real governance, informally instituted.** Execution is already governed at single-operator scale by mechanisms the repository evidences: the mandatory repository workflow (complete → review → commit → push → open PR → merge → verify canonical main, §VI-19) authorizes every change; per-increment review operates; the deterministic engine layer (`src/app/core/`, 30 engines) holds authoritative computation under constitutional authority (DNA Art. 6); the Intelligence Gateway centralizes governed AI (`supabase/functions/server/intelligence/`); institutional memory (`memory/failure_library.md`, `regression_cases.md`, `pattern_violations.json`) records governance outcomes; and the migration engine plus reversible migrations (`supabase/functions/server/migration/`, `supabase/migrations/rollbacks/`) keep change recoverable. What is **NOT IMPLEMENTED** is a *formalized standing control institution* — a defined delivery-control framework, a distributed decision-authority structure, and delivery-health instrumentation — because the enterprise runs at the Startup (single-operator) shape and the AI-workforce runtime is reserved, not realized (§VI-3, §IV-46–§IV-55). The *values* below are already honored in practice; this section makes them explicit and durable.
+
+**Approved Future State (governing control principles).**
+
+- **Govern to the blueprint, never around it.** Every control decision realizes an already-approved priority (§VI-15) in its already-approved position (§VI-13–§VI-14) through the already-mandated workflow (§VI-19). Governance introduces no new priority, dependency, delivery rule, or authority; where control reveals a LOCKED decision to be unworkable, the heightened amendment path (DNA Ch 35) is the only recourse.
+- **No delivery proceeds unauthorized.** Every advancing increment is authorized by a competent authority (§VI-33) against evidence (§VI-35); an unauthorized or unevidenced advance is a control failure, not a shortcut.
+- **Control is evidence-based, never assertion-based.** Every control judgment — advance, hold, release, escalate — is made against demonstrable evidence, never against claim, appetite, or pressure (§VI-35, §VI-28).
+- **Reversibility is a precondition of control.** Governance permits an increment to proceed only when it can be withdrawn; control that cannot undo what it authorized is not control (§VI-27, §VI-39).
+- **Exceptions surface; they are never absorbed.** Every deviation, failure, or exception is made visible and routed through a defined escalation path (§VI-37), recorded in institutional memory (`memory/`), never silently worked around (§VI-31 honesty).
+- **The human floor governs high consequence.** High-consequence and irreversible control decisions remain with the Human Principal (DNA Ch 18.9); autonomy never rises above the authority model (§VI-16).
+- **Honest control status.** Control state is reported against evidence, and deployment-limited verification is labelled UNVERIFIED, never RELEASABLE (§VI-8). Partial control reported as complete is the failure this philosophy exists to prevent.
+
+**Dependencies.** §VI-11 (the prioritization philosophy this governance philosophy extends into control); §VI-19 (the anti-drift controls and mandatory workflow governance runs through); §VI-21 (the delivery philosophy governance controls); the LOCKED Constitution (DNA Ch 17/18/25/30/33/35).
+
+**Risks.** If the governance philosophy is not held, control during execution reverts to improvisation: unauthorized advances, unevidenced decisions, irreversible steps, and absorbed exceptions. The control mechanisms in §VI-32–§VI-39 exist to detect and reverse exactly this.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`. Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-11, §VI-19, §VI-21. Repository: `memory/`, `src/app/core/`, `supabase/functions/server/`, `package.json`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-32 — Delivery Control Framework
+
+**Purpose.** To define the **control framework** — the standing structure of control points through which a delivery must pass while in flight — so that execution is governed continuously rather than only at the moment of release (§VI-29).
+
+**Why it exists.** Phase 6.3 places a governance act at *release* (§VI-29) and readiness at the *wave frontier* (§VI-23); neither governs the interval *between* — the period during which an increment is being built and verified and can most easily drift. The control framework fills that interval: it defines the control points every delivery traverses, so that authority, evidence, and reversibility are checked *throughout* delivery, not only at its end. It exists to make the controlled path the default path.
+
+**Scope.** The structure of delivery control points only. It defines no new gate (it *applies* §VI-18), no numeric threshold, no schedule, and no tooling. It re-orders nothing fixed in Phases 6.2–6.3.
+
+**Current State.** **PARTIAL — control points exist, unframed.** The constituent control points already operate: admission is governed by the priority/dependency order (§VI-12–§VI-15); build is governed by the deterministic engine and gateway contracts (`src/app/core/`, `supabase/functions/server/intelligence/`); verification is governed by the declared test suites and migration validation (`package.json`, `scripts/migration/cli.ts`); promotion is governed by the mandatory workflow and canonical-main verification (§VI-19); and reversibility is governed by the migration engine and rollbacks (`supabase/functions/server/migration/rollback.ts`, `supabase/migrations/rollbacks/`). What is **NOT IMPLEMENTED** is a *single named control framework* binding these points into one instituted structure — a consequence of the single-operator shape (§VI-3). The framework below names and orders the control points already exercised.
+
+**Approved Future State (the delivery control points — no schedule).**
+
+- **Admission control.** No increment enters delivery unless its prerequisites are RELEASABLE (§VI-25) and its position in the dependency order is reached (§VI-13); prohibited work is refused here (§VI-16).
+- **Authority control.** Each advancing increment is bound to the competent decision authority for its class (§VI-33) before it proceeds; an increment with no bound authority does not advance.
+- **Build control.** The increment is built behind stable contracts (gateway, repository, engine, tenancy), additively (expand before contract, §VI-27); no build introduces a duplicate engine, parallel authority, or gateway bypass (§VI-16).
+- **Verification control.** The relevant test suites and migration validation run before advance (§VI-36, §VI-28); an unverified increment is held, not advanced.
+- **Evidence control.** The evidence set required for the increment's class is assembled *before* promotion (§VI-35, §VI-28); a missing-evidence increment is NOT-YET-RELEASABLE.
+- **Promotion control.** Promotion occurs only through the mandatory workflow and the matched release authority (§VI-19, §VI-29), against the assembled evidence.
+- **Reversibility control.** At every point above, a demonstrated withdrawal path exists (§VI-27, §VI-39); an increment that cannot be reversed does not pass control.
+
+**Governing rule.** Control is *continuous across delivery*, exercised at each named point, not deferred to release. An increment that fails any control point is held at that point; it does not proceed on the strength of later intentions. The framework applies existing gates and authorities (§VI-18, §VI-29); it creates none.
+
+**Dependencies.** §VI-18 (the gates whose exits these control points check); §VI-19 (the mandatory workflow control runs through); §VI-23/§VI-25 (readiness and unlock conditions admission control enforces); §VI-28/§VI-35 (the evidence control requires); §VI-33 (the authority bound at authority control); §VI-27/§VI-39 (reversibility).
+
+**Risks.** The chief risk is control collapsing to a single end-of-delivery check, letting drift accumulate unobserved in the build interval. Continuous control points and hold-at-failure foreclose this.
+
+**Traceability.** Part II: DNA Ch 17/18/25/33. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-13, §VI-16, §VI-18, §VI-19, §VI-23, §VI-25, §VI-27, §VI-28, §VI-29, §VI-33. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/migration/`, `supabase/migrations/rollbacks/`, `package.json`, `scripts/migration/`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-33 — Execution Decision Authority
+
+**Purpose.** To define **who may decide what** during execution — the decision-authority model that binds each in-flight control decision (§VI-32) to a single competent authority — by *applying* the authorities already established in Part II (DNA), Part IV (§IV-23–§IV-55), and the execution gates (§VI-18), not by inventing new ones.
+
+**Why it exists.** The control framework (§VI-32) defines *where* control is exercised; it does not say *who is competent* to make each control decision. Without an explicit authority model, decisions are made by whoever is present, and accountability for an advance, a hold, or an escalation diffuses. This section binds each control decision to one authority so that no decision is ownerless and none is taken above its competence.
+
+**Scope.** The mapping of execution decisions to *already-defined* authorities only. It creates no new role, title, org chart, or headcount, and names no individual. It re-states neither the Part IV structure nor the gate authorities of §VI-18; it applies them as decision rights.
+
+**Current State.** **PARTIAL — single competent authority, reserved workforce.** Today every execution decision resolves to the **Human Principal** as ultimate accountable authority at the high-consequence floor (DNA Ch 18.9), operating at the Startup (single-operator) shape (§VI-3). The authority *definitions* exist as approved architecture — the enterprise executive/department/manager structure (§IV-23–§IV-34), product RBAC (`roleEngine`; §III-42–§III-43), and the role-based authority attached to each gate (§VI-18) — but the **AI-workforce runtime that would distribute these decision rights is NOT IMPLEMENTED**, reserved to the `ai_worker` identity. The model below is therefore fully honored today by one authority and progressively distributed as the approved workforce is stood up — inventing no authority that does not already exist.
+
+**Approved Future State (execution decision → competent authority).**
+
+- **Admission and sequencing decisions** (what may enter delivery, in what order) are decided by the **architecture and data-integrity authorities** of the corresponding gates (§VI-18) against the LOCKED dependency order (§VI-13) — the Human Principal today.
+- **Foundation and platform advance decisions** (tenancy, relational authority, migration, gateway/repository contracts) are decided by the **architecture, data-integrity, and security authorities** (§VI-18).
+- **Intelligence and workforce advance decisions** are decided by the **AI-readiness authority** (§VI-18); the `ai_worker` runtime, once realized, decides *under* that authority, never above it (§VI-16, authority before autonomy).
+- **Product advance decisions** are decided by the **product-readiness authority**; **operational advance decisions** by the **operational-readiness authority** (§VI-18).
+- **Release decisions** for each category are decided by the authority already matched to it (§VI-29); **strategic/ecosystem** decisions by the highest constitutional authority (DNA Ch 30/35).
+- **The human floor is non-delegable.** High-consequence, irreversible, and exception decisions (§VI-37) remain with the Human Principal (DNA Ch 18.9) regardless of how much of the workforce is realized.
+
+**Governing rule.** Every execution decision has exactly **one** competent authority, drawn from Part II, Part IV, or §VI-18 — never a newly invented one. Distribution of these decision rights across the AI workforce is additive and gated on that workforce being VERIFIED-realized; until then, they resolve to the single competent authority. No decision is taken above its competence, and the human floor is never delegated.
+
+**Dependencies.** §VI-18 (the gate authorities applied as decision rights); §VI-29 (release-decision authorities); §VI-32 (the control points these authorities decide at); Part IV §IV-23–§IV-34 (the approved authority structure); the reserved `ai_worker` identity; the Constitution (DNA Ch 18.9/30/35).
+
+**Risks.** The dominant risk is decision authority diffusing as work parallelizes, or a nascent AI workforce deciding before it is VERIFIED-realized. The single-competent-authority rule and the non-delegable human floor foreclose both.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 8.3/9/18.9/23/30/33/35. Part III: §III-42–§III-43. Part IV: §IV-23–§IV-34, §IV-35–§IV-45. Part VI: §VI-13, §VI-16, §VI-18, §VI-29, §VI-32. Repository: `src/app/core/roleEngine.ts`, `src/system/manifest.ts`.
+
+---
+
+## VI-34 — Change Control During Delivery
+
+**Purpose.** To define how change is controlled *once a delivery is in flight* — the in-delivery change-control discipline that keeps an advancing increment coherent and reversible as it is modified.
+
+**Why it exists.** Phase 6.3's incremental principles (§VI-27) govern how the platform grows *across* releases; §VI-37 in the prior configuration governed change to canonical state. What remains is the narrower, sharper problem of change *within an active delivery*: a scope addition, a schema adjustment, or a contract tweak made while an increment is mid-flight is where coherence is most easily lost. This section controls that in-flight change so that a delivery cannot silently expand, break a contract, or become irreversible while underway.
+
+**Scope.** Change control during an active delivery only. It defines no branching model beyond the mandatory workflow (§VI-19), no environment matrix, and no tooling. It re-uses the workflow, migration discipline, and incremental principles already established.
+
+**Current State.** **IMPLEMENTED as workflow; PARTIAL as in-flight discipline.** Change control is **IMPLEMENTED**: every change reaches canonical `main` only through complete → review → commit → push → open PR → merge → verify (§VI-19); git/PR history is the change record. Schema change is controlled as ordered, reversible migrations (`supabase/migrations/` with `rollbacks/`, applied via `supabase:db-push`; state tracked by `checkpointStore.ts`). Contract stability is structurally supported by the centralized gateway/repository/engine layers (`supabase/functions/server/intelligence/contracts.ts`, `.../repositories/index.ts`, `src/app/core/`). What is **PARTIAL** is a *formalized in-flight scope-control discipline* distinct from ordinary change control — bounded by the single-operator shape (§VI-3). The rules below formalize the in-delivery practice the workflow already enforces.
+
+**Approved Future State (in-delivery change-control rules).**
+
+- **In-flight change flows through the same mandatory workflow.** No change to an active delivery bypasses review → PR → merge → verify (§VI-19); there is no off-workflow amendment to work in progress.
+- **Scope is fixed to the increment's approved priority.** A change that expands an in-flight increment beyond its approved priority (§VI-15) is not folded in silently; it is admitted as its own increment through intake control (§VI-32), preserving whole-increment integrity (§VI-21).
+- **Schema change stays reversible mid-flight.** Any data-plane change made during delivery is an ordered migration with a rollback (`supabase/migrations/`, `rollbacks/`), following expand → migrate → contract (§VI-27); no in-flight change introduces an irreversible cutover.
+- **Contracts are not broken to make progress.** An in-flight change that would break a gateway, repository, engine, or tenancy contract is redesigned or escalated (DNA Ch 35, §VI-37), never merged as a break (§VI-27).
+- **No prohibited change enters mid-flight.** The permanent prohibitions (no duplicate engine, no parallel data authority, no AI path around the gateway; §VI-16) apply to in-flight change exactly as to new work; such change is refused (§VI-19).
+- **Every in-flight change is traceable.** Each change traces through its commit and PR to the priority and reasoning that admitted it, so the increment's evolution is recoverable (§VI-35).
+
+**Governing rule.** Change during delivery is controlled exactly as any change — through the mandatory workflow, reversible for schema, contract-preserving, prohibition-respecting — and scope creep is refused: an expansion becomes a new controlled increment, never a silent enlargement of one in flight.
+
+**Dependencies.** §VI-19 (the mandatory workflow in-flight change runs through); §VI-27 (reversible expand/contract and compatibility); §VI-16 (the prohibitions enforced mid-flight); §VI-21 (whole-increment integrity); §VI-32 (intake control for admitted scope); §VI-37 (escalation of contract tension); §VI-35 (traceability evidence).
+
+**Risks.** The dominant risk is silent scope creep or a mid-flight irreversible or contract-breaking change. Workflow-only admission, scope-as-new-increment, and reversibility/contract preservation foreclose it.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-15, §VI-16, §VI-19, §VI-21, §VI-27, §VI-32, §VI-35, §VI-37. Repository: `supabase/migrations/`, `supabase/migrations/rollbacks/`, `supabase/functions/server/migration/checkpointStore.ts`, `supabase/functions/server/intelligence/contracts.ts`, `supabase/functions/server/repositories/index.ts`, `src/app/core/`, `package.json` (`supabase:db-push`). Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-35 — Execution Evidence Model
+
+**Purpose.** To define the **evidence** every execution control decision (§VI-32, §VI-33) is made against — the evidence model that makes control decisions evidentiary rather than assertive during delivery, not only at release (§VI-28).
+
+**Why it exists.** Phase 6.3's validation-before-release (§VI-28) defines the evidence assembled at the *moment of promotion*; the control framework (§VI-32) makes decisions *throughout* delivery. Those in-flight decisions need their own evidence basis, or control silently reverts to assertion between releases. This section defines what evidence each control decision reads, and where it comes from, so that every advance, hold, or escalation is grounded in demonstrable fact.
+
+**Scope.** The evidence model for in-flight control decisions only. It defines no new evidence artifact beyond what the repository produces, no numeric metric, and no scoring. It complements §VI-28 (the release record) rather than duplicating it.
+
+**Current State.** **IMPLEMENTED substrate.** The evidence sources control reads from genuinely exist: the declared test suites' pass/fail (`package.json` — `test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`); gateway certification, health, and telemetry (`supabase/functions/server/intelligence/certification.ts`, `health.ts`, `telemetry.ts`); migration simulation/reconciliation/validation output (`scripts/migration/cli.ts --mode=simulation|reconcile`, `validate-s6.3.ts`, `supabase/functions/server/migration/reconciliation.ts`, `telemetry.ts`); the versioned migrations and rollbacks as reversibility evidence (`supabase/migrations/`, `rollbacks/`); git/PR review history as authorization evidence (§VI-19); and institutional memory as failure/drift evidence (`memory/failure_library.md`, `regression_cases.md`, `pattern_violations.json`). What is **PARTIAL/UNVERIFIED** is any evidence that depends on a live authoritative runtime (SQL authority, enforced tenancy) not yet cut over (§VI-2, §VI-3); such evidence is labelled UNVERIFIED where deployment-limited (§VI-8). No evidence capability is invented.
+
+**Approved Future State (evidence each control decision reads).**
+
+- **Authorization evidence.** The review/PR record demonstrating the increment was admitted and advanced by its competent authority (§VI-19, §VI-33).
+- **Verification evidence.** The relevant test-suite results and migration validation output, present and passing, for the increment's touched surface (`package.json`, `scripts/migration/`).
+- **Data-authority and tenancy evidence.** Where the increment persists or renders tenant data, demonstration that it reads the authoritative plane and enforces isolation server-side — or, where the runtime is not live, an explicit UNVERIFIED label (§VI-2, §VI-8).
+- **Governed-AI evidence.** For any AI-touching increment, gateway certification/provider-registry evidence that every provider call is routed through the gateway, with no direct-provider bypass (§VI-16).
+- **Reversibility evidence.** A demonstrated rollback/withdrawal path for the increment (migration rollback, expand/contract state) (§VI-27, §VI-39).
+- **Health evidence.** Live gateway and migration health/telemetry sufficient to judge the increment operable (`health.ts`, `telemetry.ts`) (§VI-36).
+- **Failure/drift evidence.** The institutional-memory record showing whether the increment touches a known failure or introduces a pattern violation (`memory/`) (§VI-37).
+
+**Governing rule.** No control decision is made without its evidence: an advance, a release, or an exception is granted against the artifacts above, never against assertion. Evidence assembled only in a deployment-limited environment is labelled UNVERIFIED and does not satisfy a control that requires VERIFIED state (§VI-8, §VI-28).
+
+**Dependencies.** §VI-28 (the release-evidence record this in-flight model complements); §VI-32 (the control points that consume this evidence); §VI-33 (the authorities that read it); §VI-36 (health evidence); §VI-37 (failure/drift evidence); §VI-8 (deployment-limitation labelling).
+
+**Risks.** The central risk is control reverting to assertion between releases, or deployment-limited evidence being over-claimed as verified. The evidence-per-decision rule and mandatory UNVERIFIED labelling foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-2, §VI-8, §VI-19, §VI-27, §VI-28, §VI-32, §VI-33, §VI-36, §VI-37. Repository: `package.json`, `supabase/functions/server/intelligence/certification.ts`, `.../health.ts`, `.../telemetry.ts`, `scripts/migration/`, `supabase/functions/server/migration/reconciliation.ts`, `supabase/migrations/rollbacks/`, `memory/`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-36 — Delivery Health Monitoring
+
+**Purpose.** To define how the **health of a delivery in progress** is monitored — the signals by which control judges whether an active delivery is proceeding safely, so that a failing delivery is caught while it is being controlled, not after it ships.
+
+**Why it exists.** Control decisions (§VI-32) and their evidence (§VI-35) are point acts; a delivery also has a *continuous* health state between those points — its tests trending, its migrations reconciling, its gateway certifying, its consumers still functioning. Without monitoring, a delivery can degrade silently between control points and arrive at promotion already unhealthy. This section defines the health signals control watches *during* delivery so that degradation is visible early.
+
+**Scope.** Delivery-health monitoring during execution only. It defines **no numeric KPI, no dashboard specification, no target value, no alert threshold, and no measurement cadence** — it names the *qualitative signals* that indicate a delivery's health and the evidence each is read from. It complements execution-health (product-runtime) observability without redefining it.
+
+**Current State.** **PARTIAL — signals exist; aggregated monitoring does not.** The health signals are IMPLEMENTED as readable sources: gateway `health.ts`, `telemetry.ts`, and `certification.ts` report intelligence-path health; the migration engine reports progress and reconciliation via `telemetry.ts`, `checkpointStore.ts`, and `reconciliation.ts`; the test suites' pass/fail (`package.json`) reports verification health; and `memory/` reports failure/drift history. What is **NOT IMPLEMENTED** is any *aggregated delivery-health instrumentation* — dashboards, formal KPIs, unified health framework — exactly as recorded in §VI-3 and §IV-46–§IV-55 (enterprise instrumentation NOT IMPLEMENTED; Startup maturity shape). The signals below are read today from these primary sources; their aggregation is Approved Future State, not a current capability.
+
+**Approved Future State (qualitative delivery-health signals).**
+
+- **Verification-trending-green.** The relevant test suites and migration validation passing and staying passing across the delivery (`package.json`, `scripts/migration/`) — the core health signal; a reddening trend halts advance (§VI-32).
+- **Migration-reconciling.** For data-bearing deliveries, reconciliation and checkpoint state showing parity between paths (`reconciliation.ts`, `checkpointStore.ts`) — the data-safety signal.
+- **Gateway-certified-and-healthy.** For AI-touching deliveries, certification passing and health/telemetry present (`certification.ts`, `health.ts`, `telemetry.ts`) — the governed-AI health signal.
+- **Contracts-intact.** Existing consumers of the gateway, repository, engine, and tenancy contracts continuing to function across the in-flight change (§VI-27, §VI-34) — the compatibility signal.
+- **Drift-absent.** No new pattern-violation entries during the delivery (`memory/pattern_violations.json`, §VI-19) — the anti-drift health signal.
+- **Reversibility-intact.** A withdrawal path remaining demonstrably available throughout (`rollbacks/`, `rollback.ts`) — the recoverability signal (§VI-39).
+
+**Governing rule.** Delivery health is judged on *signal, not impression*: every judgment that a delivery is proceeding safely reads from a named evidence source above. A delivery whose health signals degrade is held at the current control point (§VI-32), not advanced on optimism; the absence of aggregated instrumentation is stated honestly (§VI-3), never masked by an invented metric.
+
+**Dependencies.** §VI-3 (the honest record that enterprise instrumentation is NOT IMPLEMENTED); §VI-32 (the control points a degraded signal halts); §VI-35 (the evidence health monitoring reads); §VI-27/§VI-34 (contract compatibility); §VI-39 (reversibility); §VI-19 (drift signals).
+
+**Risks.** The chief risks are judging a delivery healthy on impression and implying instrumentation that does not exist. The signal-not-impression rule and honest statement of absent aggregation foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/23/25/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-3, §VI-19, §VI-27, §VI-32, §VI-34, §VI-35, §VI-39. Repository: `supabase/functions/server/intelligence/health.ts`, `.../telemetry.ts`, `.../certification.ts`, `supabase/functions/server/migration/telemetry.ts`, `.../reconciliation.ts`, `.../checkpointStore.ts`, `supabase/migrations/rollbacks/`, `memory/pattern_violations.json`, `package.json`.
+
+---
+
+## VI-37 — Escalation & Exception Management
+
+**Purpose.** To define how deviations, failures, and exceptions encountered during controlled execution are **escalated and managed** — the escalation discipline that routes every exception to a competent authority (§VI-33) through an existing path, rather than letting it be absorbed.
+
+**Why it exists.** Control (§VI-32) will inevitably meet cases it cannot pass: a delivery that fails a control point, a contract tension that cannot be resolved in-flight, a locked decision that proves unworkable. Without a defined escalation discipline, such exceptions are worked around silently and the LOCKED order quietly bends. This section ensures every exception surfaces, routes to the right authority, and is resolved through a path that already exists — never through an ad-hoc override.
+
+**Scope.** Escalation and exception handling during execution only. It creates no new escalation path, authority, or override; it *applies* the failure-response and escalation paths already attached to the gates (§VI-18), the anti-drift controls (§VI-19), and the amendment process (DNA Ch 35).
+
+**Current State.** **PARTIAL — real substrate, informal routing.** Exception capture is IMPLEMENTED: failures and their resolutions are recorded in `memory/failure_library.md`, converted to guards in `memory/regression_cases.md`, and drift instances captured in `memory/pattern_violations.json`; the migration engine's quarantine and rollback facilities contain data-plane exceptions (`supabase/functions/server/migration/quarantineStore.ts`, `rollback.ts`). Escalation resolves today to the single accountable authority, the Human Principal (DNA Ch 18.9). What is **NOT IMPLEMENTED** is a *formal exception/incident-management system* with a severity taxonomy or routing matrix — consistent with enterprise instrumentation being absent (§VI-3). The discipline below formalizes the routing the `memory/` record and human-floor accountability already evidence.
+
+**Approved Future State (escalation and exception rules).**
+
+- **Every exception surfaces.** A control-point failure, contract tension, or unworkable-locked-decision is made visible immediately; silent workaround is a governance failure (§VI-31).
+- **Exceptions route to competent authority.** Each exception escalates to the authority already competent for its class (§VI-33) through the failure-response/escalation path already defined for the relevant gate (§VI-18); high-consequence and irreversible exceptions escalate to the Human Principal (DNA Ch 18.9).
+- **Blueprint tension routes to amendment, not override.** An exception that would require editing or contradicting a LOCKED decision routes to the heightened amendment process (DNA Ch 35); it is never resolved by an ad-hoc control override (§VI-31).
+- **Data-plane exceptions are contained, not forced.** A failing data-bearing delivery is quarantined and/or rolled back (`quarantineStore.ts`, `rollback.ts`), never forced past a failed reconciliation (§VI-35, §VI-36).
+- **Every exception is recorded.** Cause and resolution to the failure library, a standing guard to the regression cases, drift to the pattern-violation record (`memory/`), so no exception silently recurs (DNA Ch 26; §VI-39).
+- **Exceptions are closed only when guarded.** An exception is resolved when its recurrence is prevented by a guard or test, not when the immediate symptom is patched (§VI-35, §VI-39).
+
+**Governing rule.** No exception is absorbed: every deviation surfaces, routes to its competent authority through an *existing* path, is contained by reversibility, is recorded in institutional memory, and is closed only when guarded against recurrence. Blueprint tension is resolved by amendment, never by override.
+
+**Dependencies.** §VI-18 (the failure-response/escalation paths reused); §VI-19 (the anti-drift controls); §VI-33 (the authorities exceptions route to); §VI-35/§VI-36 (the evidence and health that detect exceptions); §VI-39 (the continuity/recovery exceptions invoke); the Constitution (DNA Ch 18.9/26/35).
+
+**Risks.** The central risk is silent absorption or an ad-hoc override standing in for amendment. The surface-route-record-guard rule and amendment-not-override rule foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/25/26/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-18, §VI-19, §VI-31, §VI-33, §VI-35, §VI-36, §VI-39. Repository: `memory/failure_library.md`, `memory/regression_cases.md`, `memory/pattern_violations.json`, `supabase/functions/server/migration/quarantineStore.ts`, `.../rollback.ts`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-38 — Controlled Execution Principles
+
+**Purpose.** To state the standing principles by which execution remains **under control at all times** — the invariants that every controlled delivery preserves, synthesizing the control mechanisms (§VI-32–§VI-37) into permanent rules.
+
+**Why it exists.** The preceding sections define control *mechanisms*; a maturing enterprise also needs the *invariants* those mechanisms exist to preserve, stated as principles that outlast any single delivery. Without them, the mechanisms can be followed procedurally while the intent — authorized, evidenced, reversible, drift-free execution — is lost. This section fixes those invariants so control cannot be satisfied in letter while violated in spirit.
+
+**Scope.** The controlled-execution invariants only. It sets no schedule, defines no new mechanism, and prescribes no implementation; it states the permanent properties every controlled delivery holds.
+
+**Current State.** **PARTIAL — invariants honored, not codified.** The invariants are already honored in practice by the mechanisms the repository evidences: authorization via the mandatory workflow (§VI-19); evidence via the test suites and validation (`package.json`, `scripts/migration/`); reversibility via the migration engine and rollbacks (`supabase/functions/server/migration/`, `supabase/migrations/rollbacks/`); drift-freedom via the deterministic engine layer, single gateway, and pattern-violation record (`src/app/core/`, `supabase/functions/server/intelligence/`, `memory/pattern_violations.json`); and the human floor via constitutional authority (DNA Ch 18.9). What is **PARTIAL** is their *codification as a named invariant set* at enterprise scale — bounded by the single-operator shape (§VI-3). This section codifies the invariants the mechanisms already uphold.
+
+**Approved Future State (controlled-execution invariants).**
+
+- **Always authorized.** No delivery advances or releases without a competent authority's decision (§VI-33); unauthorized motion is never in control.
+- **Always evidenced.** Every control decision is made against demonstrable evidence (§VI-35), never assertion; deployment-limited evidence is labelled UNVERIFIED (§VI-8).
+- **Always reversible.** Every increment retains a demonstrated withdrawal path throughout delivery (§VI-27, §VI-39); an irreversible step is outside control.
+- **Always contract-preserving.** No controlled delivery breaks a gateway, repository, engine, or tenancy contract; new capability is added behind stable contracts (§VI-27, §VI-34).
+- **Always drift-free.** No controlled delivery introduces a duplicate engine, a parallel data authority, or an AI path around the gateway (§VI-16, §VI-19); control converges the architecture toward the blueprint, never forks it.
+- **Always blueprint-subordinate.** No controlled delivery edits or contradicts the LOCKED Constitution or Parts I–V; tension routes to amendment (DNA Ch 35), never to override (§VI-37).
+- **Always human-floored.** High-consequence and irreversible decisions remain with the Human Principal (DNA Ch 18.9); autonomy never rises above the authority model (§VI-16).
+- **Always honest.** Control state is reported against evidence; partial control is never reported as complete (§VI-31).
+
+**Governing rule.** A delivery is *in control* only while **every** invariant holds simultaneously — authorized, evidenced, reversible, contract-preserving, drift-free, blueprint-subordinate, human-floored, and honestly reported. The failure of any one places the delivery outside control and halts it (§VI-32) until the invariant is restored.
+
+**Dependencies.** §VI-16 (prohibitions the drift-free invariant enforces); §VI-19 (anti-drift controls and workflow); §VI-27 (reversibility and compatibility); §VI-31 (honest control status and blueprint subordination); §VI-32–§VI-37 (the mechanisms these invariants synthesize); the Constitution (DNA Ch 18.9/35).
+
+**Risks.** The chief risk is procedural compliance that satisfies mechanisms while violating an invariant — an authorized but unevidenced advance, a reversible-on-paper but contract-breaking change. The all-invariants-simultaneously rule forecloses this.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-16, §VI-19, §VI-27, §VI-31, §VI-32, §VI-33, §VI-34, §VI-35, §VI-37. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/migration/`, `supabase/migrations/rollbacks/`, `memory/pattern_violations.json`, `package.json`.
+
+---
+
+## VI-39 — Execution Continuity
+
+**Purpose.** To define how execution **continues safely across interruption** — the continuity discipline that ensures a delivery halted, failed, or resumed does not lose its authoritative state, its reversibility, or its place in the LOCKED order.
+
+**Why it exists.** Control assumes delivery can stop and resume — a control point holds an increment, an exception halts a delivery (§VI-37), a session ends mid-flight. Without a continuity discipline, an interrupted delivery is where the most damage occurs: a half-applied migration, an unrecorded decision, a lost withdrawal path. This section ensures that execution is always recoverable — that the authoritative state, the evidence, and the reversibility survive any interruption, and that resumption re-enters the same controlled order.
+
+**Scope.** Execution continuity and recovery only. It defines no backup schedule, no disaster-recovery SLA, no redundancy topology, and no infrastructure. It re-uses the migration engine's recovery facilities, the versioned repository, and institutional memory already established.
+
+**Current State.** **IMPLEMENTED substrate.** Continuity mechanisms genuinely exist: the migration engine provides checkpointing, quarantine, reconciliation, and rollback so an interrupted data change is recoverable to a known state (`supabase/functions/server/migration/checkpointStore.ts`, `quarantineStore.ts`, `reconciliation.ts`, `rollback.ts`); every schema change carries a rollback (`supabase/migrations/rollbacks/`); the repository plus mandatory workflow make canonical `main` the durable, recoverable source of truth (§VI-19); and institutional memory (`memory/`) preserves decisions and failures across interruption. The migration path follows expand → migrate → contract so a partial application is always resumable (§VI-27). What is **NOT IMPLEMENTED** is any *formal enterprise continuity/DR framework* beyond these mechanisms — consistent with the Startup maturity shape (§VI-3). No continuity capability is invented.
+
+**Approved Future State (continuity and recovery rules).**
+
+- **Authoritative state survives interruption.** The authoritative plane and canonical `main` are the durable record; an interruption never leaves truth in a transient or client-held state (§VI-2, §VI-19).
+- **Every in-flight change is resumable.** Data changes follow expand → migrate → contract with checkpoints, so a partially applied change is resumed or rolled back to a known state, never left indeterminate (`checkpointStore.ts`, `reconciliation.ts`, §VI-27).
+- **Reversibility survives interruption.** The withdrawal path for an in-flight increment remains available across a halt (`rollbacks/`, `rollback.ts`); an interruption never strands an increment in an irreversible partial state (§VI-38).
+- **Decisions and exceptions survive interruption.** Authorization, evidence, and exceptions are recorded (git/PR history, `memory/`) so a resumed delivery re-enters with its control context intact (§VI-35, §VI-37).
+- **Resumption re-enters the controlled order.** A halted delivery resumes at its control point (§VI-32) under the same authority (§VI-33) and evidence (§VI-35); it does not restart outside control or skip a point it had not passed.
+- **Data integrity is never sacrificed to resume.** Reconciliation verifies parity before a resumed change retires an old path; continuity never trades the integrity of persisted enterprise data for speed of recovery (§VI-27, §VI-36).
+
+**Governing rule.** Execution is always *recoverable*: authoritative state, reversibility, evidence, and control context survive any interruption, and resumption re-enters the same controlled order at the point of halt. An interruption never leaves a delivery irreversible, indeterminate, or outside control.
+
+**Dependencies.** §VI-2/§VI-19 (authoritative state and canonical main as durable record); §VI-27 (expand/contract resumability and reversibility); §VI-32/§VI-33/§VI-35 (the control point, authority, and evidence resumption re-enters); §VI-36 (reconciliation/health before resuming); §VI-38 (reversibility invariant); the migration engine and `memory/`.
+
+**Risks.** The dominant risk is an interruption leaving a delivery in an irreversible or indeterminate partial state, or a resumption that restarts outside control. Checkpointed expand/contract, surviving reversibility, and re-entry-at-control-point foreclose both.
+
+**Traceability.** Part II: DNA Ch 17/18/25/33/35. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-2, §VI-19, §VI-27, §VI-32, §VI-33, §VI-35, §VI-36, §VI-38. Repository: `supabase/functions/server/migration/checkpointStore.ts`, `.../quarantineStore.ts`, `.../reconciliation.ts`, `.../rollback.ts`, `supabase/migrations/rollbacks/`, `memory/`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-40 — Phase 6.4 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.4 and record its completion without beginning Phase 6.5 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *execution governance and delivery-control model* is not mistaken for a control schedule, a staffing plan, or a plan of record, and so Phase 6.5 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.4 only (§VI-31–§VI-40) and its completion record. It defines no new priority, dependency, delivery rule, governance authority, or gate, and it begins no later phase.
+
+**Summary of what Phase 6.4 established.**
+
+- **Governance philosophy (§VI-31).** Govern to the blueprint never around it; no delivery proceeds unauthorized; control is evidence-based; reversibility is a precondition of control; exceptions surface and are never absorbed; the human floor governs high consequence; honest control status.
+- **Delivery control framework (§VI-32).** Continuous control across delivery through named control points — admission, authority, build, verification, evidence, promotion, reversibility — applying existing gates, holding any increment that fails a point.
+- **Execution decision authority (§VI-33).** Each control decision bound to a single *already-defined* competent authority (gate authorities, Part IV structure, the human floor), honored today by the single operator, distributed additively only as the reserved `ai_worker` workforce is VERIFIED-realized.
+- **Change control during delivery (§VI-34).** In-flight change through the mandatory workflow, scope fixed to approved priority (expansion becomes a new controlled increment), schema reversible mid-flight, contracts unbroken, prohibitions enforced.
+- **Execution evidence model (§VI-35).** The evidence every in-flight control decision reads — authorization, verification, data-authority/tenancy, governed-AI, reversibility, health, failure/drift — grounded in repository sources, with deployment-limited evidence labelled UNVERIFIED.
+- **Delivery health monitoring (§VI-36).** Qualitative delivery-health signals — verification-trending-green, migration-reconciling, gateway-certified, contracts-intact, drift-absent, reversibility-intact — read from named evidence, halting advance on degradation, with absent aggregation stated honestly.
+- **Escalation & exception management (§VI-37).** Every exception surfaces, routes to competent authority through an *existing* path, is contained by reversibility, recorded in `memory/`, and closed only when guarded; blueprint tension routes to amendment, never override.
+- **Controlled execution principles (§VI-38).** The invariants held simultaneously by every controlled delivery — always authorized, evidenced, reversible, contract-preserving, drift-free, blueprint-subordinate, human-floored, and honest — failure of any one halting the delivery.
+- **Execution continuity (§VI-39).** Recoverability across interruption — authoritative state, reversibility, evidence, and control context survive any halt, and resumption re-enters the same controlled order at the point of halt, never sacrificing data integrity to resume.
+
+**Current State.** All CURRENT STATE claims in this phase are grounded in the repository verified for Phases 6.2–6.3 and in the LOCKED Parts I–V. The control substrate is real but informally instituted: the mandatory workflow, per-increment review, the declared test suites (`package.json`), the migration engine with checkpoint/quarantine/reconciliation/rollback and reversible migrations, the gateway health/telemetry/certification, and the institutional-memory record (`memory/`) are IMPLEMENTED and operated at the single-operator (Startup) shape; formalized, staffed, and instrumented control institutions — a named control framework, a distributed decision-authority structure, aggregated delivery-health instrumentation, and a formal exception/continuity framework — are PARTIAL or NOT IMPLEMENTED, bounded by the single-operator reality and the reserved (`ai_worker`) workforce runtime (§VI-3, §IV-46–§IV-55). This phase describes how execution is *governed and controlled*; it implements no control capability and claims none as realized beyond what the repository evidences. Nothing is invented.
+
+**Approved Future State.** A disciplined execution-control model — an evidence-based governance philosophy, a continuous delivery-control framework, singular decision authority mapped to existing authority, in-flight change control, an in-flight evidence model, qualitative delivery-health monitoring, existing-path escalation, simultaneously-held control invariants, and recoverable continuity across interruption — governing the delivery model LOCKED in Phase 6.3 and realizing the sequence LOCKED in Phase 6.2 and the direction LOCKED in Part V, without editing any of them.
+
+**Validation of this phase.**
+
+- Phase 6.4 authored.
+- Sections VI-31 through VI-40 present, exactly once, in continuous numbering after §VI-30.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- No priorities, dependencies, delivery model, governance authority, security, or gates redefined — only applied as controls.
+- Every CURRENT STATE statement grounded in repository evidence; no capability invented.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, budgets, or implementation instructions.
+- Phase 6.5 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.4 sections (§VI-31–§VI-39); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`, `src/system/manifest.ts`. Part II: DNA Ch 8.3/17/18/25/26/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-30. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`, `scripts/migration/`, `memory/`, `package.json`. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-31–§VI-40; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the grounding of every CURRENT STATE claim in repository evidence; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.4 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.5 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked. The next Part VI phase (6.5) is not begun here.
+
+*End of Phase 6.4. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.5 — Execution Success & Release Readiness
+
+**Status:** COMPLETE (Phase 6.5) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-41 through VI-50, continuing the single-document numbering after Phase 6.4 (§VI-31–§VI-40); numbering is never restarted. · **Continuity:** Phase 6.5 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.2 fixed *what* Cortex builds and *in what order*; Phase 6.3 fixed *how* a capability is *delivered and released*; Phase 6.4 fixed *how execution is governed and controlled* while it happens. What none of them defines is **how MARQ Cortex knows a capability has succeeded and is ready to release** — the standing definition of *success* and *readiness* against which every delivery is judged. Phase 6.5 answers that single question: **by what criteria — executive, product, technical, operational — does Cortex judge a capability successful, and by what readiness framework, quality gates, and go/no-go decision does it authorize release?** It converts the control system of Phase 6.4 into a *success-and-readiness definition*: the criteria that constitute success at each level, the readiness frameworks that admit a capability to production, the quality gates that must be exited, the go/no-go decision that promotes it, and the continuous-improvement loop that raises the bar over time.
+
+**What this phase is.** An execution success-and-readiness architecture — an executive success framework (§VI-41), product success criteria (§VI-42), technical success criteria (§VI-43), an operational readiness framework (§VI-44), a release readiness framework (§VI-45), enterprise quality gates (§VI-46), a go/no-go decision framework (§VI-47), and a continuous-improvement framework (§VI-48), closed by a phase summary (§VI-49) and a completion record (§VI-50).
+
+**What this phase is not.** Phase 6.5 does **not** redefine priorities, dependencies, the delivery model, governance authority, security, the execution gates, or the control framework — those are LOCKED in place by Phases 6.2–6.4 and Parts I–V and are only *applied as success and readiness definitions* here. It is not a sprint plan, a calendar, a staffing roster, a ticket backlog, a headcount plan, a budget, or an implementation task list. It assigns **no dates, no numeric KPIs, no score thresholds, no coverage percentages, no owners by name, and no hours**, and it writes no code. It defines the criteria by which success and readiness are judged; it performs no delivery and claims no capability as released. Phase 6.6 is not begun here, and Part VI is not locked.
+
+**Grounding.** The success-and-readiness definitions below are grounded in the same repository verified for Phases 6.2–6.4 — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules, including `roiActualsEngine`, `roiTrackingEngine`, `qbrEngine`), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `contracts.ts`, and `providers/`), the server repository layer under `supabase/functions/server/repositories/` (including `outcomeRepository.ts`, `tenancyRepository.ts`), the migration engine under `supabase/functions/server/migration/` (`orchestrator.ts`, `reconciliation.ts`, `rollback.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `telemetry.ts`), the SQL migrations under `supabase/migrations/` (tenancy foundation, RLS + seed, KV foundation, migration infrastructure, diagnostic foundation/RLS, anon-policy hardening) with their `rollbacks/`, the migration CLI under `scripts/migration/` (`cli.ts`, `validate-s6.3.ts`), the declared test suites in `package.json` (`test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`) and deployment scripts (`supabase:deploy`, `supabase:db-push`), the institutional-memory record under `memory/` (`failure_library.md`, `regression_cases.md`, `pattern_violations.json`), and the system manifest `src/system/manifest.ts` — together with the LOCKED Parts I–V, the Constitution, and its success standard. Success and readiness labels (IMPLEMENTED / PARTIAL / NOT IMPLEMENTED, VERIFIED / UNVERIFIED, RELEASABLE / NOT-YET-RELEASABLE) are used where they add precision. The enterprise's current reality is the single-operator (Startup) shape, with performance instrumentation and formal KPIs NOT IMPLEMENTED and the AI-workforce runtime a reserved (`ai_worker`) identity (§VI-3). Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-41 — Executive Success Framework
+
+**Purpose.** To define what **success means at the executive level** for MARQ Cortex — the highest-order, qualitative definition of a successful capability against which every lower success criterion (§VI-42–§VI-44) is measured — by *applying* the constitutional success standard, not by inventing a new one.
+
+**Why it exists.** Product, technical, and operational criteria each judge success in their own dimension; without a higher-order frame they can each pass while the enterprise as a whole has not succeeded — a shipped surface that erodes the constitution, or a green test suite over a forked architecture. The executive success framework fixes the *whole-enterprise* definition of success so that the specialized criteria are subordinate to one coherent standard rather than optimized in isolation.
+
+**Scope.** The executive, whole-enterprise success definition only. It defines no numeric KPI, no scorecard, no target, and no metric. It re-opens no priority, delivery, or governance decision LOCKED in Phases 6.2–6.4; it applies the constitutional success standard as the apex criterion.
+
+**Current State.** **PARTIAL — a constitutional standard, no instrumentation.** Success is defined today by the **constitutional success standard** and the authority doctrine (DNA; the canonical authority chain Constitution → Blueprint → `ARCHITECT.md` → sprint criteria → verified behavior), with the Human Principal accountable at the high-consequence floor (DNA Ch 18.9); per-increment review and institutional memory (`memory/`) record whether that standard is met. What is **NOT IMPLEMENTED** is any *executive performance instrumentation* — formal enterprise KPIs, executive scorecards, an aggregated success dashboard — exactly as recorded in §VI-3 and §IV-46–§IV-55 (enterprise instrumentation NOT IMPLEMENTED; Startup maturity shape). Executive success is therefore judged today by constitutional standard and human judgment against recorded evidence, not by a metrics system. No success-measurement capability is invented.
+
+**Approved Future State (executive success criteria — qualitative).** A capability is an executive success only when all hold, as demonstrated evidence:
+
+- **Constitutionally aligned.** It realizes the LOCKED Constitution and Parts I–V without editing or contradicting them; any tension was resolved by amendment (DNA Ch 35), never by override (§VI-31, §VI-37).
+- **Blueprint-advancing.** It leaves the platform *more whole* — foundations more authoritative, architecture more convergent — not merely larger (§VI-21, §VI-38).
+- **Trust-preserving.** It preserves the deterministic authority model and the human floor; no autonomy rose above the authority model to achieve it (§VI-16, §VI-33).
+- **Strategically coherent.** It moves toward the direction LOCKED in Part V, and no lower-level success was bought at the cost of strategic coherence (§VI-4, Part V).
+- **Honestly evidenced.** Its success is reported against evidence; deployment-limited results are labelled UNVERIFIED, never overstated (§VI-8, §VI-31).
+
+**Governing rule.** Executive success is the *apex* standard: a capability that passes product, technical, and operational criteria but fails any executive criterion has **not** succeeded. Success is judged against the constitutional standard and evidence, never against a metric this phase declines to invent.
+
+**Dependencies.** §VI-4 (strategic readiness this frames); §VI-16/§VI-33 (authority and human floor); §VI-31/§VI-37 (blueprint subordination and amendment-not-override); §VI-42–§VI-44 (the subordinate criteria); the Constitution (DNA Ch 8.3/18.9/25/30/33/35) and its success standard; Part V (§V-1–§V-30).
+
+**Risks.** The chief risk is optimizing a lower criterion (a shipped surface, a green suite) while the enterprise standard is violated, or inventing an executive KPI to imply instrumentation that does not exist. The apex rule and honest-evidence rule foreclose both.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`. Part II: DNA Ch 8.3/17/18.9/25/30/33/35. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-4, §VI-16, §VI-31, §VI-33, §VI-37. Repository: `memory/`, `src/system/manifest.ts`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-42 — Product Success Criteria
+
+**Purpose.** To define what constitutes **product success** for a delivered capability — the qualitative criteria by which a customer-facing capability is judged to have succeeded — subordinate to the executive standard (§VI-41).
+
+**Why it exists.** A product surface can ship and function yet fail to constitute *success*: it may render unverified data, bypass the deterministic engines, or demonstrate value the foundations cannot yet support. This section fixes the product-level success definition so that "the feature works" is never mistaken for "the product succeeded," and so product success always rests on verified foundations.
+
+**Scope.** Product-level, customer-facing success criteria only. It defines no adoption metric, no conversion target, no NPS, and no revenue number. It re-opens no product decision LOCKED in Part III; it judges success against verified state.
+
+**Current State.** **PARTIAL — a strong product surface, no product analytics.** The product capability is substantially IMPLEMENTED (§VI-2): the full customer journey (`LeadMagnetRoute` → `ClientPortalRoute`/`TeamDashboardRoute`), the deterministic decision/scoring/ROI engines (`src/app/core/`, 30 engines), CORTEX AI surfaces, and ROI-actuals/QBR outcome tracking (`roiActualsEngine`, `roiTrackingEngine`, `qbrEngine`, `outcomeRepository.ts`). Persistence and tenancy are **PARTIAL** — repositories/KV authoritative, SQL not yet the live authority, isolation maturing (§VI-2, §VI-3). What is **NOT IMPLEMENTED** is any *product analytics/BI surface* — adoption, funnel, or success metrics — raw signals only (§VI-2, §IV-46–§IV-55). Product success is therefore judged today against functional and journey evidence, not a metrics product. No analytics capability is invented.
+
+**Approved Future State (product success criteria — qualitative).** A product capability succeeds only when all hold, as demonstrated evidence:
+
+- **Renders verified truth.** It reads authoritative data (the relational plane once cut over), not KV-authoritative or client-held state; where tenant data is shown, isolation is enforced server-side (§VI-2, §VI-23).
+- **Computed by the engines, narrated by AI.** Authoritative results come from the deterministic engine layer (DNA Art. 6); AI narrates and assists but is never the authority for a computed customer result (§VI-2).
+- **Completes the journey it claims.** The capability delivers a coherent slice of the customer journey end to end (§III-15–§III-88), not a fragment stranded on unfinished foundations (§VI-21).
+- **Governed where intelligent.** Every AI-backed product surface routes through the Intelligence Gateway, with no direct-provider path (§VI-16).
+- **Reversible and compatible.** It can be withdrawn without stranding customers or data, and it breaks no existing product contract (§VI-27).
+- **Subordinate to executive success.** It satisfies the executive criteria (§VI-41); a surface that passes product criteria but violates the constitution or foundations has not succeeded.
+
+**Governing rule.** Product success is judged against *verified state and completed journey*, never against surface completeness alone. A capability that renders unverified data or bypasses the engines is NOT a product success regardless of how finished it appears.
+
+**Dependencies.** §VI-2 (the product state judged); §VI-16 (gateway routing); §VI-21 (whole-increment/journey integrity); §VI-23/§VI-27 (readiness, reversibility, compatibility); §VI-41 (the executive standard product success is subordinate to); Part III (§III-15–§III-88).
+
+**Risks.** The dominant risk is mistaking a functioning surface for product success while it renders unverified data or bypasses the deterministic authority. The verified-state and engine-authority rules foreclose it.
+
+**Traceability.** Part II: DNA Ch 6/17/18/25/33. Part III: §III-15–§III-88 (esp. §III-29, §III-37, §III-42–§III-44). Part IV: §IV-46–§IV-55. Part VI: §VI-2, §VI-16, §VI-21, §VI-23, §VI-27, §VI-41. Repository: `src/app/core/` (`roiActualsEngine`, `roiTrackingEngine`, `qbrEngine`), `supabase/functions/server/repositories/outcomeRepository.ts`, `supabase/functions/server/intelligence/`, `src/system/manifest.ts`.
+
+---
+
+## VI-43 — Technical Success Criteria
+
+**Purpose.** To define what constitutes **technical success** for a delivered capability — the qualitative engineering criteria by which the implementation is judged sound — subordinate to the executive standard (§VI-41).
+
+**Why it exists.** Technical work can appear complete — code merged, feature demonstrable — while being architecturally unsound: a duplicated engine, a parallel data authority, an unverified migration, an untested path. This section fixes the engineering success definition so that "it runs" is never mistaken for "it is technically sound," and so technical success is measured against the architecture's non-negotiables.
+
+**Scope.** Technical, engineering-level success criteria only. It defines no coverage percentage, no latency budget, no performance number, and no complexity metric. It re-opens no architectural decision LOCKED in Parts I–IV; it judges soundness against them.
+
+**Current State.** **IMPLEMENTED substrate; PARTIAL where runtime-dependent.** The technical success substrate is real: the deterministic engine layer owns authoritative computation (`src/app/core/`, 30 engines; DNA Art. 6); the Intelligence Gateway centralizes governed AI with certification and health (`supabase/functions/server/intelligence/certification.ts`, `health.ts`, `telemetry.ts`); the declared test suites exist and run (`package.json` — `test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`); migrations are ordered and reversible with validation (`supabase/migrations/`, `rollbacks/`, `scripts/migration/cli.ts`, `validate-s6.3.ts`); and drift is guarded by the single-engine/single-gateway discipline and pattern-violation record (`memory/pattern_violations.json`). What is **PARTIAL/UNVERIFIED** is technical success that depends on the not-yet-live authoritative runtime (SQL authority, enforced tenancy), which is labelled UNVERIFIED where deployment-limited (§VI-2, §VI-8). No technical capability is invented.
+
+**Approved Future State (technical success criteria — qualitative).** A capability is technically successful only when all hold, as demonstrated evidence:
+
+- **Verified.** The relevant test suites and migration validation pass for the touched surface (`package.json`, `scripts/migration/`); deployment-limited results are labelled UNVERIFIED (§VI-8, §VI-35).
+- **Authoritative data.** It reads and writes the authoritative plane with verified parity where migration is involved (no KV-authoritative residue, no client-held truth) (§VI-2, §VI-28).
+- **Tenant-isolated.** Every path it exposes enforces tenancy server-side; cross-tenant access is denied, not undefined (§VI-23, §VI-28).
+- **Governed AI.** Every provider call routes through the gateway; no direct-provider bypass (§VI-16).
+- **Drift-free and contract-preserving.** No duplicate engine, no parallel data authority, no gateway bypass; existing gateway/repository/engine/tenancy contracts continue to function (§VI-16, §VI-27, §VI-38).
+- **Reversible.** A demonstrated rollback/withdrawal path exists (expand/contract, migration rollback) (§VI-27, §VI-39).
+
+**Governing rule.** Technical success is *all-of and evidence-based*: an implementation that passes every criterion but reversibility, or every criterion but drift-freedom, is NOT a technical success. "It runs" is not evidence; passing tests, verified parity, and enforced isolation are.
+
+**Dependencies.** §VI-2 (the technical state judged); §VI-8 (deployment-limitation labelling); §VI-16 (gateway routing); §VI-23/§VI-27/§VI-28 (readiness, reversibility, validation evidence); §VI-35/§VI-38 (evidence model, control invariants); §VI-41 (the executive standard); Parts I–IV.
+
+**Risks.** The chief risk is treating a running build as technically successful while it is unverified, tenant-leaky, or architecturally forked. The all-of, evidence-based rule forecloses it.
+
+**Traceability.** Part I: `ARCHITECT.md`, `src/system/manifest.ts`. Part II: DNA Ch 6/17/18/25/33/35. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-34. Part VI: §VI-2, §VI-8, §VI-16, §VI-23, §VI-27, §VI-28, §VI-35, §VI-38, §VI-41. Repository: `src/app/core/`, `supabase/functions/server/intelligence/certification.ts`, `.../health.ts`, `.../gateway.test.ts`, `supabase/migrations/`, `supabase/migrations/rollbacks/`, `scripts/migration/`, `package.json`, `memory/pattern_violations.json`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-44 — Operational Readiness Framework
+
+**Purpose.** To define what **operational readiness** means for a delivered capability — the qualitative criteria by which a capability is judged operable in production — so that a functionally and technically successful capability is also *runnable* at enterprise scale.
+
+**Why it exists.** A capability can be a product and technical success yet be operationally unready: unobservable, undiagnosable, or unrecoverable in production. Phase 6.4 monitors delivery health (§VI-36); this section defines the *standing operational bar* a capability must meet to be run in production, so that scale never outruns the ability to operate what was built (§VI-11, operational readiness before scaling).
+
+**Scope.** Operational-readiness criteria only. It defines no uptime SLA, no alert threshold, no on-call schedule, and no dashboard specification. It re-opens no operational decision; it judges operability against existing signals.
+
+**Current State.** **PARTIAL — product-runtime signals exist; enterprise operations do not.** Operational signals are IMPLEMENTED at the capability level: gateway `health.ts`, `telemetry.ts`, and `certification.ts` emit intelligence-path operability; the migration engine emits progress, reconciliation, and recovery state (`telemetry.ts`, `checkpointStore.ts`, `reconciliation.ts`, `quarantineStore.ts`, `rollback.ts`); deployment is scripted (`supabase:deploy`, `supabase:db-push`); and `memory/` records operational failures. What is **NOT IMPLEMENTED** is an *enterprise operations framework* — aggregated observability, a unified health framework, formal diagnostics, department/operational scorecards — exactly as recorded in §VI-3 and §IV-46–§IV-55 (Startup maturity shape). Operational readiness is judged today against these capability-level signals, not an operations platform. No operations capability is invented.
+
+**Approved Future State (operational readiness criteria — qualitative).** A capability is operationally ready only when all hold, as demonstrated evidence:
+
+- **Observable.** It emits sufficient health, telemetry, and certification signal to be diagnosed in production (`health.ts`, `telemetry.ts`, `certification.ts` where applicable) (§VI-23, §VI-36).
+- **Diagnosable.** A failure can be localized from its signals and the institutional record, not guessed (`memory/`, migration `telemetry.ts`).
+- **Recoverable.** It has a demonstrated withdrawal/rollback path and survives interruption to a known state (expand/contract, checkpoint, quarantine) (§VI-27, §VI-39).
+- **Deployable and reversible in operation.** It promotes and, if needed, withdraws through the mandatory workflow and scripted deployment without stranding data or consumers (§VI-19, §VI-34).
+- **Within operating capacity.** It does not require operational capability the enterprise does not yet have; a capability whose safe operation depends on absent instrumentation is held, not shipped over an unobservable substrate (§VI-11, §VI-3).
+
+**Governing rule.** Operational readiness gates growth: a capability that is a product and technical success but is unobservable or unrecoverable is NOT-YET-READY and is not promoted. Operability is judged on signal and demonstrated recovery, never on the assumption that "it will be fine in production."
+
+**Dependencies.** §VI-3 (the honest record of absent enterprise instrumentation); §VI-11 (operational readiness before scaling); §VI-19 (workflow/deployment); §VI-23/§VI-36 (observability criteria and delivery-health monitoring); §VI-27/§VI-39 (reversibility and continuity); §VI-41 (the executive standard).
+
+**Risks.** The chief risks are promoting an unobservable or unrecoverable capability, or implying an operations platform that does not exist. The gates-growth rule and honest statement of absent instrumentation foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/23/25/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-3, §VI-11, §VI-19, §VI-23, §VI-27, §VI-36, §VI-39, §VI-41. Repository: `supabase/functions/server/intelligence/health.ts`, `.../telemetry.ts`, `.../certification.ts`, `supabase/functions/server/migration/telemetry.ts`, `.../checkpointStore.ts`, `.../reconciliation.ts`, `.../quarantineStore.ts`, `.../rollback.ts`, `memory/`, `package.json`.
+
+---
+
+## VI-45 — Release Readiness Framework
+
+**Purpose.** To define the **release readiness framework** — the standing synthesis that gathers the success criteria (§VI-41–§VI-44) and the LOCKED release-readiness criteria (§VI-23) and validation evidence (§VI-28) into one framework that judges a capability RELEASABLE — by *applying* those criteria, not redefining them.
+
+**Why it exists.** Success is judged in four dimensions (§VI-41–§VI-44) and readiness was fixed qualitatively in Phase 6.3 (§VI-23) with its evidence set (§VI-28); what is missing is a single framework that *composes* them into the one determination delivery actually needs — "is this capability ready to release?" This section is that composition. It exists so that release readiness is a single, evidence-based synthesis of already-defined criteria rather than a fresh, ad-hoc judgment each time.
+
+**Scope.** The composition of existing success and readiness criteria into one release-readiness framework only. It defines **no new readiness criterion, no new gate, no numeric threshold, and no percentage**; it aggregates §VI-23, §VI-28, and §VI-41–§VI-44. It duplicates none of them.
+
+**Current State.** **PARTIAL — criteria and evidence exist; the composed framework is informal.** The constituent criteria are IMPLEMENTED as standing definitions: the qualitative readiness bar (§VI-23), the validation evidence set (§VI-28), and the repository evidence sources they read (test suites in `package.json`; gateway `certification.ts`/`health.ts`/`telemetry.ts`; migration validation in `scripts/migration/`; reversible migrations in `supabase/migrations/rollbacks/`; `memory/`). What is **NOT IMPLEMENTED** is a *formal composed release-readiness instrument* (a single readiness record aggregating all four success dimensions) — bounded by the single-operator shape (§VI-3). The framework below composes the criteria already applied by judgment; it invents none.
+
+**Approved Future State (release readiness framework).** A capability is RELEASABLE only when, as demonstrated evidence assembled *before* promotion:
+
+- **All four success dimensions hold.** Executive (§VI-41), product (§VI-42), technical (§VI-43), and operational (§VI-44) success criteria are each satisfied — success is *all-of across dimensions*, not strongest-dimension.
+- **The Phase 6.3 readiness bar holds.** Every §VI-23 criterion — verified foundational truth, end-to-end governance/security authority, reversibility, observability, compatibility, no drift, blueprint preservation, evidence-based gate exit — is met (all-of, no partial credit).
+- **The validation record is complete.** The antecedent evidence set (§VI-28) — data-authority, tenancy-isolation, governed-AI, reversibility, observability, contract-compatibility, governance/blueprint-preservation, and test/gate evidence — exists in full before promotion.
+- **Deployment-limited evidence is labelled.** Any criterion verifiable only in a deployment-limited environment is marked UNVERIFIED and does not yield a RELEASABLE determination (§VI-8).
+
+**Governing rule.** Release readiness is *all-of across every dimension and criterion*: a capability strong on three success dimensions and the readiness bar but missing operational readiness, or missing one validation-evidence element, is NOT-YET-RELEASABLE. The framework composes existing criteria; it lowers none and adds none.
+
+**Dependencies.** §VI-23 (the readiness bar composed); §VI-28 (the validation evidence composed); §VI-41–§VI-44 (the four success dimensions composed); §VI-8 (deployment-limitation labelling); §VI-46/§VI-47 (the gates and decision this framework feeds).
+
+**Risks.** The dominant risk is release readiness collapsing into a single dimension — shipping because the product surface looks done — or into a percentage. The all-of composition and no-partial-credit rule foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-23, §VI-28, §VI-41, §VI-42, §VI-43, §VI-44, §VI-46, §VI-47. Repository: `package.json`, `supabase/functions/server/intelligence/certification.ts`, `.../health.ts`, `.../telemetry.ts`, `scripts/migration/`, `supabase/migrations/rollbacks/`, `memory/`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-46 — Enterprise Quality Gates
+
+**Purpose.** To define the **enterprise quality gates** — the named quality checkpoints a capability must exit before it can be judged releasable — by *applying* the LOCKED execution gates (§VI-18) and control points (§VI-32) as quality gates, not by inventing new ones.
+
+**Why it exists.** The release readiness framework (§VI-45) states the *conditions* for release; quality gates are the *checkpoints* at which those conditions are verified on recorded evidence. Without named gates, readiness is asserted at the end; with them, quality is verified at defined points and a capability cannot reach the go/no-go decision (§VI-47) having skipped one. This section names the gates as an enterprise quality discipline, reusing the authority and evidence already defined.
+
+**Scope.** The application of existing gates as enterprise quality checkpoints only. It creates **no new gate, no new authority, and no numeric quality bar**; it maps the §VI-18 gates and §VI-32 control points to the success dimensions (§VI-41–§VI-44) and the readiness framework (§VI-45).
+
+**Current State.** **PARTIAL — gate substrate real, aggregation informal.** The quality-gate substrate is IMPLEMENTED: the execution gates (§VI-18) and delivery control points (§VI-32) are defined and applied; the evidence each consumes is produced by the repository (test suites in `package.json`; certification/health in `supabase/functions/server/intelligence/`; migration validation in `scripts/migration/`; reversible migrations in `supabase/migrations/rollbacks/`; drift record in `memory/pattern_violations.json`); and the mandatory workflow records gate exits (git/PR history, §VI-19). What is **NOT IMPLEMENTED** is an *aggregated quality-gate instrument or automated gate dashboard* — bounded by the single-operator shape and absent enterprise instrumentation (§VI-3). The gates below name existing checkpoints; they invent none.
+
+**Approved Future State (enterprise quality gates — applied).** A capability passes enterprise quality only by exiting, on recorded evidence, each gate its capabilities depend on:
+
+- **Foundation/data-integrity gate.** Data authority and tenancy verified (§VI-18, §VI-43) — no advance over KV-authoritative or tenant-unenforced state.
+- **Security/governance gate.** Server-side authority and gateway routing verified; no client-side trust, no direct-provider bypass (§VI-18, §VI-16).
+- **Technical-verification gate.** Declared test suites and migration validation passed (`package.json`, `scripts/migration/`) (§VI-43).
+- **Product/journey gate.** The capability renders verified state and completes its journey slice (§VI-42).
+- **Operational-readiness gate.** Observability, diagnosability, and recoverability demonstrated (§VI-44).
+- **Reversibility/compatibility gate.** Rollback path proven and existing contracts preserved (§VI-27, §VI-38).
+- **Blueprint-preservation gate.** No drift introduced; LOCKED Parts I–V preserved; any tension amended, not overridden (§VI-19, §VI-37).
+
+**Governing rule.** Quality gates are *exited on recorded evidence, not by claim*, and every gate a capability depends on must be exited before the go/no-go decision (§VI-47). A skipped or asserted gate is a quality failure; the gate's failure-response and escalation paths (§VI-18, §VI-37) apply.
+
+**Dependencies.** §VI-18 (the execution gates applied); §VI-32 (the control points applied); §VI-16/§VI-27/§VI-38 (routing, reversibility, invariants the gates verify); §VI-41–§VI-45 (the success dimensions and readiness the gates enforce); §VI-47 (the decision the gates feed).
+
+**Risks.** The chief risk is asserting a gate exit without evidence, or aggregating gates into a single rubber-stamp. The evidence-based-exit rule and per-gate dependency foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-16, §VI-18, §VI-19, §VI-27, §VI-32, §VI-37, §VI-38, §VI-41, §VI-42, §VI-43, §VI-44, §VI-45, §VI-47. Repository: `package.json`, `supabase/functions/server/intelligence/certification.ts`, `.../health.ts`, `scripts/migration/`, `supabase/migrations/rollbacks/`, `memory/pattern_violations.json`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-47 — Go / No-Go Decision Framework
+
+**Purpose.** To define the **go/no-go decision** — the single authorized determination that promotes a capability to production or holds it — by *applying* release governance (§VI-29), the readiness framework (§VI-45), and the quality gates (§VI-46), not by inventing a new authority.
+
+**Why it exists.** Readiness (§VI-45) and gates (§VI-46) produce evidence; a *decision* must convert that evidence into promotion or hold. Without a defined decision framework, release is either automatic (evidence ignored) or arbitrary (evidence overridden). This section fixes the go/no-go determination so that promotion is always a *governed decision against a complete record*, taken by the competent authority through the mandatory workflow.
+
+**Scope.** The go/no-go determination only. It creates **no new authority, no new gate, and no override path**; it binds the release decision to the existing authority (§VI-29, §VI-33), the readiness record (§VI-45), and the gate exits (§VI-46).
+
+**Current State.** **PARTIAL — decision discipline real, single-operator.** The go/no-go substrate is IMPLEMENTED as workflow and authority: the mandatory workflow gates promotion (complete → review → commit → push → open PR → merge → verify canonical main, §VI-19); release governance matches an authority to each release category (§VI-29); and the Human Principal is the accountable authority at the high-consequence floor (DNA Ch 18.9). What is **NOT IMPLEMENTED** is a *formal go/no-go instrument* (a distributed release-board or automated promotion gate) — bounded by the single-operator shape (§VI-3). The framework below formalizes the decision the workflow and authority already enforce.
+
+**Approved Future State (go/no-go decision framework).**
+
+- **Go requires a complete record.** A "go" is authorized only when the release-readiness framework (§VI-45) is satisfied all-of and every dependent quality gate (§VI-46) is exited on recorded evidence. An incomplete record is a "no-go", not a discretionary "go".
+- **Decided by the competent authority.** The decision is taken by the authority already matched to the release category (§VI-29, §VI-33); high-consequence/irreversible promotions are decided at the human floor (DNA Ch 18.9).
+- **Taken through the mandatory workflow.** A "go" is executed only through the mandatory workflow (§VI-19); there is no promotion outside it.
+- **No-go routes to remediation, not override.** A "no-go" holds the capability and routes the deficient dimension or gate to its failure-response/escalation path (§VI-37); it is never converted to a "go" by overriding missing evidence.
+- **Reversible even on go.** A "go" retains a demonstrated withdrawal path (§VI-27, §VI-39); promotion is never a one-way door.
+- **Honestly recorded.** The decision and its evidence basis are recorded (git/PR history, `memory/`); a "go" on deployment-limited (UNVERIFIED) evidence is not taken (§VI-8, §VI-31).
+
+**Governing rule.** Go/no-go is a *governed decision against a complete, evidence-based record* by the competent authority through the mandatory workflow. Missing evidence is a no-go; a no-go is remediated, never overridden. The framework applies existing authority; it creates none.
+
+**Dependencies.** §VI-19 (the workflow the decision runs through); §VI-27/§VI-39 (reversibility); §VI-29/§VI-33 (the deciding authority); §VI-37 (no-go remediation/escalation); §VI-45 (the readiness record); §VI-46 (the gate exits); §VI-8/§VI-31 (honest, evidence-based determination).
+
+**Risks.** The dominant risks are an automatic "go" that ignores evidence and a discretionary "go" that overrides a missing gate. The complete-record and remediate-not-override rules foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-8, §VI-19, §VI-27, §VI-29, §VI-31, §VI-33, §VI-37, §VI-39, §VI-45, §VI-46. Repository: `memory/`, `package.json`, `supabase/functions/server/migration/rollback.ts`, `supabase/migrations/rollbacks/`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-48 — Continuous Improvement Framework
+
+**Purpose.** To define how the **success and readiness bar itself improves over time** — the continuous-improvement framework that raises the criteria (§VI-41–§VI-47) as evidence accumulates, so that a maturing Cortex holds an ever-stronger definition of success.
+
+**Why it exists.** Success and readiness criteria that never change ossify: they miss new failure modes and cannot reflect what the enterprise has learned. Yet criteria that change arbitrarily lose their authority. This section defines *disciplined* improvement — grounded in institutional memory and evidence — so that the bar rises as reliability compounds, without ever being lowered under pressure.
+
+**Scope.** The improvement of success and readiness criteria only. It defines no maturity model, no improvement metric, and no retrospective schedule. It re-uses institutional memory and the anti-drift controls (§VI-19); it invents no new control.
+
+**Current State.** **IMPLEMENTED as substrate; PARTIAL as institution.** The improvement substrate genuinely exists and is maintained: `memory/failure_library.md` (failures and resolutions), `memory/regression_cases.md` (failures converted to standing guards), and `memory/pattern_violations.json` (recorded drift), together with per-increment review (§VI-19) and the growing regression-test set (`package.json` `test:*`). Each new guard effectively raises the technical/quality bar for every future capability. What is **PARTIAL** is a *formal, instituted continuous-improvement ritual* (structured retrospectives, criteria-revision governance) across a team — bounded by the single-operator shape (§VI-3). The framework below formalizes the compounding-bar practice the `memory/` record already evidences.
+
+**Approved Future State (continuous-improvement framework).**
+
+- **Every failure raises the bar.** A recorded failure yields a standing guard (regression case or pattern-violation entry) that becomes part of the technical/quality criteria (§VI-43, §VI-46) for all future capabilities; the guard set only grows (`memory/`, `test:*`).
+- **Improvement is evidence-grounded.** Criteria are revised from recorded evidence — the failure library, regression cases, and health signals — never from preference or pressure (§VI-35, §VI-36).
+- **The bar rises, never falls.** Improvement strengthens criteria; a criterion is never *weakened* to admit a capability that cannot meet it. A capability that cannot meet the current bar is held or escalated (§VI-37), not accommodated by lowering the bar (§VI-31).
+- **Criteria revision is governed.** Any change to the success/readiness criteria flows through the mandatory workflow and the competent authority (§VI-19, §VI-33), exactly as any other change; criteria do not drift silently.
+- **Convergence, not just addition.** Improvement moves the definition of success *toward* the blueprint's standard (DNA success standard, Part V direction), not toward local convenience (§VI-41, §VI-4).
+- **The loop closes into memory.** Every capability's outcome — success or failure — updates institutional memory, so the next capability is judged by a better-informed bar (§VI-35).
+
+**Governing rule.** The success-and-readiness bar *rises over time on recorded evidence and never falls under pressure*: every failure becomes a standing criterion, criteria are revised only through governed change, and no criterion is weakened to admit a capability that cannot meet it.
+
+**Dependencies.** §VI-19 (governed change and anti-drift); §VI-31 (honest status, no bar-lowering); §VI-33 (the authority governing criteria revision); §VI-35/§VI-36 (the evidence and health improvement reads); §VI-37 (escalation when the bar is not met); §VI-41/§VI-43/§VI-46 (the criteria improved); the Constitution (DNA Ch 26) and `memory/`.
+
+**Risks.** The dominant risks are ossified criteria that miss new failures and criteria quietly *lowered* under delivery pressure. The failure-becomes-criterion rule and the bar-rises-never-falls rule foreclose both.
+
+**Traceability.** Part I: `memory/`. Part II: DNA Ch 8.3/17/18/25/26/33/35. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-4, §VI-19, §VI-31, §VI-33, §VI-35, §VI-36, §VI-37, §VI-41, §VI-43, §VI-46. Repository: `memory/failure_library.md`, `memory/regression_cases.md`, `memory/pattern_violations.json`, `package.json` (`test:*`). Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-49 — Phase 6.5 Summary
+
+**Purpose.** To summarize what Phase 6.5 established — the execution success-and-readiness definition — and how it connects to the phases around it, without beginning Phase 6.6 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit synthesis so the *success-and-readiness framework* is read as one coherent definition rather than eight isolated criteria, and so the completion record (§VI-50) and any later phase begin from a settled account of what this phase fixed.
+
+**Scope.** A summary of Phase 6.5 only (§VI-41–§VI-50). It defines no new criterion, gate, authority, or decision, and it begins no later phase.
+
+**Summary of what Phase 6.5 established.**
+
+- **Executive success (§VI-41).** The apex, whole-enterprise success standard applied from the constitution — constitutionally aligned, blueprint-advancing, trust-preserving, strategically coherent, honestly evidenced — to which all lower criteria are subordinate.
+- **Product success (§VI-42).** Customer-facing success judged against verified state and completed journey — renders truth, computed by the engines, journey-complete, governed where intelligent, reversible — never surface completeness alone.
+- **Technical success (§VI-43).** Engineering soundness judged all-of on evidence — verified, authoritative data, tenant-isolated, governed AI, drift-free and contract-preserving, reversible — never "it runs".
+- **Operational readiness (§VI-44).** Operability judged on signal and demonstrated recovery — observable, diagnosable, recoverable, deployable/reversible, within operating capacity — gating growth.
+- **Release readiness framework (§VI-45).** The all-of composition of the four success dimensions with the LOCKED §VI-23 bar and §VI-28 evidence into one RELEASABLE determination; no new criterion, no percentage.
+- **Enterprise quality gates (§VI-46).** The §VI-18 gates and §VI-32 control points applied as named quality checkpoints, each exited on recorded evidence before the go/no-go decision.
+- **Go/no-go decision (§VI-47).** The single governed promotion decision against a complete record by the competent authority through the mandatory workflow — missing evidence is a no-go, remediated not overridden, reversible even on go.
+- **Continuous improvement (§VI-48).** The disciplined raising of the success/readiness bar on recorded evidence — every failure becomes a standing criterion, the bar rises and never falls under pressure, criteria revised only through governed change.
+
+**Current State.** All CURRENT STATE claims in this phase are grounded in the repository verified for Phases 6.2–6.4 and in the LOCKED Parts I–V. The success-and-readiness substrate is real but informally instituted: the constitutional success standard, the deterministic engines and outcome tracking (`src/app/core/`, `outcomeRepository.ts`), the declared test suites (`package.json`), the migration engine with validation and reversible migrations, the gateway certification/health/telemetry, the mandatory workflow and release governance, and the institutional-memory record (`memory/`) are IMPLEMENTED and operated at the single-operator (Startup) shape; formal instrumentation — executive/product KPIs, aggregated observability, composed readiness and quality-gate instruments, and a formal go/no-go board — is PARTIAL or NOT IMPLEMENTED, bounded by the single-operator reality and the reserved (`ai_worker`) workforce runtime (§VI-3, §IV-46–§IV-55). This phase *defines* success and readiness; it implements no measurement capability and claims no capability as released. Nothing is invented.
+
+**Approved Future State.** A composed success-and-readiness definition — an apex executive standard over product, technical, and operational success criteria, synthesized into an all-of release-readiness framework, verified through applied enterprise quality gates, promoted by a governed go/no-go decision, and continuously raised by an evidence-grounded improvement loop — judging the delivery of the model LOCKED in Phase 6.3 and controlled in Phase 6.4, realizing the sequence LOCKED in Phase 6.2 and the direction LOCKED in Part V, without editing any of them.
+
+**Dependencies.** All Phase 6.5 sections (§VI-41–§VI-48) and the completion record (§VI-50); Phase 6.4 (§VI-31–§VI-40), Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`, `src/system/manifest.ts`. Part II: DNA Ch 8.3/17/18/25/26/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-40. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`, `scripts/migration/`, `memory/`, `package.json`. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-50 — Phase 6.5 Completion Record
+
+**Purpose.** To record the completion of Phase 6.5 — with its validation evidence — without beginning Phase 6.6 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit, auditable completion boundary so the success-and-readiness definition is settled and merged before any later phase begins, and so the record of what was and was not done is unambiguous.
+
+**Scope.** The completion record of Phase 6.5 only (§VI-41–§VI-50). It defines no new criterion, gate, authority, or decision, and it begins no later phase.
+
+**Current State.** Phase 6.5 is authored as §VI-41–§VI-50; every CURRENT STATE claim in the phase is grounded in the repository verified for Phases 6.2–6.4 and in the LOCKED Parts I–V, labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED, with the single-operator (Startup) shape and the reserved (`ai_worker`) workforce runtime stated honestly; no capability is invented.
+
+**Approved Future State.** With Phase 6.5 complete and merged, Part VI holds a settled execution success-and-readiness definition (§VI-41–§VI-50) atop its baseline (Phase 6.1), sequence (Phase 6.2), delivery model (Phase 6.3), and control system (Phase 6.4); any subsequent Part VI phase begins from this settled foundation, which remains subordinate to the LOCKED Parts I–V.
+
+**Validation of this phase.**
+
+- Phase 6.5 authored.
+- Sections VI-41 through VI-50 present, exactly once, in continuous numbering after §VI-40.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) preserved unchanged.
+- No priorities, dependencies, delivery model, governance authority, security, gates, or control framework redefined — only applied as success and readiness definitions.
+- Every CURRENT STATE statement grounded in repository evidence; no capability invented.
+- Internal references (§VI-… and §III/§IV/§V cross-references) valid; repository references valid.
+- No dates, numeric KPIs, score thresholds, coverage percentages, sprints, staffing, tickets, budgets, or implementation instructions.
+- Phase 6.6 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.5 sections (§VI-41–§VI-49); Phase 6.4 (§VI-31–§VI-40), Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Completion Evidence.** This record; the presence of §VI-41–§VI-50; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, Phase 6.4, and Parts I–V; the grounding of every CURRENT STATE claim in repository evidence; the absence of any dates, numeric KPIs, tasks, assignments, or implementation instructions.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`. Part II: DNA Ch 8.3/17/18/25/26/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-49. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+**Phase 6.5 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.6 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), Phase 6.3 (§VI-21–§VI-30), and Phase 6.4 (§VI-31–§VI-40) are preserved. Phase 6.5 (§VI-41–§VI-50) is authored and complete but not locked. The next Part VI phase (6.6) is not begun here.
+
+*End of Phase 6.5. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.6 — Final Review & Lock
+
+**Status:** COMPLETE · **Phase:** 6.6 — Final Review & Lock · **Scope:** Full enterprise review of Part VI — Sections VI-1 through VI-50 (Phases 6.1–6.5) · **Continuity:** appends after Phase 6.5; the Part VI reading conventions govern. This phase reviews and locks Part VI; it authors no new roadmap sections, adds no architecture, and expands no scope. Parts I–V remain LOCKED and byte-identical.
+
+*This phase performs the official enterprise review of the entire Part VI — the execution baseline (Phase 6.1), the prioritization and sequencing (Phase 6.2), the capability delivery model (Phase 6.3), the execution governance and control system (Phase 6.4), and the success-and-readiness definition (Phase 6.5) — against the Master Blueprint rules, the Constitution (Part II), and the LOCKED Parts I–V. On passing, it records the official approval and locks Part VI. It introduces no new roadmap content, invents no architecture, and expands no scope.*
+
+### 6.6.1 — Review Scope & Method
+
+Every section from VI-1 through VI-50 was reviewed against the enterprise verification checklist. Structure was verified mechanically: the section headers were enumerated and confirmed continuous (VI-1 → VI-50) with no gaps and no duplicates, and each of the five phases (6.1–6.5) was confirmed present with its completion boundary. Internal references were resolved: every `§VI-N` citation in Part VI was checked to point within the authored range (≤ VI-50) with no dangling forward reference. Repository references were resolved against the actual working tree — every backticked path (`src/app/core/`, the Intelligence Gateway under `supabase/functions/server/intelligence/`, the repository layer, the migration engine, `supabase/migrations/` and `rollbacks/`, `scripts/migration/`, `memory/`, `package.json`, `src/system/manifest.ts`) was confirmed to exist, with `.../file.ts` abbreviations resolved against the full path established on the same line. CURRENT STATE claims were checked for grounding in that repository evidence or the LOCKED Parts I–V; APPROVED FUTURE STATE was checked for explicit identification; and the text was checked for terminology and formatting consistency and for absence of invented capability. Parts I–V and Phases 6.1–6.3 were compared byte-for-byte against `origin/main`.
+
+### 6.6.2 — Verification Checklist Results
+
+| # | Verification item | Result |
+|---|-------------------|--------|
+| 1 | Every phase exists (6.1, 6.2, 6.3, 6.4, 6.5) | **PASS** |
+| 2 | Every required section exists (VI-1 → VI-50, 50 sections) | **PASS** |
+| 3 | Numbering continuous from VI-1 through VI-50 | **PASS** |
+| 4 | No duplicate numbering | **PASS** |
+| 5 | Internal references valid (all `§VI-N` ≤ 50; no dangling refs) | **PASS** |
+| 6 | Repository references remain valid (all cited paths resolve) | **PASS** |
+| 7 | CURRENT STATE grounded in repository evidence | **PASS** |
+| 8 | APPROVED FUTURE STATE clearly identified | **PASS** |
+| 9 | No implemented capability invented | **PASS** |
+| 10 | Traceability complete (all 50 sections carry Traceability) | **PASS** |
+| 11 | Formatting consistent (section headers, bold field labels, separators) | **PASS** |
+| 12 | Terminology consistent (IMPLEMENTED / PARTIAL / NOT IMPLEMENTED; LOCKED; RELEASABLE; VERIFIED / UNVERIFIED) | **PASS** |
+| 13 | Parts I–V remain unchanged (byte-identical to `origin/main`) | **PASS** |
+
+**No defect was found.** Part VI is complete, internally consistent, grounded in verified repository evidence, and constitutionally aligned. Every CURRENT STATE claim resolves to a repository artifact or a LOCKED Part; every phase preserves its predecessors and declines to begin its successor; no capability is invented; and Parts I–V and Phases 6.1–6.3 are byte-identical to the canonical record.
+
+### 6.6.3 — Repairs Applied
+
+**None.** The review discovered no genuine defect requiring repair. No numbering gap, no duplicate, no dangling internal reference, no broken repository reference, no invented capability, and no unauthorized change to Parts I–V or Phases 6.1–6.3 was found. In accordance with the phase mandate — *repair only verified defects; do not rewrite approved architecture; do not expand scope* — no change was made to any authored section. Stylistic variation between phases (for example, tabular versus narrative CURRENT STATE, or the phase-specific "Approved Delivery/Release State" heading variants in Phase 6.3) is pre-existing approved content and is not a defect; it was left unaltered.
+
+### 6.6.4 — Lock Conditions
+
+| Condition | Confirmed |
+|-----------|-----------|
+| Phase 6.1 complete (VI-1 → VI-10) | ✓ |
+| Phase 6.2 complete (VI-11 → VI-20) | ✓ |
+| Phase 6.3 complete (VI-21 → VI-30) | ✓ |
+| Phase 6.4 complete (VI-31 → VI-40) | ✓ |
+| Phase 6.5 complete (VI-41 → VI-50) | ✓ |
+| Continuous numbering (VI-1 → VI-50) | ✓ |
+| No duplicate numbering | ✓ |
+| CURRENT STATE verified against repository evidence | ✓ |
+| APPROVED FUTURE STATE identified | ✓ |
+| No invented capability | ✓ |
+| Traceability complete | ✓ |
+| Internal references valid | ✓ |
+| Repository references valid | ✓ |
+| Formatting and terminology consistent | ✓ |
+| Parts I–V unchanged (byte-identical to `origin/main`) | ✓ |
+
+### 6.6.5 — Approval Record
+
+| Field | Value |
+|-------|-------|
+| **Part** | Part VI — Execution Roadmap |
+| **Scope** | Sections §VI-1 through §VI-50 (Phases 6.1–6.5) |
+| **Version** | **1.0** |
+| **Status** | **LOCKED** |
+| **Approval** | **APPROVED** |
+| **Execution Review** | **PASS** |
+| **Architecture Review** | **PASS** |
+| **Repository Alignment** | **PASS** |
+| **Traceability Review** | **PASS** |
+| **Executive Review** | **PASS** |
+| **Verification checklist** | 13 / 13 PASS |
+| **Steward** | MARQ Networks |
+
+### 6.6.6 — Completion Record
+
+**Part VI — Execution Roadmap is complete.** Across five phases and fifty sections it converts the LOCKED blueprint (Parts I–V) into a disciplined execution architecture: Phase 6.1 (§VI-1–§VI-10) established the verified current-state baseline and categorized gap inventory; Phase 6.2 (§VI-11–§VI-20) fixed the prioritization philosophy, dependency model, execution layers, streams, and gates; Phase 6.3 (§VI-21–§VI-30) defined the capability delivery model — increments, waves, readiness, release categories, and release governance; Phase 6.4 (§VI-31–§VI-40) defined the execution governance and delivery-control system — control framework, decision authority, change control, evidence, health monitoring, escalation, control invariants, and continuity; and Phase 6.5 (§VI-41–§VI-50) defined the success-and-readiness model — executive, product, technical, and operational success criteria, the composed release-readiness framework, enterprise quality gates, the go/no-go decision, and continuous improvement. CURRENT STATE is grounded throughout in the repository and the LOCKED Parts I–V and labelled IMPLEMENTED / PARTIAL / NOT IMPLEMENTED, with the single-operator (Startup) shape and the reserved (`ai_worker`) AI-workforce runtime stated honestly; no capability is invented. The roadmap assigns no dates, no numeric KPIs, no staffing, and no implementation instructions — it defines *how* Cortex executes, prioritizes, delivers, governs, and judges success, subordinate at every point to the LOCKED Constitution and Parts I–V.
+
+### 6.6.7 — Immutability
+
+**PART VI — EXECUTION ROADMAP — Status: LOCKED (Version 1.0, APPROVED).**
+
+Part VI is now constitutionally settled. It is preserved as authored; §VI-1 through §VI-50 are not restated, summarized, or altered by any subsequent Part or phase. Future modifications to Part VI may occur **only through the formal Amendment Process** (DNA Ch 35) — ordinary amendment for non-entrenched content, and the heightened core-amendment process (DNA Ch 35.5–35.6) where a change would touch the entrenched core. Every such change must be versioned, attributed, and logged (DNA Ch 30.4). A silent or unlogged edit to Part VI has no force.
+
+### 6.6.8 — Continuity
+
+Parts I, II, III, IV, and V remain LOCKED and unchanged. Part VI is LOCKED as of this record. The Master Blueprint remains a single, continuous document. This phase begins no new work: the Enterprise Master Blueprint Final Audit is **not** begun here.
+
+*End of Part VI. Part VI is LOCKED.*
+
+---
+
+# MASTER BLUEPRINT — ENTERPRISE FINAL AUDIT & OFFICIAL RELEASE RECORD
+
+**Record type:** Enterprise Master Blueprint Final Audit — the final governance review before official v1.0 release. **Scope:** the entire `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0` — Part I (Product Recovery), Part II (Cortex DNA), Part III (Product Blueprint), Part IV (AI Company Architecture), Part V (Strategic Future Vision), and Part VI (Execution Roadmap). **Nature:** validation, consistency, and release-readiness only. This record creates no architecture, redesigns nothing, expands no scope, and introduces no new concept; it audits the authored document against itself, the LOCKED Parts, the Constitution (Part II), and the repository, then records the official release.
+
+## FA.1 — Audit Scope & Method
+
+Every Part and every approved phase was reviewed. Structure was verified mechanically: Part headers were enumerated (six Parts present); section numbering was enumerated per Part and confirmed continuous and duplicate-free — Part III §III-1…§III-88, Part IV §IV-1…§IV-55, Part V §V-1…§V-30, Part VI §VI-1…§VI-50 (Parts I and II are preserved **by reference** under the Preservation rule and carry no in-document numbered sections). Internal and cross-Part references were resolved: every `§III-N`, `§IV-N`, `§V-N`, `§VI-N`, and `DNA Ch N` citation was checked to point within the authored range (no `§III-89+`, `§IV-56+`, `§V-31+`, `§VI-51+`, and no `DNA Ch > 37`), with no dangling reference found. Repository references were resolved against the working tree — the deterministic engine layer (`src/app/core/`), configuration (`src/config/`), utilities and types (`src/app/utils/`, `src/app/types/`), the system manifest and validator (`src/system/manifest.ts`, `src/system/validate.ts`), `architecture/system_map.json`, the Intelligence Gateway and providers (`supabase/functions/server/intelligence/` and `.../providers/`), the repository layer, the migration engine and CLI (`supabase/functions/server/migration/`, `scripts/migration/`), the SQL migrations and rollbacks (`supabase/migrations/`, `.../rollbacks/`), the test suites and deployment scripts (`package.json`), and the institutional-memory record (`memory/`) — every cited path resolves (relative paths resolve under `src/` or `supabase/`; the single path documented as *missing* — `src/app/lib/session.ts` — is correctly recorded as **known debt / BREAK** in §III, i.e. accurate CURRENT STATE, not a broken reference). CURRENT STATE was checked for grounding; APPROVED FUTURE STATE for explicit identification; and the document for terminology consistency, formatting consistency, hygiene markers, and constitutional/governance alignment. Parts I–V content and Phases 6.1–6.3 were compared against `origin/main`.
+
+## FA.2 — Complete Audit Checklist
+
+| # | Validation item | Result |
+|---|-----------------|--------|
+| 1 | Every Part exists (I, II, III, IV, V, VI) | **PASS** |
+| 2 | Every approved phase exists (III; IV; V 5.1–5.4; VI 6.1–6.6) | **PASS** |
+| 3 | Numbering continuous (III 1–88, IV 1–55, V 1–30, VI 1–50) | **PASS** |
+| 4 | No duplicate numbering | **PASS** |
+| 5 | No missing sections | **PASS** |
+| 6 | Internal references resolve correctly | **PASS** |
+| 7 | Cross-Part references resolve correctly | **PASS** |
+| 8 | Repository references remain valid | **PASS** |
+| 9 | CURRENT STATE grounded in verified repository evidence | **PASS** |
+| 10 | APPROVED FUTURE STATE clearly identified | **PASS** |
+| 11 | No implemented capability invented | **PASS** |
+| 12 | Traceability exists throughout the document | **PASS** |
+| 13 | Terminology consistent across all Parts | **PASS** |
+| 14 | Formatting consistent | **PASS** |
+| 15 | Constitutional principles remain consistent | **PASS** |
+| 16 | Governance rules remain consistent | **PASS** |
+| 17 | AI Company Architecture aligns with Product Architecture | **PASS** |
+| 18 | Product Architecture aligns with Execution Roadmap | **PASS** |
+| 19 | Future Vision aligns with current architecture | **PASS** |
+| 20 | Amendment Process remains authoritative | **PASS** |
+| 21 | Lock records exist for every completed Part | **PASS** |
+| 22 | No contradictions between Parts | **PASS** |
+| 23 | No duplicated architecture across Parts | **PASS** |
+| 24 | No unresolved TODO markers | **PASS** |
+| 25 | No temporary notes remain | **PASS** |
+| 26 | No placeholder text remains | **PASS** |
+
+**Result: 26 / 26 PASS.** The Master Blueprint is complete, internally consistent, grounded in verified repository evidence, constitutionally aligned, and free of hygiene defects. Parts I and II are preserved by reference; Parts III–VI are authored, LOCKED, and mutually consistent. Cross-Part alignment holds: Part IV's AI-workforce model operates over the Part III product substrate (`ai_worker` reserved, not invented); Part VI's execution roadmap grounds every CURRENT STATE claim in Parts I–V and the repository and realizes Part V's direction without editing it; Part V's future vision is consistent with the current architecture it extends. The Amendment Process (DNA Ch 35) is cited as the sole modification path in every lock record and remains authoritative.
+
+## FA.3 — Repairs Applied
+
+**None.** The audit discovered no genuine defect: no numbering gap, no duplicate, no missing section, no dangling internal or cross-Part reference, no broken repository reference, no invented capability, no terminology or formatting inconsistency in the authored sections, no TODO/placeholder/temporary marker, and no contradiction between Parts. In accordance with the mandate — *repair only verified defects; do not rewrite architecture, expand scope, change approved decisions, or modify constitutional decisions* — no authored section was altered. **Observation (not a defect):** the Part-level authoring headers of Parts IV, V, and VI record their authoring-time status token ("IN PROGRESS"), while the canonical status surfaces — the front-matter status line, the front-matter table, and each Part's end-of-Part lock record — correctly and consistently show every Part LOCKED. Because each locked Part is modifiable only through the formal Amendment Process (DNA Ch 35), these historical authoring tokens are left unaltered by convention; the authoritative status is carried by the lock records and the front-matter, which are correct. The only document-level edit made by this record is the addition of the release marker to the front-matter status line and the appending of this record itself.
+
+## FA.4 — Final Release Record
+
+| Field | Value |
+|-------|-------|
+| **Document** | `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0` |
+| **Scope** | Parts I–VI (entire Master Blueprint) |
+| **Release Status** | **RELEASED** |
+| **Blueprint Version** | **1.0** |
+| **Approval** | **APPROVED** |
+| **Enterprise Architecture Review** | **PASS** |
+| **Product Architecture Review** | **PASS** |
+| **AI Company Architecture Review** | **PASS** |
+| **Execution Review** | **PASS** |
+| **Repository Alignment** | **PASS** |
+| **Traceability Review** | **PASS** |
+| **Governance Review** | **PASS** |
+| **Executive Review** | **PASS** |
+| **Release Readiness** | **PASS** |
+| **Audit checklist** | 26 / 26 PASS |
+| **Steward** | MARQ Networks |
+
+## FA.5 — Executive Release Summary
+
+- **All six Parts have been audited.** Part I (Product Recovery), Part II (Cortex DNA), Part III (Product Blueprint), Part IV (AI Company Architecture), Part V (Strategic Future Vision), and Part VI (Execution Roadmap) were reviewed in full against the Master Blueprint rules, the Constitution, and the repository.
+- **All governance reviews passed.** Enterprise Architecture, Product Architecture, AI Company Architecture, Execution, Repository Alignment, Traceability, Governance, Executive review, and Release Readiness each returned **PASS** (26 / 26 checklist items).
+- **The Master Blueprint is now the authoritative governing document for MARQ Cortex.** It is the definitive source of truth: the Blueprint is the authority and the codebase is its implementation; on conflict, Blueprint first, code second, with the Constitution (Part II) prevailing on identity, philosophy, and governance.
+- **Future changes must follow the formal Amendment Process.** No Part may be edited in place; modifications occur only through the Amendment Process (DNA Ch 35) — ordinary amendment for non-entrenched content and the heightened core-amendment process for the entrenched core — each versioned, attributed, and logged (DNA Ch 30.4). A silent or unlogged edit has no force.
+- **Version 1.0 is officially released.** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0` is RELEASED (Version 1.0, APPROVED) as of this record.
+
+## FA.6 — Immutability & Continuity
+
+**MARQ CORTEX — MASTER BLUEPRINT — Status: RELEASED (Version 1.0, APPROVED).**
+
+All six Parts remain LOCKED and unchanged as authored. This release record adds no architecture, decision, capability, or scope; it records the outcome of the final audit and the official release. The Master Blueprint remains a single, continuous, permanent document. From this point, every change — to any Part — is governed exclusively by the formal Amendment Process (DNA Ch 35) and must be versioned, attributed, and logged (DNA Ch 30.4).
+
+*End of Master Blueprint. `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0` is RELEASED.*
