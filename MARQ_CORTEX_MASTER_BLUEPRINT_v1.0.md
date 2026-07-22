@@ -5359,3 +5359,332 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.4 — Execution Operating Model & Delivery Governance
+
+**Status:** COMPLETE (Phase 6.4) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-31 through VI-40, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.4 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.2 fixed *what* MARQ Cortex builds and *in what order*; Phase 6.3 fixed *how* an approved capability is *delivered and released* into production — the increment, the wave, the readiness bar, the release categories, and release governance at the point of promotion. What neither phase describes is how the enterprise *runs* that delivery engine **continuously over time**: the operating rhythm that turns a single release into a sustained cadence, who is accountable for each execution act, how work enters and flows without overwhelming the foundations-first order, how risk and failure are managed as they arise, how quality is held while the platform is in motion, how the configuration stays coherent as it changes, how the health of execution itself is observed, and how the system corrects its own drift and improves. Phase 6.4 answers that single question: **how does MARQ Cortex operate its own execution — safely, accountably, and self-correctingly — while staying subordinate to the LOCKED blueprint?**
+
+**What this phase is.** An execution operating architecture — an operating philosophy (§VI-31), the execution operating cadence (§VI-32), the execution roles and accountability model (§VI-33), work intake and flow discipline (§VI-34), risk and issue management (§VI-35), quality assurance in operation (§VI-36), change control and configuration integrity (§VI-37), execution health and progress signals (§VI-38), and continuous improvement and drift correction (§VI-39), closed by a completion record (§VI-40).
+
+**What this phase is not.** Phase 6.4 does **not** redefine priorities, dependencies, the delivery model, governance, security, or the gates — those are LOCKED in place by Phases 6.2–6.3 and Parts I–V and are only *operated* here. It is not a sprint plan, a calendar, a staffing roster, a ticket backlog, a headcount plan, a budget, or an implementation task list. It assigns no dates, no story points, no owners by name, no hours, and it writes no code. It describes the operating discipline by which delivery is run continuously; it performs no delivery. Phase 6.5 is not begun here, and Part VI is not locked.
+
+**Grounding.** The operating model below is grounded in the same repository verified for Phases 6.2–6.3 — the deterministic engine layer under `src/app/core/` (30 `*Engine.ts` modules), the Intelligence Gateway under `supabase/functions/server/intelligence/` (`gateway.ts`, `providerRegistry.ts`, `certification.ts`, `modelRegistry.ts`, `telemetry.ts`, `health.ts`, `featureBridge.ts`, `contracts.ts`, and `providers/`), the server repository layer under `supabase/functions/server/repositories/`, the migration engine under `supabase/functions/server/migration/` (`orchestrator.ts`, `reconciliation.ts`, `rollback.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `telemetry.ts`), the SQL migrations under `supabase/migrations/` (tenancy foundation, RLS + seed, KV foundation, migration infrastructure, diagnostic foundation/RLS, and anon-policy hardening) with their `rollbacks/`, the migration CLI under `scripts/migration/` (`cli.ts`, `validate-s6.3.ts`), the declared test suites in `package.json` (`test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features`) and deployment scripts (`supabase:deploy`, `supabase:db-push`), the institutional-memory record under `memory/` (`failure_library.md`, `regression_cases.md`, `pattern_violations.json`), and the system manifest `src/system/manifest.ts` — together with the LOCKED Parts I–V and the Constitution. Operating labels (IMPLEMENTED / PARTIAL / NOT IMPLEMENTED, VERIFIED / UNVERIFIED) are used where they add precision. The enterprise's current operating reality is the single-operator (Startup) shape, and the AI-workforce runtime is a reserved (`ai_worker`) identity, NOT IMPLEMENTED (§VI-3). Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-31 — Execution Operating Philosophy
+
+**Purpose.** To define how MARQ Cortex *operates* its execution — the philosophy that turns the delivery model (§VI-21–§VI-30) into a sustained, accountable operating discipline — distinct from how it prioritizes (§VI-11), sequences (§VI-13–§VI-14), or delivers (§VI-21) a capability.
+
+**Why it exists.** Phase 6.3 describes the *act* of delivering a capability; it does not describe the *conduct of running* delivery again and again over time. Without a stated operating philosophy, sustained execution degrades into ad-hoc motion — whichever work is loudest is worked, whoever is available decides, failures are absorbed silently, and the foundations-first order erodes under momentum. This section fixes the operating value system so that every operating mechanism that follows — cadence (§VI-32), accountability (§VI-33), flow (§VI-34), risk (§VI-35), quality (§VI-36), change control (§VI-37), health (§VI-38), and correction (§VI-39) — is a consequence of stated principle rather than of convenience or pressure.
+
+**Scope.** The operating value system only. It names no cadence interval, assigns no role, and defines no control; those derive from this philosophy in §VI-32 onward. It re-opens no priority, dependency, or delivery decision LOCKED in Phases 6.2–6.3.
+
+**Current State.** The operating substrate is **PARTIAL — real but informal.** A disciplined operating loop already runs at single-operator scale: the mandatory repository workflow (complete → review → commit → push → open PR → merge → verify canonical main, §VI-19) is exercised on every increment; per-increment review cycles operate; institutional memory is maintained as durable operating evidence (`memory/failure_library.md`, `memory/regression_cases.md`, `memory/pattern_violations.json`); the declared test suites (`package.json`) and the migration engine's reversibility tooling (`supabase/functions/server/migration/`, `scripts/migration/`) are the standing instruments of safe operation. What is **NOT IMPLEMENTED** is any *formalized, staffed, instrumented* operating institution — a defined operating cadence as an enterprise ritual, a multi-role accountability structure beyond the single operator, and execution-health instrumentation — because the enterprise runs at the Startup (single-operator) shape and the AI-workforce runtime is reserved, not realized (§VI-3, §IV-46–§IV-55). The *values* below are already honored in practice; this section makes them explicit and durable.
+
+**Approved Future State (governing operating principles).**
+
+- **Operate to the blueprint, never around it.** Every operating act realizes an already-approved priority (§VI-15) in its already-approved position (§VI-13–§VI-14) through the already-mandated workflow (§VI-19). Operation introduces no new priority, dependency, delivery rule, or governance authority; where operating reality reveals a LOCKED decision to be unworkable, the heightened amendment path (DNA Ch 35) is the only recourse.
+- **Cadence over heroics.** Sustained delivery is achieved by a repeatable rhythm of small, verified increments, not by bursts of undisciplined effort. A steady cadence of reversible increments is safer and faster over the horizon than intermittent large pushes (§VI-27, progressive over big-bang).
+- **Accountability is explicit and singular.** Every execution act has one accountable authority answerable for its outcome — today the Human Principal at the high-consequence floor (DNA Ch 18.9), tomorrow the matched gate and workforce authorities (§VI-18, §VI-33). Diffused accountability is treated as no accountability.
+- **Foundations-first flow under load.** Operating pressure never re-orders the dependency graph. When more work arrives than can be safely run, intake is throttled in favor of the foundations-first order (§VI-11), not the most visible or most requested item.
+- **Failure is surfaced, recorded, and learned from — never absorbed.** Every material failure is made visible, captured in institutional memory, and converted into a regression guard or pattern-violation record (`memory/`), so the system's reliability compounds rather than decays (DNA Ch 26; §VI-39).
+- **Self-correction is a standing property.** Drift is expected and continuously detected and reversed, not discovered late. The anti-drift controls (§VI-19) operate continuously, not as a one-time gate (§VI-39).
+- **Honest operating status.** Progress is reported against evidence, and deployment-limited verification is labelled UNVERIFIED, never RELEASABLE (§VI-8). Partial operation reported as complete is the failure this philosophy exists to prevent.
+
+**Dependencies.** §VI-11 (the prioritization philosophy this operating philosophy extends into conduct); §VI-19 (the anti-drift controls and mandatory workflow operation runs through); §VI-21 (the delivery philosophy operation sustains); the LOCKED Constitution (DNA Ch 17/18/25/26/33/35).
+
+**Risks.** If the operating philosophy is not held, sustained execution reverts to convenience and momentum: cadence collapses into heroics, accountability diffuses, intake overruns the foundations, failures are absorbed, and drift is found late. The operating mechanisms in §VI-32–§VI-39 exist to detect and reverse exactly this.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`. Part II: DNA Ch 8.3/17/18/25/26/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-11, §VI-19, §VI-21. Repository: `memory/`, `src/app/core/`, `supabase/functions/server/`, `package.json`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-32 — Execution Operating Cadence
+
+**Purpose.** To define the **operating cadence** — the repeatable rhythm by which capability increments (§VI-21) are planned, built, verified, released, and reviewed — so that delivery is sustained as a loop rather than performed as isolated events.
+
+**Why it exists.** A single delivery (§VI-26) is an event; an enterprise runs on a *rhythm*. Without a defined cadence, execution has no heartbeat: work starts and stops unpredictably, verification is done when remembered rather than always, and review is skipped under pressure. The cadence exists to make the safe path the *default, repeated* path — so that reversibility, verification, and review recur on every turn of the loop without depending on anyone remembering to invoke them.
+
+**Scope.** The operating loop and its recurring stages only. It assigns **no interval, no calendar, no date, no sprint length, and no milestone** — the cadence is defined by its *sequence of recurring acts*, not by clock or calendar. It re-orders nothing fixed in Phases 6.2–6.3.
+
+**Current State.** **PARTIAL — the loop exists, unformalized.** The recurring operating acts are already exercised per increment: change is completed, reviewed, committed, pushed, opened as a PR, merged, and verified against canonical main (§VI-19); tests are runnable at each turn (`test:smoke`, `test:intelligence`, `test:database`, `test:migration`, `test:features` in `package.json`); migration changes carry simulate/backfill/reconcile/validate stages (`scripts/migration/cli.ts`, `migration:*` scripts) and reversible rollbacks (`supabase/migrations/rollbacks/`, `supabase/functions/server/migration/rollback.ts`); review outcomes and regressions are recorded in `memory/`. What is **NOT IMPLEMENTED** is a *named, instituted cadence* with defined recurring review rituals across a team — because operation is single-operator (§VI-3). The stages below describe the loop already implicit in the workflow, made explicit and permanent.
+
+**Approved Future State (the recurring operating loop — no intervals).**
+
+- **Plan-to-priority.** Each turn of the loop draws its next increment from the already-approved priority and dependency order (§VI-13–§VI-15), never from novelty or request volume. The loop never selects work its prerequisites have not made deliverable (§VI-25).
+- **Build-in-the-open.** The increment is built as a cohesive platform slice (§VI-21) behind stable contracts, additively (expand before contract, §VI-27).
+- **Verify-always.** Verification is a *stage of every turn*, not an optional step: the relevant test suites run, tenancy and data-authority are checked where touched, and gateway routing is confirmed where AI is involved (§VI-18, §VI-23, §VI-28). An increment does not advance on an unverified turn.
+- **Release-under-governance.** A verified increment is promoted only through the typed release category and matched authority already defined (§VI-26, §VI-29), against the antecedent validation record (§VI-28).
+- **Review-and-record.** Every turn closes with review and with an update to institutional memory (`memory/`) — failures to the failure library, regressions to regression cases, drift to pattern violations — so the next turn begins better informed (§VI-39).
+- **Repeat at readiness, not at a clock.** The loop advances when the next increment is *ready* (its enablers RELEASABLE, §VI-25), not on a fixed interval. Cadence is a rhythm of readiness, deliberately unpinned from calendar.
+
+**Governing rule.** The cadence is defined by *which acts recur and in what order*, never by *how often in clock time*. Verification and review are non-skippable stages of every turn; a turn that omits either has not completed, regardless of whether code merged.
+
+**Dependencies.** §VI-19 (the mandatory workflow the loop instantiates); §VI-18/§VI-23/§VI-28 (the verification and release-readiness the loop enforces each turn); §VI-25/§VI-26 (readiness-gated advancement and typed release); §VI-39 (the review-and-record close of each turn).
+
+**Risks.** The chief risk is a cadence that skips its verify or review stage under pressure, or one that becomes calendar-driven and ships to a date rather than to readiness. The non-skippable-stage rule and readiness-gated advance foreclose both.
+
+**Traceability.** Part II: DNA Ch 17/18/25/26/33. Part III: §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-18, §VI-19, §VI-23, §VI-25, §VI-26, §VI-28. Repository: `package.json`, `scripts/migration/`, `supabase/migrations/rollbacks/`, `supabase/functions/server/migration/`, `memory/`. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-33 — Execution Roles & Accountability
+
+**Purpose.** To define the **accountability model** for execution — which authority is answerable for each class of operating act — by *applying* the authorities already established in Part II (DNA), Part IV (§IV-23–§IV-55), and the execution gates (§VI-18), not by inventing new ones.
+
+**Why it exists.** The cadence (§VI-32) describes *what recurs*; it does not say *who is answerable* when a turn succeeds or fails. Without an explicit accountability model, responsibility diffuses: everyone assumes someone else verified tenancy, approved the release, or updated the failure library. This section binds each operating act to a single accountable authority so that no act is ownerless.
+
+**Scope.** The mapping of operating acts to *already-defined* authorities only. It creates no new role, no new title, no org chart, and no headcount, and it names no individual. It re-states neither the Part IV organizational structure nor the gate authorities of §VI-18; it applies them.
+
+**Current State.** **PARTIAL — single accountable authority, reserved workforce.** Today all execution accountability resolves to the **Human Principal** as the ultimate accountable authority at the high-consequence floor (DNA Ch 18.9), operating the enterprise at the Startup (single-operator) shape (§VI-3). The role *definitions* exist as approved architecture — the enterprise executive/department/manager structure (§IV-23–§IV-34), product RBAC (`roleEngine`; §III-42–§III-43), and the role-based authority attached to each gate (§VI-18) — but the **AI-workforce runtime that would distribute these operating roles is NOT IMPLEMENTED**, reserved to the `ai_worker` identity. The accountability model below is therefore a mapping that is *fully honored today by one authority* and *progressively distributed* as the approved workforce is stood up — inventing no role that does not already exist in Parts IV or §VI-18.
+
+**Approved Future State (operating acts → accountable authority).**
+
+- **Foundation and platform operation** (tenancy, relational authority, migration, gateway/repository contracts) is accountable to the **architecture, data-integrity, and security authorities** already attached to the corresponding gates (§VI-18) — the Human Principal today.
+- **Intelligence and workforce operation** (governed intelligence; later the `ai_worker` runtime) is accountable to the **AI-readiness authority** (§VI-18); the workforce itself, once realized, operates *under* that authority, never above it (§VI-16, authority before autonomy).
+- **Product operation** (enterprise surfaces over verified state) is accountable to the **product-readiness authority** (§VI-18).
+- **Operational and health operation** (observability, diagnosability) is accountable to the **operational-readiness authority** (§VI-18).
+- **Release approval** for each category is accountable to the authority already matched to it (§VI-29); **strategic/ecosystem** operation to the highest constitutional authority (DNA Ch 30/35).
+- **The human floor is non-delegable.** High-consequence and irreversible acts remain accountable to the Human Principal regardless of how much of the workforce is realized (DNA Ch 18.9); autonomy never rises above the authority model (§VI-16).
+
+**Governing rule.** Every operating act has exactly **one** accountable authority, drawn from Part II, Part IV, or §VI-18 — never a newly invented one. Distribution of these accountabilities across the AI workforce is additive and gated on that workforce being VERIFIED-realized; until then, they resolve to the single accountable operator. Accountability is never diffused and never delegated above the human floor.
+
+**Dependencies.** §VI-18 (the gate authorities applied here); §VI-29 (release-approval authorities); Part IV §IV-23–§IV-34 (the approved role structure); the reserved `ai_worker` identity; the Constitution (DNA Ch 18.9/30/35).
+
+**Risks.** The dominant risk is accountability diffusing as work parallelizes, or a nascent AI workforce being treated as accountable before it is VERIFIED-realized. The single-accountable-authority rule and the non-delegable human floor foreclose both.
+
+**Traceability.** Part I: `ARCHITECT.md`. Part II: DNA Ch 8.3/9/18.9/23/30/33/35. Part III: §III-42–§III-43. Part IV: §IV-23–§IV-34, §IV-35–§IV-45. Part VI: §VI-16, §VI-18, §VI-29. Repository: `src/app/core/roleEngine.ts`, `src/system/manifest.ts`.
+
+---
+
+## VI-34 — Work Intake & Flow Discipline
+
+**Purpose.** To define how candidate work *enters* execution and *flows* through the operating cadence (§VI-32) without overrunning the foundations-first order — the intake and flow-control discipline.
+
+**Why it exists.** A running enterprise attracts more candidate work than it can safely execute: new surfaces, integrations, provider additions, and requests accumulate faster than foundations mature. Without intake discipline, this pressure re-orders execution by volume and visibility rather than by dependency — the exact drift §VI-16 prohibits. This section governs the *gate at the front of the loop* so that what enters is always admissible against the LOCKED priority and dependency order.
+
+**Scope.** Intake admissibility and flow control only. It defines no backlog tool, no ticket schema, no queue length, and no throughput target. It re-ranks nothing; it *applies* the priority classes (§VI-12) and dependency model (§VI-13) as an admission filter.
+
+**Current State.** **PARTIAL.** Intake is governed today by the LOCKED prioritization framework and dependency model (§VI-12–§VI-13), the immediate-priorities record (§VI-15), and the deferred/prohibited-work list (§VI-16), applied by the single operator; the manifest (`src/system/manifest.ts`) and engine layer (`src/app/core/`) bound what surfaces exist. What is **NOT IMPLEMENTED** is any *instrumented intake queue or flow-metrics system* (work-in-progress limits, throughput measurement) — consistent with enterprise instrumentation being absent (§VI-3, §IV-46–§IV-55). The discipline below formalizes the admission rules already applied by judgment.
+
+**Approved Future State (intake and flow rules).**
+
+- **Admission is dependency-gated.** Candidate work is admitted to the loop only if its prerequisites are RELEASABLE (§VI-25) and its position in the dependency order is reached (§VI-13). Work whose foundations are not yet present is **deferred by construction** (§VI-16), not queued ahead of them.
+- **Admission is priority-classed.** Every admitted item carries its priority class (§VI-12); Foundation-Critical and Governance-Critical work precedes Product/Platform, which precedes Operational, which precedes Growth, which precedes Optimization. Class is assigned by the stated dimensions, never by request volume.
+- **Flow is throttled to protect foundations.** When admissible work exceeds safe operating capacity, intake is **throttled in dependency order** — foundations continue, later-layer work waits. Operating pressure never promotes a later-layer item past an unfinished foundation (§VI-31, foundations-first under load).
+- **One capability increment flows whole.** Work flows as whole increments (§VI-21), not as fragments; a half-increment is not advanced to keep the queue moving.
+- **Prohibited work never enters.** The permanent prohibitions (no duplicate engine, no parallel data authority, no AI path around the gateway; §VI-16, §VI-19) are intake filters: such work is refused at admission, not managed in flow.
+- **Re-classification is governed, not silent.** An item's class or admissibility changes only as its evidence and dependencies change, and only through the phase-entry/anti-drift checks (§VI-19) — never by pressure.
+
+**Governing rule.** Intake is an *admission filter against the LOCKED order*, not a demand queue. No item flows because it is wanted, visible, or numerous; it flows only because its dependencies are satisfied and its class is reached. Excess demand is throttled in dependency order, never absorbed by re-ordering.
+
+**Dependencies.** §VI-12 (priority classes applied at intake); §VI-13 (the dependency order intake respects); §VI-15/§VI-16 (immediate priorities and prohibited work); §VI-25 (the RELEASABLE condition admission requires); §VI-19 (governed re-classification).
+
+**Risks.** The chief risk is demand-driven intake — admitting the most requested or most visible work ahead of foundations. The dependency-gated, priority-classed admission filter and foundations-first throttle foreclose it.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-12, §VI-13, §VI-15, §VI-16, §VI-19, §VI-25. Repository: `src/system/manifest.ts`, `src/app/core/`.
+
+---
+
+## VI-35 — Risk & Issue Management
+
+**Purpose.** To define how execution **risks** (potential future harms) and **issues** (realized failures) are identified, contained, recorded, and resolved during operation — the standing risk-and-issue discipline.
+
+**Why it exists.** Every operating turn carries risk — a migration that could strand data, a release that could break a contract, an AI path that could bypass the gateway. Without an explicit discipline, risks are noticed late and issues are absorbed silently, so the same failure recurs. This section makes risk anticipation and issue response a *standing operating function*, closing the loop into institutional memory (§VI-39) so reliability compounds.
+
+**Scope.** Risk anticipation and issue response during operation only. It defines no numeric risk score, no severity SLA, no probability model, and no incident calendar. It re-uses the failure-response and escalation paths already attached to the gates (§VI-18) and anti-drift controls (§VI-19) rather than inventing new ones.
+
+**Current State.** **PARTIAL — real recording substrate, informal process.** A genuine issue-capture substrate is IMPLEMENTED and maintained: `memory/failure_library.md` (recorded failures and their resolutions), `memory/regression_cases.md` (issues converted to standing regression guards), and `memory/pattern_violations.json` (recorded drift/anti-pattern instances). Reversibility instruments that contain data-risk are IMPLEMENTED: the migration engine's checkpoint, quarantine, reconciliation, and rollback facilities (`supabase/functions/server/migration/checkpointStore.ts`, `quarantineStore.ts`, `reconciliation.ts`, `rollback.ts`) and migration rollbacks (`supabase/migrations/rollbacks/`). Gateway health/telemetry (`health.ts`, `telemetry.ts`) surface intelligence-path risk. What is **NOT IMPLEMENTED** is a *formal risk register, severity taxonomy, or incident-management system* — consistent with enterprise instrumentation being absent (§VI-3). The discipline below formalizes the practice the `memory/` record already evidences.
+
+**Approved Future State (risk-and-issue discipline).**
+
+- **Anticipate risk per increment.** Each turn identifies the risk its increment carries — to data authority, tenancy, contracts, reversibility, or governance — before promotion, as part of the validation record (§VI-28). Unbounded-risk increments are not admitted.
+- **Contain by reversibility.** The primary risk control is reversibility: every increment is withdrawable (expand/contract, migration rollback) so a realized issue's blast radius is bounded (§VI-27). Risk that cannot be made reversible is escalated, not accepted.
+- **Respond to issues through existing paths.** A realized issue follows the **failure-response and escalation paths already defined for the relevant gate** (§VI-18) and the anti-drift controls (§VI-19); this phase adds none. High-consequence issues escalate to the Human Principal (DNA Ch 18.9).
+- **Record every issue in institutional memory.** Every material issue is written to `memory/` — cause and resolution to the failure library, a standing guard to the regression cases, drift to the pattern-violation record — so it cannot silently recur (DNA Ch 26; §VI-39).
+- **Convert issues into guards.** An issue is not closed when patched; it is closed when a regression guard or test prevents its recurrence (`memory/regression_cases.md`, the `test:*` suites). This is the mechanism by which reliability compounds.
+- **No silent absorption.** An issue absorbed without record is a governance failure (§VI-31, honest operating status); visibility is mandatory even when the fix is trivial.
+
+**Governing rule.** Risk is contained by reversibility and anticipated before promotion; issues are responded to through *existing* gate and anti-drift paths, always recorded, and closed only when guarded against recurrence. No issue is absorbed without an entry in institutional memory.
+
+**Dependencies.** §VI-18 (failure-response/escalation paths reused); §VI-19 (anti-drift controls); §VI-27/§VI-28 (reversibility and the validation record); §VI-39 (the improvement loop issues feed); the Constitution (DNA Ch 18.9/26).
+
+**Risks.** The central risk is silent absorption — patching without recording — so the same failure recurs and reliability decays. The mandatory-record and close-only-when-guarded rules foreclose it.
+
+**Traceability.** Part II: DNA Ch 18.9/25/26/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-18, §VI-19, §VI-27, §VI-28, §VI-39. Repository: `memory/failure_library.md`, `memory/regression_cases.md`, `memory/pattern_violations.json`, `supabase/functions/server/migration/`, `supabase/migrations/rollbacks/`, `supabase/functions/server/intelligence/health.ts`, `.../telemetry.ts`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-36 — Quality Assurance in Operation
+
+**Purpose.** To define how quality is *held* while the platform is in continuous motion — the operating quality-assurance discipline that keeps every turn of the cadence (§VI-32) verified rather than assumed.
+
+**Why it exists.** Quality bars are easy to define and easy to erode under operating pressure. Phase 6.3 defined the release-readiness bar (§VI-23) and validation evidence (§VI-28) for the *moment* of release; this section defines how quality is *continuously assured across every turn* so that the platform never drifts below its bar between releases. It exists to make verification a property of operation, not a periodic audit.
+
+**Scope.** Operating quality discipline only. It defines no coverage percentage, no numeric quality metric, and no test count target, and it duplicates no gate (§VI-18) or readiness criterion (§VI-23); it operates them continuously.
+
+**Current State.** **PARTIAL — a real, runnable QA substrate.** Standing quality instruments are IMPLEMENTED: the declared test suites in `package.json` — `test:smoke` (Playwright), `test:intelligence` (gateway `*.test.ts`), `test:database` (static migration tests), `test:migration` (migration tests), and `test:features` (feature tests) — plus the migration validation path (`scripts/migration/cli.ts --mode=simulation|reconcile`, `validate-s6.3.ts`), gateway certification (`certification.ts`), and the regression-case guards (`memory/regression_cases.md`). Determinism is structurally protected by the engine layer owning authoritative computation (`src/app/core/`, 30 engines; DNA Art. 6). What is **PARTIAL/UNVERIFIED** is end-to-end quality assurance that depends on a live authoritative runtime (SQL authority, enforced tenancy) not yet cut over (§VI-2, §VI-3); such verification is labelled UNVERIFIED where deployment-limited (§VI-8). No quality capability is invented.
+
+**Approved Future State (operating quality discipline).**
+
+- **Verification every turn.** The relevant test suites run on every turn of the cadence (§VI-32), not periodically. A turn whose verification did not run has not completed.
+- **Quality bar is all-of and continuous.** The readiness criteria (§VI-23) are held *between* releases, not only at them: data authority, tenancy, gateway routing, reversibility, observability, and compatibility are continuously true, not restored at release time.
+- **Determinism is protected.** Authoritative computation stays in the deterministic engine layer (§VI-2, DNA Art. 6); AI narrates and assists but never becomes the authority for a computed result. Quality assurance verifies this boundary holds on every turn.
+- **Regression-first.** Every fixed issue leaves a standing guard (§VI-35); the guard set only grows, so the platform cannot silently regress a resolved failure (`memory/regression_cases.md`, `test:*`).
+- **Deployment-limited verification is labelled, never claimed.** Where verification cannot be completed because the authoritative runtime is not yet live, the result is UNVERIFIED and never reported as RELEASABLE (§VI-8, §VI-31).
+- **Quality is not traded for speed.** No turn skips verification to meet pressure; an increment that cannot be verified is held, not shipped (§VI-23, no partial-credit release).
+
+**Governing rule.** Quality is a *continuous, all-of* property of operation, verified every turn and held between releases — never a periodic audit and never traded for speed. Unverifiable-because-undeployed is labelled UNVERIFIED, not passed.
+
+**Dependencies.** §VI-23 (the readiness bar held continuously); §VI-28 (the validation evidence QA substantiates); §VI-18 (the gates QA operates); §VI-32 (the cadence QA runs within); §VI-35 (the regression guards QA grows); §VI-8 (the deployment-limitation labelling).
+
+**Risks.** The chief risks are quality decaying between releases and deployment-limited results being over-claimed as passed. Continuous all-of verification and mandatory UNVERIFIED labelling foreclose both.
+
+**Traceability.** Part II: DNA Ch 6/18.9/25/30/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-2, §VI-8, §VI-18, §VI-23, §VI-28, §VI-32, §VI-35. Repository: `package.json`, `supabase/functions/server/intelligence/certification.ts`, `.../gateway.test.ts`, `scripts/migration/`, `src/app/core/`, `memory/regression_cases.md`. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-37 — Change Control & Configuration Integrity
+
+**Purpose.** To define how changes to the platform and its configuration are controlled so that the system stays coherent as it changes — the change-control and configuration-integrity discipline.
+
+**Why it exists.** A continuously changing platform can lose coherence not through any single bad change but through the *accumulation* of ungoverned ones: an undocumented schema edit, a config value changed off-workflow, a canonical `main` that drifts from what was reviewed. This section governs *how change is admitted and how configuration stays authoritative*, so that the repository's canonical state is always the reviewed, verified state — never a divergent local or deployment-only one.
+
+**Scope.** Change admission and configuration integrity only. It defines no branching model beyond the mandatory workflow already fixed (§VI-19), no environment matrix, and no secret-management scheme. It re-uses the workflow and migration discipline already established.
+
+**Current State.** **PARTIAL/IMPLEMENTED substrate.** Change control is **IMPLEMENTED as workflow**: the mandatory complete → review → commit → push → open PR → merge → verify-canonical-main path (§VI-19) governs every change; git history and PR review are the change record. Configuration integrity for the data plane is **IMPLEMENTED as versioned migrations**: schema change is expressed only through ordered, timestamped migrations (`supabase/migrations/`, e.g. `20260711050000_cortex_tenancy_foundation.sql` through `20260714060000_cortex_diagnostic_anon_policy_hardening.sql`) with matching `rollbacks/`, applied via `supabase:db-push`; the migration engine tracks applied state (`checkpointStore.ts`). Function deployment is scripted (`supabase:deploy`). Gateway configuration is centralized (`config.ts`, `env.ts`, `modelRegistry.ts`, `providerRegistry.ts`). What is **PARTIAL** is enforced parity between the canonical repository state and the live deployment when the authoritative runtime is not fully cut over (§VI-2, §VI-3). No control capability is invented.
+
+**Approved Future State (change-control and integrity rules).**
+
+- **All change flows through the mandatory workflow.** No change reaches canonical `main` except through review → PR → merge → verify (§VI-19). There is no off-workflow change path, no direct edit to canonical state, and no deployment that was not reviewed.
+- **Schema changes are migrations, always reversible.** Every data-plane change is an ordered migration with a rollback (`supabase/migrations/`, `rollbacks/`), following expand → migrate → contract (§VI-27). No ad-hoc schema mutation is admitted.
+- **Configuration is authoritative in the repository, not in the environment.** Gateway, provider, and model configuration is versioned in the repository (`config.ts`, `providerRegistry.ts`, `modelRegistry.ts`); environment holds secrets and bindings, never authoritative behavior. The repository is the single source of configuration truth.
+- **Canonical `main` is the verified state.** Verification against canonical `main` closes every change (§VI-19); a divergence between canonical `main` and the deployed system is an integrity issue to be reconciled (§VI-35), not tolerated.
+- **No parallel authority through configuration.** Change control enforces the permanent prohibitions (§VI-16): configuration may not introduce a second engine, a parallel data authority, or an AI path around the gateway. Such a change is refused at control, not merged.
+- **Change is traceable to intent.** Every change traces to an approved priority (§VI-15) and, through its commit and PR, to the reasoning that admitted it — so the configuration's *why* is recoverable, not only its *what*.
+
+**Governing rule.** Every change is admitted only through the mandatory workflow, every schema change is a reversible migration, and the repository — not the environment — is the authoritative source of configuration. Canonical `main` is always the reviewed, verified state; divergence is an issue, not a norm.
+
+**Dependencies.** §VI-19 (the mandatory workflow change runs through); §VI-27 (reversible expand/contract for schema); §VI-16 (the prohibitions change control enforces); §VI-35 (reconciliation of any divergence); the migration engine and migrations in the repository.
+
+**Risks.** The dominant risk is configuration drift — off-workflow change, environment-authoritative behavior, or canonical `main` diverging from deployment. Workflow-only admission, migration-only schema change, and repository-authoritative configuration foreclose it.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33/35. Part III: §III-59–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-15, §VI-16, §VI-19, §VI-27, §VI-35. Repository: `supabase/migrations/`, `supabase/migrations/rollbacks/`, `supabase/functions/server/migration/checkpointStore.ts`, `supabase/functions/server/intelligence/config.ts`, `.../providerRegistry.ts`, `.../modelRegistry.ts`, `package.json` (`supabase:deploy`, `supabase:db-push`). Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+---
+
+## VI-38 — Execution Health & Progress Signals
+
+**Purpose.** To define the **signals** by which the health of execution *itself* — not only the running product — is observed, so that the operating loop can be steered on evidence rather than impression.
+
+**Why it exists.** A system can appear busy while making no real progress, or appear healthy while accumulating hidden failure. Phase 6.3's observability criterion (§VI-23) concerns the *product's* operability; this section concerns the *execution's* health — whether the cadence is turning, whether foundations are advancing ahead of surfaces, whether issues are being closed or accumulating. It exists so that steering decisions read from signal, and so honest status (§VI-31) has a defined evidentiary basis.
+
+**Scope.** Execution-health and progress signals only. It defines **no numeric KPI, no dashboard specification, no target value, no scorecard, and no measurement cadence** — it names the *qualitative signals* that indicate execution health and the evidence each is read from.
+
+**Current State.** **PARTIAL — product signals exist; execution-health instrumentation does not.** Product-runtime signals are IMPLEMENTED: gateway `health.ts`, `telemetry.ts`, and `certification.ts` emit intelligence-path health; the migration engine emits progress via `telemetry.ts` and checkpoint state. Execution-*history* signals are IMPLEMENTED as durable evidence: git/PR history (turns of the loop), the test suites' pass/fail (verification health), and the `memory/` record (issue-closure and drift history). What is **NOT IMPLEMENTED** is any *aggregated execution-health instrumentation* — progress dashboards, formal KPIs, department scorecards, a unified health framework — exactly as recorded in §VI-3 and §IV-46–§IV-55 (enterprise instrumentation NOT IMPLEMENTED; Startup maturity shape). The signals below are read today from these primary sources; their aggregation is Approved Future State, not a current capability.
+
+**Approved Future State (qualitative execution-health signals).**
+
+- **Cadence-is-turning.** Evidence that the operating loop advances — reviewed, verified increments reaching canonical `main` (git/PR history, §VI-32) — rather than stalling or churning without progress.
+- **Foundations-lead.** Evidence that foundation and platform capability advances *ahead of* the surfaces that depend on it (the dependency order holding in practice, §VI-13–§VI-14) — a leading indicator that drift is not occurring.
+- **Verification-is-green.** The standing test suites and migration validation passing on each turn (`package.json`, `scripts/migration/`) — the health of the quality discipline (§VI-36).
+- **Issues-are-closing.** Evidence from `memory/` that issues are being converted to guards and closed faster than they accumulate (§VI-35, §VI-39) — the reliability trend.
+- **Drift-is-absent.** No new pattern-violation entries indicating a duplicate engine, parallel authority, or gateway bypass (`memory/pattern_violations.json`, §VI-19) — the anti-drift health signal.
+- **Product-runtime-is-observable.** Live gateway and migration health/telemetry present and readable (`health.ts`, `telemetry.ts`, `certification.ts`) — the operability signal (§VI-23) read as an input to execution health.
+
+**Governing rule.** Execution is steered on *signal, not impression*: every steering or status claim reads from a named evidence source above. Signals are qualitative indicators of health, not numeric targets; the *absence* of aggregated instrumentation is stated honestly (§VI-3) and never papered over with an invented metric.
+
+**Dependencies.** §VI-3 (the honest record that enterprise instrumentation is NOT IMPLEMENTED); §VI-23 (product observability read as an input); §VI-32 (the cadence whose turning is signalled); §VI-35/§VI-39 (the issue-closure and drift signals); §VI-36 (verification health).
+
+**Risks.** The chief risks are steering on impression (declaring progress without evidence) and inventing a metric to imply instrumentation that does not exist. The signal-not-impression rule and the honest statement of absent instrumentation foreclose both.
+
+**Traceability.** Part II: DNA Ch 18.9/23/25/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-3, §VI-13, §VI-14, §VI-23, §VI-32, §VI-35, §VI-36, §VI-39. Repository: `supabase/functions/server/intelligence/health.ts`, `.../telemetry.ts`, `.../certification.ts`, `supabase/functions/server/migration/telemetry.ts`, `memory/pattern_violations.json`, `package.json`.
+
+---
+
+## VI-39 — Continuous Improvement & Drift Correction
+
+**Purpose.** To define how execution **improves itself and corrects its own drift** continuously — the self-correction discipline that closes the operating loop back into the enterprise's institutional memory.
+
+**Why it exists.** Every prior section produces evidence — issues (§VI-35), quality results (§VI-36), health signals (§VI-38); without a discipline that *consumes* that evidence to improve, the enterprise repeats its failures and drifts unnoticed until late. This section is the closing arc of the operating loop: it converts recorded failure and observed drift into standing guards and corrective action, so that reliability compounds and the architecture continuously converges toward the blueprint rather than diverging from it.
+
+**Scope.** The self-improvement and drift-correction discipline only. It defines no retrospective schedule, no improvement metric, and no maturity model. It re-uses the institutional-memory record and the anti-drift controls (§VI-19) already established; it invents no new control.
+
+**Current State.** **IMPLEMENTED as substrate; PARTIAL as institution.** The improvement substrate genuinely exists and is maintained: `memory/failure_library.md` (failures and resolutions), `memory/regression_cases.md` (failures converted to standing guards), and `memory/pattern_violations.json` (recorded drift/anti-pattern instances), together with per-increment review (§VI-19) and the growing regression-test set (`test:*`). Drift correction is **IMPLEMENTED as principle and record**: the permanent prohibitions (§VI-16, §VI-19) and their violation record define what drift is and capture it when found. What is **PARTIAL** is *formal, instituted* continuous-improvement ritual (structured retrospectives, improvement tracking) across a team — again bounded by the single-operator shape (§VI-3). The discipline below formalizes the compounding-reliability practice the `memory/` record already evidences.
+
+**Approved Future State (self-correction discipline).**
+
+- **Every failure becomes a guard.** Institutional memory is not an archive but a *forward* mechanism: each recorded failure yields a regression case or pattern-violation guard that prevents recurrence (`memory/`, `test:*`). The guard set only grows (§VI-35, §VI-36).
+- **Drift is detected continuously and reversed early.** The anti-drift controls (§VI-19) run every turn, not once: any duplicate engine, parallel data authority, or gateway bypass is caught at review, recorded in `pattern_violations.json`, and reversed before it compounds. Drift correction is a standing property, not a cleanup phase (§VI-31).
+- **Improvement is grounded in recorded evidence.** Improvements derive from the failure library, regression cases, and health signals (§VI-38), not from preference — the same evidence-over-impression discipline that governs the rest of the operating model.
+- **Convergence, not just repair.** Correction moves the architecture *toward* the blueprint (fewer surfaces stranded, foundations more authoritative), never merely patching symptoms while structure diverges (§VI-19, §VI-27).
+- **Trust is earned and compounds.** Reliability accrues as guards accumulate and drift stays absent — the operating-side expression of *trust before automation* (§VI-11) and how trust is earned (DNA Ch 26). Autonomy is extended only as this trust is demonstrated (§VI-33, §VI-16).
+- **The loop closes into memory every turn.** Each cadence turn ends by updating institutional memory (§VI-32), so the next turn begins more capable than the last. An operating loop that does not feed memory is incomplete.
+
+**Governing rule.** Execution continuously *consumes its own evidence to improve*: every failure becomes a standing guard, drift is detected and reversed each turn, and correction converges the architecture toward the blueprint. Improvement is evidence-grounded, and the loop is not complete until it has fed institutional memory.
+
+**Dependencies.** §VI-19 (the anti-drift controls this discipline runs continuously); §VI-35 (the issues it converts to guards); §VI-36 (the regression discipline it grows); §VI-38 (the health signals it reads); §VI-32 (the cadence it closes); the Constitution (DNA Ch 26); `memory/`.
+
+**Risks.** The dominant risks are treating memory as a passive archive (recording without guarding) and treating drift correction as a late cleanup rather than a per-turn property. The failure-becomes-guard rule and continuous anti-drift operation foreclose both.
+
+**Traceability.** Part I: `memory/`. Part II: DNA Ch 8.3/17/18/25/26/33/35. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-11, §VI-16, §VI-19, §VI-31, §VI-32, §VI-33, §VI-35, §VI-36, §VI-38. Repository: `memory/failure_library.md`, `memory/regression_cases.md`, `memory/pattern_violations.json`, `package.json` (`test:*`). Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-40 — Phase 6.4 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.4 and record its completion without beginning Phase 6.5 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *execution operating model* is not mistaken for an operations schedule, a staffing plan, or a plan of record, and so Phase 6.5 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.4 only (§VI-31–§VI-40) and its completion record. It defines no new priority, dependency, delivery rule, governance authority, or gate, and it begins no later phase.
+
+**Summary of what Phase 6.4 established.**
+
+- **Operating philosophy (§VI-31).** Operate to the blueprint never around it; cadence over heroics; explicit, singular accountability; foundations-first flow under load; failure surfaced-recorded-learned; self-correction as a standing property; honest operating status.
+- **Operating cadence (§VI-32).** A recurring, interval-free loop — plan-to-priority, build-in-the-open, verify-always, release-under-governance, review-and-record — that advances at readiness, not by clock, with verification and review as non-skippable stages of every turn.
+- **Roles & accountability (§VI-33).** Each operating act mapped to a single *already-defined* authority (gate authorities, Part IV structure, the human floor), honored today by the single operator and distributed additively only as the reserved `ai_worker` workforce is VERIFIED-realized; the human floor non-delegable.
+- **Work intake & flow (§VI-34).** Intake as an admission filter against the LOCKED priority and dependency order — dependency-gated, priority-classed, foundations-first-throttled, whole-increment — with prohibited work refused at admission.
+- **Risk & issue management (§VI-35).** Risk anticipated per increment and contained by reversibility; issues responded to through existing gate/anti-drift paths, always recorded in `memory/`, and closed only when guarded against recurrence.
+- **Quality assurance in operation (§VI-36).** Continuous, all-of verification held between releases, determinism protected in the engine layer, regression-first, with deployment-limited results labelled UNVERIFIED and never traded for speed.
+- **Change control & configuration integrity (§VI-37).** All change through the mandatory workflow, schema change as reversible migration, the repository (not the environment) authoritative for configuration, canonical `main` as the verified state, no parallel authority through config.
+- **Execution health & progress signals (§VI-38).** Qualitative execution-health signals — cadence-turning, foundations-lead, verification-green, issues-closing, drift-absent, product-observable — read from named evidence, with the absence of aggregated instrumentation stated honestly.
+- **Continuous improvement & drift correction (§VI-39).** The self-correcting close of the loop: every failure becomes a standing guard, drift detected and reversed each turn, correction converging the architecture toward the blueprint, trust compounding, the loop feeding institutional memory every turn.
+
+**Current State.** All CURRENT STATE claims in this phase are grounded in the repository verified for Phases 6.2–6.3 and in the LOCKED Parts I–V. The operating substrate is real but informal: the mandatory workflow, per-increment review, the declared test suites (`package.json`), the migration engine and reversible migrations, the gateway health/telemetry/certification, and the institutional-memory record (`memory/`) are IMPLEMENTED and operated at the single-operator (Startup) shape; formalized, staffed, and instrumented operating institutions — a named cadence ritual, a multi-role accountability structure, an intake/flow-metrics system, a formal risk register, aggregated execution-health instrumentation, and structured continuous-improvement ritual — are PARTIAL or NOT IMPLEMENTED, bounded by the single-operator reality and the reserved (`ai_worker`) workforce runtime (§VI-3, §IV-46–§IV-55). This phase describes how execution is *operated*; it implements no operating capability and claims none as realized beyond what the repository evidences. Nothing is invented.
+
+**Approved Future State.** A disciplined execution operating model — a readiness-paced operating cadence, singular accountability mapped to existing authority, dependency-gated intake, reversibility-contained risk with recorded issues, continuous all-of quality, workflow-only change control with repository-authoritative configuration, evidence-read execution-health signals, and a self-correcting improvement loop that compounds trust — operating the delivery model LOCKED in Phase 6.3 and realizing the sequence LOCKED in Phase 6.2 and the direction LOCKED in Part V, without editing any of them.
+
+**Validation of this phase.**
+
+- Phase 6.4 authored.
+- Sections VI-31 through VI-40 present, exactly once, in continuous numbering after §VI-30.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- No priorities, dependencies, delivery model, governance, security, or gates redefined — only operated.
+- Every CURRENT STATE statement grounded in repository evidence; no capability invented.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, budgets, or implementation instructions.
+- Phase 6.5 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.4 sections (§VI-31–§VI-39); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part I: `ARCHITECT.md`, `memory/`, `src/system/manifest.ts`. Part II: DNA Ch 8.3/17/18/25/26/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-30. Repository: `src/app/core/`, `supabase/functions/server/intelligence/`, `supabase/functions/server/repositories/`, `supabase/functions/server/migration/`, `supabase/migrations/`, `scripts/migration/`, `memory/`, `package.json`. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-31–§VI-40; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the grounding of every CURRENT STATE claim in repository evidence; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.4 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.5 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked. The next Part VI phase (6.5) is not begun here.
+
+*End of Phase 6.4. Part VI continues in a later phase.*
