@@ -22,7 +22,7 @@ This Master Blueprint is a single, continuous, permanent document composed of **
 | **Part V** | Phase 5 | Future Vision — the approved long-horizon direction | **LOCKED** |
 | **Part VI** | Phase 6 | Execution Roadmap — the sequenced plan to realize the blueprint | **IN PROGRESS** |
 
-Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phases 6.1–6.3 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
+Parts IV, V, and VI are approved elements of the final architecture. Parts IV and V are authored and LOCKED, and Part VI is authored and IN PROGRESS (Phases 6.1–6.4 complete) — each appended to this same document with continuous numbering. No content is invented ahead of its phase (Golden Rule 5).
 
 **Preservation rule.** Parts I and II are constitutionally approved and are preserved here **by reference**, not by duplication. They are not restated, summarized, or altered in this document. All subsequent Parts cross-reference them (Golden Rules 1 and 8) and never contradict them. Part II (the Constitution) remains the governing authority on identity, philosophy, and governance; this Blueprint is the governing authority on product and architecture beneath it.
 
@@ -1748,7 +1748,7 @@ No component changes are required to switch demo↔live (gateway pattern).
 
 **Part III (Phase 3 — Product Blueprint) is complete: Sections III-1 through III-88 plus Appendix References (§III-88).** It documents the MARQ Cortex product reality-first, separates CURRENT STATE from APPROVED FUTURE STATE throughout, traces every capability to Part II and to the engines/workflows/data/roadmap, and preserves exhaustive detail by reference to the artifacts indexed in §III-88. Nothing in Part III rewrites, summarizes, or contradicts Parts I or II.
 
-**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** and **Part V — Future Vision** are authored and LOCKED, and **Part VI — Execution Roadmap** is authored and IN PROGRESS (Phases 6.1–6.3 complete), each appended below with continuous numbering. All continue the same numbering and formatting conventions, with no restart and no split.
+**Continuity note.** The Master Blueprint remains a single document. **Part IV — AI Company Architecture** and **Part V — Future Vision** are authored and LOCKED, and **Part VI — Execution Roadmap** is authored and IN PROGRESS (Phases 6.1–6.4 complete), each appended below with continuous numbering. All continue the same numbering and formatting conventions, with no restart and no split.
 
 *End of Part III.*
 
@@ -5359,3 +5359,251 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10) and Phase 6.2 (§VI-11–§VI-20) are preserved. Phase 6.3 (§VI-21–§VI-30) is authored and complete but not locked. The next Part VI phase (6.4) is not begun here.
 
 *End of Phase 6.3. Part VI continues in a later phase.*
+
+---
+
+## Phase 6.4 — Operational Readiness & Assurance
+
+**Status:** COMPLETE (Phase 6.4) · Part VI remains IN PROGRESS · **Numbering:** Sections VI-31 through VI-40, continuing the single-document numbering after Phase 6.3 (§VI-21–§VI-30); numbering is never restarted. · **Continuity:** Phase 6.4 appends to the same Master Blueprint. Parts I–V remain LOCKED and are neither modified, restated, nor contradicted here; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved unchanged (Preservation rule; Golden Rules 1 and 8).
+
+**Purpose of this phase.** Phase 6.3 settled *how* a capability increment moves from a verified state into production — the delivery philosophy (§VI-21), the wave model (§VI-22), the release-readiness bar (§VI-23), cross-stream synchronization (§VI-24), the unlock matrix (§VI-25), the release model and categories (§VI-26), the incremental principles (§VI-27), the validation record (§VI-28), and release governance (§VI-29). Phase 6.4 answers the question that begins the moment a capability is released: **how is a released capability operated, observed, assured, recovered, and governed in running production — and how does execution keep what it verified verified?** It converts an approved delivery model into a disciplined *operational readiness and assurance model* — the operational value system, the observability and health signals that make the running system legible, the incident-response and rollback discipline that bounds failure, the continuous assurance that defends against regression, the operational ownership that the AI workforce will assume, the runtime-authority operations that carry the KV→SQL cutover safely, and the operational governance under which all of this is decided.
+
+**What this phase is.** An operational-readiness and assurance architecture — an operational readiness philosophy (§VI-31), the observability and telemetry model (§VI-32), the service-health and diagnosability model (§VI-33), the incident response and recovery model (§VI-34), operational rollback and reversibility (§VI-35), continuous assurance and regression defense (§VI-36), operational ownership and the AI workforce (§VI-37), runtime-authority and migration operations (§VI-38), and operational governance and escalation (§VI-39), closed by a completion record (§VI-40).
+
+**What this phase is not.** Phase 6.4 does **not** redefine priorities, dependencies, delivery, security, the gates, or the release model — those are LOCKED in place by Phases 6.2–6.3 and Parts I–V and are only *applied* here to the running system. It is not a monitoring dashboard specification, an on-call rota, an SLA/SLO number sheet, an incident-ticket backlog, a runbook library, an alerting-threshold table, a staffing schedule, or an implementation task list. It assigns no dates, no numeric thresholds, no owners, no hours, and it writes no code. It describes how a released capability is operated and assured; it does not perform that operation. Phase 6.5 is not begun here, and Part VI is not locked.
+
+**Grounding.** The operational model below is grounded in the same repository verified for Phases 6.1–6.3 — the Intelligence Gateway observability primitives under `supabase/functions/server/intelligence/` (`telemetry.ts`, `health.ts`, `certification.ts`, `gateway.ts`), the migration engine's operational primitives under `supabase/functions/server/migration/` (`telemetry.ts`, `reconciliation.ts`, `rollback.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `orchestrator.ts`, `inventory.ts`), the SQL migrations and their `rollbacks/` under `supabase/migrations/`, the server repository layer under `supabase/functions/server/repositories/`, the test suites declared in `package.json` (`test:intelligence`, `test:database`, `test:migration`, `test:features`, `test:smoke`) and their sources under `tests/`, the assurance memory under `memory/` (`regression_cases.md`, `pattern_violations.json`, `failure_library.md`), the system manifest and map (`src/system/manifest.ts`, `architecture/system_map.json`), and the migration CLI (`scripts/migration/cli.ts`) — together with the LOCKED Parts I–V, the Constitution (`CORTEX_DNA_v1.0.md`), and the operating records `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, and `MARQ_CORTEX_TEST_PROTOCOL.md`. Operational labels (OBSERVABLE / OPAQUE, RECOVERABLE / IRRECOVERABLE, VERIFIED / UNVERIFIED) are used where they add precision. Nothing is invented ahead of its phase (Golden Rule 5).
+
+---
+
+## VI-31 — Operational Readiness Philosophy
+
+**Purpose.** To define the value system by which MARQ Cortex *operates* a released capability — the philosophy of operational readiness — distinct from how it delivers (§VI-21) or releases (§VI-26) that capability.
+
+**Why it exists.** Phases 6.2–6.3 carry a capability up to the point of release; they say nothing about the far larger span of time in which the capability *runs*. Without an operational philosophy, a released capability is treated as finished at merge, its running behavior goes unwatched, and small faults compound into outages at machine speed — the precise failure that *trust before automation* and *operational readiness before scaling* (§VI-11) exist to prevent. This section fixes the operating stance so that "released" is understood as the beginning of an operational obligation, not the end of a delivery one.
+
+**Scope.** The operational value system only. It names no metric, defines no alert, and sets no threshold; those derive from this philosophy in §VI-32 onward.
+
+**Current State.** Operational discipline in the repository is **PARTIAL and localized**. The Intelligence Gateway and the migration engine each carry their own operational primitives — telemetry, health, certification, reconciliation, checkpointing, quarantine, and rollback (`supabase/functions/server/intelligence/`, `supabase/functions/server/migration/`) — and the execution discipline is written down in `MARQ_CORTEX_EXECUTION_RULES.md` and `MARQ_CORTEX_TEST_PROTOCOL.md`. There is **no consolidated, system-wide operational-readiness model** binding these primitives into one operating posture, and no autonomous operator; operation today is manual and subsystem-scoped. Nothing beyond these repository facts is claimed.
+
+**Approved Future State.** A single operational stance that governs every released capability: **operate what you ship** (no capability is released without an owner accountable for its running behavior), **observe before you automate** (a capability that cannot be observed is not operated autonomously), **bound the blast radius** (every operation is reversible and quarantinable), and **assurance is continuous, not terminal** (a VERIFIED capability is re-verified as it runs, never assumed to stay correct). These principles are permanent; they are subordinate to the constitutional identity and success test (DNA Ch 8.3, Ch 33) and are realized additively, without rebuild.
+
+**Dependencies.** §VI-11 (the value system operation extends); §VI-23 (the observability and reversibility readiness bar operation sustains); §VI-27 (the reversibility operation depends on); §VI-29 (the release governance operation continues); the LOCKED Constitution (DNA Ch 17/18/25/26/33).
+
+**Risks.** If operation reverts to "released means finished," running behavior goes unwatched, regressions accumulate unseen, and automation is layered over an unobserved substrate — multiplying error at machine speed. The observability model (§VI-32) and continuous assurance (§VI-36) hold this stance.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/26/33. Part III: §III-84–§III-88. Part IV: §IV-35–§IV-55. Part VI: §VI-11, §VI-23, §VI-27, §VI-29. Repository: `supabase/functions/server/intelligence/`, `supabase/functions/server/migration/`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`.
+
+---
+
+## VI-32 — Observability & Telemetry Model
+
+**Purpose.** To define, qualitatively, the signals a released capability must emit to be legible in production — telemetry, health, and certification state — and how the existing primitives compose into one observability posture.
+
+**Why it exists.** Operation is impossible over a system that cannot be seen. A capability that runs without emitting signal cannot be diagnosed, cannot be assured, and cannot be safely automated. This section fixes *what must be observable* so that the observability criterion of the release-readiness bar (§VI-23) is met by construction rather than retrofitted after an incident.
+
+**Scope.** The observability value model only — the classes of signal and their purpose. It specifies no dashboard, no metric name, no retention window, and no alerting threshold.
+
+**Current State.** Observability is **PARTIAL** and subsystem-scoped. The Intelligence Gateway emits telemetry and exposes health and certification state (`supabase/functions/server/intelligence/telemetry.ts`, `health.ts`, `certification.ts`); the migration engine emits its own telemetry and records reconciliation and inventory state (`supabase/functions/server/migration/telemetry.ts`, `reconciliation.ts`, `inventory.ts`); the system manifest and map describe the intended surface (`src/system/manifest.ts`, `architecture/system_map.json`). There is **no unified enterprise observability surface** aggregating these signals across subsystems, and no instrumented analytics product (consistent with §VI-2, §VI-3, where enterprise instrumentation is NOT IMPLEMENTED). Only the per-subsystem primitives above exist today.
+
+**Approved Future State.** A composed observability posture in which every released capability emits three signal classes — **liveness/health** (is it running and reachable), **behavioral telemetry** (what it is doing, at what volume, with what outcomes), and **certification/trust state** (is it operating within its verified envelope) — routed through the existing gateway and migration primitives and, for AI paths, always through the Intelligence Gateway with no direct-provider bypass (§VI-19). The enterprise observability surface that aggregates these is delivered by the Operations Wave (§VI-22), subordinate to the constitution and added without rebuild. No capability is represented here as already aggregated.
+
+**Dependencies.** §VI-23 (the observability readiness criterion this model satisfies); §VI-22 (the Operations Wave that delivers the aggregate surface); §VI-33 (the health/diagnosability model this feeds); §VI-19 (the gateway-routing invariant observability must honor); the intelligence and migration telemetry primitives.
+
+**Risks.** The dominant risk is *observability theatre* — emitting signal that is never aggregated or acted upon, giving false confidence. §VI-33 (diagnosability) and §VI-36 (assurance) require that emitted signal be usable, not merely present.
+
+**Traceability.** Part I: `architecture/system_map.json`, `src/system/manifest.ts`. Part II: DNA Ch 18/25/30/33. Part III: §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-19, §VI-22, §VI-23, §VI-33. Repository: `supabase/functions/server/intelligence/telemetry.ts`, `supabase/functions/server/intelligence/health.ts`, `supabase/functions/server/intelligence/certification.ts`, `supabase/functions/server/migration/telemetry.ts`.
+
+---
+
+## VI-33 — Service Health & Diagnosability
+
+**Purpose.** To define what it means for a released capability to be **diagnosable** — that its health can be determined and a fault localized — distinct from merely emitting telemetry (§VI-32).
+
+**Why it exists.** Signal that cannot be interpreted is not diagnosability. Between "the capability emits telemetry" and "an operator can determine, from that telemetry, whether the capability is healthy and where a fault lies" sits the entire operability problem. This section fixes the diagnosability bar so that operation is a judgment against determinable health, not against guesswork.
+
+**Scope.** The health and diagnosability model only. It defines no health-check endpoint contract, no probe interval, and no numeric health score.
+
+**Current State.** Health determination is **PARTIAL**. The Intelligence Gateway exposes a health primitive (`supabase/functions/server/intelligence/health.ts`) and a certification path (`certification.ts`); the system map and manifest describe subsystem responsibilities (`architecture/system_map.json`, `src/system/manifest.ts`); the migration engine records reconciliation state that localizes data-fidelity faults (`supabase/functions/server/migration/reconciliation.ts`). There is **no single system-health view** and no cross-subsystem fault-localization surface. Only the per-subsystem health and reconciliation primitives exist today.
+
+**Approved Future State.** A diagnosability model in which every released capability answers three questions from its emitted signal — **is it healthy** (liveness plus certification/trust state), **is it behaving within its verified envelope** (telemetry compared against the verified baseline), and **where is a fault localized** (which subsystem/contract boundary owns the failure) — with health composed upward from the existing gateway, repository, and migration primitives into the enterprise operability surface delivered by the Operations Wave (§VI-22). Diagnosability is a precondition for autonomous operation (§VI-37): a capability that cannot be diagnosed is operated conservatively, never automated. Nothing here is claimed as already composed.
+
+**Dependencies.** §VI-32 (the signals diagnosability interprets); §VI-22 (the Operations Wave delivering the aggregate health view); §VI-34 (incident response, which consumes diagnosability); §VI-37 (autonomous operation, gated on diagnosability); the gateway health and migration reconciliation primitives.
+
+**Risks.** The chief risk is *undiagnosable health* — a green liveness check over a capability that is silently producing wrong results. §VI-36 (continuous assurance) defends correctness beyond liveness; certification state (§VI-32) is required alongside liveness, never in place of it.
+
+**Traceability.** Part I: `architecture/system_map.json`, `src/system/manifest.ts`. Part II: DNA Ch 18/25/33. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-22, §VI-32, §VI-34, §VI-37. Repository: `supabase/functions/server/intelligence/health.ts`, `supabase/functions/server/intelligence/certification.ts`, `supabase/functions/server/migration/reconciliation.ts`.
+
+---
+
+## VI-34 — Incident Response & Recovery Model
+
+**Purpose.** To define, qualitatively, how a fault in a released capability is detected, contained, recovered, and learned from — the incident lifecycle — without prescribing a runbook, a rota, or a response-time number.
+
+**Why it exists.** Faults are inevitable in a running system; the difference between a bounded incident and an outage is whether a disciplined response model exists before the fault occurs. This section fixes that model so that recovery is a rehearsed discipline drawing on existing containment primitives, not an improvisation under pressure.
+
+**Scope.** The incident lifecycle as a value model — detect, contain, recover, learn. It defines no severity matrix, no escalation timer, no on-call schedule, and no ticket workflow.
+
+**Current State.** A formal incident-response model is **NOT IMPLEMENTED**. Containment and recovery *primitives* exist within the migration engine — quarantine of bad records (`supabase/functions/server/migration/quarantineStore.ts`), reconciliation to detect divergence (`reconciliation.ts`), checkpointing for resumable recovery (`checkpointStore.ts`), and rollback (`rollback.ts`) — and a learning substrate exists under `memory/` (`failure_library.md`, `regression_cases.md`). There is **no documented incident lifecycle, no severity model, and no escalation path** binding these into a response discipline. Only the containment primitives and the memory substrate exist today.
+
+**Approved Future State.** An incident lifecycle in four stages, each mapped to existing primitives and to the constitutional authority model: **detect** (from the health and telemetry signals of §VI-32–§VI-33), **contain** (bound blast radius via quarantine and by halting the affected capability, never by ad-hoc production edits), **recover** (via rollback/checkpoint reversibility, §VI-35, restoring a VERIFIED state rather than patching forward), and **learn** (record the failure and its regression case in `memory/` so §VI-36 defends against recurrence). Escalation follows the existing Human–AI Authority Doctrine (§VI-39, DNA Ch 18); no new authority is created. This model is realized additively; no stage is represented as automated today.
+
+**Dependencies.** §VI-32/§VI-33 (detection signals); §VI-35 (the reversibility recovery depends on); §VI-36 (the assurance loop that consumes the learning stage); §VI-39 (the escalation authority); the migration quarantine/reconciliation/checkpoint primitives and the `memory/` substrate.
+
+**Risks.** The primary risk is *recover-forward-under-pressure* — patching a fault in place instead of restoring a verified state — which forks the architecture and defeats reversibility (§VI-19, §VI-27). The model's insistence on recover-to-VERIFIED, and the containment-before-fix ordering, hold the line.
+
+**Traceability.** Part II: DNA Ch 17/18/25/30/33. Part III: §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-32, §VI-33, §VI-35, §VI-36, §VI-39. Repository: `supabase/functions/server/migration/quarantineStore.ts`, `supabase/functions/server/migration/reconciliation.ts`, `supabase/functions/server/migration/checkpointStore.ts`, `memory/failure_library.md`, `memory/regression_cases.md`.
+
+---
+
+## VI-35 — Operational Rollback & Reversibility
+
+**Purpose.** To define reversibility as a *running-system* property — the ability to withdraw a released capability or restore a prior verified state in production — extending the delivery-time reversibility of §VI-27 into operation.
+
+**Why it exists.** Reversibility that exists only at delivery time is insufficient; the moment that matters most is a live incident, when a capability must be withdrawn without stranding data or consumers. This section fixes operational reversibility so that recovery (§VI-34) has a concrete, repository-grounded mechanism to invoke.
+
+**Scope.** Operational reversibility and rollback only. It defines no rollback-time budget, no automation schedule, and no cutover date.
+
+**Current State.** Reversibility is **IMPLEMENTED for the migration engine and PARTIAL system-wide.** The migration engine provides an explicit rollback path and resumable checkpoints (`supabase/functions/server/migration/rollback.ts`, `checkpointStore.ts`), the SQL migrations follow an expand/contract discipline and ship paired rollbacks (`supabase/migrations/` with a `rollbacks/` directory), and reconciliation verifies that a restored state matches the source of truth (`reconciliation.ts`). Reversibility for capabilities **outside the migration and schema domains is not yet generalized**; there is no system-wide rollback orchestrator. Only these migration- and schema-scoped mechanisms exist today.
+
+**Approved Future State.** Reversibility as a universal operational property: every released capability is withdrawable to a prior VERIFIED state through mechanisms modeled on the migration engine's rollback/checkpoint/reconcile discipline and the schema expand/contract pattern, with no operation depending on an irreversible cutover (§VI-27). Restoration is always to a *verified* state and is *reconciled* (proven equivalent to the source of truth) before the capability is returned to service. Generalization beyond the migration/schema domains is delivered additively by the Operations Wave (§VI-22); no such generalization is claimed as present.
+
+**Dependencies.** §VI-27 (delivery-time reversibility this extends); §VI-34 (incident recovery that invokes rollback); §VI-38 (the runtime-authority cutover whose reversibility this governs); §VI-22 (the Operations Wave that generalizes rollback); the migration rollback/checkpoint/reconcile primitives and the schema `rollbacks/`.
+
+**Risks.** The dominant risk is an *irreversible operation* reaching production — an unpaired schema change or a forward-only cutover — which converts any fault into an outage. The expand/contract discipline, paired rollbacks, and the release-readiness reversibility criterion (§VI-23) refuse exactly this.
+
+**Traceability.** Part II: DNA Ch 18.9/25/33. Part III: §III-56–§III-65, §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-22, §VI-23, §VI-27, §VI-34, §VI-38. Repository: `supabase/functions/server/migration/rollback.ts`, `supabase/functions/server/migration/checkpointStore.ts`, `supabase/functions/server/migration/reconciliation.ts`, `supabase/migrations/`.
+
+---
+
+## VI-36 — Continuous Assurance & Regression Defense
+
+**Purpose.** To define how a VERIFIED capability is kept verified as it runs — the continuous assurance loop that defends against regression — distinct from the pre-release validation record of §VI-28.
+
+**Why it exists.** Validation (§VI-28) proves a capability correct *at the moment of release*; it says nothing about whether the capability stays correct as the platform evolves around it. Without continuous assurance, every later increment risks silently regressing an earlier verified capability, and the "VERIFIED" label decays into a historical claim. This section fixes the standing loop that keeps verification current.
+
+**Scope.** The continuous-assurance value model only — the loop and the evidence it draws on. It defines no coverage percentage, no CI cadence, and no test-count target.
+
+**Current State.** Assurance infrastructure is **PARTIAL**. The repository declares scoped test suites — `test:intelligence`, `test:database`, `test:migration`, `test:features`, and `test:smoke` in `package.json`, with sources under `tests/` (database RLS/tenancy tests, migration tests, feature tests, and a smoke spec) and gateway tests under `supabase/functions/server/intelligence/`. A regression-defense substrate exists under `memory/` — `regression_cases.md`, `pattern_violations.json`, and `failure_library.md` — and a validation script exists for the migration milestone (`scripts/migration/validate-s6.3.ts`). There is **no asserted continuous-assurance automation** binding these suites into a standing regression gate across every increment; the suites exist and are invoked as declared. Only these repository facts are claimed.
+
+**Approved Future State.** A continuous assurance loop in which every increment (§VI-21) must, before and after release, demonstrate that no previously VERIFIED capability has regressed — drawing on the existing suites (`test:*`), the RLS/tenancy database tests, the gateway and migration tests, and the `memory/` regression and failure records — with each new incident's learning (§VI-34) converted into a durable regression case so the same failure cannot recur unseen. This loop is the operational continuation of the anti-drift controls (§VI-19) and the validation record (§VI-28); it is realized additively and claims no automation not present in the repository.
+
+**Dependencies.** §VI-28 (the pre-release validation this sustains); §VI-19 (the anti-drift controls this operationalizes); §VI-34 (the incident learning that feeds regression cases); §VI-23 (the readiness bar assurance keeps satisfied); the `test:*` suites, `tests/`, and the `memory/` substrate.
+
+**Risks.** The central risk is *stale verification* — treating a once-VERIFIED capability as permanently correct while later increments erode it. The loop's insistence on re-verification per increment, and the conversion of every incident into a regression case, defend against this.
+
+**Traceability.** Part II: DNA Ch 18/25/30/33/35. Part III: §III-75, §III-84–§III-88. Part IV: §IV-46–§IV-55. Part VI: §VI-19, §VI-23, §VI-28, §VI-34. Roadmap: `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_EXECUTION_RULES.md`. Repository: `package.json` (`test:*`), `tests/`, `memory/regression_cases.md`, `memory/pattern_violations.json`, `memory/failure_library.md`, `scripts/migration/validate-s6.3.ts`.
+
+---
+
+## VI-37 — Operational Ownership & the AI Workforce
+
+**Purpose.** To define who is accountable for operating a released capability — the operational ownership model — and how that ownership is progressively assumed by the AI workforce architected in Part IV.
+
+**Why it exists.** Operate-what-you-ship (§VI-31) requires a named operator for every released capability; a capability without an owner is unoperated by default. Part IV (LOCKED) architects an AI workforce that will eventually hold operational ownership, but that workforce does not yet run. This section fixes the ownership model and the conservative path by which autonomy is earned, honoring *authority before autonomy* (§VI-11, §VI-16).
+
+**Scope.** The operational ownership model only. It defines no org chart, no headcount, no role assignment, and no automation date.
+
+**Current State.** Operational ownership is **human and manual today; the AI workforce runtime is NOT IMPLEMENTED.** The AI workforce is fully architected in the LOCKED Part IV (§IV-23–§IV-55) and the reserved `ai_worker` identity is recorded in the roadmap and blueprint, but no `ai_worker` runtime executes operational responsibility (consistent with §VI-2, §VI-3, where the AI workforce runtime is NOT IMPLEMENTED). The deterministic engines under `src/app/core/` and the server subsystems are operated by human execution discipline (`MARQ_CORTEX_EXECUTION_RULES.md`). Only human operational ownership exists today.
+
+**Approved Future State.** A progressive ownership model: every released capability has an accountable operator; ownership begins human and is transferred to AI-workforce roles (Part IV) **only after** the capability is diagnosable (§VI-33), reversible (§VI-35), and continuously assured (§VI-36), and **only within** the Human–AI Authority Doctrine (DNA Ch 18) — autonomy is earned per capability against verified operability, never granted wholesale. The `ai_worker` runtime that assumes this ownership is delivered by the Workforce Wave (§VI-22), subordinate to verified data authority, tenancy, and gateway governance. No autonomous operational ownership is represented as existing.
+
+**Dependencies.** §VI-11/§VI-16 (authority before autonomy); §VI-33 (diagnosability, a precondition for autonomy); §VI-35 (reversibility); §VI-36 (continuous assurance); §VI-22 (the Workforce Wave); Part IV (LOCKED) as the workforce architecture; the Constitution (DNA Ch 18).
+
+**Risks.** The dominant risk is *premature autonomy* — granting the workforce operational control over a capability that is not yet diagnosable or reversible — multiplying error at machine speed (§VI-16). The per-capability, operability-gated transfer refuses this.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/33. Part III: §III-42–§III-44, §III-84–§III-88. Part IV: §IV-1–§IV-12, §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-11, §VI-16, §VI-22, §VI-33, §VI-35, §VI-36. Repository: `src/app/core/`, `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+---
+
+## VI-38 — Runtime Authority & Migration Operations
+
+**Purpose.** To define how the live runtime-authority transition — the KV→SQL cutover recorded in the roadmap — is *operated* safely, applying the operational primitives of this phase to the single most consequential operation in flight.
+
+**Why it exists.** The most sensitive operation Cortex currently performs is moving the authoritative data plane from KV to SQL while the system runs. This is not a hypothetical future operation; the roadmap records it as in progress. This section applies the observability, reversibility, and assurance discipline of §VI-32–§VI-36 to that specific operation so it proceeds without stranding data or consumers.
+
+**Scope.** The operational conduct of the runtime-authority transition only. It sequences nothing new, sets no cutover date, and re-opens no priority fixed in Phase 6.2.
+
+**Current State.** The runtime-authority transition is **PARTIAL and in progress.** `MARQ_CORTEX_ROADMAP.md` records the current Storage Authority as **KV**, SQL authority as not yet granted, and the active work as shadow-read validation (Phase 4 — Runtime Storage Gateway, sprints S7.4–S7.8) ahead of SQL cutover (Phase 5 — S8.1–S8.3). The operational machinery exists: the migration engine (`supabase/functions/server/migration/` — `orchestrator.ts`, `kvReader.ts`, `normalizer.ts`, `reconciliation.ts`, `checkpointStore.ts`, `quarantineStore.ts`, `rollback.ts`), the migration CLI (`scripts/migration/cli.ts` with `inventory`/`simulate`/`backfill`/`reconcile`/`pipeline` modes), the server repositories (`supabase/functions/server/repositories/`), and the SQL migrations with rollbacks. SQL is **not yet the authority**; no cutover is represented as complete.
+
+**Approved Future State.** The runtime-authority transition operated by the discipline of this phase: **shadow-read before authority** (SQL is read alongside KV and reconciled to prove equivalence before it is trusted, §VI-32/§VI-36), **reconcile before cutover** (no authority flip without a passing reconciliation, §VI-35), **reversible at every step** (each stage withdrawable via rollback/checkpoint to KV authority, §VI-35), and **observable throughout** (migration telemetry and reconciliation state visible during the transition, §VI-32) — realizing the sequence LOCKED in Phase 6.2 and the roadmap without editing either. The transition remains subordinate to the constitution and the data-sovereignty doctrine; nothing here advances the cutover or claims SQL authority.
+
+**Dependencies.** §VI-32 (observability of the transition); §VI-35 (reversibility of each step); §VI-36 (reconciliation-based assurance); §VI-15 (data authority as the immediate priority this operates); Phase 6.2 sequencing (unchanged); `MARQ_CORTEX_ROADMAP.md` as the runtime-authority record; the migration engine and CLI.
+
+**Risks.** The dominant risk is a *premature authority flip* — trusting SQL before reconciliation proves equivalence — which corrupts the source of truth. Shadow-read-then-reconcile-then-reversible-cutover, and the roadmap's own gating, refuse this.
+
+**Traceability.** Part II: DNA Ch 8.3/18/25/33. Part III: §III-56–§III-65, §III-84–§III-88. Part IV: §IV-23–§IV-34. Part VI: §VI-15, §VI-32, §VI-35, §VI-36. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`. Repository: `supabase/functions/server/migration/`, `scripts/migration/cli.ts`, `supabase/functions/server/repositories/`, `supabase/migrations/`.
+
+---
+
+## VI-39 — Operational Governance & Escalation
+
+**Purpose.** To define the authority under which operational decisions — to release, to roll back, to escalate, to grant operational autonomy — are made, by *applying* the existing constitutional governance rather than creating any new operational authority.
+
+**Why it exists.** Operation generates decisions under pressure — whether to withdraw a capability, when to escalate to a human, who may authorize an autonomous operator. Without a settled authority model, those decisions drift to whoever is present, which is exactly the governance failure the Constitution exists to prevent. This section fixes operational decisions to the existing authority so operation inherits governance rather than improvising it.
+
+**Scope.** The application of existing governance to operations only. It creates no new role, no new committee, no new approval gate, and no escalation timer.
+
+**Current State.** Operational governance rests on **existing, IMPLEMENTED constitutional records; no operations-specific authority exists or is needed.** The Human–AI Authority Doctrine and the governance chapters are LOCKED in the Constitution (`CORTEX_DNA_v1.0.md`), the execution and change-logging discipline is recorded in `MARQ_CORTEX_EXECUTION_RULES.md`, and the mandatory eight-step workflow with its anti-drift invariants is fixed in §VI-19. There is **no separate operational governance body**, and none is introduced. Only the existing constitutional and execution authority applies today.
+
+**Approved Future State.** Operational decisions bound to existing authority: **release and rollback** decisions made by the authority already competent for the capability's class (§VI-29, unchanged), **escalation** following the Human–AI Authority Doctrine (DNA Ch 18) — a human decides where the doctrine reserves human judgment, and every autonomous operation stays within its granted envelope — and **every operational change logged and attributed** under the change discipline (DNA Ch 30), through the mandatory workflow (§VI-19). Tension with a LOCKED decision is resolved only through the amendment process (DNA Ch 35), never through an operational choice. No new authority is created; existing authority is applied.
+
+**Dependencies.** §VI-29 (release governance this continues into operation); §VI-19 (the mandatory workflow and invariants); §VI-37 (the autonomy grants this governs); the Constitution (DNA Ch 18/30/35); `MARQ_CORTEX_EXECUTION_RULES.md`.
+
+**Risks.** The central risk is *governance invention under pressure* — creating an ad-hoc operational authority during an incident. Binding every operational decision to existing constitutional authority, and routing genuine tension through amendment, forecloses this.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/30/33/35. Part III: §III-84–§III-88. Part IV: §IV-35–§IV-45. Part VI: §VI-19, §VI-29, §VI-37. Roadmap: `MARQ_CORTEX_EXECUTION_RULES.md`. Repository: `CORTEX_DNA_v1.0.md`.
+
+---
+
+## VI-40 — Phase 6.4 Summary & Completion Record
+
+**Purpose.** To summarize Phase 6.4 and record its completion without beginning Phase 6.5 or locking Part VI.
+
+**Why it exists.** A phased document needs an explicit boundary so the *operational readiness and assurance model* is not mistaken for a monitoring specification or a plan of record, and so Phase 6.5 begins from a settled, merged foundation.
+
+**Scope.** A summary of Phase 6.4 only (§VI-31–§VI-40) and its completion record. It defines no new priority, dependency, delivery rule, release category, or gate, and it begins no later phase.
+
+**Summary of what Phase 6.4 established.**
+
+- **Operational readiness philosophy (§VI-31).** Operate-what-you-ship, observe-before-you-automate, bound-the-blast-radius, and assurance-is-continuous — release is the start of an operational obligation, not the end of a delivery one.
+- **Observability & telemetry (§VI-32).** Three signal classes — liveness/health, behavioral telemetry, and certification/trust state — composed from existing gateway and migration primitives, with the aggregate surface deferred to the Operations Wave.
+- **Service health & diagnosability (§VI-33).** Diagnosability as determinable health plus fault localization — a precondition for autonomous operation, composed upward from existing health, certification, and reconciliation primitives.
+- **Incident response & recovery (§VI-34).** A detect–contain–recover–learn lifecycle mapped to existing quarantine, reconciliation, checkpoint, rollback, and `memory/` primitives, recovering to a VERIFIED state rather than patching forward.
+- **Operational rollback & reversibility (§VI-35).** Reversibility as a running-system property — withdraw to a prior VERIFIED, reconciled state — IMPLEMENTED for the migration/schema domains and generalized additively by the Operations Wave.
+- **Continuous assurance & regression defense (§VI-36).** A standing loop that keeps VERIFIED verified across every increment, drawing on the `test:*` suites, the RLS/tenancy tests, and the `memory/` regression and failure records.
+- **Operational ownership & the AI workforce (§VI-37).** A progressive ownership model — human today, transferred to `ai_worker` roles only after diagnosability, reversibility, and assurance are proven and within the Human–AI Authority Doctrine.
+- **Runtime authority & migration operations (§VI-38).** The live KV→SQL transition operated by shadow-read-then-reconcile-then-reversible-cutover, observable throughout, advancing nothing and claiming no SQL authority.
+- **Operational governance & escalation (§VI-39).** Existing constitutional authority *applied* to operations — release/rollback, escalation under the Human–AI Authority Doctrine, and logged/attributed change through the mandatory workflow — no new authority created.
+
+**Current State.** All CURRENT STATE claims in this phase are grounded in the repository verified for Phases 6.1–6.3 and in the LOCKED Parts I–V: observability, health, diagnosability, and continuous-assurance infrastructure are PARTIAL (subsystem-scoped primitives without an aggregate enterprise surface); operational reversibility is IMPLEMENTED for the migration/schema domains and PARTIAL system-wide; the runtime-authority transition is PARTIAL and in progress with KV still authoritative; a formal incident-response model is NOT IMPLEMENTED; the AI workforce runtime that would assume operational ownership is NOT IMPLEMENTED; and operational governance rests on existing IMPLEMENTED constitutional authority. This phase describes how released capabilities are *operated and assured*; it implements none of them and claims no capability as autonomously operated. Nothing is invented.
+
+**Approved Future State.** An operational readiness and assurance model — released capabilities operated under a single value system, made legible by composed observability and diagnosability, defended by an incident lifecycle that recovers to verified state, kept reversible and continuously re-verified, owned progressively by an autonomy-earned AI workforce, carrying the runtime-authority transition safely, all under existing constitutional authority — realizing the delivery model LOCKED in Phase 6.3 and the direction LOCKED in Part V without editing either.
+
+**Validation of this phase.**
+
+- Phase 6.4 authored.
+- Sections VI-31 through VI-40 present, exactly once, in continuous numbering after §VI-30.
+- No previously LOCKED Part (I–V) modified.
+- Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) preserved unchanged.
+- No priorities, dependencies, delivery rules, release categories, governance, security, or gates redefined — only applied to the running system.
+- No dates, milestones, sprints, story points, engineering estimates, staffing, tickets, numeric thresholds, or implementation instructions.
+- Phase 6.5 not begun; Part VI not locked.
+
+**Dependencies.** All Phase 6.4 sections (§VI-31–§VI-39); Phase 6.3 (§VI-21–§VI-30), Phase 6.2 (§VI-11–§VI-20), and Phase 6.1 (§VI-1–§VI-10); Parts I–V (LOCKED) and the Constitution.
+
+**Traceability.** Part II: DNA Ch 8.3/17/18/25/26/30/33/35. Part III: §III-15–§III-88. Part IV: §IV-23–§IV-55. Part V: §V-1–§V-30. Part VI: §VI-1–§VI-39. Roadmap: `MARQ_CORTEX_ROADMAP.md`, `MARQ_CORTEX_EXECUTION_RULES.md`, `MARQ_CORTEX_TEST_PROTOCOL.md`, `MARQ_CORTEX_DOCUMENTATION_RULES.md`.
+
+**Completion Evidence.** This record; the presence of §VI-31–§VI-40; the unchanged Phase 6.1, Phase 6.2, Phase 6.3, and Parts I–V; the absence of any dates, tasks, assignments, numeric KPIs, or implementation instructions.
+
+---
+
+**Phase 6.4 Status: COMPLETE**
+
+**Part VI remains: IN PROGRESS**
+
+**Phase 6.5 has not begun.**
+
+**Continuity note.** The Master Blueprint remains a single, continuous document. Parts I–V remain LOCKED and unchanged; Phase 6.1 (§VI-1–§VI-10), Phase 6.2 (§VI-11–§VI-20), and Phase 6.3 (§VI-21–§VI-30) are preserved. Phase 6.4 (§VI-31–§VI-40) is authored and complete but not locked. The next Part VI phase (6.5) is not begun here.
+
+*End of Phase 6.4. Part VI continues in a later phase.*
