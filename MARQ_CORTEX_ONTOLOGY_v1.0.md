@@ -466,19 +466,19 @@ Attributes enable entities to express their state, properties, and descriptive i
 
 **Examples**
 
-User
+**User**
 
 - Name
 - Email
 - Status
 
-Project
+**Project**
 
 - Budget
 - Priority
 - Deadline
 
-AI Agent
+**AI Agent**
 
 - Capability
 - Version
@@ -496,7 +496,7 @@ Relationships explain how entities interact, depend upon, own, influence, or col
 
 Relationships transform isolated entities into an interconnected knowledge model capable of supporting reasoning, navigation, analytics, and artificial intelligence.
 
-Common Relationship Types
+**Common Relationship Types**
 
 - Owns
 - Contains
@@ -597,21 +597,21 @@ State describes the entity's status without changing its identity.
 
 **Examples**
 
-Project
+**Project**
 
 - Planned
 - Active
 - Completed
 - Archived
 
-Task
+**Task**
 
 - Pending
 - In Progress
 - Blocked
 - Complete
 
-AI Agent
+**AI Agent**
 
 - Idle
 - Running
@@ -1040,7 +1040,7 @@ A Profile is the descriptive representation of an Identity.
 
 Profiles contain information that describes the identity without defining its semantic uniqueness.
 
-Typical Information
+**Typical Information**
 
 - Name
 - Contact Information
@@ -1595,7 +1595,7 @@ A Memory is a persistent representation of knowledge retained for future retriev
 
 Within Cortex, memory captures relevant context, historical interactions, learned knowledge, organizational experience, and AI reasoning history to enable continuity across time.
 
-Types of Memory
+**Types of Memory**
 
 - Personal Memory
 - Organizational Memory
@@ -2015,7 +2015,7 @@ AI Collaboration represents the coordinated interaction between AI Agents, human
 
 Collaboration recognizes AI as a participant within enterprise operations rather than an isolated computational service.
 
-Collaboration Types
+**Collaboration Types**
 
 - Human ↔ AI
 - AI ↔ AI
@@ -2062,9 +2062,8 @@ The AI Lifecycle defines the governed progression of AI capabilities from concep
 
 **Typical Lifecycle**
 
-**Concept**
-
 ```text
+Concept
 ↓
 Design
 ↓
@@ -2711,15 +2710,1020 @@ This technology-independent semantic model ensures that every decision, capabili
 
 ## Chapter 18 — Experience & Business Entities
 
-> **Editorial note (v1.0 assembly):** In the source material, canonical sections **18.1 through 18.14** of this chapter were not present. Only the closing fragment of the final lifecycle flow, section **18.15 Business Ecosystem**, and the chapter Summary survived. The surviving content is reproduced below verbatim; no definitions have been invented. Sections 18.1–18.14 are **pending** and must be supplied before this chapter is considered complete.
+### 18.1 Product
+
+**Definition**
+
+A Product is a structured offering created by an organization to deliver measurable value to one or more customer segments through capabilities, services, features, or experiences. A product exists as a business entity independent of its implementation and represents the primary vehicle through which value is exchanged.
+
+**Purpose**
+
+The Product entity provides the semantic foundation for modeling commercial offerings, digital platforms, physical goods, subscriptions, AI systems, and composite solutions within the MARQ Cortex Ontology.
+
+**Core Characteristics**
+
+- Represents a complete value offering.
+- Exists independently of technology implementation.
+- May consist of multiple services and features.
+- Has a defined lifecycle.
+- Targets one or more customer segments.
+- Produces measurable business outcomes.
+
+**Relationships**
+
+A Product:
+
+- contains one or more Features.
+- may expose one or more Business Services.
+- serves one or more Customer segments.
+- is used by one or more Users.
+- generates Experiences.
+- delivers Value.
+- supports Business Objectives.
+- exists within a Business Model.
+- participates in a Business Ecosystem.
+
+**Constraints**
+
+- Every Product shall have a defined owner.
+- A Product shall have a unique semantic identity.
+- A Product shall be associated with at least one Value proposition.
+- A Product shall not directly represent technical components such as APIs or databases.
+
+**Examples**
+
+- Solace AI Companion
+- MARQ Cortex
+- Microsoft 365
+- Stripe Billing
+
+**Semantic Rules**
+
+A Product represents what is offered, not how it is implemented.
+
+### 18.2 Business Service
+
+**Definition**
+
+A Business Service is a reusable organizational capability delivered to internal or external consumers that fulfills a specific business function independent of implementation technology.
+
+**Purpose**
+
+The Business Service entity models the operational functions that enable Products to deliver value while separating business intent from technical execution.
+
+**Core Characteristics**
+
+- Encapsulates a business capability.
+- Produces defined business outcomes.
+- Can be reused across multiple Products.
+- May be delivered internally or externally.
+- Operates through defined processes and policies.
+
+**Relationships**
+
+A Business Service:
+
+- supports one or more Products.
+- is enabled by Business Capabilities.
+- may expose multiple Features.
+- participates in Business Processes.
+- creates Customer Value.
+- contributes to Outcomes.
+- may interact with external Organizations.
+
+**Constraints**
+
+- A Business Service shall perform a clearly defined business function.
+- A Business Service shall not represent a software component.
+- Services may be composed of other services.
+
+**Examples**
+
+- Identity Verification
+- AI Conversation Service
+- Payment Processing
+- Customer Support
+- Membership Management
+
+**Semantic Rules**
+
+Business Services define business functionality, not software architecture.
+
+### 18.3 Feature
+
+**Definition**
+
+A Feature is a specific functional capability exposed by a Product or Business Service that enables Users to accomplish one or more objectives.
+
+**Purpose**
+
+The Feature entity provides the semantic bridge between business offerings and user interactions by representing individual capabilities within a Product.
+
+**Core Characteristics**
+
+- Represents a discrete capability.
+- Exists within a Product.
+- Supports one or more User goals.
+- May depend upon other Features.
+- Can evolve independently over time.
+
+**Relationships**
+
+A Feature:
+
+- belongs to one Product.
+- may consume one or more Business Services.
+- enables User Interactions.
+- contributes to User Experience.
+- produces Feedback.
+- supports Outcomes.
+- creates measurable Value.
+
+**Constraints**
+
+- Every Feature shall belong to exactly one Product.
+- A Feature shall have a clearly defined purpose.
+- Features shall not directly model implementation details.
+
+**Examples**
+
+- Talk It Out Session
+- Mood Check-In
+- Journal Entry
+- Voice Conversation
+- AI Memory
+- Subscription Management
+
+**Semantic Rules**
+
+A Feature represents a capability available to users, not the technical implementation that enables it.
+
+**Chapter Relationship Summary**
+
+These three entities establish the primary hierarchy:
 
 ```text
-Improvement
-↓
-Advocacy
+Business Model
+        │
+        ▼
+Business Ecosystem
+        │
+        ▼
+Product
+        │
+ ┌──────┴────────┐
+ ▼               ▼
+Business Service Feature
+        │          │
+        └────┬─────┘
+             ▼
+      User Interaction
 ```
 
-Experience management is continuous and evolves alongside stakeholder needs.
+### 18.4 Customer
+
+**Definition**
+
+A Customer is an individual, organization, or purchasing entity that acquires, subscribes to, sponsors, or financially supports a Product or Business Service in exchange for value. A Customer represents the commercial relationship with the organization and may or may not directly interact with the Product.
+
+**Purpose**
+
+The Customer entity models the commercial and contractual relationship between an organization and the consumers of its products or services, separating purchasing responsibility from operational usage.
+
+**Core Characteristics**
+
+- Represents the commercial owner of the relationship.
+- May be an individual or organization.
+- May purchase one or more Products.
+- May manage multiple Users.
+- Exists independently of Product usage.
+- Participates in subscriptions, contracts, licensing, or transactions.
+
+**Relationships**
+
+A Customer:
+
+- purchases one or more Products.
+- subscribes to Business Services.
+- authorizes one or more Users.
+- receives Value from Products.
+- generates Business Revenue.
+- participates in Business Models.
+- belongs to one or more Customer Segments.
+
+**Constraints**
+
+- Every Customer shall possess a unique business identity.
+- A Customer may exist without actively using a Product.
+- A Customer shall not be assumed to be the operational User.
+
+**Examples**
+
+- Individual subscriber
+- Corporate client
+- Enterprise organization
+- Educational institution
+- Government agency
+
+**Semantic Rules**
+
+A Customer represents who owns the business relationship, not necessarily who uses the product.
+
+### 18.5 User
+
+**Definition**
+
+A User is an individual or system actor that directly interacts with a Product, Feature, or Business Service to accomplish one or more objectives.
+
+**Purpose**
+
+The User entity models operational interaction with Products and Services, forming the foundation for experience design, workflows, analytics, AI personalization, and behavioral modeling.
+
+**Core Characteristics**
+
+- Represents direct interaction.
+- May or may not be the Customer.
+- Performs activities through Features.
+- Generates behavioral data.
+- Produces interactions and feedback.
+- Experiences outcomes and value.
+
+**Relationships**
+
+A User:
+
+- belongs to zero or one Customer.
+- interacts with Products.
+- uses Features.
+- invokes Business Services.
+- performs Interactions.
+- follows User Journeys.
+- generates Feedback.
+- experiences Outcomes.
+- contributes to Analytics.
+
+**Constraints**
+
+- Every User shall have a unique identity within its organizational context.
+- Multiple Users may belong to a single Customer.
+- A User may exist independently of purchasing authority.
+
+**Examples**
+
+- Employee
+- Student
+- Healthcare professional
+- AI application operator
+- Mobile app user
+- Solace member
+
+**Semantic Rules**
+
+A User represents who performs activities, regardless of who purchased the Product.
+
+### 18.6 User Journey
+
+**Definition**
+
+A User Journey is the ordered sequence of interactions, decisions, touchpoints, and experiences through which a User progresses while pursuing one or more objectives within a Product or Business Service.
+
+**Purpose**
+
+The User Journey models the complete behavioral path of a User, enabling organizations to understand, optimize, and measure the experience from initial engagement through desired outcomes.
+
+**Core Characteristics**
+
+- Represents chronological progression.
+- Consists of multiple Interactions.
+- Traverses multiple Touchpoints.
+- Produces measurable Experiences.
+- May branch into alternative paths.
+- Terminates with one or more Outcomes.
+
+**Relationships**
+
+A User Journey:
+
+- is performed by a User.
+- consists of Interactions.
+- traverses Touchpoints.
+- invokes Features.
+- consumes Business Services.
+- generates Feedback.
+- produces Experiences.
+- creates Outcomes.
+- delivers Value.
+
+**Constraints**
+
+- Every User Journey shall have a defined entry point.
+- Every User Journey shall contain at least one Interaction.
+- A Journey may contain multiple alternative paths.
+- Journeys shall remain implementation-independent.
+
+**Examples**
+
+- User registration journey
+- Product onboarding
+- AI conversation session
+- Subscription upgrade
+- Customer support resolution
+- Wellness improvement program
+
+**Semantic Rules**
+
+A User Journey models behavior over time, not individual interface screens or isolated actions.
+
+**Chapter Relationship Summary**
+
+These entities establish the distinction between commercial ownership and operational usage, a critical concept in enterprise architecture.
+
+```text
+                Customer
+                    │
+          purchases / subscribes
+                    │
+                    ▼
+                Product
+                    │
+              authorizes
+                    │
+                    ▼
+                  User
+                    │
+             performs Journey
+                    │
+                    ▼
+            User Journey
+                    │
+      ┌─────────────┼─────────────┐
+      ▼             ▼             ▼
+ Interaction   Touchpoint    Experience
+```
+
+**Cross-Domain Significance**
+
+This distinction is foundational across the ontology:
+
+- Customer links Experience & Business Entities to Organization, Finance, and Business Models.
+- User links Experience & Business Entities to Identity, AI, Analytics, Security, and Personalization.
+- User Journey links Experience & Business Entities to Processes, Workflows, Events, Decision Models, and Outcome Measurement.
+
+Together with Product, Business Service, and Feature, these entities define the end-to-end path from business offering to human engagement, providing the semantic bridge between organizational value creation and user experience.
+
+### 18.7 Interaction
+
+**Definition**
+
+An Interaction is a discrete event in which a User engages with a Product, Feature, Business Service, AI Agent, or another system entity to perform an action, exchange information, or achieve progress toward an objective.
+
+**Purpose**
+
+The Interaction entity models the atomic unit of user engagement, enabling Cortex to capture, analyze, automate, and reason about behavior across products and business services.
+
+**Core Characteristics**
+
+- Represents a single user action or system exchange.
+- Has a defined initiator and target.
+- Occurs at a specific point in time.
+- Produces one or more outcomes.
+- May generate data, events, or state changes.
+- Can be observed, measured, and analyzed.
+
+**Relationships**
+
+An Interaction:
+
+- is performed by a User.
+- occurs within a User Journey.
+- takes place at a Touchpoint.
+- invokes one or more Features.
+- may consume Business Services.
+- generates Feedback.
+- contributes to Experience.
+- produces Events and Analytics.
+- may trigger Workflows or AI Decisions.
+
+**Constraints**
+
+- Every Interaction shall have a unique context.
+- Every Interaction shall have at least one initiating actor.
+- An Interaction shall occur within a valid Journey or operational context.
+- Interactions shall remain implementation-independent.
+
+**Examples**
+
+- Clicking a button
+- Completing a mood check-in
+- Sending a chat message
+- Starting an AI conversation
+- Uploading a document
+- Making a payment
+- Approving a workflow request
+
+**Semantic Rules**
+
+An Interaction represents one meaningful engagement, not an entire process or journey.
+
+### 18.8 Touchpoint
+
+**Definition**
+
+A Touchpoint is any channel, interface, device, environment, or communication medium through which a User interacts with a Product, Business Service, Organization, or Brand.
+
+**Purpose**
+
+The Touchpoint entity models where and how interactions occur, allowing organizations to understand and optimize engagement across digital, physical, and human channels.
+
+**Core Characteristics**
+
+- Represents an interaction channel.
+- May be digital, physical, or human.
+- Hosts one or more Interactions.
+- Supports multiple User Journeys.
+- Influences User Experience.
+- Can be measured independently.
+
+**Relationships**
+
+A Touchpoint:
+
+- hosts Interactions.
+- is used by Users.
+- supports Products and Business Services.
+- contributes to Experiences.
+- generates operational metrics.
+- provides Feedback opportunities.
+- may integrate with external systems.
+
+**Constraints**
+
+- Every Touchpoint shall have a clearly defined interaction context.
+- A Touchpoint may support multiple Products.
+- Touchpoints shall remain independent of implementation technology.
+
+**Examples**
+
+**Digital**
+
+- Mobile application
+- Web portal
+- AI chatbot
+- API
+- Email
+
+**Physical**
+
+- Retail store
+- Kiosk
+- Office location
+- Event booth
+
+**Human**
+
+- Customer support representative
+- Sales consultant
+- Therapist
+- Account manager
+
+**Semantic Rules**
+
+A Touchpoint represents where engagement occurs, not the interaction itself.
+
+### 18.9 Feedback
+
+**Definition**
+
+Feedback is structured or unstructured information provided by Users, Customers, systems, or external entities that expresses evaluation, perception, satisfaction, issues, recommendations, or observations regarding a Product, Feature, Business Service, or Experience.
+
+**Purpose**
+
+The Feedback entity captures signals that enable continuous improvement, quality assurance, personalization, decision-making, and organizational learning.
+
+**Core Characteristics**
+
+- May be explicit or implicit.
+- Can be qualitative or quantitative.
+- Originates from multiple sources.
+- Supports continuous improvement.
+- May trigger workflows or AI analysis.
+- Can influence Products, Services, and Business Decisions.
+
+**Relationships**
+
+Feedback:
+
+- is generated from Interactions.
+- belongs to Users or Customers.
+- references Products, Features, or Services.
+- influences Experiences.
+- supports Analytics.
+- contributes to AI Learning.
+- drives Product Improvements.
+- informs Business Decisions.
+
+**Constraints**
+
+- Every Feedback instance shall identify its source.
+- Feedback shall preserve contextual integrity.
+- Feedback may reference multiple entities but shall have one primary subject.
+- Feedback shall be traceable throughout its lifecycle.
+
+**Examples**
+
+**Explicit**
+
+- Rating
+- Survey response
+- Product review
+- Feature request
+- Support ticket
+
+**Implicit**
+
+- Session abandonment
+- Repeated errors
+- Usage frequency
+- Engagement duration
+- Behavioral patterns
+
+**Semantic Rules**
+
+Feedback represents information about an experience, not the experience itself.
+
+**Chapter Relationship Summary**
+
+These entities define the complete engagement layer.
+
+```text
+User
+   │
+   ▼
+Interaction
+   │
+   ▼
+Touchpoint
+   │
+   ▼
+Experience
+   │
+   ▼
+Feedback
+   │
+   ├────────► Product Improvement
+   ├────────► AI Learning
+   ├────────► Analytics
+   ├────────► Decision Making
+   └────────► Business Optimization
+```
+
+**Cross-Domain Significance**
+
+These entities connect Experience & Business Entities with nearly every other domain in MARQ Cortex:
+
+- Interaction bridges to Events, Workflows, AI Agents, Security, and Analytics.
+- Touchpoint connects Digital Channels, Applications, APIs, Human Services, and Physical Operations.
+- Feedback links to Knowledge Management, Continuous Improvement, AI Learning, Product Management, Governance, and Decision Intelligence.
+
+Together, they provide the semantic foundation for capturing user behavior, measuring engagement, and transforming operational interactions into actionable organizational knowledge.
+
+### 18.10 Experience
+
+**Definition**
+
+An Experience is the cumulative perception, emotion, and assessment formed by a User or Customer as a result of one or more Interactions across a User Journey. An Experience represents the qualitative outcome of engagement rather than the individual activities that produced it.
+
+**Purpose**
+
+The Experience entity models the perceived quality of engagement, enabling organizations to understand, measure, improve, and personalize how Products and Business Services are received over time.
+
+**Core Characteristics**
+
+- Emerges from multiple Interactions.
+- Evolves throughout a User Journey.
+- Combines functional and emotional perception.
+- May be positive, neutral, or negative.
+- Influences trust, loyalty, and satisfaction.
+- Can be measured through qualitative and quantitative indicators.
+
+**Relationships**
+
+An Experience:
+
+- is produced through User Journeys.
+- consists of multiple Interactions.
+- occurs across one or more Touchpoints.
+- is influenced by Products and Features.
+- generates Feedback.
+- contributes to perceived Value.
+- affects Business Outcomes.
+- informs Product Improvement and AI Personalization.
+
+**Constraints**
+
+- An Experience shall represent an aggregated perception rather than a single event.
+- Experiences may vary between Users despite identical Interactions.
+- Experiences shall remain independent of implementation technology.
+
+**Examples**
+
+- A seamless onboarding experience.
+- A frustrating payment process.
+- A supportive AI conversation.
+- A highly personalized wellness journey.
+- A premium customer service experience.
+
+**Semantic Rules**
+
+An Experience represents how engagement is perceived, not the actions that occurred.
+
+### 18.11 Value
+
+**Definition**
+
+Value is the measurable or perceived benefit delivered to a User, Customer, Organization, or other stakeholder through a Product, Feature, Business Service, or Experience. Value represents the reason an offering exists and the justification for its adoption.
+
+**Purpose**
+
+The Value entity provides the semantic representation of benefits created and exchanged within the business ecosystem, enabling organizations to model success beyond financial metrics.
+
+**Core Characteristics**
+
+- Represents delivered benefit.
+- May be tangible or intangible.
+- Can be financial, operational, emotional, strategic, or societal.
+- May differ across stakeholders.
+- Evolves throughout the Product lifecycle.
+- Can be measured using defined success metrics.
+
+**Relationships**
+
+Value:
+
+- is delivered by Products.
+- is enabled through Business Services.
+- is experienced by Users and Customers.
+- results from Experiences.
+- contributes to Outcomes.
+- supports Business Objectives.
+- strengthens Business Models.
+- influences Customer Retention and Growth.
+
+**Constraints**
+
+- Every Product shall deliver one or more defined Value propositions.
+- Value shall be measurable through qualitative or quantitative indicators.
+- Value shall always identify its intended stakeholder.
+
+**Examples**
+
+**User Value**
+
+- Saves time.
+- Reduces stress.
+- Improves productivity.
+
+**Business Value**
+
+- Revenue growth.
+- Cost reduction.
+- Increased retention.
+
+**Social Value**
+
+- Better wellbeing.
+- Improved accessibility.
+- Environmental sustainability.
+
+**Semantic Rules**
+
+Value represents the benefit created, not the mechanism used to create it.
+
+### 18.12 Outcome
+
+**Definition**
+
+An Outcome is the measurable result produced by one or more Interactions, User Journeys, Products, Business Services, or organizational activities. Outcomes represent the observable effects that determine whether objectives have been achieved.
+
+**Purpose**
+
+The Outcome entity models the results that organizations monitor to evaluate effectiveness, business performance, customer success, operational efficiency, and strategic progress.
+
+**Core Characteristics**
+
+- Represents measurable results.
+- May be short-term or long-term.
+- Can be individual or organizational.
+- Supports performance evaluation.
+- Enables continuous improvement.
+- May influence future decisions.
+
+**Relationships**
+
+An Outcome:
+
+- results from Experiences.
+- is produced through User Journeys.
+- measures Product success.
+- evaluates Business Services.
+- validates Value delivery.
+- contributes to Business Objectives.
+- supports Decision Making.
+- feeds Analytics and Reporting.
+
+**Constraints**
+
+- Every Outcome shall have one or more measurable success indicators.
+- Outcomes shall be traceable to contributing entities.
+- Outcomes shall support organizational evaluation and improvement.
+
+**Examples**
+
+**User Outcomes**
+
+- Improved mental wellbeing.
+- Completed onboarding.
+- Successful subscription renewal.
+- Increased engagement.
+
+**Business Outcomes**
+
+- Increased revenue.
+- Reduced support costs.
+- Higher customer retention.
+- Improved operational efficiency.
+
+**Strategic Outcomes**
+
+- Market expansion.
+- Stronger brand trust.
+- Higher customer lifetime value.
+- Increased innovation capacity.
+
+**Semantic Rules**
+
+An Outcome represents the measurable result of activities, not the activities themselves.
+
+**Chapter Relationship Summary**
+
+These entities complete the value realization model.
+
+```text
+Product
+    │
+    ▼
+Feature
+    │
+    ▼
+Interaction
+    │
+    ▼
+Experience
+    │
+    ▼
+Value
+    │
+    ▼
+Outcome
+```
+
+A more complete semantic flow is:
+
+```text
+Customer
+      │
+      ▼
+Product
+      │
+      ▼
+Feature
+      │
+      ▼
+User
+      │
+      ▼
+User Journey
+      │
+      ▼
+Interaction
+      │
+      ▼
+Touchpoint
+      │
+      ▼
+Experience
+      │
+      ▼
+Feedback
+      │
+      ▼
+Continuous Improvement
+      │
+      ▼
+Value
+      │
+      ▼
+Outcome
+```
+
+**Cross-Domain Significance**
+
+These entities complete the bridge between human experience and business performance:
+
+- Experience connects UX, AI Personalization, Customer Success, and Service Design.
+- Value links Products and Services to Business Strategy, Economics, and Stakeholder Benefits.
+- Outcome connects operational execution with Analytics, KPIs, Governance, Objectives, and Decision Intelligence.
+
+Together, these concepts ensure that MARQ Cortex can model not only what an organization builds, but also how people experience it, the value it delivers, and the measurable outcomes it produces, creating a complete semantic chain from offering to impact.
+
+### 18.13 Business Capability
+
+**Definition**
+
+A Business Capability is a stable organizational ability to perform a specific business function in support of strategic objectives. It represents what an organization is capable of achieving, independent of the people, processes, technologies, or organizational structures used to realize it.
+
+**Purpose**
+
+The Business Capability entity provides the semantic foundation for modeling organizational competencies, enabling Products, Business Services, Processes, and Technologies to be aligned with long-term business strategy and operational excellence.
+
+**Core Characteristics**
+
+- Represents organizational ability rather than execution.
+- Remains relatively stable over time.
+- Independent of organizational structure.
+- Independent of implementation technology.
+- Supports one or more Business Objectives.
+- May be realized through multiple Business Services and Processes.
+- Can be assessed for maturity and performance.
+
+**Relationships**
+
+A Business Capability:
+
+- enables one or more Business Services.
+- supports one or more Products.
+- is realized through Business Processes.
+- requires Resources and Assets.
+- contributes to Business Models.
+- delivers Value.
+- influences Business Outcomes.
+- exists within a Business Ecosystem.
+- supports Strategic Objectives.
+
+**Constraints**
+
+- Every Business Capability shall have a clearly defined business purpose.
+- A Business Capability shall not represent an individual department, team, or employee.
+- A Business Capability may support multiple Products and Services.
+- Capabilities shall remain stable despite organizational restructuring.
+
+**Examples**
+
+**Core Business Capabilities**
+
+- Customer Relationship Management
+- AI Decision Support
+- Identity Management
+- Payment Processing
+- Membership Management
+- Product Development
+- Risk Management
+
+**Supporting Capabilities**
+
+- Human Resources
+- Financial Management
+- Procurement
+- Compliance
+- Reporting & Analytics
+
+**Semantic Rules**
+
+A Business Capability represents what the organization is capable of doing, not how it performs the work.
+
+### 18.14 Business Model
+
+**Definition**
+
+A Business Model is the structured representation of how an organization creates, delivers, captures, and sustains value for its stakeholders. It defines the economic and strategic framework that connects Products, Customers, Business Services, Capabilities, Resources, Partnerships, and Revenue mechanisms into a coherent operating model.
+
+**Purpose**
+
+The Business Model entity provides the semantic representation of organizational value creation, enabling Cortex to model commercial strategy, operational sustainability, and ecosystem relationships independently of implementation details.
+
+**Core Characteristics**
+
+- Defines value creation.
+- Defines value delivery.
+- Defines value capture.
+- Defines stakeholder relationships.
+- Evolves over time.
+- Supports strategic decision-making.
+- May contain multiple Products and Services.
+- Operates within one or more Business Ecosystems.
+
+**Relationships**
+
+A Business Model:
+
+- contains Products.
+- serves Customers.
+- delivers Value.
+- relies on Business Capabilities.
+- exposes Business Services.
+- consumes Resources.
+- collaborates with Partners.
+- participates in Business Ecosystems.
+- produces Revenue and Business Outcomes.
+- supports Organizational Strategy.
+
+**Constraints**
+
+- Every Business Model shall define at least one Value Proposition.
+- Every Business Model shall identify its primary Customer segments.
+- Business Models shall remain implementation-independent.
+- A Business Model may evolve without changing the fundamental identity of its Products.
+
+**Examples**
+
+**Commercial Models**
+
+- Software as a Service (SaaS)
+- Subscription
+- Marketplace
+- Licensing
+- Freemium
+- Pay-per-use
+- Enterprise Platform
+
+**Operational Models**
+
+- Business-to-Business (B2B)
+- Business-to-Consumer (B2C)
+- Business-to-Government (B2G)
+- Direct-to-Consumer (D2C)
+- Platform Ecosystem
+
+**Semantic Rules**
+
+A Business Model represents how an organization creates and sustains value, not the operational processes used to execute that strategy.
+
+**Chapter Relationship Summary**
+
+The completion of Chapter 18 establishes the complete semantic hierarchy for business and experience entities.
+
+```text
+Business Model
+        │
+        ▼
+Business Ecosystem
+        │
+        ▼
+Business Capability
+        │
+        ▼
+Business Service
+        │
+        ▼
+Product
+        │
+   ┌────┴────┐
+   ▼         ▼
+Feature    Customer
+   │         │
+   ▼         ▼
+ User ───────────────┐
+   │                 │
+   ▼                 │
+User Journey         │
+   │                 │
+   ▼                 │
+Interaction          │
+   │                 │
+   ▼                 │
+Touchpoint           │
+   │                 │
+   ▼                 │
+Experience           │
+   │                 │
+   ▼                 │
+Feedback─────────────┘
+   │
+   ▼
+Value
+   │
+   ▼
+Outcome
+```
+
+**Cross-Domain Significance**
+
+Business Capability and Business Model complete the strategic layer of the Experience & Business Entities domain:
+
+- Business Capability connects Organization, Governance, Processes, Resources, AI, and Operational Execution, defining what the enterprise is fundamentally able to do.
+- Business Model connects Products, Customers, Partners, Finance, Strategy, and Ecosystem relationships, defining how the enterprise creates, delivers, and captures value over time.
+
+Together with the previously defined entities, Chapter 18 now forms a complete semantic continuum—from organizational strategy and commercial models, through products and services, to user engagement, experience, value realization, and measurable outcomes.
 
 ### 18.15 Business Ecosystem
 
@@ -2828,13 +3832,13 @@ Attributes describe the entity without changing its identity.
 
 Example:
 
-User
+**User**
 
 - Name
 - Email
 - Status
 
-Project
+**Project**
 
 - Priority
 - Budget
@@ -3200,13 +4204,12 @@ The meaning of a relationship is defined not only by its participating entities 
 
 Relationship Identity ensures that identical entities may participate in different semantic relationships without ambiguity.
 
-**Example**
-
+```text
+Example
 Organization → Employs → Human
-
 Organization → Owns → Product
-
 Organization → Governs → Policy
+```
 
 Although the source entity is the same, each relationship conveys a distinct semantic meaning.
 
@@ -3370,7 +4373,11 @@ Task
 assigned to
 ↓
 Human
+```
+
 Poor Example
+
+```text
 Task
 ↓
 connected somehow
@@ -3396,20 +4403,29 @@ Human
 works on
 ↓
 Project
+```
+
 Business Context
+
+```text
 Human
 ↓
 approves
 ↓
 Project
+```
+
 Governance Context
+
+```text
 Human
 ↓
 created
 ↓
 Project
-Operational Context
 ```
+
+Operational Context
 
 Context determines semantic interpretation.
 
@@ -3439,8 +4455,9 @@ Suspended
 Retired
 ↓
 Archived
-Purpose
 ```
+
+**Purpose**
 
 Relationship lifecycles support governance, auditing, and historical analysis.
 
@@ -4289,7 +5306,7 @@ Entity Interactions enable the Cortex ecosystem to function as a coordinated ent
 
 Every interaction involves one or more participating entities, each fulfilling a defined semantic role.
 
-Common Participant Roles
+**Common Participant Roles**
 
 - Initiator
 - Recipient
@@ -4322,7 +5339,7 @@ Interaction Intent represents the purpose or objective motivating an interaction
 
 Intent provides semantic meaning beyond the interaction itself.
 
-Common Intents
+**Common Intents**
 
 - Request
 - Inform
@@ -4345,9 +5362,11 @@ User
 Requests
 ↓
 AI Agent
-Intent:
-Obtain Knowledge
 ```
+
+Intent:
+
+Obtain Knowledge
 
 ### 23.4 Interaction Context
 
@@ -4406,7 +5425,11 @@ Assigned
 In Progress
 ↓
 Completed
+```
+
 Project
+
+```text
 Draft
 ↓
 Approved
@@ -4414,8 +5437,9 @@ Approved
 Active
 ↓
 Closed
-Purpose
 ```
+
+**Purpose**
 
 State transitions model the dynamic evolution of entities.
 
@@ -4487,8 +5511,9 @@ Dashboard Updated
 Metrics Updated
 ↓
 Notification Sent
-Purpose
 ```
+
+**Purpose**
 
 Event Propagation supports enterprise coordination without tightly coupling participating entities.
 
@@ -4516,8 +5541,9 @@ Completed
 Recorded
 ↓
 Archived
-Purpose
 ```
+
+**Purpose**
 
 The lifecycle ensures interactions remain traceable, governable, and auditable.
 
@@ -4529,7 +5555,7 @@ Every interaction produces one or more semantic outcomes.
 
 Outcomes represent the realized effects of an interaction rather than the interaction itself.
 
-Possible Outcomes
+**Possible Outcomes**
 
 - Information Created
 - Knowledge Updated
@@ -4552,18 +5578,18 @@ An Interaction Pattern is a reusable semantic model describing how entities comm
 
 Patterns improve consistency across the ontology.
 
+```text
 Common Patterns
-
-- Request → Response
-- Command → Execution
-- Publish → Subscribe
-- Approval → Decision
-- Event → Reaction
-- Question → Answer
-- Observation → Recommendation
-- Creation → Validation
-
-**Purpose**
+Request → Response
+Command → Execution
+Publish → Subscribe
+Approval → Decision
+Event → Reaction
+Question → Answer
+Observation → Recommendation
+Creation → Validation
+Purpose
+```
 
 Patterns standardize recurring enterprise interactions.
 
@@ -4758,9 +5784,8 @@ Sequential dependencies establish execution order.
 
 **Examples**
 
-**Requirements**
-
 ```text
+Requirements
 ↓
 Design
 ↓
@@ -4769,8 +5794,9 @@ Development
 Testing
 ↓
 Deployment
-Purpose
 ```
+
+**Purpose**
 
 Supports planning, workflow coordination, and execution management.
 
@@ -4791,8 +5817,9 @@ Although independent during execution, their outcomes converge.
 ```text
 ↓
 Product Release
-Purpose
 ```
+
+**Purpose**
 
 Enables coordinated enterprise execution.
 
@@ -4882,7 +5909,7 @@ Dependency Impact describes the consequences resulting from changes, delays, fai
 
 Impact analysis enables organizations to anticipate cascading effects throughout the enterprise.
 
-Possible Impacts
+**Possible Impacts**
 
 - Execution Delay
 - Increased Risk
@@ -5049,8 +6076,9 @@ Employee
 Partner
 ↓
 Stakeholder
-Purpose
 ```
+
+**Purpose**
 
 Generalization simplifies the ontology while strengthening semantic coherence.
 
@@ -5072,8 +6100,9 @@ Conversational AI Agent
 Analytical AI Agent
 ↓
 Automation AI Agent
-Purpose
 ```
+
+**Purpose**
 
 Specialization enables precise domain modeling while preserving consistency.
 
@@ -5239,8 +6268,9 @@ Governed
 Extended
 ↓
 Retired
-Purpose
 ```
+
+**Purpose**
 
 Ensures composed structures remain coherent throughout their evolution.
 
@@ -5371,12 +6401,13 @@ A Trace represents an individual path within the broader Traceability Model.
 
 Traces preserve organizational memory and explain enterprise behavior.
 
-**Examples**
-
-- Goal → Project
-- Project → Task
-- Task → Deliverable
-- Deliverable → Customer Value
+```text
+Examples
+Goal → Project
+Project → Task
+Task → Deliverable
+Deliverable → Customer Value
+```
 
 ### 26.3 Trace Origin
 
@@ -5437,8 +6468,9 @@ Deliverable
 Product
 ↓
 Customer Value
-Purpose
 ```
+
+**Purpose**
 
 Trace Chains enable end-to-end enterprise visibility.
 
@@ -5452,9 +6484,8 @@ Every lifecycle transition shall remain observable and historically accessible.
 
 **Typical Lifecycle**
 
-**Concept**
-
 ```text
+Concept
 ↓
 Created
 ↓
@@ -5469,8 +6500,9 @@ Modified
 Retired
 ↓
 Archived
-Purpose
 ```
+
+**Purpose**
 
 Preserves historical continuity throughout organizational evolution.
 
@@ -5484,9 +6516,8 @@ Decision Traceability enables organizations to understand the reasoning behind e
 
 **Examples**
 
-**Decision**
-
 ```text
+Decision
 ↓
 Evidence
 ↓
@@ -5497,8 +6528,9 @@ Implementation
 Outcome
 ↓
 Review
-Purpose
 ```
+
+**Purpose**
 
 Supports governance, accountability, AI explainability, and organizational learning.
 
@@ -5510,14 +6542,14 @@ Knowledge Traceability links organizational knowledge to its origins, sources, c
 
 Knowledge becomes trustworthy through documented provenance.
 
-**Examples**
-
-- Insight → Evidence
-- Document → Source
-- AI Memory → Knowledge Base
-- Recommendation → Supporting Information
-
-**Purpose**
+```text
+Examples
+Insight → Evidence
+Document → Source
+AI Memory → Knowledge Base
+Recommendation → Supporting Information
+Purpose
+```
 
 Strengthens organizational intelligence and AI reliability.
 
@@ -5545,8 +6577,9 @@ Feature
 Testing
 ↓
 Deployment
-Purpose
 ```
+
+**Purpose**
 
 Ensures delivered solutions satisfy intended objectives.
 
@@ -5570,8 +6603,9 @@ Response
 Resolution
 ↓
 Review
-Purpose
 ```
+
+**Purpose**
 
 Supports operational resilience and service management.
 
@@ -5597,8 +6631,9 @@ Audit
 Finding
 ↓
 Improvement
-Purpose
 ```
+
+**Purpose**
 
 Supports compliance, accountability, and regulatory assurance.
 
@@ -5642,8 +6677,9 @@ Service
 Customer Experience
 ↓
 Business Outcome
-Purpose
 ```
+
+**Purpose**
 
 Supports enterprise architecture, dependency management, and change governance.
 
@@ -5817,7 +6853,7 @@ The Semantic Context Layer provides the contextual information required to corre
 
 Context enables identical entities or relationships to have different meanings under different circumstances while preserving semantic consistency.
 
-Context Examples
+**Context Examples**
 
 - Business Context
 - Operational Context
@@ -5908,7 +6944,7 @@ The Reasoning Layer enables humans and AI systems to derive conclusions by trave
 
 Reasoning is based on semantic meaning rather than implementation logic.
 
-Supports
+**Supports**
 
 - Semantic Navigation
 - Contextual Reasoning
@@ -5946,8 +6982,9 @@ Task
 Human
 ↓
 Organization
-Purpose
 ```
+
+**Purpose**
 
 Enables holistic exploration of enterprise knowledge.
 
@@ -5959,7 +6996,7 @@ The Enterprise Knowledge Graph evolves continuously as organizations create new 
 
 Evolution shall preserve semantic consistency while enabling organizational growth.
 
-Evolution Activities
+**Evolution Activities**
 
 - New Entities
 - New Relationships
@@ -5980,7 +7017,7 @@ Graph Integrity ensures that the Enterprise Knowledge Graph remains internally c
 
 Integrity applies to nodes, edges, context, traceability, and governance.
 
-Integrity Principles
+**Integrity Principles**
 
 - Canonical Definitions
 - Relationship Consistency
@@ -6065,7 +7102,7 @@ The Enterprise Semantic Ecosystem is the complete environment formed by the Ente
 
 The Enterprise Knowledge Graph serves as the structural foundation of this broader semantic ecosystem.
 
-Components
+**Components**
 
 - Ontology
 - Entities
@@ -6148,7 +7185,7 @@ Every semantic concept shall have one and only one canonical definition througho
 
 No domain may redefine an existing concept with a different meaning.
 
-Implications
+**Implications**
 
 - One concept
 - One definition
@@ -6305,7 +7342,7 @@ Every ontology domain shall operate within the governance principles established
 
 No domain may introduce semantic structures that violate canonical governance policies.
 
-Governance Applies To
+**Governance Applies To**
 
 - Entities
 - Relationships
@@ -6588,8 +7625,9 @@ Deprecated
 Retired
 ↓
 Archived
-Purpose
 ```
+
+**Purpose**
 
 Ensures controlled semantic evolution.
 
@@ -7054,7 +8092,7 @@ Change Governance defines how modifications to the ontology are proposed, evalua
 
 No semantic change shall bypass governance.
 
-Types of Changes
+**Types of Changes**
 
 - New Entity
 - New Relationship
@@ -7119,8 +8157,9 @@ Approve
 Document
 ↓
 Publish
-Principle
 ```
+
+**Principle**
 
 Canonical consistency always takes precedence over local optimization.
 
@@ -7128,7 +8167,7 @@ Canonical consistency always takes precedence over local optimization.
 
 Governance effectiveness shall be measured through objective indicators.
 
-Example Metrics
+**Example Metrics**
 
 - Semantic consistency score
 - Duplicate concept count
@@ -7147,7 +8186,7 @@ These metrics support continuous governance improvement.
 
 The Governance Framework manages several canonical artifacts.
 
-Core Artifacts
+**Core Artifacts**
 
 - Ontology Specification
 - Canonical Entity Catalog
@@ -7340,7 +8379,9 @@ Represents significant semantic changes that may require organizational migratio
 
 Example:
 
+```text
 v1.0 → v2.0
+```
 
 Minor Version
 
@@ -7348,7 +8389,9 @@ Represents backward-compatible semantic enhancements.
 
 Example:
 
+```text
 v1.2 → v1.3
+```
 
 Patch Version
 
@@ -7356,9 +8399,10 @@ Represents corrections that do not alter semantic meaning.
 
 Example:
 
+```text
 v1.3.2 → v1.3.3
-
-**Purpose**
+Purpose
+```
 
 Provides predictable ontology evolution.
 
@@ -7464,7 +8508,7 @@ The Extension Strategy defines how new semantic concepts are introduced into the
 
 Extensions shall build upon existing canonical concepts before introducing entirely new structures.
 
-Extension Priorities
+**Extension Priorities**
 
 - Reuse existing concept
 - Specialize existing concept
@@ -7495,8 +8539,9 @@ Migration Supported
 Retired
 ↓
 Archived
-Purpose
 ```
+
+**Purpose**
 
 Supports orderly semantic evolution.
 
@@ -7508,7 +8553,7 @@ The Migration Strategy defines how organizations transition from one ontology ve
 
 Migration shall preserve semantic continuity.
 
-Migration Activities
+**Migration Activities**
 
 - Version Assessment
 - Impact Analysis
@@ -7530,7 +8575,7 @@ Every proposed ontology change shall undergo a Change Impact Assessment before a
 
 Assessment evaluates consequences across the entire semantic ecosystem.
 
-Assessment Areas
+**Assessment Areas**
 
 - Entity Impact
 - Relationship Impact
@@ -7635,7 +8680,7 @@ Ontology Sustainability ensures that the MARQ Cortex Ontology remains valuable, 
 
 Sustainability requires balancing innovation with stability.
 
-Sustainability Objectives
+**Sustainability Objectives**
 
 - Long-term consistency
 - Controlled growth
@@ -7946,32 +8991,32 @@ Enterprise understanding shall evolve through controlled ontology evolution.
 
 Every enterprise initiative adopting the ontology shall verify the following.
 
-Semantic Compliance
+**Semantic Compliance**
 
 - Canonical terminology used
 - Canonical entities referenced
 - Canonical relationships applied
 - Semantic consistency preserved
 
-Architectural Compliance
+**Architectural Compliance**
 
 - Blueprint alignment
 - Reference Architecture alignment
 - Implementation Guide alignment
 
-AI Compliance
+**AI Compliance**
 
 - Explainable reasoning
 - Canonical terminology
 - Traceable outputs
 
-Governance Compliance
+**Governance Compliance**
 
 - Policies aligned
 - Standards followed
 - Changes approved
 
-Knowledge Compliance
+**Knowledge Compliance**
 
 - Knowledge reusable
 - Documentation consistent
