@@ -41,8 +41,45 @@ import {
   migrateBookingRecord,
   type BookingRecord,
 } from "./bookings/bookingRecord.ts";
+import {
+  createRuntimeDiagnosticGateway,
+  createDurableTelemetrySink,
+  createBackgroundScheduler,
+  handleGetOutcome,
+  type DiagnosticStorageGateway,
+} from "./storage/index.ts";
+import { createRuntimeOutcomeSqlPort } from "./storage/runtimeSqlOutcome.ts";
+import { createRuntimeShadowTelemetryRepository } from "./storage/runtimeShadowTelemetry.ts";
 
 const app = new Hono();
+
+/**
+ * Lazy diagnostic storage gateway (MCV2-S7.4).
+ *
+ * KV stays the sole runtime authority. When STORAGE_SHADOW_OUTCOME_ENABLED is
+ * off (the default), the gateway is a thin pass-through over the existing KV
+ * read and the Outcome response is byte-identical to before. When enabled, the
+ * Outcome read additionally SCHEDULES a bounded SQL shadow read + comparison +
+ * durable telemetry AFTER the response, via EdgeRuntime.waitUntil (G1) — never
+ * blocking or altering the KV response. The runtime SQL port and durable
+ * telemetry repository are built lazily and fail safe, so this is inert offline.
+ */
+let _diagnosticGateway: DiagnosticStorageGateway | null = null;
+function getDiagnosticGateway(): DiagnosticStorageGateway {
+  if (!_diagnosticGateway) {
+    const scheduler = createBackgroundScheduler();
+    const telemetry = createDurableTelemetrySink({
+      repository: createRuntimeShadowTelemetryRepository(),
+      scheduler,
+    });
+    _diagnosticGateway = createRuntimeDiagnosticGateway(kv, {
+      sqlOutcomePort: createRuntimeOutcomeSqlPort(),
+      telemetry,
+      scheduler,
+    });
+  }
+  return _diagnosticGateway;
+}
 
 // CORS MUST be first to handle preflight OPTIONS requests
 app.use(
@@ -3390,9 +3427,13 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const userId = await verifyTeamToken(c.req.header('Authorization'));
     if (!userId) return c.json({ error: "Unauthorized" }, 401);
     const submissionId = c.req.param('id');
-    const raw = await kv.get(`outcome:${submissionId}`);
-    const outcome = raw ? JSON.parse(raw) : null;
-    return c.json({ success: true, outcome });
+    // KV-authoritative read via the diagnostic storage gateway. The response is
+    // unchanged; any SQL shadow read runs post-response (MCV2-S7.4).
+    const { body } = await handleGetOutcome(
+      { gateway: getDiagnosticGateway() },
+      { submissionId, actor: { kind: 'team', id: userId } },
+    );
+    return c.json(body);
   } catch (err) {
     console.log('Get outcome error:', err);
     return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);
