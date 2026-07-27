@@ -716,65 +716,38 @@ Together, these documents provide end-to-end governance from strategic intent th
 
 The documents form a governed chain of interpretation.
 
-**┌───────────────────────────────┐**
-
-**│      Product Experience       │**
-
-**│  What users should experience │**
-
-**└───────────────****┬****───────────────┘**
-
-**│**
-
-**▼**
-
-**┌───────────────────────────────┐**
-
-**│     Enterprise Ontology       │**
-
-**│ What concepts and terms mean  │**
-
-**└───────────────****┬****───────────────┘**
-
-**│**
-
-**▼**
-
-**┌───────────────────────────────┐**
-
-**│       Master Blueprint        │**
-
-**│ What the enterprise platform  │**
-
-**│ is intended to become         │**
-
-**└───────────────****┬****───────────────┘**
-
-**│**
-
-**▼**
-
-**┌───────────────────────────────┐**
-
-**│    Reference Architecture     │**
-
-**│ How the platform is structured│**
-
-**└───────────────****┬****───────────────┘**
-
-**│**
-
-**▼**
-
-**┌───────────────────────────────┐**
-
-**│     Implementation Guide      │**
-
-**│ How the platform is built and │**
-
-**│ operated in practice          │**
-
-**└───────────────────────────────┘**
+```
+┌───────────────────────────────┐
+│      Product Experience       │
+│  What users should experience │
+└───────────────┬───────────────┘
+│
+▼
+┌───────────────────────────────┐
+│     Enterprise Ontology       │
+│ What concepts and terms mean  │
+└───────────────┬───────────────┘
+│
+▼
+┌───────────────────────────────┐
+│       Master Blueprint        │
+│ What the enterprise platform  │
+│ is intended to become         │
+└───────────────┬───────────────┘
+│
+▼
+┌───────────────────────────────┐
+│    Reference Architecture     │
+│ How the platform is structured│
+└───────────────┬───────────────┘
+│
+▼
+┌───────────────────────────────┐
+│     Implementation Guide      │
+│ How the platform is built and │
+│ operated in practice          │
+└───────────────────────────────┘
+```
 
 This is not a simple top-down hierarchy where one document always overrides every other document.
 
@@ -934,35 +907,23 @@ Traceability may be maintained through:
 
 A complete traceability chain may follow this pattern:
 
-**Product Outcome**
-
-**↓**
-
-**Canonical Domain Concept**
-
-**↓**
-
-**Platform Capability**
-
-**↓**
-
-**Architectural Component**
-
-**↓**
-
-**Implementation Work Item**
-
-**↓**
-
-**Code and Configuration**
-
-**↓**
-
-**Automated Validation**
-
-**↓**
-
-**Production Evidence**
+```
+Product Outcome
+↓
+Canonical Domain Concept
+↓
+Platform Capability
+↓
+Architectural Component
+↓
+Implementation Work Item
+↓
+Code and Configuration
+↓
+Automated Validation
+↓
+Production Evidence
+```
 
 Traceability helps ensure that implementation remains purposeful, governed, and verifiable.
 
@@ -1012,47 +973,33 @@ A change to one canonical document may require updates across the rest of the su
 
 For example:
 
-**Ontology Term Changes**
-
-**↓**
-
-**API Contracts**
-
-**↓**
-
-**Database Schemas**
-
-**↓**
-
-**Events and Workflows**
-
-**↓**
-
-**Frontend Labels**
-
-**↓**
-
-**Documentation and Tests**
+```
+Ontology Term Changes
+↓
+API Contracts
+↓
+Database Schemas
+↓
+Events and Workflows
+↓
+Frontend Labels
+↓
+Documentation and Tests
+```
 
 Similarly:
 
-**Architecture Change**
-
-**↓**
-
-**Implementation Standard**
-
-**↓**
-
-**Repository Structure**
-
-**↓**
-
-**Deployment Configuration**
-
-**↓**
-
-**Operational Runbooks**
+```
+Architecture Change
+↓
+Implementation Standard
+↓
+Repository Structure
+↓
+Deployment Configuration
+↓
+Operational Runbooks
+```
 
 Canonical changes should therefore be evaluated for downstream impact before approval.
 
@@ -1760,49 +1707,30 @@ Repository names should remain stable throughout the platform lifecycle.
 
 Every repository should adopt a consistent top-level structure.
 
-**repository/**
-
-**│**
-
-**├****──****apps/**
-
-**├****──****packages/**
-
-**├****──****services/**
-
-**├****──****infrastructure/**
-
-**├****──****docs/**
-
-**├****──****scripts/**
-
-**├****──****tests/**
-
-**├****──****configs/**
-
-**├****──****assets/**
-
-**├****──****.github/**
-
-├****──****.vscode/ (optional)
-
-**│**
-
-**├****──****README.md**
-
-**├****──****CHANGELOG.md**
-
-**├****──****CONTRIBUTING.md**
-
-**├****──****LICENSE**
-
-**├****──****CODEOWNERS**
-
-**├****──****SECURITY.md**
-
-**├****──****ARCHITECTURE.md**
-
-**└── ROADMAP.md**
+```
+repository/
+│
+├──apps/
+├──packages/
+├──services/
+├──infrastructure/
+├──docs/
+├──scripts/
+├──tests/
+├──configs/
+├──assets/
+├──.github/
+├──.vscode/ (optional)
+│
+├──README.md
+├──CHANGELOG.md
+├──CONTRIBUTING.md
+├──LICENSE
+├──CODEOWNERS
+├──SECURITY.md
+├──ARCHITECTURE.md
+└── ROADMAP.md
+```
 
 Not every repository requires every directory, but the organizational philosophy should remain consistent.
 
@@ -1957,43 +1885,27 @@ Automation reduces operational variability.
 
 Every repository progresses through a managed lifecycle.
 
-**Planning**
-
-**│**
-
-**▼**
-
-**Initialization**
-
-**│**
-
-**▼**
-
-**Development**
-
-**│**
-
-**▼**
-
-**Production**
-
-**│**
-
-**▼**
-
-**Maintenance**
-
-**│**
-
-**▼**
-
-**Modernization**
-
-**│**
-
-**▼**
-
-**Retirement**
+```
+Planning
+│
+▼
+Initialization
+│
+▼
+Development
+│
+▼
+Production
+│
+▼
+Maintenance
+│
+▼
+Modernization
+│
+▼
+Retirement
+```
 
 Repository retirement should include:
 
@@ -2205,51 +2117,31 @@ The structure should support:
 
 MARQ Cortex projects may contain several structural levels.
 
-**Repository**
-
-**│**
-
-**├****──****Application**
-
-**│      │**
-
-**│** **├****──****Domain or Feature**
-
-**│      │      │**
-
-**│      │** **├****──****Module**
-
-**│      │      │      │**
-
-**│      │      │** **├****──****Public Contract**
-
-**│      │      │** **├****──****Application Logic**
-
-**│      │      │** **├****──****Domain Logic**
-
-**│      │      │** **├****──****Infrastructure**
-
-**│      │      │      └── Tests**
-
-**│      │      │**
-
-**│      │      └── Supporting Components**
-
-**│      │**
-
-**│      └── Runtime Entry Point**
-
-**│**
-
-**├****──****Shared Packages**
-
-**├****──****Infrastructure**
-
-**├****──****Automation**
-
-**├****──****Documentation**
-
-**└── Tests**
+```
+Repository
+│
+├──Application
+│      │
+│ ├──Domain or Feature
+│      │      │
+│      │ ├──Module
+│      │      │      │
+│      │      │ ├──Public Contract
+│      │      │ ├──Application Logic
+│      │      │ ├──Domain Logic
+│      │      │ ├──Infrastructure
+│      │      │      └── Tests
+│      │      │
+│      │      └── Supporting Components
+│      │
+│      └── Runtime Entry Point
+│
+├──Shared Packages
+├──Infrastructure
+├──Automation
+├──Documentation
+└── Tests
+```
 
 Each level should communicate responsibility and ownership.
 
@@ -2257,143 +2149,77 @@ Each level should communicate responsibility and ownership.
 
 A MARQ Cortex monorepository should generally follow this structure:
 
-**marq-cortex/**
-
-**│**
-
-**├****──****apps/**
-
-**│** **├****──****web/**
-
-**│** **├****──****admin/**
-
-**│** **├****──****api/**
-
-**│** **├****──****workers/**
-
-**│   └── scheduled-jobs/**
-
-**│**
-
-**├****──****services/**
-
-**│** **├****──****identity/**
-
-**│** **├****──****intelligence/**
-
-**│** **├****──****knowledge/**
-
-**│** **├****──****workflow/**
-
-**│** **├****──****notifications/**
-
-**│   └── integrations/**
-
-**│**
-
-**├****──****packages/**
-
-**│** **├****──****ui/**
-
-**│** **├****──****contracts/**
-
-**│** **├****──****domain/**
-
-**│** **├****──****configuration/**
-
-**│** **├****──****observability/**
-
-**│** **├****──****security/**
-
-**│** **├****──****testing/**
-
-**│   └── utilities/**
-
-**│**
-
-**├****──****infrastructure/**
-
-**│** **├****──****environments/**
-
-**│** **├****──****modules/**
-
-**│** **├****──****containers/**
-
-**│** **├****──****policies/**
-
-**│   └── scripts/**
-
-**│**
-
-**├****──****database/**
-
-**│** **├****──****schemas/**
-
-**│** **├****──****migrations/**
-
-**│** **├****──****seeds/**
-
-**│** **├****──****policies/**
-
-**│   └── tests/**
-
-**│**
-
-**├****──****docs/**
-
-**│** **├****──****architecture/**
-
-**│** **├****──****decisions/**
-
-**│** **├****──****runbooks/**
-
-**│** **├****──****guides/**
-
-**│   └── references/**
-
-**│**
-
-**├****──****tooling/**
-
-**│** **├****──****generators/**
-
-**│** **├****──****linters/**
-
-**│** **├****──****validation/**
-
-**│   └── release/**
-
-**│**
-
-**├****──****tests/**
-
-**│** **├****──****integration/**
-
-**│** **├****──****end-to-end/**
-
-**│** **├****──****performance/**
-
-**│** **├****──****security/**
-
-**│   └── resilience/**
-
-**│**
-
-**├****──****scripts/**
-
-**├****──****configs/**
-
-**├****──****.github/**
-
-**├****──****README.md**
-
-**├****──****ARCHITECTURE.md**
-
-**├****──****CONTRIBUTING.md**
-
-**├****──****SECURITY.md**
-
-**└── CODEOWNERS**
+```
+marq-cortex/
+│
+├──apps/
+│ ├──web/
+│ ├──admin/
+│ ├──api/
+│ ├──workers/
+│   └── scheduled-jobs/
+│
+├──services/
+│ ├──identity/
+│ ├──intelligence/
+│ ├──knowledge/
+│ ├──workflow/
+│ ├──notifications/
+│   └── integrations/
+│
+├──packages/
+│ ├──ui/
+│ ├──contracts/
+│ ├──domain/
+│ ├──configuration/
+│ ├──observability/
+│ ├──security/
+│ ├──testing/
+│   └── utilities/
+│
+├──infrastructure/
+│ ├──environments/
+│ ├──modules/
+│ ├──containers/
+│ ├──policies/
+│   └── scripts/
+│
+├──database/
+│ ├──schemas/
+│ ├──migrations/
+│ ├──seeds/
+│ ├──policies/
+│   └── tests/
+│
+├──docs/
+│ ├──architecture/
+│ ├──decisions/
+│ ├──runbooks/
+│ ├──guides/
+│   └── references/
+│
+├──tooling/
+│ ├──generators/
+│ ├──linters/
+│ ├──validation/
+│   └── release/
+│
+├──tests/
+│ ├──integration/
+│ ├──end-to-end/
+│ ├──performance/
+│ ├──security/
+│   └── resilience/
+│
+├──scripts/
+├──configs/
+├──.github/
+├──README.md
+├──ARCHITECTURE.md
+├──CONTRIBUTING.md
+├──SECURITY.md
+└── CODEOWNERS
+```
 
 The exact directories may vary, but equivalent responsibilities must remain clearly represented.
 
@@ -2403,63 +2229,37 @@ Each application should separate runtime composition, features, platform concern
 
 Example:
 
-**apps/web/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****app/**
-
-**│   │** **├****──****routing/**
-
-**│   │** **├****──****providers/**
-
-**│   │** **├****──****configuration/**
-
-**│   │   └── bootstrap/**
-
-**│   │**
-
-**│** **├****──****features/**
-
-**│   │** **├****──****authentication/**
-
-**│   │** **├****──****organizations/**
-
-**│   │** **├****──****opportunities/**
-
-**│   │** **├****──****workflows/**
-
-**│   │   └── knowledge/**
-
-**│   │**
-
-**│** **├****──****shared/**
-
-**│   │** **├****──****components/**
-
-**│   │** **├****──****hooks/**
-
-**│   │** **├****──****utilities/**
-
-**│   │   └── types/**
-
-**│   │**
-
-**│** **├****──****services/**
-
-**│** **├****──****assets/**
-
-**│   └── main.***
-
-**│**
-
-**├****──****public/**
-
-**├****──****tests/**
-
-**└── configuration files**
+```
+apps/web/
+│
+├──src/
+│ ├──app/
+│   │ ├──routing/
+│   │ ├──providers/
+│   │ ├──configuration/
+│   │   └── bootstrap/
+│   │
+│ ├──features/
+│   │ ├──authentication/
+│   │ ├──organizations/
+│   │ ├──opportunities/
+│   │ ├──workflows/
+│   │   └── knowledge/
+│   │
+│ ├──shared/
+│   │ ├──components/
+│   │ ├──hooks/
+│   │ ├──utilities/
+│   │   └── types/
+│   │
+│ ├──services/
+│ ├──assets/
+│   └── main.*
+│
+├──public/
+├──tests/
+└── configuration files
+```
 
 The application root should contain composition and startup concerns rather than business logic.
 
@@ -2469,75 +2269,47 @@ Business capabilities should live within feature or domain modules.
 
 Backend services should clearly separate transport, application, domain, and infrastructure concerns.
 
-**services/opportunity-service/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****modules/**
-
-**│   │   └── opportunities/**
-
-**│   │** **├****──****api/**
-
-**│   │** **├****──****application/**
-
-**│   │** **├****──****domain/**
-
-**│   │** **├****──****infrastructure/**
-
-**│   │** **├****──****events/**
-
-**│   │** **├****──****contracts/**
-
-**│   │       └── tests/**
-
-**│   │**
-
-**│** **├****──****platform/**
-
-**│   │** **├****──****configuration/**
-
-**│   │** **├****──****observability/**
-
-**│   │** **├****──****security/**
-
-**│   │** **├****──****persistence/**
-
-**│   │   └── messaging/**
-
-**│   │**
-
-**│** **├****──****bootstrap/**
-
-**│   └── main.***
-
-**│**
-
-**├****──****migrations/**
-
-**├****──****tests/**
-
-**├****──****Dockerfile**
-
-**└── service configuration**
+```
+services/opportunity-service/
+│
+├──src/
+│ ├──modules/
+│   │   └── opportunities/
+│   │ ├──api/
+│   │ ├──application/
+│   │ ├──domain/
+│   │ ├──infrastructure/
+│   │ ├──events/
+│   │ ├──contracts/
+│   │       └── tests/
+│   │
+│ ├──platform/
+│   │ ├──configuration/
+│   │ ├──observability/
+│   │ ├──security/
+│   │ ├──persistence/
+│   │   └── messaging/
+│   │
+│ ├──bootstrap/
+│   └── main.*
+│
+├──migrations/
+├──tests/
+├──Dockerfile
+└── service configuration
+```
 
 The backend structure should preserve the dependency direction:
 
-**Transport**
-
-**↓**
-
-**Application**
-
-**↓**
-
-**Domain**
-
-**↑**
-
-**Infrastructure implements domain-facing interfaces**
+```
+Transport
+↓
+Application
+↓
+Domain
+↑
+Infrastructure implements domain-facing interfaces
+```
 
 The domain layer must remain independent of transport frameworks, databases, message brokers, and external providers.
 
@@ -2545,79 +2317,45 @@ The domain layer must remain independent of transport frameworks, databases, mes
 
 A domain module should represent a coherent business capability.
 
-**opportunities/**
-
-**│**
-
-**├****──****api/**
-
-**│** **├****──****routes/**
-
-**│** **├****──****controllers/**
-
-**│** **├****──****requests/**
-
-**│   └── responses/**
-
-**│**
-
-**├****──****application/**
-
-**│** **├****──****commands/**
-
-**│** **├****──****queries/**
-
-**│** **├****──****handlers/**
-
-**│** **├****──****services/**
-
-**│   └── ports/**
-
-**│**
-
-**├****──****domain/**
-
-**│** **├****──****entities/**
-
-**│** **├****──****value-objects/**
-
-**│** **├****──****aggregates/**
-
-**│** **├****──****policies/**
-
-**│** **├****──****services/**
-
-**│** **├****──****events/**
-
-**│   └── errors/**
-
-**│**
-
-**├****──****infrastructure/**
-
-**│** **├****──****repositories/**
-
-**│** **├****──****persistence/**
-
-**│** **├****──****providers/**
-
-**│** **├****──****messaging/**
-
-**│   └── adapters/**
-
-**│**
-
-**├****──****contracts/**
-
-**│** **├****──****api/**
-
-**│** **├****──****events/**
-
-**│   └── schemas/**
-
-**│**
-
-**└── tests/**
+```
+opportunities/
+│
+├──api/
+│ ├──routes/
+│ ├──controllers/
+│ ├──requests/
+│   └── responses/
+│
+├──application/
+│ ├──commands/
+│ ├──queries/
+│ ├──handlers/
+│ ├──services/
+│   └── ports/
+│
+├──domain/
+│ ├──entities/
+│ ├──value-objects/
+│ ├──aggregates/
+│ ├──policies/
+│ ├──services/
+│ ├──events/
+│   └── errors/
+│
+├──infrastructure/
+│ ├──repositories/
+│ ├──persistence/
+│ ├──providers/
+│ ├──messaging/
+│   └── adapters/
+│
+├──contracts/
+│ ├──api/
+│ ├──events/
+│   └── schemas/
+│
+└── tests/
+```
 
 Not every module requires all directories. Empty structural placeholders should not be created without need.
 
@@ -2629,45 +2367,33 @@ Frontend applications should organize product behavior by feature or domain capa
 
 Preferred:
 
-**features/workflows/**
-
-**│**
-
-**├****──****components/**
-
-**├****──****pages/**
-
-**├****──****hooks/**
-
-**├****──****services/**
-
-**├****──****state/**
-
-**├****──****schemas/**
-
-**├****──****types/**
-
-**├****──****utilities/**
-
-**├****──****tests/**
-
-**└── index.***
+```
+features/workflows/
+│
+├──components/
+├──pages/
+├──hooks/
+├──services/
+├──state/
+├──schemas/
+├──types/
+├──utilities/
+├──tests/
+└── index.*
+```
 
 Avoid structures where all components, hooks, services, and types for the entire application are placed into global directories without ownership boundaries.
 
 For example, this should generally be avoided:
 
-**src/**
-
-**├****──****components/**
-
-**├****──****hooks/**
-
-**├****──****services/**
-
-**├****──****types/**
-
-**└── pages/**
+```
+src/
+├──components/
+├──hooks/
+├──services/
+├──types/
+└── pages/
+```
 
 Such a structure may be acceptable for very small applications but becomes difficult to govern as the platform grows.
 
@@ -2675,83 +2401,47 @@ Such a structure may be acceptable for very small applications but becomes diffi
 
 AI services should separate orchestration, provider integration, prompts, policy, evaluation, and telemetry.
 
-**services/intelligence/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****gateway/**
-
-**│   │** **├****──****contracts/**
-
-**│   │** **├****──****routing/**
-
-**│   │** **├****──****policies/**
-
-**│   │   └── execution/**
-
-**│   │**
-
-**│** **├****──****providers/**
-
-**│   │** **├****──****openai/**
-
-**│   │** **├****──****anthropic/**
-
-**│   │** **├****──****local/**
-
-**│   │   └── mock/**
-
-**│   │**
-
-**│** **├****──****capabilities/**
-
-**│   │** **├****──****generation/**
-
-**│   │** **├****──****extraction/**
-
-**│   │** **├****──****classification/**
-
-**│   │** **├****──****embeddings/**
-
-**│   │   └── retrieval/**
-
-**│   │**
-
-**│** **├****──****prompts/**
-
-**│   │** **├****──****templates/**
-
-**│   │** **├****──****schemas/**
-
-**│   │** **├****──****versions/**
-
-**│   │   └── tests/**
-
-**│   │**
-
-**│** **├****──****governance/**
-
-**│   │** **├****──****safety/**
-
-**│   │** **├****──****privacy/**
-
-**│   │** **├****──****policy/**
-
-**│   │   └── approvals/**
-
-**│   │**
-
-**│** **├****──****evaluation/**
-
-**│** **├****──****observability/**
-
-**│   └── bootstrap/**
-
-**│**
-
-**└── tests/**
+```
+services/intelligence/
+│
+├──src/
+│ ├──gateway/
+│   │ ├──contracts/
+│   │ ├──routing/
+│   │ ├──policies/
+│   │   └── execution/
+│   │
+│ ├──providers/
+│   │ ├──openai/
+│   │ ├──anthropic/
+│   │ ├──local/
+│   │   └── mock/
+│   │
+│ ├──capabilities/
+│   │ ├──generation/
+│   │ ├──extraction/
+│   │ ├──classification/
+│   │ ├──embeddings/
+│   │   └── retrieval/
+│   │
+│ ├──prompts/
+│   │ ├──templates/
+│   │ ├──schemas/
+│   │ ├──versions/
+│   │   └── tests/
+│   │
+│ ├──governance/
+│   │ ├──safety/
+│   │ ├──privacy/
+│   │ ├──policy/
+│   │   └── approvals/
+│   │
+│ ├──evaluation/
+│ ├──observability/
+│   └── bootstrap/
+│
+└── tests/
+```
 
 Provider-specific code must remain behind provider-neutral interfaces.
 
@@ -2761,39 +2451,25 @@ Prompts should be version-controlled and treated as executable implementation as
 
 Workflow implementations should separate definitions, execution, state, activities, triggers, and operational controls.
 
-**services/workflow/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****definitions/**
-
-**│** **├****──****execution/**
-
-**│** **├****──****activities/**
-
-**│** **├****──****triggers/**
-
-**│** **├****──****state/**
-
-**│** **├****──****scheduling/**
-
-**│** **├****──****compensation/**
-
-**│** **├****──****policies/**
-
-**│** **├****──****observability/**
-
-**│   └── contracts/**
-
-**│**
-
-**├****──****workflow-specifications/**
-
-**├****──****tests/**
-
-**└── runbooks/**
+```
+services/workflow/
+│
+├──src/
+│ ├──definitions/
+│ ├──execution/
+│ ├──activities/
+│ ├──triggers/
+│ ├──state/
+│ ├──scheduling/
+│ ├──compensation/
+│ ├──policies/
+│ ├──observability/
+│   └── contracts/
+│
+├──workflow-specifications/
+├──tests/
+└── runbooks/
+```
 
 Workflow definitions must not conceal critical business logic in ungoverned configuration files.
 
@@ -2803,43 +2479,27 @@ Workflow behavior should be testable, versioned, observable, and traceable.
 
 Knowledge implementation should distinguish ingestion, normalization, indexing, retrieval, provenance, and access control.
 
-**services/knowledge/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****ingestion/**
-
-**│** **├****──****normalization/**
-
-**│** **├****──****enrichment/**
-
-**│** **├****──****indexing/**
-
-**│** **├****──****retrieval/**
-
-**│** **├****──****graph/**
-
-**│** **├****──****provenance/**
-
-**│** **├****──****access-control/**
-
-**│** **├****──****lifecycle/**
-
-**│   └── contracts/**
-
-**│**
-
-**├****──****schemas/**
-
-**├****──****pipelines/**
-
-**├****──****evaluation/**
-
-**├****──****tests/**
-
-**└── runbooks/**
+```
+services/knowledge/
+│
+├──src/
+│ ├──ingestion/
+│ ├──normalization/
+│ ├──enrichment/
+│ ├──indexing/
+│ ├──retrieval/
+│ ├──graph/
+│ ├──provenance/
+│ ├──access-control/
+│ ├──lifecycle/
+│   └── contracts/
+│
+├──schemas/
+├──pipelines/
+├──evaluation/
+├──tests/
+└── runbooks/
+```
 
 Source provenance and access-control logic must remain first-class structural responsibilities.
 
@@ -2849,29 +2509,20 @@ They must not be hidden inside generic utility modules.
 
 Shared packages should expose a narrow and intentional public interface.
 
-**packages/contracts/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****api/**
-
-**│** **├****──****events/**
-
-**│** **├****──****schemas/**
-
-**│** **├****──****types/**
-
-**│   └── index.***
-
-**│**
-
-**├****──****tests/**
-
-**├****──****README.md**
-
-**└── package configuration**
+```
+packages/contracts/
+│
+├──src/
+│ ├──api/
+│ ├──events/
+│ ├──schemas/
+│ ├──types/
+│   └── index.*
+│
+├──tests/
+├──README.md
+└── package configuration
+```
 
 Shared packages should:
 
@@ -2888,47 +2539,29 @@ A shared package must not become a dumping ground for unrelated utilities.
 
 Infrastructure projects should separate reusable modules from environment composition.
 
-**infrastructure/**
-
-**│**
-
-**├****──****modules/**
-
-**│** **├****──****network/**
-
-**│** **├****──****database/**
-
-**│** **├****──****compute/**
-
-**│** **├****──****storage/**
-
-**│** **├****──****messaging/**
-
-**│** **├****──****observability/**
-
-**│   └── identity/**
-
-**│**
-
-**├****──****environments/**
-
-**│** **├****──****development/**
-
-**│** **├****──****testing/**
-
-**│** **├****──****staging/**
-
-**│   └── production/**
-
-**│**
-
-**├****──****policies/**
-
-**├****──****tests/**
-
-**├****──****scripts/**
-
-**└── documentation/**
+```
+infrastructure/
+│
+├──modules/
+│ ├──network/
+│ ├──database/
+│ ├──compute/
+│ ├──storage/
+│ ├──messaging/
+│ ├──observability/
+│   └── identity/
+│
+├──environments/
+│ ├──development/
+│ ├──testing/
+│ ├──staging/
+│   └── production/
+│
+├──policies/
+├──tests/
+├──scripts/
+└── documentation/
+```
 
 Reusable modules should contain generic capability definitions.
 
@@ -2940,29 +2573,20 @@ Environment-specific values must not be hard-coded into reusable modules.
 
 Database implementation assets should be versioned and organized by responsibility.
 
-**database/**
-
-**│**
-
-**├****──****schemas/**
-
-**├****──****migrations/**
-
-**├****──****seeds/**
-
-**├****──****functions/**
-
-**├****──****triggers/**
-
-**├****──****policies/**
-
-**├****──****views/**
-
-**├****──****fixtures/**
-
-**├****──****tests/**
-
-**└── documentation/**
+```
+database/
+│
+├──schemas/
+├──migrations/
+├──seeds/
+├──functions/
+├──triggers/
+├──policies/
+├──views/
+├──fixtures/
+├──tests/
+└── documentation/
+```
 
 Database changes must be represented through migration artifacts.
 
@@ -2972,29 +2596,20 @@ Direct production changes that cannot be reproduced from version control are pro
 
 Tests should be organized by scope and responsibility.
 
-**tests/**
-
-**│**
-
-**├****──****unit/**
-
-**├****──****component/**
-
-**├****──****contract/**
-
-**├****──****integration/**
-
-**├****──****end-to-end/**
-
-**├****──****performance/**
-
-**├****──****security/**
-
-**├****──****accessibility/**
-
-**├****──****resilience/**
-
-**└── fixtures/**
+```
+tests/
+│
+├──unit/
+├──component/
+├──contract/
+├──integration/
+├──end-to-end/
+├──performance/
+├──security/
+├──accessibility/
+├──resilience/
+└── fixtures/
+```
 
 Tests may also be colocated with implementation when this improves ownership and maintainability.
 
@@ -3020,17 +2635,14 @@ Configuration should be separated into:
 
 Example:
 
-**configs/**
-
-**├****──****defaults/**
-
-**├****──****environments/**
-
-**├****──****schemas/**
-
-**├****──****policies/**
-
-**└── examples/**
+```
+configs/
+├──defaults/
+├──environments/
+├──schemas/
+├──policies/
+└── examples/
+```
 
 Configuration must be validated through schemas wherever practical.
 
@@ -3064,25 +2676,18 @@ Private implementation details must remain replaceable without forcing platform-
 
 Dependencies must flow toward stable business abstractions.
 
-**User Interface / Transport**
-
-**│**
-
-**▼**
-
-**Application Logic**
-
-**│**
-
-**▼**
-
-**Domain Model**
-
-**▲**
-
-**│**
-
-**Infrastructure Adapters**
+```
+User Interface / Transport
+│
+▼
+Application Logic
+│
+▼
+Domain Model
+▲
+│
+Infrastructure Adapters
+```
 
 Key rules:
 
@@ -5575,27 +5180,19 @@ Recommended metadata includes:
 
 Documentation should use a consistent lifecycle status.
 
-**Draft**
-
-**↓**
-
-**In Review**
-
-**↓**
-
-**Approved**
-
-**↓**
-
-**Effective**
-
-**↓**
-
-**Superseded or Deprecated**
-
-**↓**
-
-**Archived**
+```
+Draft
+↓
+In Review
+↓
+Approved
+↓
+Effective
+↓
+Superseded or Deprecated
+↓
+Archived
+```
 
 **Draft**
 
@@ -6426,35 +6023,23 @@ Examples:
 
 Hotfix workflow:
 
-**main**
-
-**│**
-
-**▼**
-
-**hotfix/***
-
-**│**
-
-**▼**
-
-**Review**
-
-**│**
-
-**▼**
-
-**Validation**
-
-**│**
-
-**▼**
-
-**Merge → main**
-
-**│**
-
-**└────────****►****Backport into active development branches**
+```
+main
+│
+▼
+hotfix/*
+│
+▼
+Review
+│
+▼
+Validation
+│
+▼
+Merge → main
+│
+└────────►Backport into active development branches
+```
 
 Hotfixes must never bypass review simply because they are urgent.
 
@@ -6765,43 +6350,27 @@ Large engineering initiatives should be divided into smaller mergeable increment
 
 Recommended approach:
 
-**Architecture**
-
-**│**
-
-**▼**
-
-**Foundation**
-
-**│**
-
-**▼**
-
-**Infrastructure**
-
-**│**
-
-**▼**
-
-**Core Features**
-
-**│**
-
-**▼**
-
-**Integration**
-
-**│**
-
-**▼**
-
-**Testing**
-
-**│**
-
-**▼**
-
-**Release**
+```
+Architecture
+│
+▼
+Foundation
+│
+▼
+Infrastructure
+│
+▼
+Core Features
+│
+▼
+Integration
+│
+▼
+Testing
+│
+▼
+Release
+```
 
 Incremental delivery reduces integration risk.
 
@@ -6914,49 +6483,30 @@ Documentation must never become permanently disconnected from implementation.
 
 Standard lifecycle:
 
-**Create**
-
-**│**
-
-**▼**
-
-**Develop**
-
-**│**
-
-**▼**
-
-**Continuous Sync**
-
-**│**
-
-**▼**
-
-**Pull Request**
-
-**│**
-
-**▼**
-
-**Review**
-
-**│**
-
-**▼**
-
-**Validation**
-
-**│**
-
-**▼**
-
-**Merge**
-
-**│**
-
-**▼**
-
-**Delete Branch**
+```
+Create
+│
+▼
+Develop
+│
+▼
+Continuous Sync
+│
+▼
+Pull Request
+│
+▼
+Review
+│
+▼
+Validation
+│
+▼
+Merge
+│
+▼
+Delete Branch
+```
 
 Branches should not remain indefinitely after merge.
 
@@ -7191,61 +6741,36 @@ Every review should answer the following questions.
 
 Standard review workflow:
 
-**Requirement**
-
-**│**
-
-**▼**
-
-**Implementation**
-
-**│**
-
-**▼**
-
-**Self Review**
-
-**│**
-
-**▼**
-
-**Pull Request**
-
-**│**
-
-**▼**
-
-**Automated Validation**
-
-**│**
-
-**▼**
-
-**Peer Review**
-
-**│**
-
-**▼**
-
-**Specialist Reviews**
-
-**│**
-
-**▼**
-
-**Approval**
-
-**│**
-
-**▼**
-
-**Merge**
-
-**│**
-
-**▼**
-
-**Deployment**
+```
+Requirement
+│
+▼
+Implementation
+│
+▼
+Self Review
+│
+▼
+Pull Request
+│
+▼
+Automated Validation
+│
+▼
+Peer Review
+│
+▼
+Specialist Reviews
+│
+▼
+Approval
+│
+▼
+Merge
+│
+▼
+Deployment
+```
 
 Every stage contributes to engineering quality.
 
@@ -7955,85 +7480,48 @@ Frontend architecture should allow user-visible behavior to be tested without ex
 
 A standard MARQ Cortex frontend should separate application composition, features, shared platform capabilities, and external integrations.
 
-**Frontend Application**
-
-**│**
-
-**├****──****Application Shell**
-
-**│** **├****──****Bootstrap**
-
-**│** **├****──****Routing**
-
-**│** **├****──****Providers**
-
-**│** **├****──****Session Initialization**
-
-**│   └── Global Error Handling**
-
-**│**
-
-**├****──****Feature Modules**
-
-**│** **├****──****Pages**
-
-**│** **├****──****Components**
-
-**│** **├****──****State**
-
-**│** **├****──****Queries**
-
-**│** **├****──****Mutations**
-
-**│** **├****──****Validation**
-
-**│   └── Feature Tests**
-
-**│**
-
-**├****──****Shared Experience Layer**
-
-**│** **├****──****Design System**
-
-**│** **├****──****Shared Components**
-
-**│** **├****──****Accessibility Utilities**
-
-**│** **├****──****Common Hooks**
-
-**│   └── Shared Types**
-
-**│**
-
-**├****──****Platform Services**
-
-**│** **├****──****API Client**
-
-**│** **├****──****Authentication**
-
-**│** **├****──****Authorization**
-
-**│** **├****──****Analytics**
-
-**│** **├****──****Observability**
-
-**│** **├****──****Feature Flags**
-
-**│   └── Configuration**
-
-**│**
-
-**└── External Interfaces**
-
-**├****──****Backend APIs**
-
-**├****──****Event Streams**
-
-**├****──****AI Services**
-
-**├****──****File Services**
-
-**└── Third-Party Integrations**
+```
+Frontend Application
+│
+├──Application Shell
+│ ├──Bootstrap
+│ ├──Routing
+│ ├──Providers
+│ ├──Session Initialization
+│   └── Global Error Handling
+│
+├──Feature Modules
+│ ├──Pages
+│ ├──Components
+│ ├──State
+│ ├──Queries
+│ ├──Mutations
+│ ├──Validation
+│   └── Feature Tests
+│
+├──Shared Experience Layer
+│ ├──Design System
+│ ├──Shared Components
+│ ├──Accessibility Utilities
+│ ├──Common Hooks
+│   └── Shared Types
+│
+├──Platform Services
+│ ├──API Client
+│ ├──Authentication
+│ ├──Authorization
+│ ├──Analytics
+│ ├──Observability
+│ ├──Feature Flags
+│   └── Configuration
+│
+└── External Interfaces
+├──Backend APIs
+├──Event Streams
+├──AI Services
+├──File Services
+└── Third-Party Integrations
+```
 
 The architecture should make ownership and dependency direction visible.
 
@@ -8041,105 +7529,58 @@ The architecture should make ownership and dependency direction visible.
 
 A recommended structure is:
 
-**apps/web/**
-
-**│**
-
-**├****──****public/**
-
-**│**
-
-**├****──****src/**
-
-**│** **├****──****app/**
-
-**│   │** **├****──****bootstrap/**
-
-**│   │** **├****──****routing/**
-
-**│   │** **├****──****providers/**
-
-**│   │** **├****──****layouts/**
-
-**│   │** **├****──****configuration/**
-
-**│   │   └── error-boundaries/**
-
-**│   │**
-
-**│** **├****──****features/**
-
-**│   │** **├****──****authentication/**
-
-**│   │** **├****──****organizations/**
-
-**│   │** **├****──****opportunities/**
-
-**│   │** **├****──****workflows/**
-
-**│   │** **├****──****intelligence/**
-
-**│   │   └── knowledge/**
-
-**│   │**
-
-**│** **├****──****shared/**
-
-**│   │** **├****──****components/**
-
-**│   │** **├****──****hooks/**
-
-**│   │** **├****──****utilities/**
-
-**│   │** **├****──****validation/**
-
-**│   │** **├****──****types/**
-
-**│   │   └── constants/**
-
-**│   │**
-
-**│** **├****──****design-system/**
-
-**│   │** **├****──****foundations/**
-
-**│   │** **├****──****primitives/**
-
-**│   │** **├****──****components/**
-
-**│   │** **├****──****patterns/**
-
-**│   │   └── tokens/**
-
-**│   │**
-
-**│** **├****──****services/**
-
-**│   │** **├****──****api/**
-
-**│   │** **├****──****authentication/**
-
-**│   │** **├****──****observability/**
-
-**│   │** **├****──****analytics/**
-
-**│   │   └── configuration/**
-
-**│   │**
-
-**│** **├****──****assets/**
-
-**│** **├****──****tests/**
-
-**│   └── main.***
-
-**│**
-
-**├****──****e2e/**
-
-**├****──****documentation/**
-
-**└── configuration files**
+```
+apps/web/
+│
+├──public/
+│
+├──src/
+│ ├──app/
+│   │ ├──bootstrap/
+│   │ ├──routing/
+│   │ ├──providers/
+│   │ ├──layouts/
+│   │ ├──configuration/
+│   │   └── error-boundaries/
+│   │
+│ ├──features/
+│   │ ├──authentication/
+│   │ ├──organizations/
+│   │ ├──opportunities/
+│   │ ├──workflows/
+│   │ ├──intelligence/
+│   │   └── knowledge/
+│   │
+│ ├──shared/
+│   │ ├──components/
+│   │ ├──hooks/
+│   │ ├──utilities/
+│   │ ├──validation/
+│   │ ├──types/
+│   │   └── constants/
+│   │
+│ ├──design-system/
+│   │ ├──foundations/
+│   │ ├──primitives/
+│   │ ├──components/
+│   │ ├──patterns/
+│   │   └── tokens/
+│   │
+│ ├──services/
+│   │ ├──api/
+│   │ ├──authentication/
+│   │ ├──observability/
+│   │ ├──analytics/
+│   │   └── configuration/
+│   │
+│ ├──assets/
+│ ├──tests/
+│   └── main.*
+│
+├──e2e/
+├──documentation/
+└── configuration files
+```
 
 Projects may adapt this structure, but equivalent responsibilities must remain explicit.
 
@@ -8169,33 +7610,22 @@ The shell should not contain feature-specific business logic.
 
 Each major frontend capability should be organized as a self-contained feature module.
 
-**features/opportunities/**
-
-**│**
-
-**├****──****pages/**
-
-**├****──****components/**
-
-**├****──****queries/**
-
-**├****──****mutations/**
-
-**├****──****state/**
-
-**├****──****services/**
-
-**├****──****schemas/**
-
-**├****──****types/**
-
-**├****──****utilities/**
-
-**├****──****permissions/**
-
-**├****──****tests/**
-
-**└── index.***
+```
+features/opportunities/
+│
+├──pages/
+├──components/
+├──queries/
+├──mutations/
+├──state/
+├──services/
+├──schemas/
+├──types/
+├──utilities/
+├──permissions/
+├──tests/
+└── index.*
+```
 
 A feature module should own:
 
@@ -8470,37 +7900,24 @@ Frontend validation improves user experience but does not replace backend valida
 
 Validation should exist at appropriate layers:
 
-**User Input**
-
-**│**
-
-**▼**
-
-**Frontend Validation**
-
-**│**
-
-**▼**
-
-**API Contract Validation**
-
-**│**
-
-**▼**
-
-**Application Validation**
-
-**│**
-
-**▼**
-
-**Domain Validation**
-
-**│**
-
-**▼**
-
-**Database Constraints**
+```
+User Input
+│
+▼
+Frontend Validation
+│
+▼
+API Contract Validation
+│
+▼
+Application Validation
+│
+▼
+Domain Validation
+│
+▼
+Database Constraints
+```
 
 Frontend validation messages should be:
 
@@ -9395,37 +8812,24 @@ Frontend requests should include or preserve correlation identifiers where suppo
 
 This enables tracing across:
 
-**User Action**
-
-**│**
-
-**▼**
-
-**Frontend Event**
-
-**│**
-
-**▼**
-
-**API Request**
-
-**│**
-
-**▼**
-
-**Backend Processing**
-
-**│**
-
-**▼**
-
-**Workflow / AI / Integration**
-
-**│**
-
-**▼**
-
-**Operational Result**
+```
+User Action
+│
+▼
+Frontend Event
+│
+▼
+API Request
+│
+▼
+Backend Processing
+│
+▼
+Workflow / AI / Integration
+│
+▼
+Operational Result
+```
 
 Correlation improves production diagnosis and incident response.
 
@@ -10106,37 +9510,24 @@ Operational behavior should rely on automation rather than manual intervention w
 
 A standard MARQ Cortex backend follows layered responsibilities.
 
-**Clients**
-
-**│**
-
-**▼**
-
-**API Layer**
-
-**│**
-
-**▼**
-
-**Application Layer**
-
-**│**
-
-**▼**
-
-**Domain Layer**
-
-**│**
-
-**▼**
-
-**Infrastructure Layer**
-
-**│**
-
-**▼**
-
-**Storage / External Systems**
+```
+Clients
+│
+▼
+API Layer
+│
+▼
+Application Layer
+│
+▼
+Domain Layer
+│
+▼
+Infrastructure Layer
+│
+▼
+Storage / External Systems
+```
 
 Each layer has distinct responsibilities and dependency rules.
 
@@ -10144,63 +9535,37 @@ Each layer has distinct responsibilities and dependency rules.
 
 A recommended backend structure is:
 
-**apps/api/**
-
-**│**
-
-**├****──****modules/**
-
-**│** **├****──****identity/**
-
-**│** **├****──****organizations/**
-
-**│** **├****──****opportunities/**
-
-**│** **├****──****workflows/**
-
-**│** **├****──****knowledge/**
-
-**│** **├****──****intelligence/**
-
-**│** **├****──****billing/**
-
-**│   └── notifications/**
-
-**│**
-
-**├****──****shared/**
-
-**│**
-
-**├****──****infrastructure/**
-
-**│**
-
-**├****──****integrations/**
-
-**│**
-
-**├****──****events/**
-
-**│**
-
-**├****──****configuration/**
-
-**│**
-
-**├****──****database/**
-
-**│**
-
-**├****──****workers/**
-
-**│**
-
-**├****──****tests/**
-
-**│**
-
-**└── bootstrap/**
+```
+apps/api/
+│
+├──modules/
+│ ├──identity/
+│ ├──organizations/
+│ ├──opportunities/
+│ ├──workflows/
+│ ├──knowledge/
+│ ├──intelligence/
+│ ├──billing/
+│   └── notifications/
+│
+├──shared/
+│
+├──infrastructure/
+│
+├──integrations/
+│
+├──events/
+│
+├──configuration/
+│
+├──database/
+│
+├──workers/
+│
+├──tests/
+│
+└── bootstrap/
+```
 
 Module organization should follow bounded-context ownership.
 
@@ -10293,19 +9658,15 @@ Cross-domain ownership must remain explicit.
 
 Allowed dependency direction:
 
-**API**
-
-**↓**
-
-**Application**
-
-**↓**
-
-**Domain**
-
-**↓**
-
-**Infrastructure**
+```
+API
+↓
+Application
+↓
+Domain
+↓
+Infrastructure
+```
 
 Reverse dependencies are prohibited.
 
@@ -10400,25 +9761,18 @@ Models should protect business invariants.
 
 Validation occurs at multiple layers.
 
-**API Validation**
-
-**│**
-
-**▼**
-
-**Application Validation**
-
-**│**
-
-**▼**
-
-**Domain Validation**
-
-**│**
-
-**▼**
-
-**Database Constraints**
+```
+API Validation
+│
+▼
+Application Validation
+│
+▼
+Domain Validation
+│
+▼
+Database Constraints
+```
 
 Frontend validation never replaces backend validation.
 
@@ -10998,49 +10352,30 @@ APIs should prioritize clarity, consistency, discoverability, and predictable be
 
 A standard MARQ Cortex API architecture is:
 
-**Client**
-
-**│**
-
-**▼**
-
-**Gateway / Edge**
-
-**│**
-
-**▼**
-
-**Authentication**
-
-**│**
-
-**▼**
-
-**Authorization**
-
-**│**
-
-**▼**
-
-**Validation**
-
-**│**
-
-**▼**
-
-**Application Service**
-
-**│**
-
-**▼**
-
-**Domain**
-
-**│**
-
-**▼**
-
-**Infrastructure**
+```
+Client
+│
+▼
+Gateway / Edge
+│
+▼
+Authentication
+│
+▼
+Authorization
+│
+▼
+Validation
+│
+▼
+Application Service
+│
+▼
+Domain
+│
+▼
+Infrastructure
+```
 
 Every layer has clearly defined responsibilities.
 
@@ -11554,31 +10889,21 @@ Every request should propagate a correlation identifier.
 
 Example flow:
 
-**Client**
-
-**│**
-
-**▼**
-
-**API**
-
-**│**
-
-**▼**
-
-**Workflow**
-
-**│**
-
-**▼**
-
-**AI**
-
-**│**
-
-**▼**
-
-**Database**
+```
+Client
+│
+▼
+API
+│
+▼
+Workflow
+│
+▼
+AI
+│
+▼
+Database
+```
 
 Correlation enables end-to-end tracing.
 
@@ -11875,33 +11200,22 @@ Production data must be protected through tested backup and recovery mechanisms.
 
 MARQ Cortex should distinguish between different data responsibilities.
 
-**Application Services**
-
-**│**
-
-**▼**
-
-**Domain Data Access**
-
-**│**
-
-**▼**
-
-**Transactional Database**
-
-**│**
-
-**├****──****Event Publication**
-
-**├****──****Audit Records**
-
-**├****──****Search Indexing**
-
-**├****──****Analytics Pipelines**
-
-**├****──****AI Knowledge Processing**
-
-**└── Backup and Recovery**
+```
+Application Services
+│
+▼
+Domain Data Access
+│
+▼
+Transactional Database
+│
+├──Event Publication
+├──Audit Records
+├──Search Indexing
+├──Analytics Pipelines
+├──AI Knowledge Processing
+└── Backup and Recovery
+```
 
 Each data platform should have a clear purpose.
 
@@ -13181,35 +12495,23 @@ Provenance is especially important for AI-derived, imported, analytical, and ext
 
 Data lineage should describe how information moves and transforms across the platform.
 
-**Source**
-
-**│**
-
-**▼**
-
-**Ingestion**
-
-**│**
-
-**▼**
-
-**Validation**
-
-**│**
-
-**▼**
-
-**Transactional Storage**
-
-**│**
-
-**├****──****Search**
-
-**├****──****Analytics**
-
-**├****──****AI Retrieval**
-
-**└── Reporting**
+```
+Source
+│
+▼
+Ingestion
+│
+▼
+Validation
+│
+▼
+Transactional Storage
+│
+├──Search
+├──Analytics
+├──AI Retrieval
+└── Reporting
+```
 
 Lineage documentation should exist for business-critical datasets.
 
@@ -13785,23 +13087,17 @@ AI retrieval must enforce the same access restrictions as the source data.
 
 Deletion must propagate to derived systems.
 
-**Authoritative Record Deleted**
-
-**│**
-
-**├****──****Search Index Removal**
-
-**├****──****Vector Record Removal**
-
-**├****──****Cache Invalidation**
-
-**├****──****Object Deletion**
-
-**├****──****Analytics Handling**
-
-**├****──****Export Expiration**
-
-**└── Audit Recording**
+```
+Authoritative Record Deleted
+│
+├──Search Index Removal
+├──Vector Record Removal
+├──Cache Invalidation
+├──Object Deletion
+├──Analytics Handling
+├──Export Expiration
+└── Audit Recording
+```
 
 Deletion workflows should be observable and retryable.
 
@@ -14199,37 +13495,24 @@ Each identity category should have distinct governance requirements.
 
 A standard authentication flow is:
 
-**Client**
-
-**│**
-
-**▼**
-
-**Identity Provider**
-
-**│**
-
-**▼**
-
-**Authentication Validation**
-
-**│**
-
-**▼**
-
-**Session Creation**
-
-**│**
-
-**▼**
-
-**Authorization Context**
-
-**│**
-
-**▼**
-
-**Protected Resources**
+```
+Client
+│
+▼
+Identity Provider
+│
+▼
+Authentication Validation
+│
+▼
+Session Creation
+│
+▼
+Authorization Context
+│
+▼
+Protected Resources
+```
 
 Authentication should remain centralized.
 
@@ -14723,31 +14006,21 @@ Anonymous access should never expose protected information.
 
 #### 17.41 Authorization Evaluation Flow
 
-**Request**
-
-**│**
-
-**Authenticate**
-
-**│**
-
-**Tenant Validation**
-
-**│**
-
-**Permission Evaluation**
-
-**│**
-
-**Business Policy**
-
-**│**
-
-**Resource Ownership**
-
-**│**
-
-**Execute or Deny**
+```
+Request
+│
+Authenticate
+│
+Tenant Validation
+│
+Permission Evaluation
+│
+Business Policy
+│
+Resource Ownership
+│
+Execute or Deny
+```
 
 Authorization should stop immediately upon failure.
 
@@ -14985,39 +14258,25 @@ AI quality should be measured continuously rather than assumed.
 
 A standard MARQ Cortex AI architecture follows this model.
 
-**Application**
-
-**│**
-
-**▼**
-
-**AI Gateway**
-
-**│**
-
-**▼**
-
-**Capability Router**
-
-**│**
-
-**├****──****Prompt Manager**
-
-**├****──****Knowledge Retrieval**
-
-**├****──****Agent Engine**
-
-**├****──****Policy Engine**
-
-**├****──****Evaluation**
-
-**└── Provider Registry**
-
-**│**
-
-**▼**
-
-**AI Providers**
+```
+Application
+│
+▼
+AI Gateway
+│
+▼
+Capability Router
+│
+├──Prompt Manager
+├──Knowledge Retrieval
+├──Agent Engine
+├──Policy Engine
+├──Evaluation
+└── Provider Registry
+│
+▼
+AI Providers
+```
 
 Business applications should never call provider SDKs directly.
 
@@ -15217,43 +14476,27 @@ Business knowledge should normally use Retrieval-Augmented Generation.
 
 The RAG pipeline includes:
 
-**User Request**
-
-**│**
-
-**▼**
-
-**Query Understanding**
-
-**│**
-
-**▼**
-
-**Knowledge Retrieval**
-
-**│**
-
-**▼**
-
-**Ranking**
-
-**│**
-
-**▼**
-
-**Context Assembly**
-
-**│**
-
-**▼**
-
-**Model Inference**
-
-**│**
-
-**▼**
-
-**Response**
+```
+User Request
+│
+▼
+Query Understanding
+│
+▼
+Knowledge Retrieval
+│
+▼
+Ranking
+│
+▼
+Context Assembly
+│
+▼
+Model Inference
+│
+▼
+Response
+```
 
 Generation should remain grounded in retrieved information whenever authoritative knowledge exists.
 
@@ -15831,61 +15074,36 @@ Convenience must never bypass ownership, classification, or access policies.
 
 The Knowledge Layer follows this architecture.
 
-**Knowledge Sources**
-
-**│**
-
-**▼**
-
-**Ingestion Pipeline**
-
-**│**
-
-**▼**
-
-**Normalization**
-
-**│**
-
-**▼**
-
-**Classification**
-
-**│**
-
-**▼**
-
-**Metadata Extraction**
-
-**│**
-
-**▼**
-
-**Chunking**
-
-**│**
-
-**▼**
-
-**Embedding Generation**
-
-**│**
-
-**▼**
-
-**Vector Index**
-
-**│**
-
-**▼**
-
-**Retrieval Engine**
-
-**│**
-
-**▼**
-
-**Applications / AI / Workflows**
+```
+Knowledge Sources
+│
+▼
+Ingestion Pipeline
+│
+▼
+Normalization
+│
+▼
+Classification
+│
+▼
+Metadata Extraction
+│
+▼
+Chunking
+│
+▼
+Embedding Generation
+│
+▼
+Vector Index
+│
+▼
+Retrieval Engine
+│
+▼
+Applications / AI / Workflows
+```
 
 Each stage should be independently observable and governed.
 
@@ -16582,37 +15800,24 @@ Workflows should react to meaningful business events rather than constant pollin
 
 A standard workflow architecture is:
 
-**Business Event**
-
-**│**
-
-**▼**
-
-**Workflow Engine**
-
-**│**
-
-**▼**
-
-**State Machine**
-
-**│**
-
-**├****──****Human Tasks**
-
-**├****──****AI Tasks**
-
-**├****──****Service Tasks**
-
-**├****──****Integration Tasks**
-
-**└── Notifications**
-
-**│**
-
-**▼**
-
-**Completion**
+```
+Business Event
+│
+▼
+Workflow Engine
+│
+▼
+State Machine
+│
+├──Human Tasks
+├──AI Tasks
+├──Service Tasks
+├──Integration Tasks
+└── Notifications
+│
+▼
+Completion
+```
 
 The workflow engine coordinates execution while individual services perform business work.
 
@@ -16689,27 +15894,19 @@ Every workflow should define explicit states.
 
 Example:
 
-**Created**
-
-**│**
-
-**Queued**
-
-**│**
-
-**Running**
-
-**│**
-
-**Waiting**
-
-**│**
-
-**Completed**
-
-**│**
-
-**Archived**
+```
+Created
+│
+Queued
+│
+Running
+│
+Waiting
+│
+Completed
+│
+Archived
+```
 
 Additional states may include:
 
@@ -17350,33 +16547,25 @@ Consumers must safely handle duplicate delivery.
 
 A standard event architecture is:
 
-**Business Service**
+```
+Business Service
+│
+▼
+Domain Event
+│
+▼
+Event Bus
+│
+┌─────┼────────────┐
+▼     ▼            ▼
+Workflow AI      Integration
+```
 
-**│**
-
-**▼**
-
-**Domain Event**
-
-**│**
-
-**▼**
-
-**Event Bus**
-
-**│**
-
-**┌─────****┼****────────────┐**
-
-**▼**     **▼**            **▼**
-
-**Workflow AI      Integration**
-
-**Engine   Services**
-
-**▼**
-
-**Analytics**
+```
+Engine   Services
+▼
+Analytics
+```
 
 The event bus distributes events without creating direct dependencies between producers and consumers.
 
@@ -17720,23 +16909,17 @@ Reliable publication should use an Outbox Pattern where transactional consistenc
 
 Process:
 
-**Business Transaction**
-
-**│**
-
-**Commit Data**
-
-**│**
-
-**Write Outbox Record**
-
-**│**
-
-**Background Publisher**
-
-**│**
-
-**Publish Event**
+```
+Business Transaction
+│
+Commit Data
+│
+Write Outbox Record
+│
+Background Publisher
+│
+Publish Event
+```
 
 This prevents lost events during failures.
 
@@ -18077,27 +17260,19 @@ Every integration interaction should be measurable.
 
 A standard integration architecture is:
 
-**Application Services**
-
-**│**
-
-**▼**
-
-**Integration Layer**
-
-**│**
-
-**┌──────****┼****─────────────┐**
-
-**▼**      **▼**             **▼**
-
-**Internal APIs   External APIs   Event Systems**
-
-**│**
-
-**▼**
-
-**Monitoring & Governance**
+```
+Application Services
+│
+▼
+Integration Layer
+│
+┌──────┼─────────────┐
+▼      ▼             ▼
+Internal APIs   External APIs   Event Systems
+│
+▼
+Monitoring & Governance
+```
 
 The Integration Layer isolates business logic from provider-specific implementation.
 
@@ -18852,35 +18027,23 @@ Infrastructure health must be continuously visible.
 
 A standard cloud architecture includes:
 
-**Users**
-
-**│**
-
-**Global DNS**
-
-**│**
-
-**Load Balancer**
-
-**│**
-
-**Application Platform**
-
-**│**
-
-**API Layer**
-
-**│**
-
-**Platform Services**
-
-**│**
-
-**Data Layer**
-
-**│**
-
-**Monitoring**
+```
+Users
+│
+Global DNS
+│
+Load Balancer
+│
+Application Platform
+│
+API Layer
+│
+Platform Services
+│
+Data Layer
+│
+Monitoring
+```
 
 Infrastructure should remain modular.
 
@@ -19672,43 +18835,27 @@ Deployment success must be measurable.
 
 A standard deployment architecture is:
 
-**Source Control**
-
-**│**
-
-**▼**
-
-**CI Pipeline**
-
-**│**
-
-**▼**
-
-**Artifact Repository**
-
-**│**
-
-**▼**
-
-**CD Pipeline**
-
-**│**
-
-**▼**
-
-**Environment Promotion**
-
-**│**
-
-**▼**
-
-**Production**
-
-**│**
-
-**▼**
-
-**Monitoring & Verification**
+```
+Source Control
+│
+▼
+CI Pipeline
+│
+▼
+Artifact Repository
+│
+▼
+CD Pipeline
+│
+▼
+Environment Promotion
+│
+▼
+Production
+│
+▼
+Monitoring & Verification
+```
 
 Artifacts flow forward through environments without rebuilding.
 
@@ -19834,15 +18981,13 @@ Health verification is required after each batch.
 
 Blue-green deployment maintains two production environments.
 
+```
 Blue (Current)
-
-**│**
-
-**Switch Traffic**
-
-**▼**
-
+│
+Switch Traffic
+▼
 Green (New)
+```
 
 Rollback is achieved by redirecting traffic to the previous environment.
 
@@ -20374,43 +19519,27 @@ Pipeline execution must remain measurable.
 
 A standard CI/CD architecture is:
 
-**Developer**
-
-**│**
-
-**▼**
-
-**Source Control**
-
-**│**
-
-**▼**
-
-**Continuous Integration**
-
-**│**
-
-**▼**
-
-**Artifact Repository**
-
-**│**
-
-**▼**
-
-**Continuous Delivery**
-
-**│**
-
-**▼**
-
-**Deployment**
-
-**│**
-
-**▼**
-
-**Production Verification**
+```
+Developer
+│
+▼
+Source Control
+│
+▼
+Continuous Integration
+│
+▼
+Artifact Repository
+│
+▼
+Continuous Delivery
+│
+▼
+Deployment
+│
+▼
+Production Verification
+```
 
 Every stage should produce observable outputs.
 
@@ -21078,27 +20207,19 @@ Provisioning, rotation, validation, and deployment should be automated whenever 
 
 A standard configuration architecture is:
 
-**Application**
-
-**│**
-
-**▼**
-
-**Configuration Provider**
-
-**│**
-
-**┌────****┼****──────────────┐**
-
-**▼**    **▼**              **▼**
-
-**Runtime Config   Secret Store   Feature Config**
-
-**│**
-
-**▼**
-
-**Application Services**
+```
+Application
+│
+▼
+Configuration Provider
+│
+┌────┼──────────────┐
+▼    ▼              ▼
+Runtime Config   Secret Store   Feature Config
+│
+▼
+Application Services
+```
 
 Business logic should not determine where configuration originates.
 
@@ -21149,23 +20270,17 @@ Configuration precedence should be deterministic.
 
 Example:
 
-**Platform Defaults**
-
-**│**
-
-**Environment**
-
-**│**
-
-**Tenant**
-
-**│**
-
-**Application**
-
-**│**
-
-**Runtime Override**
+```
+Platform Defaults
+│
+Environment
+│
+Tenant
+│
+Application
+│
+Runtime Override
+```
 
 Higher-priority configuration should override lower levels consistently.
 
@@ -21760,39 +20875,25 @@ Observability should evolve alongside the platform.
 
 A standard observability architecture is:
 
-**Applications**
-
-**│**
-
-**▼**
-
-**Telemetry Collection**
-
-**│**
-
-**┌────****┼****───────────────┐**
-
-**▼**    **▼**               **▼**
-
-**Metrics Logs        Traces**
-
-**│**
-
-**▼**
-
-**Correlation Engine**
-
-**│**
-
-**▼**
-
-**Dashboards**
-
-**│**
-
-**▼**
-
-**Alerting**
+```
+Applications
+│
+▼
+Telemetry Collection
+│
+┌────┼───────────────┐
+▼    ▼               ▼
+Metrics Logs        Traces
+│
+▼
+Correlation Engine
+│
+▼
+Dashboards
+│
+▼
+Alerting
+```
 
 Telemetry should remain centralized.
 
@@ -22488,31 +21589,21 @@ Log generation, storage, and retention require operational governance.
 
 A standard logging architecture is:
 
-**Applications**
-
-**│**
-
-**▼**
-
-**Structured Log Generation**
-
-**│**
-
-**▼**
-
-**Central Log Collection**
-
-**│**
-
-**▼**
-
-**Processing & Indexing**
-
-**│**
-
-**▼**
-
-**Search**
+```
+Applications
+│
+▼
+Structured Log Generation
+│
+▼
+Central Log Collection
+│
+▼
+Processing & Indexing
+│
+▼
+Search
+```
 
 **Dashboards**
 
@@ -23189,33 +22280,22 @@ Performance objectives should support customer experience and business outcomes.
 
 A standard performance architecture is:
 
-**Users**
-
-**│**
-
-**▼**
-
-**Edge & CDN**
-
-**│**
-
-**Load Balancer**
-
-**│**
-
-**Application Services**
-
-**│**
-
-**Caching Layer**
-
-**│**
-
-**Database**
-
-**│**
-
-**Observability Platform**
+```
+Users
+│
+▼
+Edge & CDN
+│
+Load Balancer
+│
+Application Services
+│
+Caching Layer
+│
+Database
+│
+Observability Platform
+```
 
 Performance optimization should consider the complete request lifecycle.
 
@@ -23861,31 +22941,21 @@ Security validation should be automated wherever practical.
 
 A standard security architecture is:
 
-**Users & Services**
-
-**│**
-
-**Authentication**
-
-**│**
-
-**Authorization**
-
-**│**
-
-**Policy Enforcement**
-
-**│**
-
-**Application Services**
-
-**│**
-
-**Data Protection**
-
-**│**
-
-**Monitoring & Audit**
+```
+Users & Services
+│
+Authentication
+│
+Authorization
+│
+Policy Enforcement
+│
+Application Services
+│
+Data Protection
+│
+Monitoring & Audit
+```
 
 Security controls should exist at every architectural layer.
 
@@ -24550,35 +23620,26 @@ Recovery procedures should evolve through testing and operational learning.
 
 A standard recovery architecture is:
 
-**Production Environment**
+```
+Production Environment
+│
+▼
+Backup Services
+│
+┌────────┼─────────┐
+▼        ▼         ▼
+Primary  Secondary  Archive
+```
 
-**│**
-
-**▼**
-
-**Backup Services**
-
-**│**
-
-**┌────────****┼****─────────┐**
-
-**▼**        **▼**         **▼**
-
-**Primary  Secondary  Archive**
-
-**Storage   Region    Storage**
-
-**│**
-
-**▼**
-
-**Recovery Platform**
-
-**│**
-
-**▼**
-
-**Business Services**
+```
+Storage   Region    Storage
+│
+▼
+Recovery Platform
+│
+▼
+Business Services
+```
 
 Recovery architecture should remain resilient and geographically distributed.
 
@@ -25196,43 +24257,27 @@ Testing processes should evolve using production feedback and quality metrics.
 
 A standard testing architecture is:
 
-**Requirements**
-
-**│**
-
-**▼**
-
-**Development**
-
-**│**
-
-**▼**
-
-**Unit Tests**
-
-**│**
-
-**▼**
-
-**Integration Tests**
-
-**│**
-
-**▼**
-
-**System Tests**
-
-**│**
-
-**▼**
-
-**End-to-End Tests**
-
-**│**
-
-**▼**
-
-**Production Validation**
+```
+Requirements
+│
+▼
+Development
+│
+▼
+Unit Tests
+│
+▼
+Integration Tests
+│
+▼
+System Tests
+│
+▼
+End-to-End Tests
+│
+▼
+Production Validation
+```
 
 Testing should provide confidence at every engineering layer.
 
@@ -25781,35 +24826,23 @@ Every release should improve the release process itself.
 
 A standard release lifecycle is:
 
-**Planning**
-
-**│**
-
-**Development**
-
-**│**
-
-**Testing**
-
-**│**
-
-**Approval**
-
-**│**
-
-**Deployment**
-
-**│**
-
-**Validation**
-
-**│**
-
-**Monitoring**
-
-**│**
-
-**Post-Release Review**
+```
+Planning
+│
+Development
+│
+Testing
+│
+Approval
+│
+Deployment
+│
+Validation
+│
+Monitoring
+│
+Post-Release Review
+```
 
 Every release should complete the entire lifecycle.
 
@@ -26398,37 +25431,24 @@ Operational processes should evolve using measurable outcomes.
 
 A standard production operations architecture is:
 
-**Users**
-
-**│**
-
-**▼**
-
-**Applications**
-
-**│**
-
-**▼**
-
-**Platform Services**
-
-**│**
-
-**▼**
-
-**Infrastructure**
-
-**│**
-
-**▼**
-
-**Monitoring**
-
-**│**
-
-**▼**
-
-**Operations Team**
+```
+Users
+│
+▼
+Applications
+│
+▼
+Platform Services
+│
+▼
+Infrastructure
+│
+▼
+Monitoring
+│
+▼
+Operations Team
+```
 
 Operational visibility should extend across the complete platform stack.
 
@@ -27056,35 +26076,23 @@ Every incident should strengthen future operational resilience.
 
 A standard incident lifecycle is:
 
-**Detection**
-
-**│**
-
-**Classification**
-
-**│**
-
-**Triage**
-
-**│**
-
-**Containment**
-
-**│**
-
-**Investigation**
-
-**│**
-
-**Resolution**
-
-**│**
-
-**Recovery**
-
-**│**
-
-**Post-Incident Review**
+```
+Detection
+│
+Classification
+│
+Triage
+│
+Containment
+│
+Investigation
+│
+Resolution
+│
+Recovery
+│
+Post-Incident Review
+```
 
 Every significant incident should complete the full lifecycle.
 
@@ -27912,35 +26920,23 @@ Maintenance priorities should support business objectives.
 
 A standard maintenance lifecycle is:
 
-**Assessment**
-
-**│**
-
-**Planning**
-
-**│**
-
-**Approval**
-
-**│**
-
-**Implementation**
-
-**│**
-
-**Validation**
-
-**│**
-
-**Deployment**
-
-**│**
-
-**Monitoring**
-
-**│**
-
-**Continuous Improvement**
+```
+Assessment
+│
+Planning
+│
+Approval
+│
+Implementation
+│
+Validation
+│
+Deployment
+│
+Monitoring
+│
+Continuous Improvement
+```
 
 Every significant maintenance activity should complete the lifecycle.
 
@@ -28741,35 +27737,23 @@ Migration processes should improve using operational experience.
 
 A standard migration lifecycle is:
 
-**Assessment**
-
-**│**
-
-**Planning**
-
-**│**
-
-**Preparation**
-
-**│**
-
-**Migration**
-
-**│**
-
-**Validation**
-
-**│**
-
-**Cutover**
-
-**│**
-
-**Monitoring**
-
-**│**
-
-**Optimization**
+```
+Assessment
+│
+Planning
+│
+Preparation
+│
+Migration
+│
+Validation
+│
+Cutover
+│
+Monitoring
+│
+Optimization
+```
 
 Every significant migration should complete the full lifecycle.
 
@@ -29562,33 +28546,22 @@ Governance itself should evolve through measurable feedback.
 
 A standard governance model is:
 
-**Business Strategy**
-
-**│**
-
-**▼**
-
-**Enterprise Governance**
-
-**│**
-
-**┌──────****┼****────────┐**
-
-**▼**      **▼**        **▼**
-
-**Architecture Engineering Operations**
-
-**│**
-
-**▼**
-
-**Projects & Delivery**
-
-**│**
-
-**▼**
-
-**Continuous Feedback**
+```
+Business Strategy
+│
+▼
+Enterprise Governance
+│
+┌──────┼────────┐
+▼      ▼        ▼
+Architecture Engineering Operations
+│
+▼
+Projects & Delivery
+│
+▼
+Continuous Feedback
+```
 
 Governance should guide every implementation lifecycle.
 
@@ -30369,35 +29342,23 @@ Quality gates should evolve using operational feedback.
 
 A standard quality lifecycle is:
 
-**Requirements**
-
-**│**
-
-**Architecture Review**
-
-**│**
-
-**Development**
-
-**│**
-
-**Testing**
-
-**│**
-
-**Security Validation**
-
-**│**
-
-**Release Readiness**
-
-**│**
-
-**Production Validation**
-
-**│**
-
-**Continuous Monitoring**
+```
+Requirements
+│
+Architecture Review
+│
+Development
+│
+Testing
+│
+Security Validation
+│
+Release Readiness
+│
+Production Validation
+│
+Continuous Monitoring
+```
 
 Every implementation should successfully pass each applicable gate.
 
@@ -31168,37 +30129,24 @@ Every architectural decision should consider long-term maintainability.
 
 A standard evolution model is:
 
-**Business Strategy**
-
-**│**
-
-**▼**
-
-**Enterprise Architecture**
-
-**│**
-
-**▼**
-
-**Technology Strategy**
-
-**│**
-
-**▼**
-
-**Platform Evolution**
-
-**│**
-
-**▼**
-
-**Operational Learning**
-
-**│**
-
-**▼**
-
-**Continuous Improvement**
+```
+Business Strategy
+│
+▼
+Enterprise Architecture
+│
+▼
+Technology Strategy
+│
+▼
+Platform Evolution
+│
+▼
+Operational Learning
+│
+▼
+Continuous Improvement
+```
 
 Evolution should remain aligned with enterprise strategy.
 
