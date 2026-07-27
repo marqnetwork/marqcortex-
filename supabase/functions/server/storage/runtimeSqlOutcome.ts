@@ -11,7 +11,19 @@
  * (e.g. offline), the port throws on read; the gateway records an error
  * comparison and returns the KV value. SQL is never returned to users.
  *
- * READ-ONLY: only `getOutcomeBySubmission` is exposed. No writes.
+ * READ-ONLY: only `getOutcomeByLegacyKey` is exposed. No writes.
+ *
+ * JOIN AXIS (MCV2-S7.4-REMEDIATION-2 · D1): correlation is by
+ * `legacy_kv_key = 'outcome:{submissionId}'`. The previous wiring passed the raw
+ * KV submission id to `getOutcomeBySubmission`, but KV ids are TEXT
+ * (`SUB-<ts>-<rand>`) while `outcomes.submission_id` is a generated UUID — every
+ * such query failed with Postgres 22P02 (invalid input syntax for type uuid), so
+ * the shadow could never produce a comparison. `legacy_kv_key` is TEXT and has a
+ * dedicated unique index (`outcomes_legacy_kv_key_uidx`) for exactly this join.
+ *
+ * The legacy-key lookup is globally unique and NOT tenant-scoped, so tenancy is
+ * enforced downstream by `compareOutcome`, which fails closed on any
+ * `organization_id` that does not match the requesting org.
  */
 
 import type { OutcomeSqlPort } from './contracts.ts';
@@ -30,8 +42,8 @@ export function createRuntimeOutcomeSqlPort(): OutcomeSqlPort {
   }
 
   return {
-    async getOutcomeBySubmission(submissionId: string, organizationId: string): Promise<unknown> {
-      return getRepo().getOutcomeBySubmission(submissionId, organizationId);
+    async getOutcomeByLegacyKey(legacyKvKey: string): Promise<unknown> {
+      return getRepo().getOutcomeByLegacyKey(legacyKvKey);
     },
   };
 }

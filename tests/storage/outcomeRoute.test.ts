@@ -44,8 +44,12 @@ function kvPort(store: Record<string, unknown>): KvDiagnosticPort {
   };
 }
 
-function sqlPort(fn: (submissionId: string, org: string) => Promise<unknown>): OutcomeSqlPort {
-  return { getOutcomeBySubmission: (id, org) => fn(id, org) };
+/**
+ * Fake SQL port. The shadow path looks rows up by `legacy_kv_key`
+ * (`outcome:{submissionId}`) — never by the raw KV submission id (D1).
+ */
+function sqlPort(fn: (legacyKvKey: string) => Promise<unknown>): OutcomeSqlPort {
+  return { getOutcomeByLegacyKey: (key) => fn(key) };
 }
 
 /** A scheduler that captures tasks so tests can run them AFTER the response. */
@@ -103,20 +107,27 @@ const KV_OUTCOME = {
   improvementAreas: ['discovery'],
 };
 
-function sqlRow(value: Record<string, unknown>) {
+/**
+ * Schema-valid SQL row (D5). `status` is the LIFECYCLE column and must be one of
+ * ('open','closed','archived') — the previous fixture used 'converted', which the
+ * CHECK constraint forbids. `submission_id` is a generated UUID, not the KV id.
+ */
+function sqlRow(value: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   return {
     id: 'uuid-1',
     organization_id: ORG,
-    submission_id: 'sub-1',
+    submission_id: '11111111-2222-3333-4444-555555555555',
     legacy_kv_key: 'outcome:sub-1',
-    status: 'converted',
+    outcome_type: 'won', // conversion signal
+    status: 'open', // lifecycle — never compared
     value,
+    ...extra,
   };
 }
 
 function compose(opts: {
   kv?: Record<string, unknown>;
-  sql?: (id: string, org: string) => Promise<unknown>;
+  sql?: (legacyKvKey: string) => Promise<unknown>;
   enabled: boolean;
 }) {
   const telemetry = createInMemoryTelemetrySink();
@@ -227,5 +238,97 @@ describe('Outcome GET route + wiring (G6)', () => {
     assert.deepEqual(res.body, { success: true, outcome: KV_OUTCOME });
     assert.ok(!JSON.stringify(res.body).includes('sql-only-secret'));
     await scheduler.run();
+  });
+});
+
+/**
+ * D1 — the shadow must look SQL rows up by the shared legacy KV key. KV
+ * submission ids are TEXT (`SUB-<ts>-<rand>`) while `outcomes.submission_id` is
+ * a UUID, so passing the raw id produced Postgres 22P02 on every read.
+ */
+describe('shadow SQL lookup uses the legacy KV key, not the raw submission id (D1)', () => {
+  it('receives `outcome:{submissionId}` — never the bare submission id', async () => {
+    const seen: string[] = [];
+    const submissionId = 'SUB-1753628400000-X7K2P'; // realistic KV id (not a UUID)
+    const { gateway, scheduler } = compose({
+      enabled: true,
+      kv: { [`outcome:${submissionId}`]: JSON.stringify(KV_OUTCOME) },
+      sql: async (key) => {
+        seen.push(key);
+        return sqlRow(KV_OUTCOME);
+      },
+    });
+
+    await handleGetOutcome({ gateway }, { submissionId, actor: teamActor });
+    await scheduler.run();
+
+    assert.deepEqual(seen, [`outcome:${submissionId}`]);
+    assert.ok(!seen.includes(submissionId), 'raw KV submission id must never reach the SQL port');
+  });
+
+  it('a realistic non-UUID KV id still yields a real comparison, not an error', async () => {
+    const submissionId = 'SUB-1753628400000-X7K2P';
+    const { gateway, telemetry, scheduler } = compose({
+      enabled: true,
+      kv: { [`outcome:${submissionId}`]: JSON.stringify(KV_OUTCOME) },
+      sql: async () => sqlRow(KV_OUTCOME),
+    });
+
+    await handleGetOutcome({ gateway }, { submissionId, actor: teamActor });
+    await scheduler.run();
+
+    const ev = telemetry.events.find((e) => e.shadowAttempted);
+    assert.equal(ev?.comparisonStatus, ComparisonStatus.MATCH);
+    assert.notEqual(ev?.comparisonStatus, ComparisonStatus.ERROR);
+  });
+});
+
+/** D2/D3 through the real route wiring. */
+describe('route-level lifecycle status and incomplete rows (D2/D3)', () => {
+  for (const lifecycle of ['open', 'closed', 'archived']) {
+    it(`lifecycle status='${lifecycle}' with agreeing values → match`, async () => {
+      const { gateway, telemetry, scheduler } = compose({
+        enabled: true,
+        sql: async () => sqlRow(KV_OUTCOME, { status: lifecycle }),
+      });
+      const res = await handleGetOutcome({ gateway }, { submissionId: 'sub-1', actor: teamActor });
+      assert.deepEqual(res.body, { success: true, outcome: KV_OUTCOME });
+      await scheduler.run();
+      const ev = telemetry.events.find((e) => e.shadowAttempted);
+      assert.equal(ev?.comparisonStatus, ComparisonStatus.MATCH);
+    });
+  }
+
+  for (const [label, value] of [
+    ['null value', null],
+    ['malformed value', 'not-an-object'],
+    ['empty object', {}],
+  ] as Array<[string, unknown]>) {
+    it(`${label} → partial (never match, never false mismatch)`, async () => {
+      const { gateway, telemetry, scheduler } = compose({
+        enabled: true,
+        sql: async () => sqlRow(value as Record<string, unknown>, { outcome_type: 'engagement' }),
+      });
+      const res = await handleGetOutcome({ gateway }, { submissionId: 'sub-1', actor: teamActor });
+      assert.deepEqual(res.body, { success: true, outcome: KV_OUTCOME });
+      await scheduler.run();
+      const ev = telemetry.events.find((e) => e.shadowAttempted);
+      assert.equal(ev?.comparisonStatus, ComparisonStatus.PARTIAL);
+      assert.ok(!(ev?.mismatchFields ?? []).includes('status'));
+    });
+  }
+
+  it('cross-tenant SQL row → critical authorization mismatch, KV response intact', async () => {
+    const { gateway, telemetry, scheduler } = compose({
+      enabled: true,
+      sql: async () => sqlRow(KV_OUTCOME, { organization_id: 'other-org' }),
+    });
+    const res = await handleGetOutcome({ gateway }, { submissionId: 'sub-1', actor: teamActor });
+    assert.deepEqual(res.body, { success: true, outcome: KV_OUTCOME });
+    await scheduler.run();
+    const ev = telemetry.events.find((e) => e.shadowAttempted);
+    assert.equal(ev?.comparisonStatus, ComparisonStatus.MISMATCH);
+    assert.equal(ev?.mismatchSeverity, 'critical');
+    assert.deepEqual(ev?.mismatchFields, ['organization_id']);
   });
 });

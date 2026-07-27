@@ -19,6 +19,15 @@
  * A tenant/authorization defect is therefore NEVER masked as a value mismatch
  * or downgraded to `partial`/`match`, and an incomplete SQL row is NEVER
  * classified as `match`.
+ *
+ * MCV2-S7.4-REMEDIATION-2:
+ *   - D1: the SQL row arrives via a `legacy_kv_key` lookup that is not
+ *     tenant-scoped, so the authorization check here FAILS CLOSED and is the
+ *     shadow path's only tenancy guard.
+ *   - D2/D3: only the canonical `conversionStatus` is compared. The SQL
+ *     LIFECYCLE column `status` ('open'/'closed'/'archived') is never compared,
+ *     so a closed/archived row no longer reports a false `mismatch`, and a row
+ *     with no conversion signal reads as unpopulated → `partial`.
  */
 
 import {
@@ -34,7 +43,15 @@ import {
   normEmpty,
 } from './outcomeNormalize.ts';
 
-/** Business-critical comparable fields (submissionId is a relationship axis). */
+/**
+ * Business-critical comparable fields (submissionId is a relationship axis, not
+ * a compared value — KV holds `SUB-<ts>-<rand>`, SQL holds a generated UUID).
+ *
+ * `conversionStatus` is the canonical CONVERSION signal on both sides. The SQL
+ * LIFECYCLE column `status` ('open'/'closed'/'archived') is deliberately absent:
+ * it has no KV equivalent and comparing it produced false mismatches
+ * (MCV2-S7.4-REMEDIATION-2 · D2).
+ */
 const BUSINESS_FIELDS: (keyof OutcomeDTO)[] = [
   'didConvert',
   'conversionValue',
@@ -42,7 +59,7 @@ const BUSINESS_FIELDS: (keyof OutcomeDTO)[] = [
   'recommendationWorked',
   'whatWeLearned',
   'improvementAreas',
-  'status',
+  'conversionStatus',
 ];
 
 function severityFor(status: ComparisonStatus, authorization: boolean): MismatchSeverity {
@@ -133,11 +150,16 @@ export function compareOutcome(kvRaw: unknown, sqlRecord: unknown, meta: Compare
   const kv = kvDto as OutcomeDTO;
   const sql = sqlDto as OutcomeDTO;
 
-  // Authorization takes precedence over everything else when both rows exist:
-  // an SQL row scoped to a different tenant is a critical mismatch, never a
-  // value diff or a partial.
+  // Authorization takes precedence over everything else when both rows exist.
+  //
+  // MCV2-S7.4-REMEDIATION-2 (D1): the SQL row is fetched by `legacy_kv_key`,
+  // which is NOT tenant-scoped at the query level, so this check is the ONLY
+  // tenancy guard on the shadow path. It therefore FAILS CLOSED: the row's
+  // `organization_id` must match the requesting org exactly. A missing/null
+  // owner (impossible under `organization_id UUID NOT NULL`, so indicative of a
+  // malformed row) is treated as an authorization mismatch, never waved through.
   const owner = sqlOwnerOrg(sqlRecord);
-  if (owner !== null && owner !== meta.effectiveOrg) {
+  if (owner !== meta.effectiveOrg) {
     return build(meta, ComparisonStatus.MISMATCH, ['organization_id'], { authorization: true });
   }
 

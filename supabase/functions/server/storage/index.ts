@@ -49,6 +49,7 @@ export {
   normalizeSqlOutcome,
   projectOutcomeRecord,
   OUTCOME_IGNORED_FIELDS,
+  SQL_LIFECYCLE_STATUSES,
 } from './outcomeNormalize.ts';
 export {
   compareOutcome,

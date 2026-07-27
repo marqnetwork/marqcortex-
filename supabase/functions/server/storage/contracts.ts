@@ -298,7 +298,18 @@ export interface OutcomeDTO {
   recommendationWorked: boolean | null;
   whatWeLearned: string | null;
   improvementAreas: string[];
-  status: string | null;
+  /**
+   * CONVERSION status only — `'converted' | 'lost' | null`
+   * (MCV2-S7.4-REMEDIATION-2 · D2).
+   *
+   * Derived from the conversion signal on each side: KV `didConvert`, and on the
+   * SQL side `outcome_type` ('won'/'lost') with a `value.didConvert` fallback.
+   *
+   * This is deliberately NOT the SQL `outcomes.status` column, which is a
+   * LIFECYCLE axis ('open'/'closed'/'archived') with no KV equivalent and is
+   * therefore excluded from comparison entirely.
+   */
+  conversionStatus: string | null;
 }
 
 export interface OutcomeComparison {
@@ -320,8 +331,23 @@ export interface OutcomeComparison {
  * Minimal read surface of the Outcome SQL repository the shadow read needs.
  * The concrete repository (which imports `jsr:@supabase/...`) is adapted to
  * this port by a Deno-only runtime module, so pure/tested code never imports
- * Supabase. Tenant scope is mandatory.
+ * Supabase.
+ *
+ * JOIN AXIS (MCV2-S7.4-REMEDIATION-2 · D1): the ONLY correlation key between KV
+ * and SQL is `legacy_kv_key = 'outcome:{submissionId}'`. KV submission ids are
+ * TEXT (`SUB-<ts>-<rand>`) while `outcomes.submission_id` is a generated UUID,
+ * so the raw KV id can NEVER be used as the SQL lookup key.
+ *
+ * The legacy-key lookup is not tenant-scoped at the query level (the key is
+ * globally unique), so the caller MUST enforce tenancy by validating the row's
+ * `organization_id` against the requesting org — see `compareOutcome`, which
+ * fails the comparison as a critical authorization mismatch on any mismatch.
  */
 export interface OutcomeSqlPort {
-  getOutcomeBySubmission(submissionId: string, organizationId: string): Promise<unknown>;
+  getOutcomeByLegacyKey(legacyKvKey: string): Promise<unknown>;
+}
+
+/** Canonical KV→SQL join key for the Outcome entity. */
+export function outcomeLegacyKvKey(submissionId: string): string {
+  return `outcome:${submissionId}`;
 }

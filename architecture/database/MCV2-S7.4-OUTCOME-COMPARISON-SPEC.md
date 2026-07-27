@@ -12,16 +12,50 @@ affects the user response. KV is authoritative.
 | Source | Key / table | Shape |
 |--------|-------------|-------|
 | KV (authoritative) | `outcome:{submissionId}` (JSON string) | flat business fields + denormalized context |
-| SQL (shadow) | `outcomes` row via `OutcomeRepository.getOutcomeBySubmission` | normalized columns + `value` JSONB |
+| SQL (shadow) | `outcomes` row via `OutcomeRepository.getOutcomeByLegacyKey` | normalized columns + `value` JSONB |
+
+## Join axis (single, canonical)
+
+```
+legacy_kv_key = `outcome:${submissionId}`
+```
+
+This is the **only** correlation key between KV and SQL. KV submission ids are
+TEXT (`SUB-<ts>-<rand>`); `outcomes.submission_id` is a generated UUID, so the
+raw KV id can never be used as a SQL lookup value. `legacy_kv_key` is TEXT and
+has a dedicated unique index (`outcomes_legacy_kv_key_uidx`) for this join.
+
+The legacy-key lookup is globally unique and **not** tenant-scoped at the query
+level, so tenancy is enforced **fail-closed** in `compareOutcome`: the row's
+`organization_id` must equal the requesting org exactly, or the comparison is a
+**critical** authorization mismatch. A null/absent `organization_id` also fails
+closed.
 
 ## Canonical DTO (business-critical, compared)
 
-`submissionId`, `didConvert`, `conversionValue`, `lostReason`,
-`recommendationWorked`, `whatWeLearned`, `improvementAreas`, `status`.
+`didConvert`, `conversionValue`, `lostReason`, `recommendationWorked`,
+`whatWeLearned`, `improvementAreas`, `conversionStatus`.
 
 - KV → DTO: `normalizeKvOutcome` reads top-level fields.
 - SQL → DTO: `projectOutcomeRecord` reads business fields from `value` JSONB
-  (backfill target), `submission_id`/`status` from columns.
+  (backfill target); `conversionStatus` from `outcome_type` with a
+  `value.didConvert` fallback.
+- `submissionId` is a **relationship axis, not a compared value** (KV holds
+  `SUB-…`, SQL holds a UUID).
+
+## Status: two distinct axes — never diffed against each other
+
+| Axis | Source | Vocabulary | Compared? |
+|------|--------|-----------|-----------|
+| **Conversion** (`conversionStatus`) | KV `didConvert`; SQL `outcome_type` ('won'/'lost') with `value.didConvert` fallback | `converted` / `lost` / `null` | **yes** |
+| **Lifecycle** (`status` column) | SQL `outcomes.status`, `NOT NULL DEFAULT 'open'`, `CHECK IN ('open','closed','archived')` | `open` / `closed` / `archived` | **no** — no KV equivalent |
+
+Comparing these two axes directly caused every `closed`/`archived` row to report
+a false high-severity `mismatch`, and — because the lifecycle column is
+`NOT NULL` and therefore always "populated" — forced incomplete rows into
+`mismatch` instead of `partial`. SQL `outcome_type` values that carry no
+conversion signal (`engagement`, `nurture`, `other`) resolve to `null`, so a row
+without conversion data reads as unpopulated and classifies as `partial`.
 
 ## Normalization rules
 
@@ -31,16 +65,19 @@ affects the user response. KV is authoritative.
 | booleans | `true/false/'true'/'false'` → boolean, else `null` |
 | numbers | finite number or numeric string → number, else `null` |
 | arrays (`improvementAreas`) | mapped to strings and **sorted** (order-independent); `[]` counts as unpopulated |
-| status | derived canonical: `converted` / `lost` / `open` |
-| ID mapping | join axis = `legacy_kv_key = 'outcome:{submissionId}'`; SQL uuid `id` ignored |
+| `conversionStatus` | derived canonical: `converted` / `lost` / `null` (see the two-axis table above) |
+| ID mapping | join axis = `legacy_kv_key = 'outcome:{submissionId}'`; SQL uuid `id` and `submission_id` ignored |
 | timestamps | `recorded_at`/`loggedAt` ignored (log metadata) |
+| degenerate `value` | absent / `null` / non-object / `{}` / `[]` ⇒ all business fields null ⇒ `partial` |
 
 ## Ignored fields (not compared)
 
-`id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `deleted_at`,
-`legacy_kv_key`, `outcome_type`, `recorded_at`/`loggedAt`/`loggedBy`; and KV
-denormalized snapshots `industry`, `company`, `aiScore`, `recommendedService`,
-`submittedAt`. **No business-critical field is ignored.**
+`id`, `submission_id`, `created_at`, `updated_at`, `created_by`, `updated_by`,
+`deleted_at`, `legacy_kv_key`, `status` (SQL lifecycle),
+`recorded_at`/`loggedAt`/`loggedBy`; and KV denormalized snapshots `industry`,
+`company`, `aiScore`, `recommendedService`, `submittedAt`. **No business-critical
+field is ignored.** (`outcome_type` is not ignored — it is the SQL-side input to
+`conversionStatus`.)
 
 ## Canonical statuses (mutually exclusive)
 

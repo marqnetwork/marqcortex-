@@ -8,20 +8,31 @@
  * MCV2-S7.4-REMEDIATION (G6): the SQL projection is exported as
  * `projectOutcomeRecord` and covered by focused unit tests.
  *
+ * MCV2-S7.4-REMEDIATION-2 (D2/D3): the two sides carry DIFFERENT status
+ * vocabularies and must never be diffed directly:
+ *   - SQL `outcomes.status`  = LIFECYCLE ('open'/'closed'/'archived'), NOT NULL
+ *     DEFAULT 'open'. No KV equivalent ⇒ IGNORED.
+ *   - SQL `outcomes.outcome_type` = categorisation whose 'won'/'lost' values DO
+ *     carry the conversion signal ⇒ used as the conversion input.
+ * Both sides therefore project a single canonical `conversionStatus`
+ * ('converted'/'lost'/null), so a row with no conversion signal reads as
+ * unpopulated (→ `partial`) instead of conflicting (→ false `mismatch`).
+ *
  * IGNORED fields (explicitly not compared — not business-critical to the
  * outcome's own authoritative data):
  *   - SQL generated id (uuid)
  *   - audit metadata: created_at, updated_at, created_by, updated_by
  *   - soft-delete: deleted_at
  *   - migration metadata: legacy_kv_key (used only as the join axis)
- *   - SQL-only categorization: outcome_type
+ *   - SQL lifecycle status: status ('open'/'closed'/'archived')
  *   - log timestamps: recorded_at / loggedAt (when-logged, not the outcome)
  *   - KV denormalized snapshots copied from other entities:
  *     industry, company, aiScore, recommendedService, submittedAt, loggedBy
  *
- * BUSINESS-CRITICAL fields (compared): submissionId, didConvert,
- * conversionValue, lostReason, recommendationWorked, whatWeLearned,
- * improvementAreas, status.
+ * BUSINESS-CRITICAL fields (compared): didConvert, conversionValue, lostReason,
+ * recommendationWorked, whatWeLearned, improvementAreas, conversionStatus.
+ * (`submissionId` is a relationship axis, not a compared value: KV holds
+ * `SUB-<ts>-<rand>` while SQL holds a generated UUID.)
  */
 
 import type { OutcomeDTO } from './contracts.ts';
@@ -34,7 +45,9 @@ export const OUTCOME_IGNORED_FIELDS: readonly string[] = [
   'updated_by',
   'deleted_at',
   'legacy_kv_key',
-  'outcome_type',
+  // SQL LIFECYCLE status ('open'/'closed'/'archived') — no KV equivalent, so it
+  // is never compared (MCV2-S7.4-REMEDIATION-2 · D2).
+  'status',
   'recorded_at',
   'loggedAt',
   'loggedBy',
@@ -70,19 +83,46 @@ function normStringArray(v: unknown): string[] {
   return v.map((x) => String(x)).sort(); // ordering-independent
 }
 
-/** Canonical status derived from didConvert when no explicit status present. */
-function deriveStatus(explicit: unknown, didConvert: boolean | null): string | null {
-  const s = normEmpty(explicit);
-  if (s) {
-    const l = s.toLowerCase();
-    if (l === 'converted' || l === 'won') return 'converted';
-    if (l === 'lost') return 'lost';
-    if (l === 'open') return didConvert === null ? 'open' : (didConvert ? 'converted' : 'lost');
-    return l;
-  }
+/**
+ * SQL `outcomes.status` vocabulary — a LIFECYCLE axis, NOT a conversion signal.
+ * `status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed','archived'))`.
+ * There is no KV equivalent, so these values are never compared (D2).
+ */
+export const SQL_LIFECYCLE_STATUSES: readonly string[] = ['open', 'closed', 'archived'];
+
+/**
+ * SQL `outcome_type` values that carry a CONVERSION signal, mapped to the
+ * canonical conversion vocabulary. The remaining values in the column's CHECK
+ * ('engagement', 'nurture', 'other') are lifecycle/categorisation only and
+ * carry NO conversion signal, so they resolve to `null` (unpopulated) and let
+ * the `value.didConvert` fallback decide.
+ */
+const OUTCOME_TYPE_CONVERSION: Record<string, string> = {
+  won: 'converted',
+  lost: 'lost',
+};
+
+/** Canonical conversion status from a boolean didConvert. */
+function conversionStatusFromBool(didConvert: boolean | null): string | null {
   if (didConvert === true) return 'converted';
   if (didConvert === false) return 'lost';
   return null;
+}
+
+/**
+ * SQL-side conversion status (MCV2-S7.4-REMEDIATION-2 · D2).
+ *
+ * Prefers the `outcome_type` conversion signal ('won'/'lost'); falls back to
+ * `value.didConvert` from the backfill blob. Returns `null` when SQL carries no
+ * conversion signal at all — which lets an incomplete/un-backfilled row be
+ * classified `partial` rather than a false `mismatch` (D3).
+ */
+function sqlConversionStatus(outcomeType: unknown, didConvert: boolean | null): string | null {
+  const t = normEmpty(outcomeType)?.toLowerCase();
+  // `Object.hasOwn` guard: a raw value like 'constructor' or '__proto__' must not
+  // resolve through the prototype chain to a non-string.
+  if (t && Object.hasOwn(OUTCOME_TYPE_CONVERSION, t)) return OUTCOME_TYPE_CONVERSION[t];
+  return conversionStatusFromBool(didConvert);
 }
 
 /** Normalize a KV outcome object (parsed `outcome:{submissionId}` payload). */
@@ -98,7 +138,7 @@ export function normalizeKvOutcome(raw: unknown): OutcomeDTO | null {
     recommendationWorked: normBool(o.recommendationWorked),
     whatWeLearned: normEmpty(o.whatWeLearned),
     improvementAreas: normStringArray(o.improvementAreas),
-    status: deriveStatus(undefined, didConvert),
+    conversionStatus: conversionStatusFromBool(didConvert),
   };
 }
 
@@ -123,7 +163,7 @@ export function projectOutcomeRecord(record: unknown): OutcomeDTO | null {
     recommendationWorked: normBool(value.recommendationWorked),
     whatWeLearned: normEmpty(value.whatWeLearned),
     improvementAreas: normStringArray(value.improvementAreas),
-    status: deriveStatus(r.status, didConvert),
+    conversionStatus: sqlConversionStatus(r.outcome_type, didConvert),
   };
 }
 
