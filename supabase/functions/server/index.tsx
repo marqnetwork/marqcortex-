@@ -41,6 +41,7 @@ import {
   migrateBookingRecord,
   type BookingRecord,
 } from "./bookings/bookingRecord.ts";
+import { runOutcomeShadowRead } from "./runtime/outcomeShadowReadWiring.ts";
 
 const app = new Hono();
 
@@ -3392,6 +3393,15 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
     const outcome = raw ? JSON.parse(raw) : null;
+
+    // MCV2-S7.4 — non-authoritative outcome shadow read (KV stays authority).
+    // Off by default; guarded so it can never alter or fail this response.
+    try {
+      await runOutcomeShadowRead(submissionId, outcome);
+    } catch (shadowErr) {
+      console.log('Outcome shadow read (non-fatal):', shadowErr);
+    }
+
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
