@@ -356,7 +356,7 @@ Pre-sale, editability/copilot, and post-sign delivery cores are all structurally
 - **Routing:** hash routes for landing, funnel (`get-started`, `diagnostic`, `score`), team (`login`, `dashboard`, `execution`), client (`login`, `portal`), and dev (`architecture`, `registry`); landing eager, rest lazy; auth guards on team/client routes (§III-40).
 - **Team dashboard:** a shell (`TeamDashboardLayout`) hosting internal `PageView` panels (`dashboard, cortex, team, settings, reviewer, analytics, emails, revenue, mapping`) plus hash-routed `execution` and `architecture` (`ARCHITECT.md` §9).
 - **Backend:** single Hono app (`supabase/functions/server/index.tsx`) exposing ~79 route handlers (documented as the 68 canonical endpoints in `API_SPECIFICATIONS.md`), with CORS and a 120 req/min-per-IP rate limit; KV persistence (`kv_store.tsx`); AI modules (`cortexChat.ts`, `cortexAnalysis.ts`, `cortexNarrative.ts`, `blockAiAssist.ts`, `copilotPatch.ts`); Intelligence Gateway (`intelligence/`); email (`emailService.ts` via Resend).
-- **Engines:** 35 deterministic engines under `src/app/core/` orchestrated by `runCortexEngine()` in `core/index.ts` (§III-21/22).
+- **Engines:** 36 deterministic engines under `src/app/core/` orchestrated by `runCortexEngine()` in `core/index.ts` (§III-21/22).
 - **Registry:** `src/system/manifest.ts` — 171 nodes with `MQC-{TYPE}-{NNN}` IDs and status (`LIVE|DEMO|GATED|SYSTEM`); validator `src/system/validate.ts`; UI viewer `#/registry` (§III-26).
 - **Config/flags:** `src/config/features.ts` (`BACKEND_INTEGRATION`, `SHOW_API_ERRORS`, `VERBOSE_LOGGING`), `api.config.ts` (endpoints), `runtime.ts` (§III-53).
 
@@ -489,7 +489,7 @@ Implemented AI features (all narration/assistance, never authority): AI Chat (`c
 
 **Why it exists.** The engines are the "business engines" of the AI Workforce (DNA Ch 8) and the load-bearing source of every authoritative number. They are the single most important thing to reconstruct faithfully.
 
-**How it works (CURRENT STATE — PROVEN).** 35 deterministic engines live in `src/app/core/`, orchestrated by `runCortexEngine()` in `core/index.ts`. **Rule:** pure functions — no React, no side effects, no LLM (`ARCHITECT.md` §11). The deterministic pipeline is `Answers → inputNormalizer → scoringEngine → decisionEngine → templateAssembler (+ ROI)`.
+**How it works (CURRENT STATE — PROVEN).** 36 deterministic engines live in `src/app/core/`, orchestrated by `runCortexEngine()` in `core/index.ts`. **Rule:** pure functions — no React, no side effects, no LLM (`ARCHITECT.md` §11). The deterministic pipeline is `Answers → inputNormalizer → scoringEngine → decisionEngine → templateAssembler (+ ROI)`.
 
 Engine inventory by domain (file → domain):
 
@@ -2619,7 +2619,7 @@ The **AI Supervisor** archetype is the structural anchor of AI oversight (elabor
 10. High-level memory and knowledge principles under customer stewardship (§IV-32).
 11. Security and trust principles — identity, least privilege, approval, trust model, secure execution, compliance (§IV-33).
 
-**Current State (PARTIAL).** Today MARQ Cortex has an AI **capability**, not an AI **workforce**: **IMPLEMENTED** feature-scoped assistive intelligence via the Intelligence Gateway (advisory only) atop 35 deterministic engines that own authoritative computation, with least-privilege, secure-execution, human-approval, and audit disciplines enforced now (§III-15–§III-21, §III-39–§III-44; Operating Constitution Art. 2/3/5/6/8/13). **NOT IMPLEMENTED** as runtime constructs: AI-worker categories, lifecycle, distinct identity, tactical/operational/autonomous responsibility, AI-led execution, multi-agent AI↔AI collaboration, and compounding customer memory — all reserved as *Future* (`ai_worker` identity; DNA Ch 8.3; §III-18/§III-20).
+**Current State (PARTIAL).** Today MARQ Cortex has an AI **capability**, not an AI **workforce**: **IMPLEMENTED** feature-scoped assistive intelligence via the Intelligence Gateway (advisory only) atop 36 deterministic engines that own authoritative computation, with least-privilege, secure-execution, human-approval, and audit disciplines enforced now (§III-15–§III-21, §III-39–§III-44; Operating Constitution Art. 2/3/5/6/8/13). **NOT IMPLEMENTED** as runtime constructs: AI-worker categories, lifecycle, distinct identity, tactical/operational/autonomous responsibility, AI-led execution, multi-agent AI↔AI collaboration, and compounding customer memory — all reserved as *Future* (`ai_worker` identity; DNA Ch 8.3; §III-18/§III-20).
 
 **Approved Future State.** Progressive, additive realization of the AI workforce under human authority, deterministic-engine truth, and the constitutional authority/memory/security principles (DNA Ch 8.1/8.3, Ch 18, Ch 19, Ch 20, Ch 23, Ch 29, Ch 30), never a rebrand. Individual AI employees, prompts, prompt libraries, tool definitions, LLM providers, API specifications, technical memory implementation, workflow diagrams, department workflows, KPIs, metrics, and implementation details are **deferred to later Phase 4.x** and are not authored here.
 
