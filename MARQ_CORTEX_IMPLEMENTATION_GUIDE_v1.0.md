@@ -29364,6 +29364,8 @@ Every implementation should successfully pass each applicable gate.
 
 #### 39.5 Quality Gate Categories
 
+> **Scope note.** The gates in this chapter are **engineering quality gates**, applied at **change grain** — to each implementation as it moves through the quality lifecycle of §39.4. They are distinct from the eight **execution-governance gates** of Master Blueprint §VI-18, which are applied at **capability and wave grain** and whose sole effect is to move a capability from UNVERIFIED to VERIFIED for dependency purposes. Five names appear in both sets — Architecture, Security, Governance, Operational Readiness, and Release Readiness — and where a name is shared, the grain determines which applies. Passing a gate in this chapter is engineering evidence; it does not by itself exit the corresponding §VI-18 execution gate, and neither set supersedes the other.
+
 Quality Gates span multiple engineering domains.
 
 | Category | Purpose |

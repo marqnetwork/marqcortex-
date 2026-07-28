@@ -4947,6 +4947,18 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 
 **Governing rule.** A gate converts a capability from UNVERIFIED to VERIFIED only on the stated evidence; no gate is passed by assertion. Downstream hard-dependent work may not begin until the gate its prerequisite passes is exited. Deployment-limited verification never yields a production-ready claim (§VI-8, §VI-19).
 
+**Scope of these gates, and their relationship to the engineering quality gates.** The eight gates above are **execution-governance gates**: they operate at **capability and wave grain**, they are exited once per capability against recorded evidence, and their sole effect is to move a capability from UNVERIFIED to VERIFIED so that downstream hard-dependent work may begin. They are distinct from the **engineering quality gates** of Implementation Guide Chapter 39, which operate at **change grain** — applied to each implementation as it passes through the engineering lifecycle (requirements → architecture review → development → testing → security validation → release readiness → production validation → continuous monitoring, IG §39.4). Five names appear in both sets — Architecture, Security, Governance, Operational Readiness, and Release Readiness. Where a name is shared, **the grain determines which applies**: a question about whether a *capability* may be depended upon is answered by this section; a question about whether a *change* may proceed through engineering is answered by IG Chapter 39. Neither set supersedes the other, and passing one is not evidence of passing the other.
+
+**The three state axes are independent.** Part VI carries three distinct state vocabularies, and they are not points on one scale:
+
+| Axis | Values | Answers | Set by |
+|---|---|---|---|
+| **Implementation** | IMPLEMENTED (≈PROVEN) · PARTIAL · NOT IMPLEMENTED | Does it exist in the repository? | Observation of evidence (Part III/IV convention) |
+| **Verification** | UNVERIFIED · VERIFIED | Has it been proven at its gate? | Exiting a gate in this section |
+| **Release** | NOT-YET-RELEASABLE · RELEASABLE | Is the wave safe to release? | Meeting every criterion in §VI-23 |
+
+A capability carries a value on each axis simultaneously, and a high value on one implies nothing about the others — §VI-13 turns on exactly this: *"A prerequisite that is IMPLEMENTED but UNVERIFIED does not satisfy a hard dependency."* No artifact may collapse these three into a single status field, and none may be expressed as a percentage (§VI-23).
+
 **Dependencies.** §VI-13 (the dependencies gates enforce); §VI-14 (layer boundaries the gates guard); §VI-17 (streams the gates advance); §VI-9 (execution principles the gates operationalize).
 
 **Risks.** A gate passed by assertion rather than evidence silently re-admits the failure it exists to prevent; the anti-drift controls (§VI-19) require the evidence to be recorded, not claimed.
@@ -5130,6 +5142,8 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Why it exists.** A wave is coherent as a delivery cohort but that coherence says nothing about whether it is *safe to release*. Release readiness is the standing test that converts a wave from NOT-YET-RELEASABLE to RELEASABLE. It exists so that release is a judgment against stated evidence, never a judgment against pressure, appetite, or the visible completeness of a surface.
 
 **Scope.** The qualitative readiness bar only. It defines no numeric threshold, no coverage percentage, no score, and no schedule; it states the conditions that must hold.
+
+**Which "release readiness" this is.** This section governs **wave-grain** release readiness — whether a capability wave (§VI-22) may be admitted to production — and it is the authority whenever the question is whether *the platform* may release. Implementation Guide §39.26 defines a **change-grain** Release Readiness Gate (testing completion, documentation, approvals, communication, rollback planning), which is engineering evidence contributing to, but not substituting for, the bar stated here. Likewise IG §39.25 (Operational Readiness) and **§39.27 (Production Readiness)** are engineering checklists applied to a deployment; they do not by themselves make a wave RELEASABLE, and no engineering checklist may be cited as a release decision. Where the two are in tension, this section governs the release of a wave and IG Chapter 39 governs the passage of a change.
 
 **Approved Release Readiness Criteria (qualitative).** A wave is RELEASABLE only when all of the following hold — as demonstrated evidence, not assertion:
 
