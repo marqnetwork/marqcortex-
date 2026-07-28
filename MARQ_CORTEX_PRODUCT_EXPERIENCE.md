@@ -36850,3 +36850,5 @@ It serves as the constitutional philosophy of the Cortex framework and should on
 **Status: LOCKED**  
 **Version: 1.0**  
 **Production Ready: YES**
+
+> **Scope note.** The three values above are **document-status metadata**: they state that this document is complete, locked, and fit for use as a canonical reference. "Production Ready" here is a property of the document, not a readiness claim about the MARQ Cortex platform or any capability within it. Platform readiness is governed elsewhere and by evidence — wave release readiness by Master Blueprint §VI-23, capability verification by the execution gates of §VI-18, and change-level engineering readiness by Implementation Guide Chapter 39. Nothing in this block may be cited as evidence that any part of the platform is ready to release or deploy.

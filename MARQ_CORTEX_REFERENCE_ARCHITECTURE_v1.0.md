@@ -2055,6 +2055,8 @@ This approach allows Cortex to grow organically while preserving architectural i
 
 The Cortex platform organizes domains into four architectural categories.
 
+> **Authoritative enumeration.** This chapter defines the domain *classification model* — the four categories and the characteristics a domain must exhibit. It does **not** enumerate the domains themselves. The authoritative enumeration of MARQ Cortex enterprise domains is `MARQ_CORTEX_ENTERPRISE_DOMAIN_REGISTRY_v1.0.md`, which registers **24 domains (D01–D24)** under these same four categories: 9 Core Business, 5 Supporting, 9 Shared Platform, and 1 External. The domain names listed as *Examples* in this section are illustrative of each category and are not a complete or closed list; where an example name and the Registry differ, the Registry governs.
+
 **Core Domains**
 
 Core Domains represent the strategic capabilities that define the unique value of Cortex. They directly support the primary business objectives and differentiate the platform.
@@ -2169,7 +2171,7 @@ Each domain owns the lifecycle, integrity, and governance of its data and should
 
 ### 8.6 Canonical Domain Model
 
-The following represents the high-level domain structure of MARQ Cortex.
+The following diagram illustrates the high-level *shape* of the MARQ Cortex domain structure — how domains group beneath the categories of §8.4. It is a **simplified illustration, not the domain enumeration**: it names a representative subset and collapses several registered domains into single labels for legibility. The authoritative enumeration is `MARQ_CORTEX_ENTERPRISE_DOMAIN_REGISTRY_v1.0.md` (24 domains, D01–D24). Every name appearing below resolves to a registered domain; the Registry additionally registers domains this diagram does not name.
 
 ```
                            MARQ Cortex
@@ -2190,6 +2192,8 @@ The following represents the high-level domain structure of MARQ Cortex.
 ```
 
 This model provides a logical organization rather than a deployment topology. Individual implementations may decompose these domains into multiple services while preserving the architectural boundaries defined here.
+
+The count of labels in this diagram carries no architectural meaning and must not be read as a domain count. Where a decomposition question turns on which domains exist, consult the Registry, not this diagram.
 
 ### 8.7 Domain Responsibilities
 
@@ -4824,6 +4828,8 @@ The enterprise business model consists of six foundational elements:
 Together, these elements define how business value is created, delivered, measured, and improved.
 
 ### 14.5 Business Capability Model
+
+> **Scope note (governs §14.5 and §14.6).** "Capability" in this chapter means **Business Capability** as defined in Ontology §18.13 — an organizational ability, stated at strategic grain. These are **not** Enterprise Capabilities. Enterprise Capabilities are the registered, Module-owned units of platform functionality enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (`C0001`–`C0561`; Ontology §10.8). The names listed in this chapter are illustrative business capabilities and must not be read, counted, or used as a capability registry; several correspond to whole Domains or Modules rather than to individual registered capabilities.
 
 Business Capabilities describe what the organization is able to do, independent of people, software, or organizational structure.
 
@@ -12579,6 +12585,8 @@ It defines:
 This model serves as the foundation for aligning technology with business strategy.
 
 ### 30.6 Capability Reference Model
+
+> **Scope note.** This reference model states **Business Capability categories** (Ontology §18.13), not Enterprise Capabilities. The registered Enterprise Capabilities are enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (`C0001`–`C0561`). The categories below are a strategic reference model and are not a registry.
 
 The Capability Reference Model describes what the enterprise is capable of performing.
 

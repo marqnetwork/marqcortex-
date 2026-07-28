@@ -78,7 +78,7 @@ Within Cortex, every business object, organizational concept, workflow, capabili
 
 As Cortex continues to evolve, the ontology provides a stable semantic foundation that supports scalability, governance, extensibility, and long-term maintainability. It enables the platform to grow without fragmenting its language, ensuring that every future capability remains consistent with the principles established by the Cortex framework.
 
-The MARQ_CORTEX_ONTOLOGY.md document is one of the five canonical Cortex v1.0 documents and serves as the authoritative semantic source of truth for the entire platform.
+The MARQ_CORTEX_ONTOLOGY_v1.0.md document is one of the five canonical Cortex v1.0 documents and serves as the authoritative semantic source of truth for the entire platform.
 
 ---
 
@@ -126,11 +126,11 @@ The MARQ Cortex Ontology is one of the five canonical Cortex v1.0 documents and 
 
 The MARQ_CORTEX_PRODUCT_EXPERIENCE.md document defines the vision, philosophy, principles, and purpose of Cortex. It explains why Cortex exists, the values it represents, and the experiences it seeks to create. The ontology translates these philosophical concepts into canonical business entities and semantic definitions that can be consistently understood and applied throughout the platform.
 
-The MARQ_CORTEX_MASTER_BLUEPRINT.md document defines how Cortex is engineered. It describes the platform architecture, engineering standards, system components, and implementation strategy. Every architectural element defined within the Master Blueprint must reference the canonical entities and terminology established by the ontology, ensuring semantic consistency across all engineering decisions.
+The MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md document defines how Cortex is engineered. It describes the platform architecture, engineering standards, system components, and implementation strategy. Every architectural element defined within the Master Blueprint must reference the canonical entities and terminology established by the ontology, ensuring semantic consistency across all engineering decisions.
 
-The MARQ_CORTEX_REFERENCE_ARCHITECTURE.md document describes the structural organization of the Cortex platform. It illustrates how business capabilities, services, domains, integrations, and architectural layers interact. These structures are built upon the semantic relationships defined by the ontology, ensuring that the architecture accurately represents the official Cortex domain model.
+The MARQ_CORTEX_REFERENCE_ARCHITECTURE_v1.0.md document describes the structural organization of the Cortex platform. It illustrates how business capabilities, services, domains, integrations, and architectural layers interact. These structures are built upon the semantic relationships defined by the ontology, ensuring that the architecture accurately represents the official Cortex domain model.
 
-The MARQ_CORTEX_IMPLEMENTATION_GUIDE.md document provides practical guidance for implementing Cortex. Development standards, configuration practices, workflows, operational procedures, and implementation activities must all align with the canonical definitions established by the ontology to ensure consistency across every stage of product delivery.
+The MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md document provides practical guidance for implementing Cortex. Development standards, configuration practices, workflows, operational procedures, and implementation activities must all align with the canonical definitions established by the ontology to ensure consistency across every stage of product delivery.
 
 Together, these five documents form the complete Cortex governance framework. Each document answers a different architectural question while remaining dependent on the others:
 
@@ -141,6 +141,8 @@ Together, these five documents form the complete Cortex governance framework. Ea
 - Implementation Guide defines How Cortex is built, deployed, and operated.
 
 No concept, entity, capability, workflow, business object, or architectural component may be introduced into any canonical document or the Cortex platform unless it has first been formally defined within the ontology. This governance principle establishes the ontology as the authoritative semantic source of truth for the entire Cortex ecosystem and ensures long-term consistency as the platform evolves.
+
+This semantic authority operates **beneath the Constitution of MARQ Cortex** (`CORTEX_DNA_v1.0.md`) and within the single authority order stated in its Chapter 25.1, where the ontology is ranked as the canonical authority for semantic definitions, terminology, and canonical meaning. The Constitution's own definitions (its Chapter 34) are not subject to the rule above. The ontology is authoritative for meaning; it does not govern identity, philosophy, governance, engineering mechanics, or any other subject assigned elsewhere in that order.
 
 ---
 
@@ -582,6 +584,22 @@ Capabilities describe what can be done, independent of how it is implemented.
 - Search
 - Reasoning
 - Scheduling
+
+**Enterprise Capability (the registered specialization)**
+
+An **Enterprise Capability** is the platform-scoped specialization of this entity: a discrete unit of MARQ Cortex platform functionality that is **registered**, **uniquely identified**, and **owned by exactly one Module**. Enterprise Capabilities are enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md`, which is their sole authoritative source. Each carries a unique identifier in the series `C0001`–`C0561`, names exactly one parent Module (`M001`–`M186`), and inherits that Module's Domain (`D01`–`D24`). A capability that is not registered there is not an Enterprise Capability.
+
+Enterprise Capabilities sit at **implementation grain** — the level at which platform function is built, owned, verified, and released. This distinguishes them from the coarser capability entities defined elsewhere in this ontology, which describe organizational ability rather than registered platform function:
+
+| Entity | Section | Grain | Registered? |
+|---|---|---|---|
+| **Enterprise Capability** | this section | Discrete platform function, owned by one Module | **Yes — Capability Registry (561)** |
+| Capability (general) | 10.8 above | Any ability of any entity, abstractly | No |
+| Organizational Capability | 11.12 | Enterprise-level organizational competency | No |
+| AI Capability | 15.3 | Intelligent function an AI Agent performs | No |
+| Business Capability | 18.13 | Stable organizational ability to perform a business function | No |
+
+The four unregistered entities remain valid within their own chapters and are not superseded. Where a document uses the bare word *capability*, it means the entity defined by its own chapter; only an explicit reference to the Capability Registry, or to a `C####` identifier, denotes an Enterprise Capability.
 - Analytics
 - Automation
 - Collaboration
@@ -1876,6 +1894,8 @@ AI Agents serve as intelligent operational participants within the Cortex ecosys
 An AI Capability is a specific intelligent function that an AI Agent or AI-enabled system is able to perform.
 
 Capabilities describe what intelligence can accomplish, independent of the algorithms or models used.
+
+> **Scope note.** This section is titled *Capability* within the AI chapter; the entity it defines is the **AI Capability**, and every bare use of *capability* in Chapter 15 means AI Capability. It is distinct from the general Capability entity of §10.8 and from the **Enterprise Capability** registered in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (§10.8). An AI Capability describes what intelligence can do; it is not a registered platform function and carries no `C####` identifier.
 
 **Examples**
 
@@ -5691,6 +5711,18 @@ Dependencies establish execution order, organizational coordination, and enterpr
 - Project depends on Budget
 - Task depends on Milestone
 
+**Classification axes**
+
+The dependency types defined in §24.4–§24.12 are **not a single flat list of alternatives**. They classify a dependency along three independent axes, and one dependency carries a value on each:
+
+| Axis | Question it answers | Types | Sections |
+|---|---|---|---|
+| **Strength** | Does the prerequisite **block**? | **Hard**, **Soft** — and only these two | §24.4, §24.5 |
+| **Activation & order** | *When* does it apply? | Sequential, Parallel, Conditional | §24.6–§24.8 |
+| **Subject matter** | *What kind* of thing is required? | Knowledge, Operational, Governance, Business | §24.9–§24.12 |
+
+The **strength axis is exhaustive at two values**: every dependency is either Hard or Soft. There is no third strength in MARQ Cortex V1, and none may be introduced by a derived artifact, graph, matrix, or report. A dependency that applies only under stated conditions, policies, states, or events is a **Conditional Dependency** (§24.8) — which remains Hard or Soft *when its condition is met* — and is not a separate strength.
+
 ### 24.2 Dependency Source
 
 **Definition**
@@ -5767,6 +5799,8 @@ Execution may continue if the dependency is unavailable, although outcomes may b
 - Quality-enhancing
 - Non-blocking
 - Context-dependent
+
+> **Note on the word "optional".** Above, *optional* is an ordinary adjective describing how a Soft Dependency behaves — satisfying it is not required for execution. It is **not** the name of a dependency type. There is no "Optional Dependency" in MARQ Cortex; a relationship whose prerequisite may be absent is a **Soft Dependency**, and one that applies only under stated conditions is a **Conditional Dependency** (§24.8). Configuration-gated and tenant-gated availability — enabled modules, entitlement tiers, additive extensions — are Conditional, not a separate strength (§24.1, classification axes).
 
 **Examples**
 
