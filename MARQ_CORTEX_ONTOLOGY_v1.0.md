@@ -584,6 +584,22 @@ Capabilities describe what can be done, independent of how it is implemented.
 - Search
 - Reasoning
 - Scheduling
+
+**Enterprise Capability (the registered specialization)**
+
+An **Enterprise Capability** is the platform-scoped specialization of this entity: a discrete unit of MARQ Cortex platform functionality that is **registered**, **uniquely identified**, and **owned by exactly one Module**. Enterprise Capabilities are enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md`, which is their sole authoritative source. Each carries a unique identifier in the series `C0001`–`C0561`, names exactly one parent Module (`M001`–`M186`), and inherits that Module's Domain (`D01`–`D24`). A capability that is not registered there is not an Enterprise Capability.
+
+Enterprise Capabilities sit at **implementation grain** — the level at which platform function is built, owned, verified, and released. This distinguishes them from the coarser capability entities defined elsewhere in this ontology, which describe organizational ability rather than registered platform function:
+
+| Entity | Section | Grain | Registered? |
+|---|---|---|---|
+| **Enterprise Capability** | this section | Discrete platform function, owned by one Module | **Yes — Capability Registry (561)** |
+| Capability (general) | 10.8 above | Any ability of any entity, abstractly | No |
+| Organizational Capability | 11.12 | Enterprise-level organizational competency | No |
+| AI Capability | 15.3 | Intelligent function an AI Agent performs | No |
+| Business Capability | 18.13 | Stable organizational ability to perform a business function | No |
+
+The four unregistered entities remain valid within their own chapters and are not superseded. Where a document uses the bare word *capability*, it means the entity defined by its own chapter; only an explicit reference to the Capability Registry, or to a `C####` identifier, denotes an Enterprise Capability.
 - Analytics
 - Automation
 - Collaboration
@@ -1878,6 +1894,8 @@ AI Agents serve as intelligent operational participants within the Cortex ecosys
 An AI Capability is a specific intelligent function that an AI Agent or AI-enabled system is able to perform.
 
 Capabilities describe what intelligence can accomplish, independent of the algorithms or models used.
+
+> **Scope note.** This section is titled *Capability* within the AI chapter; the entity it defines is the **AI Capability**, and every bare use of *capability* in Chapter 15 means AI Capability. It is distinct from the general Capability entity of §10.8 and from the **Enterprise Capability** registered in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (§10.8). An AI Capability describes what intelligence can do; it is not a registered platform function and carries no `C####` identifier.
 
 **Examples**
 

@@ -4829,6 +4829,8 @@ Together, these elements define how business value is created, delivered, measur
 
 ### 14.5 Business Capability Model
 
+> **Scope note (governs §14.5 and §14.6).** "Capability" in this chapter means **Business Capability** as defined in Ontology §18.13 — an organizational ability, stated at strategic grain. These are **not** Enterprise Capabilities. Enterprise Capabilities are the registered, Module-owned units of platform functionality enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (`C0001`–`C0561`; Ontology §10.8). The names listed in this chapter are illustrative business capabilities and must not be read, counted, or used as a capability registry; several correspond to whole Domains or Modules rather than to individual registered capabilities.
+
 Business Capabilities describe what the organization is able to do, independent of people, software, or organizational structure.
 
 Capabilities remain relatively stable even as processes, teams, or technologies evolve.
@@ -12583,6 +12585,8 @@ It defines:
 This model serves as the foundation for aligning technology with business strategy.
 
 ### 30.6 Capability Reference Model
+
+> **Scope note.** This reference model states **Business Capability categories** (Ontology §18.13), not Enterprise Capabilities. The registered Enterprise Capabilities are enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (`C0001`–`C0561`). The categories below are a strategic reference model and are not a registry.
 
 The Capability Reference Model describes what the enterprise is capable of performing.
 

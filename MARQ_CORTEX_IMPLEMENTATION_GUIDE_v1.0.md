@@ -30527,6 +30527,8 @@ Organizational growth supports platform growth.
 
 #### 40.28 Capability Roadmaps
 
+> **Scope note.** "Capability" in this section means capability at **strategic planning grain**, consistent with this chapter's subject (organizational maturity, investment prioritization, long-term evolution). It does not denote a registered Enterprise Capability. Enterprise Capabilities are enumerated in `MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md` (`C0001`–`C0561`; Ontology §10.8); a strategic roadmap entry typically spans many of them.
+
 Each capability should maintain:
 
 **current maturity**
