@@ -78,7 +78,7 @@ Within Cortex, every business object, organizational concept, workflow, capabili
 
 As Cortex continues to evolve, the ontology provides a stable semantic foundation that supports scalability, governance, extensibility, and long-term maintainability. It enables the platform to grow without fragmenting its language, ensuring that every future capability remains consistent with the principles established by the Cortex framework.
 
-The MARQ_CORTEX_ONTOLOGY.md document is one of the five canonical Cortex v1.0 documents and serves as the authoritative semantic source of truth for the entire platform.
+The MARQ_CORTEX_ONTOLOGY_v1.0.md document is one of the five canonical Cortex v1.0 documents and serves as the authoritative semantic source of truth for the entire platform.
 
 ---
 
@@ -126,9 +126,9 @@ The MARQ Cortex Ontology is one of the five canonical Cortex v1.0 documents and 
 
 The MARQ_CORTEX_PRODUCT_EXPERIENCE.md document defines the vision, philosophy, principles, and purpose of Cortex. It explains why Cortex exists, the values it represents, and the experiences it seeks to create. The ontology translates these philosophical concepts into canonical business entities and semantic definitions that can be consistently understood and applied throughout the platform.
 
-The MARQ_CORTEX_MASTER_BLUEPRINT.md document defines how Cortex is engineered. It describes the platform architecture, engineering standards, system components, and implementation strategy. Every architectural element defined within the Master Blueprint must reference the canonical entities and terminology established by the ontology, ensuring semantic consistency across all engineering decisions.
+The MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md document defines how Cortex is engineered. It describes the platform architecture, engineering standards, system components, and implementation strategy. Every architectural element defined within the Master Blueprint must reference the canonical entities and terminology established by the ontology, ensuring semantic consistency across all engineering decisions.
 
-The MARQ_CORTEX_REFERENCE_ARCHITECTURE.md document describes the structural organization of the Cortex platform. It illustrates how business capabilities, services, domains, integrations, and architectural layers interact. These structures are built upon the semantic relationships defined by the ontology, ensuring that the architecture accurately represents the official Cortex domain model.
+The MARQ_CORTEX_REFERENCE_ARCHITECTURE_v1.0.md document describes the structural organization of the Cortex platform. It illustrates how business capabilities, services, domains, integrations, and architectural layers interact. These structures are built upon the semantic relationships defined by the ontology, ensuring that the architecture accurately represents the official Cortex domain model.
 
 The MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md document provides practical guidance for implementing Cortex. Development standards, configuration practices, workflows, operational procedures, and implementation activities must all align with the canonical definitions established by the ontology to ensure consistency across every stage of product delivery.
 
