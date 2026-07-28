@@ -5,9 +5,10 @@
  *
  * The single source of truth for client session shapes.
  *
- * This module is TYPES ONLY. It contains no runtime code, no React, no browser
- * APIs, no storage access, no timers, and no authentication logic — importing
- * it can have no side effects and emits nothing into the bundle.
+ * This module holds the session shapes plus the single canonical expiry
+ * predicate. It contains no React, no browser storage, no timers, and no
+ * authentication logic — every export is pure, so importing it can have no
+ * side effects.
  *
  * WHY THIS FILE EXISTS
  *   `src/app/lib/api.ts` has always imported `ClientAuthContext` from this
@@ -16,10 +17,11 @@
  *   Four portal components import the same type through `dataService`. This
  *   file declares it once so every consumer resolves to the same shape.
  *
- * SCOPE
- *   Session *expiry* is deliberately NOT modelled here. Client sessions carry
- *   no expiry field today and no expiry is enforced at runtime; adding one is a
- *   separate, behaviour-changing task. Nothing in this file implies otherwise.
+ * EXPIRY
+ *   `isClientSessionExpired` is the ONE canonical expiry check. Nothing else
+ *   in the codebase may re-derive it. It is a pure function of a session and a
+ *   timestamp, so it is deterministic and directly unit-testable; callers that
+ *   need "now" injected pass it explicitly.
  */
 
 // ── Client session ────────────────────────────────────────────────────────────
@@ -43,6 +45,14 @@ export interface ClientSession {
 
   /** Server-issued token — required for protected client API calls in live mode. */
   sessionToken: string | null;
+
+  /**
+   * Epoch milliseconds at which this session stops being valid.
+   *
+   * Set once at login from `CLIENT_SESSION_TTL_MS` and persisted with the
+   * session, so a page refresh cannot extend it.
+   */
+  expiresAt: number;
 }
 
 /**
@@ -56,3 +66,35 @@ export interface ClientSession {
  */
 export type ClientAuthContext =
   Pick<ClientSession, 'sessionToken'> & Partial<Pick<ClientSession, 'email'>>;
+
+// ── Expiry ────────────────────────────────────────────────────────────────────
+
+/**
+ * How long a client portal session stays valid — 8 hours.
+ *
+ * Matches the team session lifetime already used by `AppContext`, so both
+ * session kinds expire on the same policy.
+ */
+export const CLIENT_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * The single canonical client-session expiry check.
+ *
+ * Pure and deterministic: pass `now` to control the comparison instant.
+ *
+ * Fails closed. A session whose `expiresAt` is missing, non-numeric, or NaN is
+ * treated as EXPIRED rather than valid — this covers sessions persisted before
+ * expiry existed, which are exactly the never-expiring sessions this check is
+ * here to eliminate. Such a session is rejected and the client re-authenticates.
+ *
+ * Returns `false` for a null/undefined session: absence of a session is not
+ * expiry, and callers already guard that case separately.
+ */
+export function isClientSessionExpired(
+  session: ClientSession | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!session) return false;
+  if (typeof session.expiresAt !== 'number' || !Number.isFinite(session.expiresAt)) return true;
+  return now >= session.expiresAt;
+}

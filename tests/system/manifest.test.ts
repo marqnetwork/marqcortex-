@@ -283,7 +283,9 @@ describe('canonical session contract', () => {
   it('AppContext re-exports ClientSession instead of redeclaring it', () => {
     const ctx = repoFile('src/app/contexts/AppContext.tsx');
     assert.doesNotMatch(ctx, /export interface ClientSession\b/, 'AppContext must not redeclare ClientSession');
-    assert.match(ctx, /import type \{ ClientSession \} from '@\/app\/lib\/session'/);
+    // Imported from the canonical module (as part of the session import block)
+    // and re-exported so existing consumers are unaffected.
+    assert.match(ctx, /type ClientSession,?\n\} from '@\/app\/lib\/session'/);
     assert.match(ctx, /export type \{ ClientSession \}/);
   });
 
@@ -313,16 +315,89 @@ describe('canonical session contract', () => {
     }
   });
 
-  it('the session contract carries no runtime code', () => {
+  /**
+   * Task 5 required this module to be types-only. Task 6 deliberately widened
+   * it to carry the one canonical expiry predicate, so a pure function and a
+   * constant are now expected. What must never appear is anything with a side
+   * effect or an environment dependency — that is what this guard now pins.
+   */
+  it('the session contract stays free of side effects', () => {
     const forbidden: Array<[string, RegExp]> = [
       ['react import', /from ['"]react['"]/],
       ['storage access', /localStorage|sessionStorage|document\.cookie/],
       ['timers', /setTimeout|setInterval/],
-      ['value export', /export\s+(const|let|var|function|class|enum)\b/],
       ['default export', /export\s+default\b/],
+      ['module-level side effect', /^\s*(console|window|document)\./m],
     ];
 
     const violations = forbidden.filter(([, re]) => re.test(session)).map(([name]) => name);
-    assert.deepEqual(violations, [], `session.ts must stay types-only; found: ${violations.join(', ')}`);
+    assert.deepEqual(violations, [], `session.ts must stay side-effect free; found: ${violations.join(', ')}`);
+  });
+});
+
+/**
+ * Phase 1B — client session expiry enforcement.
+ *
+ * Structural guards only; the behaviour of the predicate itself is pinned in
+ * tests/features/clientSessionExpiry.test.ts. What matters here is that there
+ * is exactly ONE expiry implementation and that every consumer routes to it.
+ */
+describe('client session expiry wiring', () => {
+  const contract = repoFile('src/app/lib/session.ts');
+  const ctx = repoFile('src/app/contexts/AppContext.tsx');
+  const portal = repoFile('src/app/pages/ClientPortalRoute.tsx');
+  const login = repoFile('src/app/pages/ClientLoginRoute.tsx');
+
+  it('the canonical expiry check lives in the session contract', () => {
+    assert.match(contract, /export function isClientSessionExpired\(/);
+    assert.match(contract, /export const CLIENT_SESSION_TTL_MS\b/);
+  });
+
+  it('no module re-derives expiry independently', () => {
+    // Only session.ts may compare against an expiry deadline for the client
+    // session. Everywhere else must call the canonical predicate.
+    const rederivers = [
+      'src/app/contexts/AppContext.tsx',
+      'src/app/pages/ClientPortalRoute.tsx',
+      'src/app/pages/ClientLoginRoute.tsx',
+      'src/app/components/ClientPortal.tsx',
+      'src/app/components/ClientLogin.tsx',
+    ].filter(p => /Date\.now\(\)\s*[<>]=?\s*\w*[eE]xpir|expiresAt\s*[<>]=?/.test(repoFile(p)));
+
+    assert.deepEqual(rederivers, [], `Duplicate expiry logic in: ${rederivers.join(', ')}`);
+  });
+
+  it('AppContext issues, persists and restores the expiry deadline', () => {
+    assert.match(ctx, /expiresAt: Date\.now\(\) \+ CLIENT_SESSION_TTL_MS/, 'login must stamp expiresAt');
+    assert.match(ctx, /localStorage\.setItem\(CLIENT_SESSION_KEY, JSON\.stringify\(session\)\)/, 'session persists with its expiry');
+    assert.match(ctx, /checkClientSessionExpired\(restored\)/, 'restore must re-check expiry');
+  });
+
+  it('an expired session is cleared from storage at restore', () => {
+    // The guard redirects before the route-level logout effect can mount, so
+    // rejection must also clear the record here or it survives indefinitely.
+    const restoreBlock = ctx.slice(ctx.indexOf('const restored'), ctx.indexOf('} catch'));
+    assert.match(restoreBlock, /localStorage\.removeItem\(CLIENT_SESSION_KEY\)/);
+    assert.match(restoreBlock, /setIsClientSessionExpired\(true\)/);
+  });
+
+  it('AppContext exposes isClientSessionExpired through the provider', () => {
+    assert.match(ctx, /isClientSessionExpired: boolean/, 'AppState must declare it');
+    assert.match(ctx, /isClientSessionExpired,\n\s*logout,/, 'provider value must include it');
+  });
+
+  it('logout clears the expiry flag', () => {
+    const logoutBody = ctx.slice(ctx.indexOf('const logout = useCallback'));
+    assert.match(logoutBody.slice(0, 400), /setIsClientSessionExpired\(false\)/);
+    assert.match(logoutBody.slice(0, 400), /localStorage\.removeItem\(CLIENT_SESSION_KEY\)/);
+  });
+
+  it('the portal route logs out on expiry from an effect, not during render', () => {
+    assert.match(portal, /useEffect\(\(\) => \{\s*if \(isClientSessionExpired && clientSession\) \{\s*logout\(\);/);
+    assert.doesNotMatch(portal, /if \(isClientSessionExpired\) logout\(\);/, 'must not call logout during render');
+  });
+
+  it('an expired session cannot bounce back into the portal from login', () => {
+    assert.match(login, /if \(clientSession && !isClientSessionExpired\)/);
   });
 });
