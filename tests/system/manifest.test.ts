@@ -12,6 +12,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { manifest } from '../../src/system/manifest.ts';
 import { runValidation } from '../../src/system/validate.ts';
 
@@ -20,6 +21,23 @@ const CERTIFIED_NODE_COUNT = 171;
 const CERTIFIED_CORE_COUNT = 36;
 
 const entries = Object.entries(manifest.nodes);
+
+const repoFile = (rel: string) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8');
+
+/**
+ * `DomainType` is a compile-time union and is erased at runtime, so the
+ * declared values are read back from the type declaration itself. With no
+ * TypeScript toolchain in the repository this is the only way to assert the
+ * type contract; the declaration is a flat union of quoted literals, so the
+ * extraction is deterministic.
+ */
+function declaredDomainTypes(): string[] {
+  const src = repoFile('src/system/types.ts');
+  const start = src.indexOf('export type DomainType');
+  assert.notEqual(start, -1, 'DomainType declaration not found in src/system/types.ts');
+  const decl = src.slice(start, src.indexOf(';', start));
+  return [...decl.matchAll(/'([A-Z_]+)'/g)].map(m => m[1]);
+}
 
 describe('manifest identifier grammar', () => {
   it('every node ID matches the certified grammar', () => {
@@ -155,4 +173,76 @@ describe('manifest validator', () => {
     assert.equal(report.passed, true);
     assert.equal(report.totalNodes, CERTIFIED_NODE_COUNT);
   });
+});
+
+/**
+ * Aligns the implementation type contract with actual manifest usage.
+ *
+ * `DomainType` (implementation-layer ownership groups) and the Enterprise
+ * Domain Registry (`D01`–`D24`, business domains) are two different grains
+ * that share the word "domain". They are deliberately disjoint: no
+ * `DomainType` value is a registry ID, and `DATA` is an implementation
+ * grouping — it is not, and does not rename, registry domain D17.
+ */
+describe('DomainType alignment', () => {
+  it('every domain used in the manifest is declared in DomainType', () => {
+    const declared = new Set(declaredDomainTypes());
+    const undeclared = [...new Set(entries.map(([, n]) => n.domain))]
+      .filter(d => !declared.has(d))
+      .sort();
+
+    assert.deepEqual(undeclared, [], `Manifest domains missing from DomainType: ${undeclared.join(', ')}`);
+  });
+
+  it('DATA is declared in DomainType', () => {
+    assert.ok(declaredDomainTypes().includes('DATA'), 'DomainType must declare DATA');
+  });
+
+  it('every declared DomainType value is actually used by the manifest', () => {
+    const used = new Set(entries.map(([, n]) => n.domain));
+    const unused = declaredDomainTypes().filter(d => !used.has(d));
+
+    assert.deepEqual(unused, [], `DomainType values with no manifest node: ${unused.join(', ')}`);
+  });
+
+  it('DATA is the only implementation domain beyond the twelve originally certified', () => {
+    const ORIGINAL_TWELVE = [
+      'AUTH', 'DIAGNOSTIC', 'PROPOSAL', 'ROI', 'PORTAL', 'AI',
+      'EXECUTION', 'ANALYTICS', 'COMMS', 'LEAD', 'REVIEWER', 'SYSTEM',
+    ];
+    const added = declaredDomainTypes().filter(d => !ORIGINAL_TWELVE.includes(d));
+
+    assert.deepEqual(added, ['DATA']);
+  });
+
+  it('DomainType values are disjoint from Enterprise Domain Registry IDs', () => {
+    const overlap = declaredDomainTypes().filter(d => /^D\d{2}$/.test(d));
+    assert.deepEqual(overlap, [], 'DomainType must not reuse registry domain IDs');
+  });
+
+  it('every DATA node belongs to the persistence layer', () => {
+    const offLayer = entries
+      .filter(([, n]) => n.domain === 'DATA')
+      .filter(([, n]) => !/\/(repositories|migration)\//.test(n.filePath) && !/types/i.test(n.filePath))
+      .map(([, n]) => `${n.id} ${n.filePath}`);
+
+    assert.deepEqual(offLayer, [], `DATA nodes outside the persistence layer: ${offLayer.join(', ')}`);
+  });
+});
+
+/**
+ * The certified enterprise registries are not touched by implementation work.
+ * These assertions fail loudly if any task edits them.
+ */
+describe('certified registry totals', () => {
+  const uniq = (text: string, re: RegExp) => new Set(text.match(re) ?? []).size;
+
+  const domains = uniq(repoFile('MARQ_CORTEX_ENTERPRISE_DOMAIN_REGISTRY_v1.0.md'), /\bD\d{2}\b/g);
+  const modules = uniq(repoFile('MARQ_CORTEX_ENTERPRISE_MODULE_REGISTRY_v1.0.md'), /\bM\d{3}\b/g);
+  const capabilities = uniq(repoFile('MARQ_CORTEX_ENTERPRISE_CAPABILITY_REGISTRY_v1.0.md'), /\bC\d{4}\b/g);
+
+  it('24 Domains', () => assert.equal(domains, 24));
+  it('186 Modules', () => assert.equal(modules, 186));
+  it('561 Capabilities', () => assert.equal(capabilities, 561));
+  it('771 registry nodes in total', () => assert.equal(domains + modules + capabilities, 771));
 });

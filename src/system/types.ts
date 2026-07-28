@@ -40,6 +40,7 @@ export type DomainType =
   | 'COMMS'       // Email, messaging, notifications
   | 'LEAD'        // Landing page, lead capture, exit intent
   | 'REVIEWER'    // QA review, transcript, submission notes
+  | 'DATA'        // Relational persistence — repositories, migration engine, DB types
   | 'SYSTEM';     // Registry, architecture, error boundaries, utilities
 
 // ── Core manifest entry ───────────────────────────────────────────────────────
