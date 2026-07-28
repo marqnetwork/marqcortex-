@@ -2,6 +2,7 @@
   "_meta": {
     "protocol": "MARQ Code Intelligence OS v3.3",
     "generated": "2026-07-11",
+    "last_verified": "2026-07-28",
     "canonical_doc": "ARCHITECT.md",
     "manifest": "src/system/manifest.ts",
     "confidence": "PROVEN",
@@ -251,7 +252,7 @@
 
   "core_engines": {
     "location": "src/app/core/",
-    "count": 35,
+    "count": 36,
     "orchestrator": "runCortexEngine() in src/app/core/index.ts",
     "rule": "Pure functions. No React. No side effects. No LLM calls.",
     "load_bearing": ["scoringEngine.ts", "decisionEngine.ts", "roiEngine.ts", "proposalGateEngine.ts"]
@@ -284,10 +285,22 @@
   "manifest": {
     "file": "src/system/manifest.ts",
     "version": "2.0.0",
-    "node_count": 158,
+    "node_count": 171,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"
+  },
+
+  "constitution": {
+    "file": "MARQ_CORTEX_CONSTITUTION.md",
+    "version": "1.2",
+    "effective": "2026-07-28",
+    "status": "Canonical — locked operating principles for MARQ Cortex V2",
+    "article_count": 17,
+    "authority_order_source": "CORTEX_DNA_v1.0.md Chapter 25.1",
+    "agent_entry": "ARCHITECT.md § Agent entry points",
+    "cursor_rule": ".cursor/rules/read-marq-constitution.mdc",
+    "migration_roadmap": "architecture/database/MCV2-S3-MIGRATION-ROADMAP.md"
   },
 
   "known_debt": {
