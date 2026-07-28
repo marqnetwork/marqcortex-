@@ -1,7 +1,7 @@
 # MARQ Cortex Constitution
 
-**Version:** 1.1  
-**Effective:** 2026-07-14  
+**Version:** 1.2  
+**Effective:** 2026-07-28  
 **Status:** Canonical — locked operating principles for MARQ Cortex V2
 
 ---
@@ -10,6 +10,7 @@
 
 | Version | Date | Change |
 |---------|------|--------|
+| **v1.2** | 2026-07-28 | **Authority Order conformed to `CORTEX_DNA_v1.0.md` Ch 25.1.** This document previously ranked itself first and did not reference the Constitution of MARQ Cortex, which supersedes it on identity, philosophy, and governance (DNA header; DNA Ch 34, *"Operating Constitution — `MARQ_CORTEX_CONSTITUTION.md`, which governs engineering mechanics beneath this Constitution"*). Sprint acceptance criteria and `ARCHITECT.md` were also ranked in the inverse of DNA Ch 25.1. Both corrected; this section now restates rather than competes. |
 | **v1.1** | 2026-07-14 | Added **Article 17 — Runtime Authority Protection**. Registered in agent entry points (MCV2-S6.3-VALIDATE-005). |
 | **v1.0** | 2026-07-11 | Initial lock from S3 data platform architecture, agent system prompt, and S6.1 migration planning principles. |
 
@@ -110,14 +111,17 @@ Agents execute only the assigned sprint scope. Do not begin subsequent sprints u
 
 ## Authority Order
 
+The single authority order for MARQ Cortex is stated in `CORTEX_DNA_v1.0.md` Chapter 25.1. This section restates that order and does not establish a competing one. Where this section and Chapter 25.1 differ, Chapter 25.1 governs.
+
 When sources disagree, resolve in this order:
 
-1. This Constitution (for principles and authority rules)
-2. Current sprint acceptance criteria
-3. `ARCHITECT.md` golden rules
+1. `CORTEX_DNA_v1.0.md` — the Constitution of MARQ Cortex (identity, philosophy, customer promise, ethics, authority, long-term direction)
+2. This Constitution and `ARCHITECT.md` golden rules (engineering mechanics, within the bounds the Constitution sets)
+3. The canonical v1.0 documents, each within its assigned subject (DNA Ch 25.1)
 4. `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`
-5. Verified implementation behavior
-6. Other documentation
+5. Current sprint acceptance criteria
+6. Verified implementation behavior
+7. Other documentation
 
 ---
 

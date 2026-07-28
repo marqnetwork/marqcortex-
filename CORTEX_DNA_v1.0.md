@@ -3,7 +3,7 @@
 ## The Constitution of MARQ Cortex
 
 **Document Class:** Constitutional — Supreme Governing Authority
-**Constitution Version:** 1.0
+**Constitution Version:** 1.1
 **Status:** APPROVED — Constitutional Authority for MARQ Cortex
 **Owner & Steward:** MARQ Networks
 **Effective:** 2026-07-19
@@ -21,6 +21,14 @@
 | Product Architecture Review Board | Representational corrections raised (approved-model vs. current-state identity; Phase 1 artifact reference; component-evidence alignment). |
 | Corrections applied | All approved corrections integrated as amendments to Chapters 3, 8, 9, 18, 20, 25, 29, 30, 34, and 35 — no chapter renumbering, all cross-references preserved. |
 | Final executive validation | Completeness, contradiction, and drift checks passed. Ratified as **v1.0 — APPROVED**. |
+
+### Amendment Record
+
+| Version | Date | Tier | Amendment |
+|---------|------|------|-----------|
+| **v1.1** | 2026-07-28 | Ordinary (§35.2–§35.4) | **Canonical Authority Order.** Chapter 25.1 amended to state the single authority order and to rank the canonical v1.0 documents, which the prior text left unranked and therefore consigned to rank 6 ("all other documentation"). Chapter 2 amended to cite Chapter 25.1 rather than an unstated "established order." Ratified by MARQ Networks under §35.2. Justification: §35.4 — *"This Constitution may be strengthened — gaps closed, **contradictions resolved**, principles clarified — provided the approved vision of Cortex is preserved."* No provision of the entrenched core (§35.5) is altered; no existing rank is reordered; the amendment is additive. |
+
+*Note on filename.* This document's version field advances with each amendment while the filename `CORTEX_DNA_v1.0.md` is preserved as the document's stable identifier. The filename is cited by name in Chapter 25.1, Chapter 34, the operating constitution, and the Master Blueprint; renaming it would break those references. The same convention applies to `MARQ_CORTEX_CONSTITUTION.md`, which carries version 1.1 under an unversioned filename.
 
 *Note on the Phase 1 source of record.* No file named `PRODUCT_RECOVERY_REPORT.md` exists in the repository. The authoritative Phase 1 record is the Final Cortex System Audit (`src/imports/cortex-audit-report.md`), with the `ARCHITECT.md` product snapshot and the `src/imports/` specifications. This Constitution's Phase 1 references (Chapter 3) point to that record.
 
@@ -93,7 +101,7 @@ The Constitution establishes three things and defends them permanently:
 
 This Constitution does not duplicate the operational and engineering rules already ratified in `MARQ_CORTEX_CONSTITUTION.md` (the operating constitution) or in `ARCHITECT.md` (the repository map and golden rules). Those documents remain in force and govern *implementation*. This document governs *identity and intent*, and where the two touch, this document defines the "why" that the operating constitution must serve. Every future operational, product, and engineering document derives its authority from this Constitution.
 
-**Authority relationship.** The operating constitution, the agent system prompt, `ARCHITECT.md`, and the sprint acceptance criteria continue to resolve engineering conflicts in their established order. This Constitution sits above all of them for questions of identity, purpose, philosophy, customer promise, ethics, and long-term direction. When an engineering decision is technically valid but violates the identity or philosophy defined here, this Constitution wins. The full order of precedence is stated in Chapter 25.
+**Authority relationship.** The operating constitution, the agent system prompt, `ARCHITECT.md`, and the sprint acceptance criteria continue to resolve engineering conflicts, in the order stated in Chapter 25.1. This Constitution sits above all of them for questions of identity, purpose, philosophy, customer promise, ethics, and long-term direction. When an engineering decision is technically valid but violates the identity or philosophy defined here, this Constitution wins. The full order of precedence is stated in Chapter 25.
 
 A platform without a constitution drifts. It accumulates features until it forgets what it is. It optimizes for the loudest request instead of the deepest purpose. It trades trust for convenience one small decision at a time. This document exists so that Cortex — across founders, teams, decades, and market cycles — never forgets itself.
 
@@ -667,14 +675,24 @@ This framework is how the Constitution is applied in practice, every day, by eve
 
 ## 25.1 — Precedence
 
+This section states the **single authority order** for MARQ Cortex. Where any other document states, restates, or summarizes an order of authority, it derives from this section and is read subject to it. No other document establishes a competing order, and no document holds authority outside the order stated here.
+
 When sources of authority disagree, they resolve in this order:
 
 1. **This Constitution (`CORTEX_DNA_v1.0.md`)** — for identity, philosophy, customer promise, ethics, authority, and long-term direction.
 2. **The operating constitution (`MARQ_CORTEX_CONSTITUTION.md`) and `ARCHITECT.md` golden rules** — for engineering mechanics, within the bounds this Constitution sets.
-3. **The agent operating contract** (`prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`) — for agent conduct, beneath the constitutions above.
-4. **Current sprint acceptance criteria** — for scoped execution.
-5. **Verified implementation behavior** — what the system provably does.
-6. **All other documentation.**
+3. **The canonical v1.0 documents** — each authoritative for the subject its own text assigns it, beneath this Constitution and the operating constitution:
+   - `MARQ_CORTEX_PRODUCT_EXPERIENCE.md` — experience philosophy and product purpose.
+   - `MARQ_CORTEX_ONTOLOGY_v1.0.md` — semantic definitions, terminology, and canonical meaning.
+   - `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` — product and engineering architecture.
+   - `MARQ_CORTEX_REFERENCE_ARCHITECTURE_v1.0.md` — structural organization of the platform.
+   - `MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md` — build, deployment, configuration, and operation (where this document exists).
+
+   Where two canonical documents conflict, the document whose assigned subject is **more specific** to the question governs; where both are equally specific, they resolve in the order listed above. A canonical document holds no authority outside its assigned subject.
+4. **The agent operating contract** (`prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md`) — for agent conduct, beneath the documents above.
+5. **Current sprint acceptance criteria** — for scoped execution.
+6. **Verified implementation behavior** — what the system provably does.
+7. **All other documentation.**
 
 A provision valid at a lower level that conflicts with a higher level is void to the extent of the conflict. Nothing at a lower level may be used to justify violating a higher level.
 

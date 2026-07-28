@@ -142,6 +142,8 @@ Together, these five documents form the complete Cortex governance framework. Ea
 
 No concept, entity, capability, workflow, business object, or architectural component may be introduced into any canonical document or the Cortex platform unless it has first been formally defined within the ontology. This governance principle establishes the ontology as the authoritative semantic source of truth for the entire Cortex ecosystem and ensures long-term consistency as the platform evolves.
 
+This semantic authority operates **beneath the Constitution of MARQ Cortex** (`CORTEX_DNA_v1.0.md`) and within the single authority order stated in its Chapter 25.1, where the ontology is ranked as the canonical authority for semantic definitions, terminology, and canonical meaning. The Constitution's own definitions (its Chapter 34) are not subject to the rule above. The ontology is authoritative for meaning; it does not govern identity, philosophy, governance, engineering mechanics, or any other subject assigned elsewhere in that order.
+
 ---
 
 # Phase 2 — Ontology Foundation
