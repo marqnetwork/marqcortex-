@@ -5711,6 +5711,18 @@ Dependencies establish execution order, organizational coordination, and enterpr
 - Project depends on Budget
 - Task depends on Milestone
 
+**Classification axes**
+
+The dependency types defined in §24.4–§24.12 are **not a single flat list of alternatives**. They classify a dependency along three independent axes, and one dependency carries a value on each:
+
+| Axis | Question it answers | Types | Sections |
+|---|---|---|---|
+| **Strength** | Does the prerequisite **block**? | **Hard**, **Soft** — and only these two | §24.4, §24.5 |
+| **Activation & order** | *When* does it apply? | Sequential, Parallel, Conditional | §24.6–§24.8 |
+| **Subject matter** | *What kind* of thing is required? | Knowledge, Operational, Governance, Business | §24.9–§24.12 |
+
+The **strength axis is exhaustive at two values**: every dependency is either Hard or Soft. There is no third strength in MARQ Cortex V1, and none may be introduced by a derived artifact, graph, matrix, or report. A dependency that applies only under stated conditions, policies, states, or events is a **Conditional Dependency** (§24.8) — which remains Hard or Soft *when its condition is met* — and is not a separate strength.
+
 ### 24.2 Dependency Source
 
 **Definition**
@@ -5787,6 +5799,8 @@ Execution may continue if the dependency is unavailable, although outcomes may b
 - Quality-enhancing
 - Non-blocking
 - Context-dependent
+
+> **Note on the word "optional".** Above, *optional* is an ordinary adjective describing how a Soft Dependency behaves — satisfying it is not required for execution. It is **not** the name of a dependency type. There is no "Optional Dependency" in MARQ Cortex; a relationship whose prerequisite may be absent is a **Soft Dependency**, and one that applies only under stated conditions is a **Conditional Dependency** (§24.8). Configuration-gated and tenant-gated availability — enabled modules, entitlement tiers, additive extensions — are Conditional, not a separate strength (§24.1, classification axes).
 
 **Examples**
 
