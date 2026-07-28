@@ -77,6 +77,46 @@ describe('certified manifest counts', () => {
   });
 });
 
+/**
+ * Locks the allocated ID range of each entity type. The manifest's section
+ * header comments state these ranges in prose; these assertions are the
+ * machine-checkable counterpart, so a future range drift fails a test rather
+ * than silently rotting a comment. The comments themselves are not parsed —
+ * the repository has no idiom for source-comment validation.
+ */
+describe('entity-type ID ranges', () => {
+  const RANGES = [
+    { type: 'PAGE', count: 12, min: 'MQC-PAGE-000', max: 'MQC-PAGE-011' },
+    { type: 'CORE', count: 36, min: 'MQC-CORE-001', max: 'MQC-CORE-036' },
+    { type: 'TYPE', count: 9, min: 'MQC-TYPE-001', max: 'MQC-TYPE-009' },
+  ] as const;
+
+  for (const { type, count, min, max } of RANGES) {
+    it(`${type}: ${count} nodes spanning ${min} → ${max}`, () => {
+      const ids = entries
+        .filter(([, n]) => n.type === type)
+        .map(([, n]) => n.id)
+        .sort();
+
+      assert.equal(ids.length, count, `${type} node count`);
+      assert.equal(ids[0], min, `${type} minimum ID`);
+      assert.equal(ids[ids.length - 1], max, `${type} maximum ID`);
+    });
+
+    it(`${type}: ordinals are contiguous with no gaps or duplicates`, () => {
+      const ordinals = entries
+        .filter(([, n]) => n.type === type)
+        .map(([, n]) => Number(n.id.split('-')[2]))
+        .sort((a, b) => a - b);
+
+      assert.equal(new Set(ordinals).size, ordinals.length, `${type} has duplicate ordinals`);
+
+      const gaps = ordinals.filter((v, i) => i > 0 && v !== ordinals[i - 1] + 1);
+      assert.deepEqual(gaps, [], `${type} ordinal gaps before: ${gaps.join(', ')}`);
+    });
+  }
+});
+
 describe('manifest referential integrity', () => {
   it('every dependency resolves to an existing node', () => {
     const dangling: string[] = [];

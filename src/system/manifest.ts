@@ -78,7 +78,7 @@ export const manifest: SystemManifest = {
   nodes: {
 
     // ══════════════════════════════════════════════════════════════════════════
-    // PAGES — Routes registered in App.tsx  (MQC-PAGE-001 → MQC-PAGE-012)
+    // PAGES — Routes registered in App.tsx  (MQC-PAGE-000 → MQC-PAGE-011)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-PAGE-000': {
@@ -1374,7 +1374,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // CORE ENGINE MODULES — /src/app/core  (MQC-CORE-001 → MQC-CORE-035)
+    // CORE ENGINE MODULES — /src/app/core  (MQC-CORE-001 → MQC-CORE-036)
     // These are pure deterministic functions. No React. No side effects.
     // Math decides priority. LLM only explains decisions.
     // ══════════════════════════════════════════════════════════════════════════
@@ -2236,7 +2236,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // TYPE SCHEMAS — /src/app/types  (MQC-TYPE-001 → MQC-TYPE-007)
+    // TYPE SCHEMAS — /src/app/types  (MQC-TYPE-001 → MQC-TYPE-009)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-TYPE-001': {

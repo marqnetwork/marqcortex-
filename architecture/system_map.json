@@ -263,7 +263,7 @@
     "framework": "Hono",
     "entry": "supabase/functions/server/index.tsx",
     "base_path": "/make-server-324f4fbe",
-    "route_count": 68,
+    "route_count": 79,
     "migration_engine": {
       "status": "LIVE",
       "manifest_id": "MQC-SVC-019",
