@@ -146,7 +146,9 @@ Every section closes with a **Traceability** line linking it to: Constitution pr
 
 **Who uses it.** The scoring and recommendation engines (internally); operators and clients see the results as domain scores and prioritized recommendations.
 
-**How it works (CURRENT STATE — PROVEN).** The department-scanning model evaluates a business across fixed domains and scores each on four axes: `problem_density_score`, `impact_potential_score`, `automation_feasibility_score`, `risk_exposure_score` (0–10) (`src/imports/cortex-rules.md`). The canonical domains are:
+**Scope of the term "domain" in this section.** The domains below are domains **of the client's business under assessment** — the analytical axes the diagnostic and scoring engines evaluate. They are **not** MARQ Cortex enterprise domains; those are enumerated in `MARQ_CORTEX_ENTERPRISE_DOMAIN_REGISTRY_v1.0.md` (24 domains, D01–D24), and the assessment capability that operates on the list below is registered there as **D07 — Diagnostic Assessment & Advisory**. The two lists describe different things and neither constrains the other.
+
+**How it works (CURRENT STATE — PROVEN).** The department-scanning model evaluates a business across a fixed scored set and scores each on four axes: `problem_density_score`, `impact_potential_score`, `automation_feasibility_score`, `risk_exposure_score` (0–10) (`src/imports/cortex-rules.md`). The business domains scored are — a set fixed for assessment purposes (DNA Ch 8.1), which DNA Ch 31 states illustratively ("*such as* revenue, customer experience, operations…") and which this section's APPROVED FUTURE STATE already admits may be extended by approved industry-specific calibration:
 
 1. Revenue Engine
 2. Customer Experience
@@ -4548,6 +4550,8 @@ Part VI is the **Execution Roadmap** — the sequenced plan to realize the appro
 **Why it exists.** Prioritization classes (§VI-12) express *importance*; the dependency model expresses *feasibility of ordering*. A Foundation-Critical item can still be blocked by an even earlier prerequisite. This model is the graph that §VI-14's layers and §VI-17's streams are read from, and the reference the phase-entry checks (§VI-19) verify against.
 
 **Scope.** The dependency hierarchy across the platform's capability domains. It is a dependency graph at the capability level — not a task graph, not a technical design, and not a schedule.
+
+**Scope of the term "domain" in this section.** The fourteen entries below are **execution-ordering stages** — a delivery dependency chain grounded in named repository artifacts, expressing *what must be verified before what*. They are **not** MARQ Cortex enterprise domains and are not a competing enumeration of them; the enterprise domains are registered in `MARQ_CORTEX_ENTERPRISE_DOMAIN_REGISTRY_v1.0.md` (24 domains, D01–D24). One execution stage may draw on several registered domains, and one registered domain may appear across several stages. The chain below orders *delivery*; the Registry establishes *ownership*.
 
 **Current State (dependency chain, grounded in the repository).** From foundation to surface:
 
