@@ -266,7 +266,7 @@
     "route_count": 68,
     "migration_engine": {
       "status": "LIVE",
-      "manifest_id": "MQC-MIG-001",
+      "manifest_id": "MQC-SVC-019",
       "path": "supabase/functions/server/migration/",
       "cli": "scripts/migration/cli.ts",
       "scope_s6_2": "lead:* and lead_email:* only",

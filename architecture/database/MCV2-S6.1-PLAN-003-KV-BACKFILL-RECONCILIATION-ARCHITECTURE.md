@@ -272,6 +272,17 @@ Before any backfill run:
 
 **Manifest IDs (register before implementation):** `MQC-MIG-001` through `MQC-MIG-010`
 
+> **Phase 1A correction — 2026-07-28.** The `MQC-MIG-*` series proposed above was
+> never part of the certified identifier grammar. The certified grammar is
+> `MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}` (`ARCHITECT.md` § Manifest,
+> `architecture/system_map.json` → `manifest.id_format`), and `MIG` is not a
+> valid type segment. The one migration node that was actually implemented —
+> the KV backfill orchestrator — is registered as **`MQC-SVC-019`**
+> (`type: 'SVC'`, `supabase/functions/server/migration/orchestrator.ts`).
+> The certified grammar remains unchanged; no `MIG` type was added to the
+> validator or to `EntityType`. This note corrects the identifier only — the
+> architecture proposed in this document is otherwise unaffected.
+
 ## 2.4 Domain backfill order (within diagnostic sprint)
 
 ```
