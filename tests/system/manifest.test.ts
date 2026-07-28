@@ -246,3 +246,83 @@ describe('certified registry totals', () => {
   it('561 Capabilities', () => assert.equal(capabilities, 561));
   it('771 registry nodes in total', () => assert.equal(domains + modules + capabilities, 771));
 });
+
+/**
+ * Phase 1B — canonical session type contract.
+ *
+ * `src/app/lib/session.ts` is the single declaration site for client session
+ * shapes. It is types-only: importing it must never emit runtime code, so the
+ * assertions below check both that the contract exists and that it stays inert.
+ *
+ * These tests assert structure only. Client session *expiry* is deliberately
+ * not modelled or asserted here — no expiry exists in the contract or at
+ * runtime, and adding one is a separate behaviour-changing task.
+ */
+describe('canonical session contract', () => {
+  const SESSION_PATH = 'src/app/lib/session.ts';
+  const session = repoFile(SESSION_PATH);
+
+  it('the canonical session module exists and declares both session types', () => {
+    assert.match(session, /export interface ClientSession\b/);
+    assert.match(session, /export type ClientAuthContext\b/);
+  });
+
+  it('is the only module declaring a session interface', () => {
+    const declarers = [
+      SESSION_PATH,
+      'src/app/contexts/AppContext.tsx',
+      'src/app/lib/api.ts',
+      'src/app/services/dataService.ts',
+      'src/app/pages/ClientPortalRoute.tsx',
+      'src/app/components/ClientPortal.tsx',
+    ].filter(p => /export\s+(interface|type)\s+(ClientSession|ClientAuthContext)\b/.test(repoFile(p)));
+
+    assert.deepEqual(declarers, [SESSION_PATH], `Session types must be declared only in ${SESSION_PATH}`);
+  });
+
+  it('AppContext re-exports ClientSession instead of redeclaring it', () => {
+    const ctx = repoFile('src/app/contexts/AppContext.tsx');
+    assert.doesNotMatch(ctx, /export interface ClientSession\b/, 'AppContext must not redeclare ClientSession');
+    assert.match(ctx, /import type \{ ClientSession \} from '@\/app\/lib\/session'/);
+    assert.match(ctx, /export type \{ ClientSession \}/);
+  });
+
+  it('dataService re-exports ClientAuthContext from the canonical module', () => {
+    const ds = repoFile('src/app/services/dataService.ts');
+    assert.match(ds, /export type \{ ClientAuthContext \} from '@\/app\/lib\/session'/);
+  });
+
+  it('every consumer resolves ClientAuthContext to the canonical contract', () => {
+    // api.ts imports it directly; portal components go through the dataService
+    // gateway (Constitution Article 3). Both paths must terminate at session.ts.
+    assert.match(
+      repoFile('src/app/lib/api.ts'),
+      /import type \{ ClientAuthContext \} from '@\/app\/lib\/session'/,
+    );
+
+    const viaGateway = [
+      'src/app/components/ClientPortal.tsx',
+      'src/app/components/ClientMessaging.tsx',
+      'src/app/components/ProposalViewer.tsx',
+      'src/app/components/EngagementActivityFeed.tsx',
+    ];
+    for (const p of viaGateway) {
+      const src = repoFile(p);
+      assert.match(src, /ClientAuthContext/, `${p} should reference ClientAuthContext`);
+      assert.match(src, /from '@\/app\/services\/dataService'/, `${p} must import via dataService`);
+    }
+  });
+
+  it('the session contract carries no runtime code', () => {
+    const forbidden: Array<[string, RegExp]> = [
+      ['react import', /from ['"]react['"]/],
+      ['storage access', /localStorage|sessionStorage|document\.cookie/],
+      ['timers', /setTimeout|setInterval/],
+      ['value export', /export\s+(const|let|var|function|class|enum)\b/],
+      ['default export', /export\s+default\b/],
+    ];
+
+    const violations = forbidden.filter(([, re]) => re.test(session)).map(([name]) => name);
+    assert.deepEqual(violations, [], `session.ts must stay types-only; found: ${violations.join(', ')}`);
+  });
+});

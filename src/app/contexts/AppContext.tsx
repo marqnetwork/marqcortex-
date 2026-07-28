@@ -12,6 +12,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type { ContactInfo } from '@/app/components/LeadMagnetCapture';
 import type { InstantScoreResult } from '@/app/utils/instantScoring';
+import type { ClientSession } from '@/app/lib/session';
 
 // ── Session expiry ───────────────────────────────────────────────────────────
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
@@ -19,13 +20,11 @@ const TEAM_SESSION_EXPIRY_KEY = 'marq_cortex_team_session_expiry';
 
 // ── Session Types ────────────────────────────────────────────────────────────
 
-export interface ClientSession {
-  submissionId: string;
-  email: string;
-  companyName: string;
-  /** Server-issued session token — required for protected client API calls in live mode */
-  sessionToken: string | null;
-}
+/**
+ * Canonical shape lives in `@/app/lib/session`. Re-exported here so existing
+ * consumers keep importing `ClientSession` from AppContext unchanged.
+ */
+export type { ClientSession };
 
 interface AppState {
   // Lead capture
