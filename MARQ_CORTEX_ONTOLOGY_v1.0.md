@@ -130,7 +130,7 @@ The MARQ_CORTEX_MASTER_BLUEPRINT.md document defines how Cortex is engineered. I
 
 The MARQ_CORTEX_REFERENCE_ARCHITECTURE.md document describes the structural organization of the Cortex platform. It illustrates how business capabilities, services, domains, integrations, and architectural layers interact. These structures are built upon the semantic relationships defined by the ontology, ensuring that the architecture accurately represents the official Cortex domain model.
 
-The MARQ_CORTEX_IMPLEMENTATION_GUIDE.md document provides practical guidance for implementing Cortex. Development standards, configuration practices, workflows, operational procedures, and implementation activities must all align with the canonical definitions established by the ontology to ensure consistency across every stage of product delivery.
+The MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md document provides practical guidance for implementing Cortex. Development standards, configuration practices, workflows, operational procedures, and implementation activities must all align with the canonical definitions established by the ontology to ensure consistency across every stage of product delivery.
 
 Together, these five documents form the complete Cortex governance framework. Each document answers a different architectural question while remaining dependent on the others:
 
