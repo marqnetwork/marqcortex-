@@ -414,15 +414,24 @@ export class EmailService {
    * Send an email.
    * When BACKEND_INTEGRATION is true, routes through the Supabase edge function
    * server which uses Resend for delivery. Otherwise simulates success.
+   *
+   * `accessToken` is supplied by the caller — this module never reads session
+   * storage. Pass the canonical team session token for a team-initiated send;
+   * pass `null` for the public transactional flows (lead magnet, diagnostic
+   * receipt) that legitimately run with no signed-in team member, which
+   * authorise with the public anon key.
    */
-  static async send(payload: EmailPayload): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  static async send(
+    payload: EmailPayload,
+    accessToken: string | null,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
       log.info('📧 Sending email:', { to: payload.to, subject: payload.subject });
 
       if (FEATURES.BACKEND_INTEGRATION) {
         // Route through server → Resend
         const BASE = edgeFunctionBaseUrl;
-        const token = localStorage.getItem('team_access_token') || supabaseAnonKey;
+        const token = accessToken || supabaseAnonKey;
         const res = await fetch(`${BASE}/email/send`, {
           method: 'POST',
           headers: {
@@ -458,7 +467,7 @@ export class EmailService {
   /**
    * Send lead magnet confirmation
    */
-  static async sendLeadMagnetConfirmation(to: string, name: string, downloadUrl: string) {
+  static async sendLeadMagnetConfirmation(to: string, name: string, downloadUrl: string, accessToken: string | null = null) {
     const template = EMAIL_TEMPLATES.leadMagnetConfirmation;
     const content = template.getContent({ name, downloadUrl });
     
@@ -469,13 +478,13 @@ export class EmailService {
       html: content.html,
       text: content.text,
       trackingEnabled: true
-    });
+    }, accessToken);
   }
   
   /**
    * Send diagnostic received confirmation
    */
-  static async sendDiagnosticReceived(to: string, name: string, companyName: string) {
+  static async sendDiagnosticReceived(to: string, name: string, companyName: string, accessToken: string | null = null) {
     const template = EMAIL_TEMPLATES.diagnosticReceived;
     const content = template.getContent({ name, companyName });
     
@@ -486,13 +495,13 @@ export class EmailService {
       html: content.html,
       text: content.text,
       trackingEnabled: true
-    });
+    }, accessToken);
   }
   
   /**
    * Send report ready notification
    */
-  static async sendReportReady(to: string, name: string, companyName: string, readinessScore: number, loginUrl: string, accessCode: string) {
+  static async sendReportReady(to: string, name: string, companyName: string, readinessScore: number, loginUrl: string, accessCode: string, accessToken: string | null = null) {
     const template = EMAIL_TEMPLATES.reportReady;
     const content = template.getContent({ name, companyName, readinessScore, loginUrl, accessCode });
     
@@ -503,13 +512,13 @@ export class EmailService {
       html: content.html,
       text: content.text,
       trackingEnabled: true
-    });
+    }, accessToken);
   }
   
   /**
    * Send meeting invitation
    */
-  static async sendMeetingInvitation(to: string, name: string, companyName: string, schedulerUrl: string, topOpportunity: string) {
+  static async sendMeetingInvitation(to: string, name: string, companyName: string, schedulerUrl: string, topOpportunity: string, accessToken: string | null = null) {
     const template = EMAIL_TEMPLATES.meetingInvitation;
     const content = template.getContent({ name, companyName, schedulerUrl, topOpportunity });
     
@@ -520,7 +529,7 @@ export class EmailService {
       html: content.html,
       text: content.text,
       trackingEnabled: true
-    });
+    }, accessToken);
   }
 }
 
@@ -528,27 +537,43 @@ export class EmailService {
 // AUTOMATION TRIGGERS
 // ============================================================================
 
+/**
+ * Funnel triggers.
+ *
+ * Each trigger takes the caller's authentication explicitly. Team-initiated
+ * triggers pass the canonical team session token from `useApp().teamAccessToken`;
+ * public funnel triggers pass `null` and authorise with the public anon key.
+ * Nothing here reads session storage.
+ */
 export class EmailAutomation {
   
   /**
    * Trigger: When lead magnet is downloaded
    */
-  static async onLeadMagnetDownload(contactInfo: { name: string; email: string }) {
+  static async onLeadMagnetDownload(
+    contactInfo: { name: string; email: string },
+    accessToken: string | null = null,
+  ) {
     await EmailService.sendLeadMagnetConfirmation(
       contactInfo.email,
       contactInfo.name,
-      'https://marqcortex.app/download/ai-readiness-guide'
+      'https://marqcortex.app/download/ai-readiness-guide',
+      accessToken,
     );
   }
   
   /**
    * Trigger: When diagnostic is submitted
    */
-  static async onDiagnosticSubmit(submission: { email: string; contactName: string; companyName: string }) {
+  static async onDiagnosticSubmit(
+    submission: { email: string; contactName: string; companyName: string },
+    accessToken: string | null = null,
+  ) {
     await EmailService.sendDiagnosticReceived(
       submission.email,
       submission.contactName,
-      submission.companyName
+      submission.companyName,
+      accessToken,
     );
   }
   
@@ -561,7 +586,7 @@ export class EmailAutomation {
     companyName: string;
     readinessScore: number;
     submissionId: string;
-  }) {
+  }, accessToken: string | null = null) {
     const loginUrl = `https://marqcortex.app/client-portal?id=${data.submissionId}`;
     const accessCode = generateAccessCode();
     
@@ -571,7 +596,8 @@ export class EmailAutomation {
       data.companyName,
       data.readinessScore,
       loginUrl,
-      accessCode
+      accessCode,
+      accessToken,
     );
   }
   
@@ -583,7 +609,7 @@ export class EmailAutomation {
     name: string;
     companyName: string;
     topOpportunity: string;
-  }) {
+  }, accessToken: string | null = null) {
     const schedulerUrl = 'https://marqcortex.app/book';
     
     await EmailService.sendMeetingInvitation(
@@ -591,7 +617,8 @@ export class EmailAutomation {
       data.name,
       data.companyName,
       schedulerUrl,
-      data.topOpportunity
+      data.topOpportunity,
+      accessToken,
     );
   }
 }

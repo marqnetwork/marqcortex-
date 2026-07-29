@@ -22,7 +22,115 @@
  *   in the codebase may re-derive it. It is a pure function of a session and a
  *   timestamp, so it is deterministic and directly unit-testable; callers that
  *   need "now" injected pass it explicitly.
+ *
+ * STORAGE KEYS
+ *   Every session storage key name is declared here once. Declaring a name is
+ *   not using it: this module still performs no browser storage access of any
+ *   kind. `AppContext` is the only module that reads or writes session
+ *   storage, and it imports these names rather than restating the literals, so
+ *   a key can never drift again.
  */
+
+// ── Storage keys ──────────────────────────────────────────────────────────────
+
+/** Canonical team session record — see `TeamSession`. */
+export const TEAM_SESSION_KEY = 'marq_cortex_team_session';
+
+/** Epoch-millisecond deadline for the canonical team session. */
+export const TEAM_SESSION_EXPIRY_KEY = 'marq_cortex_team_session_expiry';
+
+/** Canonical client portal session record — see `ClientSession`. */
+export const CLIENT_SESSION_KEY = 'marq_cortex_client_session';
+
+/**
+ * Storage keys an earlier build wrote team auth and team identity to.
+ *
+ * These are CLEANUP-ONLY. Nothing may read them for authentication or
+ * identity, and nothing may write them. They exist here solely so `logout`
+ * can delete them deterministically: a stale value left behind by an older
+ * bundle must not survive as trusted state, and its origin and expiry cannot
+ * be established after the fact, so it is erased rather than migrated.
+ */
+export const LEGACY_TEAM_SESSION_KEYS = ['team_access_token', 'team_user'] as const;
+
+// ── Team session ──────────────────────────────────────────────────────────────
+
+/**
+ * The authenticated team member, exactly as `/auth/team/login` returns them.
+ *
+ * Identity travels inside the canonical team session record — there is no
+ * separate identity key. Optional because a session restored from a bundle
+ * that predates identity has a token but no user.
+ */
+export interface TeamUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+/**
+ * A logged-in team member's session.
+ *
+ * Persisted by `AppContext` under `TEAM_SESSION_KEY`. The expiry deadline
+ * lives beside it under `TEAM_SESSION_EXPIRY_KEY`, unchanged from before.
+ */
+export interface TeamSession {
+  /** Server-issued access token for authenticated team API calls. */
+  accessToken: string;
+
+  /** Who is signed in, when the login response supplied it. */
+  user: TeamUser | null;
+}
+
+/** Serialise a team session for storage. */
+export function serializeTeamSession(session: TeamSession): string {
+  return JSON.stringify(session);
+}
+
+/**
+ * Parse a stored team session record.
+ *
+ * Accepts two shapes:
+ *   1. The current record — `{"accessToken": "...", "user": {...} | null}`.
+ *   2. A bare token string, which is what earlier builds stored under this
+ *      same canonical key. Those sessions are still valid authentication, so
+ *      they restore with `user: null` rather than being thrown away.
+ *
+ * Returns `null` for anything that cannot yield a usable access token, so a
+ * corrupt record fails closed into "not signed in" instead of a broken
+ * half-session.
+ */
+export function parseTeamSession(raw: string | null | undefined): TeamSession | null {
+  if (!raw) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Not JSON — the earlier bare-token format.
+    return { accessToken: raw, user: null };
+  }
+
+  // JSON.parse('"abc"') yields a string: also a bare token, just quoted.
+  if (typeof parsed === 'string') {
+    return parsed ? { accessToken: parsed, user: null } : null;
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const { accessToken, user } = parsed as { accessToken?: unknown; user?: unknown };
+  if (typeof accessToken !== 'string' || !accessToken) return null;
+
+  return { accessToken, user: normaliseTeamUser(user) };
+}
+
+/** Keep only a fully-formed user; a partial record is treated as absent. */
+function normaliseTeamUser(user: unknown): TeamUser | null {
+  if (!user || typeof user !== 'object') return null;
+  const { id, email, name } = user as { id?: unknown; email?: unknown; name?: unknown };
+  if (typeof id !== 'string' || typeof email !== 'string' || typeof name !== 'string') return null;
+  return { id, email, name };
+}
 
 // ── Client session ────────────────────────────────────────────────────────────
 

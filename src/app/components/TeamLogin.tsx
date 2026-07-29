@@ -3,9 +3,10 @@ import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { teamLogin } from '@/app/services/dataService';
 import { FEATURES } from '@/config/features';
+import type { TeamUser } from '@/app/lib/session';
 
 interface TeamLoginProps {
-  onLogin: (accessToken: string) => void;
+  onLogin: (accessToken: string, user?: TeamUser | null) => void;
   onBack: () => void;
 }
 
@@ -24,7 +25,9 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
     try {
       if (FEATURES.BACKEND_INTEGRATION) {
         const result = await teamLogin(email, password);
-        onLogin(result.accessToken);
+        // The login response already carries the authenticated team member —
+        // hand it to the session alongside the token.
+        onLogin(result.accessToken, result.user ?? null);
       } else {
         // Demo mode: accept demo credentials without API call
         if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {

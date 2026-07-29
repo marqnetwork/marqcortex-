@@ -25,6 +25,7 @@ import {
   getDemoSubmissions, type Submission,
 } from '@/app/services/dataService';
 import { useDashboard } from '@/app/contexts/DashboardContext';
+import { useApp } from '@/app/contexts/AppContext';
 import { SkeletonCardGrid, SkeletonTable } from '@/app/components/Skeletons';
 import { FEATURES } from '@/config/features';
 import { useDebounce } from '@/app/hooks/usePerformance';
@@ -94,6 +95,7 @@ interface Props {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissionSelect, accessToken }: Props) {
+  const { teamUser } = useApp();
   const {
     state,
     toggleSubmission, selectAllSubmissions, clearSelections,
@@ -119,11 +121,11 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [bulkSuccess, setBulkSuccess]       = useState<string | null>(null);
 
-  // Read current user name for "assign to me"
-  const currentUserName = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem('team_user') || '{}').name || 'Team Member'; }
-    catch { return 'Team Member'; }
-  }, []);
+  // Current user name for "assign to me", from the authenticated team session.
+  const currentUserName = useMemo(
+    () => teamUser?.name || 'Team Member',
+    [teamUser],
+  );
 
   // ── Load ───────────────────────────────────────────────────────────────────
 

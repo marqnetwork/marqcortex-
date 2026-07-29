@@ -14,21 +14,28 @@ import type { ContactInfo } from '@/app/components/LeadMagnetCapture';
 import type { InstantScoreResult } from '@/app/utils/instantScoring';
 import {
   isClientSessionExpired as checkClientSessionExpired,
+  parseTeamSession,
+  serializeTeamSession,
   CLIENT_SESSION_TTL_MS,
+  TEAM_SESSION_KEY,
+  TEAM_SESSION_EXPIRY_KEY,
+  CLIENT_SESSION_KEY,
+  LEGACY_TEAM_SESSION_KEYS,
+  type TeamUser,
   type ClientSession,
 } from '@/app/lib/session';
 
 // ── Session expiry ───────────────────────────────────────────────────────────
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
-const TEAM_SESSION_EXPIRY_KEY = 'marq_cortex_team_session_expiry';
 
 // ── Session Types ────────────────────────────────────────────────────────────
 
 /**
- * Canonical shape lives in `@/app/lib/session`. Re-exported here so existing
- * consumers keep importing `ClientSession` from AppContext unchanged.
+ * Canonical shapes live in `@/app/lib/session`. Re-exported here so existing
+ * consumers keep importing them from AppContext unchanged.
  */
 export type { ClientSession };
+export type { TeamUser };
 
 interface AppState {
   // Lead capture
@@ -46,7 +53,9 @@ interface AppState {
   // Team auth
   teamAccessToken: string | null;
   setTeamAccessToken: (token: string | null) => void;
-  loginTeam: (token: string) => void;
+  /** The signed-in team member, when the login response supplied one. */
+  teamUser: TeamUser | null;
+  loginTeam: (token: string, user?: TeamUser | null) => void;
   isSessionExpired: boolean;
 
   // Client auth
@@ -61,10 +70,18 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null);
 
-// ── Storage keys ─────────────────────────────────────────────────────────────
-
-const TEAM_SESSION_KEY = 'marq_cortex_team_session';
-const CLIENT_SESSION_KEY = 'marq_cortex_client_session';
+/**
+ * Erase every trace of a team session.
+ *
+ * The legacy keys are deleted here and nowhere else. A value one of them still
+ * holds came from an older bundle, so its origin and expiry cannot be
+ * established — it is destroyed rather than migrated or trusted.
+ */
+function clearTeamStorage() {
+  localStorage.removeItem(TEAM_SESSION_KEY);
+  localStorage.removeItem(TEAM_SESSION_EXPIRY_KEY);
+  for (const key of LEGACY_TEAM_SESSION_KEYS) localStorage.removeItem(key);
+}
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 
@@ -74,19 +91,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastIndustry, setLastIndustry] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [teamAccessToken, setTeamAccessToken] = useState<string | null>(null);
+  const [teamUser, setTeamUser] = useState<TeamUser | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [isClientSessionExpired, setIsClientSessionExpired] = useState(false);
 
-  // Restore sessions on mount
+  // Restore sessions on mount.
+  //
+  // Authentication and identity are restored from the canonical team session
+  // record ONLY. The legacy `team_access_token` / `team_user` keys are never
+  // consulted: a value left behind by an older bundle has no establishable
+  // origin or expiry, so it is cleared on logout rather than trusted here.
   useEffect(() => {
-    const savedToken = localStorage.getItem(TEAM_SESSION_KEY);
-    if (savedToken) {
-      setTeamAccessToken(savedToken);
+    const restoredTeam = parseTeamSession(localStorage.getItem(TEAM_SESSION_KEY));
+    if (restoredTeam) {
       const expiry = localStorage.getItem(TEAM_SESSION_EXPIRY_KEY);
       if (expiry && Date.now() > parseInt(expiry, 10)) {
+        // Clear at the point of detection, for the same reason the client
+        // branch below does: on a cold load the route guard redirects while
+        // teamAccessToken is still null, so its logout effect never runs and
+        // the expired record — plus any stale legacy key — would survive.
+        clearTeamStorage();
         setIsSessionExpired(true);
+        return;
       }
+      setTeamAccessToken(restoredTeam.accessToken);
+      setTeamUser(restoredTeam.user);
       return;
     }
     try {
@@ -131,10 +161,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [clientSession]);
 
-  const loginTeam = useCallback((token: string) => {
+  const loginTeam = useCallback((token: string, user: TeamUser | null = null) => {
     setTeamAccessToken(token);
+    setTeamUser(user);
     setIsSessionExpired(false);
-    localStorage.setItem(TEAM_SESSION_KEY, token);
+    // Token and identity are one canonical record under one canonical key.
+    localStorage.setItem(TEAM_SESSION_KEY, serializeTeamSession({ accessToken: token, user }));
     localStorage.setItem(TEAM_SESSION_EXPIRY_KEY, (Date.now() + SESSION_TTL_MS).toString());
   }, []);
 
@@ -153,12 +185,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setTeamAccessToken(null);
+    setTeamUser(null);
     setClientSession(null);
     setIsSessionExpired(false);
     setIsClientSessionExpired(false);
-    localStorage.removeItem(TEAM_SESSION_KEY);
+    clearTeamStorage();
     localStorage.removeItem(CLIENT_SESSION_KEY);
-    localStorage.removeItem(TEAM_SESSION_EXPIRY_KEY);
   }, []);
 
   return (
@@ -169,6 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lastIndustry, setLastIndustry,
         isSubmitting, setIsSubmitting,
         teamAccessToken, setTeamAccessToken,
+        teamUser,
         loginTeam,
         isSessionExpired,
         clientSession, setClientSession,
@@ -177,7 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
       }), [
         contactInfo, scoreResult, lastIndustry, isSubmitting,
-        teamAccessToken, loginTeam, isSessionExpired,
+        teamAccessToken, teamUser, loginTeam, isSessionExpired,
         clientSession, loginClient, isClientSessionExpired, logout,
       ])}
     >

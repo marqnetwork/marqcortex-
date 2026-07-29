@@ -37,6 +37,7 @@ import { Beaker } from 'lucide-react';
 import { FEATURES } from '@/config/features';
 import { getEmailStatus, sendTestEmailRequest } from '@/app/services/dataService';
 import { log } from '@/app/utils/logger';
+import { useApp } from '@/app/contexts/AppContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const PURPLE = '#8B5CF6';
@@ -89,6 +90,9 @@ function getTemplateConfig(id: EmailTemplateId) {
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function EmailNurturePanel() {
+  // Both calls below are authenticated team operations, so they use the
+  // canonical team session token — never an empty or anonymous credential.
+  const { teamAccessToken } = useApp();
   const [queue, setQueue] = useState<QueuedEmail[]>([]);
   const [stats, setStats] = useState(getQueueStats());
   const [filter, setFilter] = useState<'all' | EmailStatus>('all');
@@ -106,27 +110,33 @@ export function EmailNurturePanel() {
       setResendStatus({ configured: false, note: 'Backend integration is off (demo mode). Emails are simulated.' });
       return;
     }
+    if (!teamAccessToken) {
+      setResendStatus({ configured: false, note: 'Not signed in — sign in to check email status.' });
+      return;
+    }
     setResendLoading(true);
-    const token = localStorage.getItem('team_access_token') || '';
-    getEmailStatus(token)
+    getEmailStatus(teamAccessToken)
       .then((data) => setResendStatus({ configured: data.resendConfigured, note: data.note }))
       .catch((err) => {
         log.warn('Could not check Resend status:', err);
         setResendStatus({ configured: false, note: 'Could not reach server to check email status.' });
       })
       .finally(() => setResendLoading(false));
-  }, []);
+  }, [teamAccessToken]);
 
   const handleTestEmail = async () => {
     if (!FEATURES.BACKEND_INTEGRATION) {
       setTestEmailResult('Demo mode — no real email sent. Flip BACKEND_INTEGRATION to test.');
       return;
     }
+    if (!teamAccessToken) {
+      setTestEmailResult('Error: not signed in — no team session available to authorise this request.');
+      return;
+    }
     setTestEmailSending(true);
     setTestEmailResult(null);
     try {
-      const token = localStorage.getItem('team_access_token') || '';
-      const result = await sendTestEmailRequest(token);
+      const result = await sendTestEmailRequest(teamAccessToken);
       if (result.resendKeyConfigured) {
         setTestEmailResult(`Test email sent to ${result.to}`);
       } else {
