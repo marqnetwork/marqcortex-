@@ -4,10 +4,12 @@ import { useApp } from '@/app/contexts/AppContext';
 
 export function ClientLoginRoute() {
   const navigate = useNavigate();
-  const { clientSession, loginClient } = useApp();
+  const { clientSession, isClientSessionExpired, loginClient } = useApp();
 
-  // Already logged in — redirect to portal
-  if (clientSession) {
+  // Already logged in with a still-valid session — redirect to portal.
+  // An expired session must not bounce back to the portal; the user stays here
+  // and signs in again.
+  if (clientSession && !isClientSessionExpired) {
     return <Navigate to="/client/portal" replace />;
   }
 

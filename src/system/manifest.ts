@@ -78,7 +78,7 @@ export const manifest: SystemManifest = {
   nodes: {
 
     // ══════════════════════════════════════════════════════════════════════════
-    // PAGES — Routes registered in App.tsx  (MQC-PAGE-001 → MQC-PAGE-012)
+    // PAGES — Routes registered in App.tsx  (MQC-PAGE-000 → MQC-PAGE-011)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-PAGE-000': {
@@ -1374,7 +1374,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // CORE ENGINE MODULES — /src/app/core  (MQC-CORE-001 → MQC-CORE-035)
+    // CORE ENGINE MODULES — /src/app/core  (MQC-CORE-001 → MQC-CORE-036)
     // These are pure deterministic functions. No React. No side effects.
     // Math decides priority. LLM only explains decisions.
     // ══════════════════════════════════════════════════════════════════════════
@@ -1884,7 +1884,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 018)
+    // SERVICES — Frontend data layer + Backend Hono routes  (MQC-SVC-001 → 019)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-SVC-001': {
@@ -2047,11 +2047,11 @@ export const manifest: SystemManifest = {
       description: 'Diagnostic domain lead repository. MCV2-S5 foundation — not wired to Hono routes.',
       dependencies: ['MQC-SVC-011'],
       dependents: [],
-      notes: 'KV lead:* remains authoritative until Phase 5 cutover. Backfill via MQC-MIG-001 migration engine (S6.2).',
+      notes: 'KV lead:* remains authoritative until Phase 5 cutover. Backfill via MQC-SVC-019 migration engine (S6.2).',
     },
 
-    'MQC-MIG-001': {
-      id: 'MQC-MIG-001',
+    'MQC-SVC-019': {
+      id: 'MQC-SVC-019',
       name: 'kvMigrationEngine',
       type: 'SVC',
       status: 'LIVE',
@@ -2236,7 +2236,7 @@ export const manifest: SystemManifest = {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // TYPE SCHEMAS — /src/app/types  (MQC-TYPE-001 → MQC-TYPE-007)
+    // TYPE SCHEMAS — /src/app/types  (MQC-TYPE-001 → MQC-TYPE-009)
     // ══════════════════════════════════════════════════════════════════════════
 
     'MQC-TYPE-001': {

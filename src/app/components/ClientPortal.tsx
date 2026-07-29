@@ -359,6 +359,7 @@ export default function ClientPortal({
               onScheduleCall={() => setActiveView('schedule')}
               submissionId={submissionId}
               feedTick={feedTick}
+              clientAuth={clientAuth}
             />
           </motion.div>
         )}
@@ -562,6 +563,7 @@ function StatusView({
   onScheduleCall,
   submissionId,
   feedTick,
+  clientAuth,
 }: {
   submission:     Submission | null;
   activeStage:    StageId;
@@ -574,6 +576,9 @@ function StatusView({
   onScheduleCall: () => void;
   submissionId?:  string;
   feedTick?:      number;
+  // Owned by ClientPortal; threaded through so EngagementActivityFeed below
+  // resolves it from props rather than an out-of-scope free variable.
+  clientAuth?:    ClientAuthContext;
 }) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">

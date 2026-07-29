@@ -12,6 +12,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import type { ContactInfo } from '@/app/components/LeadMagnetCapture';
 import type { InstantScoreResult } from '@/app/utils/instantScoring';
+import {
+  isClientSessionExpired as checkClientSessionExpired,
+  CLIENT_SESSION_TTL_MS,
+  type ClientSession,
+} from '@/app/lib/session';
 
 // ── Session expiry ───────────────────────────────────────────────────────────
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
@@ -19,13 +24,11 @@ const TEAM_SESSION_EXPIRY_KEY = 'marq_cortex_team_session_expiry';
 
 // ── Session Types ────────────────────────────────────────────────────────────
 
-export interface ClientSession {
-  submissionId: string;
-  email: string;
-  companyName: string;
-  /** Server-issued session token — required for protected client API calls in live mode */
-  sessionToken: string | null;
-}
+/**
+ * Canonical shape lives in `@/app/lib/session`. Re-exported here so existing
+ * consumers keep importing `ClientSession` from AppContext unchanged.
+ */
+export type { ClientSession };
 
 interface AppState {
   // Lead capture
@@ -50,6 +53,7 @@ interface AppState {
   clientSession: ClientSession | null;
   setClientSession: (session: ClientSession | null) => void;
   loginClient: (submissionId: string, email: string, companyName: string, sessionToken?: string | null) => void;
+  isClientSessionExpired: boolean;
 
   // Logout
   logout: () => void;
@@ -72,6 +76,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teamAccessToken, setTeamAccessToken] = useState<string | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [isClientSessionExpired, setIsClientSessionExpired] = useState(false);
 
   // Restore sessions on mount
   useEffect(() => {
@@ -86,7 +91,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     try {
       const raw = localStorage.getItem(CLIENT_SESSION_KEY);
-      if (raw) setClientSession(JSON.parse(raw));
+      if (raw) {
+        const restored: ClientSession = JSON.parse(raw);
+        // Expiry travels with the session, so a refresh cannot extend it.
+        // Sessions stored before expiry existed have no expiresAt and are
+        // rejected here (fail-closed).
+        if (checkClientSessionExpired(restored)) {
+          // Reject and clear at the point of detection. The route-level logout
+          // effect cannot be relied on here: the guard redirects away before
+          // the expired session ever reaches it, so the stale record would
+          // otherwise survive in storage.
+          localStorage.removeItem(CLIENT_SESSION_KEY);
+          setIsClientSessionExpired(true);
+        } else {
+          setClientSession(restored);
+        }
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -102,6 +122,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [teamAccessToken]);
 
+  // Periodic client session-expiry check (every 60s while a client is signed in)
+  useEffect(() => {
+    if (!clientSession) return;
+    const id = setInterval(() => {
+      if (checkClientSessionExpired(clientSession)) setIsClientSessionExpired(true);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [clientSession]);
+
   const loginTeam = useCallback((token: string) => {
     setTeamAccessToken(token);
     setIsSessionExpired(false);
@@ -110,8 +139,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginClient = useCallback((submissionId: string, email: string, companyName: string, sessionToken: string | null = null) => {
-    const session: ClientSession = { submissionId, email, companyName, sessionToken };
+    const session: ClientSession = {
+      submissionId,
+      email,
+      companyName,
+      sessionToken,
+      expiresAt: Date.now() + CLIENT_SESSION_TTL_MS,
+    };
     setClientSession(session);
+    setIsClientSessionExpired(false);
     localStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(session));
   }, []);
 
@@ -119,6 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTeamAccessToken(null);
     setClientSession(null);
     setIsSessionExpired(false);
+    setIsClientSessionExpired(false);
     localStorage.removeItem(TEAM_SESSION_KEY);
     localStorage.removeItem(CLIENT_SESSION_KEY);
     localStorage.removeItem(TEAM_SESSION_EXPIRY_KEY);
@@ -136,11 +173,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isSessionExpired,
         clientSession, setClientSession,
         loginClient,
+        isClientSessionExpired,
         logout,
       }), [
         contactInfo, scoreResult, lastIndustry, isSubmitting,
         teamAccessToken, loginTeam, isSessionExpired,
-        clientSession, loginClient, logout,
+        clientSession, loginClient, isClientSessionExpired, logout,
       ])}
     >
       {children}

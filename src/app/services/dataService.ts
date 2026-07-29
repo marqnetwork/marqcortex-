@@ -89,6 +89,10 @@ export type {
 // Re-export the reviewer checklist type so components import it from dataService
 export type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 
+// Re-export the canonical client auth contract. Four portal components already
+// import ClientAuthContext from this module; this is the export they resolve to.
+export type { ClientAuthContext } from '@/app/lib/session';
+
 // Re-export demo types
 export type { DemoClient, DemoNurtureLead } from '@/app/utils/demoData';
 
