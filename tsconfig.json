@@ -1,0 +1,24 @@
+{
+  // ────────────────────────────────────────────────────────────────────────
+  // MARQ Cortex — solution/root TypeScript configuration.
+  //
+  // This file intentionally compiles NOTHING (`files: []`, `include: []`) so it
+  // can never pull the whole tree into a single program. The repository spans
+  // three mutually incompatible runtimes, each with its own libs, module
+  // resolution and globals; combining them produces spurious diagnostics, so
+  // every real boundary lives in its own project:
+  //
+  //   • tsconfig.app.json     Vite / browser / React 18 frontend  → src/, utils/
+  //   • tsconfig.server.json  Supabase Edge Functions (Deno)       → supabase/functions/
+  //   • tsconfig.node.json    Node tests, scripts, tool configs    → tests/, scripts/, *.config.ts
+  //
+  // Each scoped project is invoked directly (see the `typecheck:*` package
+  // scripts). Editors resolve each source file against the nearest matching
+  // project via those projects' `include` globs. Project `references` are
+  // deliberately omitted: they require `composite`, which in turn imposes a
+  // "listed files only" constraint that misreports the legitimate cross-project
+  // imports the Node test graph makes into src/ and supabase/.
+  // ────────────────────────────────────────────────────────────────────────
+  "files": [],
+  "include": []
+}

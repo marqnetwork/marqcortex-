@@ -1,0 +1,44 @@
+{
+  // ────────────────────────────────────────────────────────────────────────
+  // Node boundary — tests, repository scripts, and tool configuration.
+  //
+  // Runs under Node with `--experimental-strip-types`, which requires explicit
+  // `.ts` import extensions. Covers the test suites, migration/tooling scripts,
+  // and the Vite/Playwright config files. Type-check only (noEmit).
+  // ────────────────────────────────────────────────────────────────────────
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    // `bundler` — not NodeNext — because the test graph reaches into src/, which
+    // is authored against the Vite aliases and extensionless specifiers below.
+    // Node strips type-only imports at runtime, so those aliases never execute;
+    // the compiler still has to resolve them to type-check the suites honestly.
+    "moduleResolution": "bundler",
+
+    "types": ["node"],
+
+    // The tests/tooling run under Node `--experimental-strip-types`, which uses
+    // explicit `.ts` import extensions.
+    "allowImportingTsExtensions": true,
+
+    // Same alias surface the consumed src/ modules use.
+    "paths": {
+      "@/*": ["./src/*"],
+      "/utils/*": ["./utils/*"]
+    },
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "tests",
+    "scripts",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
+}
