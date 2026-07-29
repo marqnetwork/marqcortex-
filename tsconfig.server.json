@@ -1,0 +1,46 @@
+{
+  // ────────────────────────────────────────────────────────────────────────
+  // Server boundary — Supabase Edge Functions (Deno runtime).
+  //
+  // Deno source uses explicit `.ts` import extensions and `jsr:`/`npm:`
+  // specifiers, and runs on web-standard globals (fetch/Request/Response) — not
+  // Node. Kept out of the browser and Node boundaries.
+  //
+  // This file DOCUMENTS the Deno source boundary (file set, isolatedModules,
+  // strictNullChecks for discriminated-union narrowing, `.tsx` handling) for
+  // editors and reference. It is intentionally NOT the authoritative checker:
+  // `tsc` cannot resolve the `Deno` global or `npm:` / `jsr:` specifiers, so
+  // running tsc over this project reports those as false TS2304 / TS2307 — they
+  // are not source defects. Authoritative type-checking is `deno check`, driven
+  // by `npm run typecheck:api` (scripts/typecheck-deno.mjs). Type-check only
+  // (noEmit); Deno owns execution.
+  // ────────────────────────────────────────────────────────────────────────
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    // Two server files (index.tsx, kv_store.tsx) carry the `.tsx` extension but
+    // contain no JSX. `preserve` simply lets the compiler parse them; it pulls
+    // in no JSX runtime, keeping the server free of any React/browser coupling.
+    "jsx": "preserve",
+
+    // No ambient global type packages — Deno globals are not Node globals.
+    "types": [],
+
+    // Deno requires explicit `.ts` extensions on relative imports.
+    "allowImportingTsExtensions": true,
+
+    // strictNullChecks (only) reproduces the discriminated-union narrowing the
+    // server result contracts rely on, per the discovery audit. Full `strict`
+    // is intentionally NOT enabled — Task 9 introduces no new strictness policy.
+    "strictNullChecks": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["supabase/functions"]
+}
