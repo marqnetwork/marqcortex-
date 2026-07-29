@@ -33,6 +33,7 @@ import { getSubmissions, getDemoSubmissions, getDemoTeamMembers } from '@/app/se
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
 import { InlineAITrigger } from '@/app/components/InlineAITrigger';
 import { FEATURES } from '@/config/features';
+import { useApp } from '@/app/contexts/AppContext';
 import type { Submission } from '@/app/services/dataService';
 
 // ─────────────────────────────────────────────────────────────
@@ -240,6 +241,7 @@ export function TeamHomeDashboard({
   onSubmissionSelect,
   accessToken,
 }: Props) {
+  const { teamUser } = useApp();
   const [activeTab, setActiveTab] = useState<DashTab>('command');
   const [now] = useState(() => new Date());
 
@@ -317,10 +319,12 @@ export function TeamHomeDashboard({
     { label: 'Approved',  count: kpis.approved,   color: GREEN,  pct: Math.round((kpis.approved  / pipelineTotal) * 100) },
   ];
 
-  const userName = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem('team_user') || '{}').name?.split(' ')[0] || 'Team'; }
-    catch { return 'Team'; }
-  }, []);
+  // Greeting name comes from the authenticated team session. 'Team' covers a
+  // session whose login response carried no display name.
+  const userName = useMemo(
+    () => teamUser?.name?.split(' ')[0] || 'Team',
+    [teamUser],
+  );
 
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';

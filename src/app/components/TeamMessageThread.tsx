@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getTeamMessages, postTeamReply, type Message } from '@/app/services/dataService';
 import { FEATURES } from '@/config/features';
+import { useApp } from '@/app/contexts/AppContext';
 
 const MAX_CHARS = 2000;
 
@@ -38,6 +39,7 @@ interface Props {
 export function TeamMessageThread({
   submissionId, companyName, contactName, accessToken, onUnreadCountChange,
 }: Props) {
+  const { teamUser } = useApp();
   const [messages, setMessages]     = useState<Message[]>([]);
   const [isLoading, setIsLoading]   = useState(true);
   const [isSending, setIsSending]   = useState(false);
@@ -48,11 +50,8 @@ export function TeamMessageThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Get current team user name from localStorage
-  const teamUserName = (() => {
-    try { return JSON.parse(localStorage.getItem('team_user') || '{}').name || 'Team'; }
-    catch { return 'Team'; }
-  })();
+  // Reply author name, from the authenticated team session.
+  const teamUserName = teamUser?.name || 'Team';
 
   const load = useCallback(async (silent = false) => {
     if (!accessToken) { setIsLoading(false); return; }
