@@ -401,3 +401,144 @@ describe('client session expiry wiring', () => {
     assert.match(login, /if \(clientSession && !isClientSessionExpired\)/);
   });
 });
+
+/**
+ * Phase 1B — ClientPortal `StatusView` lexical scope.
+ *
+ * `clientAuth` is created inside `ClientPortal`. `StatusView` is a separate
+ * top-level component, so it can only see `clientAuth` if the value is
+ * threaded through its props. It previously referenced `clientAuth` as a free
+ * variable, which is not a compile error under the repository's transpile-only
+ * toolchain and therefore surfaced as a runtime `ReferenceError` on the portal
+ * default view.
+ *
+ * These tests pin the binding, not the styling: the last one performs a real
+ * scope analysis of the extracted `StatusView` source, so the same class of
+ * defect is caught for any identifier, not just `clientAuth`.
+ */
+describe('ClientPortal StatusView scope', () => {
+  const PORTAL_PATH = 'src/app/components/ClientPortal.tsx';
+  const portal = repoFile(PORTAL_PATH);
+
+  /** Split a top-level `function Name({ props }: { types }) { body }` declaration. */
+  function splitComponent(src: string, name: string) {
+    const start = src.indexOf(`\nfunction ${name}({`);
+    assert.notEqual(start, -1, `${name} must be a top-level function component`);
+    const sigEnd = src.indexOf('\n}) {', start);
+    assert.notEqual(sigEnd, -1, `${name} signature must terminate at column 0`);
+
+    const signature = src.slice(start, sigEnd + '\n}) {'.length);
+    const bodyOpen = sigEnd + '\n}) '.length;          // index of the body's `{`
+
+    let depth = 0;
+    let i = bodyOpen;
+    for (; i < src.length; i += 1) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    assert.equal(depth, 0, `${name} body braces must balance`);
+
+    const destructure = signature.slice(signature.indexOf('({') + 2, signature.indexOf('}: {'));
+    const propTypes = signature.slice(signature.indexOf('}: {') + 4);
+
+    return { signature, body: src.slice(bodyOpen, i + 1), destructure, propTypes };
+  }
+
+  const statusView = splitComponent(portal, 'StatusView');
+
+  const propNames = statusView.destructure
+    .split(',')
+    .map(s => s.replace(/\/\/.*$/gm, '').trim())
+    .filter(Boolean)
+    .map(s => s.split(':')[0].trim());
+
+  it('StatusView declares clientAuth as a prop', () => {
+    assert.ok(
+      propNames.includes('clientAuth'),
+      `StatusView must destructure clientAuth; got: ${propNames.join(', ')}`,
+    );
+    assert.match(
+      statusView.propTypes,
+      /clientAuth\?:\s*ClientAuthContext;/,
+      'StatusView props must type clientAuth as the canonical ClientAuthContext',
+    );
+  });
+
+  it('every StatusView invocation passes clientAuth', () => {
+    const invocations = [...portal.matchAll(/<StatusView\b([\s\S]*?)\/>/g)].map(m => m[1]);
+    assert.ok(invocations.length > 0, 'expected at least one <StatusView /> invocation');
+    for (const [idx, props] of invocations.entries()) {
+      assert.match(
+        props,
+        /\bclientAuth=\{clientAuth\}/,
+        `<StatusView /> invocation #${idx + 1} must pass clientAuth`,
+      );
+    }
+  });
+
+  it('StatusView still consumes clientAuth for the engagement feed', () => {
+    // Guards against "fixing" the ReferenceError by deleting the usage.
+    assert.match(statusView.body, /<EngagementActivityFeed[\s\S]*?clientAuth=\{clientAuth\}/);
+  });
+
+  it('reuses the canonical ClientAuthContext rather than redeclaring it', () => {
+    assert.match(portal, /type ClientAuthContext,\n\} from '@\/app\/services\/dataService'/);
+    assert.doesNotMatch(
+      portal,
+      /(?:export\s+)?(?:interface|type)\s+ClientAuthContext\b\s*[={]/,
+      'ClientPortal must not declare its own ClientAuthContext',
+    );
+  });
+
+  it('StatusView references no unbound identifiers', () => {
+    // Real scope analysis: every identifier StatusView evaluates must resolve
+    // to a prop, a module-scope binding, a local, or a known global.
+    const bound = new Set<string>(propNames);
+
+    // Module imports.
+    for (const m of portal.matchAll(/import\s+(?:type\s+)?(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*from/g)) {
+      if (m[1]) bound.add(m[1]);
+      for (const spec of (m[2] ?? '').split(',')) {
+        const name = spec.replace(/^\s*type\s+/, '').split(/\s+as\s+/).pop()?.trim();
+        if (name) bound.add(name);
+      }
+    }
+    // Module-scope declarations.
+    for (const m of portal.matchAll(/^(?:export\s+)?(?:default\s+)?(?:function|const|let|type|interface)\s+(\w+)/gm)) {
+      bound.add(m[1]);
+    }
+    // Locals introduced inside the body (arrow params, loop/map callbacks).
+    for (const m of statusView.body.matchAll(/\(\s*([\w\s,]*?)\s*\)\s*=>/g)) {
+      for (const p of m[1].split(',')) if (p.trim()) bound.add(p.trim());
+    }
+
+    // Not identifiers to resolve: language keywords and platform globals.
+    const GLOBALS = new Set([
+      'Array', 'Boolean', 'Date', 'Infinity', 'JSON', 'Math', 'NaN', 'Number',
+      'Object', 'Promise', 'String', 'console', 'document', 'window',
+      'async', 'await', 'break', 'case', 'catch', 'const', 'continue', 'delete',
+      'else', 'false', 'for', 'function', 'if', 'in', 'let', 'new', 'null', 'of',
+      'return', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'undefined',
+      'var', 'void', 'while',
+    ]);
+
+    // Identifiers in evaluated position: the head of a JSX expression container
+    // or of a template-literal substitution. Object-literal keys are skipped.
+    const free = new Set<string>();
+    for (const m of statusView.body.matchAll(/\{\s*([A-Za-z_$][\w$]*)\s*([:.\w\s$]*)/g)) {
+      const ident = m[1];
+      if (m[2].startsWith(':')) continue;              // object literal key
+      if (GLOBALS.has(ident) || bound.has(ident)) continue;
+      free.add(ident);
+    }
+
+    assert.deepEqual(
+      [...free],
+      [],
+      `StatusView references identifiers outside its scope: ${[...free].join(', ')}`,
+    );
+  });
+});
