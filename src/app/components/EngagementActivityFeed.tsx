@@ -29,6 +29,7 @@ import {
   Eye, FileText, Zap, Printer, FileCheck2, Calendar, MessageSquare,
   Clock, Activity, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   getEngagementLog, getDemoEngagementEvents,
   type EngagementEvent, type EngagementEventType, type ClientAuthContext,
@@ -38,7 +39,7 @@ import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/confi
 // ── Event config ──────────────────────────────────────────────────────────────
 
 interface EventConfig {
-  icon:  React.ComponentType<{ className?: string }>;
+  icon:  LucideIcon;
   color: string;         // hex for dot, icon, label
   bg:    string;         // rgba fill for dot bg
   label: string;

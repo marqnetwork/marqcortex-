@@ -33,6 +33,7 @@ import {
   ChevronDown, CheckCircle2, Activity,
   Zap, Shield, Clock, Users, Eye,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   MOCK_SNAPSHOTS,
   DEFAULT_FILTERS,
@@ -304,7 +305,7 @@ function LeadershipStrip({ tiles }: { tiles: KPITile[] }) {
 function PanelShell({
   icon: Icon, title, badge, accent = C.blue, children,
 }: {
-  icon: React.FC<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   badge?: string;
   accent?: string;
@@ -626,7 +627,7 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
 // PANEL 4 — OBJECTION INTELLIGENCE
 // ════════════════════════════════════════════════════════════════════════════════
 
-const OBJECTION_ICONS: Record<string, React.FC<{ className?: string }>> = {
+const OBJECTION_ICONS: Record<string, LucideIcon> = {
   price:              DollarSign,
   risk:               Shield,
   timing:             Clock,

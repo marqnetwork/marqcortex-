@@ -22,6 +22,7 @@ import {
   Plus, Trash2, Clock, MapPin, Lock, Unlock,
   RefreshCw, GitBranch,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   ProposalDraft,
   ImplementationPlan,
@@ -43,7 +44,7 @@ const PHASE_COLORS: Record<number, string> = {
 };
 function phaseColor(n: number): string { return PHASE_COLORS[n] ?? '#6B7280'; }
 
-const CHECKPOINT_CFG: Record<GovernanceCheckpointType, { label: string; color: string; Icon: React.FC<{ className?: string }> }> = {
+const CHECKPOINT_CFG: Record<GovernanceCheckpointType, { label: string; color: string; Icon: LucideIcon }> = {
   internal_validation: { label: 'Internal Validation', color: '#06D7F6', Icon: CheckCircle2 },
   client_review:       { label: 'Client Review',       color: '#8B5CF6', Icon: UserCheck   },
   sign_off:            { label: 'Sign-Off',             color: '#10B981', Icon: Check       },
@@ -54,7 +55,7 @@ const INTEGRATION_SECTIONS: {
   key: keyof ImplementationPlan['integration_architecture'];
   label: string;
   color: string;
-  Icon: React.FC<{ className?: string }>;
+  Icon: LucideIcon;
 }[] = [
   { key: 'systems_affected',      label: 'Systems Affected',      color: '#06D7F6', Icon: Layers   },
   { key: 'data_sources',          label: 'Data Sources',          color: '#8B5CF6', Icon: Database },
@@ -67,7 +68,7 @@ const GOVERNANCE_FLAGS: {
   key: keyof ImplementationPlan['governance_controls'];
   label: string;
   description: string;
-  Icon: React.FC<{ className?: string }>;
+  Icon: LucideIcon;
 }[] = [
   { key: 'human_in_loop',                    label: 'Human-in-Loop',          description: 'Human oversight required for all AI decisions', Icon: UserCheck },
   { key: 'approval_required_for_automation', label: 'Approval Required',      description: 'Explicit approval before any automation goes live', Icon: Check     },

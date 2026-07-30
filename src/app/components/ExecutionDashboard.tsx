@@ -19,6 +19,7 @@ import {
   ChevronRight, RotateCcw, Fingerprint, Layers,
   Bell, TrendingDown, Calendar, Percent,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -129,7 +130,7 @@ function Card({ children, accent = PURPLE }: { children: React.ReactNode; accent
 }
 
 function SectionHeader({ icon: Icon, title, badge, accent = ACCENT, children }: {
-  icon: React.FC<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   badge?: string;
   accent?: string;

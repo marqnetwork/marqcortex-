@@ -162,3 +162,67 @@ void _globalAIChatSectionIcons;
 void _globalAIChatQuickActionIcons;
 
 export type { _LucideIsNotStaleIcon, _ReactNodeIsWiderThanElement };
+
+/**
+ * PHASE 1B TASK 17 — the remaining className-only icon holders
+ *
+ * Twenty diagnostics across fifteen components, one root cause, mechanically
+ * identical to Tasks 11 and 13: an icon holder declared `React.FC<{ className?:
+ * string }>` (or the `React.ComponentType` spelling of the same shape) while its
+ * render site passes `className` AND `style`. `style` was therefore an excess
+ * property and the render was rejected (TS2322) even though it was always valid
+ * at runtime.
+ *
+ * Every holder repaired in this task is module-private — object literals and
+ * inline prop types, none exported — so, exactly as Tasks 11/13 handled ArchLayer
+ * and RuleCard, the *declarations* are pinned structurally by
+ * tests/features/frontendIconContracts.test.ts, while the *contract* is proven
+ * here at the type level: the real icon values are assignable to `LucideIcon`,
+ * and `LucideIcon` accepts every prop set the twenty repaired sites pass.
+ */
+import {
+  Edit3, Expand, Minimize2, ShieldCheck, Printer, FileCheck2,
+  Package, GitBranch, List, Layers, Database, Settings, Bot,
+  TrendingDown, Users, AlertTriangle, TimerOff, Clock, Pen,
+  FileBarChart2, UserCheck, Check, RefreshCw, Eye as EyeIcon,
+} from 'lucide-react';
+
+// The twenty repaired sites all pass a colour through `style`, which the narrow
+// contract could not express. `_NarrowLacksStyle` / `_LucideAcceptsStyle` above
+// already prove why; these pin the exact prop shapes Task 17 restored.
+const _colourByLiteral: ComponentProps<LucideIcon> = {
+  className: 'size-3.5',
+  style: { color: '#8B5CF6' },
+};
+// MappingEnginePanel's stepper is the one conditional case: the style object is
+// `{ color }` while the step is active and `{}` otherwise. The union has to be
+// assignable too, or the repaired render would still not compile.
+const _colourConditional: ComponentProps<LucideIcon> = {
+  className: 'size-4 text-gray-600',
+  style: (false as boolean) ? { color: '#06D7F6' } : {},
+};
+
+// Every value assigned to a repaired holder is a genuine lucide-react icon, so
+// `LucideIcon` is the narrowest ACCURATE type — not merely a wider one. Grouped
+// by the holder each set belongs to.
+const _blockHistoryChangeIcons: LucideIcon[] = [Edit3, Zap, Expand, Minimize2, MessageSquare];
+const _blockRegistrySectionIcons: LucideIcon[] = [ShieldCheck, CheckCircle2, Info];
+const _engagementFeedIcons: LucideIcon[] = [EyeIcon, FileText, Zap, Printer, FileCheck2, Calendar, MessageSquare];
+const _exportDocTypeIcons: LucideIcon[] = [FileBarChart2, FileText, Pen];
+const _kanbanAlertIcons: LucideIcon[] = [TrendingDown, TrendingUp, Users, AlertTriangle, TimerOff];
+const _implArchCheckpointIcons: LucideIcon[] = [CheckCircle2, UserCheck, Check, RefreshCw];
+const _implArchIntegrationIcons: LucideIcon[] = [Layers, Database, Settings, Bot, Shield];
+const _mappingStepIcons: LucideIcon[] = [Package, GitBranch, Calendar, List, Shield];
+const _objectionIcons: LucideIcon[] = [DollarSign, Shield, Clock, EyeIcon, Users];
+
+void _colourByLiteral;
+void _colourConditional;
+void _blockHistoryChangeIcons;
+void _blockRegistrySectionIcons;
+void _engagementFeedIcons;
+void _exportDocTypeIcons;
+void _kanbanAlertIcons;
+void _implArchCheckpointIcons;
+void _implArchIntegrationIcons;
+void _mappingStepIcons;
+void _objectionIcons;

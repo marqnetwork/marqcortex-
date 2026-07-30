@@ -25,6 +25,7 @@ import {
   Users, Calendar, Flag, Hash, FileText, Database,
   TrendingUp, Package, List, Eye,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { runMappingPipeline, validateSnapshotForMapping } from '@/app/core/mappingEngine';
 import type { MappingPipelineResult, PipelineStepLog } from '@/app/core/mappingEngine';
 import type { ProposalSnapshot } from '@/app/core/snapshotEngine';
@@ -110,7 +111,7 @@ interface StepMeta {
   label:   string;
   input:   string;
   output:  string;
-  icon:    React.ComponentType<{ className?: string }>;
+  icon:    LucideIcon;
   color:   string;
   rule:    string;
 }
@@ -211,7 +212,7 @@ export function MappingEnginePanel() {
     setElapsed(null);
   };
 
-  const tabs: { id: PipelineTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number; disabled?: boolean }[] = [
+  const tabs: { id: PipelineTab; label: string; icon: LucideIcon; count?: number; disabled?: boolean }[] = [
     { id: 'workstreams', label: 'Workstreams',       icon: GitBranch,  count: result?.project.workstreams.length },
     { id: 'milestones',  label: 'Milestones',        icon: Calendar,   count: result?.project.milestones.length },
     { id: 'tasks',       label: 'Tasks',             icon: List,       count: result?.project.tasks.length },
@@ -542,7 +543,7 @@ export function MappingEnginePanel() {
 // SUB-TABS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SectionTitle({ icon: Icon, title, color = BRAND.purple }: { icon: React.ComponentType<{ className?: string }>, title: string, color?: string }) {
+function SectionTitle({ icon: Icon, title, color = BRAND.purple }: { icon: LucideIcon, title: string, color?: string }) {
   return (
     <div className="flex items-center gap-2 mb-4">
       <div className="size-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}18` }}>
@@ -693,7 +694,7 @@ function TasksTab({ tasks, milestones }: { tasks: any[]; milestones: any[] }) {
 
 function GatesTab({ gates, milestones }: { gates: any[]; milestones: any[] }) {
   const msMap = Object.fromEntries(milestones.map(m => [m.milestone_id, m.title]));
-  const typeIcon: Record<string, React.ComponentType<{ className?: string }>> = {
+  const typeIcon: Record<string, LucideIcon> = {
     access: Lock, security: Shield, uat: Eye, approval: Flag, compliance: CheckCircle2,
   };
 

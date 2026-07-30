@@ -32,6 +32,7 @@ import {
   Download, RefreshCw, Target, DollarSign, Clock,
   Activity, Users, ClipboardList, Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   ProposalDraft,
   ROIActualsEntry,
@@ -79,7 +80,7 @@ const QUALITY_CFG = {
 function SectionShell({
   icon: Icon, title, badge, accent = '#10B981', defaultOpen = true, children, action,
 }: {
-  icon:        React.FC<{ className?: string }>;
+  icon:        LucideIcon;
   title:       string;
   badge?:      string;
   accent?:     string;
@@ -125,7 +126,7 @@ function BaselineCard({ draft }: { draft: ProposalDraft }) {
   const cfg = QUALITY_CFG[bl.baseline_quality];
   const m   = bl.metrics_snapshot;
 
-  const rows: { label: string; value: string; icon: React.FC<{ className?: string }> }[] = [
+  const rows: { label: string; value: string; icon: LucideIcon }[] = [
     { label: 'Ticket Volume / Week',     value: `${m.ticket_volume_per_week} tickets`,    icon: ClipboardList },
     { label: 'Response Time',            value: `${m.response_time_hours}h avg`,           icon: Clock         },
     { label: 'Admin Hours / Week',       value: `${m.admin_hours_per_week}h`,              icon: Users         },

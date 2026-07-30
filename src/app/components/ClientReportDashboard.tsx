@@ -31,6 +31,7 @@ import {
   BarChart3, Layers, ArrowRight, FileText, Printer, Building2,
   Users, Rocket, Star, Activity, Eye, Lock,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -732,7 +733,7 @@ export function ClientReportDashboard({
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ComponentType<{ className?: string }>; title: string; subtitle: string }) {
+function SectionHeader({ icon: Icon, title, subtitle }: { icon: LucideIcon; title: string; subtitle: string }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
       <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/10 flex items-center justify-center border border-[#8B5CF6]/20 flex-shrink-0">
@@ -747,7 +748,7 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ComponentT
 }
 
 function MetricCard({ label, value, trend, color, icon: Icon }: {
-  label: string; value: string; trend: 'up' | 'down' | 'neutral'; color: string; icon: React.ComponentType<{ className?: string }>;
+  label: string; value: string; trend: 'up' | 'down' | 'neutral'; color: string; icon: LucideIcon;
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -972,7 +973,7 @@ function TimelineCard({ rec, index }: { rec: Recommendation; index: number }) {
 }
 
 function NextStepCard({ step, title, description, icon: Icon }: {
-  step: number; title: string; description: string; icon: React.ComponentType<{ className?: string }>;
+  step: number; title: string; description: string; icon: LucideIcon;
 }) {
   return (
     <motion.div

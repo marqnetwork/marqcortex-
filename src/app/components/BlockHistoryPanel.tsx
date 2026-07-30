@@ -14,6 +14,7 @@ import {
   X, GitBranch, Clock, User, Bot, CheckCircle2, XCircle,
   Hourglass, Zap, Expand, Minimize2, Edit3, MessageSquare,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { BlockRevision, BlockState, RevisionChangeType } from '@/app/core/blockEngine';
 import {
   CHANGE_TYPE_LABELS,
@@ -25,7 +26,7 @@ import {
 // CONSTANTS
 // ════════════════════════════════════════════════════════════════════════════════
 
-const CHANGE_TYPE_ICONS: Record<RevisionChangeType, React.FC<{ className?: string }>> = {
+const CHANGE_TYPE_ICONS: Record<RevisionChangeType, LucideIcon> = {
   create:      Edit3,
   edit:        Edit3,
   ai_improve:  Zap,

@@ -21,6 +21,7 @@ import {
   RefreshCw, History, Zap, Activity, PhoneCall,
   Flag, ArrowUpCircle, FileWarning, Loader2, CheckCircle2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ObjectionType, ObjectionDetected, ObjectionPlaybook, ProposalDraft } from '@/app/types/cortex-types';
 import {
   detectObjection,
@@ -39,7 +40,7 @@ import { isBackendEnabled } from '@/config/runtime';
 // CONSTANTS
 // ════════════════════════════════════════════════════════════════════════════════
 
-const OBJECTION_ICONS: Record<ObjectionType, React.FC<{ className?: string }>> = {
+const OBJECTION_ICONS: Record<ObjectionType, LucideIcon> = {
   price:              DollarSign,
   risk:               Shield,
   timing:             Clock,
@@ -78,7 +79,7 @@ interface EngagementSignal {
   label:     string;
   value:     string;
   risk:      'ok' | 'warn' | 'critical';
-  icon:      React.FC<{ className?: string }>;
+  icon:      LucideIcon;
 }
 
 function EngagementMonitoring({ draft }: { draft: ProposalDraft }) {
