@@ -39,6 +39,18 @@ export interface DiagnosticProposal {
   viewed_at?: string;
   accepted_at?: string;
   accepted_by?: string;
+
+  /**
+   * Server-stamped persistence timestamp (ISO 8601).
+   *
+   * Set by the proposal-save route, which returns `{ ...proposal, savedAt }`,
+   * so it is present on every proposal that has round-tripped through the
+   * backend and absent on one that has only been generated locally — hence
+   * optional. camelCase deliberately: this mirrors the wire key the server
+   * actually sends, unlike the snake_case fields above which are part of the
+   * proposal document itself.
+   */
+  savedAt?: string;
 }
 
 // ============================================================================
