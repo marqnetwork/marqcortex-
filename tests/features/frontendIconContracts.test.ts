@@ -62,6 +62,9 @@ const SCENARIO_REL = 'src/app/components/ScenarioPanel.tsx';
 const SOLARCH_REL = 'src/app/components/SolutionArchitectureCard.tsx';
 const STAGE_REL = 'src/app/components/StageTracker.tsx';
 
+// Task 15 — the GlobalAIChat icon-alias cluster, same family, different mechanism.
+const GAC_REL = 'src/app/components/GlobalAIChat.tsx';
+
 // ── Shared: the narrow contract must be gone everywhere ───────────────────────
 
 describe('icon contracts — narrow className-only type is fully retired', () => {
@@ -317,5 +320,140 @@ describe('StageTracker — stage icon contract corrected, render preserved', () 
     for (const name of ['CheckCircle2', 'Search', 'FileText', 'Calendar']) {
       assert.match(code, new RegExp(`icon:\\s+${name}\\b`), `expected STAGES icon ${name} present`);
     }
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * PHASE 1B TASK 15 — GlobalAIChat icon contract
+ *
+ * GlobalAIChat.tsx held the largest remaining frontend cluster: 24 diagnostics,
+ * all TS2322, all with a byte-identical message, all traced to ONE declaration —
+ * a module-private alias shared by the file's two icon holders:
+ *
+ *     type IconComponent = (props: { className?: string }) => React.ReactElement | null
+ *       SECTIONS[].icon      →  6 diagnostics   (lines 59-64)
+ *       QuickAction.icon     → 18 diagnostics   (the 6 x 3 SECTION_QUICK_ACTIONS)
+ *
+ * Same family as Tasks 11/13, different mechanism — and the distinction is the
+ * reason this is one coherent batch rather than a code-level grouping. There the
+ * narrow contract lacked `style` and the render sites passed it. Here BOTH render
+ * sites pass `className` only, which the old alias already accepted; the
+ * assignment failed on the RETURN type, because a lucide icon returns `ReactNode`
+ * and the alias promised `ReactElement | null`. So this batch touches no JSX at
+ * all: the alias is removed and both fields name the official `LucideIcon`, which
+ * every one of the 24 assigned values genuinely is.
+ *
+ * The mechanism itself is proven at the type level in
+ * src/app/components/__typechecks__/iconContract.ts (checked by typecheck:web);
+ * the declarations and the preserved render are pinned structurally here, since
+ * neither holder type is exported and the runner cannot transform JSX.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+
+describe('GlobalAIChat — icon alias corrected, render preserved', () => {
+  const code = stripComments(readSource(GAC_REL));
+
+  it('imports LucideIcon as a type from lucide-react', () => {
+    assert.match(
+      code,
+      /import\s+type\s*\{[^}]*\bLucideIcon\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
+      'expected a type import of LucideIcon from lucide-react',
+    );
+  });
+
+  it('the stale IconComponent alias is gone entirely', () => {
+    assert.doesNotMatch(
+      code,
+      /type\s+IconComponent\s*=/,
+      'GlobalAIChat still declares the local IconComponent alias',
+    );
+    assert.doesNotMatch(
+      code,
+      /\bIconComponent\b/,
+      'GlobalAIChat still references IconComponent somewhere',
+    );
+  });
+
+  it('the alias was not merely re-pointed at LucideIcon behind the old name', () => {
+    // Guards the shape of the fix: both fields must name LucideIcon directly,
+    // matching how Tasks 11 and 13 declared their corrected icon holders.
+    const declarations = code.match(/icon:\s*LucideIcon\s*;/g) ?? [];
+    assert.equal(declarations.length, 2, 'expected exactly 2 fields declared `icon: LucideIcon;`');
+  });
+
+  it('SECTIONS[].icon is typed as LucideIcon', () => {
+    assert.match(
+      code,
+      /label:\s*string;\s*short:\s*string;\s*icon:\s*LucideIcon\s*;/,
+      'expected the SECTIONS element type to declare icon: LucideIcon',
+    );
+  });
+
+  it('QuickAction.icon is typed as LucideIcon', () => {
+    assert.match(
+      code,
+      /interface\s+QuickAction\s*\{[^}]*\bicon:\s*LucideIcon\s*;[^}]*\}/,
+      'expected QuickAction.icon: LucideIcon',
+    );
+  });
+
+  it('no return-type-narrowing icon contract survives anywhere in the file', () => {
+    assert.doesNotMatch(
+      code,
+      /\(\s*props:\s*\{\s*className\?:\s*string\s*\}\s*\)\s*=>\s*React\.ReactElement\s*\|\s*null/,
+      'the narrow className-in/ReactElement-out icon contract is still declared',
+    );
+  });
+
+  it('no unsafe escape was used to silence the cluster', () => {
+    for (const [pattern, label] of [
+      [/@ts-(ignore|expect-error)/, 'a TypeScript suppression comment'],
+      [/\bas\s+unknown\b/, 'an `as unknown` assertion'],
+      [/\bas\s+never\b/, 'an `as never` assertion'],
+      [/icon\??:\s*any\b/, 'an `any`-typed icon field'],
+    ] as const) {
+      assert.doesNotMatch(code, pattern, `GlobalAIChat contains ${label}`);
+    }
+  });
+
+  it('render behaviour preserved: both icon sites still resolve and render identically', () => {
+    // The capitalised local binding is what makes the value renderable as JSX;
+    // if either were dropped the icons would stop rendering.
+    assert.match(code, /const\s+Icon\s*=\s*sec\.icon\s*;/, 'expected `const Icon = sec.icon;` unchanged');
+    assert.match(code, /const\s+Icon\s*=\s*action\.icon\s*;/, 'expected `const Icon = action.icon;` unchanged');
+
+    // Both render sites pass className only — no style was added or removed.
+    const renders = code.match(/<Icon\s+className="size-3"\s*\/>/g) ?? [];
+    assert.equal(renders.length, 2, 'expected exactly the 2 unchanged <Icon className="size-3" /> renders');
+    assert.doesNotMatch(
+      code,
+      /<Icon\s+className="size-3"\s+style=/,
+      'a style prop was added to an icon render site (visual change, out of scope)',
+    );
+  });
+
+  it('no icon removed, replaced or reordered: all 24 assignments are unchanged', () => {
+    // 6 SECTIONS icons + 18 SECTION_QUICK_ACTIONS icons = the exact 24 values
+    // that produced the 24 diagnostics. Counts are pinned per component so a
+    // swapped icon fails even though the total would still be 24.
+    const expected: Record<string, number> = {
+      Sparkles: 7, Zap: 5, AlertCircle: 3, ArrowRight: 3,
+      FileText: 1, Target: 1, DollarSign: 1, Phone: 1, MessageSquare: 1, Info: 1,
+    };
+    let total = 0;
+    for (const [name, count] of Object.entries(expected)) {
+      const found = code.match(new RegExp(`\\bicon:\\s*${name}\\b`, 'g')) ?? [];
+      assert.equal(found.length, count, `expected ${count} \`icon: ${name}\` assignment(s), found ${found.length}`);
+      total += found.length;
+    }
+    assert.equal(total, 24, 'expected exactly 24 icon assignments across SECTIONS and SECTION_QUICK_ACTIONS');
+  });
+
+  it('the six sections and their order are unchanged', () => {
+    const ids = (code.match(/\{\s*id:\s*'([^']+)',\s*label:/g) ?? [])
+      .map(m => m.replace(/^\{\s*id:\s*'/, '').replace(/',\s*label:$/, ''));
+    assert.deepEqual(ids, [
+      'general', 'proposal.executive_brief', 'proposal.diagnosis',
+      'recommendation', 'roi', 'call_prep',
+    ], 'SECTIONS ids or their order changed');
   });
 });

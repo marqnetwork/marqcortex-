@@ -13,11 +13,12 @@
  * SystemArchitecture's ArchLayer / RuleCard contracts are module-private and
  * are covered structurally by the runtime regression test.
  */
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Zap, Shield, Target, TrendingUp, DollarSign,
   CheckCircle2, Search, FileText, Calendar,
+  Sparkles, AlertCircle, Phone, MessageSquare, Info, ArrowRight,
 } from 'lucide-react';
 import type { PipelineColumnDef } from '../PipelineKanban';
 
@@ -105,3 +106,59 @@ void _stageTrackerPendingRender;
 void _stageTrackerRowRender;
 
 export type { _NarrowLacksStyle, _LucideAcceptsStyle };
+
+/**
+ * PHASE 1B TASK 15 — GlobalAIChat icon contract
+ *
+ * The same family (a local icon contract narrower than the real lucide values)
+ * but a DIFFERENT mechanism, which this section pins so the two are not
+ * conflated. GlobalAIChat declared one module-private alias
+ *
+ *     type IconComponent = (props: { className?: string }) => React.ReactElement | null
+ *
+ * used by both icon holders (`SECTIONS[].icon` and `QuickAction.icon`), and all
+ * 24 of the file's diagnostics were lucide icons assigned to those two fields.
+ *
+ * Unlike Tasks 11/13 the fault was NOT the prop side: both render sites pass
+ * `className` only, which the old alias accepted. The fault was the RETURN type
+ * — a lucide icon's call signature returns `ReactNode`, which is wider than
+ * `ReactElement | null`, so the assignment failed on return-type compatibility
+ * ("Type 'ReactNode' is not assignable to type 'ReactElement'"). Both fields now
+ * name `LucideIcon` directly and the inaccurate alias is gone.
+ */
+
+// The exact alias GlobalAIChat used to declare, reproduced verbatim so the
+// proof below is about the real fault rather than a paraphrase of it.
+type StaleIconComponent = (props: { className?: string }) => ReactElement | null;
+
+// `ReactNode` is a union, so the distributive `Extends` above would collapse it
+// to `boolean`. This form keeps the comparison whole-union, as assignability is.
+type ExtendsExact<A, B> = [A] extends [B] ? true : false;
+
+// The fault: a real lucide icon does NOT satisfy the stale alias …
+type _LucideIsNotStaleIcon = Assert<Extends<LucideIcon, StaleIconComponent> extends false ? true : false>;
+// … and the reason is the return type, not the props.
+type _ReactNodeIsWiderThanElement = Assert<ExtendsExact<ReactNode, ReactElement | null> extends false ? true : false>;
+
+// Proof the prop side was never the problem here: the stale alias already
+// accepted the only prop either render site passes. That is why this batch
+// changes no JSX — there is no missing `style` to restore, unlike Tasks 11/13.
+const _staleAcceptedClassName: Parameters<StaleIconComponent>[0] = { className: 'size-3' };
+const _globalAIChatRender: ComponentProps<LucideIcon> = { className: 'size-3' };
+
+// Every icon assigned to the two corrected fields is a genuine lucide-react
+// icon, so LucideIcon is accurate — not merely wider. Six for SECTIONS[].icon,
+// and the distinct set used across the eighteen SECTION_QUICK_ACTIONS entries.
+const _globalAIChatSectionIcons: LucideIcon[] = [
+  Sparkles, FileText, AlertCircle, Target, DollarSign, Phone,
+];
+const _globalAIChatQuickActionIcons: LucideIcon[] = [
+  Sparkles, Zap, MessageSquare, AlertCircle, Info, ArrowRight,
+];
+
+void _staleAcceptedClassName;
+void _globalAIChatRender;
+void _globalAIChatSectionIcons;
+void _globalAIChatQuickActionIcons;
+
+export type { _LucideIsNotStaleIcon, _ReactNodeIsWiderThanElement };
