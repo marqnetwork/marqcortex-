@@ -239,8 +239,11 @@ const CLIENT_PROFILES: Record<string, {
   industryId: string;
   employees: string;
   revenue: string;
-  status: string;
-  priority: string;
+  // Indexed access rather than a re-spelled union: these two fields are copied
+  // verbatim onto the `Submission` this fixture builds, so they must track the
+  // canonical contract rather than drift alongside it.
+  status: Submission['status'];
+  priority: Submission['priority'];
   completionScore: number;
   qualityScore: number;
   aiScore: number;
