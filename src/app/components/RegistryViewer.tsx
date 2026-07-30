@@ -13,6 +13,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { manifest } from '../../system/manifest';
 import { runValidation } from '../../system/validate';
+// ValidationReport is declared alongside runValidation in system/validate, not
+// in system/types — it is the return type of the call above.
+import type { ValidationReport } from '../../system/validate';
 import {
   search as manifestSearch,
 } from '../../system/types';
@@ -21,7 +24,6 @@ import type {
   EntityType,
   StatusType,
   DomainType,
-  ValidationReport,
 } from '../../system/types';
 // ── F-002: wire in previously-orphaned registry data ─────────────────────────
 import { PROCESSES } from '../utils/registryProcesses';
