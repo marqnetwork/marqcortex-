@@ -4144,6 +4144,9 @@ export function PipelineKanban({
       ? Math.round(payload.conversionValue / pendingLeads.length)
       : payload.conversionValue;
 
+    const newPositions: Record<string, string> = {};
+    pendingLeads.forEach(l => { newPositions[l.id] = toColumn.id; });
+
     if (isBackendEnabled() && accessToken) {
       await Promise.all(
         pendingLeads.flatMap(l => [
@@ -4152,8 +4155,6 @@ export function PipelineKanban({
         ])
       );
 
-      const newPositions: Record<string, string> = {};
-      pendingLeads.forEach(l => { newPositions[l.id] = toColumn.id; });
       await savePipelinePositions(newPositions, accessToken);
     }
     markSaved();

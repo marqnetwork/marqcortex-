@@ -20,6 +20,7 @@ import {
   FileText, BarChart3, Users, Lock, Eye, Settings,
   Activity, Target, DollarSign, TrendingUp, Code,
   Cpu, Cloud, GitBranch, Boxes, Network, Workflow,
+  AlertTriangle,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
