@@ -121,7 +121,7 @@ function isDemo(): boolean {
 // ============================================================================
 
 /** Capture lead from the lead magnet form */
-export async function saveLead(data: LeadCapturePayload) {
+export async function saveLead(data: api.LeadCapturePayload) {
   if (isDemo()) {
     log('Save lead (demo mode):', data.email);
     return { success: true, leadId: `demo_lead_${Date.now()}` };
