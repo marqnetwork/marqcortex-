@@ -101,6 +101,7 @@ export type { ClientReportData } from '@/app/utils/clientReportGenerator';
 
 // ── Internal imports (not re-exported) ──────────────────────────────────────
 import * as api from '@/app/lib/api';
+import type { ClientAuthContext } from '@/app/lib/session';
 import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 import * as demo from '@/app/utils/demoData';
 import { generateClientReport as _generateClientReport } from '@/app/utils/clientReportGenerator';
@@ -241,14 +242,23 @@ export async function bulkUpdateSubmissions(
 // 3. CLIENT PORTAL
 // ============================================================================
 
-/** Get a client's submission (client-side, no auth) */
-export async function getClientSubmission(submissionId: string, email?: string) {
+/**
+ * Get a client's submission.
+ *
+ * The second parameter is the caller's `ClientAuthContext` — the same value
+ * `api.getClientSubmission` has always declared and forwarded to the server as
+ * the `Authorization` header (`auth.sessionToken`) plus the `?email=` fallback
+ * query. It was annotated `email?: string` here, which described neither the
+ * value the only caller passes (ClientPortal passes `clientAuth`) nor the value
+ * this wrapper hands on.
+ */
+export async function getClientSubmission(submissionId: string, auth?: ClientAuthContext) {
   if (isDemo()) {
     log('Get client submission (demo mode):', submissionId);
-    const submission = demo.getDemoClientSubmission({ submissionId, clientEmail: email });
+    const submission = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
     return { success: true, submission };
   }
-  return api.getClientSubmission(submissionId, email);
+  return api.getClientSubmission(submissionId, auth);
 }
 
 /** Build a demo client submission (helper for portal) */
