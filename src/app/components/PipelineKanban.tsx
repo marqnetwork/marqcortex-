@@ -4339,7 +4339,7 @@ export function PipelineKanban({
           break;
         }
         case 'r': case 'R': {
-          if (accessToken && positionsLoaded) handleManualPoll(true);
+          if (accessToken && positionsLoaded) handleManualPoll();
           break;
         }
       }
