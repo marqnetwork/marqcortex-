@@ -237,7 +237,12 @@ export function ClientSolutionView({
   onScheduleCall,
   onViewReport,
 }: ClientSolutionViewProps) {
-  const solutions = providedSolutions || getDefaultSolutions(companyName);
+  // Fallback when no `solutions` prop is supplied (e.g. the portal renders the
+  // Solution tab before a submission has loaded). Reuses the existing canonical
+  // getIndustrySolution helper (universal-fallback branch) so no new business
+  // content is introduced and a valid, non-empty SolutionItem[] is always
+  // returned — the absence of `solutions` can never cause a runtime error.
+  const solutions = providedSolutions || [getIndustrySolution('', companyName)];
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
