@@ -15,7 +15,10 @@
  */
 import type { ComponentProps } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Zap } from 'lucide-react';
+import {
+  Zap, Shield, Target, TrendingUp, DollarSign,
+  CheckCircle2, Search, FileText, Calendar,
+} from 'lucide-react';
 import type { PipelineColumnDef } from '../PipelineKanban';
 
 type ColumnIcon = PipelineColumnDef['Icon'];
@@ -43,3 +46,62 @@ void _realIcon;
 void _renderProps;
 
 export type { _ColumnIconIsLucide, _LucideIsColumnIcon };
+
+/**
+ * PHASE 1B TASK 13 — remaining frontend icon contracts
+ *
+ * Same root cause, three more icon holders (ScenarioPanel `SCENARIO_CFG.Icon`,
+ * SolutionArchitectureCard `LeverBar` `Icon` prop, StageTracker `STAGES[].icon`).
+ * All three were declared className-only and all three are rendered with
+ * `className` AND `style`, producing four TS2322s.
+ *
+ * None of the three holder types is exported — they are module-private object
+ * literals and inline prop types — so, exactly as Task 11 handled ArchLayer /
+ * RuleCard, the *declarations* are pinned structurally by
+ * tests/features/frontendIconContracts.test.ts, while the *contract itself*
+ * (real icon values in, real render props accepted) is proven here at the type
+ * level against the corrected `LucideIcon` type the declarations now name.
+ */
+
+// The narrow contract these three fields used to declare.
+type NarrowIconContract = { className?: string };
+
+// Why it was wrong: it has no `style` key, so every render site passing a
+// colour was an excess property (TS2322). LucideIcon does accept `style`.
+type _NarrowLacksStyle = Assert<'style' extends keyof NarrowIconContract ? false : true>;
+type _LucideAcceptsStyle = Assert<'style' extends keyof ComponentProps<LucideIcon> ? true : false>;
+
+// Every icon actually assigned to the three corrected fields is a genuine
+// lucide-react icon, so LucideIcon is accurate — not merely wider.
+const _scenarioPanelIcons: LucideIcon[] = [Shield, Target, Zap];
+const _leverBarIcons: LucideIcon[] = [Zap, TrendingUp, DollarSign, Shield];
+const _stageTrackerIcons: LucideIcon[] = [CheckCircle2, Search, FileText, Calendar];
+
+// The exact prop sets the four repaired render sites pass. Each of these is a
+// diagnostic under the old narrow contract and compiles under the corrected one.
+const _scenarioPanelRender: ComponentProps<LucideIcon> = {
+  className: 'size-6',
+  style: { color: '#06D7F6' },
+};
+const _leverBarRender: ComponentProps<LucideIcon> = {
+  className: 'size-2.5',
+  style: { color: '#10B981' },
+};
+const _stageTrackerPendingRender: ComponentProps<LucideIcon> = {
+  className: 'size-5',
+  style: { color: 'rgba(255,255,255,0.2)' },
+};
+const _stageTrackerRowRender: ComponentProps<LucideIcon> = {
+  className: 'size-4',
+  style: { color: '#06D7F6' },
+};
+
+void _scenarioPanelIcons;
+void _leverBarIcons;
+void _stageTrackerIcons;
+void _scenarioPanelRender;
+void _leverBarRender;
+void _stageTrackerPendingRender;
+void _stageTrackerRowRender;
+
+export type { _NarrowLacksStyle, _LucideAcceptsStyle };

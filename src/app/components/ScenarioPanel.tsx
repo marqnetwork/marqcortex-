@@ -21,6 +21,7 @@ import {
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight,
   Shield, Zap, Target, Clock, Lock, RotateCcw, CheckCircle2, AlertTriangle, Activity,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { applyChangeRequest } from '@/app/core/versionEngine';
 import type {
   ScenarioKey, ScenarioModel, ScenarioOutput, ScenarioPreset,
@@ -39,7 +40,7 @@ const SCENARIO_DISPLAY: Record<ScenarioKey, {
   dimColor: string;
   bg: string;
   border: string;
-  Icon: React.FC<{ className?: string }>;
+  Icon: LucideIcon;
 }> = {
   conservative: {
     label: 'Conservative',

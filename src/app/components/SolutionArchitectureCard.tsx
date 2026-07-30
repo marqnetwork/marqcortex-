@@ -26,6 +26,7 @@ import {
   ChevronDown, ChevronRight, Info, Lock,
   Link2, Zap, DollarSign, Shield,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   ProposalDraft, Solution, SolutionPillar,
   ImplementationPhase,
@@ -93,7 +94,7 @@ function ComplexityDots({ score, max = 5 }: { score: number; max?: number }) {
 
 function LeverBar({ value, color, label, Icon }: {
   value: number; color: string; label: string;
-  Icon: React.FC<{ className?: string }>;
+  Icon: LucideIcon;
 }) {
   const pct = Math.min(100, Math.max(0, value ?? 0));
   return (
