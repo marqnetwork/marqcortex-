@@ -15,7 +15,13 @@ import {
   DollarSign, AlertTriangle, Users, BarChart3, Shield, Calendar,
   TrendingUp, FileText, ArrowRight, Milestone,
 } from 'lucide-react';
-import type { SolutionBlueprint as SolutionBlueprintType, ImplementationPhase, BlueprintKPI, BlueprintRisk } from '@/app/types/cortex-types';
+// `SolutionBlueprint.phases` is `BlueprintPhase[]` — the recommendation-engine
+// phase model (name / duration / objectives / structured deliverables /
+// milestones / teamRequired / risksMitigated). It is a different domain object
+// from the proposal-draft `ImplementationPhase` (phase_number / title /
+// duration_weeks / solution_ids / string deliverables), which this file
+// previously named by mistake while reading every field off BlueprintPhase.
+import type { SolutionBlueprint as SolutionBlueprintType, BlueprintPhase, BlueprintKPI, BlueprintRisk } from '@/app/types/cortex-types';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -107,7 +113,7 @@ export function SolutionBlueprintView({ blueprint, companyName }: SolutionBluepr
 
 // ── Implementation Roadmap ────────────────────────────────────────────────────
 
-function RoadmapSection({ phases }: { phases: ImplementationPhase[] }) {
+function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
   const [expandedPhase, setExpandedPhase] = useState<number>(0);
 
   return (
@@ -283,7 +289,7 @@ function RoadmapSection({ phases }: { phases: ImplementationPhase[] }) {
 
 // ── Deliverables Matrix ───────────────────────────────────────────────────────
 
-function DeliverablesSection({ phases }: { phases: ImplementationPhase[] }) {
+function DeliverablesSection({ phases }: { phases: BlueprintPhase[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
@@ -377,7 +383,7 @@ function KPICell({ label, value, color }: { label: string; value: string; color:
 
 // ── Resource Plan ─────────────────────────────────────────────────────────────
 
-function ResourceSection({ resources, phases }: { resources: SolutionBlueprintType['resourcePlan']; phases: ImplementationPhase[] }) {
+function ResourceSection({ resources, phases }: { resources: SolutionBlueprintType['resourcePlan']; phases: BlueprintPhase[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
