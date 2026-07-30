@@ -22,6 +22,7 @@ import {
   Cpu, Cloud, GitBranch, Boxes, Network, Workflow,
   AlertTriangle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ARCHITECTURE DATA
@@ -32,7 +33,7 @@ interface ArchLayer {
   title: string;
   subtitle: string;
   color: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   modules: ArchModule[];
 }
 
@@ -499,7 +500,7 @@ function LayerCard({ layer, index, expanded, onToggle }: {
 }
 
 function RuleCard({ icon: Icon, title, description, color }: {
-  icon: React.ComponentType<{ className?: string }>; title: string; description: string; color: string;
+  icon: LucideIcon; title: string; description: string; color: string;
 }) {
   return (
     <div className="p-4 rounded-xl border" style={{ background: `${color}08`, borderColor: `${color}20` }}>

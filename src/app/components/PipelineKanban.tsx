@@ -61,6 +61,7 @@ import {
   // 13F: quick-actions new icons
   Flag, PenLine,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Lead } from '@/app/types/cortex-types';
 import { getReadinessColor } from '@/app/types/cortex-types';
 import type { CortexStatusEntry, OutcomePayload, LearningLoopData } from '@/app/services/dataService';
@@ -95,7 +96,7 @@ export interface PipelineColumnDef {
   color: string;
   triggersOutcome: boolean;
   outcomeType?: 'win' | 'loss';
-  Icon: React.ComponentType<{ className?: string }>;
+  Icon: LucideIcon;
 }
 
 export const PIPELINE_COLUMNS: PipelineColumnDef[] = [
