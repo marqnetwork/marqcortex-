@@ -17,6 +17,7 @@ import {
   Building2, Search, FileText, Target, DollarSign,
   Phone, AlertTriangle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   useGlobalAIChat,
 } from '@/app/contexts/GlobalAIChatContext';
@@ -39,12 +40,10 @@ interface ChatMsg {
   timestamp: Date;
 }
 
-type IconComponent = (props: { className?: string }) => React.ReactElement | null;
-
 interface QuickAction {
   label: string;
   prompt: string;
-  icon: IconComponent;
+  icon: LucideIcon;
   color: string;
 }
 
@@ -54,7 +53,7 @@ const SECTIONS: {
   id: string;
   label: string;
   short: string;
-  icon: IconComponent;
+  icon: LucideIcon;
 }[] = [
   { id: 'general',                  label: 'General Strategy', short: 'Strategy',   icon: Sparkles    },
   { id: 'proposal.executive_brief', label: 'Executive Brief',  short: 'Exec Brief', icon: FileText    },
