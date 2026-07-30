@@ -19,6 +19,7 @@ import {
   CheckCircle2, Loader2, Search, FileText, Calendar,
   Radio, Sparkles, Clock, ChevronRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 // ── Stage definitions ─────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ const STAGES: {
   description:   string;
   completedMsg:  string;
   etaMessage:    string;
-  icon:          React.ComponentType<{ className?: string }>;
+  icon:          LucideIcon;
 }[] = [
   {
     id:           'submitted',

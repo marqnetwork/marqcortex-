@@ -57,6 +57,11 @@ function stripComments(text: string): string {
 const ARCH_REL = 'src/app/components/SystemArchitecture.tsx';
 const KANBAN_REL = 'src/app/components/PipelineKanban.tsx';
 
+// Task 13 — the remaining three icon holders, same root cause.
+const SCENARIO_REL = 'src/app/components/ScenarioPanel.tsx';
+const SOLARCH_REL = 'src/app/components/SolutionArchitectureCard.tsx';
+const STAGE_REL = 'src/app/components/StageTracker.tsx';
+
 // ── Shared: the narrow contract must be gone everywhere ───────────────────────
 
 describe('icon contracts — narrow className-only type is fully retired', () => {
@@ -153,6 +158,164 @@ describe('PipelineKanban — column icon contract corrected, render preserved', 
   it('no icon removed or replaced: every PIPELINE_COLUMNS icon component is unchanged', () => {
     for (const name of ['Zap', 'Brain', 'Phone', 'FileText', 'TrendingUp', 'XCircle']) {
       assert.match(code, new RegExp(`Icon:\\s*${name}\\b`), `expected column Icon ${name} present`);
+    }
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * PHASE 1B TASK 13 — remaining frontend icon contracts
+ *
+ * Four more TS2322s, one root cause, identical to Task 11: an icon holder was
+ * declared className-only while the render site passes className AND style.
+ *
+ *   ScenarioPanel.tsx
+ *     - SCENARIO_CFG[].Icon  (React.FC<{className?:string}>)  → 1 diagnostic
+ *   SolutionArchitectureCard.tsx
+ *     - LeverBar `Icon` prop (React.FC<{className?:string}>)  → 1 diagnostic
+ *   StageTracker.tsx
+ *     - STAGES[].icon (React.ComponentType<{className?:string}>) → 2 diagnostics
+ *
+ * All three now name the official `LucideIcon`; every value ever assigned to
+ * them is a genuine lucide-react icon, so the type is accurate, not merely
+ * wider. Type-only change — no icon replaced, no render prop added or removed.
+ *
+ * SCOPE NOTE (deliberate): SolutionArchitectureCard also declares PILLAR_CFG.Icon
+ * and the SmallList `icon` prop with the same narrow shape. Neither produces a
+ * diagnostic today because their render sites pass className only, so both are
+ * OUT of this batch and are intentionally left untouched. That is why the checks
+ * below are per-declaration rather than a file-wide "no narrow contract" sweep.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+
+describe('ScenarioPanel — scenario icon contract corrected, render preserved', () => {
+  const code = stripComments(readSource(SCENARIO_REL));
+
+  it('imports LucideIcon as a type from lucide-react', () => {
+    assert.match(
+      code,
+      /import\s+type\s*\{[^}]*\bLucideIcon\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
+      'expected a type import of LucideIcon from lucide-react',
+    );
+  });
+
+  it('SCENARIO_CFG.Icon is typed as LucideIcon, not the narrow className-only type', () => {
+    assert.match(code, /Icon\s*:\s*LucideIcon\s*;/, 'expected Icon: LucideIcon');
+    assert.doesNotMatch(
+      code,
+      /Icon\s*:\s*React\.(FC|ComponentType)<\{\s*className\?:\s*string\s*\}>/,
+      'ScenarioPanel still declares an icon with the narrow className-only contract',
+    );
+  });
+
+  it('render behaviour preserved: the scenario icon still passes className and style', () => {
+    assert.match(
+      code,
+      /<activeCfg\.Icon\s+className="size-6"\s+style=\{\{\s*color:\s*activeCfg\.color\s*\}\}\s*\/>/,
+      'expected <activeCfg.Icon className="size-6" style={{ color: activeCfg.color }} /> unchanged',
+    );
+  });
+
+  it('the className-only sibling render site is untouched', () => {
+    assert.match(
+      code,
+      /<cfg\.Icon\s+className="size-4 flex-shrink-0"\s*\/>/,
+      'expected the cfg.Icon list render site to remain className-only',
+    );
+  });
+
+  it('no icon removed or replaced: every SCENARIO_CFG icon is unchanged', () => {
+    for (const name of ['Shield', 'Target', 'Zap']) {
+      assert.match(code, new RegExp(`Icon:\\s*${name}\\b`), `expected SCENARIO_CFG icon ${name} present`);
+    }
+  });
+});
+
+describe('SolutionArchitectureCard — LeverBar icon contract corrected, render preserved', () => {
+  const code = stripComments(readSource(SOLARCH_REL));
+
+  it('imports LucideIcon as a type from lucide-react', () => {
+    assert.match(
+      code,
+      /import\s+type\s*\{[^}]*\bLucideIcon\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
+      'expected a type import of LucideIcon from lucide-react',
+    );
+  });
+
+  it('the LeverBar Icon prop is typed as LucideIcon', () => {
+    assert.match(
+      code,
+      /value:\s*number;\s*color:\s*string;\s*label:\s*string;\s*Icon:\s*LucideIcon\s*;/,
+      'expected LeverBar prop Icon: LucideIcon',
+    );
+  });
+
+  it('render behaviour preserved: LeverBar still renders its icon with className and style', () => {
+    assert.match(
+      code,
+      /<Icon\s+className="size-2\.5"\s+style=\{\{\s*color\s*\}\}\s*\/>/,
+      'expected <Icon className="size-2.5" style={{ color }} /> unchanged',
+    );
+  });
+
+  it('LeverBar is still fed the real LEVER_CFG icons', () => {
+    assert.match(code, /Icon=\{lc\.Icon\}/, 'expected LeverBar to receive Icon={lc.Icon}');
+    for (const name of ['Zap', 'TrendingUp', 'DollarSign', 'Shield']) {
+      assert.match(code, new RegExp(`Icon:\\s*${name}\\b`), `expected LEVER_CFG icon ${name} present`);
+    }
+  });
+
+  it('out-of-batch narrow contracts are deliberately left as-is (no scope creep)', () => {
+    // PILLAR_CFG.Icon and SmallList's icon prop produce no diagnostic today.
+    // This pins the batch boundary: if a later task widens them, it should do so
+    // knowingly (and update this expectation) rather than by accident here.
+    const narrow = code.match(/React\.FC<\{\s*className\?:\s*string\s*\}>/g) ?? [];
+    assert.equal(narrow.length, 2, 'expected exactly the 2 out-of-batch narrow icon contracts to remain');
+  });
+});
+
+describe('StageTracker — stage icon contract corrected, render preserved', () => {
+  const code = stripComments(readSource(STAGE_REL));
+
+  it('imports LucideIcon as a type from lucide-react', () => {
+    assert.match(
+      code,
+      /import\s+type\s*\{[^}]*\bLucideIcon\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
+      'expected a type import of LucideIcon from lucide-react',
+    );
+  });
+
+  it('STAGES[].icon is typed as LucideIcon, not the narrow className-only type', () => {
+    assert.match(code, /icon:\s*LucideIcon\s*;/, 'expected icon: LucideIcon');
+    assert.doesNotMatch(
+      code,
+      /icon\s*:\s*React\.(FC|ComponentType)<\{\s*className\?:\s*string\s*\}>/,
+      'StageTracker still declares its stage icon with the narrow className-only contract',
+    );
+  });
+
+  it('render behaviour preserved: both repaired sites still pass className and style', () => {
+    assert.match(
+      code,
+      /<Icon\s+className="size-5"\s+style=\{\{\s*color:\s*'rgba\(255,255,255,0\.2\)'\s*\}\}\s*\/>/,
+      "expected the pending-stage <Icon className=\"size-5\" style={{ color: 'rgba(255,255,255,0.2)' }} /> unchanged",
+    );
+    assert.match(
+      code,
+      /<Icon\s+className="size-4"\s+style=\{\{\s*color:\s*accent\s*\}\}\s*\/>/,
+      'expected the stage-row <Icon className="size-4" style={{ color: accent }} /> unchanged',
+    );
+  });
+
+  it('the className-only active-stage render site is untouched', () => {
+    assert.match(
+      code,
+      /<Icon\s+className="size-5 text-white"\s*\/>/,
+      'expected the active-stage icon render to remain className-only',
+    );
+  });
+
+  it('no icon removed or replaced: every STAGES icon is unchanged', () => {
+    for (const name of ['CheckCircle2', 'Search', 'FileText', 'Calendar']) {
+      assert.match(code, new RegExp(`icon:\\s+${name}\\b`), `expected STAGES icon ${name} present`);
     }
   });
 });
