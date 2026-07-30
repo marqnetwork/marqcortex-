@@ -17,6 +17,7 @@
 import { useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
+import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
@@ -106,10 +107,10 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   };
 
   // Generate breadcrumbs based on current page
-  const getBreadcrumbs = () => {
+  const getBreadcrumbs = (): Breadcrumb[] => {
     switch (currentPage) {
       case 'cortex':
-        const breadcrumbs = [
+        const breadcrumbs: Breadcrumb[] = [
           { 
             label: 'CORTEX', 
             onClick: cortexState.view !== 'overview' 
