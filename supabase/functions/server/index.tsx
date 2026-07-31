@@ -17,16 +17,12 @@ import {
   isResendConfigured,
   sendNurtureEmail,
 } from "./emailService.ts";
-import { runCortexAnalysis } from "./cortexAnalysis.ts";
-import { generateNarrative, type NarrativeRequest } from "./cortexNarrative.ts";
-import { handleBlockAIAssist, type BlockAIAssistRequest } from "./blockAiAssist.ts";
-import { handleCopilotInterpret, type CopilotInterpretRequest } from "./copilotPatch.ts";
 import {
-  handleProposalSectionCopilot,
-  VALID_SECTIONS,
-  VALID_ACTIONS,
-  type ProposalSectionCopilotRequest,
-} from "./proposalSectionCopilot.ts";
+  registerAIRoutes,
+  runCortexAnalysis,
+  type AIRouteRegistrar,
+} from "./aiRoutes.ts";
+import { initializeControlPlane } from "./ai/index.ts";
 import {
   deriveDealSnapshots,
   summarizeSnapshots,
@@ -35,7 +31,6 @@ import {
   type RawOutcome,
   type RawEscalation,
 } from "./revenueSnapshot.ts";
-import { handleCortexChat, type ChatRequest } from "./cortexChat.ts";
 import {
   normalizeBooking,
   migrateBookingRecord,
@@ -274,6 +269,36 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
     return null;
   }
 }
+
+// ============================================================================
+// AI CONTROL PLANE — the single governed AI execution path (AI-01 Batch 1)
+//
+// Built once per isolate so circuit breakers, rate limit windows and budget
+// ledgers persist across requests. Auth verification and durable audit storage
+// are injected here; the control plane itself takes no Supabase or Deno
+// dependency, which is what keeps it unit-testable end to end.
+// ============================================================================
+
+const controlPlane = initializeControlPlane({
+  getUser: async (accessToken: string) => {
+    const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+    if (error || !data?.user) return null;
+    return { id: data.user.id, email: data.user.email ?? undefined };
+  },
+  kvWrite: async (key: string, value: unknown) => {
+    await kv.set(key, JSON.stringify(value));
+  },
+});
+
+// Reclaim expired rate limit and budget windows. Bounded work on a fixed
+// cadence — the structures are already capped, this keeps them small.
+setInterval(() => controlPlane.sweep(), 5 * 60_000);
+
+registerAIRoutes(app as unknown as AIRouteRegistrar, {
+  plane: controlPlane,
+  verifyTeamToken,
+  prefix: '/make-server-324f4fbe',
+});
 
 // ============================================================================
 // HELPER — safe JSON parse (handles JSONB that might be string or object)
@@ -3168,6 +3193,13 @@ app.get("/make-server-324f4fbe/cortex/status", async (c) => {
 
 // ============================================================================
 // BATCH ANALYZE — run AI on multiple submissions (team auth required)
+//
+// Each submission is analysed through the AI Control Plane, so every item in a
+// batch carries its own audit record, budget charge and governance trace. The
+// shared correlation id ties them back to the one operator action that started
+// the batch. Provider availability is the plane's decision, not this route's —
+// an unconfigured provider surfaces as a per-item error, so one bad submission
+// no longer fails the whole batch.
 // ============================================================================
 
 app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
@@ -3178,10 +3210,8 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
     const { ids } = await c.req.json();
     if (!Array.isArray(ids) || ids.length === 0) return c.json({ error: "ids array is required" }, 400);
 
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
+    const authorization = c.req.header('Authorization') ?? null;
+    const batchCorrelationId = crypto.randomUUID();
     const capped = ids.slice(0, 10);
     const results: { id: string; success: boolean; aiScore?: number; error?: string }[] = [];
 
@@ -3190,7 +3220,10 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
         const subRaw = await kv.get(`sub:${submissionId}`);
         if (!subRaw) { results.push({ id: submissionId, success: false, error: 'Not found' }); continue; }
         const submission = JSON.parse(subRaw);
-        const analysis = await runCortexAnalysis(submission);
+        const analysis = await runCortexAnalysis(controlPlane, submission, {
+          authorization,
+          correlationId: batchCorrelationId,
+        });
         await kv.set(`cortex:${submissionId}`, JSON.stringify(analysis));
         await kv.set(`sub:${submissionId}`, JSON.stringify({
           ...submission,
@@ -3199,7 +3232,7 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
           priority: analysis.priority ?? submission.priority,
           updatedAt: new Date().toISOString(),
         }));
-        results.push({ id: submissionId, success: true, aiScore: analysis.aiScore });
+        results.push({ id: submissionId, success: true, aiScore: analysis.aiScore as number });
         console.log(`✅ CORTEX batch: analyzed ${submissionId} (aiScore=${analysis.aiScore})`);
       } catch (err: any) {
         console.log(`❌ CORTEX batch failed ${submissionId}:`, err);
@@ -3208,10 +3241,10 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
     }
 
     const successCount = results.filter(r => r.success).length;
-    return c.json({ success: true, results, analyzed: successCount, total: capped.length });
+    return c.json({ success: true, results, analyzed: successCount, total: capped.length, correlationId: batchCorrelationId });
   } catch (err: any) {
     console.log('Batch analyze error:', err);
-    return c.json({ error: `Batch analysis failed: ${err?.message || err}`, keyMissing: String(err?.message || '').includes('OPENAI_API_KEY') }, 500);
+    return c.json({ error: `Batch analysis failed: ${err?.message || err}` }, 500);
   }
 });
 
@@ -3233,17 +3266,11 @@ app.post("/make-server-324f4fbe/submissions/:id/analyze", async (c) => {
 
     console.log(`🧠 CORTEX: Starting AI analysis for ${submissionId} (${submission.company})`);
 
-    // Check if OPENAI_API_KEY is present
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({
-        error: 'OPENAI_API_KEY is not configured',
-        hint: 'Add OPENAI_API_KEY in Supabase dashboard → Edge Functions → Secrets, then redeploy.',
-        keyMissing: true,
-      }, 503);
-    }
-
-    // Run the AI analysis
-    const analysis = await runCortexAnalysis(submission);
+    // Executed through the AI Control Plane: guarded, governed, audited and
+    // charged to the caller's organization budget like every other AI feature.
+    const analysis = await runCortexAnalysis(controlPlane, submission, {
+      authorization: c.req.header('Authorization') ?? null,
+    });
 
     // Persist to KV
     await kv.set(`cortex:${submissionId}`, JSON.stringify(analysis));
@@ -3262,11 +3289,14 @@ app.post("/make-server-324f4fbe/submissions/:id/analyze", async (c) => {
     return c.json({ success: true, analysis });
   } catch (err: any) {
     console.log('CORTEX analyze error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
+    // `code` and `status` come from the control plane's error taxonomy — no
+    // more inferring "the key is missing" by string-matching an exception.
+    const status = typeof err?.status === 'number' ? err.status : 500;
     return c.json({
       error: `CORTEX analysis failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
+      code: err?.code ?? 'INTERNAL_ERROR',
+      keyMissing: err?.code === 'PROVIDER_AUTH_FAILED' || err?.code === 'NO_PROVIDER_AVAILABLE',
+    }, status);
   }
 });
 
@@ -3931,207 +3961,6 @@ app.post('/make-server-324f4fbe/email/send', async (c) => {
   } catch (err) {
     console.log('Email send error:', err);
     return c.json({ error: `Failed to send email: ${err}` }, 500);
-  }
-});
-
-// ============================================================================
-// CORTEX NARRATIVE GENERATION — GPT-4o-mini explanation layers (team auth required)
-// ============================================================================
-
-app.post("/make-server-324f4fbe/cortex/narrative", async (c) => {
-  try {
-    const userId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
-
-    const body = await c.req.json() as NarrativeRequest;
-    if (!body.type || !body.context) {
-      return c.json({ error: "Missing required fields: type, context" }, 400);
-    }
-
-    const validTypes = ['why_now', 'confidence_reasoning', 'strategic_decision'];
-    if (!validTypes.includes(body.type)) {
-      return c.json({ error: `Invalid narrative type: ${body.type}. Must be one of: ${validTypes.join(', ')}` }, 400);
-    }
-
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
-    console.log(`🧠 CORTEX Narrative: Generating "${body.type}" for ${body.context.company}...`);
-    const result = await generateNarrative(body);
-    console.log(`✅ CORTEX Narrative: "${body.type}" generated (${result.narrative.length} chars)`);
-
-    return c.json({ success: true, ...result });
-  } catch (err: any) {
-    console.log('CORTEX narrative generation error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
-    return c.json({
-      error: `Narrative generation failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
-  }
-});
-
-// ============================================================================
-// BLOCK AI ASSIST — ai-assist-per-block.md (anonKey is sufficient — no PII)
-// ============================================================================
-
-app.post("/make-server-324f4fbe/blocks/ai-assist", async (c) => {
-  try {
-    const body = await c.req.json() as BlockAIAssistRequest;
-
-    const required = ['block_id', 'block_type', 'title', 'current_content', 'action', 'context'];
-    const missing  = required.filter(k => !(k in body));
-    if (missing.length > 0) {
-      return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400);
-    }
-
-    const validActions = ['ai_improve', 'ai_expand', 'ai_simplify', 'fix_issues'];
-    if (!validActions.includes(body.action)) {
-      return c.json({ error: `Invalid action: ${body.action}. Must be one of: ${validActions.join(', ')}` }, 400);
-    }
-
-    if (body.block_type === 'roi_financial_snapshot') {
-      return c.json({ error: 'roi_financial_snapshot is a reference block — AI editing is disabled. Edit the roi_summary_narrative block instead.' }, 422);
-    }
-
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
-    console.log(`🤖 Block AI Assist: action="${body.action}" block="${body.block_id}" type="${body.block_type}"`);
-    const result = await handleBlockAIAssist(body);
-    console.log(`✅ Block AI Assist: completed for ${body.block_id} (diff: "${result.diff_summary}")`);
-
-    return c.json({ success: true, ...result });
-  } catch (err: any) {
-    console.error('❌ Block AI Assist error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
-    return c.json({
-      error:      `Block AI assist failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
-  }
-});
-
-// ============================================================================
-// CORTEX COPILOT — INTERPRET REQUEST (copilot-patch-plan.md)
-// ============================================================================
-
-app.post("/make-server-324f4fbe/blocks/copilot-interpret", async (c) => {
-  try {
-    const body = await c.req.json() as CopilotInterpretRequest;
-
-    if (!body.user_input?.trim()) {
-      return c.json({ error: 'Missing required field: user_input' }, 400);
-    }
-    if (!Array.isArray(body.block_summaries)) {
-      return c.json({ error: 'Missing required field: block_summaries (array)' }, 400);
-    }
-
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
-    console.log(`🤖 Copilot Interpret: "${body.user_input.slice(0, 60)}" scope=${body.scope} blocks=${body.block_summaries.length}`);
-    const result = await handleCopilotInterpret(body);
-    console.log(`✅ Copilot Interpret: intent="${result.intent}" targets=${result.targets.length} skipped=${result.skipped.length}`);
-
-    return c.json({ success: true, ...result });
-  } catch (err: any) {
-    console.error('❌ Copilot interpret error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
-    return c.json({
-      error:      `Copilot interpret failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
-  }
-});
-
-// ============================================================================
-// PROPOSAL SECTION COPILOT — section-level AI rewrite/explain (team auth required)
-// Routes through the Intelligence Gateway. LLM rewrites narrative ONLY;
-// authoritative fields (price, currency, duration, severity, confidence,
-// evidence) are re-injected server-side and can never be altered by AI.
-// ============================================================================
-
-app.post("/make-server-324f4fbe/proposal/section-copilot", async (c) => {
-  try {
-    const userId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
-
-    const body = await c.req.json() as ProposalSectionCopilotRequest;
-
-    const required = ['section', 'section_label', 'action', 'current_content', 'context'];
-    const missing  = required.filter(k => !(k in body));
-    if (missing.length > 0) {
-      return c.json({ error: `Missing required fields: ${missing.join(', ')}` }, 400);
-    }
-    if (!VALID_SECTIONS.includes(body.section)) {
-      return c.json({ error: `Invalid section: ${body.section}. Must be one of: ${VALID_SECTIONS.join(', ')}` }, 400);
-    }
-    if (!VALID_ACTIONS.includes(body.action)) {
-      return c.json({ error: `Invalid action: ${body.action}. Must be one of: ${VALID_ACTIONS.join(', ')}` }, 400);
-    }
-    if (!body.current_content || typeof body.current_content !== 'object') {
-      return c.json({ error: 'current_content must be an object' }, 400);
-    }
-    if (body.action === 'custom' && !body.custom_prompt?.trim()) {
-      return c.json({ error: 'custom_prompt is required when action is "custom"' }, 400);
-    }
-    if (!body.context?.company) {
-      return c.json({ error: 'context.company is required' }, 400);
-    }
-
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
-    console.log(`🤖 Section Copilot: action="${body.action}" section="${body.section}" company="${body.context.company}"`);
-    const result = await handleProposalSectionCopilot(body);
-    console.log(`✅ Section Copilot: done (diff: "${result.diff_summary}", fact-locked: ${result.fact_lock_enforced.join(',') || 'none'})`);
-
-    return c.json({ success: true, ...result });
-  } catch (err: any) {
-    console.error('❌ Section Copilot error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
-    return c.json({
-      error:      `Section copilot failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
-  }
-});
-
-// ============================================================================
-// CORTEX GLOBAL AI CHAT — conversational AI for any section (team auth required)
-// ============================================================================
-
-app.post("/make-server-324f4fbe/ai/chat", async (c) => {
-  try {
-    const userId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!userId) return c.json({ error: "Unauthorized — valid team token required" }, 401);
-
-    if (!Deno.env.get('OPENAI_API_KEY')) {
-      return c.json({ error: 'OPENAI_API_KEY is not configured', keyMissing: true }, 503);
-    }
-
-    const body = await c.req.json() as ChatRequest;
-    if (!body.message?.trim()) {
-      return c.json({ error: 'Missing required field: message' }, 400);
-    }
-
-    console.log(`💬 AI Chat: section="${body.section}" message="${body.message.substring(0, 60)}..."`);
-    const result = await handleCortexChat(body);
-    console.log(`✅ AI Chat: reply generated (${result.reply.length} chars${result.applyContent ? ', apply block present' : ''})`);
-
-    return c.json({ success: true, ...result });
-  } catch (err: any) {
-    console.error('❌ AI Chat error:', err);
-    const isKeyMissing = String(err?.message || '').includes('OPENAI_API_KEY');
-    return c.json({
-      error:      `AI chat failed: ${err?.message || err}`,
-      keyMissing: isKeyMissing,
-    }, 500);
   }
 });
 

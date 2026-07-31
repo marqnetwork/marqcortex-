@@ -1728,7 +1728,7 @@ No component changes are required to switch demo↔live (gateway pattern).
 - API: `API_SPECIFICATIONS.md`.
 - Database: `DATABASE_SCHEMA.md`; `architecture/database/MCV2-S3-ENTITY-RELATIONSHIP-DIAGRAM.md`, `MCV2-S3-TABLE-CATALOG.md`, `MCV2-S3-MIGRATION-ROADMAP.md`, `MCV2-S5-KV-RELATIONAL-MAPPING.md`, `MEMBERSHIP_BOOTSTRAP.md`, `LOCAL_DATABASE_SETUP.md`.
 - Migrations: `supabase/migrations/*` (+ `rollbacks/`).
-- Intelligence Gateway: `src/imports/MCV2-S1-AUDIT-001-*`, `MCV2-S1-IMPLEMENT-001.5-*`, `MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`, `MCV2-intelligence-gateway-provider-extension-guide.md`; code `supabase/functions/server/intelligence/`.
+- AI Control Plane (AI-01 Batch 1, supersedes the Intelligence Gateway): `architecture/ai/AI-01-BATCH-1-COMPLETION.md`, `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`, `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`; code `supabase/functions/server/ai/`.
 
 **Engine & feature specifications (`src/imports/`).**
 - Diagnostic/recommendation: `cortex-rules.md`, `diagnostic-schema.md`, `recommendation-engine-guide.md`, `recommendation-portfolio.md`, `scope-engine-logic.md`, `mapping-engine-process.md`.

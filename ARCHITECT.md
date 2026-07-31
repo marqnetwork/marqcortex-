@@ -4,7 +4,7 @@
 >
 > **Related:** machine snapshot → `architecture/system_map.json` · node registry → `src/system/manifest.ts`
 
-**Last verified:** 2026-07-14 · **Manifest:** `src/system/manifest.ts` v2.0.0 · **Runtime:** LIVE (`BACKEND_INTEGRATION` via `.env.local`)
+**Last verified:** 2026-07-31 · **Manifest:** `src/system/manifest.ts` v2.1.0 · **Runtime:** LIVE (`BACKEND_INTEGRATION` via `.env.local`)
 
 ---
 
@@ -19,11 +19,11 @@
 
 Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. Sprint prompts do not override the system prompt.
 
-**Intelligence audit (MCV2):** `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md`  
-**Gateway migration plan (MCV2):** `src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md`  
+**AI Control Plane (AI-01 Batch 1):** `supabase/functions/server/ai/index.ts` — read the module header first  
+**AI completion report:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md`  
+**Add an AI provider or feature:** `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
-**Data platform architecture (MCV2-S3):** `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`  
-**Provider extension guide:** `src/imports/MCV2-intelligence-gateway-provider-extension-guide.md`
+**Data platform architecture (MCV2-S3):** `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`
 
 ---
 
@@ -37,6 +37,9 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 | Only `LandingPageRoute` is eager; all other routes lazy | Performance contract in `App.tsx` |
 | Team shell: `GlobalAIChatProvider` **outer**, `DashboardProvider` **inner** | `TeamDashboardLayout.tsx` — do not collapse |
 | Core engines: pure functions, no React, no LLM | Math decides; AI only narrates |
+| **All AI executes through `ai/controlPlane.ts`** | One governed path: auth, tenancy, governance, audit. No bypass flag exists |
+| Never call a model provider outside `ai/providers/` | Provider independence (Constitution Art. 2) |
+| Never write a prompt inline — register it in `ai/prompts/catalog.ts` | Versioned, hashed, owned, reviewable |
 | `pdfExport` must use dynamic `import()` | jsPDF is heavy |
 | Search inputs use `useDebounce` from `usePerformance.tsx` | Performance |
 | New files: add manifest ID in `manifest.ts` **before** implementation | `MQC-{TYPE}-{NNN}` |
@@ -159,10 +162,13 @@ cortex/
 | Fix localhost dev server | `vite.config.ts` (`host: true`, port 5173) |
 | See all node IDs + deps | `src/system/manifest.ts` |
 | Agent operating rules | `prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md` |
-| Provider-agnostic AI audit | `src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md` |
-| Intelligence Gateway migration plan | `src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md` |
-| Change AI provider / gateway | `supabase/functions/server/intelligence/` + extension guide |
-| Intelligence Gateway tests | `npm run test:intelligence` |
+| Add or change an AI capability | `supabase/functions/server/ai/features/` + register in `features/index.ts` |
+| Change an AI prompt | `supabase/functions/server/ai/prompts/catalog.ts` (bump the version — never edit in place) |
+| Add an AI provider | `supabase/functions/server/ai/providers/` + `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md` |
+| Change AI limits, budget or capability grants | `ai/policy/featureCatalog.ts`, `ai/security/actor.ts` (ROLE_CAPABILITIES) |
+| Change AI governance rules | `ai/governance/` (input guard, output guard, redaction, fact lock) |
+| AI Control Plane tests | `npm run test:ai` (259 tests) · security subset: `npm run test:security` |
+| Diagnose AI in production | `GET /ai/health` · `GET /ai/metrics` · `GET /ai/audit` · `GET /ai/catalog` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
 | Tenancy migrations (MCV2-S4) | `supabase/migrations/20260711050000_cortex_tenancy_foundation.sql` |
@@ -213,16 +219,28 @@ PUBLIC FUNNEL
 STANDARD PATH (all components)
   Component → dataService.ts → [demoData | api.ts] → Edge Function → KV
 
-CORTEX INTELLIGENCE (canonical frontend path — MCV2-S2)
-  Component → dataService.ts → api.ts → Edge Function → Intelligence Gateway → Provider
+CORTEX INTELLIGENCE (canonical path — AI-01 Batch 1)
+  Component → dataService.ts → api.ts → Edge Function → aiRoutes → AI Control Plane → Provider
+
+  Inside the control plane (every AI request, no exceptions):
+    aiGuard        contract version → feature → payload size → authentication →
+                   organization → actor → body validation → rate limit
+    policyEngine   feature enabled → actor type → channel → capability → budget
+    pipeline       prompt render → input guard (PII, injection) → provider select →
+                   invoke (timeout, retry, circuit, failover) → output guard →
+                   parse → fact lock
+    orchestrator   budget charge → audit record → metrics → structured log → events
+
   Features:
-    AI Chat        → dataService.chatWithAI
-    Narrative      → dataService.generateCortexNarrative
-    Analysis       → dataService.analyzeSubmission / analyzeSubmissionsBatch
-    Block Assist   → aiAssistEngine.callBlockAIAssist → dataService.blockAIAssist
-    Copilot        → copilotEngine.interpretRequest → dataService.copilotInterpret
-  Auth: teamAccessToken from AppContext (headers fall back to anon key when absent)
-  Demo: dataService isDemo() — mock responses, no direct provider or edge fetch from engines
+    AI Chat        → dataService.chatWithAI            → cortex.chat
+    Narrative      → dataService.generateCortexNarrative → cortex.narrative
+    Analysis       → dataService.analyzeSubmission     → cortex.analysis
+    Block Assist   → dataService.blockAIAssist         → cortex.block_assist
+    Copilot        → dataService.copilotInterpret      → cortex.copilot_plan
+    Section Copilot→ dataService.proposalSectionCopilot → cortex.section_copilot
+  Auth: teamAccessToken from AppContext. Every AI feature requires an authenticated
+        team member — the anon key is no longer sufficient for any of them.
+  Demo: dataService isDemo() — mock responses, no edge fetch from engines
 
 LEGACY CORTEX DATA (portfolio mock — not LLM)
   CortexDashboard → cortexDataService → mockCortexData / generator
@@ -362,18 +380,59 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 ### Backend — `supabase/functions/server/`
 | File | Role |
 |------|------|
-| `index.tsx` | Hono app, 68 routes, CORS, rate limit |
+| `index.tsx` | Hono app, CORS, transport rate limit, non-AI routes |
 | `kv_store.tsx` | KV persistence |
-| `cortexChat.ts` | AI chat |
-| `cortexAnalysis.ts` | Submission analysis |
-| `cortexNarrative.ts` | Narrative generation |
-| `blockAiAssist.ts` | Block-level AI |
-| `copilotPatch.ts` | Copilot patches |
-| `intelligence/gateway.ts` | **Intelligence Gateway** (MQC-SVC-010) — provider-agnostic AI routing |
-| `intelligence/providers/openaiAdapter.ts` | OpenAI HTTP adapter |
+| `aiRoutes.ts` | AI HTTP routes (MQC-SVC-045) — binds Hono to the control plane |
+| `ai/controlPlane.ts` | **AI Control Plane** (MQC-SVC-010) — the single governed AI execution path |
+| `ai/index.ts` | Public surface. Import from here, never from an internal `ai/` path |
+| `ai/features/` | The six AI feature definitions (MQC-SVC-003/004/005/006/007/017) |
+| `ai/security/` | AI Guard, rate limiter, tenancy, actor, validation |
+| `ai/policy/` | Feature catalog, policy engine, budget engine |
+| `ai/prompts/` | Prompt registry + the canonical prompt catalog |
+| `ai/providers/` | OpenAI, Anthropic, mock adapters + registry, selector, circuit, retry, timeout |
+| `ai/governance/` | Input guard, output guard, PII redaction, fact lock |
+| `ai/observability/` | Audit, metrics, events, health, structured logger |
 | `emailService.ts` | Resend emails |
+| `revenueSnapshot.ts` | Deterministic deal snapshots (no LLM) |
 
-**Intelligence Gateway env (Edge secrets):** `INTELLIGENCE_PROVIDER` (default `openai`), `INTELLIGENCE_TIMEOUT_MS`, `INTELLIGENCE_MAX_RETRIES`, per-feature rollback `INTELLIGENCE_USE_GATEWAY_*` (default `true`). Model overrides: `INTELLIGENCE_MODEL_NARRATIVE`, etc.
+**AI Control Plane env (Edge secrets):** see §12.1 below and `.env.example`.
+
+### 12.1 AI Control Plane environment
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `OPENAI_API_KEY` | — | OpenAI credentials. Absent → provider skipped by the selector |
+| `ANTHROPIC_API_KEY` | — | Anthropic credentials. Absent → provider skipped |
+| `AI_PROVIDER_PREFERENCE` | `openai,anthropic,mock` | Selection order |
+| `AI_FALLBACK_PROVIDER` | — | Forced last-resort provider |
+| `AI_FAILOVER_ENABLED` | `true` | Try the next provider on a failoverable error |
+| `AI_CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive faults before the circuit opens |
+| `AI_CIRCUIT_OPEN_MS` | `30000` | Circuit cool-down |
+| `AI_CIRCUIT_HALF_OPEN_SUCCESSES` | `2` | Probes needed to close the circuit |
+| `AI_RETRY_BASE_DELAY_MS` | `250` | Exponential backoff base |
+| `AI_RETRY_MAX_DELAY_MS` | `4000` | Backoff ceiling |
+| `AI_RETRY_JITTER_PERCENT` | `20` | Jitter proportion |
+| `AI_BUDGET_ORG_DAILY_MICRO_USD` | `50000000` | Organization daily ceiling (µUSD) |
+| `AI_BUDGET_ACTOR_DAILY_MICRO_USD` | `5000000` | Per-actor daily ceiling (µUSD) |
+| `AI_BUDGET_ALERT_PERCENT` | `80` | Threshold that raises a budget event |
+| `AI_BUDGET_ENFORCE` | `true` | Refuse execution once the ceiling is reached |
+| `AI_AUDIT_DURABLE` | `true` | Write audit records to KV as well as the buffer |
+| `AI_AUDIT_RETENTION_DAYS` | `400` | Retention stamped on each durable record |
+| `AI_AUDIT_BUFFER_SIZE` | `200` | In-memory ring buffer for `GET /ai/audit` |
+| `AI_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
+| `AI_STRUCTURED_LOGS` | `true` | One JSON line per record |
+| `AI_METRICS_BUFFER_SIZE` | `500` | Metric series cap |
+| `AI_REDACTION_ENABLED` | `true` | Master switch for PII redaction |
+| `AI_STRICT_INPUT_GUARD` | `false` | Reject rather than redact when input carries PII |
+| `AI_DEFAULT_ORGANIZATION_ID` | `marq-cortex` | Org for a subject with no membership |
+| `AI_ORGANIZATION_ALLOW_LIST` | — | When set, only these orgs may call AI features |
+| `AI_ENABLE_MOCK_PROVIDER` | `false` | Register the deterministic mock provider |
+
+Every value is bounded: a malformed setting falls back to its default rather than
+propagating `NaN` into a timeout or a negative ceiling into a rate limiter.
+
+**Operator endpoints:** `GET /ai/health` (unauthenticated probe, no tenant data) ·
+`GET /ai/metrics` · `GET /ai/audit?limit=N` · `GET /ai/catalog` (team auth).
 
 Base path: `/make-server-324f4fbe`
 
@@ -414,7 +473,7 @@ Engine types: `src/app/core/types.ts`
 
 ## 15. Manifest / registry
 
-**Authoritative:** `src/system/manifest.ts` — 158 nodes  
+**Authoritative:** `src/system/manifest.ts` — 198 nodes  
 **ID format:** `MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}`  
 **Status:** `LIVE` | `DEMO` | `GATED` | `MISSING` | `SYSTEM`  
 **UI viewer:** `#/registry` → `RegistryViewer.tsx`  
@@ -428,9 +487,11 @@ Engine types: `src/app/core/types.ts`
 
 1. Deploy: `supabase functions deploy make-server-324f4fbe`
 2. Set `BACKEND_INTEGRATION: true` in `src/config/features.ts`
-3. Set secrets: `OPENAI_API_KEY`, `RESEND_API_KEY`
-4. Verify 68 routes (see `api.config.ts` ENDPOINTS)
-5. No component changes required
+3. Set secrets: `OPENAI_API_KEY` (and/or `ANTHROPIC_API_KEY`), `RESEND_API_KEY`
+4. Verify `GET /ai/health` reports `healthy` — `degraded` means only a
+   non-production provider is usable and every completion would be synthetic
+5. Verify routes (see `api.config.ts` ENDPOINTS)
+6. No component changes required
 
 ---
 
@@ -443,8 +504,10 @@ Engine types: `src/app/core/types.ts`
 | Dual scoring | **DRIFT** | Public: `instantScoring.ts` (keywords); team: `scoringEngine.ts` |
 | Session key drift | **DRIFT** | Some components use `team_access_token` / `team_user` instead of `marq_cortex_team_session` |
 | `API_SPECIFICATIONS.md` | **MISSING** | Referenced in dataService header |
-| No test suite | **GAP** | No `*.test.ts` / `__tests__` |
 | Legacy registry utils | **ORPHAN** | `registryData*.ts` unused by RegistryViewer |
+| AI budget ledger is per-isolate | **SCOPED** | `ai/policy/budget.ts` — `BudgetLedger` is a port; a shared-storage implementation makes spend exact across instances |
+| AI rate limiter is per-isolate | **SCOPED** | Same shape as the transport limiter it sits beside; distributed limiting is a platform-wide change |
+| Org membership resolution is best-effort | **SCOPED** | `ai/adapters/supabaseAuthenticator.ts` — falls back to the configured default org until tenancy tables are runtime-authoritative (Phase 5) |
 
 ---
 
@@ -456,6 +519,9 @@ When you change the codebase, update:
 2. **`architecture/system_map.json`** — machine snapshot (`_meta.generated`)
 3. **`src/system/manifest.ts`** — new/moved/deleted files (ID before code)
 4. **`src/system/manifest.ts` `lastVerified`** date
+5. **AI changes only:** the prompt version in `ai/prompts/catalog.ts` (never edit a
+   released version in place), the feature version in its descriptor, and
+   `tests/system/manifest.test.ts` counts if nodes were added
 
 ---
 
