@@ -27,7 +27,7 @@ import {
   Brain,
 } from 'lucide-react';
 import type { CortexLeadData, DecisionLog, NextAction } from '@/app/types/cortex-types';
-import { logOutcome, getOutcome, type OutcomeRecord } from '@/app/services/dataService';
+import { logOutcome, getOutcome, type OutcomePayload } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 
 // ============================================================================
@@ -418,6 +418,20 @@ interface OutcomeModuleProps {
   accessToken?: string;
 }
 
+/**
+ * Local state contract for the outcome card — the outcome payload plus the three
+ * stamps the card actually reads back. Deliberately narrower than the server's
+ * `OutcomeRecord`, which additionally carries submission enrichment (industry,
+ * company, aiScore, recommendedService, submittedAt) that only the backend can
+ * supply and that this card never renders. A full `OutcomeRecord` from the API
+ * remains assignable; the demo-mode producer no longer has to invent fields.
+ */
+export type OutcomeCardRecord = OutcomePayload & {
+  submissionId: string;
+  loggedAt: string;
+  loggedBy: string;
+};
+
 export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModuleProps) {
   const [didConvert, setDidConvert] = useState<boolean | null>(null);
   const [conversionValue, setConversionValue] = useState('');
@@ -429,7 +443,7 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
   const [isLoading, setIsLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [existingOutcome, setExistingOutcome] = useState<OutcomeRecord | null>(null);
+  const [existingOutcome, setExistingOutcome] = useState<OutcomeCardRecord | null>(null);
 
   // Load existing outcome on mount
   useEffect(() => {
@@ -462,7 +476,7 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
     }
     if (!isBackendEnabled()) {
       // In demo mode, save locally only
-      const localOutcome: OutcomeRecord = {
+      const localOutcome: OutcomeCardRecord = {
         submissionId,
         didConvert,
         conversionValue: didConvert ? (parseFloat(conversionValue) || null) : null,
