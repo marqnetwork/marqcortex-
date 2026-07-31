@@ -19,7 +19,7 @@ import {
   ChevronDown, ChevronRight, AlertTriangle, Activity, Gauge,
   GitBranch, Info, Lock, Zap, ArrowRight, Eye, Layers,
 } from 'lucide-react';
-import type { PortfolioState, PortfolioROIModel } from '@/app/core/types';
+import type { PortfolioState, PortfolioROIModel, DeltaLogEntry } from '@/app/core/types';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DATA INTERFACE — Maps to roi-analysis.json canonical shape
@@ -628,14 +628,14 @@ function ChangeImpactIndicator({
   if (!latest || !previous) return null;
 
   // Find the most impactful change in delta_log
-  const mostChanged = latest.delta_log.reduce(
+  const mostChanged = latest.delta_log.reduce<(DeltaLogEntry & { delta: number }) | null>(
     (best, d) => {
       const oldVal = typeof d.old === 'number' ? d.old : 0;
       const newVal = typeof d.new_value === 'number' ? d.new_value : 0;
       const delta = Math.abs(newVal - oldVal);
       return delta > (best?.delta ?? 0) ? { ...d, delta } : best;
     },
-    null as (typeof latest.delta_log[0] & { delta: number }) | null,
+    null,
   );
 
   return (
