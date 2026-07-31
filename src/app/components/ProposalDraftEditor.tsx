@@ -1370,7 +1370,7 @@ export function ProposalDraftEditor({ initialDraft, onDraftChange, submissionId,
     } else if (section.startsWith('diagnosis_')) {
       const idx = parseInt(section.split('_')[1] ?? '0', 10);
       const newBlocks = [...draft.diagnosis_blocks];
-      if (idx < newBlocks.length) newBlocks[idx] = content as ProposalDraft['diagnosis_blocks'][0];
+      if (idx < newBlocks.length) newBlocks[idx] = content as unknown as ProposalDraft['diagnosis_blocks'][0];
       updated = { ...draft, diagnosis_blocks: newBlocks, metadata: nextMeta };
     } else {
       return; // unknown section — no-op
