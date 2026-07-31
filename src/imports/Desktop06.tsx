@@ -2046,7 +2046,7 @@ export default function Desktop() {
         <p className="css-4hzbpn text-[16px]">
           <span className="leading-[20px]">{`⚡ Looking for duplicate? Unlock full access by `}</span>
           <a className="[text-decoration-skip-ink:none] cursor-pointer decoration-solid leading-[20px] text-[#62f783] underline" href="https://gumroad.com/a/392336499/lvDpQ">
-            <span className="[text-decoration-skip-ink:none] decoration-solid leading-[20px]" href="https://gumroad.com/a/392336499/lvDpQ">
+            <span className="[text-decoration-skip-ink:none] decoration-solid leading-[20px]">
               purchasing full version
             </span>
           </a>
