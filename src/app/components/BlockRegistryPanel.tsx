@@ -13,6 +13,7 @@ import {
   Layers, Filter, CheckCircle2, XCircle, ShieldCheck, ShieldX,
   RefreshCw, Info, Bot, AlertTriangle, Save, Loader2, Cloud,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   BLOCK_STORE,
   REVISION_STORE,
@@ -217,7 +218,7 @@ function ConsistencyPanel({
     narrative:  '#8B5CF6',
   };
 
-  const sectionIcons: Record<string, React.FC<{ className?: string }>> = {
+  const sectionIcons: Record<string, LucideIcon> = {
     structural: ShieldCheck,
     financial:  CheckCircle2,
     narrative:  Info,

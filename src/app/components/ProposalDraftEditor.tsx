@@ -29,6 +29,7 @@ import {
   ShieldCheck, ShieldX, RefreshCw, AlertCircle,
   ClipboardList, ArrowRight, LayoutDashboard,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   ProposalDraft, DiagnosisBlock, DiagnosisSeverity,
 } from '@/app/types/cortex-types';
@@ -124,7 +125,7 @@ function CardShell({
   icon: Icon, title, badge, accent = '#8B5CF6', locked = false,
   editSlot, children,
 }: {
-  icon: React.FC<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   badge?: string;
   accent?: string;

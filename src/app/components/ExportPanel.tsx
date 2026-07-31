@@ -20,6 +20,7 @@ import {
   Printer, X, Lock, Camera, Eye, Hash, Clock, Info,
   ArrowRight, Package,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ProposalDraft }       from '@/app/types/cortex-types';
 import type { BlockState }          from '@/app/core/blockEngine';
 import {
@@ -54,7 +55,7 @@ import {
 
 interface DocTypeConfig {
   type:        ExportDocType;
-  icon:        React.FC<{ className?: string }>;
+  icon:        LucideIcon;
   color:       string;
   sectionCount: number;
 }

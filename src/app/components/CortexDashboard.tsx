@@ -256,7 +256,7 @@ export function CortexDashboard({
   }
 
   if (activeSection === 'insights') {
-    return <LearningLoopPanel onBack={handleBackFromInsights} onMainBack={onBack} accessToken={accessToken} />;
+    return <LearningLoopPanel onBack={handleBackFromInsights} accessToken={accessToken} />;
   }
 
   return (

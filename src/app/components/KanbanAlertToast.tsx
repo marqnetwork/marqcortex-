@@ -22,6 +22,7 @@ import {
   X, TrendingDown, TrendingUp, Users, AlertTriangle, TimerOff,
   ChevronRight, Building2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { KanbanAlert, KanbanAlertKind, KanbanAlertSeverity } from '@/app/contexts/DashboardContext';
 
 // ── Colour config ─────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ function resolveColors(kind: KanbanAlertKind, severity: KanbanAlertSeverity): Co
   return KIND_COLORS[kind];
 }
 
-const KIND_ICONS: Record<KanbanAlertKind, React.ComponentType<{ className?: string }>> = {
+const KIND_ICONS: Record<KanbanAlertKind, LucideIcon> = {
   score_low:        TrendingDown,
   score_high:       TrendingUp,
   remote_move:      Users,

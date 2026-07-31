@@ -267,7 +267,7 @@ export function useExitIntent(onExitIntent: () => void) {
     // Check if user has already seen it in this session
     if (sessionStorage.getItem('exit_popup_shown')) return;
 
-    let idleTimer: NodeJS.Timeout;
+    let idleTimer: ReturnType<typeof setTimeout>;
 
     // 1. Mouse leaves viewport (classic exit intent)
     const handleMouseLeave = (e: MouseEvent) => {

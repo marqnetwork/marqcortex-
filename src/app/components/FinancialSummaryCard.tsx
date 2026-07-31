@@ -20,6 +20,7 @@ import {
   CirclePercent, Activity, CheckCircle2, AlertCircle,
   Database, Shield, Zap, ChevronRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ProposalDraft, FinancialSummary, Solution } from '@/app/types/cortex-types';
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -51,7 +52,7 @@ function StatCard({
   label, value, sub, color = '#8B5CF6', icon: Icon,
 }: {
   label: string; value: string; sub?: string;
-  color?: string; icon: React.FC<{ className?: string }>;
+  color?: string; icon: LucideIcon;
 }) {
   return (
     <div className="bg-white/[0.025] border border-white/8 rounded-xl px-4 py-3 relative overflow-hidden">

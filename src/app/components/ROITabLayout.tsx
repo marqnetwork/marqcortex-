@@ -29,6 +29,7 @@ import {
   GitBranch, Info, Lock, ArrowRight, CheckCircle2, RotateCcw, Eye,
   Layers, BookOpen, ListTree, Cpu,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   PortfolioROIModel, PortfolioState, RecalcResult, ScenarioKey,
   RecommendationROI, VersionRecord, MonteCarloModel, IRRModel,
@@ -83,7 +84,7 @@ const fmtPct = (n: number, dec = 0) => `${n.toFixed(dec)}%`;
 function SectionShell({
   icon: Icon, title, badge, defaultOpen = false, rightSlot, children, accent = '#8B5CF6',
 }: {
-  icon: React.FC<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   badge?: string;
   defaultOpen?: boolean;
