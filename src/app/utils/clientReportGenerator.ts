@@ -315,14 +315,16 @@ function getIndustryIssue(industry: string, company: string) {
 // ============================================================================
 
 function getHeatmap(sub: Submission, answerText: string) {
-  const ops = sub.completionScore >= 70 ? 'yellow' : sub.completionScore >= 85 ? 'green' : 'red';
-  const rev = sub.qualityScore >= 75 ? 'green' : sub.qualityScore >= 55 ? 'yellow' : 'red';
-  const sys = sub.completionScore >= 80 ? 'yellow' : 'red';
-  const ai = sub.qualityScore >= 80 ? 'yellow' : 'red';
+  type HeatmapBand = 'red' | 'yellow' | 'green';
+
+  const ops = (sub.completionScore >= 70 ? 'yellow' : sub.completionScore >= 85 ? 'green' : 'red') as HeatmapBand;
+  const rev = (sub.qualityScore >= 75 ? 'green' : sub.qualityScore >= 55 ? 'yellow' : 'red') as HeatmapBand;
+  const sys = (sub.completionScore >= 80 ? 'yellow' : 'red') as HeatmapBand;
+  const ai = (sub.qualityScore >= 80 ? 'yellow' : 'red') as HeatmapBand;
 
   return {
     operationsExecution: {
-      score: ops as 'red' | 'yellow' | 'green',
+      score: ops,
       label: ops === 'green' ? 'Stable' : ops === 'yellow' ? 'Needs Attention' : 'Immediate',
       explanation: ops === 'green'
         ? 'Operations are well-structured and can support near-term growth with targeted improvements.'
@@ -331,7 +333,7 @@ function getHeatmap(sub: Submission, answerText: string) {
         : 'Operational structure is fragile. Current processes will break under increased volume — immediate intervention required.',
     },
     revenueGrowth: {
-      score: rev as 'red' | 'yellow' | 'green',
+      score: rev,
       label: rev === 'green' ? 'Stable' : rev === 'yellow' ? 'Needs Attention' : 'Immediate',
       explanation: rev === 'green'
         ? 'Revenue growth is healthy. Strong market position with clear expansion opportunities once operational constraints are resolved.'
@@ -340,7 +342,7 @@ function getHeatmap(sub: Submission, answerText: string) {
         : 'Revenue growth is being actively suppressed by operational breakdowns. Customer experience and delivery quality need immediate attention.',
     },
     systemsAutomation: {
-      score: sys as 'red' | 'yellow' | 'green',
+      score: sys,
       label: sys === 'green' ? 'Stable' : sys === 'yellow' ? 'Needs Attention' : 'Immediate',
       explanation: sys === 'green'
         ? 'Good automation foundation in place. Opportunities exist to extend further for additional leverage.'
@@ -349,7 +351,7 @@ function getHeatmap(sub: Submission, answerText: string) {
         : 'Heavy reliance on manual work for repetitive tasks. Automation is not just an opportunity — it is a business continuity requirement.',
     },
     aiReadiness: {
-      score: ai as 'red' | 'yellow' | 'green',
+      score: ai,
       label: ai === 'green' ? 'Stable' : ai === 'yellow' ? 'Needs Attention' : 'Immediate',
       explanation: ai === 'green'
         ? 'Strong foundation for AI implementation. Data is accessible, processes are documented, and the team is ready.'

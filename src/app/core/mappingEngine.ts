@@ -263,10 +263,11 @@ export function step4_mapDeliverablestoTasks(
 
     titles.forEach((title, ti) => {
       const offset = ms.start_week * 7 + ti * 2;
-      const status: TaskStatus =
+      const status = (
         ms.status === 'complete'    ? 'complete'    :
         ms.status === 'in_progress' ? (ti < 2 ? 'complete' : ti === 2 ? 'in_progress' : 'not_started') :
-        'not_started';
+        'not_started'
+      ) as TaskStatus;
 
       const deps: string[] = [];
       if (ti > 0)                                    deps.push(msBatch[ti - 1]);

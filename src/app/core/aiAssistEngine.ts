@@ -365,7 +365,7 @@ export function buildMockBlockAIAssistApiResponse(
     content:             req.current_content,
     content_format:      'text' in req.current_content ? 'rich_text' : 'structured_json',
     status:              'draft',
-    source:              'system',
+    source:              'ai',
     owner_user_id:       'demo',
     created_at:          new Date().toISOString(),
     updated_at:          new Date().toISOString(),
