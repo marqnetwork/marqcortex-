@@ -53,6 +53,16 @@ export interface AIProviderDescriptor {
   readonly models: readonly AIModelDescriptor[];
   /** True when the adapter is safe to serve production traffic. */
   readonly productionReady: boolean;
+  /**
+   * True when invoking this provider spends real money with an external vendor.
+   *
+   * This is the flag the real-request kill switch and the MARQ spend ceiling are
+   * built on, and it is a property of the adapter rather than a configuration
+   * value precisely so it cannot be turned off to make a cap go away. A provider
+   * that reaches a paid API declares `billable: true` and is refused entirely
+   * while `AI_ALLOW_REAL_REQUESTS` is false.
+   */
+  readonly billable: boolean;
 }
 
 /** Everything an adapter needs for one attempt. Nothing more. */

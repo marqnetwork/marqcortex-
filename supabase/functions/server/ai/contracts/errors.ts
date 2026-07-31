@@ -111,6 +111,15 @@ export interface AIErrorOptions {
   fields?: readonly string[];
   /** Original throwable, preserved for logging. */
   cause?: unknown;
+  /**
+   * Trace identity, stamped once the guard has produced a context.
+   *
+   * Without these a failed request returns an empty requestId, and the one
+   * identifier a support engineer needs to find the matching audit record is
+   * exactly the one that does not survive the failure path.
+   */
+  requestId?: string;
+  correlationId?: string;
 }
 
 export class AIError extends Error {
@@ -122,6 +131,8 @@ export class AIError extends Error {
   readonly providerId?: string;
   readonly retryAfterSeconds?: number;
   readonly fields?: readonly string[];
+  readonly requestId?: string;
+  readonly correlationId?: string;
 
   constructor(code: AIErrorCode, message: string, options: AIErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -135,9 +146,40 @@ export class AIError extends Error {
     this.providerId = options.providerId;
     this.retryAfterSeconds = options.retryAfterSeconds;
     this.fields = options.fields;
+    this.requestId = options.requestId;
+    this.correlationId = options.correlationId;
   }
 
-  /** Caller-safe HTTP body. Deliberately excludes `diagnostics`. */
+  /**
+   * Return a copy carrying trace identity. Errors are thrown from deep in the
+   * plane, where the request context is not in scope; the orchestrator stamps
+   * the ids on the way out rather than threading a context through every throw
+   * site.
+   */
+  withTrace(requestId: string, correlationId: string): AIError {
+    if (this.requestId === requestId && this.correlationId === correlationId) return this;
+    const traced = new AIError(this.code, this.message, {
+      diagnostics: this.diagnostics,
+      retryable: this.retryable,
+      providerId: this.providerId,
+      retryAfterSeconds: this.retryAfterSeconds,
+      fields: this.fields,
+      cause: this.cause,
+      requestId,
+      correlationId,
+    });
+    traced.stack = this.stack;
+    return traced;
+  }
+
+  /**
+   * Caller-safe HTTP body. Deliberately excludes `diagnostics`.
+   *
+   * The ids stamped on the error win over the arguments: once the guard has
+   * produced a context, that context's identity is the authoritative one, and
+   * the caller-supplied fallback is only for failures that happened before it
+   * existed.
+   */
   toResponseBody(requestId: string, correlationId: string): {
     success: false;
     error: string;
@@ -152,8 +194,8 @@ export class AIError extends Error {
       success: false as const,
       error: this.message,
       code: this.code,
-      requestId,
-      correlationId,
+      requestId: this.requestId ?? requestId,
+      correlationId: this.correlationId ?? correlationId,
       retryable: this.retryable,
     };
     if (this.fields?.length) Object.assign(body, { fields: this.fields });

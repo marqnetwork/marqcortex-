@@ -103,7 +103,11 @@ describe('sliding window rate limiter', () => {
 });
 
 describe('organization resolution', () => {
-  const options = { defaultOrganizationId: 'marq-cortex', allowList: [] as string[] };
+  const options = {
+    defaultOrganizationId: 'marq-cortex',
+    allowList: [] as string[],
+    allowDefaultOrganization: false,
+  };
 
   it('honours a hint the subject actually holds', () => {
     const organization = resolveOrganization(
@@ -141,20 +145,40 @@ describe('organization resolution', () => {
     );
   });
 
-  it('falls back to the first membership, then to the configured default', () => {
-    assert.equal(
-      resolveOrganization(subject([{ organizationId: 'acme', roles: [] }]), undefined, options)
-        .organizationId,
-      'acme',
+  it('resolves the first verified membership and marks it verified', () => {
+    const organization = resolveOrganization(
+      subject([{ organizationId: 'acme', roles: [] }]),
+      undefined,
+      options,
     );
-    assert.equal(
-      resolveOrganization(subject([]), undefined, options).organizationId,
-      'marq-cortex',
+    assert.equal(organization.organizationId, 'acme');
+    assert.equal(organization.membershipVerified, true);
+  });
+
+  it('fails closed for a subject with no verified membership', () => {
+    // The finding this pins: silently bucketing every membership-less caller
+    // into the configured default makes one tenant look like tenant isolation.
+    assert.throws(
+      () => resolveOrganization(subject([]), undefined, options),
+      (error: AIError) => error.code === 'ORGANIZATION_REQUIRED',
     );
   });
 
+  it('marks an explicitly enabled default organization as unverified', () => {
+    // A single-tenant console deployment legitimately needs the fallback. What
+    // it does not get is the right to look like a verified membership.
+    const singleTenant = { ...options, allowDefaultOrganization: true };
+    const organization = resolveOrganization(subject([]), undefined, singleTenant);
+    assert.equal(organization.organizationId, 'marq-cortex');
+    assert.equal(organization.membershipVerified, false);
+  });
+
   it('enforces the organization allow list', () => {
-    const restricted = { defaultOrganizationId: 'marq-cortex', allowList: ['globex'] };
+    const restricted = {
+      defaultOrganizationId: 'marq-cortex',
+      allowList: ['globex'],
+      allowDefaultOrganization: false,
+    };
     assert.throws(
       () => resolveOrganization(subject([{ organizationId: 'acme', roles: [] }]), undefined, restricted),
       (error: AIError) => error.code === 'ORGANIZATION_NOT_RESOLVED',
@@ -166,6 +190,7 @@ describe('tenant isolation', () => {
   const organization = resolveOrganization(subject([{ organizationId: 'acme', roles: [] }]), undefined, {
     defaultOrganizationId: 'marq-cortex',
     allowList: [],
+    allowDefaultOrganization: false,
   });
 
   it('accepts a resource belonging to the request organization', () => {

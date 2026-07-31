@@ -35,6 +35,17 @@ export interface AIOrganization {
   readonly slug?: string;
   readonly tier: AIOrganizationTier;
   /**
+   * True when this organization came from a membership the identity provider
+   * confirmed the actor holds; false when it is the configured single-tenant
+   * default.
+   *
+   * The distinction travels into the audit record on purpose. "Tenant isolation
+   * enforced" and "everything landed in the default bucket because nobody has a
+   * membership row yet" produce identical-looking audit trails unless the
+   * difference is recorded, and only one of them is an isolation guarantee.
+   */
+  readonly membershipVerified: boolean;
+  /**
    * The value every tenant-scoped read/write must be keyed by. Held separately
    * from `organizationId` so a future partition strategy (region, shard, BYO
    * key) can change without touching call sites.

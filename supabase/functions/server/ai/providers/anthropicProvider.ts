@@ -82,6 +82,8 @@ export function createAnthropicProvider(options: AnthropicProviderOptions): AIPr
     priority: 20,
     models: MODELS,
     productionReady: true,
+    // Reaches the paid Anthropic API. Refused entirely while real requests are off.
+    billable: true,
   };
 
   return {

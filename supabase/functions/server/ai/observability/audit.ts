@@ -46,6 +46,12 @@ export interface AIAuditRecord {
   // Identity
   readonly organizationId: string;
   readonly organizationTier: string;
+  /**
+   * False when the organization is the configured single-tenant default rather
+   * than a confirmed membership. Recorded so a later isolation review can tell
+   * enforced scoping from a default bucket without re-deriving it.
+   */
+  readonly organizationMembershipVerified: boolean;
   readonly actorId: string;
   readonly actorType: string;
   readonly actorRoles: readonly string[];
@@ -194,6 +200,7 @@ export function createAuditWriter(deps: AuditWriterDependencies): AuditWriter {
 
         organizationId: context.organization.organizationId,
         organizationTier: context.organization.tier,
+        organizationMembershipVerified: context.organization.membershipVerified,
         actorId: context.actor.actorId,
         actorType: context.actor.actorType,
         actorRoles: context.actor.roles,

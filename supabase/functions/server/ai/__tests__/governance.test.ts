@@ -331,11 +331,47 @@ describe('fact lock', () => {
     assert.deepEqual([...result.restored], ['evidence']);
   });
 
-  it('skips a locked field the authoritative object does not carry', () => {
-    // Inventing `undefined` would delete a field the model legitimately wrote.
-    const result = enforceFactLock({ severity: 9 }, {}, ['severity']);
-    assert.equal(result.content.severity, 9);
+  it('removes a protected field the authority does not carry', () => {
+    // The adversarial case: with nothing authoritative to compare against, an
+    // invented severity would be accepted on the model's word alone. It is
+    // removed instead, and reported so the attempt is visible.
+    const result = enforceFactLock({ severity: 9, text: 'kept' }, {}, ['severity']);
+    assert.equal('severity' in result.content, false);
+    assert.equal(result.content.text, 'kept');
+    assert.deepEqual([...result.removed], ['severity']);
     assert.deepEqual([...result.restored], []);
+  });
+
+  it('restores a protected field the model omitted', () => {
+    const result = enforceFactLock({ text: 'rewritten' }, { severity: 7 }, ['severity']);
+    assert.equal(result.content.severity, 7);
+    assert.deepEqual([...result.restored], ['severity']);
+  });
+
+  it('protects a nested protected field', () => {
+    const result = enforceFactLock(
+      { offer: { price: 1, currency: 'EUR' }, text: 'x' },
+      { offer: { price: 25_000, currency: 'GBP' } },
+      ['offer.price', 'offer.currency'],
+    );
+    assert.deepEqual(result.content.offer, { price: 25_000, currency: 'GBP' });
+    assert.deepEqual([...result.restored], ['offer.price', 'offer.currency']);
+  });
+
+  it('removes a nested protected field with no authority behind it', () => {
+    const result = enforceFactLock(
+      { offer: { price: 999, note: 'keep' } },
+      { offer: { note: 'keep' } },
+      ['offer.price'],
+    );
+    assert.deepEqual(result.content.offer, { note: 'keep' });
+    assert.deepEqual([...result.removed], ['offer.price']);
+  });
+
+  it('does not mutate the object the model produced', () => {
+    const proposed = { severity: 9 };
+    enforceFactLock(proposed, { severity: 2 }, ['severity']);
+    assert.equal(proposed.severity, 9);
   });
 
   it('is a no-op for a section with no locked fields', () => {

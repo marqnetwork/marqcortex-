@@ -25,6 +25,8 @@ export type AIEventName =
   | 'ai.governance.fact_lock_enforced'
   | 'ai.budget.threshold_reached'
   | 'ai.budget.exceeded'
+  | 'ai.spend.reserved'
+  | 'ai.spend.cap_reached'
   | 'ai.request.succeeded'
   | 'ai.request.failed';
 

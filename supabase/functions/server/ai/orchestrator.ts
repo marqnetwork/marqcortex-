@@ -28,8 +28,9 @@ import type { AIBudgetPolicy, AIPolicyDecision } from './contracts/policy.ts';
 import type { AIEventBus, AIEventName } from './contracts/events.ts';
 import type { AIGuard } from './security/guard.ts';
 import type { PolicyEngine } from './policy/policyEngine.ts';
-import type { ExecutionPipeline } from './pipeline/executionPipeline.ts';
+import type { ExecutionPipeline, ProviderAttemptRecord } from './pipeline/executionPipeline.ts';
 import type { BudgetEngine } from './policy/budget.ts';
+import type { SpendGuard } from './policy/spendGuard.ts';
 import type { AuditWriter } from './observability/audit.ts';
 import type { Logger } from './observability/logger.ts';
 import type { Metrics } from './observability/metrics.ts';
@@ -45,6 +46,8 @@ export interface OrchestratorDependencies {
   readonly pipeline: ExecutionPipeline;
   readonly budget: BudgetEngine;
   readonly budgetPolicy: AIBudgetPolicy;
+  /** The MARQ lifetime ceiling and real-request kill switch. */
+  readonly spend: SpendGuard;
   readonly audit: AuditWriter;
   readonly logger: Logger;
   readonly metrics: Metrics;
@@ -61,8 +64,53 @@ export interface RequestOrchestrator {
 }
 
 export function createRequestOrchestrator(deps: OrchestratorDependencies): RequestOrchestrator {
-  const { guard, policy, pipeline, budget, budgetPolicy, audit, logger, metrics, events, clock, ids } =
+  const { guard, policy, pipeline, budget, budgetPolicy, spend, audit, logger, metrics, events, clock, ids } =
     deps;
+
+  /**
+   * Close out a spend reservation against what the attempts actually cost.
+   *
+   * Two cases, and the distinction is the point:
+   *
+   *   No billable attempt happened — the request was refused before a provider
+   *   was reached, or it was served by the mock. The reservation is released in
+   *   full; nothing was spent, so nothing is charged.
+   *
+   *   Billable attempts happened — each is charged at its measured cost. An
+   *   attempt that failed reports no usage, because a provider that errored did
+   *   not tell us what it billed; those are charged at a conservative share of
+   *   the reservation rather than at zero, so an outage that burns attempts
+   *   still moves the ledger toward the cap instead of looking free.
+   */
+  async function settleSpend(
+    handle: Awaited<ReturnType<SpendGuard['reserve']>>,
+    attempts: readonly ProviderAttemptRecord[],
+    outcome: 'success' | 'failure',
+  ): Promise<void> {
+    if (!handle.reserved) return;
+
+    const billableAttempts = attempts.filter((attempt) => attempt.billable);
+    if (billableAttempts.length === 0) {
+      await handle.release();
+      return;
+    }
+
+    const measured = billableAttempts.reduce((sum, attempt) => sum + attempt.costMicroUsd, 0);
+    const unmeasured = billableAttempts.filter((attempt) => attempt.usage === undefined).length;
+
+    // A failed billable attempt's true cost is unknown. Charging it at the
+    // per-attempt share of the reservation keeps the ledger conservative: it
+    // over-counts slightly rather than letting a failing provider consume the
+    // budget invisibly.
+    const perAttemptShare =
+      handle.estimateMicroUsd > 0 && billableAttempts.length > 0
+        ? Math.ceil(handle.estimateMicroUsd / billableAttempts.length)
+        : 0;
+    const assumed = unmeasured * perAttemptShare;
+
+    const total = outcome === 'success' ? measured + assumed : Math.max(measured + assumed, 0);
+    await handle.settle(Math.min(total, handle.estimateMicroUsd));
+  }
 
   function emit(
     name: AIEventName,
@@ -96,6 +144,11 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
       // Held outside the try so a denial records WHICH rule denied it. Without
       // this, a compliance review of a refused request sees only the code.
       let decision: AIPolicyDecision | undefined;
+      // Attempts are collected as they happen rather than read off the outcome,
+      // because a request that FAILS has no outcome — and a failed request that
+      // burned two paid attempts is exactly the one whose cost must be recorded.
+      const attempts: ProviderAttemptRecord[] = [];
+      let reservation: Awaited<ReturnType<SpendGuard['reserve']>> | undefined;
 
       try {
         // ── guard ────────────────────────────────────────────────────────
@@ -124,8 +177,22 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
           });
         }
 
+        // ── spend ────────────────────────────────────────────────────────
+        // The MARQ lifetime ceiling, reserved BEFORE the pipeline can reach a
+        // provider. A request projected to cross the cap is refused here, with
+        // no vendor call made and nothing to refund.
+        reservation = await spend.reserve(admitted.definition.descriptor, context.requestId);
+        if (reservation.reserved) {
+          emit('ai.spend.reserved', context, { estimateMicroUsd: reservation.estimateMicroUsd });
+        }
+
         // ── pipeline ─────────────────────────────────────────────────────
-        const outcome = await pipeline.run(context, admitted.definition, admitted.input);
+        const outcome = await pipeline.run(
+          context,
+          admitted.definition,
+          admitted.input,
+          (attempt) => attempts.push(attempt),
+        );
 
         // ── account ──────────────────────────────────────────────────────
         budget.record(
@@ -134,6 +201,7 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
           budgetPolicy,
           outcome.costMicroUsd,
         );
+        await settleSpend(reservation, attempts, 'success');
 
         const latencyMs = clock.now() - startedAtMs;
 
@@ -222,11 +290,43 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
         const aiError = toAIError(error);
         const latencyMs = clock.now() - startedAtMs;
 
+        // Settle before anything else in the failure path. Attempts that
+        // reached a paid provider are charged whether the request succeeded or
+        // not, and a reservation held by a failed request must not stay held.
+        if (reservation) {
+          try {
+            await settleSpend(reservation, attempts, 'failure');
+          } catch (settlementError) {
+            logger.error('ai.spend.settlement_failed', {
+              requestId: context?.requestId,
+              diagnostics:
+                settlementError instanceof Error
+                  ? settlementError.message
+                  : String(settlementError),
+            });
+          }
+        }
+
+        const billedMicroUsd = attempts.reduce((sum, attempt) => sum + attempt.costMicroUsd, 0);
+        if (context && billedMicroUsd > 0) {
+          budget.record(
+            context.organization.organizationId,
+            context.actor.actorId,
+            budgetPolicy,
+            billedMicroUsd,
+          );
+        }
+
         if (context) {
+          const lastAttempt = attempts.at(-1);
           audit.record(context, {
             outcome: 'failure',
             latencyMs,
-            attempts: 0,
+            attempts: attempts.length,
+            failedProviders: [...new Set(attempts.map((attempt) => attempt.providerId))],
+            providerId: lastAttempt?.providerId,
+            modelId: lastAttempt?.modelId,
+            costMicroUsd: billedMicroUsd,
             policy: decision,
             errorCode: aiError.code,
             errorMessage: aiError.message,
@@ -268,7 +368,10 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
           });
         }
 
-        throw aiError;
+        // One identifier survives the whole path, success or failure. A support
+        // engineer holding the requestId from a failed response can find the
+        // audit record, the log lines and the events without a join.
+        throw context ? aiError.withTrace(context.requestId, context.correlationId) : aiError;
       }
     },
   };

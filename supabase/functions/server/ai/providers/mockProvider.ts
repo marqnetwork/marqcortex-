@@ -94,6 +94,8 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     priority: options.priority ?? 900,
     models: MODELS.map((model) => ({ ...model, providerId })),
     productionReady: false,
+    // Synthetic completions, no vendor call, no cost. Safe under the kill switch.
+    billable: false,
   };
 
   return {

@@ -35,6 +35,8 @@ import type {
   AITokenUsage,
 } from '../contracts/request.ts';
 import type { AIFeatureDescriptor } from '../contracts/policy.ts';
+import type { AIModelDescriptor } from '../contracts/provider.ts';
+import type { ModelRequirements } from '../providers/registry.ts';
 import type { AIEventBus } from '../contracts/events.ts';
 import type { AIFeatureDefinition } from '../policy/featureCatalog.ts';
 import type { PromptRegistry } from '../prompts/registry.ts';
@@ -47,7 +49,7 @@ import type { Logger } from '../observability/logger.ts';
 import type { Metrics } from '../observability/metrics.ts';
 import type { IdFactory } from '../contracts/ids.ts';
 import type { AIControlPlaneConfig } from '../runtime/config.ts';
-import { toAIError } from '../contracts/errors.ts';
+import { AIError, toAIError } from '../contracts/errors.ts';
 import { applyInputGuard } from '../governance/inputGuard.ts';
 import { applyOutputGuard, assertRequiredFields } from '../governance/outputGuard.ts';
 import { enforceFactLock } from '../governance/factLock.ts';
@@ -77,6 +79,40 @@ const PROVIDER_FAULTS: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>([
   'PROVIDER_AUTH_FAILED',
   'INVALID_MODEL_OUTPUT',
 ]);
+
+/**
+ * One provider attempt, reported as it completes.
+ *
+ * The orchestrator needs this to settle the spend ledger and to write a truthful
+ * audit record for a request that FAILED: a request that burned two paid
+ * attempts and then errored has cost real money and made two attempts, and a
+ * plane that records `attempts: 0, cost: none` for it is lying about both.
+ */
+export interface ProviderAttemptRecord {
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly attempt: number;
+  readonly outcome: 'success' | 'error';
+  /** True when this attempt reached a provider that charges for the call. */
+  readonly billable: boolean;
+  readonly costMicroUsd: number;
+  readonly usage?: AITokenUsage;
+  readonly latencyMs: number;
+  readonly errorCode?: AIErrorCode;
+}
+
+/** Reported as each attempt finishes, successful or not. */
+export type AttemptObserver = (attempt: ProviderAttemptRecord) => void;
+
+/**
+ * An attempt that timed out has an unknown outcome at the provider: the model
+ * may have generated a full completion that never arrived. Re-sending it is a
+ * second billable request for one user action, so a timeout does not retry the
+ * same provider unless the feature explicitly permits it. Failover to a
+ * different provider is still allowed — that is a different vendor's bill for a
+ * request the first one did not deliver.
+ */
+const UNCERTAIN_OUTCOME_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>(['PROVIDER_TIMEOUT']);
 
 export interface PipelineDependencies {
   readonly prompts: PromptRegistry;
@@ -118,7 +154,44 @@ export interface ExecutionPipeline {
     context: AIRequestContext,
     definition: AIFeatureDefinition<TInput, TOutput>,
     input: TInput,
+    onAttempt?: AttemptObserver,
   ): Promise<PipelineOutcome<TOutput>>;
+}
+
+/**
+ * Refuse a model that cannot do what the feature declared it needs.
+ *
+ * The selector already filtered on exactly these properties, so in a correct
+ * plane this never fires. It exists because "the selector checked it" is an
+ * assumption, and the cost of that assumption being wrong is a paid call whose
+ * response the feature cannot parse. Asserting here makes the guarantee local
+ * to the code that depends on it.
+ */
+function assertCapabilities(
+  model: AIModelDescriptor,
+  requirements: ModelRequirements,
+  providerId: string,
+): void {
+  const missing: string[] = [];
+  if (requirements.structuredOutput && !model.capabilities.structuredOutput) {
+    missing.push('structuredOutput');
+  }
+  if (requirements.chatCompletions && !model.capabilities.chatCompletions) {
+    missing.push('chatCompletions');
+  }
+  if (!model.capabilities.textGeneration) missing.push('textGeneration');
+  if (model.capabilities.maxOutputTokens < requirements.minOutputTokens) {
+    missing.push(
+      `maxOutputTokens>=${requirements.minOutputTokens} (offers ${model.capabilities.maxOutputTokens})`,
+    );
+  }
+  if (missing.length > 0) {
+    throw new AIError(
+      'PROVIDER_CAPABILITY_MISMATCH',
+      'No AI provider is currently able to serve this request.',
+      { providerId, diagnostics: `${providerId}/${model.modelId} lacks: ${missing.join(', ')}` },
+    );
+  }
 }
 
 export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPipeline {
@@ -152,9 +225,18 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
       context: AIRequestContext,
       definition: AIFeatureDefinition<TInput, TOutput>,
       input: TInput,
+      onAttempt?: AttemptObserver,
     ): Promise<PipelineOutcome<TOutput>> {
       const descriptor = definition.descriptor;
       const featureLabels = { feature: descriptor.featureId };
+
+      // A whole-workflow deadline, distinct from the per-attempt timeout. Two
+      // attempts against two providers at a 60s timeout each is a two-minute
+      // wait for a caller that gave up long ago; the deadline bounds the total
+      // rather than each part of it.
+      const startedAtMs = clock.now();
+      const workflowDeadlineMs = startedAtMs + config.workflowDeadlineMs;
+      const deadlineExceeded = (): boolean => clock.now() >= workflowDeadlineMs;
 
       // ── prompt_render ────────────────────────────────────────────────────
       const promptId = definition.resolvePromptId?.(input) ?? descriptor.promptId;
@@ -200,11 +282,12 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
       );
 
       // ── provider_select ──────────────────────────────────────────────────
-      const candidates = selector.select({
+      const requirements = {
         structuredOutput: descriptor.requiredCapabilities.structuredOutput,
         chatCompletions: descriptor.requiredCapabilities.chatCompletions,
         minOutputTokens: descriptor.limits.maxOutputTokens,
-      });
+      };
+      const candidates = selector.select(requirements);
 
       // ── provider_invoke ──────────────────────────────────────────────────
       const failedProviders: string[] = [];
@@ -216,20 +299,37 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
           failedProviders.push(candidate.providerId);
           continue;
         }
+        if (deadlineExceeded()) break;
+
+        // Capability enforcement, asserted immediately before the network call
+        // rather than trusted from selection. The selector already matched the
+        // model, but this is the last point at which a mismatch is free — after
+        // it, a wrong model is a paid call that returns something the feature
+        // cannot parse.
+        assertCapabilities(candidate.model, requirements, candidate.providerId);
 
         publish('ai.provider.selected', context, {
           provider: candidate.providerId,
           model: candidate.model.modelId,
         });
 
-        const adapter = providers.get(candidate.providerId).adapter;
+        const registered = providers.get(candidate.providerId);
+        const adapter = registered.adapter;
+        const billable = registered.descriptor.billable;
         let providerSucceeded = false;
 
         for (let attempt = 1; attempt <= descriptor.limits.maxAttempts; attempt += 1) {
+          if (deadlineExceeded()) break;
           totalAttempts += 1;
-          await retry.wait(retry.delayFor(attempt, config.retry));
 
-          const startedAtMs = clock.now();
+          // A provider that told us how long to wait is obeyed over our own
+          // backoff curve: guessing shorter earns another 429 and guessing
+          // longer wastes the caller's deadline.
+          await retry.wait(
+            retry.delayFor(attempt, config.retry, lastError?.retryAfterSeconds),
+          );
+
+          const attemptStartedAtMs = clock.now();
           try {
             const completion = await withTimeout(
               descriptor.limits.timeoutMs,
@@ -245,7 +345,23 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
                 }),
             );
 
-            const providerLatencyMs = clock.now() - startedAtMs;
+            const providerLatencyMs = clock.now() - attemptStartedAtMs;
+            const costMicroUsd = estimateCostMicroUsd(candidate.model, completion.usage);
+
+            // Reported before the output guard runs. The provider has answered
+            // and the tokens are billed whether or not the content passes
+            // governance, so the cost is accounted here rather than after a
+            // check that can throw.
+            onAttempt?.({
+              providerId: candidate.providerId,
+              modelId: completion.modelId,
+              attempt,
+              outcome: 'success',
+              billable,
+              costMicroUsd: billable ? costMicroUsd : 0,
+              usage: completion.usage,
+              latencyMs: providerLatencyMs,
+            });
 
             // ── output_guard (inside the attempt: a bad completion is retryable)
             const outputGuard = applyOutputGuard(
@@ -300,7 +416,6 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               });
             }
 
-            const costMicroUsd = estimateCostMicroUsd(candidate.model, completion.usage);
             metrics.increment(METRIC.tokensTotal, featureLabels, completion.usage.totalTokens);
             metrics.increment(METRIC.costMicroUsdTotal, featureLabels, costMicroUsd);
 
@@ -334,6 +449,22 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
           } catch (error) {
             const aiError = toAIError(error);
             lastError = aiError;
+
+            // A failed attempt against a paid provider may still have been
+            // billed — a timeout after generation, or a guard rejection of a
+            // completion the vendor already charged for. Reported with an
+            // unknown cost so the orchestrator settles at the reserved estimate
+            // rather than at zero.
+            onAttempt?.({
+              providerId: candidate.providerId,
+              modelId: candidate.model.modelId,
+              attempt,
+              outcome: 'error',
+              billable,
+              costMicroUsd: 0,
+              latencyMs: clock.now() - attemptStartedAtMs,
+              errorCode: aiError.code,
+            });
 
             metrics.increment(METRIC.providerAttemptsTotal, {
               ...featureLabels,
@@ -388,6 +519,11 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               diagnostics: aiError.diagnostics,
             });
 
+            // Never re-send a request whose outcome at the provider is unknown:
+            // the model may have generated and billed a completion that simply
+            // did not reach us, and a blind retry pays for it twice.
+            if (billable && UNCERTAIN_OUTCOME_CODES.has(aiError.code)) break;
+            if (deadlineExceeded()) break;
             if (!shouldRetrySameProvider(aiError, attempt, descriptor.limits.maxAttempts)) break;
           }
         }
@@ -397,9 +533,18 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
         if (lastError && !shouldFailover(lastError)) throw lastError;
       }
 
-      throw (
-        lastError ??
-        toAIError(new Error('No AI provider attempt was made for an admitted request.'))
+      if (lastError) throw lastError;
+      if (deadlineExceeded()) {
+        throw new AIError('PROVIDER_TIMEOUT', 'The AI request exceeded its overall time budget.', {
+          diagnostics: `workflow deadline ${config.workflowDeadlineMs}ms exceeded after ${totalAttempts} attempt(s)`,
+        });
+      }
+      throw new AIError(
+        'NO_PROVIDER_AVAILABLE',
+        'No AI provider is currently able to serve this request.',
+        {
+          diagnostics: `every eligible provider was skipped: ${failedProviders.join(', ') || 'none offered'}`,
+        },
       );
     },
   };

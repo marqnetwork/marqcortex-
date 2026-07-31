@@ -33,6 +33,7 @@ import type { ControlPlaneHealth } from './observability/health.ts';
 import type { PromptRegistry } from './prompts/registry.ts';
 import type { ProviderRegistry } from './providers/registry.ts';
 import type { SleepFn, RandomSource } from './providers/retry.ts';
+import type { SpendLedger, SpendRecord, SpendStore } from './policy/spendLedger.ts';
 
 import { CONTRACT_VERSION, PLATFORM_VERSION } from './contracts/versions.ts';
 import { systemIdFactory } from './contracts/ids.ts';
@@ -56,6 +57,12 @@ import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import { createAIGuard } from './security/guard.ts';
 import { createPolicyEngine } from './policy/policyEngine.ts';
 import { budgetPolicyFrom, createBudgetEngine, createInMemoryBudgetLedger } from './policy/budget.ts';
+import { createSpendGuard } from './policy/spendGuard.ts';
+import {
+  SPEND_SCOPE,
+  createMemorySpendStore,
+  createSpendLedger,
+} from './policy/spendLedger.ts';
 import { createExecutionPipeline } from './pipeline/executionPipeline.ts';
 import { createRequestOrchestrator } from './orchestrator.ts';
 import { buildHealthSnapshot } from './observability/health.ts';
@@ -72,6 +79,12 @@ export interface ControlPlaneOptions {
   }[];
   /** Durable audit stores written alongside the in-memory buffer. */
   readonly auditStores?: readonly AuditStore[];
+  /**
+   * Durable backing for the MARQ spend ceiling. Omitted, the ledger is
+   * isolate-local — correct for tests, NOT correct for a deployment where the
+   * cap has to hold across isolate recycling.
+   */
+  readonly spendStore?: SpendStore;
   readonly clock?: Clock;
   readonly ids?: IdFactory;
   readonly logSink?: LogSink;
@@ -94,6 +107,14 @@ export interface AIControlPlane {
   health(): ControlPlaneHealth;
   metrics(): MetricsSnapshot;
   recentAudit(limit?: number): readonly AIAuditRecord[];
+  /** Current MARQ lifetime spend against the ceiling. */
+  spendStatus(): Promise<SpendRecord>;
+  /**
+   * The spend ledger, for the authorised-reset operation. Exposed rather than
+   * wrapped so a reset call site must supply the authorising actor and reason
+   * the ledger demands — there is no convenience method that omits them.
+   */
+  readonly spendLedger: SpendLedger;
   /** Drop expired rate-limit and budget windows. Safe on any cadence. */
   sweep(): void;
 }
@@ -142,6 +163,8 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     preference: config.providerPreference,
     fallbackProviderId: config.fallbackProviderId,
     failoverEnabled: config.failoverEnabled,
+    realRequestsEnabled: config.allowRealRequests,
+    requireCertification: config.requireCertifiedProviders,
   });
 
   const retry = createRetryScheduler(options.sleep, options.random);
@@ -157,6 +180,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     organizationOptions: {
       defaultOrganizationId: config.defaultOrganizationId,
       allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
     },
   });
 
@@ -171,6 +195,21 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     enforce: config.budget.enforce,
   });
   const policy = createPolicyEngine(budget, budgetPolicy);
+
+  // The MARQ lifetime ceiling. Its store is a port: the in-memory default is
+  // correct for tests and a single instance, and bootstrap swaps in the durable
+  // key-value store so a recycled isolate does not rediscover a $0 balance.
+  const spendLedger = createSpendLedger({
+    store: options.spendStore ?? createMemorySpendStore(),
+    capMicroUsd: config.spend.maxPlatformMicroUsd,
+    now: () => clock.isoNow(),
+  });
+  const spend = createSpendGuard({
+    ledger: spendLedger,
+    registry: providerRegistry,
+    realRequestsEnabled: config.allowRealRequests,
+    enforce: config.spend.enforce,
+  });
 
   // ── Observability ─────────────────────────────────────────────────────────
   const memoryAudit = createMemoryAuditStore(config.audit.bufferSize);
@@ -205,6 +244,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     pipeline,
     budget,
     budgetPolicy,
+    spend,
     audit,
     logger,
     metrics,
@@ -241,6 +281,8 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
       return metrics.snapshot();
     },
     recentAudit: (limit = 50) => audit.recent(limit),
+    spendStatus: () => spendLedger.read(SPEND_SCOPE.platform),
+    spendLedger,
     sweep: () => {
       rateLimiter.sweep();
       budgetLedger.sweep();

@@ -74,6 +74,8 @@ export function createOpenAIProvider(options: OpenAIProviderOptions): AIProvider
     priority: 10,
     models: MODELS,
     productionReady: true,
+    // Reaches the paid OpenAI API. Refused entirely while real requests are off.
+    billable: true,
   };
 
   return {

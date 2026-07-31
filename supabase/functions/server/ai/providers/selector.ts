@@ -9,8 +9,9 @@
  * Selection order:
  *   1. Configured preference order (`AI_PROVIDER_PREFERENCE`), then descriptor
  *      priority for anything unlisted. Operators steer traffic by configuration.
- *   2. Skip providers that are disabled, uncertified-and-disabled, missing
- *      credentials, or whose circuit is open.
+ *   2. Skip providers that are disabled, uncertified, billable while the
+ *      real-request kill switch is off, missing credentials, or whose circuit
+ *      is open.
  *   3. Skip providers with no model meeting the requirements.
  *   4. Append the configured fallback last if it is not already present, so a
  *      deliberate last-resort provider is always tried before giving up.
@@ -33,6 +34,19 @@ export interface SelectorOptions {
   readonly preference: readonly string[];
   readonly fallbackProviderId?: string;
   readonly failoverEnabled: boolean;
+  /**
+   * The real-request kill switch. While false, every provider that spends money
+   * with an external vendor is removed from selection here — at the structural
+   * boundary, where the refusal is visible in `explain()` and on the health
+   * endpoint, rather than as a check some future call site could forget.
+   */
+  readonly realRequestsEnabled: boolean;
+  /**
+   * Refuse providers whose certification has not been established. An
+   * `unverified` adapter has never been shown to work against this platform's
+   * contract, and production traffic is not the place to find out.
+   */
+  readonly requireCertification: boolean;
 }
 
 export interface ProviderSelector {
@@ -69,6 +83,15 @@ export function createProviderSelector(
     if (!provider) return 'not registered';
     if (!provider.enabled) return 'disabled';
     if (provider.certification === 'disabled') return 'certification disabled';
+    // The kill switch, applied before credentials: a deployment with real keys
+    // configured but real requests turned off must report the switch as the
+    // reason, not imply the keys are the problem.
+    if (!options.realRequestsEnabled && provider.descriptor.billable) {
+      return 'real provider requests are disabled (AI_ALLOW_REAL_REQUESTS=false)';
+    }
+    if (options.requireCertification && provider.certification === 'unverified') {
+      return 'certification not established';
+    }
     if (!provider.adapter.hasCredentials()) return 'credentials not configured';
     if (circuit.stateOf(providerId) === 'open') return 'circuit open';
     if (!registry.selectModel(providerId, requirements)) return 'no model meets the requirements';

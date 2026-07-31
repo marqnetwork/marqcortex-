@@ -28,7 +28,7 @@ import {
   type Validator,
 } from '../security/validation.ts';
 import { parseJsonObject } from '../governance/outputGuard.ts';
-import { enforceFactLock } from '../governance/factLock.ts';
+import { enforceFactLock, factLockTouched } from '../governance/factLock.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export const SECTION_KEYS = [
@@ -172,14 +172,56 @@ export const sectionCopilotFeature: AIFeatureDefinition<SectionCopilotInput, Sec
 
   applyFactLock(output, input): FactLockOutcome<SectionCopilotOutput> {
     const locked = LOCKED_FIELDS_BY_SECTION[input.section] ?? [];
-    const result = enforceFactLock(output.proposed_content, input.current_content, locked);
+    const { authority } = resolveFactAuthority(input);
+    const result = enforceFactLock(output.proposed_content, authority, locked);
     return {
       output: {
         proposed_content: result.content,
         diff_summary: output.diff_summary,
-        fact_lock_enforced: result.restored,
+        fact_lock_enforced: factLockTouched(result),
       },
-      restored: result.restored,
+      restored: factLockTouched(result),
     };
   },
 };
+
+/**
+ * Decide what counts as authoritative for this request, per field.
+ *
+ * `locked_facts` is the explicit authority channel: the console populates it
+ * from the stored proposal, and it is validated as a typed shape rather than an
+ * open object. `current_content` is the caller's echo of the section it is
+ * editing — useful, but it arrives in the request body and a caller who wanted
+ * to change a locked price could simply send a different one. It is therefore
+ * used only for fields `locked_facts` does not cover, and never in preference
+ * to it.
+ *
+ * KNOWN LIMITATION (documented rather than hidden): for fields covered only by
+ * `current_content`, the "authority" is still caller-supplied. Closing that gap
+ * means the AI boundary reading the proposal record itself, which is a storage
+ * change outside AI-01 Batch 1. What Batch 1 does guarantee is the narrower and
+ * still valuable property: the MODEL cannot change or invent a locked field,
+ * and a field with no authority behind it is removed rather than accepted.
+ */
+function resolveFactAuthority(input: SectionCopilotInput): {
+  authority: Readonly<Record<string, unknown>>;
+  /** Which fields came from the explicit channel. Recorded for telemetry. */
+  trusted: readonly string[];
+} {
+  const echo =
+    typeof input.current_content === 'object' && input.current_content !== null
+      ? (input.current_content as Record<string, unknown>)
+      : {};
+
+  const explicit = input.context.locked_facts;
+  if (!explicit) return { authority: echo, trusted: [] };
+
+  const authority: Record<string, unknown> = { ...echo };
+  const trusted: string[] = [];
+  for (const [field, value] of Object.entries(explicit)) {
+    if (value === undefined) continue;
+    authority[field] = value;
+    trusted.push(field);
+  }
+  return { authority, trusted };
+}

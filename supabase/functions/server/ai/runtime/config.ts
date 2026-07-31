@@ -21,6 +21,23 @@ export interface AIControlPlaneConfig {
   readonly fallbackProviderId?: string;
   /** Allow failover to the next preferred provider on a failoverable error. */
   readonly failoverEnabled: boolean;
+  /**
+   * The real-request kill switch. FALSE BY DEFAULT.
+   *
+   * While false, no provider that spends money with an external vendor may be
+   * selected — the platform serves synthetic completions from the mock adapter
+   * and cannot produce a bill. Turning it on is a deliberate, explicit act, and
+   * it is deliberately not implied by "an API key is configured": a key present
+   * in the environment must not by itself start spending.
+   */
+  readonly allowRealRequests: boolean;
+  /** Refuse providers whose certification has not been established. */
+  readonly requireCertifiedProviders: boolean;
+  /**
+   * Whole-workflow deadline, covering every attempt against every provider.
+   * Distinct from the per-attempt timeout, which bounds one call.
+   */
+  readonly workflowDeadlineMs: number;
 
   readonly circuit: {
     readonly failureThreshold: number;
@@ -41,6 +58,19 @@ export interface AIControlPlaneConfig {
     /** Percentage of the ceiling that raises a threshold event. */
     readonly alertThresholdPercent: number;
     readonly enforce: boolean;
+  };
+
+  readonly spend: {
+    /**
+     * The MARQ-funded lifetime ceiling, in micro-USD. Set from
+     * `AI_MAX_SPEND_USD` (default 9). It never resets on a timer — clearing it
+     * requires an explicit, authorised, audited action.
+     */
+    readonly maxPlatformMicroUsd: number;
+    /** Refuse requests at the ceiling. False records spend without refusing. */
+    readonly enforce: boolean;
+    /** Persist the ledger to durable storage. Off makes it isolate-local. */
+    readonly durable: boolean;
   };
 
   readonly audit: {
@@ -70,6 +100,12 @@ export interface AIControlPlaneConfig {
   readonly defaultOrganizationId: string;
   /** Organizations allowed to call AI features. Empty means "all". */
   readonly organizationAllowList: readonly string[];
+  /**
+   * Permit a subject with no verified membership to fall back to the default
+   * organization. False fails such requests closed. See `security/tenancy.ts`
+   * for why this defaults to false.
+   */
+  readonly allowDefaultOrganization: boolean;
 }
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
@@ -81,11 +117,41 @@ function readLogLevel(env: EnvSource): AIControlPlaneConfig['observability']['lo
     : 'info';
 }
 
+/** The MARQ-funded ceiling, in micro-USD. Default $9. */
+export const DEFAULT_MAX_SPEND_USD = 9;
+
+/**
+ * Read `AI_MAX_SPEND_USD` as dollars and convert to micro-USD.
+ *
+ * Read as a decimal string rather than through `readInt` so an operator can set
+ * a ceiling of `2.50`. A malformed or negative value falls back to the default
+ * rather than to "no limit" — a typo in a spending cap must never widen it.
+ */
+function readMaxSpendMicroUsd(env: EnvSource): number {
+  const raw = env.get('AI_MAX_SPEND_USD');
+  if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_SPEND_USD * 1_000_000;
+  const parsed = Number.parseFloat(raw.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_MAX_SPEND_USD * 1_000_000;
+  // Ten thousand dollars is far beyond any Batch 1 authorisation; a value above
+  // it is far more likely a units mistake (micro-USD pasted into a USD field)
+  // than an intention, so it is clamped rather than honoured.
+  return Math.round(Math.min(parsed, 10_000) * 1_000_000);
+}
+
 export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
   return {
-    providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', ['openai', 'anthropic', 'mock']),
+    // Mock first by default. Combined with `allowRealRequests` defaulting to
+    // false, a deployment that sets nothing serves synthetic completions and
+    // cannot spend money — the safe default, not the convenient one.
+    providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', ['mock', 'openai', 'anthropic']),
     fallbackProviderId: readOptionalString(env, 'AI_FALLBACK_PROVIDER'),
     failoverEnabled: readBool(env, 'AI_FAILOVER_ENABLED', true),
+    allowRealRequests: readBool(env, 'AI_ALLOW_REAL_REQUESTS', false),
+    requireCertifiedProviders: readBool(env, 'AI_REQUIRE_CERTIFIED_PROVIDERS', true),
+    workflowDeadlineMs: readInt(env, 'AI_WORKFLOW_DEADLINE_MS', 90_000, {
+      min: 1_000,
+      max: 600_000,
+    }),
 
     circuit: {
       failureThreshold: readInt(env, 'AI_CIRCUIT_FAILURE_THRESHOLD', 5, { min: 1, max: 100 }),
@@ -115,6 +181,12 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
       enforce: readBool(env, 'AI_BUDGET_ENFORCE', true),
     },
 
+    spend: {
+      maxPlatformMicroUsd: readMaxSpendMicroUsd(env),
+      enforce: readBool(env, 'AI_SPEND_ENFORCE', true),
+      durable: readBool(env, 'AI_SPEND_DURABLE', true),
+    },
+
     audit: {
       durable: readBool(env, 'AI_AUDIT_DURABLE', true),
       retentionDays: readInt(env, 'AI_AUDIT_RETENTION_DAYS', 400, { min: 1, max: 3_650 }),
@@ -134,5 +206,6 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
 
     defaultOrganizationId: readString(env, 'AI_DEFAULT_ORGANIZATION_ID', 'marq-cortex'),
     organizationAllowList: readList(env, 'AI_ORGANIZATION_ALLOW_LIST', []),
+    allowDefaultOrganization: readBool(env, 'AI_ALLOW_DEFAULT_ORGANIZATION', false),
   };
 }

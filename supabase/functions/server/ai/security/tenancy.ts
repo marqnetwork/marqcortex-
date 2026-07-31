@@ -29,17 +29,32 @@ export interface OrganizationResolutionOptions {
   readonly defaultOrganizationId: string;
   /** When non-empty, only these organizations may execute AI requests. */
   readonly allowList: readonly string[];
+  /**
+   * Whether a subject with no verified membership may fall back to the default
+   * organization.
+   *
+   * FALSE BY DEFAULT, and that default is the point. A silent fallback means
+   * every caller lands in one bucket, every budget and audit key collapses into
+   * one scope, and the platform can report "tenant isolation" while having
+   * exactly one tenant. When it is enabled — which a single-tenant console
+   * deployment legitimately needs — the resulting organization is marked
+   * `membershipVerified: false` so the weaker guarantee travels with the request
+   * into the audit record instead of being indistinguishable from the strong one.
+   */
+  readonly allowDefaultOrganization: boolean;
 }
 
 function toOrganization(
   organizationId: string,
   membership: SubjectMembership | undefined,
+  membershipVerified: boolean,
 ): AIOrganization {
   const tier: AIOrganizationTier = membership?.tier ?? 'standard';
   return {
     organizationId,
     slug: membership?.slug,
     tier,
+    membershipVerified,
     // Held separately from the id so a future partition strategy (region,
     // shard, customer-managed key) changes here and nowhere else.
     isolationKey: `org:${organizationId}`,
@@ -78,12 +93,23 @@ export function resolveOrganization(
         { diagnostics: `hint=${normalizedHint} subject=${subject?.subjectId ?? 'anonymous'}` },
       );
     }
-    return enforceAllowList(toOrganization(normalizedHint, membership), options);
+    return enforceAllowList(toOrganization(normalizedHint, membership, true), options);
   }
 
   const primary = subject?.memberships[0];
   if (primary) {
-    return enforceAllowList(toOrganization(primary.organizationId, primary), options);
+    return enforceAllowList(toOrganization(primary.organizationId, primary, true), options);
+  }
+
+  // No verified membership. Failing closed here is what stops the default
+  // organization from quietly becoming "everyone", which is the state in which
+  // a platform reports tenant isolation it does not have.
+  if (!options.allowDefaultOrganization) {
+    throw new AIError('ORGANIZATION_REQUIRED', 'No organization could be resolved for this request.', {
+      diagnostics:
+        `subject=${subject?.subjectId ?? 'anonymous'} holds no verified organization membership ` +
+        'and AI_ALLOW_DEFAULT_ORGANIZATION is false',
+    });
   }
 
   if (!ORGANIZATION_ID.test(options.defaultOrganizationId)) {
@@ -91,7 +117,10 @@ export function resolveOrganization(
       diagnostics: `configured default is not a valid identifier: ${options.defaultOrganizationId}`,
     });
   }
-  return enforceAllowList(toOrganization(options.defaultOrganizationId, undefined), options);
+  return enforceAllowList(
+    toOrganization(options.defaultOrganizationId, undefined, false),
+    options,
+  );
 }
 
 function enforceAllowList(

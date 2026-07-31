@@ -24,8 +24,16 @@ export interface RetryOptions {
 }
 
 export interface RetryScheduler {
-  /** Delay before `attempt` (1-based). Attempt 1 never waits. */
-  delayFor(attempt: number, options: RetryOptions): number;
+  /**
+   * Delay before `attempt` (1-based). Attempt 1 never waits.
+   *
+   * `retryAfterSeconds` is the value a provider sent on a 429 or 503. When
+   * present it wins over the computed backoff: the provider knows when it will
+   * accept traffic again, and guessing shorter simply earns another rejection.
+   * It is still bounded by `maxDelayMs` — a provider asking for an hour must not
+   * hold an edge invocation open for one.
+   */
+  delayFor(attempt: number, options: RetryOptions, retryAfterSeconds?: number): number;
   wait(ms: number): Promise<void>;
 }
 
@@ -37,8 +45,17 @@ export function createRetryScheduler(
   random: RandomSource = Math.random,
 ): RetryScheduler {
   return {
-    delayFor(attempt, options) {
+    delayFor(attempt, options, retryAfterSeconds) {
       if (attempt <= 1) return 0;
+
+      if (retryAfterSeconds !== undefined && Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        // Honoured as stated, with jitter still applied on top so a fleet of
+        // instances told "retry in 2s" does not resume in lockstep.
+        const requested = Math.min(retryAfterSeconds * 1_000, options.maxDelayMs);
+        const spread = (requested * Math.min(100, Math.max(0, options.jitterPercent))) / 100;
+        return Math.max(0, Math.round(requested + random() * spread));
+      }
+
       const exponential = options.baseDelayMs * 2 ** (attempt - 2);
       const capped = Math.min(exponential, options.maxDelayMs);
       const jitterRange = (capped * Math.min(100, Math.max(0, options.jitterPercent))) / 100;

@@ -77,7 +77,7 @@ export async function executeAIHttpRequest(
     };
   } catch (error) {
     const aiError = toAIError(error);
-    return errorResponse(aiError, request);
+    return errorResponse(aiError, request, newTraceId());
   }
 }
 
@@ -113,16 +113,23 @@ function successBody(result: AIExecutionResult<Record<string, unknown>>): Record
   };
 }
 
-function errorResponse(error: AIError, request: AIHttpRequest): AIHttpResponse {
-  // Trace ids exist only once the guard has run. When a request is rejected
-  // before that, the body still carries the fields the client reads — empty
-  // rather than absent, so no client has to branch on their presence.
+function errorResponse(error: AIError, request: AIHttpRequest, fallbackTraceId: string): AIHttpResponse {
+  // Every response carries a usable trace id. A failure inside the plane brings
+  // the context's own ids with it; a failure before the guard ran has none, so
+  // the adapter supplies one rather than returning an empty string a caller
+  // cannot quote in a support ticket.
+  const correlationId =
+    error.correlationId ?? sanitizeTraceId(request.correlationId) ?? fallbackTraceId;
   const body: Record<string, unknown> = {
-    ...error.toResponseBody('', request.correlationId ?? ''),
+    ...error.toResponseBody(error.requestId ?? fallbackTraceId, correlationId),
     keyMissing: CREDENTIAL_CODES.has(error.code),
   };
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Request-Id': String(body.requestId ?? fallbackTraceId),
+    'X-Correlation-Id': correlationId,
+  };
   if (error.retryAfterSeconds !== undefined) {
     headers['Retry-After'] = String(error.retryAfterSeconds);
   }
@@ -138,9 +145,40 @@ function traceHeaders(requestId: string, correlationId: string): Record<string, 
   };
 }
 
-/** Read a trace id from inbound headers, tolerating either spelling. */
+/**
+ * Read a trace id from inbound headers, tolerating either spelling.
+ *
+ * The value is sanitised here, at the edge, rather than trusted to the guard.
+ * The guard does validate it — but the error path can echo a correlation id
+ * back to the caller before the guard ever runs, and an unbounded header value
+ * reflected into a response body and a log line is how a header becomes an
+ * injection vector.
+ */
 export function correlationIdFromHeaders(
   read: (name: string) => string | null | undefined,
 ): string | undefined {
-  return read('x-correlation-id') ?? read('x-request-id') ?? undefined;
+  return (
+    sanitizeTraceId(read('x-correlation-id')) ?? sanitizeTraceId(read('x-request-id')) ?? undefined
+  );
+}
+
+/** Caller-supplied trace ids must be safe in a log line, a header and a body. */
+const SAFE_TRACE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+function sanitizeTraceId(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return SAFE_TRACE_ID.test(trimmed) ? trimmed : undefined;
+}
+
+/** A trace id for a failure that never reached the guard. */
+function newTraceId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `cor_${crypto.randomUUID().replace(/-/g, '')}`;
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let out = '';
+  for (const b of bytes) out += b.toString(16).padStart(2, '0');
+  return `cor_${out}`;
 }

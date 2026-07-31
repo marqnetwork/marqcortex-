@@ -176,7 +176,15 @@ describe('retry scheduling', () => {
 });
 
 describe('provider registry and selector', () => {
-  function build(options: { preference?: string[]; fallback?: string; failover?: boolean } = {}) {
+  function build(
+    options: {
+      preference?: string[];
+      fallback?: string;
+      failover?: boolean;
+      realRequests?: boolean;
+      requireCertification?: boolean;
+    } = {},
+  ) {
     const clock = createTestClock();
     const circuit = createCircuitBreaker(clock, CIRCUIT);
     const registry = createProviderRegistry(clock, circuit);
@@ -184,6 +192,11 @@ describe('provider registry and selector', () => {
       preference: options.preference ?? ['alpha', 'beta'],
       fallbackProviderId: options.fallback,
       failoverEnabled: options.failover ?? true,
+      // These suites exercise ordering, capability matching and circuit
+      // behaviour. The kill switch and certification gate have their own tests
+      // below; here they are open so a rejection means what the test says.
+      realRequestsEnabled: options.realRequests ?? true,
+      requireCertification: options.requireCertification ?? false,
     });
     return { clock, circuit, registry, selector };
   }

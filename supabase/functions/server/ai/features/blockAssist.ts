@@ -15,8 +15,9 @@
  *   with no branching, while the per-type rules stay typed and testable here.
  */
 
-import type { AIFeatureDefinition } from '../policy/featureCatalog.ts';
+import type { AIFeatureDefinition, FactLockOutcome } from '../policy/featureCatalog.ts';
 import { INTERACTIVE_LIMITS, STANDARD_GOVERNANCE } from '../policy/featureCatalog.ts';
+import { enforceFactLock, factLockTouched } from '../governance/factLock.ts';
 import {
   arrayOf,
   jsonObject,
@@ -86,6 +87,8 @@ export interface BlockAssistOutput {
   readonly proposed_content: Record<string, unknown>;
   readonly diff_summary: string;
   readonly change_type: BlockAction;
+  /** Locked fields the platform restored or removed after generation. */
+  readonly fact_lock_enforced: readonly string[];
 }
 
 const ACTION_LABELS: Record<BlockAction, string> = {
@@ -93,6 +96,26 @@ const ACTION_LABELS: Record<BlockAction, string> = {
   ai_expand: 'EXPAND (add depth, structure, detail — populate all required fields)',
   ai_simplify: 'SIMPLIFY (client-facing, remove internal complexity, shorter sentences)',
   fix_issues: 'FIX ISSUES (address reviewer gaps, strengthen weak sections)',
+};
+
+/**
+ * Fields the model may never decide, per block type.
+ *
+ * These are the same fields the prompt's per-type instructions already say
+ * "do not change" — and a prompt instruction is a request, not a control. This
+ * table is the enforcement: whatever the model returns, `applyFactLock`
+ * reconciles these against the authoritative content and reports every field it
+ * had to put back or take out.
+ *
+ * The two tables are deliberately adjacent so a new block type that adds a
+ * "do not change" line to its instructions has an obvious place to make that
+ * line true.
+ */
+export const LOCKED_FIELDS_BY_BLOCK_TYPE: Readonly<Record<string, readonly string[]>> = {
+  proposal_diagnosis: ['severity', 'confidence', 'evidence'],
+  proposal_solution: ['pillar', 'timeline_weeks', 'complexity_score'],
+  roi_summary_narrative: ['roi_percent', 'payback_months', 'annual_savings', 'investment'],
+  proposal_timeline: ['total_duration_weeks'],
 };
 
 /**
@@ -157,6 +180,11 @@ export const blockAssistFeature: AIFeatureDefinition<BlockAssistInput, BlockAssi
     governance: {
       ...STANDARD_GOVERNANCE,
       requiredOutputFields: ['proposed_content'],
+      // Union of every block type's locked fields. The per-type subset is
+      // applied in `applyFactLock`; this is the declaration the audit reads.
+      factLockedFields: [
+        ...new Set(Object.values(LOCKED_FIELDS_BY_BLOCK_TYPE).flat()),
+      ].sort(),
       maxOutputChars: 20_000,
     },
     requiredCapabilities: { structuredOutput: true, chatCompletions: true },
@@ -204,6 +232,20 @@ export const blockAssistFeature: AIFeatureDefinition<BlockAssistInput, BlockAssi
           ? parsed.diff_summary.slice(0, 200)
           : `AI ${input.action.replace('_', ' ')} applied to ${input.block_type}`,
       change_type: input.action,
+      // Populated by applyFactLock, which runs immediately after this.
+      fact_lock_enforced: [],
+    };
+  },
+
+  applyFactLock(output, input): FactLockOutcome<BlockAssistOutput> {
+    const locked = LOCKED_FIELDS_BY_BLOCK_TYPE[input.block_type] ?? [];
+    if (locked.length === 0) return { output, restored: [] };
+
+    const result = enforceFactLock(output.proposed_content, input.current_content, locked);
+    const touched = factLockTouched(result);
+    return {
+      output: { ...output, proposed_content: result.content, fact_lock_enforced: touched },
+      restored: touched,
     };
   },
 };
