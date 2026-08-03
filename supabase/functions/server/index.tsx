@@ -22,7 +22,11 @@ import {
   runCortexAnalysis,
   type AIRouteRegistrar,
 } from "./aiRoutes.ts";
-import { initializeControlPlane } from "./ai/index.ts";
+import {
+  registerAIAdminRoutes,
+  type AIAdminRouteRegistrar,
+} from "./aiAdminRoutes.ts";
+import { getAIAdministration, initializeControlPlane } from "./ai/index.ts";
 import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
@@ -360,6 +364,26 @@ registerAIRoutes(app as unknown as AIRouteRegistrar, {
   verifyTeamToken,
   prefix: '/make-server-324f4fbe',
 });
+
+// ============================================================================
+// AI ADMINISTRATION — the operational layer over the control plane (Batch 2)
+//
+// Registered only once the administration service exists. It is built inside
+// `initializeControlPlane` from the same authenticator the AI Guard uses, so
+// the console's roles are the roles the identity provider reports rather than
+// anything a caller can assert. Absent it, the routes are simply not mounted:
+// an administration surface that fails open is worse than one that is missing.
+// ============================================================================
+
+const aiAdministration = getAIAdministration();
+if (aiAdministration) {
+  registerAIAdminRoutes(app as unknown as AIAdminRouteRegistrar, {
+    administration: aiAdministration,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] administration service unavailable — AI admin routes are not mounted');
+}
 
 // ============================================================================
 // HELPER — safe JSON parse (handles JSONB that might be string or object)
