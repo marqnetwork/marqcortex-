@@ -516,14 +516,21 @@ export async function updateAIProvider(
   return providers;
 }
 
+/**
+ * Clear settled spend and every open hold.
+ *
+ * Takes no ceiling. A reset and a ceiling increase are different decisions with
+ * different blast radii, and the server refuses a reset that carries a new cap —
+ * so offering the parameter here would only produce a guaranteed 400. Raising
+ * the ceiling is `increaseAISpendCap`.
+ */
 export async function resetAISpend(
   accessToken: string,
   reason: string,
-  newCapMicroUsd?: number,
 ): Promise<AIAdminBudget> {
   const { budget } = await call<{ budget: AIAdminBudget }>('/ai/admin/budget/reset', accessToken, {
     method: 'POST',
-    body: { reason, ...(newCapMicroUsd === undefined ? {} : { newCapMicroUsd }) },
+    body: { reason },
   });
   return budget;
 }

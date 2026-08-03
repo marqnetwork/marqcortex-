@@ -134,16 +134,23 @@ export function createProviderRegistry(
   /**
    * The models this provider may serve after the administrative allow list.
    *
-   * An allow list that matches nothing the adapter declares is treated as no
-   * narrowing at all: a typo in a console field must not silently take a
-   * provider out of rotation while the console still shows it as enabled. The
-   * mismatch is reported by `validate()` instead, where an operator sees it.
+   * FAILS CLOSED. An allow list that matches nothing the adapter declares
+   * narrows to nothing, and the provider serves no traffic.
+   *
+   * The original behaviour here was to ignore such a list and serve the whole
+   * catalogue, on the reasoning that a typo should not take a provider out of
+   * rotation. That reasoning is backwards for a security control: an operator
+   * who restricts a provider to one model and gets the full catalogue has been
+   * given the opposite of what they asked for, and the console showed every
+   * model as permitted while it happened. A narrowing that cannot be applied
+   * must not silently become no narrowing — so the write is now rejected at the
+   * administration boundary (`updateProvider`), and this function is the
+   * backstop for a list that reached storage some other way.
    */
   function permittedModels(provider: RegisteredProvider): readonly AIModelDescriptor[] {
     const allowed = modelPolicy.allowList(provider.descriptor.providerId);
     if (allowed.length === 0) return provider.descriptor.models;
-    const narrowed = provider.descriptor.models.filter((model) => allowed.includes(model.modelId));
-    return narrowed.length > 0 ? narrowed : provider.descriptor.models;
+    return provider.descriptor.models.filter((model) => allowed.includes(model.modelId));
   }
 
   function stateOf(provider: RegisteredProvider): AIProviderState {
