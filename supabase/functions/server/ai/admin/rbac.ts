@@ -11,25 +11,27 @@
  *                         organization, may spend MARQ's money, may reset the
  *                         lifetime ceiling, may raise the cap.
  *
- *   organization_admin    Owns one organization's AI posture. May stop AI, may
- *                         steer providers and models, may move that
- *                         organization's daily allowance. May NOT clear the
- *                         platform's lifetime spend or raise its ceiling —
- *                         that is MARQ's money, not the tenant's.
+ *   organization_admin    Full operational visibility across their
+ *                         organizations. NO platform mutations — see the note
+ *                         on the grant table below. Every switch on this
+ *                         surface is currently platform-wide, and a tenant
+ *                         administrator changing the execution path for other
+ *                         tenants is not a scoped action.
  *
  *   team_admin            Operates a team inside an organization. Full
  *                         operational VISIBILITY — health, usage, cost, audit —
  *                         and no platform mutations.
  *
- * WHY TEAM ADMIN IS READ-ONLY, AND WHY THAT IS THE FEATURE.
+ * WHY ONLY THE PLATFORM OPERATOR WRITES, AND WHY THAT IS THE FEATURE.
  *
  * Every switch on this surface is platform-wide: the kill switch, the provider
- * order, the model pin, the retry curve. There is no "our team's provider
- * preference" — one team admin turning off a provider would change every other
- * tenant's execution path. A role that can only be exercised safely by taking
- * an action that affects people outside its scope is not a safe role, so the
- * writes stop at organization_admin and team admins get the thing they actually
- * need: a truthful, live view of what AI is doing and what it is costing.
+ * order, the model pin, the retry curve, the daily ceilings. There is no "our
+ * team's provider preference" and no "our organization's kill switch" — one
+ * administrator turning off a provider changes every other tenant's execution
+ * path. A role that can only be exercised safely by taking an action that
+ * affects people outside its scope is not a safe role, so the writes stop at
+ * super_admin and everyone else gets the thing they actually need: a truthful,
+ * live, tenant-scoped view of what AI is doing and what it is costing.
  *
  * CAPABILITIES, NOT ROLE CHECKS, ARE WHAT THE SERVICE ENFORCES. Roles change as
  * an organization grows; the capability a given operation demands does not. The
@@ -59,12 +61,37 @@ export type AIAdminCapability =
 
 const VIEWER_CAPABILITIES: readonly AIAdminCapability[] = ['ai.admin.view', 'ai.admin.audit.read'];
 
-const ORGANIZATION_ADMIN_CAPABILITIES: readonly AIAdminCapability[] = [
-  ...VIEWER_CAPABILITIES,
+/**
+ * Every mutation on this surface is platform-wide, so every mutation is the
+ * platform operator's.
+ *
+ * The original grant table gave an organization admin `settings.write`,
+ * `provider.write`, `budget.write` and `killswitch`. Each of those changes ONE
+ * settings record shared by every tenant, so an administrator of one
+ * organization could halt AI, disable a provider, pin a model or move the daily
+ * ceilings for all of them. An independent review demonstrated exactly that.
+ *
+ * The argument this module already made for team admins is the argument: "a
+ * role that can only be exercised safely by taking an action that affects
+ * people outside its scope is not a safe role". It was applied one tier too low.
+ *
+ * The organization tier therefore holds the viewer capabilities until there is
+ * a genuinely organization-scoped layer for it to write — per-tenant feature
+ * enablement and per-tenant ceilings, which is the natural next batch. The role
+ * is kept distinct rather than collapsed into `team_admin` because it still
+ * differs in scope: an organization admin's reads cover every team in their
+ * organization, and the grant table is where a per-tenant write capability will
+ * be added when the surface exists to write to.
+ */
+const ORGANIZATION_ADMIN_CAPABILITIES: readonly AIAdminCapability[] = [...VIEWER_CAPABILITIES];
+
+/** Platform-wide mutations. Only the platform operator holds these. */
+const PLATFORM_OPERATOR_CAPABILITIES: readonly AIAdminCapability[] = [
   'ai.admin.settings.write',
   'ai.admin.provider.write',
   'ai.admin.budget.write',
   'ai.admin.killswitch',
+  'ai.admin.budget.reset',
 ];
 
 /**
@@ -73,7 +100,7 @@ const ORGANIZATION_ADMIN_CAPABILITIES: readonly AIAdminCapability[] = [
  * is how a check gets forgotten on the seventh endpoint.
  */
 export const ADMIN_ROLE_CAPABILITIES: Readonly<Record<AIAdminRole, readonly AIAdminCapability[]>> = {
-  super_admin: [...ORGANIZATION_ADMIN_CAPABILITIES, 'ai.admin.budget.reset'],
+  super_admin: [...VIEWER_CAPABILITIES, ...PLATFORM_OPERATOR_CAPABILITIES],
   organization_admin: ORGANIZATION_ADMIN_CAPABILITIES,
   team_admin: VIEWER_CAPABILITIES,
 };
