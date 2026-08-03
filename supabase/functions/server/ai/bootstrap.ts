@@ -129,18 +129,9 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   }
 
-  plane = createControlPlane({ config, authenticator, providers, auditStores, spendStore });
-
-  // ── Administration (AI-01 Batch 2) ────────────────────────────────────────
-  //
-  // Assembled from the SAME authenticator the guard uses. A second credential
-  // path for the administration surface would be a second thing to get wrong,
-  // and the one that governs the platform is the wrong place to have one.
-  //
-  // Without a key-value port the settings store is isolate-local: settings
-  // still apply, they simply do not survive a restart. That is reported rather
-  // than silently accepted, because "the kill switch we engaged is off again"
-  // is not a discovery to make during an incident.
+  // The settings store has to exist before the plane, because the plane
+  // re-reads settings THROUGH it: that read is what carries an administrator's
+  // change to an isolate that did not serve the console request.
   const settingsStore =
     deps.kvRead && deps.kvWrite
       ? createKvAdminSettingsStore({
@@ -152,10 +143,29 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   if (!deps.kvRead || !deps.kvWrite) {
     console.error(
       '[ai] no key-value port was injected — AI administration settings are isolate-local ' +
-        'and will not survive a restart.',
+        'and will not survive a restart or reach another isolate.',
     );
   }
 
+  plane = createControlPlane({
+    config,
+    authenticator,
+    providers,
+    auditStores,
+    spendStore,
+    settingsSource: settingsStore,
+  });
+
+  // ── Administration (AI-01 Batch 2) ────────────────────────────────────────
+  //
+  // Assembled from the SAME authenticator the guard uses. A second credential
+  // path for the administration surface would be a second thing to get wrong,
+  // and the one that governs the platform is the wrong place to have one.
+  //
+  // Without a key-value port the settings store is isolate-local: settings
+  // still apply, they simply do not survive a restart. That is reported rather
+  // than silently accepted, because "the kill switch we engaged is off again"
+  // is not a discovery to make during an incident.
   const adminAuditStores: AdminAuditStore[] = [];
   if (config.audit.durable && deps.kvWrite) {
     adminAuditStores.push(

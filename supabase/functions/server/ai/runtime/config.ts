@@ -35,6 +35,17 @@ export interface AIControlPlaneConfig {
   /** Refuse providers whose certification has not been established. */
   readonly requireCertifiedProviders: boolean;
   /**
+   * How long an isolate may serve a cached copy of the operational settings
+   * before re-reading them from durable storage.
+   *
+   * Zero — the default — means every AI request re-reads, so an administrator's
+   * kill switch reaches every warm isolate on its next request. Raising it
+   * trades that immediacy for fewer key-value reads, and a deployment that
+   * raises it is choosing to let a stopped platform keep serving for up to
+   * this long.
+   */
+  readonly settingsRefreshMs: number;
+  /**
    * Whole-workflow deadline, covering every attempt against every provider.
    * Distinct from the per-attempt timeout, which bounds one call.
    */
@@ -176,6 +187,7 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
     failoverEnabled: readBool(env, 'AI_FAILOVER_ENABLED', true),
     allowRealRequests: readBool(env, 'AI_ALLOW_REAL_REQUESTS', false),
     requireCertifiedProviders: readBool(env, 'AI_REQUIRE_CERTIFIED_PROVIDERS', true),
+    settingsRefreshMs: readInt(env, 'AI_SETTINGS_REFRESH_MS', 0, { min: 0, max: 300_000 }),
     workflowDeadlineMs: readInt(env, 'AI_WORKFLOW_DEADLINE_MS', 90_000, {
       min: 1_000,
       max: 600_000,

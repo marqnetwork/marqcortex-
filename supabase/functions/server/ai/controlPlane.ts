@@ -38,6 +38,7 @@ import type { AIBudgetPolicy, AIBudgetState } from './contracts/policy.ts';
 import type {
   AIOperationalSettings,
   OperationalSettingsStore,
+  SettingsSource,
 } from './runtime/operationalSettings.ts';
 
 import { CONTRACT_VERSION, PLATFORM_VERSION } from './contracts/versions.ts';
@@ -80,6 +81,7 @@ import {
   effectiveRealRequestsEnabled,
   SETTINGS_BOUNDS,
 } from './runtime/operationalSettings.ts';
+import { envelopeFrom } from './runtime/envelope.ts';
 
 export interface ControlPlaneOptions {
   readonly config: AIControlPlaneConfig;
@@ -104,6 +106,17 @@ export interface ControlPlaneOptions {
    * over it once durable storage answers.
    */
   readonly settings?: AIOperationalSettings;
+  /**
+   * Where to re-read operational settings from, so a change made through
+   * another isolate reaches this one.
+   *
+   * Omitted, the plane is isolate-local — correct for a unit test that never
+   * has a second plane, and NOT correct for a deployment, where the kill switch
+   * would stop only the isolate that happened to serve the console request.
+   */
+  readonly settingsSource?: SettingsSource;
+  /** How long a cached settings copy may be served. Defaults to the config. */
+  readonly settingsRefreshMs?: number;
   readonly clock?: Clock;
   readonly ids?: IdFactory;
   readonly logSink?: LogSink;
@@ -140,6 +153,17 @@ export interface AIControlPlane {
    * layer after a settings change and after hydration; idempotent.
    */
   applySettings(): void;
+  /**
+   * Re-read operational settings from durable storage if the cached copy has
+   * aged past the refresh interval, adopting anything newer.
+   *
+   * Called automatically at the top of `execute`, so an administrator's change
+   * reaches every isolate by its next AI request without anything having to
+   * push to it. Exposed because health probes and the administration console
+   * want the same freshness, and because a deployment may want to drive it on
+   * a timer.
+   */
+  refreshSettings(): Promise<AIOperationalSettings>;
   /** Rolling daily budget state for one organization and actor. */
   budgetState(organizationId: string, actorId: string): {
     organization: AIBudgetState;
@@ -167,6 +191,13 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
   const ids = options.ids ?? systemIdFactory;
   const { config } = options;
 
+  const logger = createLogger({
+    level: config.observability.logLevel,
+    structured: config.observability.structuredLogs,
+    sink: options.logSink,
+    base: { component: 'ai-control-plane', platformVersion: PLATFORM_VERSION },
+  });
+
   // ── Administrative overlay ────────────────────────────────────────────────
   //
   // Created before anything that reads it, and seeded from the environment
@@ -177,16 +208,32 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
   // emergency stop is the same as not having one.
   const settings = createOperationalSettingsStore(
     options.settings ?? baselineSettings(config, clock.isoNow()),
+    {
+      source: options.settingsSource,
+      ttlMs: options.settingsRefreshMs ?? config.settingsRefreshMs,
+      now: () => clock.now(),
+      // Every path into the overlay is narrowed to what the deployment
+      // authorised — a local write, a hydrate, and a refresh from an isolate
+      // that might be running an older revision.
+      envelope: envelopeFrom(config),
+      onError: (error) =>
+        logger.error('ai.settings.refresh_failed', {
+          diagnostics: error instanceof Error ? error.message : String(error),
+        }),
+      // A refreshed configuration can enable or disable providers, which is
+      // registry state rather than something read through a getter.
+      onAdopted: (adopted) => {
+        applySettings();
+        logger.info('ai.settings.refreshed', {
+          configurationVersion: adopted.configurationVersion,
+          aiEnabled: adopted.aiEnabled,
+          emergencyStop: adopted.emergencyStop.engaged,
+        });
+      },
+    },
   );
   /** The settings in force right now. Called at the point of use, never cached. */
   const live = () => settings.current();
-
-  const logger = createLogger({
-    level: config.observability.logLevel,
-    structured: config.observability.structuredLogs,
-    sink: options.logSink,
-    base: { component: 'ai-control-plane', platformVersion: PLATFORM_VERSION },
-  });
 
   const metrics: Metrics = createMetrics();
 
@@ -419,7 +466,14 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
   }
 
   return {
-    execute: (envelope, transport) => orchestrator.execute(envelope, transport),
+    // Settings are refreshed BEFORE the guard runs, so the very first thing a
+    // request does is find out whether an administrator has stopped AI. Placing
+    // it here rather than inside the orchestrator keeps the execution path
+    // itself unaware that settings can be re-read at all.
+    execute: async (envelope, transport) => {
+      await settings.refresh();
+      return orchestrator.execute(envelope, transport);
+    },
     catalog,
     prompts,
     providers: providerRegistry,
@@ -428,6 +482,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     config,
     settings,
     applySettings,
+    refreshSettings: () => settings.refresh(),
     budgetState: (organizationId, actorId) => budget.inspect(organizationId, actorId, budgetPolicy),
     budgetPolicy: () => budgetPolicyFrom(live().budget),
     health: () =>

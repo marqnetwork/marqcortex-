@@ -41,6 +41,8 @@
  */
 
 import type { AIControlPlaneConfig } from './config.ts';
+import type { DeploymentEnvelope } from './envelope.ts';
+import { applyEnvelope } from './envelope.ts';
 
 export interface AIRetryPolicy {
   readonly baseDelayMs: number;
@@ -351,40 +353,119 @@ export function aiExecutionPermitted(settings: AIOperationalSettings): boolean {
 
 // ── The live holder ─────────────────────────────────────────────────────────
 
+/**
+ * The durable record, as seen by an isolate that did not write it.
+ *
+ * A port rather than the admin settings store itself, so the control plane
+ * depends on "somewhere I can re-read settings from" and not on the
+ * administration layer — which would be a cycle, and would put an operational
+ * concern inside the execution path.
+ */
+export interface SettingsSource {
+  load(): Promise<AIOperationalSettings | undefined>;
+}
+
 export interface OperationalSettingsStore {
-  /** The settings currently in effect. Never null. */
+  /** The settings currently in effect. Never null, always envelope-narrowed. */
   current(): AIOperationalSettings;
   /**
-   * Replace the settings wholesale, bumping the configuration version.
+   * Adopt a configuration that durable storage has already accepted.
    *
-   * The version is owned here rather than by the caller so two administrators
-   * acting through different isolates cannot both write version 7.
+   * Named `adopt` rather than `replace` because it no longer invents a version.
+   * Versions are allocated by the durable store under compare-and-swap, so an
+   * isolate's job is to catch up to a number somebody else may have set — a
+   * locally incremented counter is exactly how two isolates both produced
+   * version 2 for different configurations.
    */
-  replace(next: AIOperationalSettings, at: string): AIOperationalSettings;
+  adopt(settings: AIOperationalSettings): AIOperationalSettings;
   /**
-   * Adopt settings loaded from durable storage WITHOUT bumping the version —
-   * hydration is not a change, and treating it as one would inflate the version
-   * on every isolate start until the number meant nothing.
+   * Re-read the durable record when the cached copy is older than the TTL.
+   *
+   * Concurrent calls share one read. A load that fails leaves the cached
+   * settings in place and is reported through `onError` — an isolate that
+   * cannot reach storage must keep serving under the last configuration it
+   * knows, not fail open to the baseline.
+   *
+   * Only a STRICTLY NEWER version is adopted. Versions are globally unique, so
+   * "newer" is unambiguous, and refusing to move backwards means a slow read
+   * that lands after a local write cannot undo it.
    */
-  hydrate(loaded: AIOperationalSettings): void;
+  refresh(): Promise<AIOperationalSettings>;
+  /** True when the next `refresh()` would actually hit durable storage. */
+  isStale(): boolean;
+}
+
+export interface OperationalSettingsStoreOptions {
+  /** Where to re-read from. Omitted, the store is isolate-local. */
+  readonly source?: SettingsSource;
+  /**
+   * How long a cached copy may be served before it is re-read.
+   *
+   * Zero — the default — means every check re-reads, which is the correct
+   * default for a control whose whole purpose is to stop the platform
+   * immediately. A deployment that would rather trade freshness for key-value
+   * reads raises it, and accepts that a kill switch takes up to that long to
+   * reach an isolate that is already warm.
+   */
+  readonly ttlMs?: number;
+  readonly now?: () => number;
+  readonly envelope?: DeploymentEnvelope;
+  readonly onError?: (error: unknown) => void;
+  /** Called whenever a refresh adopts a newer configuration. */
+  readonly onAdopted?: (settings: AIOperationalSettings) => void;
 }
 
 export function createOperationalSettingsStore(
   initial: AIOperationalSettings,
+  options: OperationalSettingsStoreOptions = {},
 ): OperationalSettingsStore {
-  let settings = initial;
+  const now = options.now ?? (() => Date.now());
+  const ttlMs = Math.max(0, options.ttlMs ?? 0);
+  const narrow = (settings: AIOperationalSettings): AIOperationalSettings =>
+    options.envelope ? applyEnvelope(settings, options.envelope) : settings;
+
+  let settings = narrow(initial);
+  let loadedAtMs = now();
+  let inFlight: Promise<AIOperationalSettings> | undefined;
+
+  function adopt(next: AIOperationalSettings): AIOperationalSettings {
+    settings = narrow(next);
+    loadedAtMs = now();
+    return settings;
+  }
+
   return {
     current: () => settings,
-    replace(next, at) {
-      settings = {
-        ...next,
-        configurationVersion: settings.configurationVersion + 1,
-        updatedAt: at,
-      };
-      return settings;
-    },
-    hydrate(loaded) {
-      settings = loaded;
+    adopt,
+    isStale: () => options.source !== undefined && now() - loadedAtMs >= ttlMs,
+
+    refresh() {
+      if (options.source === undefined) return Promise.resolve(settings);
+      if (now() - loadedAtMs < ttlMs) return Promise.resolve(settings);
+      // Coalesced. Without this a burst of concurrent requests on a cold cache
+      // would each issue their own durable read for the same answer.
+      if (inFlight) return inFlight;
+
+      const source = options.source;
+      inFlight = (async () => {
+        try {
+          const loaded = await source.load();
+          if (loaded && loaded.configurationVersion > settings.configurationVersion) {
+            const adopted = adopt(loaded);
+            options.onAdopted?.(adopted);
+            return adopted;
+          }
+          // Nothing newer, but the cache is now known-fresh.
+          loadedAtMs = now();
+          return settings;
+        } catch (error) {
+          options.onError?.(error);
+          return settings;
+        } finally {
+          inFlight = undefined;
+        }
+      })();
+      return inFlight;
     },
   };
 }
