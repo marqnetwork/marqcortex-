@@ -16,6 +16,7 @@
 import type { AIControlPlane } from '../controlPlane.ts';
 import type { AIAuthenticator, AuthenticatedSubject, SubjectMembership } from '../security/actor.ts';
 import type { AIControlPlaneConfig } from '../runtime/config.ts';
+import type { AIOperationalSettings } from '../runtime/operationalSettings.ts';
 import type { MutableClock } from '../runtime/clock.ts';
 import type { LogSink } from '../observability/logger.ts';
 import type { MockProviderHandle } from '../providers/mockProvider.ts';
@@ -78,6 +79,11 @@ export interface TestPlaneOptions {
   readonly authenticator?: AIAuthenticator;
   /** Provider registration order. Defaults to primary then backup. */
   readonly providersEnabled?: boolean;
+  /**
+   * Durable settings the plane re-reads from, so a test can model a second
+   * isolate picking up a change it did not make.
+   */
+  readonly settingsSource?: { load(): Promise<AIOperationalSettings | undefined> };
 }
 
 export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
@@ -108,6 +114,7 @@ export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
     clock,
     ids: createSequentialIdFactory(),
     logSink: sink,
+    settingsSource: options.settingsSource,
     // Backoff is asserted directly in the retry unit tests; here it only needs
     // to not spend real time.
     sleep: () => Promise.resolve(),
@@ -236,7 +243,10 @@ export function buildTestAdministration(
   // platform is two things to get wrong — and the harness must not accidentally
   // make a test pass that production's single path would fail.
   const authenticator = options.authenticator ?? adminAuthenticator();
-  const base = buildTestPlane({ ...options, authenticator });
+  // The plane re-reads settings from the same store the administration service
+  // writes to. Production wires exactly this, for exactly this reason: an
+  // administrator's change has to reach isolates that did not serve the change.
+  const base = buildTestPlane({ ...options, authenticator, settingsSource: settingsStore });
 
   const admin = createAIAdministration({
     plane: base.plane,

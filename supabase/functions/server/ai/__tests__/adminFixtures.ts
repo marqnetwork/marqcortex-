@@ -28,7 +28,7 @@ import type { AdminSettingsStore } from '../admin/settingsStore.ts';
 import type { AIOperationalSettings } from '../runtime/operationalSettings.ts';
 import type { TestAdministration, TestAdministrationOptions, TestPlane } from './harness.ts';
 
-import { createMemorySettingsStore } from '../admin/settingsStore.ts';
+import { NO_STORED_VERSION, createMemorySettingsStore, settingsConflict } from '../admin/settingsStore.ts';
 import { buildTestAdministration, narrativeInput } from './harness.ts';
 import { AIError } from '../contracts/errors.ts';
 
@@ -98,9 +98,11 @@ export function createGatedSettingsStore(initial?: AIOperationalSettings): Gated
 
   return {
     load: () => Promise.resolve(stored),
-    async save(settings) {
+    async save(settings, expectedVersion) {
       saves += 1;
       if (saves === 1) await gate;
+      const actual = stored?.configurationVersion ?? NO_STORED_VERSION;
+      if (actual !== expectedVersion) throw settingsConflict(expectedVersion, actual);
       stored = settings;
     },
     get saves() {
@@ -134,7 +136,11 @@ export function createRecordingSettingsStore(
   const versions: number[] = [];
   return {
     load: () => Promise.resolve(stored),
-    save(settings) {
+    save(settings, expectedVersion) {
+      const actual = stored?.configurationVersion ?? NO_STORED_VERSION;
+      if (actual !== expectedVersion) {
+        return Promise.reject(settingsConflict(expectedVersion, actual));
+      }
       versions.push(settings.configurationVersion);
       stored = settings;
       return Promise.resolve();
@@ -170,6 +176,8 @@ export async function buildIsolatePair(
   options: TestAdministrationOptions = {},
 ): Promise<IsolatePair> {
   const store = options.settingsStore ?? createMemorySettingsStore();
+  // Both planes read their settings back from the SAME durable record, which is
+  // what makes them a second isolate rather than a second universe.
   const a = buildTestAdministration({ ...options, settingsStore: store });
   const b = buildTestAdministration({ ...options, settingsStore: store });
   await a.admin.hydrate();

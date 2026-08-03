@@ -155,13 +155,22 @@ describe('AI administration HTTP — request handling', () => {
   it('demands only the capability the patch actually implies', async () => {
     const harness = buildTestAdministration();
 
-    // An organization admin may retune a timeout …
+    // The platform operator may retune a timeout …
     const allowed = await executeAdminHttpRequest(harness.admin, {
+      operation: ADMIN_OPERATION.updateSettings,
+      authorization: bearer(ADMIN_TOKEN.superAdmin),
+      body: { reason: 'raising the deadline for batch analysis', timeout: { workflowDeadlineMs: 120_000 } },
+    });
+    assert.equal(allowed.status, 200);
+
+    // … and an organization admin may not, because the deadline is one number
+    // shared by every tenant. Same endpoint, same body, different caller.
+    const scoped = await executeAdminHttpRequest(harness.admin, {
       operation: ADMIN_OPERATION.updateSettings,
       authorization: bearer(ADMIN_TOKEN.organizationAdmin),
       body: { reason: 'raising the deadline for batch analysis', timeout: { workflowDeadlineMs: 120_000 } },
     });
-    assert.equal(allowed.status, 200);
+    assert.equal(scoped.status, 403);
 
     // … and an empty patch still demands a grant, so a caller with no write
     // capability cannot reach the mutation path and bump the version.

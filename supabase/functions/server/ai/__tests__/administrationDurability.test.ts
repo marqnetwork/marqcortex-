@@ -39,7 +39,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ADMIN_TOKEN, buildTestAdministration } from './harness.ts';
-import { createMemorySettingsStore } from '../admin/settingsStore.ts';
+import {
+  NO_STORED_VERSION,
+  createMemorySettingsStore,
+  settingsConflict,
+} from '../admin/settingsStore.ts';
+import { AIError } from '../contracts/errors.ts';
 import {
   buildIsolatePair,
   createFailingSettingsStore,
@@ -93,6 +98,12 @@ describe('AI administration — settings propagation across isolates', () => {
 
     await a.admin.updateProvider(operator, 'primary', { enabled: false }, 'primary is degraded');
 
+    // B picks the change up when it next serves traffic. Cross-process
+    // propagation cannot be synchronous, so "by B's next request" is both the
+    // strongest achievable guarantee and the operationally meaningful one — B
+    // must never route a request to a provider an operator has disabled.
+    await executeNarrative(b, ADMIN_TOKEN.teamAdmin);
+
     assert.equal(
       b.plane.providers.find('primary')?.enabled,
       false,
@@ -110,6 +121,8 @@ describe('AI administration — settings propagation across isolates', () => {
       'tighten per-actor allowance for the pilot',
     );
 
+    await executeNarrative(b, ADMIN_TOKEN.teamAdmin);
+
     assert.equal(
       b.plane.settings.current().budget.actorDailyMicroUsd,
       12_345,
@@ -122,6 +135,7 @@ describe('AI administration — settings propagation across isolates', () => {
     const operator = await a.actor(ADMIN_TOKEN.superAdmin);
 
     await a.admin.setEmergencyStop(operator, true, HALT_REASON);
+    await executeNarrative(b, ADMIN_TOKEN.teamAdmin);
 
     // An operator correlating an incident with a configuration version must not
     // get a different answer depending on which isolate answers the health probe.
@@ -325,5 +339,115 @@ describe('AI administration — persistence ordering', () => {
     assert.equal(hydrated.aiEnabled, true);
     assert.equal(hydrated.emergencyStop.engaged, false);
     assert.equal((await executeNarrative(harness, ADMIN_TOKEN.teamAdmin)).served, true);
+  });
+});
+
+describe('AI administration — compare-and-swap and cache freshness', () => {
+  it('rejects a save whose expected version is stale', async () => {
+    const store = createMemorySettingsStore();
+    const harness = buildTestAdministration({ settingsStore: store });
+    const operator = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.setEmergencyStop(operator, true, HALT_REASON);
+
+    const stored = await store.load();
+    assert.ok(stored);
+    if (!stored) return;
+
+    // Anything that did not observe the current version is refused outright.
+    // This is the primitive every other concurrency guarantee is built on.
+    await assert.rejects(
+      store.save(stored, NO_STORED_VERSION),
+      (error: unknown) => error instanceof AIError && error.code === 'CONFLICT',
+    );
+    await assert.rejects(
+      store.save(stored, stored.configurationVersion - 1),
+      (error: unknown) => error instanceof AIError && error.code === 'CONFLICT',
+    );
+    // The version it actually observed is accepted.
+    await store.save({ ...stored, configurationVersion: stored.configurationVersion + 1 }, stored.configurationVersion);
+  });
+
+  it('surfaces a typed CONFLICT when a contended write cannot be applied', async () => {
+    // A store that never agrees, so every retry loses. The service must give up
+    // and say so rather than spinning or silently reporting success.
+    const alwaysContended = {
+      saves: 0,
+      load: () => Promise.resolve(undefined),
+      save: () => Promise.reject(settingsConflict(0, 99)),
+    };
+    const harness = buildTestAdministration({ settingsStore: alwaysContended });
+    const operator = await harness.actor(ADMIN_TOKEN.superAdmin);
+
+    const error = await harness.admin
+      .updateSettings(operator, { failoverEnabled: false }, 'contended change')
+      .then(() => undefined)
+      .catch((thrown: unknown) => thrown);
+
+    assert.ok(error instanceof AIError, 'a contended write must surface an AIError');
+    if (!(error instanceof AIError)) return;
+    assert.equal(error.code, 'CONFLICT');
+    assert.equal(error.status, 409);
+    // And nothing was applied, because nothing was ever persisted.
+    assert.equal(harness.plane.settings.current().failoverEnabled, true);
+  });
+
+  it('records a rejected contended write on the administrative trail', async () => {
+    const alwaysContended = {
+      saves: 0,
+      load: () => Promise.resolve(undefined),
+      save: () => Promise.reject(settingsConflict(0, 99)),
+    };
+    const harness = buildTestAdministration({ settingsStore: alwaysContended });
+    const operator = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin
+      .updateSettings(operator, { failoverEnabled: false }, 'contended change')
+      .catch(() => undefined);
+
+    const rejected = harness.admin
+      .adminAudit(operator, 20)
+      .filter((record) => record.rejectionCode === 'CONFLICT');
+    assert.ok(rejected.length > 0, 'a lost race must be visible on the trail');
+  });
+
+  it('serves a cached copy for the refresh interval, then re-reads', async () => {
+    // A deployment that raises AI_SETTINGS_REFRESH_MS is choosing to trade
+    // freshness for key-value reads. This pins what it is buying: the change is
+    // invisible until the interval elapses, and visible immediately after.
+    const { a, b } = await buildIsolatePair({ env: { AI_SETTINGS_REFRESH_MS: '5000' } });
+    const operator = await a.actor(ADMIN_TOKEN.superAdmin);
+    await a.admin.setEmergencyStop(operator, true, HALT_REASON);
+
+    // Inside the interval B is entitled to its cached answer.
+    assert.equal((await executeNarrative(b, ADMIN_TOKEN.teamAdmin)).served, true);
+
+    b.clock.advance(5_000);
+    const afterExpiry = await executeNarrative(b, ADMIN_TOKEN.teamAdmin);
+    assert.equal(afterExpiry.served, false, 'a stale cache never expired');
+    if (afterExpiry.served) return;
+    assert.equal(afterExpiry.code, 'AI_DISABLED');
+  });
+
+  it('never adopts a configuration older than the one it already holds', async () => {
+    // A slow read that lands after a local write must not undo it. Versions are
+    // globally unique, so "older" is unambiguous and the rule is simply that
+    // refresh only ever moves forwards.
+    const store = createMemorySettingsStore();
+    const harness = buildTestAdministration({ settingsStore: store });
+    const operator = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.setEmergencyStop(operator, true, HALT_REASON);
+
+    const current = harness.plane.settings.current();
+    // Storage rolls back to an older configuration behind the plane's back.
+    await store.save(
+      { ...current, configurationVersion: 1, emergencyStop: { engaged: false } },
+      current.configurationVersion,
+    );
+
+    await harness.plane.refreshSettings();
+    assert.equal(
+      harness.plane.settings.current().emergencyStop.engaged,
+      true,
+      'a stale durable record undid a newer local configuration',
+    );
   });
 });

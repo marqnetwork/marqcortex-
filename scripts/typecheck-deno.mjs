@@ -41,6 +41,7 @@ const CONFIG = join(FUNCTIONS_ROOT, 'deno.json');
 const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'ai') + sep,
   join(FUNCTIONS_ROOT, 'server', 'aiRoutes.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'aiAdminRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'teamAuthorization.ts'),
 ];
 

@@ -1,6 +1,7 @@
 # AI-01 Batch 2 — AI Administration & Operations
 
-**Status:** Implementation complete, ready for independent review
+**Status:** Remediated after independent review — ready for re-review
+**Remediation:** see `AI-01-BATCH-2-REMEDIATION.md` for what changed and why
 **Branch:** `claude/ai-admin-operations-batch-2-6zw88i`
 **Date:** 2026-08-03
 **Builds on:** AI-01 Batch 1 (`architecture/ai/AI-01-BATCH-1-COMPLETION.md`)
@@ -132,12 +133,12 @@ least-privileged caller can change everything. An empty patch still demands a
 grant, so a caller with no write capability cannot bump the configuration
 version with nothing in it.
 
-### 4.4 Team Admin is read-only, and that is the feature
+### 4.4 Only the platform operator writes, and that is the feature
 
 Every switch on this surface is platform-wide: the kill switch, the provider
 order, the model pin, the retry curve. There is no "our team's provider
 preference". A role that could only be exercised by affecting people outside its
-scope is not a safe role, so writes stop at Organization Admin and Team Admins
+scope is not a safe role, so writes stop at Super Admin and the other tiers
 get what they actually need — a truthful, live view of what AI is doing and what
 it costs. An organization *owner* resolves to Organization Admin, never to the
 platform operator: conflating them would hand a tenant the ability to clear
@@ -161,10 +162,19 @@ must never have.
 
 ### 4.7 Persist before apply
 
-`commit` writes to durable storage before projecting onto the plane. If storage
-fails, the plane keeps serving under the settings it already had rather than
-under settings that will vanish on the next isolate. A change that silently
-un-applies itself is worse than one that visibly failed.
+`commit` reads the authoritative durable record, applies the change on top of
+it, narrows the result to the deployment envelope, writes it under
+compare-and-swap, and **only then** adopts it locally and projects it onto the
+registry. If storage fails or the write loses a race, nothing is adopted and the
+plane keeps serving under the settings it already had.
+
+> **Correction.** As originally shipped this section described an ordering the
+> code did not implement: `plane.settings.replace()` ran *before* the durable
+> write and was not rolled back when that write failed, so a change the operator
+> had been told had failed was live until the isolate recycled — including, in
+> the worst direction, a released kill switch. An independent review
+> demonstrated it. The ordering above is the remediated behaviour, pinned by
+> `administrationDurability.test.ts`.
 
 ### 4.8 No demo mode on the console
 

@@ -135,13 +135,23 @@ describe('AI administration — role resolution', () => {
       harness.admin.increaseSpendCap(orgAdmin, usdToMicroUsd(50), REASON),
       'FORBIDDEN',
     );
-    // But the operations their role does cover still work.
-    const settings = await harness.admin.updateSettings(
-      orgAdmin,
-      { budget: { actorDailyMicroUsd: 1_000_000 } },
-      REASON,
+    // And every OTHER mutation on this surface is refused too, because every
+    // one of them is platform-wide. An administrator of one organization
+    // changing the execution path for all of them is not a scoped action, so
+    // the writes stop at the platform operator until a genuinely
+    // organization-scoped layer exists.
+    await rejectsWith(
+      harness.admin.updateSettings(orgAdmin, { budget: { actorDailyMicroUsd: 1_000_000 } }, REASON),
+      'FORBIDDEN',
     );
-    assert.equal(settings.budget.actorDailyMicroUsd, 1_000_000);
+    await rejectsWith(harness.admin.setEmergencyStop(orgAdmin, true, REASON), 'FORBIDDEN');
+    await rejectsWith(
+      harness.admin.updateProvider(orgAdmin, 'primary', { enabled: false }, REASON),
+      'FORBIDDEN',
+    );
+    // Reads are untouched: the tier exists to see its organizations' AI.
+    assert.ok(harness.admin.settings(orgAdmin).configurationVersion >= 1);
+    assert.ok(harness.admin.providers(orgAdmin).length > 0);
   });
 
   it('derives a capability from the field being changed, not the endpoint', async () => {
@@ -313,8 +323,12 @@ describe('AI administration — runtime settings', () => {
       { realRequestsEnabled: true },
       REASON,
     );
-    // The administrator's stated position is stored honestly …
-    assert.equal(settings.realRequestsEnabled, true);
+    // The stored position is NARROWED to the envelope, not merely overridden on
+    // read. Storing an administrator's `true` under a deployment that says no
+    // would arm the platform to start spending the moment the deployment flag
+    // flipped, without anybody re-deciding — so the overlay records what is
+    // actually in force.
+    assert.equal(settings.realRequestsEnabled, false);
     // … and the EFFECTIVE answer is still no.
     const overview = await harness.admin.overview(admin);
     assert.equal(overview.effective.realRequestsEnabled, false);
@@ -723,30 +737,28 @@ describe('AI administration — provider management', () => {
     assert.equal(primary.models.filter((model) => model.permitted).length, 1);
   });
 
-  it('ignores an allow list that matches nothing the adapter declares', async () => {
+  it('rejects an allow list that matches nothing the adapter declares', async () => {
     const harness = buildTestAdministration();
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
-    await harness.admin.updateProvider(
-      admin,
-      'primary',
-      { modelAllowList: ['a-model-that-does-not-exist'] },
-      REASON,
+    // FAILS CLOSED. This used to be accepted and then ignored, so a provider an
+    // operator believed they had restricted to one model went on serving its
+    // whole catalogue with the console reporting success. A narrowing that
+    // cannot be applied is refused at the boundary that knows the model list.
+    const error = await rejectsWith(
+      harness.admin.updateProvider(
+        admin,
+        'primary',
+        { modelAllowList: ['a-model-that-does-not-exist'] },
+        REASON,
+      ),
+      'VALIDATION_FAILED',
     );
+    assert.deepEqual(error.fields, ['modelAllowList']);
 
-    // A typo in a console field must not silently take a provider out of
-    // rotation while the console still shows it enabled. The mismatch surfaces
-    // through validation instead.
-    const result = await harness.plane.execute(
-      { featureId: 'cortex.narrative', input: narrativeInput() },
-      { authorization: `Bearer ${ADMIN_TOKEN.superAdmin}` },
-    );
-    assert.equal(result.execution.providerId, 'primary');
-    assert.ok(
-      harness.plane.providers
-        .validate()
-        .some((issue) => issue.includes('matches no declared model')),
-    );
+    // Nothing was stored, so nothing was narrowed and nothing was widened.
+    assert.equal(harness.plane.settings.current().providers.primary, undefined);
+    assert.ok(harness.plane.providers.models('primary').length > 0);
   });
 
   it('never lets a pinned model override a capability requirement', async () => {
@@ -875,7 +887,11 @@ describe('AI administration — budget management', () => {
   });
 
   it('keeps the Batch 1 hard cap enforcing after administrative changes', async () => {
-    const harness = buildTestAdministration();
+    // The deployment permits daily budgets to be unenforced; that is what makes
+    // the administrative toggle meaningful here. A deployment that enforces them
+    // cannot have the console turn enforcement off — asserted separately in
+    // administrationAdversarial.test.ts.
+    const harness = buildTestAdministration({ env: { AI_BUDGET_ENFORCE: 'false' } });
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
     await harness.admin.updateSettings(admin, { budget: { enforce: false } }, REASON);
@@ -1132,7 +1148,11 @@ describe('AI administration — audit visibility', () => {
     const orgAdmin = await harness.actor(ADMIN_TOKEN.organizationAdmin);
 
     await harness.admin.updateSettings(superAdmin, { failoverEnabled: false }, REASON);
-    await harness.admin.updateSettings(orgAdmin, { budget: { enforce: false } }, REASON);
+    // Refused, and recorded — a rejected mutation is exactly the kind of record
+    // an administrator should be able to see about themselves.
+    await harness.admin
+      .updateSettings(orgAdmin, { budget: { enforce: false } }, REASON)
+      .catch(() => undefined);
 
     const orgView = harness.admin.adminAudit(orgAdmin, 200);
     assert.ok(orgView.length > 0);

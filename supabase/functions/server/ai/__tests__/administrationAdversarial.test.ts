@@ -208,8 +208,12 @@ describe('AI administration — the deployment envelope', () => {
     const harness = buildTestAdministration({
       env: { AI_BUDGET_ORG_DAILY_MICRO_USD: '1000' },
     });
-    const org = await harness.actor(ADMIN_TOKEN.organizationAdmin);
-    await harness.admin.updateSettings(org, { budget: { organizationDailyMicroUsd: 250 } }, REASON);
+    const operator = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.updateSettings(
+      operator,
+      { budget: { organizationDailyMicroUsd: 250 } },
+      REASON,
+    );
     assert.equal(harness.plane.settings.current().budget.organizationDailyMicroUsd, 250);
   });
 });
