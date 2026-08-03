@@ -353,6 +353,20 @@ const controlPlane = initializeControlPlane({
     await kv.set(key, JSON.stringify(value));
   },
   kvRead: async (key: string) => kv.get(key),
+  // Atomic conditional write, backed by the `kv_compare_and_swap` SQL function
+  // (migration 20260803120000). The comparison and the write are one statement,
+  // so two isolates writing the same expected version cannot both succeed —
+  // which is what stops one administrator's kill switch being lost to another's
+  // unrelated edit. A false result is a lost race, not a failure.
+  kvCompareAndSwap: async (key: string, expectedVersion: number, value: unknown) => {
+    const { data, error } = await supabaseAdmin.rpc('kv_compare_and_swap', {
+      p_key: key,
+      p_expected_version: expectedVersion,
+      p_value: JSON.stringify(value),
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  },
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed
