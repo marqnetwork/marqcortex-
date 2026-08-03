@@ -8,7 +8,6 @@
     "confidence": "PROVEN",
     "evidence_source": "Direct file reads — no inference"
   },
-
   "product": {
     "name": "MARQ Cortex Diagnostic Platform",
     "type": "SPA + Supabase Edge Function",
@@ -28,7 +27,6 @@
       "port": 5173
     }
   },
-
   "agent_entry_points": {
     "system_prompt": "prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md",
     "architecture_map": "ARCHITECT.md",
@@ -42,10 +40,9 @@
     "database_migration_roadmap": "architecture/database/MCV2-S3-MIGRATION-ROADMAP.md",
     "database_adr_register": "architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md"
   },
-
   "ai_control_plane": {
     "status": "LIVE",
-    "batch": "AI-01 Batch 1",
+    "batch": "AI-01 Batch 1 (control plane) + Batch 2 (administration)",
     "manifest_id": "MQC-SVC-010",
     "path": "supabase/functions/server/ai/",
     "entry": "ai/controlPlane.ts",
@@ -57,11 +54,15 @@
     "principle": "Exactly one governed AI execution path. No bypass flag, no legacy path, no direct provider access outside ai/providers/.",
     "execution_sequence": [
       "aiGuard — contract version, feature, payload size, authentication, organization, actor, body validation, rate limiting",
-      "policyEngine — feature enablement, actor type, channel, capability, budget",
+      "policyEngine — platform AI enablement (master switch and emergency stop), feature enablement, actor type, channel, capability, budget",
       "executionPipeline — prompt render, input guard, provider select, invoke (timeout/retry/circuit/failover), output guard, parse, fact lock",
       "orchestrator — budget accounting, audit record, metrics, structured log, lifecycle events"
     ],
-    "providers": ["openai", "anthropic", "mock"],
+    "providers": [
+      "openai",
+      "anthropic",
+      "mock"
+    ],
     "provider_contract": "ai/contracts/provider.ts",
     "features": [
       "cortex.narrative",
@@ -108,9 +109,50 @@
       "component": "Intelligence Gateway",
       "path": "supabase/functions/server/intelligence/",
       "removed_in": "AI-01 Batch 1"
+    },
+    "administration": {
+      "status": "LIVE",
+      "batch": "AI-01 Batch 2",
+      "manifest_id": "MQC-SVC-050",
+      "path": "supabase/functions/server/ai/admin/",
+      "routes": "supabase/functions/server/aiAdminRoutes.ts",
+      "settings_overlay": "ai/runtime/operationalSettings.ts",
+      "console": "src/app/components/AIAdministrationConsole.tsx",
+      "principle": "The administration layer administers the control plane through the plane’s own surfaces. It never executes AI, never reaches a provider adapter, and never re-implements a Batch 1 guarantee — budget enforcement, provider selection and request authorization each keep exactly one implementation.",
+      "roles": [
+        "super_admin",
+        "organization_admin",
+        "team_admin"
+      ],
+      "capabilities": [
+        "ai.admin.view",
+        "ai.admin.audit.read",
+        "ai.admin.settings.write",
+        "ai.admin.provider.write",
+        "ai.admin.budget.write",
+        "ai.admin.budget.reset",
+        "ai.admin.killswitch"
+      ],
+      "settings_authority": "The environment configuration states what the deployment PERMITS; the operational settings overlay states what is currently IN EFFECT. Administrative action may tighten the posture freely and may loosen it only inside the envelope the deployment already granted — AI_ALLOW_REAL_REQUESTS=false can never be overturned from a console.",
+      "persistence": "ai:admin:settings (key-value), versioned by configurationVersion",
+      "audit_trail": "ai:admin:audit:{yyyy-mm-dd}:{adminAuditId} — append only, no update or delete",
+      "admin_routes": [
+        "GET  /make-server-324f4fbe/ai/admin/overview",
+        "GET  /make-server-324f4fbe/ai/admin/settings",
+        "PATCH /make-server-324f4fbe/ai/admin/settings",
+        "POST /make-server-324f4fbe/ai/admin/kill-switch",
+        "GET  /make-server-324f4fbe/ai/admin/providers",
+        "PATCH /make-server-324f4fbe/ai/admin/providers/:providerId",
+        "GET  /make-server-324f4fbe/ai/admin/budget",
+        "POST /make-server-324f4fbe/ai/admin/budget/reset",
+        "POST /make-server-324f4fbe/ai/admin/budget/increase",
+        "GET  /make-server-324f4fbe/ai/admin/usage",
+        "GET  /make-server-324f4fbe/ai/admin/diagnostics",
+        "GET  /make-server-324f4fbe/ai/admin/audit",
+        "GET  /make-server-324f4fbe/ai/admin/audit/changes"
+      ]
     }
   },
-
   "top_level_directories": {
     "ARCHITECT.md": "Canonical map + root pointer (read first)",
     "prompts": "MARQ Claude Agent System Prompt v1.0",
@@ -125,28 +167,58 @@
     "memory": "failure_library, regression_cases, pattern_violations",
     "utils/supabase": "projectId, publicAnonKey"
   },
-
   "entry_points": {
     "index.html": "Shell, mounts #root",
     "src/main.tsx": "Bootstrap, error fallbacks, lazy App import",
     "src/app/App.tsx": "Hash router, makeLazy() factory",
     "src/app/pages/RootLayout.tsx": "AppProvider, ErrorBoundary, OfflineBanner"
   },
-
   "routes": {
-    "#/": { "page": "src/app/pages/LandingPageRoute.tsx", "load": "eager" },
-    "#/get-started": { "page": "src/app/pages/LeadMagnetRoute.tsx", "load": "lazy" },
-    "#/diagnostic": { "page": "src/app/pages/DiagnosticRoute.tsx", "load": "lazy" },
-    "#/score": { "page": "src/app/pages/ScoreRoute.tsx", "load": "lazy" },
-    "#/team/login": { "page": "src/app/pages/TeamLoginRoute.tsx", "load": "lazy" },
-    "#/team/dashboard": { "page": "src/app/pages/TeamDashboardRoute.tsx", "load": "lazy" },
-    "#/team/execution": { "page": "src/app/pages/ExecutionRoute.tsx", "load": "lazy" },
-    "#/client/login": { "page": "src/app/pages/ClientLoginRoute.tsx", "load": "lazy" },
-    "#/client/portal": { "page": "src/app/pages/ClientPortalRoute.tsx", "load": "lazy" },
-    "#/architecture": { "component": "src/app/components/SystemArchitecture.tsx", "load": "lazy" },
-    "#/registry": { "component": "src/app/components/RegistryViewer.tsx", "load": "lazy" }
+    "#/": {
+      "page": "src/app/pages/LandingPageRoute.tsx",
+      "load": "eager"
+    },
+    "#/get-started": {
+      "page": "src/app/pages/LeadMagnetRoute.tsx",
+      "load": "lazy"
+    },
+    "#/diagnostic": {
+      "page": "src/app/pages/DiagnosticRoute.tsx",
+      "load": "lazy"
+    },
+    "#/score": {
+      "page": "src/app/pages/ScoreRoute.tsx",
+      "load": "lazy"
+    },
+    "#/team/login": {
+      "page": "src/app/pages/TeamLoginRoute.tsx",
+      "load": "lazy"
+    },
+    "#/team/dashboard": {
+      "page": "src/app/pages/TeamDashboardRoute.tsx",
+      "load": "lazy"
+    },
+    "#/team/execution": {
+      "page": "src/app/pages/ExecutionRoute.tsx",
+      "load": "lazy"
+    },
+    "#/client/login": {
+      "page": "src/app/pages/ClientLoginRoute.tsx",
+      "load": "lazy"
+    },
+    "#/client/portal": {
+      "page": "src/app/pages/ClientPortalRoute.tsx",
+      "load": "lazy"
+    },
+    "#/architecture": {
+      "component": "src/app/components/SystemArchitecture.tsx",
+      "load": "lazy"
+    },
+    "#/registry": {
+      "component": "src/app/components/RegistryViewer.tsx",
+      "load": "lazy"
+    }
   },
-
   "data_flow": {
     "description": "Component → dataService.ts → [demoData | api.ts] → Edge Function → KV (current) → PostgreSQL (planned MCV2-S3)",
     "gateway_rule": "ALL components import data from dataService.ts ONLY",
@@ -156,7 +228,6 @@
     "target_store": "PostgreSQL with RLS (MCV2-S3 architecture)",
     "architecture_doc": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md"
   },
-
   "database_platform": {
     "sprint": "MCV2-S5-IMPLEMENT-002",
     "status": "diagnostic_foundation_validated_live",
@@ -171,11 +242,25 @@
       "tenancy_tables": 6,
       "diagnostic_tables": 13,
       "tables": [
-        "organizations", "roles", "permissions", "role_permissions",
-        "organization_memberships", "organization_settings",
-        "lead_sources", "leads", "lead_tags", "contacts", "contact_methods",
-        "submissions", "submission_sections", "diagnostic_answers",
-        "diagnostic_scores", "domain_scores", "reports", "report_versions", "outcomes"
+        "organizations",
+        "roles",
+        "permissions",
+        "role_permissions",
+        "organization_memberships",
+        "organization_settings",
+        "lead_sources",
+        "leads",
+        "lead_tags",
+        "contacts",
+        "contact_methods",
+        "submissions",
+        "submission_sections",
+        "diagnostic_answers",
+        "diagnostic_scores",
+        "domain_scores",
+        "reports",
+        "report_versions",
+        "outcomes"
       ],
       "migrations": [
         "supabase/migrations/20260711050000_cortex_tenancy_foundation.sql",
@@ -228,7 +313,6 @@
       "membership_bootstrap": "architecture/database/MEMBERSHIP_BOOTSTRAP.md"
     }
   },
-
   "auth": {
     "team": {
       "mechanism": "Email + password → token",
@@ -245,7 +329,6 @@
       "context": "src/app/contexts/AppContext.tsx"
     }
   },
-
   "frontend_layers": {
     "state_management": {
       "AppContext": "src/app/contexts/AppContext.tsx",
@@ -264,7 +347,6 @@
       "provider_order": "GlobalAIChatProvider (outer) > DashboardProvider (inner)"
     }
   },
-
   "client_portal_tabs": [
     "status",
     "solution",
@@ -275,7 +357,6 @@
     "assessment",
     "strategic-report"
   ],
-
   "team_dashboard_panels": [
     "dashboard",
     "cortex",
@@ -289,21 +370,24 @@
     "execution",
     "architecture"
   ],
-
   "core_engines": {
     "location": "src/app/core/",
     "count": 36,
     "orchestrator": "runCortexEngine() in src/app/core/index.ts",
     "rule": "Pure functions. No React. No side effects. No LLM calls.",
-    "load_bearing": ["scoringEngine.ts", "decisionEngine.ts", "roiEngine.ts", "proposalGateEngine.ts"]
+    "load_bearing": [
+      "scoringEngine.ts",
+      "decisionEngine.ts",
+      "roiEngine.ts",
+      "proposalGateEngine.ts"
+    ]
   },
-
   "backend": {
     "runtime": "Supabase Edge Functions (Deno)",
     "framework": "Hono",
     "entry": "supabase/functions/server/index.tsx",
     "base_path": "/make-server-324f4fbe",
-    "route_count": 79,
+    "route_count": 92,
     "migration_engine": {
       "status": "LIVE",
       "manifest_id": "MQC-SVC-019",
@@ -323,16 +407,14 @@
       "bookings/bookingRecord.ts"
     ]
   },
-
   "manifest": {
     "file": "src/system/manifest.ts",
-    "version": "2.1.0",
-    "node_count": 198,
+    "version": "2.2.0",
+    "node_count": 208,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"
   },
-
   "constitution": {
     "file": "MARQ_CORTEX_CONSTITUTION.md",
     "version": "1.2",
@@ -344,7 +426,6 @@
     "cursor_rule": ".cursor/rules/read-marq-constitution.mdc",
     "migration_roadmap": "architecture/database/MCV2-S3-MIGRATION-ROADMAP.md"
   },
-
   "known_debt": {
     "missing_session_ts": {
       "file": "src/app/lib/session.ts",
@@ -363,15 +444,22 @@
       "severity": "DRIFT"
     },
     "session_key_drift": {
-      "wrong_keys": ["team_access_token", "team_user"],
+      "wrong_keys": [
+        "team_access_token",
+        "team_user"
+      ],
       "canonical": "marq_cortex_team_session",
-      "files": ["EmailNurturePanel.tsx", "TeamHomeDashboard.tsx", "FullFeaturedDashboard.tsx", "TeamMessageThread.tsx"],
+      "files": [
+        "EmailNurturePanel.tsx",
+        "TeamHomeDashboard.tsx",
+        "FullFeaturedDashboard.tsx",
+        "TeamMessageThread.tsx"
+      ],
       "severity": "DRIFT"
     },
     "no_tests": true,
     "missing_api_spec": "API_SPECIFICATIONS.md referenced but absent"
   },
-
   "task_lookup": {
     "routing": "src/app/App.tsx",
     "feature_flags": "src/config/features.ts",

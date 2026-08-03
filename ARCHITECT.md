@@ -20,7 +20,8 @@
 Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. Sprint prompts do not override the system prompt.
 
 **AI Control Plane (AI-01 Batch 1):** `supabase/functions/server/ai/index.ts` — read the module header first  
-**AI completion report:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md`  
+**AI Administration (AI-01 Batch 2):** `supabase/functions/server/ai/admin/administration.ts`  
+**AI completion reports:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md` · `architecture/ai/AI-01-BATCH-2-COMPLETION.md`  
 **Add an AI provider or feature:** `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
 **Data platform architecture (MCV2-S3):** `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`
@@ -167,7 +168,7 @@ cortex/
 | Add an AI provider | `supabase/functions/server/ai/providers/` + `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md` |
 | Change AI limits, budget or capability grants | `ai/policy/featureCatalog.ts`, `ai/security/actor.ts` (ROLE_CAPABILITIES) |
 | Change AI governance rules | `ai/governance/` (input guard, output guard, redaction, fact lock) |
-| AI Control Plane tests | `npm run test:ai` (259 tests) · security subset: `npm run test:security` |
+| AI Control Plane tests | `npm run test:ai` (460 tests) · security subset: `npm run test:security` |
 | Diagnose AI in production | `GET /ai/health` · `GET /ai/metrics` · `GET /ai/audit` · `GET /ai/catalog` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
@@ -221,6 +222,12 @@ STANDARD PATH (all components)
 
 CORTEX INTELLIGENCE (canonical path — AI-01 Batch 1)
   Component → dataService.ts → api.ts → Edge Function → aiRoutes → AI Control Plane → Provider
+
+AI ADMINISTRATION (canonical path — AI-01 Batch 2)
+  AIAdministrationConsole → aiAdminService.ts → Edge Function → aiAdminRoutes
+    → admin HTTP adapter (authorise, then dispatch) → AI Administration service
+    → control plane settings overlay / provider registry / spend ledger
+  The administration layer never reaches a provider and never executes AI.
 
   Inside the control plane (every AI request, no exceptions):
     aiGuard        contract version → feature → payload size → authentication →
@@ -435,6 +442,68 @@ propagating `NaN` into a timeout or a negative ceiling into a rate limiter.
 `GET /ai/metrics` · `GET /ai/audit?limit=N` · `GET /ai/catalog` (team auth).
 
 Base path: `/make-server-324f4fbe`
+
+### 12.2 AI Administration (AI-01 Batch 2)
+
+The environment table above states what the deployment **permits**. The
+operational settings overlay states what is currently **in effect**, and an
+authorised administrator moves it at runtime with no redeploy.
+
+```
+AI_* environment  ──►  deployment permission (immutable at runtime)
+                          │
+operational overlay ──►   what is in force now (versioned, persisted, audited)
+                          │
+control plane      ──►   reads the live value at the point of use
+```
+
+**Administrable at runtime:** AI master switch · emergency kill switch · real
+provider requests · default provider · provider priority order · fallback
+provider · per-provider enable/disable · model allow list · default model ·
+failover · certification requirement · retry policy · workflow deadline ·
+rolling daily budget ceilings and alert threshold.
+
+**Never administrable:** the MARQ lifetime ceiling's *enforcement*, PII
+redaction, the guard, governance rules and per-feature limits. Those are
+deployment decisions or code, not console settings.
+
+**The one-way rule.** Administrative action may tighten the platform's posture
+freely and may loosen it only inside the envelope the deployment already
+granted. `AI_ALLOW_REAL_REQUESTS=false` can never be overturned from a console:
+the effective value is the AND of the environment's permission and the
+administrator's choice. An administrator can always turn real requests *off*.
+
+| Role | Grants |
+|------|--------|
+| **Super Admin** | Everything, including clearing lifetime spend and raising the ceiling |
+| **Organization Admin** | Kill switch, settings, providers, daily budgets, all reads |
+| **Team Admin** | Reads only — health, usage, cost, providers, audit |
+
+Team Admin is read-only by design: every switch on this surface is
+platform-wide, so a role that could only be exercised by affecting other tenants
+would not be a safe role.
+
+**Every mutation requires a reason**, is versioned (`configurationVersion`),
+persisted to `ai:admin:settings`, and appended to a change trail that has no
+update or delete operation on its interface.
+
+| Endpoint | Method | Capability |
+|----------|--------|-----------|
+| `/ai/admin/overview` | GET | `ai.admin.view` |
+| `/ai/admin/settings` | GET / PATCH | `ai.admin.view` / by field |
+| `/ai/admin/kill-switch` | POST | `ai.admin.killswitch` |
+| `/ai/admin/providers` | GET | `ai.admin.view` |
+| `/ai/admin/providers/:id` | PATCH | `ai.admin.provider.write` |
+| `/ai/admin/budget` | GET | `ai.admin.view` |
+| `/ai/admin/budget/reset` | POST | `ai.admin.budget.reset` |
+| `/ai/admin/budget/increase` | POST | `ai.admin.budget.reset` |
+| `/ai/admin/usage` | GET | `ai.admin.view` |
+| `/ai/admin/diagnostics` | GET | `ai.admin.view` |
+| `/ai/admin/audit` | GET | `ai.admin.audit.read` |
+| `/ai/admin/audit/changes` | GET | `ai.admin.audit.read` |
+
+Console: `src/app/components/AIAdministrationConsole.tsx`, mounted as the
+**AI Administration** tab of the settings page.
 
 ---
 

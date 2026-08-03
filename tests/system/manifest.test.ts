@@ -21,10 +21,16 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * AI-01 Batch 1 registered the 27 AI Control Plane components (MQC-SVC-020 →
  * 046) and repointed the seven AI service nodes onto their control plane
  * equivalents, taking the manifest from 171 nodes to 198.
+ *
+ * AI-01 Batch 2 added the administration layer — the operational settings
+ * overlay, admin RBAC, the settings store, the administration service, the
+ * administrative audit trail, usage analytics, the admin HTTP adapter and its
+ * routes (MQC-SVC-047 → 054), the console's API client (MQC-SVC-055) and the
+ * console itself (MQC-COMP-090) — taking the manifest to 208 nodes.
  */
-const CERTIFIED_NODE_COUNT = 198;
+const CERTIFIED_NODE_COUNT = 208;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 46;
+const CERTIFIED_SVC_COUNT = 55;
 
 const entries = Object.entries(manifest.nodes);
 
