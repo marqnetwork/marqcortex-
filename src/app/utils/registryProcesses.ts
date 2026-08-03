@@ -385,7 +385,8 @@ export const PROCESSES: MQCProcess[] = [
     trigger: 'Team member clicks "Analyze" on a submission, or batch analysis picks it up',
     steps: [
       'MQC-API-045',   // POST /submissions/:id/analyze
-      'MQC-BEF-003',   // cortexAnalysis.ts — runCortexAnalysis()
+      'MQC-BEF-009',   // AI Control Plane — guarded execution
+      'MQC-BEF-002',   // ai/features/analysis.ts — diagnostic intelligence feature
       'MQC-FN-010',    // kv.get("sub:{id}") — load submission
       'MQC-FN-011',    // kv.set("cortex:{id}", analysisResult) — store result
     ],
@@ -403,7 +404,8 @@ export const PROCESSES: MQCProcess[] = [
       'MQC-API-044',   // POST /submissions/analyze-batch
       'MQC-FN-016',    // kv.getByPrefix("sub:") — all submissions
       'MQC-FN-003',    // parseSubmissions
-      'MQC-BEF-003',   // cortexAnalysis.ts — runCortexAnalysis() per submission
+      'MQC-BEF-009',   // AI Control Plane — one audited execution per submission
+      'MQC-BEF-002',   // ai/features/analysis.ts — diagnostic intelligence feature
       'MQC-FN-011',    // kv.set("cortex:{id}") per submission
     ],
     outcome: 'All submissions without cortex analysis get analyzed, results stored',
@@ -417,7 +419,8 @@ export const PROCESSES: MQCProcess[] = [
     trigger: 'ProposalDraftEditor or CortexModulesNew requests narrative for a proposal section',
     steps: [
       'MQC-API-054',   // POST /cortex/narrative  (actual path: /cortex/narrative — see MQC-API-054)
-      'MQC-BEF-005',   // cortexNarrative.ts — generateNarrative()
+      'MQC-BEF-009',   // AI Control Plane — guarded execution
+      'MQC-BEF-004',   // ai/features/narrative.ts — explanation feature
     ],
     outcome: 'Generated narrative text returned for a proposal section (exec brief, diagnosis, recommendation, etc.)',
     featureFlag: 'BACKEND_INTEGRATION',
@@ -432,7 +435,8 @@ export const PROCESSES: MQCProcess[] = [
     steps: [
       'MQC-CMP-017',   // EditableBlockCard
       'MQC-API-055',   // POST /blocks/ai-assist  (corrected path)
-      'MQC-BEF-004',   // blockAiAssist.ts — handleBlockAIAssist()
+      'MQC-BEF-009',   // AI Control Plane — guarded execution
+      'MQC-BEF-005',   // ai/features/blockAssist.ts — per-block assist feature
     ],
     outcome: 'AI-generated improvement suggestion for the block description',
     featureFlag: 'BACKEND_INTEGRATION',
@@ -447,7 +451,8 @@ export const PROCESSES: MQCProcess[] = [
     steps: [
       'MQC-CMP-013',   // CopilotPanel
       'MQC-API-056',   // POST /blocks/copilot-interpret  (corrected path)
-      'MQC-BEF-006',   // copilotPatch.ts — handleCopilotInterpret()
+      'MQC-BEF-009',   // AI Control Plane — guarded execution
+      'MQC-BEF-006',   // ai/features/copilotPlan.ts — patch planning feature
     ],
     outcome: 'Structured interpretation of draft text, ready to apply as patch',
     featureFlag: 'BACKEND_INTEGRATION',
@@ -464,7 +469,8 @@ export const PROCESSES: MQCProcess[] = [
       'MQC-CMP-036',   // GlobalAIChat — floating panel UI
       'MQC-SVC-001',   // dataService.chatWithAI
       'MQC-API-057',   // POST /ai/chat  (corrected path)
-      'MQC-BEF-002',   // cortexChat.ts — handleCortexChat()
+      'MQC-BEF-009',   // AI Control Plane — guarded execution
+      'MQC-BEF-003',   // ai/features/chat.ts — conversational feature
     ],
     outcome: 'AI response grounded in active submission context, displayed in chat thread',
     featureFlag: 'BACKEND_INTEGRATION',

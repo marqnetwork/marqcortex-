@@ -33,9 +33,8 @@
     "system_prompt": "prompts/MARQ-CLAUDE-AGENT-SYSTEM-PROMPT-v1.0.md",
     "architecture_map": "ARCHITECT.md",
     "cursor_rule": ".cursor/rules/read-marq-agent-prompt.mdc",
-    "intelligence_audit": "src/imports/MCV2-S1-AUDIT-001-provider-agnostic-intelligence-audit.md",
-    "intelligence_migration_plan": "src/imports/MCV2-S1-IMPLEMENT-001.5-intelligence-gateway-migration-plan.md",
-    "intelligence_provider_guide": "src/imports/MCV2-intelligence-gateway-provider-extension-guide.md",
+    "ai_control_plane": "supabase/functions/server/ai/index.ts",
+    "ai_completion_report": "architecture/ai/AI-01-BATCH-1-COMPLETION.md",
     "frontend_ai_normalization": "src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md",
     "data_platform_architecture": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
     "database_erd": "architecture/database/MCV2-S3-ENTITY-RELATIONSHIP-DIAGRAM.md",
@@ -44,31 +43,72 @@
     "database_adr_register": "architecture/database/MCV2-S3-ARCHITECTURE-DECISION-REGISTER.md"
   },
 
-  "intelligence_gateway": {
+  "ai_control_plane": {
     "status": "LIVE",
+    "batch": "AI-01 Batch 1",
     "manifest_id": "MQC-SVC-010",
-    "path": "supabase/functions/server/intelligence/",
-    "gateway_entry": "intelligence/gateway.ts",
-    "providers": ["openai", "mock"],
-    "migrated_backend_features": ["narrative", "analysis", "chat", "block_assist", "copilot"],
-    "migrated_frontend_features": ["narrative", "analysis", "chat", "block_assist", "copilot"],
-    "deferred_frontend_bypasses": [],
-    "frontend_canonical_path": "Component → core engine (orchestration) → dataService → api.ts → Edge → Intelligence Gateway",
+    "path": "supabase/functions/server/ai/",
+    "entry": "ai/controlPlane.ts",
+    "public_surface": "ai/index.ts",
+    "bootstrap": "ai/bootstrap.ts",
+    "routes": "supabase/functions/server/aiRoutes.ts",
+    "platform_version": "1.0.0",
+    "contract_version": "ai.v1",
+    "principle": "Exactly one governed AI execution path. No bypass flag, no legacy path, no direct provider access outside ai/providers/.",
+    "execution_sequence": [
+      "aiGuard — contract version, feature, payload size, authentication, organization, actor, body validation, rate limiting",
+      "policyEngine — feature enablement, actor type, channel, capability, budget",
+      "executionPipeline — prompt render, input guard, provider select, invoke (timeout/retry/circuit/failover), output guard, parse, fact lock",
+      "orchestrator — budget accounting, audit record, metrics, structured log, lifecycle events"
+    ],
+    "providers": ["openai", "anthropic", "mock"],
+    "provider_contract": "ai/contracts/provider.ts",
+    "features": [
+      "cortex.narrative",
+      "cortex.analysis",
+      "cortex.chat",
+      "cortex.block_assist",
+      "cortex.copilot_plan",
+      "cortex.section_copilot"
+    ],
+    "feature_catalog": "ai/policy/featureCatalog.ts",
+    "prompt_catalog": "ai/prompts/catalog.ts",
+    "prompt_count": 8,
+    "governance": {
+      "input_guard": "ai/governance/inputGuard.ts",
+      "output_guard": "ai/governance/outputGuard.ts",
+      "pii_redaction": "ai/governance/redaction.ts",
+      "fact_lock": "ai/governance/factLock.ts"
+    },
+    "observability": {
+      "audit": "ai/observability/audit.ts",
+      "metrics": "ai/observability/metrics.ts",
+      "events": "ai/observability/events.ts",
+      "health": "ai/observability/health.ts"
+    },
+    "operator_routes": [
+      "GET /make-server-324f4fbe/ai/health",
+      "GET /make-server-324f4fbe/ai/metrics",
+      "GET /make-server-324f4fbe/ai/audit",
+      "GET /make-server-324f4fbe/ai/catalog"
+    ],
+    "frontend_canonical_path": "Component → core engine (orchestration) → dataService → api.ts → Edge → AI Control Plane",
     "frontend_ai_methods": [
       "dataService.chatWithAI",
       "dataService.generateCortexNarrative",
       "dataService.analyzeSubmission",
       "dataService.blockAIAssist",
-      "dataService.copilotInterpret"
+      "dataService.copilotInterpret",
+      "dataService.proposalSectionCopilot"
     ],
-    "rollback_env_flags": [
-      "INTELLIGENCE_USE_GATEWAY_NARRATIVE",
-      "INTELLIGENCE_USE_GATEWAY_ANALYSIS",
-      "INTELLIGENCE_USE_GATEWAY_CHAT",
-      "INTELLIGENCE_USE_GATEWAY_BLOCK_ASSIST",
-      "INTELLIGENCE_USE_GATEWAY_COPILOT"
-    ],
-    "test_command": "npm run test:intelligence"
+    "rollback_env_flags": [],
+    "rollback_note": "Per-feature gateway bypass flags were removed. A flag that skips the control plane is a second execution path by definition, and would bypass authentication, tenant isolation, governance and audit. Rollback is by revert, not by flag.",
+    "test_command": "npm run test:ai",
+    "replaces": {
+      "component": "Intelligence Gateway",
+      "path": "supabase/functions/server/intelligence/",
+      "removed_in": "AI-01 Batch 1"
+    }
   },
 
   "top_level_directories": {
@@ -77,11 +117,11 @@
     "architecture": "system_map.json (machine-readable snapshot)",
     "src/app": "React app — components, contexts, core, hooks, lib, pages, services, types, utils",
     "src/config": "features.ts, api.config.ts, runtime.ts",
-    "src/system": "manifest.ts (158 nodes), types.ts, validate.ts, system_map.json",
+    "src/system": "manifest.ts (198 nodes), types.ts, validate.ts",
     "src/styles": "Global CSS, theme tokens",
     "src/types": "Shared api.types.ts",
     "src/imports": "Specs, schemas, static assets",
-    "supabase/functions/server": "Hono backend — index.tsx + 7 service files",
+    "supabase/functions/server": "Hono backend — index.tsx, aiRoutes.ts, ai/ (AI Control Plane), repositories/, migration/",
     "memory": "failure_library, regression_cases, pattern_violations",
     "utils/supabase": "projectId, publicAnonKey"
   },
@@ -172,7 +212,7 @@
     "proposed_domains": 12,
     "test_commands": {
       "static": "npm run test:database",
-      "intelligence_regression": "npm run test:intelligence"
+      "ai_regression": "npm run test:ai"
     },
     "docs": {
       "master": "src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md",
@@ -272,20 +312,22 @@
       "scope_s6_2": "lead:* and lead_email:* only",
       "kv_authority": "unchanged"
     },
-    "ai_services": [
-      "cortexAnalysis.ts",
-      "cortexNarrative.ts",
-      "cortexChat.ts",
-      "blockAiAssist.ts",
-      "copilotPatch.ts",
-      "emailService.ts"
+    "ai_execution": {
+      "control_plane": "supabase/functions/server/ai/",
+      "routes": "supabase/functions/server/aiRoutes.ts",
+      "note": "All AI execution passes through the AI Control Plane. The per-feature handler files (cortexAnalysis.ts, cortexNarrative.ts, cortexChat.ts, blockAiAssist.ts, copilotPatch.ts, proposalSectionCopilot.ts) were removed in AI-01 Batch 1 and replaced by feature definitions under ai/features/."
+    },
+    "other_services": [
+      "emailService.ts",
+      "revenueSnapshot.ts",
+      "bookings/bookingRecord.ts"
     ]
   },
 
   "manifest": {
     "file": "src/system/manifest.ts",
-    "version": "2.0.0",
-    "node_count": 171,
+    "version": "2.1.0",
+    "node_count": 198,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"

@@ -12,13 +12,19 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { manifest } from '../../src/system/manifest.ts';
 import { runValidation } from '../../src/system/validate.ts';
 
 const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
-const CERTIFIED_NODE_COUNT = 171;
+/**
+ * AI-01 Batch 1 registered the 27 AI Control Plane components (MQC-SVC-020 →
+ * 046) and repointed the seven AI service nodes onto their control plane
+ * equivalents, taking the manifest from 171 nodes to 198.
+ */
+const CERTIFIED_NODE_COUNT = 198;
 const CERTIFIED_CORE_COUNT = 36;
+const CERTIFIED_SVC_COUNT = 46;
 
 const entries = Object.entries(manifest.nodes);
 
@@ -84,7 +90,7 @@ describe('migration service registration', () => {
 });
 
 describe('certified manifest counts', () => {
-  it('contains exactly 171 unique nodes', () => {
+  it(`contains exactly ${CERTIFIED_NODE_COUNT} unique nodes`, () => {
     assert.equal(entries.length, CERTIFIED_NODE_COUNT);
     assert.equal(new Set(entries.map(([, n]) => n.id)).size, CERTIFIED_NODE_COUNT);
   });
@@ -92,6 +98,88 @@ describe('certified manifest counts', () => {
   it('contains exactly 36 CORE engines', () => {
     const core = entries.filter(([, n]) => n.type === 'CORE');
     assert.equal(core.length, CERTIFIED_CORE_COUNT);
+  });
+
+  it(`contains exactly ${CERTIFIED_SVC_COUNT} services`, () => {
+    const services = entries.filter(([, n]) => n.type === 'SVC');
+    assert.equal(services.length, CERTIFIED_SVC_COUNT);
+  });
+});
+
+/**
+ * AI-01 Batch 1 — one governed AI execution path.
+ *
+ * The Constitution's provider-independence article (Art. 2) and the batch's
+ * primary objective both reduce to a single structural claim: AI executes in
+ * exactly one place. These assertions pin that claim in the manifest, so a
+ * future node that reintroduces a second path fails a test rather than a review.
+ */
+describe('AI control plane registration', () => {
+  const aiNodes = entries.filter(([, n]) => n.filePath.startsWith('supabase/functions/server/ai/'));
+
+  it('registers the control plane entry point', () => {
+    const plane = manifest.nodes['MQC-SVC-010'];
+    assert.ok(plane, 'MQC-SVC-010 must be the AI Control Plane');
+    assert.equal(plane.name, 'aiControlPlane');
+    assert.equal(plane.filePath, 'supabase/functions/server/ai/controlPlane.ts');
+  });
+
+  it('registers the guard, policy engine, pipeline and orchestrator', () => {
+    const required: [string, string][] = [
+      ['MQC-SVC-020', 'supabase/functions/server/ai/security/guard.ts'],
+      ['MQC-SVC-021', 'supabase/functions/server/ai/policy/policyEngine.ts'],
+      ['MQC-SVC-022', 'supabase/functions/server/ai/policy/featureCatalog.ts'],
+      ['MQC-SVC-023', 'supabase/functions/server/ai/prompts/registry.ts'],
+      ['MQC-SVC-027', 'supabase/functions/server/ai/pipeline/executionPipeline.ts'],
+      ['MQC-SVC-028', 'supabase/functions/server/ai/orchestrator.ts'],
+      ['MQC-SVC-031', 'supabase/functions/server/ai/governance/factLock.ts'],
+      ['MQC-SVC-033', 'supabase/functions/server/ai/observability/audit.ts'],
+    ];
+    for (const [id, filePath] of required) {
+      assert.equal(manifest.nodes[id]?.filePath, filePath, `${id} must map to ${filePath}`);
+    }
+  });
+
+  it('the retired Intelligence Gateway is not referenced by any node', () => {
+    const stale = entries
+      .filter(([, n]) => /server\/intelligence\//.test(n.filePath))
+      .map(([, n]) => `${n.id} ${n.filePath}`);
+    assert.deepEqual(stale, [], `Retired intelligence module still referenced: ${stale.join(', ')}`);
+  });
+
+  it('no node points at a retired AI handler file', () => {
+    const RETIRED = [
+      'server/cortexAnalysis.ts',
+      'server/cortexNarrative.ts',
+      'server/cortexChat.ts',
+      'server/blockAiAssist.ts',
+      'server/copilotPatch.ts',
+      'server/proposalSectionCopilot.ts',
+    ];
+    const stale = entries
+      .filter(([, n]) => RETIRED.some(path => n.filePath.endsWith(path)))
+      .map(([, n]) => `${n.id} ${n.filePath}`);
+    assert.deepEqual(stale, [], `Retired AI handler still registered: ${stale.join(', ')}`);
+  });
+
+  it('every registered AI node exists on disk', () => {
+    const missing = aiNodes
+      .filter(([, n]) => !existsSync(new URL(`../../${n.filePath}`, import.meta.url)))
+      .map(([, n]) => `${n.id} ${n.filePath}`);
+    assert.deepEqual(missing, [], `Manifest points at files that do not exist: ${missing.join(', ')}`);
+  });
+
+  it('every AI feature routes through the control plane', () => {
+    const FEATURES = ['MQC-SVC-003', 'MQC-SVC-004', 'MQC-SVC-005', 'MQC-SVC-006', 'MQC-SVC-007', 'MQC-SVC-017'];
+    for (const id of FEATURES) {
+      const node = manifest.nodes[id];
+      assert.ok(node, `${id} must be registered`);
+      assert.ok(
+        node.dependencies.includes('MQC-SVC-010'),
+        `${id} (${node.name}) must depend on the AI Control Plane`,
+      );
+      assert.match(node.filePath, /^supabase\/functions\/server\/ai\/features\//);
+    }
   });
 });
 

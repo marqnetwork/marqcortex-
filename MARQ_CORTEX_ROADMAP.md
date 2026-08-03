@@ -64,6 +64,29 @@ Status Legend
 
 ---
 
+# Phase 6 — AI Platform
+
+| Sprint | Name | Status |
+|---------|------|--------|
+| AI-01 Batch 1 | Secure AI Foundation — AI Control Plane | ✅ |
+| AI-01 Batch 2 | AI Orchestration & Agents | ⏳ |
+
+AI-01 Batch 1 completed 2026-07-31. Report:
+`architecture/ai/AI-01-BATCH-1-COMPLETION.md`
+
+Delivered: the MARQ Cortex AI Control Plane — the single governed AI execution
+path. AI Guard (authentication, authorization, organization and actor
+resolution, tenant isolation, request validation, rate limiting), request
+context and versioning, policy engine, feature catalog, provider registry with
+capability matching, health monitoring, circuit breaker, retry and timeout
+management, prompt registry with versioning and hashing, input/output guards,
+PII redaction, capability enforcement, budget engine, durable audit, structured
+logging, metrics, health monitoring and an event bus. Providers: OpenAI,
+Anthropic and a deterministic mock. The Intelligence Gateway, the five legacy
+direct-OpenAI paths and the per-feature gateway bypass flags were removed.
+
+---
+
 # Current Sprint
 
 MCV2-S7.4 — Outcome Shadow Read
@@ -89,6 +112,9 @@ SQL Authority: No
 Frontend: Stable
 
 API Contracts: Stable
+
+AI Execution Authority: AI Control Plane (`supabase/functions/server/ai/`) —
+sole path, no bypass flag
 
 ---
 
