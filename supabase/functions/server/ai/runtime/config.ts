@@ -13,6 +13,7 @@
 
 import type { EnvSource } from './env.ts';
 import { readBool, readInt, readList, readOptionalString, readString } from './env.ts';
+import { DEFAULT_RESERVATION_TTL_MS } from '../policy/spendLedger.ts';
 
 export interface AIControlPlaneConfig {
   /** Ordered provider preference. First healthy, capable provider wins. */
@@ -71,6 +72,14 @@ export interface AIControlPlaneConfig {
     readonly enforce: boolean;
     /** Persist the ledger to durable storage. Off makes it isolate-local. */
     readonly durable: boolean;
+    /**
+     * How long a spend reservation stays valid before another isolate may
+     * reclaim its headroom. Must outlast the longest request the platform will
+     * admit, so the control plane floors it at twice the workflow deadline —
+     * reclaiming a hold from a request that is still running would let the same
+     * money be reserved twice.
+     */
+    readonly reservationTtlMs: number;
   };
 
   readonly audit: {
@@ -204,6 +213,12 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
       maxPlatformMicroUsd: readMaxSpendMicroUsd(env),
       enforce: readBool(env, 'AI_SPEND_ENFORCE', true),
       durable: readBool(env, 'AI_SPEND_DURABLE', true),
+      reservationTtlMs: readInt(
+        env,
+        'AI_SPEND_RESERVATION_TTL_MS',
+        DEFAULT_RESERVATION_TTL_MS,
+        { min: 60_000, max: 3_600_000 },
+      ),
     },
 
     audit: {

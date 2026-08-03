@@ -15,6 +15,9 @@
  *      cannot consume a single cent of the $9.
  *   2. Otherwise estimate the worst case this feature can cost, reserve it, and
  *      only then let the pipeline run.
+ *      The hold is durable and carries its own expiry, so a request whose
+ *      isolate dies before settlement does not strand headroom forever — see
+ *      `spendLedger.ts` for the reclamation rules.
  *   3. Settle the reservation to the measured cost of every billable attempt —
  *      including the attempts of a request that ultimately failed. A retry that
  *      burned tokens and then errored is money spent, and a ledger that only
@@ -136,7 +139,12 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
       if (!billableCandidateExists(descriptor)) return FREE_HANDLE;
 
       const estimate = estimateFor(descriptor);
-      const decision = await ledger.reserve(SPEND_SCOPE.platform, estimate, reservationId);
+      // The feature id rides along as the hold's owner: after an isolate
+      // restart the durable record has to say what took the money, not just how
+      // much was taken.
+      const decision = await ledger.reserve(SPEND_SCOPE.platform, estimate, reservationId, {
+        owner: descriptor.featureId,
+      });
 
       if (isSpendDenied(decision)) {
         if (!enforce) return FREE_HANDLE;

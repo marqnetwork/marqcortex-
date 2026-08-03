@@ -16,9 +16,16 @@
  * This is the opposite of the audit store's policy, deliberately. Audit is
  * fail-open — losing a record must not fail a customer's request. Spend is
  * fail-closed — losing a record must not spend MARQ's money.
+ *
+ * The row also carries the metadata for every OPEN reservation — id, amount,
+ * owner, creation and expiry stamps — because a hold whose ownership lived only
+ * in isolate memory could never be settled or reclaimed after a restart. Rows
+ * written by the earlier `ai.spend.v1` schema have a reserved total and no
+ * holds; they parse cleanly, and the ledger reclaims that remainder once its
+ * grace window passes.
  */
 
-import type { SpendRecord, SpendStore } from '../policy/spendLedger.ts';
+import type { OpenSpendReservation, SpendRecord, SpendStore } from '../policy/spendLedger.ts';
 
 export type KvSpendReader = (key: string) => Promise<unknown>;
 export type KvSpendWriter = (key: string, value: unknown) => Promise<void>;
@@ -30,7 +37,39 @@ export interface KvSpendStoreOptions {
   readonly onCorrupt?: (scope: string, detail: string) => void;
 }
 
-const SCHEMA = 'ai.spend.v1';
+const SCHEMA = 'ai.spend.v2';
+
+/**
+ * Reservation metadata a stored row must carry to be recoverable. An entry that
+ * fails this is DROPPED rather than trusted: a hold with an unreadable amount or
+ * expiry cannot be settled or safely expired. Its money is not forgotten — the
+ * record's `reservedMicroUsd` still counts it, and the ledger's unattributed
+ * path time-boxes it. Dropping is therefore conservative, not lossy.
+ */
+function parseOpenReservations(raw: unknown): readonly OpenSpendReservation[] {
+  if (!Array.isArray(raw)) return [];
+  const holds: OpenSpendReservation[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const candidate = entry as Record<string, unknown>;
+    const id = candidate.reservationId;
+    const amount = candidate.reservedMicroUsd;
+    const createdAt = candidate.createdAt;
+    const expiresAt = candidate.expiresAt;
+    if (typeof id !== 'string' || id === '') continue;
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) continue;
+    if (typeof createdAt !== 'string' || typeof expiresAt !== 'string') continue;
+    if (!Number.isFinite(Date.parse(expiresAt))) continue;
+    holds.push({
+      reservationId: id,
+      reservedMicroUsd: Math.max(0, Math.round(amount)),
+      createdAt,
+      expiresAt,
+      ...(typeof candidate.owner === 'string' ? { owner: candidate.owner } : {}),
+    });
+  }
+  return holds;
+}
 
 /** `ai:spend:{scope}` — a flat namespace; the scope already carries its tenant. */
 export function spendKeyFor(scope: string): string {
@@ -88,6 +127,24 @@ function parseRecord(scope: string, raw: unknown): SpendRecord | undefined | 'co
           (entry) => typeof entry === 'object' && entry !== null,
         ) as SpendRecord['resets'])
       : [],
+    // A v1 row has no hold metadata at all. Its reserved total survives as an
+    // unattributed remainder, which the ledger time-boxes and then reclaims —
+    // that migration path is the whole reason orphaned holds are recoverable.
+    openReservations: parseOpenReservations(candidate.openReservations),
+    closedReservationIds: Array.isArray(candidate.closedReservationIds)
+      ? candidate.closedReservationIds.filter((id): id is string => typeof id === 'string')
+      : [],
+    ...(typeof candidate.unattributedSince === 'string'
+      ? { unattributedSince: candidate.unattributedSince }
+      : {}),
+    reclaimedMicroUsd:
+      typeof candidate.reclaimedMicroUsd === 'number' && Number.isFinite(candidate.reclaimedMicroUsd)
+        ? Math.max(0, Math.round(candidate.reclaimedMicroUsd))
+        : 0,
+    reclaimedCount:
+      typeof candidate.reclaimedCount === 'number' && Number.isFinite(candidate.reclaimedCount)
+        ? Math.max(0, Math.round(candidate.reclaimedCount))
+        : 0,
   };
 }
 

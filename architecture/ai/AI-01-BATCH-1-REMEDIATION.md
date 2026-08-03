@@ -52,7 +52,39 @@ They are frequently conflated. They are not the same thing.
 
 The lifetime ceiling defaults to **$9** (`AI_MAX_SPEND_USD`). Clearing it
 requires an authorising actor and a written reason; the ledger refuses an
-unattributed reset, and every reset is retained on the record.
+unattributed reset, and every reset is retained on the record. An authorised
+reset clears **both** settled spend and every outstanding hold — a reset that
+left holds behind would not actually restore AI.
+
+### 2.1 Reservation lifecycle, and why holds are durable
+
+A first pass at this ledger persisted the reserved *total* but tracked which
+request owned each hold in a module-level `Map`. That is one restart away from a
+permanent outage: an isolate recycled between reserve and settle loses the map,
+the persisted hold has no owner, nothing can settle or release it, and the
+headroom is gone for good. Enough interrupted requests and the platform refuses
+every AI call **having spent nothing at all**.
+
+Ownership is therefore durable. `reservedMicroUsd` is a cached sum;
+`openReservations` — id, amount, owner feature, `createdAt`, `expiresAt` — is the
+authority, and it is written to the same row as the balance.
+
+| Event | Behaviour |
+|---|---|
+| Reserve | Appends a hold with an expiry. Idempotent per reservation id — a retried reserve returns the existing hold rather than taking a second. |
+| Settle / release | Matches the durable hold by id, from any isolate. The id lands in a bounded recently-closed ring, so a repeat is a no-op rather than a double charge. |
+| Restart mid-flight | The hold is still there. A new isolate lists it, rehydrates a handle from the stored metadata (`reservationFrom`), and settles it normally. |
+| Expiry | Once `expiresAt` is in the past, the next touch of the scope reclaims the hold and returns its headroom. Never before that instant. |
+| Late settlement | Settling a hold that was already reclaimed still **charges** the measured cost. The vendor call really happened; under-counting real spend is the one error the ceiling cannot survive. |
+| Legacy row | A record with a reserved total and no hold metadata is time-boxed from the moment it is first observed, then reclaimed. That is the upgrade path for orphans written by the earlier schema. |
+
+The TTL (`AI_SPEND_RESERVATION_TTL_MS`, default 15 minutes) is floored in code at
+**twice the workflow deadline**, because a hold that expired while its request
+was still running would let the same money be reserved twice.
+
+Reclaiming an expired hold is **not** a budget reset. It returns headroom that no
+live request owns; it never reduces `spentMicroUsd`, and no timer anywhere in the
+module clears settled spend.
 
 ### Failure policy, stated explicitly
 
@@ -76,7 +108,7 @@ These are opposite policies on purpose.
 | B2 authorization | `teamAuthorization.ts` (admin gate, role table, strict rank comparison) + roles/memberships wired into the plane's authenticator. |
 | B3 single path | Legacy handlers absent; `tests/system/ai_boundary.test.ts` scans the source tree for vendor hosts, credentials, bypass flags and deep imports. |
 | B4 pipeline | Reservation stage added; capability asserted before the network call. |
-| B5 spend | Durable reserve-then-settle lifetime ledger; failed billable attempts charged. |
+| B5 spend | Durable reserve-then-settle lifetime ledger; failed billable attempts charged; **reservation ownership is durable, expired holds are reclaimed, and an authorised reset clears spent and reserved** (see §2.1 and §4.2). |
 | B6 PII | Redaction verified to run before adapter invocation; audit stores digests only. |
 | B7 typecheck | `deno.json` + two-boundary `typecheck-deno.mjs`. AI boundary clean, 68 files. |
 | B8 safe errors | `diagnostics` never serialised; verified by test against vendor-host and key substrings. |
@@ -121,6 +153,17 @@ exact within one runtime. The key-value backend has no compare-and-swap, so two
 isolates can reserve against the same read. The overshoot is bounded by
 (concurrent isolates × one request's estimate) — cents, not dollars — and
 closing it fully needs an atomic counter in the storage layer.
+
+Two consequences of the recovery design belong here rather than in the claims:
+
+- **Abandoned headroom is unavailable until its TTL passes.** A hold left by a
+  recycled isolate is returned on expiry, not immediately — nothing can prove a
+  request is dead, and reclaiming early would let the same money be spent twice.
+  An operator who does not want to wait has the authorised reset.
+- **A settlement that arrives after its hold was reclaimed is charged.** That is
+  deliberate (real money left the platform), and it means such spend is recorded
+  against the ceiling even though its reservation is gone. Repeat settlements are
+  still suppressed, but only within the bounded recently-closed ring.
 
 ### 4.3 Copilot target filtering trusts caller-declared block state
 

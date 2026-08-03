@@ -17,12 +17,16 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  DEFAULT_RESERVATION_TTL_MS,
   SPEND_SCOPE,
   committedMicroUsd,
   createMemorySpendStore,
   createSpendLedger,
   remainingMicroUsd,
+  reservationFrom,
   usdToMicroUsd,
+  type SpendLedger,
+  type SpendRecord,
   type SpendStore,
 } from '../policy/spendLedger.ts';
 import { createKvSpendStore, spendKeyFor } from '../adapters/kvSpendStore.ts';
@@ -392,6 +396,37 @@ describe('spend configuration', () => {
     const config = loadControlPlaneConfig(recordEnv({ AI_MAX_SPEND_USD: '2.50' }));
     assert.equal(config.spend.maxPlatformMicroUsd, 2_500_000);
   });
+
+  it('defaults the reservation window to fifteen minutes', () => {
+    const config = loadControlPlaneConfig(recordEnv({}));
+    assert.equal(config.spend.reservationTtlMs, DEFAULT_RESERVATION_TTL_MS);
+    assert.ok(
+      config.spend.reservationTtlMs > config.workflowDeadlineMs,
+      'a hold must outlive the request that owns it',
+    );
+  });
+
+  it('bounds a reservation window a misconfiguration made too short', () => {
+    // One second is far shorter than a request can run, and a hold that expired
+    // mid-request would hand the same headroom to a second caller.
+    const config = loadControlPlaneConfig(recordEnv({ AI_SPEND_RESERVATION_TTL_MS: '1000' }));
+    assert.ok(config.spend.reservationTtlMs >= 60_000);
+  });
+
+  it('never lets the control plane hold expire before the workflow deadline', async () => {
+    // The floor lives in the control plane, so assert it where it bites: a
+    // configured window shorter than the deadline must not reclaim a hold from
+    // a request that could still be running.
+    const { plane, clock } = buildTestPlane({
+      env: { AI_SPEND_RESERVATION_TTL_MS: '60000', AI_WORKFLOW_DEADLINE_MS: '600000' },
+    });
+    const decision = await plane.spendLedger.reserve(SPEND_SCOPE.platform, 1_000, 'long-running');
+    assert.equal(decision.granted, true);
+
+    clock.advance(600_000);
+    const open = await plane.spendLedger.openReservations(SPEND_SCOPE.platform);
+    assert.equal(open.length, 1, 'the hold outlives the longest request the plane will admit');
+  });
 });
 
 describe('mock mode does not consume the MARQ budget', () => {
@@ -409,5 +444,549 @@ describe('mock mode does not consume the MARQ budget', () => {
     assert.equal(spend.spentMicroUsd, 0);
     assert.equal(spend.reservedMicroUsd, 0);
     assert.equal(spend.attemptCount, 0);
+  });
+
+  it('opens no reservation at all, so mock traffic cannot strand headroom', async () => {
+    // Stronger than "spent nothing": a mock request must not even take a hold,
+    // because a hold that is never settled is the failure mode this suite is
+    // about. Nothing to leak means nothing to recover.
+    const { plane } = buildTestPlane();
+    await plane.execute(
+      { featureId: 'cortex.narrative', input: narrativeInput(), channel: 'team_console' },
+      { authorization: `Bearer ${TEST_TOKEN}` },
+    );
+    const open = await plane.spendLedger.openReservations(SPEND_SCOPE.platform);
+    assert.equal(open.length, 0);
+  });
+});
+
+/**
+ * Orphaned reservations — the certification blocker this suite exists to close.
+ *
+ * The defect: reserved money was durable, but the record of WHICH request held
+ * it lived in isolate memory. An isolate recycled between reserve and settle
+ * left a hold that nothing could settle or release, so the headroom was gone
+ * for good. Enough interrupted requests and the platform refuses every AI call
+ * while having spent nothing.
+ *
+ * Every case below drives the ledger through a genuine instance boundary — a
+ * second `createSpendLedger` over the same store, which is exactly what a
+ * recycled edge isolate is.
+ */
+describe('orphaned reservation recovery', () => {
+  const TTL_MS = 600_000;
+
+  /** A clock the test moves by hand, in the ISO shape the ledger reads. */
+  function movableClock(startIso = '2026-08-01T00:00:00.000Z') {
+    let ms = Date.parse(startIso);
+    return {
+      now: () => new Date(ms).toISOString(),
+      advance: (deltaMs: number) => {
+        ms += deltaMs;
+      },
+    };
+  }
+
+  /** Model a restart: a brand-new ledger instance over the same durable store. */
+  function restart(store: SpendStore, clock: { now: () => string }, cap = NINE_DOLLARS): SpendLedger {
+    return createSpendLedger({
+      store,
+      capMicroUsd: cap,
+      now: clock.now,
+      reservationTtlMs: TTL_MS,
+    });
+  }
+
+  it('carries a still-valid reservation across an instance restart', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const before = restart(store, clock);
+
+    const decision = await before.reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'req-1', {
+      owner: 'cortex.narrative',
+    });
+    assert.equal(decision.granted, true);
+
+    // The isolate dies here. Nothing settles, nothing releases.
+    const after = restart(store, clock);
+    const record = await after.read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, usdToMicroUsd(2), 'the hold must survive the restart');
+
+    const open = await after.openReservations(SPEND_SCOPE.platform);
+    assert.equal(open.length, 1);
+    assert.equal(open[0].reservationId, 'req-1');
+    assert.equal(open[0].reservedMicroUsd, usdToMicroUsd(2));
+    assert.equal(open[0].owner, 'cortex.narrative', 'a recovered hold must name its owner');
+    assert.ok(Number.isFinite(Date.parse(open[0].expiresAt)), 'and carry a readable expiry');
+  });
+
+  it('does not reclaim a reservation that is still within its window', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const first = restart(store, clock);
+    const decision = await first.reserve(SPEND_SCOPE.platform, usdToMicroUsd(9), 'req-1');
+    assert.equal(decision.granted, true);
+
+    // One millisecond before expiry. Reclaiming here would hand the same $9 to
+    // a second request while the first is still running.
+    clock.advance(TTL_MS - 1);
+    const after = restart(store, clock);
+    const record = await after.read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, usdToMicroUsd(9));
+    assert.equal(record.reclaimedCount, 0);
+    assert.equal(
+      (await after.reserve(SPEND_SCOPE.platform, 1, 'req-2')).granted,
+      false,
+      'headroom is still held, so the next request is still refused',
+    );
+  });
+
+  it('reclaims an expired reservation from a new instance', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const first = restart(store, clock);
+    const decision = await first.reserve(SPEND_SCOPE.platform, usdToMicroUsd(9), 'req-1');
+    assert.equal(decision.granted, true);
+
+    clock.advance(TTL_MS);
+    const after = restart(store, clock);
+    const record = await after.read(SPEND_SCOPE.platform);
+
+    assert.equal(record.reservedMicroUsd, 0, 'the orphaned hold is returned');
+    assert.equal(record.spentMicroUsd, 0, 'and no spend was invented');
+    assert.equal(record.reclaimedMicroUsd, usdToMicroUsd(9));
+    assert.equal(record.reclaimedCount, 1);
+    assert.equal((await after.openReservations(SPEND_SCOPE.platform)).length, 0);
+    assert.equal(
+      (await after.reserve(SPEND_SCOPE.platform, usdToMicroUsd(9), 'req-2')).granted,
+      true,
+      'the full ceiling is available again',
+    );
+  });
+
+  it('persists the reclamation, so it is not re-derived on every read', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    await restart(store, clock).reserve(SPEND_SCOPE.platform, usdToMicroUsd(4), 'req-1');
+    clock.advance(TTL_MS);
+    await restart(store, clock).read(SPEND_SCOPE.platform);
+
+    const persisted = await store.load(SPEND_SCOPE.platform);
+    assert.ok(persisted);
+    assert.equal(persisted.reservedMicroUsd, 0);
+    assert.equal(persisted.openReservations.length, 0);
+  });
+
+  it('settles a recovered reservation after a restart, charging the real cost', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const before = restart(store, clock);
+    const decision = await before.reserve(SPEND_SCOPE.platform, usdToMicroUsd(3), 'req-1');
+    assert.equal(decision.granted, true);
+
+    // A new isolate finds the hold, rehydrates a handle from durable metadata
+    // alone, and settles it. No in-memory ownership is involved anywhere.
+    const after = restart(store, clock);
+    const open = await after.openReservations(SPEND_SCOPE.platform);
+    assert.equal(open.length, 1);
+    const settled = await after.settle(reservationFrom(SPEND_SCOPE.platform, open[0]), usdToMicroUsd(1));
+
+    assert.equal(settled.spentMicroUsd, usdToMicroUsd(1), 'measured cost, not the estimate');
+    assert.equal(settled.reservedMicroUsd, 0, 'and the hold is fully released');
+    assert.equal(settled.attemptCount, 1);
+  });
+
+  it('still charges a settlement that arrives after its hold was reclaimed', async () => {
+    // Fail-closed: the reclaim returned headroom, but the vendor call really
+    // happened. Under-counting real spend is the one error the ceiling cannot
+    // survive, so a late settlement charges.
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const before = restart(store, clock);
+    const decision = await before.reserve(SPEND_SCOPE.platform, usdToMicroUsd(3), 'req-1');
+    assert.equal(decision.granted, true);
+    if (!decision.granted) return;
+
+    clock.advance(TTL_MS);
+    const after = restart(store, clock);
+    assert.equal((await after.read(SPEND_SCOPE.platform)).reservedMicroUsd, 0);
+
+    const settled = await after.settle(decision.reservation, usdToMicroUsd(2));
+    assert.equal(settled.spentMicroUsd, usdToMicroUsd(2));
+    assert.equal(settled.attemptCount, 1);
+  });
+
+  it('does not double charge across a restart, because closed ids are durable', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const before = restart(store, clock);
+    const decision = await before.reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'req-1');
+    assert.equal(decision.granted, true);
+    if (!decision.granted) return;
+    await before.settle(decision.reservation, usdToMicroUsd(2));
+
+    const after = restart(store, clock);
+    await after.settle(decision.reservation, usdToMicroUsd(2));
+    assert.equal((await after.read(SPEND_SCOPE.platform)).spentMicroUsd, usdToMicroUsd(2));
+  });
+
+  it('never takes a second hold for a reservation id that is already open', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const ledger = restart(store, clock);
+    await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'req-1');
+    await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'req-1');
+
+    const record = await ledger.read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, usdToMicroUsd(2), 'a retry must not hold twice');
+    assert.equal(record.openReservations.length, 1);
+  });
+
+  /**
+   * A store seeded with a row in the OLD shape: a reserved total and no hold
+   * metadata, which is exactly what the previous revision left behind.
+   */
+  function storeWithOrphanedReserve(reservedMicroUsd: number, updatedAt: string): SpendStore {
+    const rows = new Map<string, SpendRecord>([
+      [
+        SPEND_SCOPE.platform,
+        {
+          scope: SPEND_SCOPE.platform,
+          spentMicroUsd: 0,
+          reservedMicroUsd,
+          capMicroUsd: NINE_DOLLARS,
+          attemptCount: 0,
+          updatedAt,
+          resets: [],
+          openReservations: [],
+          closedReservationIds: [],
+          reclaimedMicroUsd: 0,
+          reclaimedCount: 0,
+        },
+      ],
+    ]);
+    return {
+      load: (scope) => Promise.resolve(rows.get(scope)),
+      save: (record) => {
+        rows.set(record.scope, record);
+        return Promise.resolve();
+      },
+    };
+  }
+
+  it('reclaims reserved money inherited from a record with no hold metadata', async () => {
+    // A row written by the previous revision: a reserved total and no way to
+    // know who owns it. It is time-boxed from the moment it is first observed,
+    // then returned — otherwise every pre-upgrade orphan would be permanent.
+    const clock = movableClock();
+    const store = storeWithOrphanedReserve(usdToMicroUsd(9), clock.now());
+
+    const ledger = restart(store, clock);
+    assert.equal(
+      (await ledger.read(SPEND_SCOPE.platform)).reservedMicroUsd,
+      usdToMicroUsd(9),
+      'not reclaimed on sight — the grace window has to pass first',
+    );
+
+    clock.advance(TTL_MS);
+    const record = await restart(store, clock).read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, 0);
+    assert.equal(record.reclaimedMicroUsd, usdToMicroUsd(9));
+  });
+
+  it('keeps the grace window anchored, so later writes cannot extend it forever', async () => {
+    const clock = movableClock();
+    const store = storeWithOrphanedReserve(usdToMicroUsd(1), clock.now());
+
+    // Unrelated traffic keeps writing the record while the orphan waits.
+    for (let i = 0; i < 5; i += 1) {
+      clock.advance(TTL_MS / 5);
+      const ledger = restart(store, clock);
+      const decision = await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(1), `busy-${i}`);
+      assert.equal(decision.granted, true);
+      if (!decision.granted) return;
+      await ledger.settle(decision.reservation, 0);
+    }
+
+    const record = await restart(store, clock).read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, 0, 'the anchor is durable, so the orphan still expires');
+  });
+
+  it('holds the cap exactly under concurrent reservations spanning a reclaim', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const first = restart(store, clock);
+    const wave = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        first.reserve(SPEND_SCOPE.platform, usdToMicroUsd(1), `wave-a-${i}`),
+      ),
+    );
+    assert.equal(wave.filter((decision) => decision.granted).length, 9);
+
+    const record = await first.read(SPEND_SCOPE.platform);
+    assert.equal(record.openReservations.length, 9, 'every grant has exactly one durable hold');
+    assert.equal(
+      record.openReservations.reduce((sum, hold) => sum + hold.reservedMicroUsd, 0),
+      record.reservedMicroUsd,
+      'the cached total always equals the sum of the holds',
+    );
+
+    // All nine are abandoned. After expiry a second wave contends for the same
+    // ceiling and must be bounded identically.
+    clock.advance(TTL_MS);
+    const after = restart(store, clock);
+    const second = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        after.reserve(SPEND_SCOPE.platform, usdToMicroUsd(1), `wave-b-${i}`),
+      ),
+    );
+    assert.equal(second.filter((decision) => decision.granted).length, 9);
+    assert.ok(committedMicroUsd(await after.read(SPEND_SCOPE.platform)) <= NINE_DOLLARS);
+  });
+
+  it('holds the exact $9 boundary after a reclaim cycle', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const first = restart(store, clock);
+    await first.reserve(SPEND_SCOPE.platform, usdToMicroUsd(9), 'abandoned');
+    clock.advance(TTL_MS);
+
+    const after = restart(store, clock);
+    const exact = await after.reserve(SPEND_SCOPE.platform, NINE_DOLLARS, 'exact');
+    assert.equal(exact.granted, true, 'exactly the cap must still fit');
+    if (!exact.granted) return;
+    await after.settle(exact.reservation, NINE_DOLLARS);
+
+    const record = await after.read(SPEND_SCOPE.platform);
+    assert.equal(record.spentMicroUsd, NINE_DOLLARS);
+    assert.equal(remainingMicroUsd(record), 0);
+    const next = await after.reserve(SPEND_SCOPE.platform, 1, 'over');
+    assert.equal(next.granted, false);
+    if (next.granted) return;
+    assert.equal(next.reason, 'cap_reached');
+    // Settled spend is NOT reclaimable. Only holds expire; money that was spent
+    // stays spent however far the clock moves.
+    clock.advance(TTL_MS * 100);
+    assert.equal(
+      (await restart(store, clock).read(SPEND_SCOPE.platform)).spentMicroUsd,
+      NINE_DOLLARS,
+    );
+  });
+
+  it('clears spent AND reserved on an authorised reset', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const ledger = restart(store, clock);
+
+    const spent = await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(4), 'settled-1');
+    assert.equal(spent.granted, true);
+    if (!spent.granted) return;
+    await ledger.settle(spent.reservation, usdToMicroUsd(4));
+    await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(5), 'stranded-1');
+
+    const before = await ledger.read(SPEND_SCOPE.platform);
+    assert.equal(committedMicroUsd(before), NINE_DOLLARS, 'the ceiling is fully committed');
+
+    const after = await ledger.reset(SPEND_SCOPE.platform, {
+      authorizedBy: 'user-owner-1',
+      reason: 'orphaned reservations cleared after an incident',
+    });
+
+    assert.equal(after.spentMicroUsd, 0);
+    assert.equal(after.reservedMicroUsd, 0, 'a reset that left holds behind would not restore AI');
+    assert.equal(after.openReservations.length, 0);
+    assert.equal(after.resets[0].clearedMicroUsd, usdToMicroUsd(4));
+    assert.equal(after.resets[0].clearedReservedMicroUsd, usdToMicroUsd(5));
+    assert.equal(after.resets[0].clearedReservationCount, 1);
+    assert.equal(
+      (await ledger.reserve(SPEND_SCOPE.platform, NINE_DOLLARS, 'post-reset')).granted,
+      true,
+    );
+  });
+
+  it('leaves both spent and reserved intact when a reset is not authorised', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const ledger = restart(store, clock);
+    await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(5), 'stranded-1');
+
+    await assert.rejects(() =>
+      ledger.reset(SPEND_SCOPE.platform, { authorizedBy: '   ', reason: 'clear it' }),
+    );
+    await assert.rejects(() =>
+      ledger.reset(SPEND_SCOPE.platform, { authorizedBy: 'ops', reason: '' }),
+    );
+
+    const record = await ledger.read(SPEND_SCOPE.platform);
+    assert.equal(record.reservedMicroUsd, usdToMicroUsd(5), 'an unauthorised reset changes nothing');
+    assert.equal(record.openReservations.length, 1);
+    assert.equal(record.resets.length, 0);
+  });
+
+  it('round-trips hold metadata through key-value storage', async () => {
+    const rows = new Map<string, unknown>();
+    const store = createKvSpendStore({
+      read: (key) => Promise.resolve(rows.get(key)),
+      write: (key, value) => {
+        rows.set(key, JSON.stringify(value));
+        return Promise.resolve();
+      },
+    });
+    const clock = movableClock();
+    await restart(store, clock).reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'req-1', {
+      owner: 'cortex.analysis',
+    });
+
+    const open = await restart(store, clock).openReservations(SPEND_SCOPE.platform);
+    assert.equal(open.length, 1);
+    assert.equal(open[0].reservationId, 'req-1');
+    assert.equal(open[0].owner, 'cortex.analysis');
+
+    clock.advance(TTL_MS);
+    assert.equal((await restart(store, clock).read(SPEND_SCOPE.platform)).reservedMicroUsd, 0);
+  });
+});
+
+describe('interrupted requests cannot permanently disable AI', () => {
+  const TTL_MS = 600_000;
+  const descriptor = {
+    featureId: 'test.feature',
+    requiredCapabilities: { structuredOutput: false, chatCompletions: true },
+    limits: { maxInputBytes: 4_000, maxOutputTokens: 1_000, maxAttempts: 2 },
+  } as unknown as Parameters<ReturnType<typeof createSpendGuard>['reserve']>[0];
+
+  function movableClock(startIso = '2026-08-01T00:00:00.000Z') {
+    let ms = Date.parse(startIso);
+    return {
+      now: () => new Date(ms).toISOString(),
+      advance: (deltaMs: number) => {
+        ms += deltaMs;
+      },
+    };
+  }
+
+  /** A fresh guard + ledger over a shared store: one edge isolate's lifetime. */
+  function isolate(store: SpendStore, clock: { now: () => string }, capMicroUsd: number) {
+    const testClock = createTestClock();
+    const circuit = createCircuitBreaker(testClock, {
+      failureThreshold: 5,
+      openMs: 1_000,
+      halfOpenSuccessesToClose: 1,
+    });
+    const registry = createProviderRegistry(testClock, circuit);
+    registry.register(
+      createMockProvider({
+        providerId: 'vendor',
+        billable: true,
+        pricing: { promptMicroUsdPer1k: 150, completionMicroUsdPer1k: 600 },
+      }),
+      { certification: 'certified' },
+    );
+    const ledger = createSpendLedger({
+      store,
+      capMicroUsd,
+      now: clock.now,
+      reservationTtlMs: TTL_MS,
+    });
+    const guard = createSpendGuard({ ledger, registry, realRequestsEnabled: true, enforce: true });
+    return { guard, ledger };
+  }
+
+  /**
+   * Nineteen requests that reserve and are then killed mid-flight, each in its
+   * own isolate. This is the scenario that took the platform down: with
+   * ownership in isolate memory the nineteenth request found a ceiling fully
+   * committed to holds nothing could ever settle, and every request after it
+   * failed forever, with $0 actually spent.
+   */
+  async function nineteenInterruptedRequests(store: SpendStore, clock: ReturnType<typeof movableClock>, cap: number) {
+    let refusals = 0;
+    let grants = 0;
+    for (let i = 0; i < 19; i += 1) {
+      const { guard } = isolate(store, clock, cap);
+      try {
+        // Reserve, then the isolate is recycled. No settle, no release.
+        await guard.reserve(descriptor, `interrupted-${i}`);
+        grants += 1;
+      } catch (error) {
+        assert.ok(error instanceof AIError && error.code === 'BUDGET_EXCEEDED');
+        refusals += 1;
+      }
+      // Far less than the TTL: nothing ages out during the run itself.
+      clock.advance(1_000);
+    }
+    assert.equal(grants, 18, 'eighteen holds fit under the sized ceiling');
+    assert.equal(refusals, 1, 'and the nineteenth request is refused with $0 spent');
+    return refusals;
+  }
+
+  function capForNineteen(store: SpendStore, clock: ReturnType<typeof movableClock>) {
+    // Size the ceiling so eighteen holds fit and the nineteenth cannot.
+    const estimate = isolate(store, clock, NINE_DOLLARS).guard.estimateFor(descriptor);
+    return estimate * 19 - 1;
+  }
+
+  it('recovers on its own once the abandoned holds expire', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const cap = capForNineteen(store, clock);
+
+    const refusals = await nineteenInterruptedRequests(store, clock, cap);
+    assert.ok(refusals > 0, 'the interrupted run really does exhaust the ceiling');
+
+    const stalled = await isolate(store, clock, cap).ledger.read(SPEND_SCOPE.platform);
+    assert.equal(stalled.spentMicroUsd, 0, 'not one cent was actually spent');
+    assert.ok(stalled.reservedMicroUsd > 0, 'yet the ceiling is fully committed to holds');
+
+    // Wall clock passes. Every abandoned hold ages out.
+    clock.advance(TTL_MS);
+    const recovered = isolate(store, clock, cap);
+    const handle = await recovered.guard.reserve(descriptor, 'after-expiry');
+    assert.equal(handle.reserved, true, 'AI must work again without human intervention');
+    await handle.settle(1_000);
+
+    const record = await recovered.ledger.read(SPEND_SCOPE.platform);
+    assert.equal(record.spentMicroUsd, 1_000);
+    assert.ok(record.reclaimedCount >= 18, 'and the recovery is visible on the record');
+  });
+
+  it('recovers immediately on an authorised reset, before any expiry', async () => {
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const cap = capForNineteen(store, clock);
+
+    const refusals = await nineteenInterruptedRequests(store, clock, cap);
+    assert.ok(refusals > 0);
+
+    const operator = isolate(store, clock, cap);
+    await operator.ledger.reset(SPEND_SCOPE.platform, {
+      authorizedBy: 'user-owner-1',
+      reason: 'clearing holds stranded by an isolate recycle',
+    });
+
+    const handle = await operator.guard.reserve(descriptor, 'after-reset');
+    assert.equal(handle.reserved, true);
+    await handle.release();
+    const record = await operator.ledger.read(SPEND_SCOPE.platform);
+    assert.equal(record.spentMicroUsd, 0);
+    assert.equal(record.reservedMicroUsd, 0);
+  });
+
+  it('still refuses a request that would genuinely cross the ceiling', async () => {
+    // Recovery must not turn into leniency: with the ceiling actually SPENT,
+    // no amount of waiting reopens it.
+    const store = createMemorySpendStore();
+    const clock = movableClock();
+    const { guard, ledger } = isolate(store, clock, NINE_DOLLARS);
+    const seed = await ledger.reserve(SPEND_SCOPE.platform, NINE_DOLLARS, 'seed');
+    assert.equal(seed.granted, true);
+    if (!seed.granted) return;
+    await ledger.settle(seed.reservation, NINE_DOLLARS);
+
+    clock.advance(TTL_MS * 10);
+    await assert.rejects(
+      () => guard.reserve(descriptor, 'req-1'),
+      (error: AIError) => error.code === 'BUDGET_EXCEEDED',
+    );
   });
 });

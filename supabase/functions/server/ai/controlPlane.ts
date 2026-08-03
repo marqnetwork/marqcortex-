@@ -203,6 +203,11 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     store: options.spendStore ?? createMemorySpendStore(),
     capMicroUsd: config.spend.maxPlatformMicroUsd,
     now: () => clock.isoNow(),
+    // A hold must never expire while the request that owns it can still be
+    // running, or two requests could spend the same headroom. The workflow
+    // deadline bounds a request's life, so the TTL is floored at twice it —
+    // the configured value only ever makes the window longer, never shorter.
+    reservationTtlMs: Math.max(config.spend.reservationTtlMs, config.workflowDeadlineMs * 2),
   });
   const spend = createSpendGuard({
     ledger: spendLedger,
