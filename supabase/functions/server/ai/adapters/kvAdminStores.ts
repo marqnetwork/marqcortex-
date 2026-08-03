@@ -24,11 +24,27 @@
 
 import type { AdminAuditRecord, AdminAuditStore } from '../admin/adminAudit.ts';
 import type { AdminSettingsStore } from '../admin/settingsStore.ts';
-import { NO_STORED_VERSION, settingsConflict } from '../admin/settingsStore.ts';
+import type { AIControlPlaneConfig } from '../runtime/config.ts';
+import { parseStoredSettings, settingsConflict } from '../admin/settingsStore.ts';
 import type { AIOperationalSettings } from '../runtime/operationalSettings.ts';
 
 export type KvAdminReader = (key: string) => Promise<unknown>;
 export type KvAdminWriter = (key: string, value: unknown) => Promise<void>;
+/**
+ * Atomic compare-and-swap over the key-value store.
+ *
+ * Contract: write `value` at `key` if and only if the record currently stored
+ * there carries `expectedVersion` as its `configurationVersion` — or, when
+ * `expectedVersion` is `NO_STORED_VERSION`, if and only if no record exists.
+ * Resolve true when the write happened and false when the precondition did not
+ * hold. The comparison and the write MUST be a single storage operation; an
+ * implementation that reads and then writes does not satisfy this contract.
+ */
+export type KvAdminConditionalWriter = (
+  key: string,
+  expectedVersion: number,
+  value: unknown,
+) => Promise<boolean>;
 
 /** The single key holding the platform's AI operational settings. */
 export const ADMIN_SETTINGS_KEY = 'ai:admin:settings';
@@ -39,6 +55,21 @@ const TRAIL_SCHEMA = 'ai.admin.audit.v1';
 export interface KvAdminSettingsStoreOptions {
   readonly read: KvAdminReader;
   readonly write: KvAdminWriter;
+  /**
+   * Atomic conditional write. Returns true when the stored record was still at
+   * `expectedVersion` and the write happened, false when it was not.
+   *
+   * REQUIRED, and required for a reason. The previous implementation compared a
+   * version it had just read and then wrote in a second round trip, which is a
+   * time-of-check-to-time-of-use window: two isolates could both observe
+   * version N and both write N+1, losing one change and putting two different
+   * configurations under one version number. A conditional write has no such
+   * window because the comparison and the write are one statement.
+   */
+  readonly compareAndSwap: KvAdminConditionalWriter;
+  /** Deployment configuration, for normalising whatever storage returns. */
+  readonly config: AIControlPlaneConfig;
+  readonly now: () => string;
   readonly onCorrupt?: (detail: string) => void;
 }
 
@@ -62,6 +93,19 @@ export function createKvAdminSettingsStore(
   options: KvAdminSettingsStoreOptions,
 ): AdminSettingsStore {
   return {
+    /**
+     * THE canonical read path. Everything that loads durable settings goes
+     * through here — bootstrap hydration and the control plane's live refresh
+     * alike — so both apply the same parsing, the same bounds and the same
+     * deployment envelope.
+     *
+     * Normalising here rather than at each caller is the fix for a real defect:
+     * hydration ran the record through `parseStoredSettings` and the refresh
+     * path adopted it raw, so an out-of-bounds retry curve or a malformed
+     * provider id could reach the live overlay through the second path and not
+     * the first. Two readers of one record with two contracts is one contract
+     * too many.
+     */
     async load(): Promise<AIOperationalSettings | undefined> {
       const raw = coerce(await options.read(ADMIN_SETTINGS_KEY));
       if (raw === 'unparseable') {
@@ -72,34 +116,32 @@ export function createKvAdminSettingsStore(
         options.onCorrupt?.('stored AI operational settings are not valid JSON');
         return undefined;
       }
-      // Deliberately untyped at the boundary. `parseStoredSettings` normalises
-      // every field, so a stored value that no longer matches the current shape
-      // degrades field by field instead of being trusted wholesale.
-      return raw as AIOperationalSettings | undefined;
+      if (raw === undefined || raw === null) return undefined;
+
+      const { settings, recovered } = parseStoredSettings(raw, options.config, options.now());
+      if (recovered) {
+        options.onCorrupt?.('stored AI operational settings could not be parsed');
+        return undefined;
+      }
+      return settings;
     },
 
+    /**
+     * ONE atomic conditional write. No read, and therefore no window.
+     *
+     * `compareAndSwap` resolves false when the stored version was not
+     * `expectedVersion`; that is a lost race, not a storage failure, and it
+     * surfaces as the same typed CONFLICT a caller gets from any other store.
+     * The administration layer re-reads and re-applies on that code, so a lost
+     * race becomes a merge rather than a lost change.
+     */
     async save(settings, expectedVersion) {
-      // Read-then-write compare-and-swap.
-      //
-      // This is honest about what the injected key-value port can do: it offers
-      // a read and a write, not an atomic conditional write, so the guarantee
-      // here is "no write proceeds on a version it did not observe" rather than
-      // a hardware-level CAS. It closes the window that matters — two
-      // administrators seconds apart, which is the realistic case — and it
-      // narrows, but does not eliminate, the window of two writes landing
-      // inside the same read-modify-write. Closing that one needs a conditional
-      // write primitive from the storage layer; it is recorded as a remaining
-      // finding rather than papered over here.
-      const current = coerce(await options.read(ADMIN_SETTINGS_KEY));
-      const storedVersion =
-        current === 'unparseable' || current === undefined
-          ? NO_STORED_VERSION
-          : ((current as { configurationVersion?: number }).configurationVersion ??
-            NO_STORED_VERSION);
-      if (storedVersion !== expectedVersion) {
-        throw settingsConflict(expectedVersion, storedVersion);
-      }
-      await options.write(ADMIN_SETTINGS_KEY, { ...settings, _schema: SETTINGS_SCHEMA });
+      const won = await options.compareAndSwap(
+        ADMIN_SETTINGS_KEY,
+        expectedVersion,
+        { ...settings, _schema: SETTINGS_SCHEMA },
+      );
+      if (!won) throw settingsConflict(expectedVersion, expectedVersion);
     },
   };
 }

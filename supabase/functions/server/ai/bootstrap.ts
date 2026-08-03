@@ -29,6 +29,7 @@ import { systemIdFactory } from './contracts/ids.ts';
 import { createSupabaseAuthenticator, denyAllAuthenticator } from './adapters/supabaseAuthenticator.ts';
 import { createKvAuditStore } from './adapters/kvAuditStore.ts';
 import { createKvSpendStore } from './adapters/kvSpendStore.ts';
+import type { KvAdminConditionalWriter } from './adapters/kvAdminStores.ts';
 import { createKvAdminAuditStore, createKvAdminSettingsStore } from './adapters/kvAdminStores.ts';
 import { createAIAdministration } from './admin/administration.ts';
 import { createMemorySettingsStore } from './admin/settingsStore.ts';
@@ -45,6 +46,15 @@ export interface BootstrapDependencies {
   readonly kvWrite?: KvWriter;
   /** Durable key-value read. Required for the spend ledger to be durable. */
   readonly kvRead?: KvSpendReader;
+  /**
+   * Atomic conditional write, required for durable AI settings.
+   *
+   * Without it the settings store falls back to isolate-local memory rather
+   * than to a weaker durable write: a settings record two isolates can both
+   * claim the same version for is worse than one that plainly does not survive
+   * a restart, because the first failure is silent.
+   */
+  readonly kvCompareAndSwap?: KvAdminConditionalWriter;
   /** Override the environment source. Production reads the runtime. */
   readonly env?: EnvSource;
 }
@@ -133,17 +143,20 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   // re-reads settings THROUGH it: that read is what carries an administrator's
   // change to an isolate that did not serve the console request.
   const settingsStore =
-    deps.kvRead && deps.kvWrite
+    deps.kvRead && deps.kvWrite && deps.kvCompareAndSwap
       ? createKvAdminSettingsStore({
           read: deps.kvRead,
           write: deps.kvWrite,
+          compareAndSwap: deps.kvCompareAndSwap,
+          config,
+          now: () => systemClock.isoNow(),
           onCorrupt: (detail) => console.error(`[ai] admin settings unreadable: ${detail}`),
         })
       : createMemorySettingsStore();
-  if (!deps.kvRead || !deps.kvWrite) {
+  if (!deps.kvRead || !deps.kvWrite || !deps.kvCompareAndSwap) {
     console.error(
-      '[ai] no key-value port was injected — AI administration settings are isolate-local ' +
-        'and will not survive a restart or reach another isolate.',
+      '[ai] no durable key-value port with conditional writes was injected — AI administration ' +
+        'settings are isolate-local, will not survive a restart, and will not reach another isolate.',
     );
   }
 

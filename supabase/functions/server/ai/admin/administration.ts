@@ -67,7 +67,7 @@ import {
   normalizeOperationalSettings,
   normalizeProviderSetting,
 } from '../runtime/operationalSettings.ts';
-import { NO_STORED_VERSION, parseStoredSettings } from './settingsStore.ts';
+import { NO_STORED_VERSION } from './settingsStore.ts';
 import { applyEnvelope, envelopeFrom } from '../runtime/envelope.ts';
 import {
   ADMIN_ACTION,
@@ -250,9 +250,11 @@ export interface AIAdministration {
   authorize(authorization: string | null, meta?: AdminRequestMeta): Promise<AIAdminActor>;
   /** Load stored settings over the deployment baseline. Idempotent. */
   hydrate(): Promise<AIOperationalSettings>;
+  /** Re-read durable settings so the next read answers with what is in force. */
+  refresh(): Promise<AIOperationalSettings>;
 
   overview(actor: AIAdminActor): Promise<AdminOverview>;
-  settings(actor: AIAdminActor): AIOperationalSettings;
+  settings(actor: AIAdminActor): Promise<AIOperationalSettings>;
   /**
    * `reason` is `unknown` on purpose across every mutation on this interface.
    * The service is the validator — it rejects a missing or too-short reason and
@@ -274,7 +276,7 @@ export interface AIAdministration {
     meta?: AdminRequestMeta,
   ): Promise<AIOperationalSettings>;
 
-  providers(actor: AIAdminActor): readonly AdminProviderView[];
+  providers(actor: AIAdminActor): Promise<readonly AdminProviderView[]>;
   updateProvider(
     actor: AIAdminActor,
     providerId: string,
@@ -298,7 +300,7 @@ export interface AIAdministration {
   ): Promise<AdminBudgetView>;
 
   usage(actor: AIAdminActor): Promise<UsageReport>;
-  diagnostics(actor: AIAdminActor): AdminDiagnostics;
+  diagnostics(actor: AIAdminActor): Promise<AdminDiagnostics>;
   executionAudit(actor: AIAdminActor, limit?: number): readonly AIAuditRecord[];
   adminAudit(actor: AIAdminActor, limit?: number): readonly AdminAuditRecord[];
   /** The administrative trail writer, for callers that must record a denial. */
@@ -374,12 +376,15 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     return next;
   }
 
-  /** The durable record, normalised, or `undefined` when there is none. */
-  async function loadDurable(): Promise<AIOperationalSettings | undefined> {
-    const raw = await settingsStore.load();
-    if (raw === undefined || raw === null) return undefined;
-    const { settings: parsed, recovered } = parseStoredSettings(raw, plane.config, clock.isoNow());
-    return recovered ? undefined : parsed;
+  /**
+   * The durable record, or `undefined` when there is none.
+   *
+   * Normalisation lives in the store's `load()` — the one canonical read path —
+   * so this layer and the control plane's live refresh cannot disagree about
+   * what a stored record means.
+   */
+  function loadDurable(): Promise<AIOperationalSettings | undefined> {
+    return settingsStore.load();
   }
 
   /**
@@ -727,9 +732,9 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     },
 
     async hydrate() {
-      let raw: unknown;
+      let loaded: AIOperationalSettings | undefined;
       try {
-        raw = await settingsStore.load();
+        loaded = await settingsStore.load();
       } catch (error) {
         // Storage being unavailable must not stop the plane from serving. It
         // runs on the deployment baseline, which is the safe posture by
@@ -739,36 +744,46 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
         });
         return live();
       }
-      if (raw === undefined || raw === null) return live();
+      if (loaded === undefined) return live();
 
-      const { settings: parsed, recovered } = parseStoredSettings(
-        raw,
-        plane.config,
-        clock.isoNow(),
-      );
-      if (recovered) {
-        logger.error('ai.admin.settings.unreadable', {
-          diagnostics: 'stored AI operational settings could not be parsed; using the deployment baseline',
-        });
-        return live();
-      }
-      plane.settings.adopt(parsed);
+      plane.settings.adopt(loaded);
       plane.applySettings();
       logger.info('ai.admin.settings.hydrated', {
-        configurationVersion: parsed.configurationVersion,
-        aiEnabled: parsed.aiEnabled,
-        emergencyStop: parsed.emergencyStop.engaged,
+        configurationVersion: loaded.configurationVersion,
+        aiEnabled: loaded.aiEnabled,
+        emergencyStop: loaded.emergencyStop.engaged,
       });
-      return parsed;
+      return live();
     },
 
-    settings(actor) {
+    /**
+     * Bring this isolate up to date before answering a read.
+     *
+     * Reads used to be served straight from the isolate's cached overlay, so an
+     * operator whose console request happened to land on an isolate that had
+     * not served traffic since the change saw the configuration as it was
+     * before it — including an emergency stop reported as disengaged while the
+     * platform was in fact halted. For the console of a kill switch that is the
+     * wrong answer to give during exactly the incident it exists for.
+     *
+     * Delegates to the plane's own refresh rather than re-reading here: one
+     * refresh path, shared with the execution path, so a console read and an AI
+     * request can never disagree about what is in force.
+     */
+    async refresh() {
+      await plane.refreshSettings();
+      return live();
+    },
+
+    async settings(actor) {
       read(actor, 'ai.admin.view');
+      await plane.refreshSettings();
       return live();
     },
 
     async overview(actor) {
       read(actor, 'ai.admin.view');
+      await plane.refreshSettings();
       const settings = live();
       const spend = await plane.spendStatus();
       return {
@@ -860,8 +875,9 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       });
     },
 
-    providers(actor) {
+    async providers(actor) {
       read(actor, 'ai.admin.view');
+      await plane.refreshSettings();
       return providerViews();
     },
 
@@ -939,6 +955,7 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
 
     async budget(actor) {
       read(actor, 'ai.admin.view');
+      await plane.refreshSettings();
       return budgetView(await plane.spendStatus());
     },
 
@@ -1029,8 +1046,9 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       });
     },
 
-    diagnostics(actor) {
+    async diagnostics(actor) {
       read(actor, 'ai.admin.view');
+      await plane.refreshSettings();
       const settings = live();
       const health = plane.health();
       return {
