@@ -67,7 +67,8 @@ import {
   normalizeOperationalSettings,
   normalizeProviderSetting,
 } from '../runtime/operationalSettings.ts';
-import { parseStoredSettings } from './settingsStore.ts';
+import { NO_STORED_VERSION, parseStoredSettings } from './settingsStore.ts';
+import { applyEnvelope, envelopeFrom } from '../runtime/envelope.ts';
 import {
   ADMIN_ACTION,
   changedKeys,
@@ -344,27 +345,131 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     return trimmed.slice(0, MAX_REASON_LENGTH);
   }
 
-  /** Persist the overlay and project it onto the plane. Order matters. */
-  async function commit(next: AIOperationalSettings): Promise<AIOperationalSettings> {
-    // Persist BEFORE applying. If storage fails, the plane keeps serving under
-    // the settings it already had rather than under settings that will vanish
-    // on the next isolate — a change that silently un-applies itself is worse
-    // than one that visibly failed.
-    const applied = plane.settings.replace(next, clock.isoNow());
-    try {
-      await settingsStore.save(applied);
-    } catch (error) {
-      logger.error('ai.admin.settings.persist_failed', {
-        configurationVersion: applied.configurationVersion,
-        diagnostics: error instanceof Error ? error.message : String(error),
-      });
-      throw new AIError('INTERNAL_ERROR', 'The AI settings change could not be saved.', {
-        diagnostics: error instanceof Error ? error.message : String(error),
-        cause: error,
-      });
+  /**
+   * How many times a mutation re-reads and re-applies after losing a race.
+   *
+   * Four is enough for any realistic number of simultaneous administrators and
+   * small enough that a genuinely contended key surfaces as a `CONFLICT` the
+   * caller can see rather than as a request that hangs retrying.
+   */
+  const MAX_COMMIT_ATTEMPTS = 4;
+
+  const envelope = envelopeFrom(plane.config);
+
+  /**
+   * Serialise mutations within this isolate.
+   *
+   * Compare-and-swap already makes a lost update impossible ACROSS isolates.
+   * Within one, two administrators can still interleave between the durable
+   * read and the durable write, and the loser would simply retry — correct, but
+   * it also allowed two saves to land out of order, so a slow first write could
+   * overwrite a fast second one. One chain per isolate makes the order
+   * deterministic and removes the retry entirely for the common case.
+   */
+  let mutationChain: Promise<unknown> = Promise.resolve();
+  function withMutationLock<T>(work: () => Promise<T>): Promise<T> {
+    const next = mutationChain.then(work, work);
+    // A failed mutation must not poison the chain for every later caller.
+    mutationChain = next.catch(() => undefined);
+    return next;
+  }
+
+  /** The durable record, normalised, or `undefined` when there is none. */
+  async function loadDurable(): Promise<AIOperationalSettings | undefined> {
+    const raw = await settingsStore.load();
+    if (raw === undefined || raw === null) return undefined;
+    const { settings: parsed, recovered } = parseStoredSettings(raw, plane.config, clock.isoNow());
+    return recovered ? undefined : parsed;
+  }
+
+  /**
+   * PERSIST, THEN APPLY.
+   *
+   * The previous implementation mutated the live overlay first and wrote
+   * afterwards, so a failed write left the plane running a change the operator
+   * had been told had failed — including, in the worst direction, a released
+   * kill switch. The order below is the whole fix, and the shape of `build`
+   * exists to support it: a change is a FUNCTION of the current settings rather
+   * than a finished record, so it can be re-applied to a newer base when a
+   * concurrent write moves the ground.
+   *
+   *   1. read the authoritative record from durable storage
+   *   2. catch this isolate up to it
+   *   3. build the change on top of it and narrow it to the deployment envelope
+   *   4. write it under compare-and-swap
+   *   5. only now adopt it locally and project it onto the registry
+   *
+   * A failure at step 4 leaves steps 5 undone and the plane exactly where it
+   * was. A conflict at step 4 goes back to step 1, which is what turns two
+   * administrators racing into two changes that both survive.
+   */
+  async function commit(
+    build: (current: AIOperationalSettings) => AIOperationalSettings,
+    actorId: string,
+    reason: string,
+  ): Promise<AIOperationalSettings> {
+    let lastConflict: AIError | undefined;
+
+    for (let attempt = 1; attempt <= MAX_COMMIT_ATTEMPTS; attempt += 1) {
+      const durable = await loadDurable();
+      const expectedVersion = durable?.configurationVersion ?? NO_STORED_VERSION;
+
+      // Catch up before building. Without this a change would be applied on top
+      // of a local copy that another isolate has already superseded, and the
+      // fields the caller did not touch would be silently rolled back.
+      if (durable && durable.configurationVersion > plane.settings.current().configurationVersion) {
+        plane.settings.adopt(durable);
+        plane.applySettings();
+      }
+
+      const base = durable ?? plane.settings.current();
+      // Strictly greater than both what is stored and what this isolate holds,
+      // so a version never repeats and never moves backwards.
+      const nextVersion =
+        Math.max(expectedVersion, plane.settings.current().configurationVersion) + 1;
+
+      const next = applyEnvelope(
+        {
+          ...build(base),
+          configurationVersion: nextVersion,
+          updatedAt: clock.isoNow(),
+          updatedBy: actorId,
+          updatedReason: reason,
+        },
+        envelope,
+      );
+
+      try {
+        await settingsStore.save(next, expectedVersion);
+      } catch (error) {
+        if (error instanceof AIError && error.code === 'CONFLICT') {
+          lastConflict = error;
+          logger.warn('ai.admin.settings.conflict_retry', {
+            attempt,
+            expectedVersion,
+            actorId,
+          });
+          continue;
+        }
+        logger.error('ai.admin.settings.persist_failed', {
+          configurationVersion: nextVersion,
+          diagnostics: error instanceof Error ? error.message : String(error),
+        });
+        throw new AIError('INTERNAL_ERROR', 'The AI settings change could not be saved.', {
+          diagnostics: error instanceof Error ? error.message : String(error),
+          cause: error,
+        });
+      }
+
+      plane.settings.adopt(next);
+      plane.applySettings();
+      return plane.settings.current();
     }
-    plane.applySettings();
-    return applied;
+
+    throw (
+      lastConflict ??
+      new AIError('CONFLICT', 'The AI settings changed while this update was being prepared.')
+    );
   }
 
   /**
@@ -435,8 +540,14 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     try {
       for (const capability of options.capabilities) requireCapability(actor, capability);
       const reason = requireReason(options.reason);
-      before = await options.before();
-      const outcome = await options.run(reason);
+      // Authorisation and validation are cheap and need no ordering. Everything
+      // that reads or writes platform state runs inside the mutation chain, so
+      // two administrators on this isolate are applied in a defined order
+      // rather than racing between their read and their write.
+      const outcome = await withMutationLock(async () => {
+        before = await options.before();
+        return options.run(reason);
+      });
       audit('applied', {
         reason,
         after: outcome.after,
@@ -641,7 +752,7 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
         });
         return live();
       }
-      plane.settings.hydrate(parsed);
+      plane.settings.adopt(parsed);
       plane.applySettings();
       logger.info('ai.admin.settings.hydrated', {
         configurationVersion: parsed.configurationVersion,
@@ -695,12 +806,13 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
         before: () => Promise.resolve(settingsFacts(live())),
         run: async (auditReason) => {
           const current = live();
-          const next = normalizeOperationalSettings(current, patch);
-          const applied = await commit({
-            ...next,
-            updatedBy: actor.actorId,
-            updatedReason: auditReason,
-          });
+          // The patch is re-applied to whatever base `commit` reads, so a
+          // concurrent change from another isolate is merged rather than lost.
+          const applied = await commit(
+            (base) => normalizeOperationalSettings(base, patch),
+            actor.actorId,
+            auditReason,
+          );
           return {
             after: settingsFacts(applied),
             result: applied,
@@ -719,25 +831,26 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
         meta,
         before: () => Promise.resolve(settingsFacts(live())),
         run: async (auditReason) => {
-          const current = live();
-          const applied = await commit({
-            ...current,
-            // Engaging the stop does NOT clear `aiEnabled` or
-            // `realRequestsEnabled`. The stop is an overlay on top of them, so
-            // releasing it restores exactly the posture the platform had before
-            // the incident rather than an ambiguous one an operator has to
-            // reconstruct from memory.
-            emergencyStop: engaged
-              ? {
-                  engaged: true,
-                  reason: auditReason,
-                  engagedBy: actor.actorId,
-                  engagedAt: clock.isoNow(),
-                }
-              : { engaged: false },
-            updatedBy: actor.actorId,
-            updatedReason: auditReason,
-          });
+          const applied = await commit(
+            (base) => ({
+              ...base,
+              // Engaging the stop does NOT clear `aiEnabled` or
+              // `realRequestsEnabled`. The stop is an overlay on top of them, so
+              // releasing it restores exactly the posture the platform had before
+              // the incident rather than an ambiguous one an operator has to
+              // reconstruct from memory.
+              emergencyStop: engaged
+                ? {
+                    engaged: true,
+                    reason: auditReason,
+                    engagedBy: actor.actorId,
+                    engagedAt: clock.isoNow(),
+                  }
+                : { engaged: false },
+            }),
+            actor.actorId,
+            auditReason,
+          );
           return {
             after: settingsFacts(applied),
             result: applied,
@@ -774,12 +887,39 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
 
           const current = live();
           const nextSetting = normalizeProviderSetting(current.providers[providerId], patch);
-          const applied = await commit({
-            ...current,
-            providers: { ...current.providers, [providerId]: nextSetting },
-            updatedBy: actor.actorId,
-            updatedReason: auditReason,
-          });
+
+          // A model allow list is a NARROWING, and a narrowing that names
+          // nothing the adapter serves is rejected here rather than ignored
+          // downstream. The registry used to fall back to the full catalogue in
+          // that case, so an operator who restricted a provider to one model
+          // silently got every model — the opposite of what they asked for, with
+          // the console reporting success. Validating against the adapter's own
+          // descriptor is the only place that has the facts to catch it.
+          if (nextSetting.modelAllowList.length > 0) {
+            const declared = new Set(registered.descriptor.models.map((model) => model.modelId));
+            const unknown = nextSetting.modelAllowList.filter((modelId) => !declared.has(modelId));
+            if (unknown.length > 0) {
+              throw new AIError(
+                'VALIDATION_FAILED',
+                `This provider does not serve: ${unknown.join(', ')}.`,
+                {
+                  fields: ['modelAllowList'],
+                  diagnostics:
+                    `providerId=${providerId} unknown=${unknown.join(',')} ` +
+                    `declared=${[...declared].join(',')}`,
+                },
+              );
+            }
+          }
+
+          const applied = await commit(
+            (base) => ({
+              ...base,
+              providers: { ...base.providers, [providerId]: nextSetting },
+            }),
+            actor.actorId,
+            auditReason,
+          );
 
           const wasEnabled = current.providers[providerId]?.enabled ?? registered.enabled;
           return {
@@ -811,11 +951,21 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
         meta,
         before: async () => spendFacts(await plane.spendStatus()),
         run: async (auditReason) => {
-          const before = await plane.spendStatus();
-          const cap =
-            options?.newCapMicroUsd === undefined
-              ? undefined
-              : clampCap(options.newCapMicroUsd, before.capMicroUsd);
+          // A reset CLEARS SPEND. It does not move the ceiling.
+          //
+          // Accepting a new cap here let one call both wipe the spend history
+          // and raise the ceiling — a thousandfold, in the review that found it
+          // — while the trail recorded only `spend.reset`. Two decisions with
+          // different blast radii must not share one audit action, so the field
+          // is refused rather than quietly ignored: a caller that sends it gets
+          // told which operation they actually wanted.
+          if (options?.newCapMicroUsd !== undefined) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'A reset cannot change the spending ceiling. Use the increase operation.',
+              { fields: ['newCapMicroUsd'] },
+            );
+          }
 
           // Delegated to the Batch 1 ledger, which is the only thing that may
           // clear spend and which already demands an authorising actor and a
@@ -823,7 +973,6 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
           const after = await plane.spendLedger.reset(SPEND_SCOPE.platform, {
             authorizedBy: actor.actorId,
             reason: auditReason,
-            newCapMicroUsd: cap,
           });
           return { after: spendFacts(after), result: budgetView(after) };
         },

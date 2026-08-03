@@ -23,6 +23,8 @@ export type AIErrorCode =
   | 'CAPABILITY_DENIED'
   // ── Request validation ────────────────────────────────────────────────────
   | 'VALIDATION_FAILED'
+  /** Optimistic-concurrency failure: the caller's expected version is stale. */
+  | 'CONFLICT'
   | 'PAYLOAD_TOO_LARGE'
   | 'CONTRACT_VERSION_UNSUPPORTED'
   // ── Quota and policy ──────────────────────────────────────────────────────
@@ -77,6 +79,9 @@ const TRAITS: Record<AIErrorCode, ErrorTrait> = {
   CAPABILITY_DENIED: { status: 403, retryable: false, failoverable: false },
 
   VALIDATION_FAILED: { status: 400, retryable: false, failoverable: false },
+  // Retryable: the caller should re-read, re-apply and try again, which is what
+  // the administration service does automatically before surfacing this.
+  CONFLICT: { status: 409, retryable: true, failoverable: false },
   PAYLOAD_TOO_LARGE: { status: 413, retryable: false, failoverable: false },
   CONTRACT_VERSION_UNSUPPORTED: { status: 400, retryable: false, failoverable: false },
 

@@ -30,6 +30,8 @@ import type {
   AIOperationalSettings,
   AIProviderSetting,
 } from '../runtime/operationalSettings.ts';
+import { AIError } from '../contracts/errors.ts';
+import { applyEnvelope, envelopeFrom } from '../runtime/envelope.ts';
 import {
   asIdentifier,
   baselineSettings,
@@ -41,10 +43,37 @@ import {
 
 export interface AdminSettingsStore {
   load(): Promise<AIOperationalSettings | undefined>;
-  save(settings: AIOperationalSettings): Promise<void>;
+  /**
+   * Persist settings, but only if durable storage is still at
+   * `expectedVersion`. Rejects with `CONFLICT` otherwise.
+   *
+   * The expected version is REQUIRED rather than optional. An optional
+   * precondition is one a caller forgets, and the caller that forgets is the
+   * one that reverts somebody's kill switch — which is precisely the defect
+   * this replaced. `0` is the expected version for "nothing is stored yet".
+   */
+  save(settings: AIOperationalSettings, expectedVersion: number): Promise<void>;
 }
 
-/** In-memory store. Correct for tests and a single-instance deployment. */
+/** The version to expect when durable storage holds nothing yet. */
+export const NO_STORED_VERSION = 0;
+
+/** Raised when a write lost a race. The caller re-reads, re-applies, retries. */
+export function settingsConflict(expected: number, actual: number): AIError {
+  return new AIError(
+    'CONFLICT',
+    'The AI settings changed while this update was being prepared.',
+    { diagnostics: `expectedVersion=${expected} storedVersion=${actual}` },
+  );
+}
+
+/**
+ * In-memory store with the same compare-and-swap contract the durable one has.
+ *
+ * Sharing one instance between two test planes is how a second isolate is
+ * modelled, so its concurrency semantics have to match production's or the
+ * tests would prove nothing about production.
+ */
 export function createMemorySettingsStore(
   initial?: AIOperationalSettings,
 ): AdminSettingsStore & { readonly saves: number } {
@@ -52,7 +81,9 @@ export function createMemorySettingsStore(
   let saves = 0;
   return {
     load: () => Promise.resolve(stored),
-    save: (settings) => {
+    save: (settings, expectedVersion) => {
+      const actual = stored?.configurationVersion ?? NO_STORED_VERSION;
+      if (actual !== expectedVersion) return Promise.reject(settingsConflict(expectedVersion, actual));
       stored = settings;
       saves += 1;
       return Promise.resolve();
@@ -159,15 +190,21 @@ export function parseStoredSettings(
       : baseline.configurationVersion;
 
   return {
-    settings: {
-      ...normalized,
-      configurationVersion: version,
-      emergencyStop: parseEmergencyStop(stored.emergencyStop),
-      providers: parseProviders(stored.providers),
-      updatedAt: text(stored.updatedAt, 40) ?? baseline.updatedAt,
-      updatedBy: text(stored.updatedBy, 120) ?? baseline.updatedBy,
-      updatedReason: text(stored.updatedReason, MAX_REASON_LENGTH) ?? baseline.updatedReason,
-    },
+    // Narrowed to the deployment envelope on the way in. A record written by a
+    // revision with a looser envelope — or edited by hand in the key-value
+    // store — must not be able to widen the platform simply by being loaded.
+    settings: applyEnvelope(
+      {
+        ...normalized,
+        configurationVersion: version,
+        emergencyStop: parseEmergencyStop(stored.emergencyStop),
+        providers: parseProviders(stored.providers),
+        updatedAt: text(stored.updatedAt, 40) ?? baseline.updatedAt,
+        updatedBy: text(stored.updatedBy, 120) ?? baseline.updatedBy,
+        updatedReason: text(stored.updatedReason, MAX_REASON_LENGTH) ?? baseline.updatedReason,
+      },
+      envelopeFrom(config),
+    ),
     recovered: false,
   };
 }

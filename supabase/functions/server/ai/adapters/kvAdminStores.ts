@@ -24,6 +24,7 @@
 
 import type { AdminAuditRecord, AdminAuditStore } from '../admin/adminAudit.ts';
 import type { AdminSettingsStore } from '../admin/settingsStore.ts';
+import { NO_STORED_VERSION, settingsConflict } from '../admin/settingsStore.ts';
 import type { AIOperationalSettings } from '../runtime/operationalSettings.ts';
 
 export type KvAdminReader = (key: string) => Promise<unknown>;
@@ -77,7 +78,27 @@ export function createKvAdminSettingsStore(
       return raw as AIOperationalSettings | undefined;
     },
 
-    async save(settings) {
+    async save(settings, expectedVersion) {
+      // Read-then-write compare-and-swap.
+      //
+      // This is honest about what the injected key-value port can do: it offers
+      // a read and a write, not an atomic conditional write, so the guarantee
+      // here is "no write proceeds on a version it did not observe" rather than
+      // a hardware-level CAS. It closes the window that matters — two
+      // administrators seconds apart, which is the realistic case — and it
+      // narrows, but does not eliminate, the window of two writes landing
+      // inside the same read-modify-write. Closing that one needs a conditional
+      // write primitive from the storage layer; it is recorded as a remaining
+      // finding rather than papered over here.
+      const current = coerce(await options.read(ADMIN_SETTINGS_KEY));
+      const storedVersion =
+        current === 'unparseable' || current === undefined
+          ? NO_STORED_VERSION
+          : ((current as { configurationVersion?: number }).configurationVersion ??
+            NO_STORED_VERSION);
+      if (storedVersion !== expectedVersion) {
+        throw settingsConflict(expectedVersion, storedVersion);
+      }
       await options.write(ADMIN_SETTINGS_KEY, { ...settings, _schema: SETTINGS_SCHEMA });
     },
   };
