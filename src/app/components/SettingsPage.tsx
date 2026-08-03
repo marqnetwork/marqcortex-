@@ -26,6 +26,7 @@ import {
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
 
 interface Props {
   accessToken?: string;
@@ -36,6 +37,12 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',     icon: Bell },
   { id: 'platform',      label: 'Platform',          icon: Palette },
   { id: 'health',        label: 'Platform Health',   icon: Activity },
+  // AI-01 Batch 2. The tab is always rendered; the console itself resolves the
+  // operator's role server-side and shows an explicit "not authorized" state to
+  // anyone without an administrative role. Hiding the tab based on a
+  // client-side role guess would be a check the server does not honour and a
+  // second place for the two to disagree.
+  { id: 'ai',            label: 'AI Administration', icon: Zap },
 ];
 
 export function SettingsPage({ accessToken }: Props) {
@@ -274,6 +281,7 @@ export function SettingsPage({ accessToken }: Props) {
           {activeTab === 'health' && data && (
             <HealthTab health={data.health} onRefresh={() => load()} />
           )}
+          {activeTab === 'ai' && <AIAdministrationConsole accessToken={accessToken} />}
         </motion.div>
       </AnimatePresence>
     </div>

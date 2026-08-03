@@ -1,0 +1,574 @@
+/**
+ * AI administration API client (AI-01 Batch 2).
+ *
+ * The console's only route to the AI administration surface. It is deliberately
+ * thin: every rule that matters — who may do what, what a change means, whether
+ * it persists — is enforced server-side, and this file's job is to carry a
+ * request there and bring a typed answer back.
+ *
+ * TWO THINGS THIS CLIENT DELIBERATELY DOES NOT DO.
+ *
+ *   It does not decide what the operator may see or change. `capabilities`
+ *   arrives from the server on every overview and the UI reads it to decide
+ *   what to RENDER — but hiding a control is a courtesy, never a control. The
+ *   server refuses the same operation whether or not the button was drawn.
+ *
+ *   It does not invent a demo-mode administration surface. Every other service
+ *   in this console falls back to seed data when the backend is off, which is
+ *   right for a sales demo of a dashboard and wrong for a control panel: an
+ *   operator who "engages the kill switch" against fabricated state and sees
+ *   success has been told a dangerous lie. With the backend disabled these
+ *   functions report that plainly instead.
+ */
+
+import { edgeFunctionBaseUrl } from '@/config/supabase.config';
+import { isBackendEnabled } from '@/config/runtime';
+
+const BASE = edgeFunctionBaseUrl;
+
+// ── Server contracts ────────────────────────────────────────────────────────
+//
+// Mirrors of the server's read models. Kept structural and partial on purpose:
+// the console renders what it understands and ignores the rest, so a server
+// that adds a field does not break a deployed console.
+
+export type AIAdminRole = 'super_admin' | 'organization_admin' | 'team_admin';
+
+export type AIAdminCapability =
+  | 'ai.admin.view'
+  | 'ai.admin.audit.read'
+  | 'ai.admin.settings.write'
+  | 'ai.admin.provider.write'
+  | 'ai.admin.budget.write'
+  | 'ai.admin.budget.reset'
+  | 'ai.admin.killswitch';
+
+export interface AIAdminSettings {
+  configurationVersion: number;
+  aiEnabled: boolean;
+  realRequestsEnabled: boolean;
+  emergencyStop: { engaged: boolean; reason?: string; engagedBy?: string; engagedAt?: string };
+  defaultProviderId?: string;
+  providerPreference: string[];
+  fallbackProviderId?: string;
+  failoverEnabled: boolean;
+  requireCertifiedProviders: boolean;
+  defaultModelId?: string;
+  providers: Record<string, { enabled: boolean; modelAllowList: string[] }>;
+  retry: { baseDelayMs: number; maxDelayMs: number; jitterPercent: number };
+  timeout: { workflowDeadlineMs: number };
+  budget: {
+    organizationDailyMicroUsd: number;
+    actorDailyMicroUsd: number;
+    alertThresholdPercent: number;
+    enforce: boolean;
+  };
+  updatedAt: string;
+  updatedBy: string;
+  updatedReason: string;
+}
+
+export interface AIAdminProvider {
+  providerId: string;
+  displayName: string;
+  priority: number;
+  productionReady: boolean;
+  billable: boolean;
+  enabled: boolean;
+  selectionReason: string;
+  preferenceIndex: number;
+  isDefault: boolean;
+  isFallback: boolean;
+  modelAllowList: string[];
+  health: {
+    state: string;
+    certification: string;
+    credentialsConfigured: boolean;
+    circuit: 'closed' | 'open' | 'half_open';
+    consecutiveFailures: number;
+    successCount: number;
+    failureCount: number;
+    lastLatencyMs?: number;
+    lastError?: string;
+    lastFailureAt?: string;
+    lastRecoveryAt?: string;
+    checkedAt: string;
+  };
+  models: {
+    modelId: string;
+    permitted: boolean;
+    isPinnedDefault: boolean;
+    promptMicroUsdPer1k: number;
+    completionMicroUsdPer1k: number;
+    capabilities: {
+      textGeneration: boolean;
+      structuredOutput: boolean;
+      chatCompletions: boolean;
+      maxOutputTokens: number;
+      maxContextTokens: number;
+      zeroDataRetention: boolean;
+    };
+  }[];
+}
+
+export interface AIAdminBudget {
+  platform: {
+    capMicroUsd: number;
+    spentMicroUsd: number;
+    reservedMicroUsd: number;
+    remainingMicroUsd: number;
+    lifetimeSpentMicroUsd: number;
+    attemptCount: number;
+    updatedAt: string;
+    enforced: boolean;
+  };
+  reservations: {
+    openCount: number;
+    openMicroUsd: number;
+    open: {
+      reservationId: string;
+      reservedMicroUsd: number;
+      createdAt: string;
+      expiresAt: string;
+      owner?: string;
+    }[];
+    reclaimedMicroUsd: number;
+    reclaimedCount: number;
+    unattributedSince?: string;
+  };
+  daily: {
+    organizationDailyMicroUsd: number;
+    actorDailyMicroUsd: number;
+    alertThresholdPercent: number;
+    enforce: boolean;
+  };
+  resets: {
+    at: string;
+    kind?: 'reset' | 'cap_raise';
+    authorizedBy: string;
+    reason: string;
+    clearedMicroUsd: number;
+    previousCapMicroUsd: number;
+    newCapMicroUsd: number;
+  }[];
+}
+
+export interface AIAdminUsage {
+  generatedAt: string;
+  window: string;
+  totals: {
+    requests: number;
+    succeeded: number;
+    failed: number;
+    successRatePercent: number;
+    failureRatePercent: number;
+    tokens: number;
+    estimatedCostMicroUsd: number;
+    actualCostMicroUsd: number;
+    providerAttempts: number;
+    retries: number;
+    failovers: number;
+    circuitOpenEvents: number;
+    guardRejections: number;
+    governanceBlocks: number;
+    governanceFlags: number;
+    redactions: number;
+  };
+  features: {
+    featureId: string;
+    requests: number;
+    succeeded: number;
+    failed: number;
+    tokens: number;
+    estimatedCostMicroUsd: number;
+    successRatePercent: number;
+  }[];
+  providers: {
+    providerId: string;
+    attempts: number;
+    succeeded: number;
+    failed: number;
+    failovers: number;
+    circuitOpenEvents: number;
+    successRatePercent: number;
+    latency: { p50: number; p95: number; p99: number };
+  }[];
+  errors: { code: string; count: number }[];
+  latency: { p50: number; p95: number; p99: number };
+}
+
+export interface AIProviderHealthView {
+  providerId: string;
+  state: string;
+  certification: string;
+  credentialsConfigured: boolean;
+  circuit: 'closed' | 'open' | 'half_open';
+  consecutiveFailures: number;
+  successCount: number;
+  failureCount: number;
+  lastLatencyMs?: number;
+  lastError?: string;
+  lastFailureAt?: string;
+  lastRecoveryAt?: string;
+  checkedAt: string;
+}
+
+export interface AIAdminHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  platformVersion: string;
+  contractVersion: string;
+  configurationVersion: number;
+  aiEnabled: boolean;
+  emergencyStopEngaged: boolean;
+  checkedAt: string;
+  issues: string[];
+  /** Live provider state, carried on the overview so the page needs one call. */
+  providers: AIProviderHealthView[];
+  /** Why the selector would skip each provider, keyed by provider id. */
+  selection: Record<string, string>;
+  features: { registered: number; enabled: number };
+  prompts: { registered: number; references: string[] };
+}
+
+export interface AIAdminOverview {
+  actor: {
+    actorId: string;
+    role: AIAdminRole;
+    capabilities: AIAdminCapability[];
+    organizationScope: string[];
+  };
+  settings: AIAdminSettings;
+  effective: { aiEnabled: boolean; realRequestsEnabled: boolean; providerPreference: string[] };
+  health: AIAdminHealth;
+  budget: AIAdminBudget;
+  usage: AIAdminUsage;
+}
+
+export interface AIAdminDiagnostics {
+  generatedAt: string;
+  versions: {
+    platformVersion: string;
+    contractVersion: string;
+    configurationVersion: number;
+    prompts: { reference: string; fingerprint: string }[];
+  };
+  environment: {
+    realRequestsPermittedByEnvironment: boolean;
+    realRequestsEffective: boolean;
+    spendDurable: boolean;
+    auditDurable: boolean;
+    auditRetentionDays: number;
+    redactionEnabled: boolean;
+    strictInputGuard: boolean;
+    logLevel: string;
+    defaultOrganizationId: string;
+    allowDefaultOrganization: boolean;
+    organizationAllowList: string[];
+  };
+  circuits: {
+    providerId: string;
+    state: string;
+    consecutiveFailures: number;
+    lastFailureAt?: string;
+    lastRecoveryAt?: string;
+  }[];
+  rateLimits: {
+    featureId: string;
+    perActor: { limit: number; windowMs: number };
+    perOrganization: { limit: number; windowMs: number };
+    rateLimitCost: number;
+  }[];
+  retry: { baseDelayMs: number; maxDelayMs: number; jitterPercent: number };
+  timeout: { workflowDeadlineMs: number };
+  circuitPolicy: { failureThreshold: number; openMs: number; halfOpenSuccessesToClose: number };
+}
+
+export interface AIExecutionAuditRecord {
+  auditId: string;
+  recordedAt: string;
+  requestId: string;
+  correlationId: string;
+  featureId: string;
+  organizationId: string;
+  actorId: string;
+  actorRoles: string[];
+  providerId?: string;
+  modelId?: string;
+  attempts: number;
+  latencyMs: number;
+  costMicroUsd?: number;
+  outcome: 'success' | 'failure';
+  errorCode?: string;
+  policyRulesEvaluated: string[];
+  policyViolation?: string;
+  inputGuard: string;
+  outputGuard: string;
+  redactedCategories: string[];
+  governanceFlags: string[];
+}
+
+export interface AIAdminChangeRecord {
+  adminAuditId: string;
+  recordedAt: string;
+  action: string;
+  outcome: 'applied' | 'rejected';
+  actorId: string;
+  actorEmail?: string;
+  actorRole: string;
+  target?: string;
+  reason: string;
+  before: Record<string, string>;
+  after: Record<string, string>;
+  configurationVersion?: number;
+  rejectionCode?: string;
+}
+
+/**
+ * A refused or failed administrative call, carrying the server's stable code.
+ *
+ * The code matters more than the message: a console distinguishes "you may not
+ * do this" (FORBIDDEN) from "you did not say why" (VALIDATION_FAILED) from "the
+ * change could not be saved" (INTERNAL_ERROR), and only the last one is worth
+ * offering a retry for.
+ */
+export class AIAdminError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly fields?: string[];
+
+  constructor(message: string, code: string, status: number, fields?: string[]) {
+    super(message);
+    this.name = 'AIAdminError';
+    this.code = code;
+    this.status = status;
+    this.fields = fields;
+  }
+
+  /** True when the operator's role is the problem, not their input. */
+  get isForbidden(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+}
+
+const BACKEND_DISABLED = new AIAdminError(
+  'AI administration requires the live backend. This console is running on demo data.',
+  'BACKEND_DISABLED',
+  503,
+);
+
+async function call<T>(
+  path: string,
+  accessToken: string,
+  init: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {},
+): Promise<T> {
+  // No demo fallback, deliberately. See the module comment: fabricated state on
+  // a control panel is worse than no control panel.
+  if (!isBackendEnabled()) throw BACKEND_DISABLED;
+
+  const response = await fetch(`${BASE}${path}`, {
+    method: init.method ?? 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+  });
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new AIAdminError(
+      'The AI administration service returned an unreadable response.',
+      'INVALID_RESPONSE',
+      response.status,
+    );
+  }
+
+  if (!response.ok || payload.success !== true) {
+    throw new AIAdminError(
+      typeof payload.error === 'string' ? payload.error : 'The AI administration request failed.',
+      typeof payload.code === 'string' ? payload.code : 'INTERNAL_ERROR',
+      response.status,
+      Array.isArray(payload.fields) ? (payload.fields as string[]) : undefined,
+    );
+  }
+
+  return payload as T;
+}
+
+// ── Reads ───────────────────────────────────────────────────────────────────
+
+export async function fetchAIAdminOverview(accessToken: string): Promise<AIAdminOverview> {
+  const { overview } = await call<{ overview: AIAdminOverview }>('/ai/admin/overview', accessToken);
+  return overview;
+}
+
+export async function fetchAIAdminProviders(accessToken: string): Promise<AIAdminProvider[]> {
+  const { providers } = await call<{ providers: AIAdminProvider[] }>(
+    '/ai/admin/providers',
+    accessToken,
+  );
+  return providers;
+}
+
+export async function fetchAIAdminBudget(accessToken: string): Promise<AIAdminBudget> {
+  const { budget } = await call<{ budget: AIAdminBudget }>('/ai/admin/budget', accessToken);
+  return budget;
+}
+
+export async function fetchAIAdminUsage(accessToken: string): Promise<AIAdminUsage> {
+  const { usage } = await call<{ usage: AIAdminUsage }>('/ai/admin/usage', accessToken);
+  return usage;
+}
+
+export async function fetchAIAdminDiagnostics(accessToken: string): Promise<AIAdminDiagnostics> {
+  const { diagnostics } = await call<{ diagnostics: AIAdminDiagnostics }>(
+    '/ai/admin/diagnostics',
+    accessToken,
+  );
+  return diagnostics;
+}
+
+export async function fetchAIExecutionAudit(
+  accessToken: string,
+  limit = 50,
+): Promise<AIExecutionAuditRecord[]> {
+  const { records } = await call<{ records: AIExecutionAuditRecord[] }>(
+    `/ai/admin/audit?limit=${encodeURIComponent(String(limit))}`,
+    accessToken,
+  );
+  return records;
+}
+
+export async function fetchAIAdminChanges(
+  accessToken: string,
+  limit = 50,
+): Promise<AIAdminChangeRecord[]> {
+  const { records } = await call<{ records: AIAdminChangeRecord[] }>(
+    `/ai/admin/audit/changes?limit=${encodeURIComponent(String(limit))}`,
+    accessToken,
+  );
+  return records;
+}
+
+// ── Mutations ───────────────────────────────────────────────────────────────
+//
+// `reason` is a required parameter on every one of these, not an optional
+// field on a patch object. Making it structurally impossible to call these
+// without one is the client-side half of the server's rule.
+
+export interface AIAdminSettingsPatch {
+  aiEnabled?: boolean;
+  realRequestsEnabled?: boolean;
+  defaultProviderId?: string | null;
+  providerPreference?: string[];
+  fallbackProviderId?: string | null;
+  failoverEnabled?: boolean;
+  requireCertifiedProviders?: boolean;
+  defaultModelId?: string | null;
+  retry?: { baseDelayMs?: number; maxDelayMs?: number; jitterPercent?: number };
+  timeout?: { workflowDeadlineMs?: number };
+  budget?: {
+    organizationDailyMicroUsd?: number;
+    actorDailyMicroUsd?: number;
+    alertThresholdPercent?: number;
+    enforce?: boolean;
+  };
+}
+
+export async function updateAISettings(
+  accessToken: string,
+  patch: AIAdminSettingsPatch,
+  reason: string,
+): Promise<AIAdminSettings> {
+  const { settings } = await call<{ settings: AIAdminSettings }>('/ai/admin/settings', accessToken, {
+    method: 'PATCH',
+    body: { ...patch, reason },
+  });
+  return settings;
+}
+
+export async function setAIEmergencyStop(
+  accessToken: string,
+  engaged: boolean,
+  reason: string,
+): Promise<AIAdminSettings> {
+  const { settings } = await call<{ settings: AIAdminSettings }>(
+    '/ai/admin/kill-switch',
+    accessToken,
+    { method: 'POST', body: { engaged, reason } },
+  );
+  return settings;
+}
+
+export async function updateAIProvider(
+  accessToken: string,
+  providerId: string,
+  patch: { enabled?: boolean; modelAllowList?: string[] | null },
+  reason: string,
+): Promise<AIAdminProvider[]> {
+  const { providers } = await call<{ providers: AIAdminProvider[] }>(
+    `/ai/admin/providers/${encodeURIComponent(providerId)}`,
+    accessToken,
+    { method: 'PATCH', body: { ...patch, reason } },
+  );
+  return providers;
+}
+
+export async function resetAISpend(
+  accessToken: string,
+  reason: string,
+  newCapMicroUsd?: number,
+): Promise<AIAdminBudget> {
+  const { budget } = await call<{ budget: AIAdminBudget }>('/ai/admin/budget/reset', accessToken, {
+    method: 'POST',
+    body: { reason, ...(newCapMicroUsd === undefined ? {} : { newCapMicroUsd }) },
+  });
+  return budget;
+}
+
+export async function increaseAISpendCap(
+  accessToken: string,
+  capMicroUsd: number,
+  reason: string,
+): Promise<AIAdminBudget> {
+  const { budget } = await call<{ budget: AIAdminBudget }>(
+    '/ai/admin/budget/increase',
+    accessToken,
+    { method: 'POST', body: { capMicroUsd, reason } },
+  );
+  return budget;
+}
+
+// ── Formatting helpers ──────────────────────────────────────────────────────
+
+/**
+ * Micro-USD to a human figure.
+ *
+ * The platform accounts in micro-USD integers so a ledger never accumulates
+ * float error. That precision is worth keeping right up to the point of
+ * display, and no further — an operator reading a spend ceiling wants "$7.40",
+ * not "7400000".
+ */
+export function formatMicroUsd(microUsd: number): string {
+  const dollars = microUsd / 1_000_000;
+  if (dollars === 0) return '$0.00';
+  // Sub-cent figures are real at these volumes; rounding them to $0.00 would
+  // make a working cost dashboard look broken.
+  if (Math.abs(dollars) < 0.01) return `$${dollars.toFixed(4)}`;
+  return `$${dollars.toFixed(2)}`;
+}
+
+/** Percentage of a ceiling consumed, bounded to 0–100 for a progress bar. */
+export function percentOf(part: number, whole: number): number {
+  if (whole <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
+}
+
+export function hasAICapability(
+  capabilities: readonly AIAdminCapability[] | undefined,
+  capability: AIAdminCapability,
+): boolean {
+  return capabilities?.includes(capability) ?? false;
+}
