@@ -153,9 +153,13 @@ export function createAIGuard(deps: GuardDependencies): AIGuard {
 
       // 8 — rate limiting. Organization first: a tenant at its ceiling should
       // not consume an individual's allowance to learn it is at its ceiling.
+      // Weighted, so an expensive feature draws proportionally more of the
+      // window than a cheap one.
+      const cost = descriptor.limits.rateLimitCost ?? 1;
       const organizationDecision = rateLimiter.consume(
         rateLimitScope.organization(organization.organizationId, descriptor.featureId),
         descriptor.limits.perOrganization,
+        cost,
       );
       if (!organizationDecision.allowed) {
         throw new AIError('RATE_LIMITED', 'Your organization has reached its AI request limit. Try again shortly.', {
@@ -167,6 +171,7 @@ export function createAIGuard(deps: GuardDependencies): AIGuard {
       const actorDecision = rateLimiter.consume(
         rateLimitScope.actor(organization.organizationId, actor.actorId, descriptor.featureId),
         descriptor.limits.perActor,
+        cost,
       );
       if (!actorDecision.allowed) {
         throw new AIError('RATE_LIMITED', 'You have reached the AI request limit. Try again shortly.', {

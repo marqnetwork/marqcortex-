@@ -27,7 +27,7 @@
  *   work.
  */
 
-import type { AIError, AIErrorCode } from '../contracts/errors.ts';
+import type { AIErrorCode } from '../contracts/errors.ts';
 import type {
   AIGenerationRequest,
   AIMessage,

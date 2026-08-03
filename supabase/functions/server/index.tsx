@@ -24,6 +24,13 @@ import {
 } from "./aiRoutes.ts";
 import { initializeControlPlane } from "./ai/index.ts";
 import {
+  authorizeMemberRemoval,
+  authorizeRoleAssignment,
+  authorizeTeamAdmin,
+  normalizeTeamRole,
+  type TeamRole,
+} from "./teamAuthorization.ts";
+import {
   deriveDealSnapshots,
   summarizeSnapshots,
   type RawSubmission,
@@ -270,6 +277,26 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
   }
 }
 
+/**
+ * Resolve the caller's team role from the auth record.
+ *
+ * `user_metadata` is writable only through the service-role admin API, so this
+ * is a server-side fact rather than something the caller can assert in a header
+ * or a body field. An unreadable or missing role resolves to `viewer`, the least
+ * privileged role — a lookup failure must never widen access.
+ */
+async function resolveTeamRole(userId: string | null): Promise<TeamRole | null> {
+  if (!userId) return null;
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (error || !data?.user) return 'viewer';
+    return normalizeTeamRole(data.user.user_metadata?.teamRole);
+  } catch (err) {
+    console.error('resolveTeamRole failed:', err instanceof Error ? err.message : String(err));
+    return 'viewer';
+  }
+}
+
 // ============================================================================
 // AI CONTROL PLANE — the single governed AI execution path (AI-01 Batch 1)
 //
@@ -283,11 +310,45 @@ const controlPlane = initializeControlPlane({
   getUser: async (accessToken: string) => {
     const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
     if (error || !data?.user) return null;
-    return { id: data.user.id, email: data.user.email ?? undefined };
+    // Roles are resolved server-side from `user_metadata`, which only the
+    // service-role admin API can write. Supplying them here is what makes the
+    // policy engine's capability check mean anything: without them every actor
+    // resolved to the baseline grant, and the four capability-gated features
+    // (analysis, block assist, copilot plan, section copilot) were denied to
+    // every real user while appearing to be authorized.
+    return {
+      id: data.user.id,
+      email: data.user.email ?? undefined,
+      roles: [normalizeTeamRole(data.user.user_metadata?.teamRole)],
+    };
+  },
+  listMemberships: async (userId: string) => {
+    // Organization membership from the tenancy tables. A user with no row gets
+    // no membership, and the AI Guard then fails the request closed unless the
+    // deployment has explicitly opted into the single-tenant default.
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('organization_memberships')
+        .select('organization_id, organizations(slug)')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+      if (error || !Array.isArray(data)) return [];
+      return data
+        .filter((row: any) => typeof row?.organization_id === 'string')
+        .map((row: any) => ({
+          organizationId: String(row.organization_id),
+          slug: typeof row.organizations?.slug === 'string' ? row.organizations.slug : undefined,
+          roles: [] as string[],
+        }));
+    } catch (err) {
+      console.error('[ai] membership lookup failed:', err instanceof Error ? err.message : String(err));
+      return [];
+    }
   },
   kvWrite: async (key: string, value: unknown) => {
     await kv.set(key, JSON.stringify(value));
   },
+  kvRead: async (key: string) => kv.get(key),
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed
@@ -2689,7 +2750,9 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
         id:          u.id,
         email:       u.email || '',
         name:        meta.name || u.email?.split('@')[0] || 'Unknown',
-        teamRole:    meta.teamRole || 'admin',
+        // A missing role reads as the LEAST privileged, never as admin: a data
+        // gap must not present itself to the console as full access.
+        teamRole:    normalizeTeamRole(meta.teamRole),
         status:      'active',
         joinedDate:  u.created_at,
         lastActive:  u.last_sign_in_at || null,
@@ -2708,17 +2771,33 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
 app.post("/make-server-324f4fbe/team/invite", async (c) => {
   try {
     const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const callerRole = await resolveTeamRole(callerId);
+    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    if (!adminCheck.ok) {
+      return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
+    }
 
     const { name, email, teamRole = 'viewer', tempPassword } = await c.req.json();
     if (!name || !email) return c.json({ error: "name and email are required" }, 400);
+
+    // The role is validated against the caller's own rank, not accepted from the
+    // body. Without this, a viewer could invite themselves a second account as
+    // an owner.
+    const assignment = authorizeRoleAssignment({
+      callerId: callerId as string,
+      callerRole: adminCheck.callerRole,
+      requestedRole: teamRole,
+    });
+    if (!assignment.ok) {
+      return c.json({ error: assignment.failure.message, code: assignment.failure.code }, assignment.failure.status);
+    }
 
     const password = tempPassword || `Cortex${Math.random().toString(36).slice(2, 8).toUpperCase()}!`;
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      user_metadata: { name, role: 'team', teamRole },
+      user_metadata: { name, role: 'team', teamRole: assignment.role },
       email_confirm: true,
     });
 
@@ -2736,20 +2815,22 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
       id:          data.user.id,
       email:       data.user.email,
       name,
-      teamRole,
+      teamRole:    assignment.role,
       status:      'active',
       joinedDate:  new Date().toISOString(),
       invitedBy:   caller?.email || 'admin',
-      tempPassword: password,
     };
 
+    // The temporary password is returned to the inviting admin once; it is not
+    // written to the member record, where every later read of the team list
+    // would expose it.
     await kv.set(`team:member:${data.user.id}`, JSON.stringify(member));
 
-    console.log(`✅ Team member invited: ${email} as ${teamRole}`);
+    console.log(`Team member invited by ${callerId} with role ${assignment.role}`);
     return c.json({ success: true, member, tempPassword: password });
   } catch (err) {
     console.log('Invite team member error:', err);
-    return c.json({ error: `Failed to invite team member: ${err}` }, 500);
+    return c.json({ error: 'Failed to invite team member.', code: 'INTERNAL_ERROR' }, 500);
   }
 });
 
@@ -2757,22 +2838,44 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
 app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
     const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const callerRole = await resolveTeamRole(callerId);
+    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    if (!adminCheck.ok) {
+      return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
+    }
 
     const memberId = c.req.param('id');
     const updates = await c.req.json();   // { name?, teamRole? }
 
-    // Update Supabase user metadata
+    // Preserve the existing role by default. Reading it first is also what makes
+    // the rank comparison possible: promoting somebody who already outranks the
+    // caller is the same escalation seen from the other end.
+    const targetCurrentRole = await resolveTeamRole(memberId);
     const meta: Record<string, any> = { role: 'team' };
     if (updates.name) meta.name = updates.name;
-    if (updates.teamRole) meta.teamRole = updates.teamRole;
+
+    let appliedRole = targetCurrentRole ?? 'viewer';
+    if (updates.teamRole !== undefined) {
+      const assignment = authorizeRoleAssignment({
+        callerId: callerId as string,
+        callerRole: adminCheck.callerRole,
+        targetId: memberId,
+        requestedRole: updates.teamRole,
+        targetCurrentRole: targetCurrentRole ?? undefined,
+      });
+      if (!assignment.ok) {
+        return c.json({ error: assignment.failure.message, code: assignment.failure.code }, assignment.failure.status);
+      }
+      appliedRole = assignment.role;
+    }
+    meta.teamRole = appliedRole;
 
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(memberId, {
       user_metadata: meta,
     });
     if (error) throw error;
 
-    console.log(`✅ Team member ${memberId} updated:`, updates);
+    console.log(`Team member ${memberId} updated by ${callerId} to role ${appliedRole}`);
     return c.json({ success: true, member: {
       id:       data.user.id,
       email:    data.user.email,
@@ -2781,7 +2884,7 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
     }});
   } catch (err) {
     console.log('Update team member error:', err);
-    return c.json({ error: `Failed to update team member: ${err}` }, 500);
+    return c.json({ error: 'Failed to update team member.', code: 'INTERNAL_ERROR' }, 500);
   }
 });
 
@@ -2789,21 +2892,33 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
 app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
     const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    if (!callerId) return c.json({ error: "Unauthorized" }, 401);
+    const callerRole = await resolveTeamRole(callerId);
+    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    if (!adminCheck.ok) {
+      return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
+    }
 
     const memberId = c.req.param('id');
-    if (memberId === callerId) return c.json({ error: "Cannot remove yourself" }, 400);
+    const removal = authorizeMemberRemoval({
+      callerId: callerId as string,
+      callerRole: adminCheck.callerRole,
+      targetId: memberId,
+      targetCurrentRole: (await resolveTeamRole(memberId)) ?? undefined,
+    });
+    if (!removal.ok) {
+      return c.json({ error: removal.failure.message, code: removal.failure.code }, removal.failure.status);
+    }
 
     const { error } = await supabaseAdmin.auth.admin.deleteUser(memberId);
     if (error) throw error;
 
     await kv.del(`team:member:${memberId}`);
 
-    console.log(`✅ Team member ${memberId} removed`);
+    console.log(`Team member ${memberId} removed by ${callerId}`);
     return c.json({ success: true });
   } catch (err) {
     console.log('Remove team member error:', err);
-    return c.json({ error: `Failed to remove team member: ${err}` }, 500);
+    return c.json({ error: 'Failed to remove team member.', code: 'INTERNAL_ERROR' }, 500);
   }
 });
 
@@ -2867,7 +2982,7 @@ app.get("/make-server-324f4fbe/settings", async (c) => {
         id:       user?.id,
         email:    user?.email,
         name:     user?.user_metadata?.name || 'Team Member',
-        teamRole: user?.user_metadata?.teamRole || 'admin',
+        teamRole: normalizeTeamRole(user?.user_metadata?.teamRole),
       },
       platformSettings,
       health: {

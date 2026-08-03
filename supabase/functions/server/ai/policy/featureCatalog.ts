@@ -152,6 +152,8 @@ export const INTERACTIVE_LIMITS = {
   maxOutputTokens: 1_200,
   timeoutMs: 30_000,
   maxAttempts: 2,
+  /** The unit of account. Everything heavier is priced against this. */
+  rateLimitCost: 1,
 } as const;
 
 export const HEAVY_LIMITS = {
@@ -161,6 +163,13 @@ export const HEAVY_LIMITS = {
   maxOutputTokens: 2_500,
   timeoutMs: 60_000,
   maxAttempts: 2,
+  /**
+   * Four interactive requests' worth. A heavy feature reads four times the
+   * input, emits twice the output and holds a connection for twice as long, so
+   * counting it as one request would let a caller spend far more of the
+   * platform's capacity through the expensive door than the cheap one.
+   */
+  rateLimitCost: 4,
 } as const;
 
 export const STANDARD_GOVERNANCE = {

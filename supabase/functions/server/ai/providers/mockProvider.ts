@@ -73,6 +73,19 @@ export interface MockProviderOptions {
   readonly providerId?: string;
   /** Credential presence, so "no credentials" paths are testable. */
   readonly credentials?: boolean;
+  /**
+   * Model this mock as a PAID provider, so the spend ceiling and the
+   * real-request kill switch can be exercised without a vendor account.
+   *
+   * Defaults to false. A mock that billed by default would let a test suite
+   * consume the platform's real $9 ledger, which is the exact failure the
+   * ceiling exists to prevent.
+   */
+  readonly billable?: boolean;
+  /** Per-1k token prices, so a test can drive the ledger to a known figure. */
+  readonly pricing?: { promptMicroUsdPer1k: number; completionMicroUsdPer1k: number };
+  /** Declare the mock production-ready, for health and selection tests. */
+  readonly productionReady?: boolean;
 }
 
 export interface MockProviderHandle extends AIProviderAdapter {
@@ -92,10 +105,17 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     providerId,
     displayName: `Mock Provider (${providerId})`,
     priority: options.priority ?? 900,
-    models: MODELS.map((model) => ({ ...model, providerId })),
-    productionReady: false,
-    // Synthetic completions, no vendor call, no cost. Safe under the kill switch.
-    billable: false,
+    models: MODELS.map((model) => ({
+      ...model,
+      providerId,
+      promptMicroUsdPer1k: options.pricing?.promptMicroUsdPer1k ?? model.promptMicroUsdPer1k,
+      completionMicroUsdPer1k:
+        options.pricing?.completionMicroUsdPer1k ?? model.completionMicroUsdPer1k,
+    })),
+    productionReady: options.productionReady ?? false,
+    // Synthetic completions, no vendor call, no cost. Safe under the kill
+    // switch unless a test explicitly asks for a billable mock.
+    billable: options.billable ?? false,
   };
 
   return {

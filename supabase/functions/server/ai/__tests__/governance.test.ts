@@ -343,7 +343,11 @@ describe('fact lock', () => {
   });
 
   it('restores a protected field the model omitted', () => {
-    const result = enforceFactLock({ text: 'rewritten' }, { severity: 7 }, ['severity']);
+    const result = enforceFactLock<Record<string, unknown>>(
+      { text: 'rewritten' },
+      { severity: 7 },
+      ['severity'],
+    );
     assert.equal(result.content.severity, 7);
     assert.deepEqual([...result.restored], ['severity']);
   });

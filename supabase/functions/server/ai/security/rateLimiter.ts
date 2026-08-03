@@ -27,8 +27,16 @@ export interface RateLimitDecision {
 }
 
 export interface RateLimiter {
-  /** Record a hit and decide. Call once per request per scope. */
-  consume(scope: string, rule: AIRateLimitRule): RateLimitDecision;
+  /**
+   * Record a hit and decide. Call once per request per scope.
+   *
+   * `cost` is how many units this request consumes, defaulting to 1. A request
+   * limit that counts every call as one unit prices a 60-second batch analysis
+   * the same as a one-line chat turn, which means the expensive workflow is
+   * effectively unlimited relative to what it costs to serve. Features declare
+   * their weight in `limits.rateLimitCost`.
+   */
+  consume(scope: string, rule: AIRateLimitRule, cost?: number): RateLimitDecision;
   /** Decide without recording. Used by diagnostics, never by the guard. */
   peek(scope: string, rule: AIRateLimitRule): RateLimitDecision;
   /** Drop expired scopes. Idempotent; safe to call on any cadence. */
@@ -74,7 +82,7 @@ export function createSlidingWindowRateLimiter(clock: Clock): RateLimiter {
   }
 
   return {
-    consume(scope, rule) {
+    consume(scope, rule, cost = 1) {
       const nowMs = clock.now();
       const live = prune(scope, rule.windowMs, nowMs);
 
@@ -83,7 +91,11 @@ export function createSlidingWindowRateLimiter(clock: Clock): RateLimiter {
         if (oldestScope !== undefined) hits.delete(oldestScope);
       }
 
-      const updated = [...live, nowMs];
+      // A weighted request records `cost` timestamps at the same instant, so it
+      // occupies `cost` units of the window. Bounded so a misconfigured
+      // descriptor cannot allocate an unbounded array.
+      const units = Math.min(Math.max(1, Math.round(cost)), rule.limit + 1);
+      const updated = [...live, ...new Array<number>(units).fill(nowMs)];
       hits.set(scope, updated);
       return decide(updated, rule, nowMs);
     },

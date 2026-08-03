@@ -41,6 +41,15 @@ export interface AIFeatureLimits {
   readonly timeoutMs: number;
   /** Attempts per provider before the plane fails over. */
   readonly maxAttempts: number;
+  /**
+   * Units this feature consumes from a rate-limit window, defaulting to 1.
+   *
+   * A limit that counts every call as one unit prices a minute-long batch
+   * analysis identically to a one-line chat turn, which makes the expensive
+   * workflow effectively unlimited relative to what it costs to serve. Heavy
+   * features declare a higher weight.
+   */
+  readonly rateLimitCost?: number;
 }
 
 export interface AIGovernanceRules {
