@@ -49,10 +49,10 @@ describe('AI administration — role matrix [REGRESSION GUARD]', () => {
     const team = await harness.actor(ADMIN_TOKEN.teamAdmin);
     assert.equal(team.role, 'team_admin');
 
-    assert.ok(harness.admin.settings(team));
-    assert.ok(harness.admin.providers(team));
+    assert.ok(await harness.admin.settings(team));
+    assert.ok(await harness.admin.providers(team));
     assert.ok(await harness.admin.budget(team));
-    assert.ok(harness.admin.diagnostics(team));
+    assert.ok(await harness.admin.diagnostics(team));
 
     await assert.rejects(harness.admin.updateSettings(team, { failoverEnabled: false }, REASON));
     await assert.rejects(harness.admin.setEmergencyStop(team, true, REASON));

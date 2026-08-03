@@ -159,7 +159,7 @@ export async function executeAdminHttpRequest(
         return ok({ overview: await admin.overview(actor) });
 
       case ADMIN_OPERATION.getSettings:
-        return ok({ settings: admin.settings(actor) });
+        return ok({ settings: await admin.settings(actor) });
 
       case ADMIN_OPERATION.updateSettings:
         return ok({
@@ -179,7 +179,7 @@ export async function executeAdminHttpRequest(
       }
 
       case ADMIN_OPERATION.listProviders:
-        return ok({ providers: admin.providers(actor) });
+        return ok({ providers: await admin.providers(actor) });
 
       case ADMIN_OPERATION.updateProvider: {
         if (!request.providerId) {
@@ -228,7 +228,7 @@ export async function executeAdminHttpRequest(
         return ok({ usage: await admin.usage(actor) });
 
       case ADMIN_OPERATION.diagnostics:
-        return ok({ diagnostics: admin.diagnostics(actor) });
+        return ok({ diagnostics: await admin.diagnostics(actor) });
 
       case ADMIN_OPERATION.executionAudit:
         return ok({ records: admin.executionAudit(actor, request.limit) });

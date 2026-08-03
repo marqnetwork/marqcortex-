@@ -106,8 +106,8 @@ describe('AI administration — role resolution', () => {
     ]);
 
     // Reads succeed.
-    assert.ok(harness.admin.settings(teamAdmin).configurationVersion >= 1);
-    assert.ok(harness.admin.providers(teamAdmin).length > 0);
+    assert.ok((await harness.admin.settings(teamAdmin)).configurationVersion >= 1);
+    assert.ok((await harness.admin.providers(teamAdmin)).length > 0);
     assert.ok((await harness.admin.budget(teamAdmin)).platform.capMicroUsd > 0);
 
     // Every write is refused.
@@ -150,8 +150,8 @@ describe('AI administration — role resolution', () => {
       'FORBIDDEN',
     );
     // Reads are untouched: the tier exists to see its organizations' AI.
-    assert.ok(harness.admin.settings(orgAdmin).configurationVersion >= 1);
-    assert.ok(harness.admin.providers(orgAdmin).length > 0);
+    assert.ok((await harness.admin.settings(orgAdmin)).configurationVersion >= 1);
+    assert.ok((await harness.admin.providers(orgAdmin)).length > 0);
   });
 
   it('derives a capability from the field being changed, not the endpoint', async () => {
@@ -196,8 +196,8 @@ describe('AI administration — every change carries a reason', () => {
       );
     }
     // Nothing was applied, and the version did not move.
-    assert.equal(harness.admin.settings(admin).failoverEnabled, true);
-    assert.equal(harness.admin.settings(admin).configurationVersion, 1);
+    assert.equal((await harness.admin.settings(admin)).failoverEnabled, true);
+    assert.equal((await harness.admin.settings(admin)).configurationVersion, 1);
   });
 
   it('records the reason on the change and on the settings record', async () => {
@@ -248,11 +248,11 @@ describe('AI administration — runtime settings', () => {
     const harness = buildTestAdministration();
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
-    assert.equal(harness.admin.settings(admin).configurationVersion, 1);
+    assert.equal((await harness.admin.settings(admin)).configurationVersion, 1);
     await harness.admin.updateSettings(admin, { failoverEnabled: false }, REASON);
-    assert.equal(harness.admin.settings(admin).configurationVersion, 2);
+    assert.equal((await harness.admin.settings(admin)).configurationVersion, 2);
     await harness.admin.updateSettings(admin, { failoverEnabled: true }, REASON);
-    assert.equal(harness.admin.settings(admin).configurationVersion, 3);
+    assert.equal((await harness.admin.settings(admin)).configurationVersion, 3);
   });
 
   it('applies a retry policy change to the very next request', async () => {
@@ -268,7 +268,7 @@ describe('AI administration — runtime settings', () => {
     // The pipeline reads the curve through the plane's effective config, so the
     // change is live without an isolate recycle. That is the whole point of the
     // overlay — an emergency setting that waits for a restart is not a setting.
-    const diagnostics = harness.admin.diagnostics(admin);
+    const diagnostics = await harness.admin.diagnostics(admin);
     assert.deepEqual(diagnostics.retry, {
       baseDelayMs: 750,
       maxDelayMs: 9_000,
@@ -332,7 +332,7 @@ describe('AI administration — runtime settings', () => {
     // … and the EFFECTIVE answer is still no.
     const overview = await harness.admin.overview(admin);
     assert.equal(overview.effective.realRequestsEnabled, false);
-    assert.equal(harness.admin.diagnostics(admin).environment.realRequestsEffective, false);
+    assert.equal((await harness.admin.diagnostics(admin)).environment.realRequestsEffective, false);
   });
 
   it('lets an administrator withdraw a permission the deployment granted', async () => {
@@ -508,7 +508,7 @@ describe('AI administration — kill switch', () => {
     await harness.admin.setEmergencyStop(admin, true, 'incident 5001: pausing AI');
     await harness.admin.setEmergencyStop(admin, false, 'incident 5001: resolved, resuming');
 
-    const settings = harness.admin.settings(admin);
+    const settings = await harness.admin.settings(admin);
     assert.equal(settings.emergencyStop.engaged, false);
     // The stop is an overlay, not a mutation of the posture underneath it, so
     // releasing it restores exactly what was there rather than a state an
@@ -559,7 +559,7 @@ describe('AI administration — kill switch', () => {
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
     await harness.admin.setEmergencyStop(admin, true, 'incident 5001: runaway spend');
 
-    const stop = harness.admin.settings(admin).emergencyStop;
+    const stop = (await harness.admin.settings(admin)).emergencyStop;
     assert.equal(stop.engaged, true);
     assert.equal(stop.engagedBy, 'user-super');
     assert.equal(stop.reason, 'incident 5001: runaway spend');
@@ -590,7 +590,7 @@ describe('AI administration — provider management', () => {
     const harness = buildTestAdministration();
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
-    const [primary] = harness.admin.providers(admin);
+    const [primary] = await harness.admin.providers(admin);
     assert.equal(primary.providerId, 'primary');
     assert.equal(primary.enabled, true);
     assert.equal(primary.health.certification, 'certified');
@@ -605,7 +605,7 @@ describe('AI administration — provider management', () => {
     const harness = buildTestAdministration();
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
-    const beforeFailure = harness.admin.providers(admin)[0];
+    const beforeFailure = (await harness.admin.providers(admin))[0];
     assert.equal(beforeFailure.health.lastFailureAt, undefined);
     assert.equal(beforeFailure.health.lastRecoveryAt, undefined);
 
@@ -617,7 +617,7 @@ describe('AI administration — provider management', () => {
       { authorization: `Bearer ${ADMIN_TOKEN.superAdmin}` },
     );
 
-    const after = harness.admin.providers(admin)[0];
+    const after = (await harness.admin.providers(admin))[0];
     assert.ok(after.health.lastFailureAt, 'a failure must be visible to an operator');
     // A success following a failure IS the recovery. Recording it only on a
     // circuit transition would miss the common case entirely: a provider that
@@ -661,7 +661,7 @@ describe('AI administration — provider management', () => {
     // the outage: a certified provider demoted to unverified and then refused
     // by `requireCertifiedProviders`.
     assert.equal(harness.plane.providers.get('primary').certification, 'certified');
-    assert.equal(harness.admin.providers(admin)[0].selectionReason, 'eligible');
+    assert.equal((await harness.admin.providers(admin))[0].selectionReason, 'eligible');
   });
 
   it('refuses to configure a provider that is not registered', async () => {
@@ -688,9 +688,9 @@ describe('AI administration — provider management', () => {
     );
     assert.equal(result.execution.providerId, 'backup');
 
-    const backup = harness.admin
-      .providers(admin)
-      .find((provider) => provider.providerId === 'backup');
+    const backup = (await harness.admin.providers(admin)).find(
+      (provider) => provider.providerId === 'backup',
+    );
     assert.equal(backup?.isDefault, true);
     assert.equal(backup?.preferenceIndex, 0);
   });
@@ -732,7 +732,7 @@ describe('AI administration — provider management', () => {
     );
     assert.equal(result.execution.modelId, chosen);
 
-    const primary = harness.admin.providers(admin)[0];
+    const primary = (await harness.admin.providers(admin))[0];
     assert.deepEqual([...primary.modelAllowList], [chosen]);
     assert.equal(primary.models.filter((model) => model.permitted).length, 1);
   });
@@ -1049,7 +1049,7 @@ describe('AI administration — runtime diagnostics', () => {
     const harness = buildTestAdministration();
     const admin = await harness.actor(ADMIN_TOKEN.superAdmin);
 
-    const diagnostics = harness.admin.diagnostics(admin);
+    const diagnostics = await harness.admin.diagnostics(admin);
     assert.ok(diagnostics.versions.platformVersion);
     assert.ok(diagnostics.versions.contractVersion);
     assert.equal(diagnostics.versions.configurationVersion, 1);
