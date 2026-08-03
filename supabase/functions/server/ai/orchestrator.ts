@@ -37,6 +37,8 @@ import type { Metrics } from './observability/metrics.ts';
 import type { Clock } from './runtime/clock.ts';
 import type { IdFactory } from './contracts/ids.ts';
 import { AIError, toAIError } from './contracts/errors.ts';
+import { CONTRACT_VERSION, PLATFORM_VERSION } from './contracts/versions.ts';
+import { adoptOrCreateId } from './contracts/ids.ts';
 import { policyErrorFor } from './policy/policyEngine.ts';
 import { METRIC } from './observability/metrics.ts';
 
@@ -110,6 +112,52 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
 
     const total = outcome === 'success' ? measured + assumed : Math.max(measured + assumed, 0);
     await handle.settle(Math.min(total, handle.estimateMicroUsd));
+  }
+
+  /**
+   * Build the minimum context an audit record needs for a guard-stage
+   * rejection.
+   *
+   * Every field is either a fact the guard established or an explicit marker.
+   * `organizationId` falls back to `'unresolved'` rather than to a default
+   * tenant: the whole point of auditing this rejection is that the caller did
+   * NOT resolve to an organization, and writing one in would erase that.
+   */
+  function synthesizeContext(
+    envelope: AIRequestEnvelope<unknown>,
+    security: NonNullable<AIError['securityContext']>,
+    _latencyMs: number,
+  ): AIRequestContext {
+    const synthesized: AIRequestContext = {
+      requestId: ids.next('req'),
+      correlationId: adoptOrCreateId(envelope.correlationId, 'cor', ids),
+      causationId: envelope.causationId,
+      receivedAt: clock.isoNow(),
+      platformVersion: PLATFORM_VERSION,
+      contractVersion: envelope.contractVersion ?? CONTRACT_VERSION,
+      featureId: envelope.featureId,
+      featureVersion: 'unresolved',
+      actor: {
+        actorId: security.subjectId,
+        actorType: security.actorType as AIRequestContext['actor']['actorType'],
+        subjectId: security.subjectId,
+        roles: security.roles,
+        capabilities: [],
+      },
+      organization: {
+        organizationId: security.organizationId ?? 'unresolved',
+        tier: 'standard' as const,
+        membershipVerified: false,
+        isolationKey: `org:${security.organizationId ?? 'unresolved'}`,
+      },
+      channel: 'team_console',
+      attributes: Object.freeze(
+        security.requestedOrganizationId
+          ? ({ requestedOrganizationId: security.requestedOrganizationId } as Record<string, string>)
+          : ({} as Record<string, string>),
+      ),
+    };
+    return Object.freeze(synthesized);
   }
 
   function emit(
@@ -352,9 +400,6 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
             diagnostics: aiError.diagnostics,
           });
         } else {
-          // Rejected before an identity existed. Counted under the requested
-          // feature id so a spike of malformed or unauthenticated traffic is
-          // still visible, without inventing an actor or an organization.
           metrics.increment(METRIC.guardRejectionsTotal, {
             feature: envelope.featureId,
             code: aiError.code,
@@ -364,8 +409,29 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
             code: aiError.code,
             status: aiError.status,
             latencyMs,
+            subjectId: aiError.securityContext?.subjectId,
+            requestedOrganizationId: aiError.securityContext?.requestedOrganizationId,
             diagnostics: aiError.diagnostics,
           });
+
+          // An authenticated caller who was then refused — a cross-tenant reach,
+          // an unresolvable organization — is attributable, so it is audited.
+          // Only a request rejected before authentication has nobody to
+          // attribute it to; those stay counted and logged rather than audited
+          // against an invented actor.
+          const security = aiError.securityContext;
+          if (security) {
+            audit.record(
+              synthesizeContext(envelope, security, latencyMs),
+              {
+                outcome: 'failure',
+                latencyMs,
+                attempts: 0,
+                errorCode: aiError.code,
+                errorMessage: aiError.message,
+              },
+            );
+          }
         }
 
         // One identifier survives the whole path, success or failure. A support

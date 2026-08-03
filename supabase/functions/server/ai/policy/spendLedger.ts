@@ -83,9 +83,38 @@ export interface SpendReservation {
 
 export type SpendDenialReason = 'cap_reached' | 'insufficient_headroom';
 
-export type SpendDecision =
-  | { readonly granted: true; readonly reservation: SpendReservation; readonly record: SpendRecord }
-  | { readonly granted: false; readonly reason: SpendDenialReason; readonly record: SpendRecord };
+export interface SpendGranted {
+  readonly granted: true;
+  readonly reservation: SpendReservation;
+  readonly record: SpendRecord;
+}
+
+export interface SpendDenied {
+  readonly granted: false;
+  readonly reason: SpendDenialReason;
+  readonly record: SpendRecord;
+}
+
+export type SpendDecision = SpendGranted | SpendDenied;
+
+/**
+ * Narrow a decision to its denial.
+ *
+ * A user-defined type guard rather than a bare `!decision.granted`, because
+ * discriminating a union on a boolean literal needs `strictNullChecks`, and the
+ * repository's Node/test boundary (`tsconfig.node.json`) does not enable it.
+ * The guard narrows correctly under every configuration this code is compiled
+ * by, which is preferable to a suppression comment or to the same logic being
+ * type-safe in one toolchain and unchecked in another.
+ */
+export function isSpendDenied(decision: SpendDecision): decision is SpendDenied {
+  return decision.granted === false;
+}
+
+/** Narrow a decision to its grant. See `isSpendDenied` for why this exists. */
+export function isSpendGranted(decision: SpendDecision): decision is SpendGranted {
+  return decision.granted === true;
+}
 
 /**
  * Storage port. Deliberately narrow: read the whole record, write the whole

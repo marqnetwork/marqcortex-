@@ -124,11 +124,35 @@ export function createAIGuard(deps: GuardDependencies): AIGuard {
         throw new AIError('AUTH_REQUIRED', 'Authentication is required for this AI feature.');
       }
 
+      // From here on the caller's identity is established, so any rejection is
+      // attributable — and a rejection an authenticated caller triggers is
+      // exactly the kind a security review needs a durable record of. Failures
+      // below carry that identity out with them so the orchestrator can audit
+      // them rather than only counting them.
+      const attributed = <T>(work: () => T): T => {
+        try {
+          return work();
+        } catch (error) {
+          if (!(error instanceof AIError) || !subject) throw error;
+          throw error.withSecurityContext({
+            subjectId: subject.subjectId,
+            actorType: subject.actorType,
+            roles: [...new Set(subject.globalRoles.map((role) => role.toLowerCase()))].sort(),
+            organizationId: subject.memberships[0]?.organizationId,
+            requestedOrganizationId: transport.organizationHint?.trim() || undefined,
+          });
+        }
+      };
+
       // 5 — organization
-      const organization = resolveOrganization(subject, transport.organizationHint, organizationOptions);
+      const organization = attributed(() =>
+        resolveOrganization(subject, transport.organizationHint, organizationOptions),
+      );
 
       // 6 — actor
-      const actor = resolveActor(subject, organization.organizationId, { allowAnonymous });
+      const actor = attributed(() =>
+        resolveActor(subject, organization.organizationId, { allowAnonymous }),
+      );
 
       // 7 — body validation
       const validation = definition.inputValidator.validate(envelope.input, '');

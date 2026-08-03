@@ -120,6 +120,27 @@ export interface AIErrorOptions {
    */
   requestId?: string;
   correlationId?: string;
+  /**
+   * Identity resolved before the failure, when any was.
+   *
+   * A request rejected inside the guard has no `AIRequestContext` — the guard
+   * throws before building one — so a tenant-isolation or organization-
+   * resolution failure would otherwise produce a metric and a log line and no
+   * audit record at all. That is the wrong outcome for the one class of
+   * rejection a security review most wants a durable trail of: a caller who
+   * authenticated successfully and then reached for another tenant's data.
+   */
+  securityContext?: AISecurityContext;
+}
+
+/** Whatever identity was established before a guard-stage rejection. */
+export interface AISecurityContext {
+  readonly subjectId: string;
+  readonly actorType: string;
+  readonly roles: readonly string[];
+  readonly organizationId?: string;
+  /** Organization the caller ASKED for, when it differs from what they hold. */
+  readonly requestedOrganizationId?: string;
 }
 
 export class AIError extends Error {
@@ -133,6 +154,7 @@ export class AIError extends Error {
   readonly fields?: readonly string[];
   readonly requestId?: string;
   readonly correlationId?: string;
+  readonly securityContext?: AISecurityContext;
 
   constructor(code: AIErrorCode, message: string, options: AIErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -148,6 +170,29 @@ export class AIError extends Error {
     this.fields = options.fields;
     this.requestId = options.requestId;
     this.correlationId = options.correlationId;
+    this.securityContext = options.securityContext;
+  }
+
+  /**
+   * Attach the identity that was resolved before this failure.
+   *
+   * Called by the guard as it rejects, so the orchestrator can write an audit
+   * record for a rejection that never produced a full request context.
+   */
+  withSecurityContext(securityContext: AISecurityContext): AIError {
+    const stamped = new AIError(this.code, this.message, {
+      diagnostics: this.diagnostics,
+      retryable: this.retryable,
+      providerId: this.providerId,
+      retryAfterSeconds: this.retryAfterSeconds,
+      fields: this.fields,
+      cause: this.cause,
+      requestId: this.requestId,
+      correlationId: this.correlationId,
+      securityContext,
+    });
+    stamped.stack = this.stack;
+    return stamped;
   }
 
   /**
@@ -167,6 +212,7 @@ export class AIError extends Error {
       cause: this.cause,
       requestId,
       correlationId,
+      securityContext: this.securityContext,
     });
     traced.stack = this.stack;
     return traced;

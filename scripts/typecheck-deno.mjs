@@ -98,7 +98,16 @@ const boundaries =
         { name: 'server', files: all.filter((file) => !isAiFile(file)) },
       ];
 
+/**
+ * A registry that cannot be reached is an environment problem, not a type
+ * error. Reporting the two identically is how a blocked CI runner gets recorded
+ * as "the code does not compile", so they are separated here.
+ */
+const REGISTRY_UNREACHABLE =
+  /(failed to load|Import '.*' failed).*(403|404|Forbidden|error sending request|dns error)/is;
+
 let failed = 0;
+let blocked = 0;
 for (const boundary of boundaries) {
   if (boundary.files.length === 0) continue;
   process.stdout.write(
@@ -107,11 +116,38 @@ for (const boundary of boundaries) {
   const result = spawnSync(
     'deno',
     ['check', '--config', CONFIG, '--node-modules-dir=none', ...boundary.files],
-    { stdio: 'inherit' },
+    { encoding: 'utf8' },
   );
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  process.stdout.write(output);
+
   const status = result.status ?? 1;
-  process.stdout.write(`[${boundary.name}] exit ${status}\n`);
-  if (status !== 0) failed += 1;
+  if (status === 0) {
+    process.stdout.write(`[${boundary.name}] exit 0 — clean\n`);
+    continue;
+  }
+
+  if (REGISTRY_UNREACHABLE.test(output)) {
+    blocked += 1;
+    process.stdout.write(
+      `[${boundary.name}] BLOCKED — a module registry is unreachable from this environment.\n` +
+        `  This is an egress restriction, NOT a type error: the checker could not download\n` +
+        `  a dependency's manifest, so it never got as far as checking the source. Re-run\n` +
+        `  where jsr.io and registry.npmjs.org are reachable to complete this boundary.\n`,
+    );
+    continue;
+  }
+
+  failed += 1;
+  process.stdout.write(`[${boundary.name}] exit ${status} — type errors\n`);
 }
 
-process.exit(failed === 0 ? 0 : 1);
+if (blocked > 0) {
+  process.stdout.write(
+    `\n${blocked} boundary/boundaries could not be checked (registry unreachable).\n`,
+  );
+}
+
+// A blocked boundary still exits non-zero: an unverified boundary must not read
+// as a passing one. The message above is what distinguishes it from a failure.
+process.exit(failed === 0 && blocked === 0 ? 0 : 1);

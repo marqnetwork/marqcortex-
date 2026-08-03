@@ -31,7 +31,7 @@ import type { AIFeatureDescriptor } from '../contracts/policy.ts';
 import type { ProviderRegistry } from '../providers/registry.ts';
 import type { SpendLedger, SpendRecord, SpendReservation } from './spendLedger.ts';
 import { AIError } from '../contracts/errors.ts';
-import { SPEND_SCOPE, remainingMicroUsd } from './spendLedger.ts';
+import { SPEND_SCOPE, isSpendDenied, remainingMicroUsd } from './spendLedger.ts';
 
 /**
  * Bytes of input per prompt token. Four is the conventional English-text ratio
@@ -138,7 +138,7 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
       const estimate = estimateFor(descriptor);
       const decision = await ledger.reserve(SPEND_SCOPE.platform, estimate, reservationId);
 
-      if (!decision.granted) {
+      if (isSpendDenied(decision)) {
         if (!enforce) return FREE_HANDLE;
         const remaining = remainingMicroUsd(decision.record);
         throw new AIError(

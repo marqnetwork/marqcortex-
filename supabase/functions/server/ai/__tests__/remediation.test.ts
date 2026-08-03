@@ -278,6 +278,37 @@ describe('H7 — one terminal audit record per governed request', () => {
     assert.ok(record.errorCode);
   });
 
+  it('audits a cross-tenant attempt by an authenticated caller', async () => {
+    // Found by the mock-mode runtime verification, not by the review: the guard
+    // threw before building a context, so a caller who authenticated and then
+    // reached for another tenant produced a metric and a log line and no
+    // durable record — the one rejection a security review most wants a trail of.
+    const { plane } = buildTestPlane();
+    await assert.rejects(() =>
+      plane.execute(envelope(FEATURE.narrative, narrativeInput()), {
+        ...AUTH,
+        organizationHint: 'globex',
+      }),
+    );
+
+    const [record] = plane.recentAudit(1);
+    assert.equal(record.outcome, 'failure');
+    assert.equal(record.errorCode, 'ORGANIZATION_NOT_RESOLVED');
+    assert.equal(record.actorId, 'user-1', 'the attempt must be attributable to its caller');
+    assert.equal(record.organizationMembershipVerified, false);
+  });
+
+  it('does not audit a pre-authentication rejection against an invented actor', async () => {
+    // The other side of the same rule: an unauthenticated request has nobody to
+    // attribute it to, so it is counted and logged rather than audited under a
+    // fabricated identity.
+    const { plane } = buildTestPlane();
+    await assert.rejects(() =>
+      plane.execute(envelope(FEATURE.narrative, narrativeInput()), { authorization: null }),
+    );
+    assert.equal(plane.recentAudit(10).length, 0);
+  });
+
   it('records a guard rejection with its policy decision', async () => {
     const { plane } = buildTestPlane({
       authenticator: stubAuthenticator(TEST_TOKEN, {
