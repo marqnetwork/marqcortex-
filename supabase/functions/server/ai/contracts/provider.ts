@@ -102,5 +102,13 @@ export interface AIProviderHealth {
   readonly failureCount: number;
   readonly lastLatencyMs?: number;
   readonly lastError?: string;
+  /** When this provider last failed. Absent means it never has. */
+  readonly lastFailureAt?: string;
+  /**
+   * When it last succeeded after a failure. Absent means it has never had to
+   * recover — which is a different statement from "it is not recovered", and an
+   * operations console has to be able to tell them apart.
+   */
+  readonly lastRecoveryAt?: string;
   readonly checkedAt: string;
 }

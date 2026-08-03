@@ -31,6 +31,14 @@ export type AIErrorCode =
   | 'POLICY_DENIED'
   | 'FEATURE_NOT_FOUND'
   | 'FEATURE_DISABLED'
+  /**
+   * AI is administratively off, platform-wide — the master switch or the
+   * emergency kill switch. Distinct from FEATURE_DISABLED on purpose: a console
+   * that cannot tell "this capability is turned off" from "an administrator
+   * stopped all AI" will tell a user to try a different feature during an
+   * incident.
+   */
+  | 'AI_DISABLED'
   // ── Governance ────────────────────────────────────────────────────────────
   | 'INPUT_GUARD_BLOCKED'
   | 'OUTPUT_GUARD_BLOCKED'
@@ -77,6 +85,10 @@ const TRAITS: Record<AIErrorCode, ErrorTrait> = {
   POLICY_DENIED: { status: 403, retryable: false, failoverable: false },
   FEATURE_NOT_FOUND: { status: 404, retryable: false, failoverable: false },
   FEATURE_DISABLED: { status: 503, retryable: false, failoverable: false },
+  // Retryable: an administrator turning AI back on makes the identical request
+  // succeed, which is exactly what the flag means. Never failoverable — no
+  // provider can serve a request the platform has refused to make.
+  AI_DISABLED: { status: 503, retryable: true, failoverable: false },
 
   INPUT_GUARD_BLOCKED: { status: 422, retryable: false, failoverable: false },
   OUTPUT_GUARD_BLOCKED: { status: 422, retryable: true, failoverable: true },

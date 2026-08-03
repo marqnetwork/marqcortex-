@@ -76,10 +76,27 @@
  * remediation report as a known limitation rather than claimed as solved.
  */
 
-/** One reset event. Retained on the record so the cap has a history. */
+/**
+ * One authorised change to the ceiling. Retained on the record so the cap has
+ * a history that outlives the change that made it.
+ *
+ * Two kinds, and the difference is what an auditor checks first:
+ *
+ *   reset      Settled spend was CLEARED. The platform's counter went back to
+ *              zero and it may spend the whole ceiling again.
+ *   cap_raise  The ceiling moved. Settled spend was preserved — the platform
+ *              has still spent what it spent, it simply has more headroom.
+ */
+export type SpendCapChangeKind = 'reset' | 'cap_raise';
+
 export interface SpendResetEvent {
   readonly at: string;
-  /** Actor who authorised the reset. Never a system default. */
+  /**
+   * What this event did. Absent on records written before the distinction
+   * existed, which were all resets.
+   */
+  readonly kind?: SpendCapChangeKind;
+  /** Actor who authorised the change. Never a system default. */
   readonly authorizedBy: string;
   readonly reason: string;
   readonly clearedMicroUsd: number;
@@ -259,6 +276,24 @@ export interface SpendLedger {
   reset(
     scope: string,
     options: { authorizedBy: string; reason: string; newCapMicroUsd?: number },
+  ): Promise<SpendRecord>;
+  /**
+   * Raise the ceiling WITHOUT clearing settled spend, and without touching a
+   * single open hold.
+   *
+   * This is the other half of budget management and it is deliberately not the
+   * same operation as `reset`. "We authorised more money" and "we wiped the
+   * record of what was spent" are different decisions with different blast
+   * radii, and a platform that offers only the second forces an operator who
+   * wanted the first to destroy the evidence to get it.
+   *
+   * Refuses to LOWER the cap. Lowering is a deployment change — `stored()`
+   * already re-stamps the configured cap on the next load — and doing it here
+   * would let an "increase" call quietly disable AI.
+   */
+  raiseCap(
+    scope: string,
+    options: { authorizedBy: string; reason: string; newCapMicroUsd: number },
   ): Promise<SpendRecord>;
 }
 
@@ -621,6 +656,50 @@ export function createSpendLedger(options: SpendLedgerOptions): SpendLedger {
       });
     },
 
+    raiseCap(scope, capOptions) {
+      const authorizedBy = capOptions.authorizedBy.trim();
+      const reason = capOptions.reason.trim();
+      if (authorizedBy === '' || reason === '') {
+        return Promise.reject(
+          new Error('A spend cap increase requires both an authorizing actor and a reason.'),
+        );
+      }
+      const requested = Math.max(0, Math.round(capOptions.newCapMicroUsd));
+
+      return withLock(scope, async () => {
+        const { record } = await current(scope);
+        if (requested <= record.capMicroUsd) {
+          throw new Error(
+            `A spend cap increase must raise the ceiling: requested ${requested}, current ${record.capMicroUsd}.`,
+          );
+        }
+
+        const event: SpendResetEvent = {
+          at: now(),
+          kind: 'cap_raise',
+          authorizedBy,
+          reason: reason.slice(0, 500),
+          // Nothing was cleared. Recording zeroes here is the whole point of
+          // the distinction: an auditor reading the history sees the ceiling
+          // move without the spend counter being touched.
+          clearedMicroUsd: 0,
+          clearedReservedMicroUsd: 0,
+          clearedReservationCount: 0,
+          previousCapMicroUsd: record.capMicroUsd,
+          newCapMicroUsd: requested,
+        };
+
+        const updated: SpendRecord = {
+          ...record,
+          capMicroUsd: requested,
+          updatedAt: event.at,
+          resets: [...record.resets, event].slice(-maxResetHistory),
+        };
+        await store.save(updated);
+        return updated;
+      });
+    },
+
     reset(scope, resetOptions) {
       const authorizedBy = resetOptions.authorizedBy.trim();
       const reason = resetOptions.reason.trim();
@@ -637,6 +716,7 @@ export function createSpendLedger(options: SpendLedgerOptions): SpendLedger {
         const newCap = resetOptions.newCapMicroUsd ?? record.capMicroUsd;
         const event: SpendResetEvent = {
           at: now(),
+          kind: 'reset',
           authorizedBy,
           reason: reason.slice(0, 500),
           clearedMicroUsd: record.spentMicroUsd,

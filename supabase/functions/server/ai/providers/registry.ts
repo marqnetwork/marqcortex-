@@ -46,6 +46,45 @@ export interface RegisteredProvider {
   lastLatencyMs?: number;
   lastError?: string;
   lastCheckedAtMs: number;
+  /** When this provider last failed. Operational fact, not a metric. */
+  lastFailureAtMs?: number;
+  /** When it last succeeded after a failure — its most recent recovery. */
+  lastRecoveryAtMs?: number;
+  /**
+   * Certification held before an administrator disabled the provider, so
+   * re-enabling restores what was established rather than silently demoting a
+   * certified adapter to unverified.
+   */
+  certificationBeforeDisable?: AICertificationStatus;
+}
+
+/**
+ * Administrative narrowing of which models a provider may serve.
+ *
+ * A port rather than registry state, because the authority for it is the
+ * operational settings overlay: the registry asks the current answer at
+ * selection time, so an administrator's change takes effect on the next request
+ * without the registry holding a second copy of the setting.
+ *
+ * Narrowing only. An allow list can remove a model the adapter declares; it can
+ * never add one, because a model the adapter does not implement is not a
+ * configuration question.
+ */
+export interface ModelPolicy {
+  /** Permitted model ids for a provider. Empty means every declared model. */
+  allowList(providerId: string): readonly string[];
+  /** Preferred model id, used when it is registered and meets requirements. */
+  preferred(providerId: string): string | undefined;
+}
+
+/** The policy in force when no administrative narrowing is configured. */
+export const OPEN_MODEL_POLICY: ModelPolicy = {
+  allowList: () => [],
+  preferred: () => undefined,
+};
+
+function isoOrUndefined(atMs: number | undefined): string | undefined {
+  return atMs === undefined ? undefined : new Date(atMs).toISOString();
 }
 
 export interface ProviderRegistry {
@@ -62,6 +101,12 @@ export interface ProviderRegistry {
   recordFailure(providerId: string, reason: string): void;
   /** Best model this provider offers for the requirements, or undefined. */
   selectModel(providerId: string, requirements: ModelRequirements): AIModelDescriptor | undefined;
+  /**
+   * Every model this provider declares, with the administrative allow list
+   * applied. This is what an administration console lists — the models that
+   * could actually be selected, not the adapter's full catalogue.
+   */
+  models(providerId: string): readonly AIModelDescriptor[];
   health(providerId: string): AIProviderHealth;
   healthAll(): readonly AIProviderHealth[];
   /** Configuration problems found across the registry. Empty means healthy. */
@@ -69,7 +114,11 @@ export interface ProviderRegistry {
   clear(): void;
 }
 
-export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): ProviderRegistry {
+export function createProviderRegistry(
+  clock: Clock,
+  circuit: CircuitBreaker,
+  modelPolicy: ModelPolicy = OPEN_MODEL_POLICY,
+): ProviderRegistry {
   const providers = new Map<string, RegisteredProvider>();
 
   function require(providerId: string): RegisteredProvider {
@@ -80,6 +129,21 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
       });
     }
     return provider;
+  }
+
+  /**
+   * The models this provider may serve after the administrative allow list.
+   *
+   * An allow list that matches nothing the adapter declares is treated as no
+   * narrowing at all: a typo in a console field must not silently take a
+   * provider out of rotation while the console still shows it as enabled. The
+   * mismatch is reported by `validate()` instead, where an operator sees it.
+   */
+  function permittedModels(provider: RegisteredProvider): readonly AIModelDescriptor[] {
+    const allowed = modelPolicy.allowList(provider.descriptor.providerId);
+    if (allowed.length === 0) return provider.descriptor.models;
+    const narrowed = provider.descriptor.models.filter((model) => allowed.includes(model.modelId));
+    return narrowed.length > 0 ? narrowed : provider.descriptor.models;
   }
 
   function stateOf(provider: RegisteredProvider): AIProviderState {
@@ -126,8 +190,22 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
 
     setEnabled(providerId, enabled) {
       const provider = require(providerId);
+      if (provider.enabled === enabled) return;
+      if (!enabled) {
+        // Remember what was established, so turning the provider back on does
+        // not quietly demote a certified adapter. Without this, an operator who
+        // disabled a provider during an incident and re-enabled it afterwards
+        // would find it refused by `requireCertifiedProviders` — the recovery
+        // action would leave the platform in a worse state than the outage.
+        if (provider.certification !== 'disabled') {
+          provider.certificationBeforeDisable = provider.certification;
+        }
+        provider.certification = 'disabled';
+      } else if (provider.certification === 'disabled') {
+        provider.certification = provider.certificationBeforeDisable ?? 'unverified';
+        provider.certificationBeforeDisable = undefined;
+      }
       provider.enabled = enabled;
-      if (!enabled) provider.certification = 'disabled';
     },
 
     setCertification(providerId, status) {
@@ -136,6 +214,11 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
 
     recordSuccess(providerId, latencyMs) {
       const provider = require(providerId);
+      // A success that follows a failure IS the recovery. Recording it only on
+      // a circuit transition would miss the common case: a provider that failed
+      // a few times without ever crossing the breaker threshold still recovered,
+      // and an operator reading the console needs to see when.
+      if (provider.lastError !== undefined) provider.lastRecoveryAtMs = clock.now();
       provider.successCount += 1;
       provider.lastLatencyMs = latencyMs;
       provider.lastError = undefined;
@@ -152,13 +235,20 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
       const provider = require(providerId);
       provider.failureCount += 1;
       provider.lastError = reason.slice(0, 300);
+      provider.lastFailureAtMs = clock.now();
       provider.lastCheckedAtMs = clock.now();
+    },
+
+    models(providerId) {
+      const provider = providers.get(providerId);
+      if (!provider) return [];
+      return permittedModels(provider);
     },
 
     selectModel(providerId, requirements) {
       const provider = providers.get(providerId);
       if (!provider) return undefined;
-      const candidates = provider.descriptor.models.filter((model) => {
+      const candidates = permittedModels(provider).filter((model) => {
         const { capabilities } = model;
         if (requirements.structuredOutput && !capabilities.structuredOutput) return false;
         if (requirements.chatCompletions && !capabilities.chatCompletions) return false;
@@ -166,6 +256,18 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
         return capabilities.textGeneration;
       });
       if (candidates.length === 0) return undefined;
+
+      // An administrator's pinned model wins — but only when it is one of the
+      // candidates, which means it is both permitted and capable. A pin can
+      // steer selection; it can never override a capability requirement, or a
+      // console setting would produce a paid call whose response the feature
+      // cannot parse.
+      const preferred = modelPolicy.preferred(providerId);
+      if (preferred !== undefined) {
+        const pinned = candidates.find((model) => model.modelId === preferred);
+        if (pinned) return pinned;
+      }
+
       // Cheapest capable model wins. Capability is already satisfied, so any
       // remaining difference is price — and a consultancy running millions of
       // requests should not pay for headroom the feature declared it needs.
@@ -190,6 +292,8 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
         failureCount: provider.failureCount,
         lastLatencyMs: provider.lastLatencyMs,
         lastError: provider.lastError,
+        lastFailureAt: isoOrUndefined(provider.lastFailureAtMs),
+        lastRecoveryAt: isoOrUndefined(provider.lastRecoveryAtMs),
         checkedAt: new Date(provider.lastCheckedAtMs).toISOString(),
       };
     },
@@ -218,6 +322,24 @@ export function createProviderRegistry(clock: Clock, circuit: CircuitBreaker): P
         const ids = provider.descriptor.models.map((model) => model.modelId);
         if (new Set(ids).size !== ids.length) {
           issues.push(`${provider.descriptor.providerId} declares duplicate model ids`);
+        }
+        const allowed = modelPolicy.allowList(provider.descriptor.providerId);
+        const unknown = allowed.filter((modelId) => !ids.includes(modelId));
+        if (allowed.length > 0 && unknown.length === allowed.length) {
+          issues.push(
+            `${provider.descriptor.providerId} model allow list matches no declared model ` +
+              `(${unknown.join(', ')}) — the list is being ignored`,
+          );
+        } else if (unknown.length > 0) {
+          issues.push(
+            `${provider.descriptor.providerId} model allow list names unknown models: ${unknown.join(', ')}`,
+          );
+        }
+        const preferred = modelPolicy.preferred(provider.descriptor.providerId);
+        if (preferred !== undefined && !ids.includes(preferred)) {
+          issues.push(
+            `${provider.descriptor.providerId} does not serve the pinned default model ${preferred}`,
+          );
         }
       }
       return issues;

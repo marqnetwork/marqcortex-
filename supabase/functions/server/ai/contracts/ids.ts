@@ -19,7 +19,13 @@
 /** Safe identifier grammar for caller-supplied trace ids. */
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
-export type IdKind = 'req' | 'cor' | 'evt' | 'aud';
+/**
+ * `adm` is the administrative change trail (AI-01 Batch 2). It is a distinct
+ * kind from `aud` on purpose: the two trails answer different questions, and an
+ * identifier that tells a reviewer which trail a record came from is one fewer
+ * join when reconstructing an incident.
+ */
+export type IdKind = 'req' | 'cor' | 'evt' | 'aud' | 'adm';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without

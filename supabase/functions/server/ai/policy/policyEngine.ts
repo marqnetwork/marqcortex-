@@ -34,17 +34,41 @@ export interface PolicyEngine {
   enforce(context: AIRequestContext, descriptor: AIFeatureDescriptor): PolicyEvaluation;
 }
 
-const RULES = [
-  'feature.enabled',
-  'actor.type_allowed',
-  'channel.allowed',
-  'capability.granted',
-  'budget.available',
-] as const;
+/**
+ * Rule names, in evaluation order. Named rather than positional: the ordered
+ * list ends up on the audit record, and an index shift when a rule is inserted
+ * would silently relabel every denial recorded after it.
+ */
+const RULE = {
+  platform: 'platform.ai_enabled',
+  feature: 'feature.enabled',
+  actorType: 'actor.type_allowed',
+  channel: 'channel.allowed',
+  capability: 'capability.granted',
+  budget: 'budget.available',
+} as const;
+
+/**
+ * The platform-wide administrative posture, read live.
+ *
+ * A function rather than a value because an administrator's change has to take
+ * effect on the very next request — an emergency kill switch that waits for an
+ * isolate to recycle is not a kill switch. The policy engine stays pure: it
+ * still computes a decision from its inputs, it just reads one of them at
+ * evaluation time.
+ */
+export interface PlatformAIState {
+  readonly enabled: boolean;
+  /** Reason recorded when the master switch or emergency stop is engaged. */
+  readonly haltReason?: string;
+}
+
+const PERMITTED: PlatformAIState = { enabled: true };
 
 export function createPolicyEngine(
   budgetEngine: BudgetEngine,
   budgetPolicy: AIBudgetPolicy,
+  platformState: () => PlatformAIState = () => PERMITTED,
 ): PolicyEngine {
   function evaluate(
     context: AIRequestContext,
@@ -53,14 +77,34 @@ export function createPolicyEngine(
     const evaluated: string[] = [];
     const allowedBudget: BudgetVerdict = { allowed: true, thresholdReached: false };
 
-    evaluated.push(RULES[0]);
+    // Evaluated first, before anything feature-specific. When an administrator
+    // has stopped AI, WHY the request would otherwise have been refused is not
+    // interesting, and evaluating further rules would put misleading detail on
+    // the audit record for an incident.
+    evaluated.push(RULE.platform);
+    const platform = platformState();
+    if (!platform.enabled) {
+      return {
+        decision: {
+          effect: 'deny',
+          evaluated,
+          violation: {
+            rule: RULE.platform,
+            detail: platform.haltReason ?? 'AI is administratively disabled',
+          },
+        },
+        budget: allowedBudget,
+      };
+    }
+
+    evaluated.push(RULE.feature);
     if (!descriptor.enabled) {
       return {
         decision: {
           effect: 'deny',
           evaluated,
           violation: {
-            rule: RULES[0],
+            rule: RULE.feature,
             detail: `feature ${descriptor.featureId} is disabled`,
           },
         },
@@ -68,14 +112,14 @@ export function createPolicyEngine(
       };
     }
 
-    evaluated.push(RULES[1]);
+    evaluated.push(RULE.actorType);
     if (!descriptor.allowedActorTypes.includes(context.actor.actorType)) {
       return {
         decision: {
           effect: 'deny',
           evaluated,
           violation: {
-            rule: RULES[1],
+            rule: RULE.actorType,
             detail: `actor type ${context.actor.actorType} may not invoke ${descriptor.featureId}`,
           },
         },
@@ -83,14 +127,14 @@ export function createPolicyEngine(
       };
     }
 
-    evaluated.push(RULES[2]);
+    evaluated.push(RULE.channel);
     if (!descriptor.allowedChannels.includes(context.channel)) {
       return {
         decision: {
           effect: 'deny',
           evaluated,
           violation: {
-            rule: RULES[2],
+            rule: RULE.channel,
             detail: `channel ${context.channel} may not invoke ${descriptor.featureId}`,
           },
         },
@@ -98,14 +142,14 @@ export function createPolicyEngine(
       };
     }
 
-    evaluated.push(RULES[3]);
+    evaluated.push(RULE.capability);
     if (!context.actor.capabilities.includes(descriptor.capability)) {
       return {
         decision: {
           effect: 'deny',
           evaluated,
           violation: {
-            rule: RULES[3],
+            rule: RULE.capability,
             detail: `capability ${descriptor.capability} is not granted`,
           },
         },
@@ -113,7 +157,7 @@ export function createPolicyEngine(
       };
     }
 
-    evaluated.push(RULES[4]);
+    evaluated.push(RULE.budget);
     const budget = budgetEngine.authorize(
       context.organization.organizationId,
       context.actor.actorId,
@@ -125,7 +169,7 @@ export function createPolicyEngine(
           effect: 'deny',
           evaluated,
           violation: {
-            rule: RULES[4],
+            rule: RULE.budget,
             detail: `budget exhausted for ${budget.scope ?? 'unknown scope'}`,
           },
         },
@@ -157,6 +201,13 @@ export function createPolicyEngine(
 export function policyErrorFor(decision: AIPolicyDecision, descriptor: AIFeatureDescriptor): AIError {
   const detail = decision.violation?.detail ?? 'policy denied';
   switch (decision.violation?.rule) {
+    case 'platform.ai_enabled':
+      // The caller-facing message says AI is paused, not why. The reason an
+      // administrator gave for an emergency stop is operational information
+      // and goes to diagnostics and the audit trail.
+      return new AIError('AI_DISABLED', 'AI is currently paused by an administrator.', {
+        diagnostics: detail,
+      });
     case 'feature.enabled':
       return new AIError('FEATURE_DISABLED', 'This AI feature is currently unavailable.', {
         diagnostics: detail,
