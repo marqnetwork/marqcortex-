@@ -361,8 +361,24 @@ describe('spend configuration', () => {
     assert.equal(loadControlPlaneConfig(recordEnv({})).allowRealRequests, false);
   });
 
-  it('defaults the provider preference to mock first', () => {
+  it('defaults the provider preference to mock first while real requests are off', () => {
     assert.equal(loadControlPlaneConfig(recordEnv({})).providerPreference[0], 'mock');
+  });
+
+  it('moves mock LAST once real requests are authorised', () => {
+    // A deployment that explicitly authorised real spending and still answered
+    // every request from the mock would look healthy, cost nothing, and be
+    // wrong about every answer it gave.
+    const config = loadControlPlaneConfig(recordEnv({ AI_ALLOW_REAL_REQUESTS: 'true' }));
+    assert.equal(config.providerPreference[0], 'openai');
+    assert.equal(config.providerPreference.at(-1), 'mock');
+  });
+
+  it('honours an explicit preference over either default', () => {
+    const config = loadControlPlaneConfig(
+      recordEnv({ AI_ALLOW_REAL_REQUESTS: 'true', AI_PROVIDER_PREFERENCE: 'anthropic,openai' }),
+    );
+    assert.deepEqual([...config.providerPreference], ['anthropic', 'openai']);
   });
 
   it('falls back to $9 for a malformed or negative ceiling', () => {

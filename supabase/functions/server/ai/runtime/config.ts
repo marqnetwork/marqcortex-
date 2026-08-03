@@ -117,6 +117,28 @@ function readLogLevel(env: EnvSource): AIControlPlaneConfig['observability']['lo
     : 'info';
 }
 
+/**
+ * Default provider order, which follows the real-request kill switch.
+ *
+ * With real requests OFF, mock is first: the deployment cannot spend money and
+ * should serve the only thing it is permitted to serve.
+ *
+ * With real requests ON, mock goes LAST. Keeping it first would mean a
+ * deployment that had explicitly authorised real spending still answered every
+ * request with a synthetic completion — the platform would look healthy, cost
+ * nothing, and be wrong about every answer it gave. The mock stays registered
+ * as a last resort rather than being removed, so a total vendor outage degrades
+ * to something rather than nothing.
+ *
+ * An operator who sets `AI_PROVIDER_PREFERENCE` explicitly overrides all of
+ * this and gets exactly the order they asked for.
+ */
+function defaultProviderPreference(env: EnvSource): readonly string[] {
+  return readBool(env, 'AI_ALLOW_REAL_REQUESTS', false)
+    ? ['openai', 'anthropic', 'mock']
+    : ['mock', 'openai', 'anthropic'];
+}
+
 /** The MARQ-funded ceiling, in micro-USD. Default $9. */
 export const DEFAULT_MAX_SPEND_USD = 9;
 
@@ -140,10 +162,7 @@ function readMaxSpendMicroUsd(env: EnvSource): number {
 
 export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
   return {
-    // Mock first by default. Combined with `allowRealRequests` defaulting to
-    // false, a deployment that sets nothing serves synthetic completions and
-    // cannot spend money — the safe default, not the convenient one.
-    providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', ['mock', 'openai', 'anthropic']),
+    providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', defaultProviderPreference(env)),
     fallbackProviderId: readOptionalString(env, 'AI_FALLBACK_PROVIDER'),
     failoverEnabled: readBool(env, 'AI_FAILOVER_ENABLED', true),
     allowRealRequests: readBool(env, 'AI_ALLOW_REAL_REQUESTS', false),
