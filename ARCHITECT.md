@@ -21,6 +21,7 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 
 **AI Control Plane (AI-01 Batch 1):** `supabase/functions/server/ai/index.ts` — read the module header first  
 **AI Administration (AI-01 Batch 2):** `supabase/functions/server/ai/admin/administration.ts`  
+**Agent Runtime (AI-01 Batch 3A):** `supabase/functions/server/ai/agents/agentRuntime.ts` — read the module header first  
 **AI completion reports:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md` · `architecture/ai/AI-01-BATCH-2-COMPLETION.md`  
 **Add an AI provider or feature:** `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
@@ -168,7 +169,14 @@ cortex/
 | Add an AI provider | `supabase/functions/server/ai/providers/` + `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md` |
 | Change AI limits, budget or capability grants | `ai/policy/featureCatalog.ts`, `ai/security/actor.ts` (ROLE_CAPABILITIES) |
 | Change AI governance rules | `ai/governance/` (input guard, output guard, redaction, fact lock) |
-| AI Control Plane tests | `npm run test:ai` (460 tests) · security subset: `npm run test:security` |
+| AI Control Plane tests | `npm run test:ai` · security subset: `npm run test:security` |
+| Register an agent | `supabase/functions/server/ai/agents/registry/agentRegistry.ts` — definitions are data, validated at registration; the production registry ships empty |
+| Register an agent tool | `supabase/functions/server/ai/agents/tools/toolRegistry.ts` + a definition beside `tools/mockTools.ts` |
+| Change agent limits, approvals or handoff targets | the agent's definition — never the orchestrator |
+| Change agent run RBAC | `ai/agents/service/agentRbac.ts` (AGENT_ROLE_CAPABILITIES) |
+| Add an agent model profile | `ai/agents/runtime/defaultProfiles.ts` + a registered feature in `ai/features/` |
+| Agent runtime verification | `node --experimental-strip-types scripts/agent-runtime-verify.ts` (mock mode, no vendor calls) |
+| Diagnose agent runs in production | `GET /ai/agents/overview` · `/ai/agents/runs` · `/ai/agents/approvals` · `/ai/agents/audit` |
 | Diagnose AI in production | `GET /ai/health` · `GET /ai/metrics` · `GET /ai/audit` · `GET /ai/catalog` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
@@ -222,6 +230,18 @@ STANDARD PATH (all components)
 
 CORTEX INTELLIGENCE (canonical path — AI-01 Batch 1)
   Component → dataService.ts → api.ts → Edge Function → aiRoutes → AI Control Plane → Provider
+
+AGENT RUNTIME (canonical path — AI-01 Batch 3A)
+  Caller → agentRuntimeRoutes → agent HTTP adapter (authorise, then dispatch)
+    → Agent Runtime Service (RBAC, tenant scope, read models)
+    → Agent Orchestrator (registry → state machine → proposal validation →
+      limits → token preflight → cost preflight → checkpoint → persist)
+    → model step: control plane bridge → AI Control Plane → provider
+    → tool step: tool gateway → deterministic tool
+    → handoff step: agent registry → receiving agent
+  AGENTS PROPOSE. THE ORCHESTRATOR DECIDES. THE CONTROL PLANE EXECUTES.
+  The agent runtime is not a second AI execution path: it has no provider
+  import, no credential and exactly one module that can reach a model.
 
 AI ADMINISTRATION (canonical path — AI-01 Batch 2)
   AIAdministrationConsole → aiAdminService.ts → Edge Function → aiAdminRoutes
@@ -392,13 +412,16 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `aiRoutes.ts` | AI HTTP routes (MQC-SVC-045) — binds Hono to the control plane |
 | `ai/controlPlane.ts` | **AI Control Plane** (MQC-SVC-010) — the single governed AI execution path |
 | `ai/index.ts` | Public surface. Import from here, never from an internal `ai/` path |
-| `ai/features/` | The six AI feature definitions (MQC-SVC-003/004/005/006/007/017) |
+| `ai/features/` | The six product AI features (MQC-SVC-003/004/005/006/007/017) plus the governed agent step (MQC-SVC-075) |
 | `ai/security/` | AI Guard, rate limiter, tenancy, actor, validation |
 | `ai/policy/` | Feature catalog, policy engine, budget engine |
 | `ai/prompts/` | Prompt registry + the canonical prompt catalog |
 | `ai/providers/` | OpenAI, Anthropic, mock adapters + registry, selector, circuit, retry, timeout |
 | `ai/governance/` | Input guard, output guard, PII redaction, fact lock |
 | `ai/observability/` | Audit, metrics, events, health, structured logger |
+| `ai/admin/` | AI Administration (AI-01 Batch 2) — settings, RBAC, providers, budget, change trail |
+| `ai/agents/` | **Agent Runtime** (AI-01 Batch 3A, MQC-SVC-056) — registry, state machine, orchestrator, tools, approvals, limits, ledgers, durable runs |
+| `agentRuntimeRoutes.ts` | Agent runtime HTTP routes (MQC-SVC-074) |
 | `emailService.ts` | Resend emails |
 | `revenueSnapshot.ts` | Deterministic deal snapshots (no LLM) |
 
@@ -506,6 +529,54 @@ Console: `src/app/components/AIAdministrationConsole.tsx`, mounted as the
 **AI Administration** tab of the settings page.
 
 ---
+
+
+### 12.3 Agent Runtime (AI-01 Batch 3A)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `AGENT_MOCK_TOOLS_ENABLED` | `false` | Register the deterministic in-process tools. Off in a real deployment: a tool nobody asked for is a capability nobody reviewed |
+
+The agent runtime takes no credentials and no provider configuration of its own.
+It reads the operational settings overlay (master switch, emergency stop,
+certification requirement) and the MARQ lifetime spend ledger through the
+control plane, and every model step executes through
+`controlPlane.execute` — so the environment that governs AI governs agents.
+
+Durable storage needs the `kvReadByPrefix` and `kvCompareAndSwapField` ports
+(backed by migration `20260804120000_kv_compare_and_swap_field.sql`). Without
+them the runtime is isolate-local and says so loudly at bootstrap: runs still
+execute, they simply do not survive a restart.
+
+**No production agents ship with this batch.** The registry starts empty; a
+definition registered in `bootstrap.ts` would be the inline production agent the
+batch forbids, and the boundary scan asserts its absence.
+
+| Route (prefix `/make-server-324f4fbe`) | Method | Capability |
+|----------------------------------------|--------|------------|
+| `/ai/agents/overview` | GET | `agent.run.read` |
+| `/ai/agents/runs` | GET | `agent.run.read` |
+| `/ai/agents/runs` | POST | `agent.run.create` |
+| `/ai/agents/runs/:runId` | GET | `agent.run.read` |
+| `/ai/agents/runs/:runId/steps` | GET | `agent.run.read` |
+| `/ai/agents/runs/:runId/usage` | GET | `agent.run.read` |
+| `/ai/agents/runs/:runId/pause` | POST | `agent.run.control` |
+| `/ai/agents/runs/:runId/resume` | POST | `agent.run.control` |
+| `/ai/agents/runs/:runId/cancel` | POST | `agent.run.control` |
+| `/ai/agents/runs/:runId/retry` | POST | `agent.run.control` + `agent.run.create` |
+| `/ai/agents/runs/:runId/approvals/:approvalId` | POST | `agent.approval.decide` |
+| `/ai/agents/approvals` | GET | `agent.run.read` |
+| `/ai/agents/registry` | GET | `agent.registry.read` |
+| `/ai/agents/tools` | GET | `agent.registry.read` |
+| `/ai/agents/audit` | GET | `agent.run.read` |
+
+Reads are tenant-scoped. Only `super_admin` / `platform_admin` hold
+`agent.run.read.platform`, and even that is a READ — there is no cross-tenant
+control operation at any role.
+
+Console: the **Agents** tab of `src/app/components/AIAdministrationConsole.tsx`
+— run visibility, the approval queue and the registry, read-only apart from an
+approval decision.
 
 ## 13. Contexts & hooks
 

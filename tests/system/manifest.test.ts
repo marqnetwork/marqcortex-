@@ -27,10 +27,18 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * administrative audit trail, usage analytics, the admin HTTP adapter and its
  * routes (MQC-SVC-047 → 054), the console's API client (MQC-SVC-055) and the
  * console itself (MQC-COMP-090) — taking the manifest to 208 nodes.
+ *
+ * AI-01 Batch 3A added the agent runtime and orchestrator core — the runtime
+ * assembly, agent registry, state machine, orchestrator, control plane bridge,
+ * tool gateway, approval gate, persistence ports and their key-value stores,
+ * loop protection, token intelligence, cost policy, context builder, model
+ * routing, the agent audit trail, the runtime service, its RBAC, its HTTP
+ * adapter and routes, the governed agent-step feature, and the console's API
+ * client (MQC-SVC-056 → 076) — taking the manifest to 229 nodes.
  */
-const CERTIFIED_NODE_COUNT = 208;
+const CERTIFIED_NODE_COUNT = 229;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 55;
+const CERTIFIED_SVC_COUNT = 76;
 
 const entries = Object.entries(manifest.nodes);
 
