@@ -715,8 +715,10 @@ describe('control plane — observability', () => {
     // completion is synthetic is the most dangerous state to report.
     assert.equal(health.status, 'degraded');
     assert.ok(health.issues.some((issue) => issue.includes('non-production')));
-    assert.equal(health.features.registered, 6);
-    assert.equal(health.prompts.registered, 8);
+    // Six product features plus the two agent-step registrations, and eight
+    // product prompts plus `agent.step` (AI-01 Batch 3A).
+    assert.equal(health.features.registered, 8);
+    assert.equal(health.prompts.registered, 9);
   });
 
   it('reports unhealthy when no provider can serve a request', () => {

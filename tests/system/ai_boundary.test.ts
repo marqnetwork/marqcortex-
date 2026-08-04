@@ -199,6 +199,114 @@ describe('AI administration boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 3A added an agent runtime. It is the part of the platform most
+ * likely to grow a second execution path, because an agent that "just needs to
+ * call the model" is one import away from doing so — and everything the control
+ * plane guarantees (guard, policy, governance, spend ceiling, audit) would then
+ * simply not apply to whatever flows through it.
+ *
+ * These assertions are structural for the same reason the ones above are: a
+ * behavioural test can prove the path it exercises is governed, and cannot
+ * prove the ABSENCE of an ungoverned one.
+ */
+describe('agent runtime boundary', () => {
+  const AGENTS_DIR = join(SERVER_ROOT, 'ai', 'agents') + sep;
+  const BRIDGE = join('orchestrator', 'controlPlaneBridge.ts');
+  const agentSources = serverSources.filter(
+    (file) => file.path.startsWith(AGENTS_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty agent runtime tree', () => {
+    assert.ok(agentSources.length >= 15, `expected the agent tree, found ${agentSources.length}`);
+  });
+
+  it('never imports a provider adapter or names a vendor', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(agentSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(agentSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(agentSources, CREDENTIAL), []);
+  });
+
+  it('reaches the control plane through exactly one module', () => {
+    // `controlPlaneBridge.ts` is the only place that may hold an AIControlPlane
+    // and call `execute` on it. Anything else importing the plane would be a
+    // second way for an agent step to reach a model.
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    const offending = agentSources
+      .filter((file) => !file.path.endsWith(BRIDGE) && !file.path.endsWith('agentRuntime.ts'))
+      .filter((file) => PLANE_IMPORT.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(
+      offending,
+      [],
+      'only the control plane bridge and the runtime assembly may import the plane',
+    );
+
+    const bridge = agentSources.find((file) => file.path.endsWith(BRIDGE));
+    assert.ok(bridge, 'the control plane bridge must exist');
+    assert.match(bridge.text, /plane\.execute</, 'the bridge executes through the plane');
+  });
+
+  it('never invokes a provider adapter directly', () => {
+    assert.deepEqual(offenders(agentSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('does not re-implement a Batch 1 or Batch 2 guarantee', () => {
+    // Spend enforcement, provider selection, request authorization, policy
+    // evaluation and the administration surface each have exactly one
+    // implementation. A second one inside the agent runtime would not weaken
+    // the first — it would replace it for whatever flows through it.
+    const DUPLICATED =
+      /createSpendLedger|createProviderSelector|createAIGuard|createPolicyEngine|createExecutionPipeline|createAIAdministration/;
+    assert.deepEqual(offenders(agentSources, DUPLICATED), []);
+  });
+
+  it('exposes no mutation of a run, a step, a checkpoint or an audit record', () => {
+    // Terminal runs are evidence and checkpoints are immutable. The absence of
+    // an edit path is asserted on the source, because a method that exists is a
+    // method something will eventually call.
+    const MUTATION =
+      /\b(deleteRun|removeRun|editRun|purgeRun|deleteStep|rewriteCheckpoint|deleteCheckpoint|deleteAudit|clearAudit|purgeAudit|reopenRun)\b/;
+    assert.deepEqual(offenders(agentSources, MUTATION), []);
+  });
+
+  it('routes the agent HTTP surface through its adapter, not its own role checks', () => {
+    const routeFile = serverSources.find((file) => file.path.endsWith('agentRuntimeRoutes.ts'));
+    assert.ok(routeFile, 'agentRuntimeRoutes.ts must exist');
+    // A route file that resolves an actor or compares a role is a route file
+    // that can forget to.
+    assert.equal(/resolveAgentActor|requireAgentCapability/.test(routeFile.text), false);
+    assert.equal(/super_admin|organization_admin|consultant/.test(routeFile.text), false);
+    assert.ok(routeFile.text.includes('executeAgentHttpRequest'));
+  });
+
+  it('registers no production agent in the bootstrap', () => {
+    // Business agents are out of AI-01 Batch 3A's scope. The production
+    // registry starts empty, and an agent definition appearing in bootstrap
+    // would be exactly the inline production agent the batch forbids.
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap);
+    assert.equal(
+      /agents:\s*\[[^\]]*\w/.test(bootstrap.text),
+      false,
+      'bootstrap must not register agent definitions',
+    );
+  });
+
+  it('keeps the agent step feature off every HTTP route', () => {
+    // An agent step outside a run has no limits, no ledger and no audit trail
+    // of its own, so the feature must be reachable only through the
+    // orchestrator's model profiles.
+    const routes = serverSources.filter(
+      (file) => file.path.endsWith('aiRoutes.ts') || file.path.endsWith('aiAdminRoutes.ts'),
+    );
+    assert.deepEqual(offenders(routes, /FEATURE\.agentStep/), []);
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 

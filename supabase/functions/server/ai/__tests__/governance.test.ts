@@ -522,6 +522,7 @@ describe('cortex prompt catalog', () => {
     assert.deepEqual(
       prompts.map((prompt) => prompt.promptId).sort(),
       [
+        'agent.step',
         'analysis.diagnostic_intelligence',
         'block.assist',
         'chat.cortex_assistant',
