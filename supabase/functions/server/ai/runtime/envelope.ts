@@ -44,6 +44,10 @@ export interface DeploymentEnvelope {
   readonly allowRealRequests: boolean;
   /** Does this deployment require certified providers? True cannot be undone. */
   readonly requireCertifiedProviders: boolean;
+  /** Does this deployment require certified agents? True cannot be undone. */
+  readonly requireCertifiedAgents: boolean;
+  /** Does this deployment require certified tools? True cannot be undone. */
+  readonly requireCertifiedTools: boolean;
   /** Does this deployment enforce daily budgets? True cannot be undone. */
   readonly budgetEnforce: boolean;
   /** The highest daily organization allowance an administrator may set. */
@@ -58,6 +62,8 @@ export function envelopeFrom(config: AIControlPlaneConfig): DeploymentEnvelope {
   return {
     allowRealRequests: config.allowRealRequests,
     requireCertifiedProviders: config.requireCertifiedProviders,
+    requireCertifiedAgents: config.requireCertifiedAgents,
+    requireCertifiedTools: config.requireCertifiedTools,
     budgetEnforce: config.budget.enforce,
     organizationDailyMicroUsd: config.budget.organizationDailyMicroUsd,
     actorDailyMicroUsd: config.budget.actorDailyMicroUsd,
@@ -91,6 +97,11 @@ export function applyEnvelope(
     // but the overlay may never lift one the deployment imposed.
     requireCertifiedProviders:
       settings.requireCertifiedProviders || envelope.requireCertifiedProviders,
+    // Each population narrows independently. An administrator may ADD a
+    // certification requirement to any of the three and may never lift one the
+    // deployment imposed — and turning one on never turns another on.
+    requireCertifiedAgents: settings.requireCertifiedAgents || envelope.requireCertifiedAgents,
+    requireCertifiedTools: settings.requireCertifiedTools || envelope.requireCertifiedTools,
     timeout: {
       workflowDeadlineMs: Math.min(
         settings.timeout.workflowDeadlineMs,
@@ -131,6 +142,12 @@ export function envelopeAdjustments(
   }
   if (requested.requireCertifiedProviders !== applied.requireCertifiedProviders) {
     notes.push('this deployment requires certified providers');
+  }
+  if (requested.requireCertifiedAgents !== applied.requireCertifiedAgents) {
+    notes.push('this deployment requires certified agents');
+  }
+  if (requested.requireCertifiedTools !== applied.requireCertifiedTools) {
+    notes.push('this deployment requires certified tools');
   }
   if (requested.budget.enforce !== applied.budget.enforce) {
     notes.push('this deployment enforces daily budgets');

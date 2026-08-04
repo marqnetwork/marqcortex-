@@ -141,13 +141,25 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // serves, so a run continues on the cheaper profile rather than stopping.
       executionAvailable: health.status !== 'unhealthy',
       degraded: health.status === 'degraded',
-      requireCertification: settings.requireCertifiedProviders,
+      // THREE POPULATIONS, THREE SWITCHES.
+      //
+      // These were one flag — `requireCertifiedProviders` — until an
+      // independent review pointed out that an operator hardening provider
+      // certification was silently also refusing uncertified agents and tools.
+      // The direction was safe and the coupling was invisible, which is the
+      // combination that makes a control impossible to reason about during an
+      // incident. Providers, agents and tools are certified by different people
+      // against different contracts, so each now has its own switch, its own
+      // environment variable and its own envelope entry.
+      requireCertifiedProviders: settings.requireCertifiedProviders,
+      requireCertifiedAgents: settings.requireCertifiedAgents,
+      requireCertifiedTools: settings.requireCertifiedTools,
       configurationVersion: settings.configurationVersion,
     };
   };
 
   const registry = createAgentRegistry({
-    requireCertification: () => state().requireCertification,
+    requireCertification: () => state().requireCertifiedAgents,
   });
   if (options.agents?.length) registry.registerAll(options.agents);
 
@@ -161,7 +173,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     registry: toolRegistry,
     idempotency: createMemoryToolIdempotencyStore(),
     clock,
-    requireCertification: () => state().requireCertification,
+    requireCertification: () => state().requireCertifiedTools,
   });
 
   const runs = options.runStore ?? createMemoryAgentRunStore();

@@ -536,6 +536,17 @@ Console: `src/app/components/AIAdministrationConsole.tsx`, mounted as the
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `AGENT_MOCK_TOOLS_ENABLED` | `false` | Register the deterministic in-process tools. Off in a real deployment: a tool nobody asked for is a capability nobody reviewed |
+| `AI_REQUIRE_CERTIFIED_AGENTS` | `true` | Refuse agents whose certification is not established |
+| `AI_REQUIRE_CERTIFIED_TOOLS` | `true` | Refuse tools whose certification is not established |
+
+**Certification is three switches, not one.** `AI_REQUIRE_CERTIFIED_PROVIDERS`,
+`AI_REQUIRE_CERTIFIED_AGENTS` and `AI_REQUIRE_CERTIFIED_TOOLS` govern three
+populations certified by different people against different contracts. They were
+a single flag until an independent review found that hardening providers silently
+also refused uncertified agents and tools — safe in direction, invisible in
+effect. Each is now its own environment variable, its own deployment-envelope
+entry and its own line in the console. The envelope rule is unchanged: an
+administrator may ADD a requirement and may never lift one the deployment set.
 
 The agent runtime takes no credentials and no provider configuration of its own.
 It reads the operational settings overlay (master switch, emergency stop,

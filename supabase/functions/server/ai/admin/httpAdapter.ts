@@ -102,6 +102,8 @@ function readSettingsPatch(body: Record<string, unknown>): AIOperationalSettings
     fallbackProviderId: nullableId(body.fallbackProviderId),
     failoverEnabled: optionalBool(body.failoverEnabled),
     requireCertifiedProviders: optionalBool(body.requireCertifiedProviders),
+    requireCertifiedAgents: optionalBool(body.requireCertifiedAgents),
+    requireCertifiedTools: optionalBool(body.requireCertifiedTools),
     defaultModelId: nullableId(body.defaultModelId),
   };
 

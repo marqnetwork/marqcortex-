@@ -740,7 +740,22 @@ export function AIAdministrationConsole({ accessToken }: Props) {
                 <Field label="Real providers requested" value={settings.realRequestsEnabled ? 'Yes' : 'No'} />
                 <Field label="Real providers effective" value={effective.realRequestsEnabled ? 'Yes' : 'No'} />
                 <Field label="Failover" value={settings.failoverEnabled ? 'Enabled' : 'Disabled'} />
-                <Field label="Require certification" value={settings.requireCertifiedProviders ? 'Yes' : 'No'} />
+                {/* Three populations, three switches. They were one until a
+                    review found that hardening providers silently hardened
+                    agents and tools too, so the console now states each
+                    separately rather than implying one control. */}
+                <Field
+                  label="Require certified providers"
+                  value={settings.requireCertifiedProviders ? 'Yes' : 'No'}
+                />
+                <Field
+                  label="Require certified agents"
+                  value={settings.requireCertifiedAgents ? 'Yes' : 'No'}
+                />
+                <Field
+                  label="Require certified tools"
+                  value={settings.requireCertifiedTools ? 'Yes' : 'No'}
+                />
                 <Field label="Default provider" value={settings.defaultProviderId ?? 'not pinned'} />
                 <Field label="Default model" value={settings.defaultModelId ?? 'cheapest capable'} />
                 <Field label="Fallback provider" value={settings.fallbackProviderId ?? 'none'} />

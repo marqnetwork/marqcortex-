@@ -35,6 +35,18 @@ export interface AIControlPlaneConfig {
   /** Refuse providers whose certification has not been established. */
   readonly requireCertifiedProviders: boolean;
   /**
+   * Refuse AGENTS whose certification has not been established (AI-01 Batch 3A).
+   *
+   * A separate switch from the provider one, and separate for a reason an
+   * independent review found the hard way: the agent runtime originally read
+   * `requireCertifiedProviders`, so one operator action silently governed three
+   * different populations. A setting whose name describes one thing and governs
+   * three is a setting nobody can reason about during an incident.
+   */
+  readonly requireCertifiedAgents: boolean;
+  /** Refuse TOOLS whose certification has not been established. */
+  readonly requireCertifiedTools: boolean;
+  /**
    * How long an isolate may serve a cached copy of the operational settings
    * before re-reading them from durable storage.
    *
@@ -187,6 +199,11 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
     failoverEnabled: readBool(env, 'AI_FAILOVER_ENABLED', true),
     allowRealRequests: readBool(env, 'AI_ALLOW_REAL_REQUESTS', false),
     requireCertifiedProviders: readBool(env, 'AI_REQUIRE_CERTIFIED_PROVIDERS', true),
+    // Default true, like providers: an uncertified agent or tool has never been
+    // shown to behave against this platform's contract, and production traffic
+    // is not the place to find out.
+    requireCertifiedAgents: readBool(env, 'AI_REQUIRE_CERTIFIED_AGENTS', true),
+    requireCertifiedTools: readBool(env, 'AI_REQUIRE_CERTIFIED_TOOLS', true),
     settingsRefreshMs: readInt(env, 'AI_SETTINGS_REFRESH_MS', 0, { min: 0, max: 300_000 }),
     workflowDeadlineMs: readInt(env, 'AI_WORKFLOW_DEADLINE_MS', 90_000, {
       min: 1_000,

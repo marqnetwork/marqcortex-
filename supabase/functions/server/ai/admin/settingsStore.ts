@@ -176,6 +176,18 @@ export function parseStoredSettings(
       typeof stored.requireCertifiedProviders === 'boolean'
         ? stored.requireCertifiedProviders
         : undefined,
+    // Absent in a record written before AI-01 Batch 3A. `undefined` means
+    // "keep the current value", which for a hydrating isolate is the
+    // deployment baseline — the safe direction, since the baseline defaults to
+    // requiring certification.
+    requireCertifiedAgents:
+      typeof stored.requireCertifiedAgents === 'boolean'
+        ? stored.requireCertifiedAgents
+        : undefined,
+    requireCertifiedTools:
+      typeof stored.requireCertifiedTools === 'boolean'
+        ? stored.requireCertifiedTools
+        : undefined,
     defaultModelId: typeof stored.defaultModelId === 'string' ? stored.defaultModelId : null,
     retry: record(stored.retry) as Partial<AIOperationalSettings['retry']> | undefined,
     timeout: record(stored.timeout) as Partial<AIOperationalSettings['timeout']> | undefined,

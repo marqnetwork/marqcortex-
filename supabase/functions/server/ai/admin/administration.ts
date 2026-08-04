@@ -604,6 +604,16 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     ) {
       required.add('ai.admin.provider.write');
     }
+    // Agent and tool certification are platform-wide execution controls, not
+    // provider configuration, so they demand the settings grant rather than the
+    // provider one. Kept separate from the provider check above so a future
+    // per-population grant has an obvious place to attach.
+    if (
+      patch.requireCertifiedAgents !== undefined ||
+      patch.requireCertifiedTools !== undefined
+    ) {
+      required.add('ai.admin.settings.write');
+    }
     if (
       patch.retry !== undefined ||
       patch.timeout !== undefined ||
@@ -1136,6 +1146,8 @@ function settingsFacts(settings: AIOperationalSettings): Readonly<Record<string,
     fallbackProviderId: settings.fallbackProviderId ?? '(none)',
     failoverEnabled: settings.failoverEnabled,
     requireCertifiedProviders: settings.requireCertifiedProviders,
+    requireCertifiedAgents: settings.requireCertifiedAgents,
+    requireCertifiedTools: settings.requireCertifiedTools,
     retryBaseDelayMs: settings.retry.baseDelayMs,
     retryMaxDelayMs: settings.retry.maxDelayMs,
     retryJitterPercent: settings.retry.jitterPercent,

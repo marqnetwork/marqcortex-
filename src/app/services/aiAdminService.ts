@@ -53,6 +53,9 @@ export interface AIAdminSettings {
   fallbackProviderId?: string;
   failoverEnabled: boolean;
   requireCertifiedProviders: boolean;
+  /** Certification policy per population (AI-01 Batch 3A). Three, not one. */
+  requireCertifiedAgents: boolean;
+  requireCertifiedTools: boolean;
   defaultModelId?: string;
   providers: Record<string, { enabled: boolean; modelAllowList: string[] }>;
   retry: { baseDelayMs: number; maxDelayMs: number; jitterPercent: number };
@@ -466,6 +469,8 @@ export interface AIAdminSettingsPatch {
   fallbackProviderId?: string | null;
   failoverEnabled?: boolean;
   requireCertifiedProviders?: boolean;
+  requireCertifiedAgents?: boolean;
+  requireCertifiedTools?: boolean;
   defaultModelId?: string | null;
   retry?: { baseDelayMs?: number; maxDelayMs?: number; jitterPercent?: number };
   timeout?: { workflowDeadlineMs?: number };
