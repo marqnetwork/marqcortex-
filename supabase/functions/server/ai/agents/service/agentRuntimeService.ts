@@ -715,11 +715,17 @@ export function createAgentRuntimeService(
     recentAudit(actor, limit = 50) {
       requireAgentCapability(actor, 'agent.run.read');
       const bounded = Math.min(200, Math.max(1, Math.floor(limit)));
-      const records = audit.recent(bounded);
-      if (actor.platformReader) return records;
-      return records.filter(
-        (record) => record.organizationId === actor.organization.organizationId,
-      );
+      if (actor.platformReader) return audit.recent(bounded);
+      // FILTER FIRST, THEN SLICE. Reading `bounded` records and filtering
+      // afterwards showed a tenant fewer rows than it asked for whenever a
+      // busier tenant's records sat in front of its own — an audit trail that
+      // silently under-reports is worse than one that reports nothing. The
+      // scan is over the store's own retained window, which is capacity-bound
+      // (`auditBufferSize`), so this stays a bounded read.
+      return audit
+        .recent(audit.size())
+        .filter((record) => record.organizationId === actor.organization.organizationId)
+        .slice(0, bounded);
     },
   };
 }

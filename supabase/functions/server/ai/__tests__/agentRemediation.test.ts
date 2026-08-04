@@ -1,5 +1,5 @@
 /**
- * Regression suite for the AI-01 Batch 3A independent review (F1–F5).
+ * Regression suite for the AI-01 Batch 3A independent review (F1–F5, F9).
  *
  * Every case here reproduces a defect an independent review demonstrated
  * against the first implementation, and fails if it returns. They are kept in
@@ -12,6 +12,7 @@
  * F3  at-most-once tool execution was isolate-local, and claimed durable
  * F4  the injection fence used an agent-controlled delimiter
  * F5  one certification switch silently governed three populations
+ * F9  a tenant audit read sliced before it filtered, and under-reported
  */
 
 import { describe, it } from 'node:test';
@@ -919,5 +920,60 @@ describe('F5 — certification policies are independent and truthful', () => {
     assert.equal(state.requireCertifiedTools, false);
     assert.equal(state.requireCertifiedProviders, true);
     assert.equal(state.requireCertifiedAgents, true);
+  });
+});
+
+// ── F9 ──────────────────────────────────────────────────────────────────────
+
+describe('F9 — a tenant audit read filters before it slices', () => {
+  it('returns a tenant its own newest records, not whatever survived a shared slice', async () => {
+    const harness = buildTestAgentRuntime();
+
+    const acmeMeta = harness.meta(AGENT_TOKEN.consultant);
+    const acme = await harness.runtime.service.authorize(acmeMeta);
+    await harness.runtime.service.createRun(
+      acme,
+      {
+        agentId: AGENT_ID.primary,
+        objective: 'Summarise the supplied statements for acme.',
+        input: { topic: 'acme', script: 'model_then_complete' },
+      },
+      acmeMeta,
+    );
+
+    // A busier neighbour then writes enough records to push acme's out of any
+    // naive tail slice. This is the exact shape of the defect: the store's
+    // newest N were all globex, so acme saw an EMPTY audit trail for work it
+    // had genuinely done.
+    const globexMeta = harness.meta(AGENT_TOKEN.otherTenant);
+    const globex = await harness.runtime.service.authorize(globexMeta);
+    for (let index = 0; index < 5; index += 1) {
+      await harness.runtime.service.createRun(
+        globex,
+        {
+          agentId: AGENT_ID.primary,
+          objective: `Summarise the supplied statements for globex ${index}.`,
+          input: { topic: 'globex', script: 'model_then_complete' },
+        },
+        globexMeta,
+      );
+    }
+
+    const acmeRecords = harness.runtime.service.recentAudit(acme, 3);
+    assert.ok(acmeRecords.length > 0, 'acme must still see its own audit trail');
+    assert.ok(acmeRecords.length <= 3, 'the caller-supplied limit still bounds the answer');
+    assert.ok(
+      acmeRecords.every((record) => record.organizationId === 'acme'),
+      'and it must never see another tenant',
+    );
+
+    const globexRecords = harness.runtime.service.recentAudit(globex, 3);
+    assert.equal(globexRecords.length, 3);
+    assert.ok(globexRecords.every((record) => record.organizationId === 'globex'));
+
+    // The platform reader is unchanged: it reads across tenants, bounded.
+    const platform = await harness.runtime.service.authorize(harness.meta(AGENT_TOKEN.platform));
+    const across = harness.runtime.service.recentAudit(platform, 3);
+    assert.equal(across.length, 3);
   });
 });
