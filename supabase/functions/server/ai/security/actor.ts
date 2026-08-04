@@ -53,6 +53,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly AICapability[]>
     'ai.block.assist',
     'ai.copilot.plan',
     'ai.section.copilot',
+    'ai.agent.execute',
   ],
   admin: [
     'ai.narrative.generate',
@@ -61,6 +62,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly AICapability[]>
     'ai.block.assist',
     'ai.copilot.plan',
     'ai.section.copilot',
+    'ai.agent.execute',
   ],
   consultant: [
     'ai.narrative.generate',
@@ -69,11 +71,21 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly AICapability[]>
     'ai.block.assist',
     'ai.copilot.plan',
     'ai.section.copilot',
+    'ai.agent.execute',
   ],
+  // Deliberately NOT granted `ai.agent.execute`. A reviewer reads and decides;
+  // an agent run spends platform money and can call tools, and a role whose
+  // job is to approve other people's work should not be able to start work
+  // that then asks itself for approval.
   reviewer: ['ai.narrative.generate', 'ai.chat.converse'],
-  analyst: ['ai.narrative.generate', 'ai.analysis.run', 'ai.chat.converse'],
+  analyst: [
+    'ai.narrative.generate',
+    'ai.analysis.run',
+    'ai.chat.converse',
+    'ai.agent.execute',
+  ],
   /** Machine actors invoked by platform jobs (batch analysis, backfills). */
-  service: ['ai.analysis.run', 'ai.narrative.generate'],
+  service: ['ai.analysis.run', 'ai.narrative.generate', 'ai.agent.execute'],
 };
 
 /**

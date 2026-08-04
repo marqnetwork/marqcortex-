@@ -247,6 +247,12 @@ function structuredBody(invocation: AIProviderInvocation): Record<string, unknow
   return {
     proposed_content: { text: 'Deterministic mock content for the requested section.' },
     diff_summary: 'Mock revision applied to the narrative only.',
+    // AI-01 Batch 3A: the agent step feature's contract. Kept here with every
+    // other feature's fields for the reason stated above — one mock serves the
+    // whole catalog, and a per-feature branch is how a mock starts encoding
+    // assumptions the real providers do not share.
+    result: { finding: 'Deterministic mock result for the requested objective.' },
+    summary: 'Mock agent step completed.',
     intent: 'rewrite_tone',
     intent_label: 'Rewrite tone',
     targets: [],

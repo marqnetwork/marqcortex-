@@ -17,7 +17,15 @@ export type AICapability =
   | 'ai.chat.converse'
   | 'ai.block.assist'
   | 'ai.copilot.plan'
-  | 'ai.section.copilot';
+  | 'ai.section.copilot'
+  /**
+   * Execute one model step of a governed agent run (AI-01 Batch 3A).
+   *
+   * Held by the ACTOR, not by the agent: an agent's own permissions are
+   * declared in the agent registry, and this is the separate question of
+   * whether the person the run belongs to may spend model calls at all.
+   */
+  | 'ai.agent.execute';
 
 /** Cost class drives the budget bucket a feature draws from. */
 export type AIBudgetClass = 'interactive' | 'batch' | 'background';
