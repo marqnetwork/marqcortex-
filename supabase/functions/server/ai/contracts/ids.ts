@@ -25,7 +25,26 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
  * identifier that tells a reviewer which trail a record came from is one fewer
  * join when reconstructing an incident.
  */
-export type IdKind = 'req' | 'cor' | 'evt' | 'aud' | 'adm';
+/**
+ * The `run`, `act`, `stp`, `apr`, `cpt` and `hof` kinds belong to the agent
+ * runtime (AI-01 Batch 3A): a run, an action, a step, an approval, a checkpoint
+ * and a handoff. They share this factory rather than introducing a second one,
+ * so a test that pins identifiers pins ALL of them from one deterministic
+ * source — an agent runtime with its own id generator would be the one part of
+ * the platform whose ids a test could not control.
+ */
+export type IdKind =
+  | 'req'
+  | 'cor'
+  | 'evt'
+  | 'aud'
+  | 'adm'
+  | 'run'
+  | 'act'
+  | 'stp'
+  | 'apr'
+  | 'cpt'
+  | 'hof';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without
