@@ -21,6 +21,20 @@ import type { SpendStore } from './policy/spendLedger.ts';
 import type { EnvSource } from './runtime/env.ts';
 import type { AIAdministration } from './admin/administration.ts';
 import type { AdminAuditStore } from './admin/adminAudit.ts';
+import type { AgentRuntime } from './agents/agentRuntime.ts';
+import type { AgentAuditStore } from './agents/observability/agentAudit.ts';
+import type {
+  KvAgentConditionalWriter,
+  KvAgentPrefixReader,
+} from './agents/persistence/kvAgentStores.ts';
+import { createAgentRuntime } from './agents/agentRuntime.ts';
+import {
+  createKvAgentApprovalStore,
+  createKvAgentCheckpointStore,
+  createKvAgentRunStore,
+} from './agents/persistence/kvAgentStores.ts';
+import { createKvAgentAuditStore } from './agents/observability/agentAudit.ts';
+import { DETERMINISTIC_TOOLS } from './agents/tools/mockTools.ts';
 import { createControlPlane } from './controlPlane.ts';
 import { loadControlPlaneConfig } from './runtime/config.ts';
 import { readBool, runtimeEnv } from './runtime/env.ts';
@@ -55,12 +69,23 @@ export interface BootstrapDependencies {
    * a restart, because the first failure is silent.
    */
   readonly kvCompareAndSwap?: KvAdminConditionalWriter;
+  /**
+   * Atomic conditional write keyed by a caller-named version field, required
+   * for durable agent runs, approvals and checkpoints (migration
+   * 20260804120000). Without it the agent runtime is isolate-local: runs still
+   * execute, they simply do not survive a restart and cannot be advanced from
+   * another isolate. That is reported rather than silently accepted.
+   */
+  readonly kvCompareAndSwapField?: KvAgentConditionalWriter;
+  /** Durable prefix scan, required for listing runs and approvals. */
+  readonly kvReadByPrefix?: KvAgentPrefixReader;
   /** Override the environment source. Production reads the runtime. */
   readonly env?: EnvSource;
 }
 
 let plane: AIControlPlane | undefined;
 let administration: AIAdministration | undefined;
+let agentRuntime: AgentRuntime | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -217,7 +242,91 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   });
 
+  // ── Agent runtime (AI-01 Batch 3A) ────────────────────────────────────────
+  //
+  // Assembled over the SAME plane and the SAME authenticator. It is not a
+  // second execution path: every model step it takes goes through
+  // `controlPlane.execute`, so it inherits the guard, the policy engine, the
+  // governance layer, the spend ceiling and the audit trail rather than
+  // reimplementing any of them.
+  //
+  // NO AGENTS ARE REGISTERED HERE. Business agents are out of Batch 3A's
+  // scope, and inventing one to populate the console would be exactly the
+  // "inline production agent" the batch forbids. The registry starts empty and
+  // a deployment registers definitions explicitly.
+  const durableAgentStorage =
+    deps.kvRead !== undefined &&
+    deps.kvReadByPrefix !== undefined &&
+    deps.kvCompareAndSwapField !== undefined;
+
+  if (!durableAgentStorage) {
+    console.error(
+      '[ai] no durable key-value port with field-keyed conditional writes was injected — ' +
+        'agent runs, approvals and checkpoints are isolate-local, will not survive a restart, ' +
+        'and cannot be advanced from another isolate.',
+    );
+  }
+
+  const agentAuditStores: AgentAuditStore[] = [];
+  if (config.audit.durable && deps.kvWrite) {
+    agentAuditStores.push(
+      createKvAgentAuditStore({
+        write: deps.kvWrite,
+        retentionDays: config.audit.retentionDays,
+        onError: (error) =>
+          console.error(
+            '[ai] durable agent audit write failed:',
+            error instanceof Error ? error.message : String(error),
+          ),
+      }),
+    );
+  }
+
+  const agentStorageOptions =
+    deps.kvRead !== undefined &&
+    deps.kvReadByPrefix !== undefined &&
+    deps.kvCompareAndSwapField !== undefined
+      ? {
+          read: deps.kvRead,
+          readByPrefix: deps.kvReadByPrefix,
+          compareAndSwap: deps.kvCompareAndSwapField,
+          onCorrupt: (key: string, detail: string) =>
+            console.error(`[ai] agent record at ${key} is unreadable: ${detail}`),
+        }
+      : undefined;
+
+  agentRuntime = createAgentRuntime({
+    plane,
+    authenticator,
+    organizationOptions: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    // The deterministic tools are contracts with governance attached, not
+    // business integrations. A deployment opts into them explicitly; the
+    // default is an empty tool registry, because a tool nobody asked for is a
+    // capability nobody reviewed.
+    tools: readBool(env, 'AGENT_MOCK_TOOLS_ENABLED', false) ? DETERMINISTIC_TOOLS : [],
+    ...(agentStorageOptions === undefined
+      ? {}
+      : {
+          runStore: createKvAgentRunStore(agentStorageOptions),
+          checkpointStore: createKvAgentCheckpointStore(agentStorageOptions),
+          approvalStore: createKvAgentApprovalStore(agentStorageOptions),
+        }),
+    auditStores: agentAuditStores,
+    auditBufferSize: config.audit.bufferSize,
+    clock: systemClock,
+    ids: systemIdFactory,
+  });
+
   return plane;
+}
+
+/** The initialised agent runtime, or `undefined` before bootstrap. */
+export function getAgentRuntime(): AgentRuntime | undefined {
+  return agentRuntime;
 }
 
 /** The initialised plane, or `undefined` before bootstrap. */
@@ -234,4 +343,5 @@ export function getAIAdministration(): AIAdministration | undefined {
 export function resetControlPlaneForTests(): void {
   plane = undefined;
   administration = undefined;
+  agentRuntime = undefined;
 }

@@ -32,6 +32,7 @@ export {
   initializeControlPlane,
   getControlPlane,
   getAIAdministration,
+  getAgentRuntime,
   resetControlPlaneForTests,
   type BootstrapDependencies,
 } from './bootstrap.ts';
@@ -144,6 +145,189 @@ export {
   createKvAdminAuditStore,
   createKvAdminSettingsStore,
 } from './adapters/kvAdminStores.ts';
+
+// ── Agent Runtime (AI-01 Batch 3A) ──────────────────────────────────────────
+//
+// The controlled execution foundation for agents, multi-agent handoffs, tools,
+// approvals and workflows. It is NOT a second AI execution path: every model
+// step it takes goes through `controlPlane.execute`, with the same guard,
+// policy engine, governance, spend ceiling and audit trail every other
+// feature gets. What it adds is the layer above — registry, state machine,
+// orchestrator, limits, ledgers, approvals and durable runs.
+//
+//   AGENTS PROPOSE. THE ORCHESTRATOR DECIDES. THE CONTROL PLANE EXECUTES.
+export {
+  createAgentRuntime,
+  AGENT_SPEND_SCOPE,
+  type AgentRuntime,
+  type AgentRuntimeOptions,
+} from './agents/agentRuntime.ts';
+export {
+  createAgentRegistry,
+  validateDefinition,
+  type AgentRegistry,
+} from './agents/registry/agentRegistry.ts';
+export {
+  AGENT_CAPABILITIES,
+  AGENT_LIMIT_BOUNDS,
+  describeAgent,
+  type AgentCapability,
+  type AgentDefinition,
+  type AgentDescriptor,
+  type AgentLimits,
+  type AgentObservation,
+  type AgentProposalInput,
+  type AgentSafetyClass,
+} from './agents/contracts/agent.ts';
+export {
+  ACTION_BOUNDS,
+  AGENT_ACTION_TYPES,
+  CAPABILITY_FOR_ACTION,
+  isAgentActionType,
+  type AgentAction,
+  type AgentActionProposal,
+  type AgentActionType,
+  type AgentContextContribution,
+} from './agents/contracts/actions.ts';
+export {
+  AGENT_RUN_STATES,
+  APPROVAL_BOUNDS,
+  CHECKPOINT_BOUNDS,
+  TERMINAL_RUN_STATES,
+  isTerminalState,
+  type AgentApprovalRequest,
+  type AgentCheckpoint,
+  type AgentRunContext,
+  type AgentRunRecord,
+  type AgentRunState,
+} from './agents/contracts/runtime.ts';
+export {
+  AgentRuntimeError,
+  agentFailure,
+  isAgentRuntimeError,
+  isStepRetryable,
+  terminalStateFor,
+  type AgentFailureCode,
+} from './agents/contracts/failures.ts';
+export {
+  ACTIVE_STATES,
+  OPERATION_TARGETS,
+  PAUSABLE_STATES,
+  TRANSITIONS,
+  assertTransition,
+  canTransition,
+} from './agents/runtime/stateMachine.ts';
+export {
+  createModelProfileRegistry,
+  routeModelProfile,
+  indicativeCostMicroUsd,
+  type ModelProfile,
+  type ModelProfileRegistry,
+  type RoutingOutcome,
+} from './agents/runtime/modelRouting.ts';
+export {
+  AGENT_MODEL_PROFILE,
+  DEFAULT_MODEL_PROFILES,
+} from './agents/runtime/defaultProfiles.ts';
+export { buildContext, compressContext, type BuiltContext } from './agents/runtime/contextBuilder.ts';
+export {
+  decideCost,
+  projectStepCost,
+  type CostDecision,
+  type CostProjection,
+} from './agents/runtime/costPolicy.ts';
+export {
+  estimateModelStep,
+  estimatePromptTokens,
+  reconcileUsage,
+  tokenPreflight,
+} from './agents/runtime/tokenIntelligence.ts';
+export {
+  checkPreStepLimits,
+  checkProposalLimits,
+  fingerprintAction,
+  recordLoopStep,
+} from './agents/runtime/limits.ts';
+export { canonicalJson, digestValue } from './agents/runtime/digest.ts';
+export {
+  createToolGateway,
+  createToolRegistry,
+  createMemoryToolIdempotencyStore,
+  type ToolGateway,
+  type ToolRegistry,
+} from './agents/tools/toolRegistry.ts';
+export {
+  DETERMINISTIC_TOOLS,
+  DETERMINISTIC_TOOL_IDS,
+} from './agents/tools/mockTools.ts';
+export type {
+  ToolDefinition,
+  ToolDescriptor,
+  ToolExecutionResult,
+} from './agents/contracts/tools.ts';
+export type { ToolRiskClass } from './agents/contracts/agent.ts';
+export { createApprovalGate, type ApprovalGate } from './agents/approvals/approvalGate.ts';
+export {
+  createMemoryAgentRunStore,
+  createMemoryApprovalStore,
+  createMemoryCheckpointStore,
+  type AgentApprovalStore,
+  type AgentCheckpointStore,
+  type AgentRunStore,
+} from './agents/persistence/ports.ts';
+export {
+  createKvAgentApprovalStore,
+  createKvAgentCheckpointStore,
+  createKvAgentRunStore,
+  approvalKeyFor,
+  checkpointKeyFor,
+  runKeyFor,
+  type KvAgentConditionalWriter,
+  type KvAgentPrefixReader,
+  type KvAgentReader,
+} from './agents/persistence/kvAgentStores.ts';
+export {
+  AGENT_AUDIT_EVENT,
+  createKvAgentAuditStore,
+  createMemoryAgentAuditStore,
+  type AgentAuditRecord,
+  type AgentAuditStore,
+} from './agents/observability/agentAudit.ts';
+export {
+  createAgentOrchestrator,
+  type AgentOrchestrator,
+  type AgentRunActor,
+  type AgentRuntimeState,
+} from './agents/orchestrator/agentOrchestrator.ts';
+export {
+  createControlPlaneModelPort,
+  type ModelExecutionPort,
+  type ModelStepRequest,
+  type ModelStepResult,
+} from './agents/orchestrator/controlPlaneBridge.ts';
+export {
+  createAgentRuntimeService,
+  toRunDetail,
+  toRunSummary,
+  type AgentRunDetail,
+  type AgentRunSummary,
+  type AgentRuntimeOverview,
+  type AgentRuntimeService,
+} from './agents/service/agentRuntimeService.ts';
+export {
+  AGENT_ROLE_CAPABILITIES,
+  hasAgentCapability,
+  resolveAgentActor,
+  type AgentRuntimeActor,
+  type AgentRuntimeCapability,
+} from './agents/service/agentRbac.ts';
+export {
+  AGENT_OPERATION,
+  executeAgentHttpRequest,
+  type AgentHttpRequest,
+  type AgentHttpResponse,
+  type AgentOperation,
+} from './agents/http/agentHttpAdapter.ts';
 
 // ── Governance primitives, reusable by future AI capabilities ───────────────
 export { enforceFactLock } from './governance/factLock.ts';
