@@ -99,6 +99,16 @@ export interface AIOperationalSettings {
   readonly fallbackProviderId?: string;
   readonly failoverEnabled: boolean;
   readonly requireCertifiedProviders: boolean;
+  /**
+   * Certification requirements for the agent runtime (AI-01 Batch 3A).
+   *
+   * Three populations, three switches. They are deliberately NOT one flag:
+   * providers, agents and tools are certified by different people against
+   * different contracts, and an operator hardening one must not silently
+   * harden the others.
+   */
+  readonly requireCertifiedAgents: boolean;
+  readonly requireCertifiedTools: boolean;
   /** Preferred model, used wherever it is registered and meets requirements. */
   readonly defaultModelId?: string;
   /** Per-provider operational state, keyed by provider id. */
@@ -121,6 +131,8 @@ export interface AIOperationalSettingsPatch {
   readonly fallbackProviderId?: string | null;
   readonly failoverEnabled?: boolean;
   readonly requireCertifiedProviders?: boolean;
+  readonly requireCertifiedAgents?: boolean;
+  readonly requireCertifiedTools?: boolean;
   readonly defaultModelId?: string | null;
   readonly retry?: Partial<AIRetryPolicy>;
   readonly timeout?: Partial<AITimeoutPolicy>;
@@ -201,6 +213,8 @@ export function baselineSettings(
     fallbackProviderId: config.fallbackProviderId,
     failoverEnabled: config.failoverEnabled,
     requireCertifiedProviders: config.requireCertifiedProviders,
+    requireCertifiedAgents: config.requireCertifiedAgents,
+    requireCertifiedTools: config.requireCertifiedTools,
     defaultModelId: undefined,
     providers: {},
     retry: { ...config.retry },
@@ -246,6 +260,8 @@ export function normalizeOperationalSettings(
       current.providerPreference,
     fallbackProviderId: nullableId(patch.fallbackProviderId, current.fallbackProviderId),
     failoverEnabled: asBool(patch.failoverEnabled, current.failoverEnabled),
+    requireCertifiedAgents: asBool(patch.requireCertifiedAgents, current.requireCertifiedAgents),
+    requireCertifiedTools: asBool(patch.requireCertifiedTools, current.requireCertifiedTools),
     requireCertifiedProviders: asBool(
       patch.requireCertifiedProviders,
       current.requireCertifiedProviders,

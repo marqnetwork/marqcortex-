@@ -44,6 +44,22 @@ export interface OrganizationResolutionOptions {
   readonly allowDefaultOrganization: boolean;
 }
 
+/**
+ * The isolation prefix for an organization id.
+ *
+ * Held in one place so a storage adapter that never sees a resolved
+ * `AIOrganization` still derives the same prefix the execution path does. A
+ * malformed id is refused rather than embedded in a key.
+ */
+export function isolationKeyFor(organizationId: string): string {
+  if (!ORGANIZATION_ID.test(organizationId)) {
+    throw new AIError('VALIDATION_FAILED', 'Organization identifier has an unsupported format.', {
+      fields: ['organizationId'],
+    });
+  }
+  return `org:${organizationId}`;
+}
+
 function toOrganization(
   organizationId: string,
   membership: SubjectMembership | undefined,
@@ -159,9 +175,16 @@ export function assertSameTenant(
  * Build a storage key that cannot be constructed without the tenant prefix.
  * Every AI-owned KV namespace goes through here, so a missing scope is a
  * compile-time impossibility rather than a review-time catch.
+ *
+ * The parameter is the ISOLATION KEY, not the whole organization. A resolved
+ * `AIOrganization` satisfies it structurally, so every existing call site is
+ * unchanged — but a storage adapter that holds only an organization id can now
+ * use the same builder (via `isolationKeyFor`) instead of growing a second,
+ * near-identical key function with its own copy of the segment check. One
+ * implementation of "what is a safe key segment" is the point.
  */
 export function tenantScopedKey(
-  organization: AIOrganization,
+  organization: { readonly isolationKey: string },
   namespace: string,
   ...segments: readonly string[]
 ): string {

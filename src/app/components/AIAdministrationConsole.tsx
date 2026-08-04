@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, BarChart3, CheckCircle2, ChevronRight, CircleSlash,
+  Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, ChevronRight, CircleSlash,
   Clock, Cpu, DollarSign, FileClock, Gauge, Loader2, Lock, Power, RefreshCw,
   Server, ShieldAlert, ShieldCheck, Wallet, Zap,
 } from 'lucide-react';
@@ -49,22 +49,43 @@ import {
   type AIAdminOverview,
   type AIExecutionAuditRecord,
 } from '@/app/services/aiAdminService';
+import {
+  AgentRuntimeError,
+  decideAgentApproval,
+  fetchAgentOverview,
+  fetchAgentRegistry,
+  formatAgentCost,
+  formatElapsed,
+  hasAgentCapability,
+  type AgentDescriptorView,
+  type AgentRuntimeOverview,
+} from '@/app/services/agentRuntimeService';
 
 interface Props {
   accessToken?: string;
 }
 
-type TabId = 'overview' | 'providers' | 'budget' | 'usage' | 'settings' | 'audit' | 'diagnostics';
+type TabId =
+  | 'overview'
+  | 'providers'
+  | 'agents'
+  | 'budget'
+  | 'usage'
+  | 'settings'
+  | 'audit'
+  | 'diagnostics';
 
 const TABS: { id: TabId; label: string; icon: typeof Activity }[] = [
   { id: 'overview',    label: 'Overview',    icon: Activity },
   { id: 'providers',   label: 'Providers',   icon: Server },
+  { id: 'agents',      label: 'Agents',      icon: Bot },
   { id: 'budget',      label: 'Budget',      icon: Wallet },
   { id: 'usage',       label: 'Usage',       icon: BarChart3 },
   { id: 'settings',    label: 'Settings',    icon: Gauge },
   { id: 'audit',       label: 'Audit',       icon: FileClock },
   { id: 'diagnostics', label: 'Diagnostics', icon: Cpu },
 ];
+
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -102,6 +123,9 @@ export function AIAdministrationConsole({ accessToken }: Props) {
   const [diagnostics, setDiagnostics] = useState<AIAdminDiagnostics | null>(null);
   const [executionAudit, setExecutionAudit] = useState<AIExecutionAuditRecord[]>([]);
   const [changes, setChanges] = useState<AIAdminChangeRecord[]>([]);
+  const [agents, setAgents] = useState<AgentRuntimeOverview | null>(null);
+  const [agentRegistry, setAgentRegistry] = useState<AgentDescriptorView[]>([]);
+  const [agentError, setAgentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; forbidden: boolean } | null>(null);
@@ -153,7 +177,77 @@ export function AIAdministrationConsole({ accessToken }: Props) {
       fetchAIExecutionAudit(accessToken, 50).then(setExecutionAudit).catch(() => undefined);
       fetchAIAdminChanges(accessToken, 50).then(setChanges).catch(() => undefined);
     }
-  }, [tab, accessToken, overview, diagnostics, executionAudit.length, changes.length]);
+    if (tab === 'agents' && !agents) {
+      // The agent runtime is a separate surface with its own RBAC, so a refusal
+      // here is reported in place rather than blanking the whole console: an
+      // operator who may administer providers but not read runs should still
+      // see everything else.
+      fetchAgentOverview(accessToken)
+        .then((next) => {
+          setAgents(next);
+          setAgentError(null);
+        })
+        .catch((err: unknown) =>
+          setAgentError(
+            err instanceof AgentRuntimeError ? err.message : 'The agent runtime is unavailable.',
+          ),
+        );
+      fetchAgentRegistry(accessToken).then(setAgentRegistry).catch(() => undefined);
+    }
+  }, [tab, accessToken, overview, diagnostics, executionAudit.length, changes.length, agents]);
+
+  /** Re-read the agent surface after a decision, without touching the rest. */
+  const reloadAgents = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      setAgents(await fetchAgentOverview(accessToken));
+      setAgentError(null);
+    } catch (err) {
+      setAgentError(
+        err instanceof AgentRuntimeError ? err.message : 'The agent runtime is unavailable.',
+      );
+    }
+  }, [accessToken]);
+
+  /**
+   * Decide a pending approval.
+   *
+   * The reason prompt is the same discipline every other mutation on this page
+   * follows: the server refuses a decision without one, and it is what makes
+   * the approval trail read like a record of judgements rather than clicks.
+   */
+  const decideApproval = useCallback(
+    async (runId: string, approvalId: string, decision: 'approve' | 'reject') => {
+      const reason = window.prompt(
+        `${decision === 'approve' ? 'Approve' : 'Reject'} this agent action.\n\n` +
+          'This is recorded on the agent runtime audit trail. State why:',
+      );
+      if (reason === null) return;
+      if (reason.trim().length < 4) {
+        notify('A reason of at least four characters is required.', 'error');
+        return;
+      }
+      setBusy(true);
+      try {
+        await decideAgentApproval(accessToken ?? '', {
+          runId,
+          approvalId,
+          decision,
+          reason: reason.trim(),
+        });
+        await reloadAgents();
+        notify(`Approval ${decision === 'approve' ? 'granted' : 'rejected'} and recorded.`);
+      } catch (err) {
+        notify(
+          err instanceof AgentRuntimeError ? err.message : 'The decision could not be recorded.',
+          'error',
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [accessToken, notify, reloadAgents],
+  );
 
   /**
    * Run a change, having first asked for its reason.
@@ -646,7 +740,22 @@ export function AIAdministrationConsole({ accessToken }: Props) {
                 <Field label="Real providers requested" value={settings.realRequestsEnabled ? 'Yes' : 'No'} />
                 <Field label="Real providers effective" value={effective.realRequestsEnabled ? 'Yes' : 'No'} />
                 <Field label="Failover" value={settings.failoverEnabled ? 'Enabled' : 'Disabled'} />
-                <Field label="Require certification" value={settings.requireCertifiedProviders ? 'Yes' : 'No'} />
+                {/* Three populations, three switches. They were one until a
+                    review found that hardening providers silently hardened
+                    agents and tools too, so the console now states each
+                    separately rather than implying one control. */}
+                <Field
+                  label="Require certified providers"
+                  value={settings.requireCertifiedProviders ? 'Yes' : 'No'}
+                />
+                <Field
+                  label="Require certified agents"
+                  value={settings.requireCertifiedAgents ? 'Yes' : 'No'}
+                />
+                <Field
+                  label="Require certified tools"
+                  value={settings.requireCertifiedTools ? 'Yes' : 'No'}
+                />
                 <Field label="Default provider" value={settings.defaultProviderId ?? 'not pinned'} />
                 <Field label="Default model" value={settings.defaultModelId ?? 'cheapest capable'} />
                 <Field label="Fallback provider" value={settings.fallbackProviderId ?? 'none'} />
@@ -776,6 +885,153 @@ export function AIAdministrationConsole({ accessToken }: Props) {
                 empty="No AI executions recorded since this instance started."
               />
             </Section>
+          </div>
+        )}
+
+        {/* ── Agents (AI-01 Batch 3A) ────────────────────────────────────── */}
+        {tab === 'agents' && (
+          <div className="space-y-6">
+            {agentError ? (
+              <Empty
+                icon={ShieldAlert}
+                title="Agent runtime unavailable"
+                body={agentError}
+              />
+            ) : !agents ? (
+              <div className="flex items-center gap-2 py-8 text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading agent runs…
+              </div>
+            ) : (
+              <>
+                <Section title="Runs">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Stat
+                      label="Active runs"
+                      value={String(agents.active.length)}
+                      tone="neutral"
+                      icon={Activity}
+                    />
+                    <Stat
+                      label="Awaiting approval"
+                      value={String(agents.pendingApprovals.length)}
+                      tone={agents.pendingApprovals.length > 0 ? 'warn' : 'good'}
+                      icon={Lock}
+                    />
+                    <Stat
+                      label="Completed"
+                      value={String(agents.counts.completed ?? 0)}
+                      tone="good"
+                      icon={CheckCircle2}
+                    />
+                    <Stat
+                      label="Failed or stopped"
+                      value={String(agents.recentFailures.length)}
+                      tone={agents.recentFailures.length > 0 ? 'bad' : 'good'}
+                      icon={AlertTriangle}
+                    />
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    {agents.registeredAgents} registered agents · {agents.registeredTools}{' '}
+                    registered tools · scope {agents.scope}
+                  </p>
+                </Section>
+
+                <Section title="Active runs">
+                  <Table
+                    head={['Run', 'Agent', 'State', 'Step', 'Elapsed', 'Tokens', 'Cost']}
+                    rows={agents.active.map((run) => [
+                      run.runId,
+                      run.currentAgentId,
+                      run.state,
+                      `${run.currentStep}`,
+                      formatElapsed(run.elapsedRuntimeMs),
+                      String(run.totalTokens),
+                      formatAgentCost(run.costMicroUsd),
+                    ])}
+                    empty="No agent runs are in flight."
+                  />
+                </Section>
+
+                {agents.pendingApprovals.length > 0 && (
+                  <Section title="Approvals waiting">
+                    <ul className="space-y-3">
+                      {agents.pendingApprovals.map((approval) => (
+                        <li
+                          key={approval.approvalId}
+                          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+                        >
+                          <p className="font-medium text-amber-900">{approval.impactSummary}</p>
+                          <p className="mt-1 text-sm text-amber-800">{approval.reason}</p>
+                          <p className="mt-1 text-xs text-amber-700">
+                            {approval.requestingAgentId} · {approval.actionType} · run{' '}
+                            {approval.runId} · expires {relativeTime(approval.expiresAt)} ·{' '}
+                            {approval.dataAffected.join(', ') || 'no data listed'}
+                          </p>
+                          {hasAgentCapability(agents.capabilities, 'agent.approval.decide') && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                disabled={busy}
+                                onClick={() =>
+                                  void decideApproval(approval.runId, approval.approvalId, 'approve')
+                                }
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                disabled={busy}
+                                onClick={() =>
+                                  void decideApproval(approval.runId, approval.approvalId, 'reject')
+                                }
+                                className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </Section>
+                )}
+
+                <Section title="Recent failures and limits">
+                  <Table
+                    head={['Run', 'Agent', 'State', 'Reason', 'Steps', 'Cost']}
+                    rows={agents.recentFailures.map((run) => [
+                      run.runId,
+                      run.currentAgentId,
+                      run.state,
+                      run.failure ?? run.failureMessage ?? '—',
+                      String(run.stepCount),
+                      formatAgentCost(run.costMicroUsd),
+                    ])}
+                    empty="No agent run has failed or been stopped."
+                  />
+                </Section>
+
+                <Section title="Registered agents">
+                  <Table
+                    head={['Agent', 'Version', 'Status', 'Safety', 'Steps', 'Tools', 'Handoffs']}
+                    rows={agentRegistry.map((agent) => [
+                      agent.agentId,
+                      agent.version,
+                      agent.enabled ? agent.certification : 'disabled',
+                      agent.safetyClass,
+                      String(agent.limits.maxTotalSteps ?? 0),
+                      agent.allowedTools.join(', ') || '—',
+                      agent.allowedHandoffTargets.join(', ') || '—',
+                    ])}
+                    empty="No agents are registered. Business agents arrive in a later batch."
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Agents propose. The orchestrator decides. The AI Control Plane executes — every
+                    model step a run takes goes through the same governed path as every other AI
+                    feature.
+                  </p>
+                </Section>
+              </>
+            )}
           </div>
         )}
 

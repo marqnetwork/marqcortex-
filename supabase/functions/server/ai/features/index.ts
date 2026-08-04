@@ -13,6 +13,7 @@ import { chatFeature } from './chat.ts';
 import { blockAssistFeature } from './blockAssist.ts';
 import { copilotPlanFeature } from './copilotPlan.ts';
 import { sectionCopilotFeature } from './sectionCopilot.ts';
+import { agentStepCompactFeature, agentStepFeature } from './agentStep.ts';
 
 /** Feature ids, so callers reference a constant rather than a literal. */
 export const FEATURE = {
@@ -22,6 +23,14 @@ export const FEATURE = {
   blockAssist: 'cortex.block_assist',
   copilotPlan: 'cortex.copilot_plan',
   sectionCopilot: 'cortex.section_copilot',
+  /**
+   * The governed model step of an agent run (AI-01 Batch 3A). Reached only
+   * through the agent orchestrator's model profiles — there is no HTTP route
+   * that invokes it directly, because an agent step outside a run has no
+   * limits, no ledger and no audit trail of its own.
+   */
+  agentStep: 'cortex.agent_step',
+  agentStepCompact: 'cortex.agent_step_compact',
 } as const;
 
 export type CortexFeatureId = (typeof FEATURE)[keyof typeof FEATURE];
@@ -34,6 +43,8 @@ export function registerCortexFeatures(catalog: FeatureCatalog): void {
     blockAssistFeature,
     copilotPlanFeature,
     sectionCopilotFeature,
+    agentStepFeature,
+    agentStepCompactFeature,
   ] as unknown as AIFeatureDefinition<never, never>[];
 
   for (const definition of definitions) catalog.register(definition);
@@ -57,6 +68,12 @@ export {
   type CopilotPlanInput,
   type CopilotPlanOutput,
 } from './copilotPlan.ts';
+export {
+  agentStepFeature,
+  agentStepCompactFeature,
+  type AgentStepInput,
+  type AgentStepOutput,
+} from './agentStep.ts';
 export {
   sectionCopilotFeature,
   SECTION_KEYS,

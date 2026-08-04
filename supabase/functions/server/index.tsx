@@ -26,7 +26,15 @@ import {
   registerAIAdminRoutes,
   type AIAdminRouteRegistrar,
 } from "./aiAdminRoutes.ts";
-import { getAIAdministration, initializeControlPlane } from "./ai/index.ts";
+import {
+  registerAgentRuntimeRoutes,
+  type AgentRouteRegistrar,
+} from "./agentRuntimeRoutes.ts";
+import {
+  getAIAdministration,
+  getAgentRuntime,
+  initializeControlPlane,
+} from "./ai/index.ts";
 import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
@@ -367,6 +375,27 @@ const controlPlane = initializeControlPlane({
     if (error) throw new Error(error.message);
     return data === true;
   },
+  // Field-keyed compare-and-swap, backed by `kv_compare_and_swap_field`
+  // (migration 20260804120000). The agent runtime versions runs, approvals and
+  // checkpoints on their own fields rather than borrowing the settings
+  // record's `configurationVersion`, so each record type is versioned by
+  // something named after what it versions.
+  kvCompareAndSwapField: async (
+    key: string,
+    versionField: string,
+    expectedVersion: number,
+    value: unknown,
+  ) => {
+    const { data, error } = await supabaseAdmin.rpc('kv_compare_and_swap_field', {
+      p_key: key,
+      p_version_field: versionField,
+      p_expected_version: expectedVersion,
+      p_value: JSON.stringify(value),
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  },
+  kvReadByPrefix: async (prefix: string) => kv.getByPrefix(prefix),
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed
@@ -397,6 +426,26 @@ if (aiAdministration) {
   });
 } else {
   console.error('[ai] administration service unavailable — AI admin routes are not mounted');
+}
+
+// ============================================================================
+// AGENT RUNTIME — the governed agent execution foundation (AI-01 Batch 3A)
+//
+// Mounted only once the runtime exists. Like the administration surface it
+// resolves its caller through the same authenticator the AI Guard uses, and
+// every model step it takes goes back through the control plane — there is no
+// second execution path here. Absent it, the routes are simply not mounted: an
+// agent surface that fails open is worse than one that is missing.
+// ============================================================================
+
+const agentRuntime = getAgentRuntime();
+if (agentRuntime) {
+  registerAgentRuntimeRoutes(app as unknown as AgentRouteRegistrar, {
+    service: agentRuntime.service,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] agent runtime unavailable — agent routes are not mounted');
 }
 
 // ============================================================================

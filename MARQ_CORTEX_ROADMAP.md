@@ -70,7 +70,8 @@ Status Legend
 |---------|------|--------|
 | AI-01 Batch 1 | Secure AI Foundation — AI Control Plane | ✅ |
 | AI-01 Batch 2 | AI Administration & Operations | ✅ |
-| AI-01 Batch 3 | AI Orchestration & Agents | ⏳ |
+| AI-01 Batch 3A | Agent Runtime & Orchestrator Core | ✅ |
+| AI-01 Batch 3B | Agent Workflows & Business Agents | ⏳ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -106,6 +107,35 @@ The Batch 1 guarantees are untouched: budget enforcement, provider selection,
 governance and request authorization each keep exactly one implementation, and
 the administration layer cannot reach a provider adapter.
 
+AI-01 Batch 3A completed 2026-08-04.
+
+Delivered: the permanent agent runtime and orchestrator core
+(`supabase/functions/server/ai/agents/`). A versioned agent registry that
+validates capabilities, allowed tools, model profiles, handoff targets, input
+and output contracts, limits and approval policy at registration and fails
+closed on resolution. One explicit sixteen-state machine with a central
+transition table, immutable terminal states and optimistic concurrency. An
+orchestrator that is the sole authority over execution: it validates every
+proposal, enforces step, handoff, retry, repeated-action, cycle, no-progress,
+deadline, token and cost limits, and reaches a model only through
+`controlPlane.execute` via the registered `cortex.agent_step` feature. Durable
+runs, immutable versioned checkpoints and single-use human approval gates, all
+compare-and-swap persisted so a run survives an isolate restart. A tool
+registry and gateway with agent permission, actor permission, tenant scope,
+schema validation, timeouts and idempotency, backed by deterministic in-process
+tools. Token intelligence with pre-call preflight, post-call reconciliation and
+attribution; a cost policy that projects retry and repair risk and decides
+between execute, compress, downgrade, reduce, re-plan, ask a human or deny; a
+deterministic context builder that fences untrusted content and returns a
+manifest; and deterministic model-profile routing that never names a provider.
+Secure APIs for run creation, reads, control, approvals and registry, with
+tenant-scoped RBAC, plus a read-only Agents tab in the AI Administration
+console.
+
+Agents propose. The orchestrator decides. The AI Control Plane executes. No
+production business agents ship in this batch: the registry starts empty by
+design.
+
 ---
 
 # Current Sprint
@@ -136,6 +166,12 @@ API Contracts: Stable
 
 AI Execution Authority: AI Control Plane (`supabase/functions/server/ai/`) —
 sole path, no bypass flag
+
+AI Agent Authority: Agent Orchestrator (`supabase/functions/server/ai/agents/`)
+— the sole authority over agent execution. Agents propose actions and the
+orchestrator decides; every model step executes through the AI Control Plane.
+Runs, checkpoints and approvals are durable and versioned; the registry ships
+empty until business agents are certified.
 
 AI Operational Authority: AI Administration (`supabase/functions/server/ai/admin/`)
 — settings overlay persisted at `ai:admin:settings`, versioned by

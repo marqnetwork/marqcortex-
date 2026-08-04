@@ -66,7 +66,10 @@ describe('feature catalog', () => {
   registerCortexFeatures(catalog);
 
   it('registers every Cortex feature exactly once', () => {
-    assert.equal(catalog.size(), 6);
+    // Six product features plus the two agent-step registrations AI-01 Batch 3A
+    // added (`cortex.agent_step` and its compact sibling). The agent runtime
+    // executes through the catalog like everything else — that is the point.
+    assert.equal(catalog.size(), 8);
     assert.deepEqual(
       catalog.list().map((descriptor) => descriptor.featureId).sort(),
       Object.values(FEATURE).slice().sort(),

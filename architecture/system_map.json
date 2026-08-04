@@ -42,7 +42,7 @@
   },
   "ai_control_plane": {
     "status": "LIVE",
-    "batch": "AI-01 Batch 1 (control plane) + Batch 2 (administration)",
+    "batch": "AI-01 Batch 1 (control plane) + Batch 2 (administration) + Batch 3A (agent runtime)",
     "manifest_id": "MQC-SVC-010",
     "path": "supabase/functions/server/ai/",
     "entry": "ai/controlPlane.ts",
@@ -70,11 +70,13 @@
       "cortex.chat",
       "cortex.block_assist",
       "cortex.copilot_plan",
-      "cortex.section_copilot"
+      "cortex.section_copilot",
+      "cortex.agent_step",
+      "cortex.agent_step_compact"
     ],
     "feature_catalog": "ai/policy/featureCatalog.ts",
     "prompt_catalog": "ai/prompts/catalog.ts",
-    "prompt_count": 8,
+    "prompt_count": 9,
     "governance": {
       "input_guard": "ai/governance/inputGuard.ts",
       "output_guard": "ai/governance/outputGuard.ts",
@@ -151,6 +153,97 @@
         "GET  /make-server-324f4fbe/ai/admin/audit",
         "GET  /make-server-324f4fbe/ai/admin/audit/changes"
       ]
+    },
+    "agent_runtime": {
+      "status": "LIVE",
+      "batch": "AI-01 Batch 3A",
+      "manifest_id": "MQC-SVC-056",
+      "path": "supabase/functions/server/ai/agents/",
+      "entry": "ai/agents/agentRuntime.ts",
+      "routes": "supabase/functions/server/agentRuntimeRoutes.ts",
+      "principle": "Agents propose. The orchestrator decides. The AI Control Plane executes. The agent runtime is not a second AI execution path: every model step goes through controlPlane.execute via ai/agents/orchestrator/controlPlaneBridge.ts and the registered cortex.agent_step feature.",
+      "execution_sequence": [
+        "administrative state — the master switch and the emergency stop, re-read from durable settings before every step",
+        "deadline and counters — total steps, per-agent steps, retries, no-progress",
+        "agent proposal — the agent returns an intention and nothing else",
+        "seal — action type, contracts, capabilities, allow lists, payload size, idempotency",
+        "loop protection — action fingerprints, handoff edges, cycle detection",
+        "token preflight — refuses BEFORE the control plane is called",
+        "cost preflight — platform headroom, run ceilings, downgrade, compress, approval or deny",
+        "park — the waiting state is persisted before the action runs",
+        "execute — model via the control plane, tool via the gateway, handoff via the registry, approval via the gate",
+        "reconcile — measured tokens and cost, attribution, variance",
+        "checkpoint — immutable, versioned, resumable",
+        "persist — one compare-and-swap; a lost race is refused, never merged"
+      ],
+      "states": [
+        "created",
+        "validating",
+        "planned",
+        "waiting_for_budget",
+        "running",
+        "waiting_for_tool",
+        "waiting_for_agent",
+        "waiting_for_approval",
+        "paused",
+        "retrying",
+        "completed",
+        "failed",
+        "cancelled",
+        "expired",
+        "budget_exhausted",
+        "policy_denied"
+      ],
+      "terminal_states": [
+        "completed",
+        "failed",
+        "cancelled",
+        "expired",
+        "budget_exhausted",
+        "policy_denied"
+      ],
+      "action_types": [
+        "model_call",
+        "tool_call",
+        "handoff",
+        "request_approval",
+        "checkpoint",
+        "complete",
+        "fail",
+        "pause"
+      ],
+      "model_profiles": [
+        "profile.agent.standard",
+        "profile.agent.compact"
+      ],
+      "registered_agents": 0,
+      "registered_agents_note": "The production registry starts empty. Business agents are out of AI-01 Batch 3A scope; deterministic agents used by the tests and the verification script are registered by those callers.",
+      "storage": {
+        "runs": "org:{organizationId}:ai:agent_run:{runId}",
+        "checkpoints": "org:{organizationId}:ai:agent_checkpoint:{runId}:{version}",
+        "approvals": "org:{organizationId}:ai:agent_approval:{approvalId}",
+        "audit": "ai:agent:audit:{yyyy-mm-dd}:{agentAuditId}",
+        "concurrency": "kv_compare_and_swap_field (migration 20260804120000) — atomic compare-and-swap on each record’s own version field"
+      },
+      "routes_list": [
+        "POST /make-server-324f4fbe/ai/agents/runs",
+        "GET /make-server-324f4fbe/ai/agents/runs",
+        "GET /make-server-324f4fbe/ai/agents/runs/:runId",
+        "GET /make-server-324f4fbe/ai/agents/runs/:runId/steps",
+        "GET /make-server-324f4fbe/ai/agents/runs/:runId/usage",
+        "POST /make-server-324f4fbe/ai/agents/runs/:runId/pause",
+        "POST /make-server-324f4fbe/ai/agents/runs/:runId/resume",
+        "POST /make-server-324f4fbe/ai/agents/runs/:runId/cancel",
+        "POST /make-server-324f4fbe/ai/agents/runs/:runId/retry",
+        "POST /make-server-324f4fbe/ai/agents/runs/:runId/approvals/:approvalId",
+        "GET /make-server-324f4fbe/ai/agents/approvals",
+        "GET /make-server-324f4fbe/ai/agents/registry",
+        "GET /make-server-324f4fbe/ai/agents/tools",
+        "GET /make-server-324f4fbe/ai/agents/overview",
+        "GET /make-server-324f4fbe/ai/agents/audit"
+      ],
+      "test_command": "npm run test:ai",
+      "verification_command": "node --experimental-strip-types scripts/agent-runtime-verify.ts"
     }
   },
   "top_level_directories": {
@@ -410,7 +503,7 @@
   "manifest": {
     "file": "src/system/manifest.ts",
     "version": "2.2.0",
-    "node_count": 208,
+    "node_count": 229,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"
