@@ -19,13 +19,20 @@ import type { KvSpendReader } from './adapters/kvSpendStore.ts';
 import type { AuditStore } from './observability/audit.ts';
 import type { SpendStore } from './policy/spendLedger.ts';
 import type { EnvSource } from './runtime/env.ts';
+import type { AIAdministration } from './admin/administration.ts';
+import type { AdminAuditStore } from './admin/adminAudit.ts';
 import { createControlPlane } from './controlPlane.ts';
 import { loadControlPlaneConfig } from './runtime/config.ts';
 import { readBool, runtimeEnv } from './runtime/env.ts';
 import { systemClock } from './runtime/clock.ts';
+import { systemIdFactory } from './contracts/ids.ts';
 import { createSupabaseAuthenticator, denyAllAuthenticator } from './adapters/supabaseAuthenticator.ts';
 import { createKvAuditStore } from './adapters/kvAuditStore.ts';
 import { createKvSpendStore } from './adapters/kvSpendStore.ts';
+import type { KvAdminConditionalWriter } from './adapters/kvAdminStores.ts';
+import { createKvAdminAuditStore, createKvAdminSettingsStore } from './adapters/kvAdminStores.ts';
+import { createAIAdministration } from './admin/administration.ts';
+import { createMemorySettingsStore } from './admin/settingsStore.ts';
 import { createOpenAIProvider } from './providers/openaiProvider.ts';
 import { createAnthropicProvider } from './providers/anthropicProvider.ts';
 import { createMockProvider } from './providers/mockProvider.ts';
@@ -39,11 +46,21 @@ export interface BootstrapDependencies {
   readonly kvWrite?: KvWriter;
   /** Durable key-value read. Required for the spend ledger to be durable. */
   readonly kvRead?: KvSpendReader;
+  /**
+   * Atomic conditional write, required for durable AI settings.
+   *
+   * Without it the settings store falls back to isolate-local memory rather
+   * than to a weaker durable write: a settings record two isolates can both
+   * claim the same version for is worse than one that plainly does not survive
+   * a restart, because the first failure is silent.
+   */
+  readonly kvCompareAndSwap?: KvAdminConditionalWriter;
   /** Override the environment source. Production reads the runtime. */
   readonly env?: EnvSource;
 }
 
 let plane: AIControlPlane | undefined;
+let administration: AIAdministration | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -122,7 +139,84 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   }
 
-  plane = createControlPlane({ config, authenticator, providers, auditStores, spendStore });
+  // The settings store has to exist before the plane, because the plane
+  // re-reads settings THROUGH it: that read is what carries an administrator's
+  // change to an isolate that did not serve the console request.
+  const settingsStore =
+    deps.kvRead && deps.kvWrite && deps.kvCompareAndSwap
+      ? createKvAdminSettingsStore({
+          read: deps.kvRead,
+          write: deps.kvWrite,
+          compareAndSwap: deps.kvCompareAndSwap,
+          config,
+          now: () => systemClock.isoNow(),
+          onCorrupt: (detail) => console.error(`[ai] admin settings unreadable: ${detail}`),
+        })
+      : createMemorySettingsStore();
+  if (!deps.kvRead || !deps.kvWrite || !deps.kvCompareAndSwap) {
+    console.error(
+      '[ai] no durable key-value port with conditional writes was injected — AI administration ' +
+        'settings are isolate-local, will not survive a restart, and will not reach another isolate.',
+    );
+  }
+
+  plane = createControlPlane({
+    config,
+    authenticator,
+    providers,
+    auditStores,
+    spendStore,
+    settingsSource: settingsStore,
+  });
+
+  // ── Administration (AI-01 Batch 2) ────────────────────────────────────────
+  //
+  // Assembled from the SAME authenticator the guard uses. A second credential
+  // path for the administration surface would be a second thing to get wrong,
+  // and the one that governs the platform is the wrong place to have one.
+  //
+  // Without a key-value port the settings store is isolate-local: settings
+  // still apply, they simply do not survive a restart. That is reported rather
+  // than silently accepted, because "the kill switch we engaged is off again"
+  // is not a discovery to make during an incident.
+  const adminAuditStores: AdminAuditStore[] = [];
+  if (config.audit.durable && deps.kvWrite) {
+    adminAuditStores.push(
+      createKvAdminAuditStore({
+        write: deps.kvWrite,
+        retentionDays: config.audit.retentionDays,
+        onError: (error) =>
+          console.error(
+            '[ai] durable admin audit write failed:',
+            error instanceof Error ? error.message : String(error),
+          ),
+      }),
+    );
+  }
+
+  administration = createAIAdministration({
+    plane,
+    authenticator,
+    settingsStore,
+    adminAuditStores,
+    clock: systemClock,
+    ids: systemIdFactory,
+    logger: plane.logger,
+    auditBufferSize: config.audit.bufferSize,
+  });
+
+  // Hydration is asynchronous and bootstrap is not. Stored settings therefore
+  // arrive shortly AFTER the first request may be served, and the window is
+  // safe by construction: until they land the plane runs on the deployment
+  // baseline, which cannot spend money the environment did not authorise. A
+  // failure here leaves the baseline in place and is loud.
+  administration.hydrate().catch((error: unknown) => {
+    console.error(
+      '[ai] AI administration settings hydration failed:',
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+
   return plane;
 }
 
@@ -131,7 +225,13 @@ export function getControlPlane(): AIControlPlane | undefined {
   return plane;
 }
 
+/** The initialised administration service, or `undefined` before bootstrap. */
+export function getAIAdministration(): AIAdministration | undefined {
+  return administration;
+}
+
 /** Drop the memoised plane. Test and local-tooling use only. */
 export function resetControlPlaneForTests(): void {
   plane = undefined;
+  administration = undefined;
 }

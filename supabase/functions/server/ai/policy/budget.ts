@@ -107,9 +107,13 @@ export function createInMemoryBudgetLedger(clock: Clock): BudgetLedger {
 
 export function createBudgetEngine(
   ledger: BudgetLedger,
-  options: { alertThresholdPercent: number; enforce: boolean },
+  options: { readonly alertThresholdPercent: number; readonly enforce: boolean },
 ): BudgetEngine {
-  const thresholdRatio = Math.min(100, Math.max(1, options.alertThresholdPercent)) / 100;
+  // Read per call, not cached at construction. AI-01 Batch 2 lets an
+  // administrator move the alert threshold and the enforce flag at runtime, and
+  // the control plane supplies `options` as live getters; a ratio computed once
+  // here would pin the threshold to whatever it was when the isolate started.
+  const thresholdRatio = () => Math.min(100, Math.max(1, options.alertThresholdPercent)) / 100;
 
   function stateFor(scope: string, windowMs: number, limitMicroUsd: number): AIBudgetState {
     const base = ledger.read(scope, windowMs);
@@ -130,8 +134,9 @@ export function createBudgetEngine(
         return { allowed: false, scope: overspent.scope, state: overspent, thresholdReached: true };
       }
 
+      const ratio = thresholdRatio();
       const nearing = [org, actor].some(
-        (state) => state.limitMicroUsd > 0 && state.spentMicroUsd >= state.limitMicroUsd * thresholdRatio,
+        (state) => state.limitMicroUsd > 0 && state.spentMicroUsd >= state.limitMicroUsd * ratio,
       );
       return { allowed: true, thresholdReached: nearing };
     },

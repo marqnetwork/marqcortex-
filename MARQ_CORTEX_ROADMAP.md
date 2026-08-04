@@ -69,7 +69,8 @@ Status Legend
 | Sprint | Name | Status |
 |---------|------|--------|
 | AI-01 Batch 1 | Secure AI Foundation — AI Control Plane | ✅ |
-| AI-01 Batch 2 | AI Orchestration & Agents | ⏳ |
+| AI-01 Batch 2 | AI Administration & Operations | ✅ |
+| AI-01 Batch 3 | AI Orchestration & Agents | ⏳ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -84,6 +85,26 @@ PII redaction, capability enforcement, budget engine, durable audit, structured
 logging, metrics, health monitoring and an event bus. Providers: OpenAI,
 Anthropic and a deterministic mock. The Intelligence Gateway, the five legacy
 direct-OpenAI paths and the per-feature gateway bypass flags were removed.
+
+AI-01 Batch 2 completed 2026-08-03. Report:
+`architecture/ai/AI-01-BATCH-2-COMPLETION.md`
+
+Delivered: the enterprise operational layer over the Batch 1 control plane. A
+versioned, persisted operational settings overlay (AI master switch, emergency
+kill switch, real-provider switch, default provider, provider priority, model
+allow list and default model, retry policy, timeout policy, daily budget
+ceilings) that the control plane reads live at the point of use. Server-side
+RBAC across Super Admin, Organization Admin and Team Admin, enforced as
+capabilities rather than role comparisons. Provider and model management,
+budget administration with an authorised reset and a distinct authorised
+increase that preserves settled spend, usage and cost analytics, runtime
+diagnostics, and an append-only administrative change trail. Every mutation
+requires an authorised administrator, a reason and an audit record; rejections
+are recorded too. Operator console at the AI Administration settings tab.
+
+The Batch 1 guarantees are untouched: budget enforcement, provider selection,
+governance and request authorization each keep exactly one implementation, and
+the administration layer cannot reach a provider adapter.
 
 ---
 
@@ -115,6 +136,11 @@ API Contracts: Stable
 
 AI Execution Authority: AI Control Plane (`supabase/functions/server/ai/`) —
 sole path, no bypass flag
+
+AI Operational Authority: AI Administration (`supabase/functions/server/ai/admin/`)
+— settings overlay persisted at `ai:admin:settings`, versioned by
+`configurationVersion`. The environment states what is permitted; the overlay
+states what is in effect and can only narrow within that permission.
 
 ---
 

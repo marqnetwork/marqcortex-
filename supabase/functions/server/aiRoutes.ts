@@ -129,7 +129,11 @@ export function registerAIRoutes(app: AIRouteRegistrar, deps: AIRouteDependencie
    * and the snapshot carries no tenant data — only provider states, feature
    * counts and prompt fingerprints.
    */
-  app.get(`${prefix}/ai/health`, (c) => {
+  app.get(`${prefix}/ai/health`, async (c) => {
+    // Same freshness the execution path gets. A health probe answered from an
+    // isolate that has not served traffic since an administrator stopped AI
+    // would report the platform healthy while every request is being refused.
+    await plane.refreshSettings();
     const health = plane.health();
     const status = health.status === 'unhealthy' ? 503 : 200;
     return c.json({ success: health.status !== 'unhealthy', ...health }, status);

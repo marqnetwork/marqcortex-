@@ -220,6 +220,107 @@ describe('spend cap reset', () => {
   });
 });
 
+/**
+ * Raising the ceiling is the other half of budget management (AI-01 Batch 2),
+ * and it is deliberately NOT the same operation as a reset. "We authorised more
+ * money" and "we wiped the record of what was spent" are different decisions
+ * with different blast radii; a platform that offers only the second forces an
+ * operator who wanted the first to destroy the evidence to get it.
+ */
+describe('spend cap increase', () => {
+  it('refuses an increase with no authorizing actor or reason', async () => {
+    const { ledger } = ledgerWith(NINE_DOLLARS);
+    await assert.rejects(() =>
+      ledger.raiseCap(SPEND_SCOPE.platform, {
+        authorizedBy: '',
+        reason: 'x',
+        newCapMicroUsd: usdToMicroUsd(25),
+      }),
+    );
+    await assert.rejects(() =>
+      ledger.raiseCap(SPEND_SCOPE.platform, {
+        authorizedBy: 'ops',
+        reason: '   ',
+        newCapMicroUsd: usdToMicroUsd(25),
+      }),
+    );
+  });
+
+  it('raises the ceiling while preserving settled spend', async () => {
+    const { ledger } = ledgerWith(NINE_DOLLARS);
+    const decision = await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(4), 'r1');
+    assert.equal(decision.granted, true);
+    if (!decision.granted) return;
+    await ledger.settle(decision.reservation, usdToMicroUsd(4));
+
+    const after = await ledger.raiseCap(SPEND_SCOPE.platform, {
+      authorizedBy: 'user-owner-1',
+      reason: 'approved uplift for the Q3 pilot',
+      newCapMicroUsd: usdToMicroUsd(25),
+    });
+
+    assert.equal(after.capMicroUsd, usdToMicroUsd(25));
+    // Raising a ceiling is not forgiving the spend under it.
+    assert.equal(after.spentMicroUsd, usdToMicroUsd(4));
+    assert.equal(remainingMicroUsd(after), usdToMicroUsd(21));
+    assert.equal(after.resets.at(-1)?.kind, 'cap_raise');
+    assert.equal(after.resets.at(-1)?.clearedMicroUsd, 0);
+    assert.equal(after.resets.at(-1)?.previousCapMicroUsd, NINE_DOLLARS);
+  });
+
+  it('leaves open reservations untouched', async () => {
+    const { ledger } = ledgerWith(NINE_DOLLARS);
+    const decision = await ledger.reserve(SPEND_SCOPE.platform, usdToMicroUsd(2), 'in-flight');
+    assert.equal(decision.granted, true);
+
+    const after = await ledger.raiseCap(SPEND_SCOPE.platform, {
+      authorizedBy: 'user-owner-1',
+      reason: 'headroom for the migration sprint',
+      newCapMicroUsd: usdToMicroUsd(30),
+    });
+
+    // A request that was in flight when the ceiling moved must still be able to
+    // settle its own hold — a reset would have discarded it.
+    assert.equal(after.openReservations.length, 1);
+    assert.equal(after.openReservations[0].reservationId, 'in-flight');
+    if (!decision.granted) return;
+    const settled = await ledger.settle(decision.reservation, usdToMicroUsd(1));
+    assert.equal(settled.spentMicroUsd, usdToMicroUsd(1));
+    assert.equal(settled.reservedMicroUsd, 0);
+  });
+
+  it('refuses to lower the ceiling', async () => {
+    const { ledger } = ledgerWith(NINE_DOLLARS);
+    // Lowering is a deployment change to AI_MAX_SPEND_USD, which the ledger
+    // already honours on the next load. Allowing it here would let an
+    // "increase" call quietly disable AI.
+    await assert.rejects(() =>
+      ledger.raiseCap(SPEND_SCOPE.platform, {
+        authorizedBy: 'user-owner-1',
+        reason: 'trying to lower the cap',
+        newCapMicroUsd: usdToMicroUsd(1),
+      }),
+    );
+    const record = await ledger.read(SPEND_SCOPE.platform);
+    assert.equal(record.capMicroUsd, NINE_DOLLARS);
+  });
+
+  it('survives a restart, so a raised ceiling is not re-stamped away', async () => {
+    const store = createMemorySpendStore();
+    const first = createSpendLedger({ store, capMicroUsd: NINE_DOLLARS, now });
+    await first.raiseCap(SPEND_SCOPE.platform, {
+      authorizedBy: 'user-owner-1',
+      reason: 'approved uplift',
+      newCapMicroUsd: usdToMicroUsd(25),
+    });
+
+    // A fresh isolate configured with the ORIGINAL environment cap. The raise
+    // was an authorised change and must outlive the isolate that made it.
+    const second = createSpendLedger({ store, capMicroUsd: NINE_DOLLARS, now });
+    assert.equal((await second.read(SPEND_SCOPE.platform)).capMicroUsd, usdToMicroUsd(25));
+  });
+});
+
 describe('durable spend store', () => {
   function kvBacked() {
     const rows = new Map<string, unknown>();

@@ -87,7 +87,12 @@ const FREE_HANDLE: SpendReservationHandle = {
 };
 
 export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
-  const { ledger, registry, realRequestsEnabled, enforce } = options;
+  const { ledger, registry } = options;
+  // `realRequestsEnabled` and `enforce` are read through `options` on every
+  // call rather than destructured once. The control plane supplies them as live
+  // getters over the administrative overlay (AI-01 Batch 2), and a value copied
+  // at construction would make the kill switch wait for an isolate to recycle.
+  const enforce = () => options.enforce;
 
   /**
    * Could a billable provider serve this request at all? Credentials and the
@@ -96,7 +101,7 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
    * paid provider.
    */
   function billableCandidateExists(descriptor: AIFeatureDescriptor): boolean {
-    if (!realRequestsEnabled) return false;
+    if (!options.realRequestsEnabled) return false;
     return registry.list().some(
       (provider) =>
         provider.descriptor.billable &&
@@ -147,7 +152,7 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
       });
 
       if (isSpendDenied(decision)) {
-        if (!enforce) return FREE_HANDLE;
+        if (!enforce()) return FREE_HANDLE;
         const remaining = remainingMicroUsd(decision.record);
         throw new AIError(
           'BUDGET_EXCEEDED',

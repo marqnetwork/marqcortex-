@@ -23,6 +23,8 @@ export type AIErrorCode =
   | 'CAPABILITY_DENIED'
   // ── Request validation ────────────────────────────────────────────────────
   | 'VALIDATION_FAILED'
+  /** Optimistic-concurrency failure: the caller's expected version is stale. */
+  | 'CONFLICT'
   | 'PAYLOAD_TOO_LARGE'
   | 'CONTRACT_VERSION_UNSUPPORTED'
   // ── Quota and policy ──────────────────────────────────────────────────────
@@ -31,6 +33,14 @@ export type AIErrorCode =
   | 'POLICY_DENIED'
   | 'FEATURE_NOT_FOUND'
   | 'FEATURE_DISABLED'
+  /**
+   * AI is administratively off, platform-wide — the master switch or the
+   * emergency kill switch. Distinct from FEATURE_DISABLED on purpose: a console
+   * that cannot tell "this capability is turned off" from "an administrator
+   * stopped all AI" will tell a user to try a different feature during an
+   * incident.
+   */
+  | 'AI_DISABLED'
   // ── Governance ────────────────────────────────────────────────────────────
   | 'INPUT_GUARD_BLOCKED'
   | 'OUTPUT_GUARD_BLOCKED'
@@ -69,6 +79,9 @@ const TRAITS: Record<AIErrorCode, ErrorTrait> = {
   CAPABILITY_DENIED: { status: 403, retryable: false, failoverable: false },
 
   VALIDATION_FAILED: { status: 400, retryable: false, failoverable: false },
+  // Retryable: the caller should re-read, re-apply and try again, which is what
+  // the administration service does automatically before surfacing this.
+  CONFLICT: { status: 409, retryable: true, failoverable: false },
   PAYLOAD_TOO_LARGE: { status: 413, retryable: false, failoverable: false },
   CONTRACT_VERSION_UNSUPPORTED: { status: 400, retryable: false, failoverable: false },
 
@@ -77,6 +90,10 @@ const TRAITS: Record<AIErrorCode, ErrorTrait> = {
   POLICY_DENIED: { status: 403, retryable: false, failoverable: false },
   FEATURE_NOT_FOUND: { status: 404, retryable: false, failoverable: false },
   FEATURE_DISABLED: { status: 503, retryable: false, failoverable: false },
+  // Retryable: an administrator turning AI back on makes the identical request
+  // succeed, which is exactly what the flag means. Never failoverable — no
+  // provider can serve a request the platform has refused to make.
+  AI_DISABLED: { status: 503, retryable: true, failoverable: false },
 
   INPUT_GUARD_BLOCKED: { status: 422, retryable: false, failoverable: false },
   OUTPUT_GUARD_BLOCKED: { status: 422, retryable: true, failoverable: true },

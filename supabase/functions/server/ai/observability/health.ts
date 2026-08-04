@@ -28,6 +28,14 @@ export interface ControlPlaneHealth {
   readonly status: PlaneStatus;
   readonly platformVersion: string;
   readonly contractVersion: string;
+  /**
+   * The administrative configuration in force. An operator correlating an
+   * incident with a change needs this on the same snapshot as the symptom.
+   */
+  readonly configurationVersion: number;
+  /** False when an administrator has stopped AI, by switch or emergency stop. */
+  readonly aiEnabled: boolean;
+  readonly emergencyStopEngaged: boolean;
   readonly checkedAt: string;
   readonly providers: readonly AIProviderHealth[];
   /** Per-provider eligibility for a representative request. */
@@ -52,6 +60,12 @@ export interface HealthDependencies {
   readonly clock: Clock;
   readonly platformVersion: string;
   readonly contractVersion: string;
+  /** The administrative posture (AI-01 Batch 2). Defaults to "AI permitted". */
+  readonly administrative?: {
+    readonly configurationVersion: number;
+    readonly aiEnabled: boolean;
+    readonly emergencyStopEngaged: boolean;
+  };
 }
 
 export function buildHealthSnapshot(deps: HealthDependencies): ControlPlaneHealth {
@@ -80,8 +94,26 @@ export function buildHealthSnapshot(deps: HealthDependencies): ControlPlaneHealt
     (providerId) => deps.registry.find(providerId)?.descriptor.productionReady === true,
   );
 
+  const administrative = deps.administrative ?? {
+    configurationVersion: 1,
+    aiEnabled: true,
+    emergencyStopEngaged: false,
+  };
+
   let status: PlaneStatus;
-  if (eligible.length === 0) {
+  if (!administrative.aiEnabled) {
+    // An administrator stopping AI is not a fault, but this endpoint answers
+    // "can this platform serve AI requests right now" — and it cannot. Reporting
+    // healthy while every request is refused would make the endpoint useless
+    // during exactly the incident it exists for. The issue text distinguishes
+    // the deliberate stop from a failure, so an operator is not sent hunting.
+    status = 'unhealthy';
+    issues.push(
+      administrative.emergencyStopEngaged
+        ? 'AI is stopped: the emergency kill switch is engaged'
+        : 'AI is disabled by administrative setting',
+    );
+  } else if (eligible.length === 0) {
     status = 'unhealthy';
     issues.push('no provider is eligible to serve AI requests');
   } else if (productionEligible.length === 0) {
@@ -103,6 +135,9 @@ export function buildHealthSnapshot(deps: HealthDependencies): ControlPlaneHealt
     status,
     platformVersion: deps.platformVersion,
     contractVersion: deps.contractVersion,
+    configurationVersion: administrative.configurationVersion,
+    aiEnabled: administrative.aiEnabled,
+    emergencyStopEngaged: administrative.emergencyStopEngaged,
     checkedAt: deps.clock.isoNow(),
     providers,
     selection,

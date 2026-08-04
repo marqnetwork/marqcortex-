@@ -144,6 +144,61 @@ describe('AI provider boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 2 added an administration layer. It is the one part of the
+ * platform whose entire job is to change how AI behaves, which makes it the
+ * most attractive place to accidentally build a second execution path — a
+ * "test this provider" button that calls an adapter directly, an audit store
+ * that grew a delete method, a route that checks a role itself.
+ *
+ * These assertions are structural for the same reason the ones above are: a
+ * behavioural test cannot prove the ABSENCE of a bypass, only the presence of
+ * the path it exercises.
+ */
+describe('AI administration boundary', () => {
+  const ADMIN_DIR = join(SERVER_ROOT, 'ai', 'admin') + sep;
+  const adminSources = serverSources.filter(
+    (file) => file.path.startsWith(ADMIN_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty administration tree', () => {
+    assert.ok(adminSources.length >= 5, `expected the admin tree, found ${adminSources.length}`);
+  });
+
+  it('never reaches a provider adapter', () => {
+    // The administration layer CONFIGURES providers. It must never invoke one:
+    // a console that can make a model call has stepped outside the guard, the
+    // policy engine, the spend ceiling and the audit trail in one move.
+    const PROVIDER_IMPORT = /from\s+['"]\.\.\/providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(adminSources, PROVIDER_IMPORT), []);
+    assert.deepEqual(offenders(adminSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('does not re-implement a Batch 1 guarantee', () => {
+    // Budget enforcement, provider selection and request authorization each
+    // have exactly one implementation. A second one in the admin layer would
+    // not weaken the first — it would replace it for whatever flows through it.
+    const DUPLICATED = /createSpendLedger|createProviderSelector|createAIGuard|createPolicyEngine/;
+    assert.deepEqual(offenders(adminSources, DUPLICATED), []);
+  });
+
+  it('exposes no mutation of an audit record', () => {
+    // Append and read. A trail an administrator can edit is a trail that proves
+    // nothing about administrators, so the absence is asserted on the source.
+    const MUTATION = /\b(deleteAudit|removeAudit|updateAudit|clearAudit|purgeAudit)\b/;
+    assert.deepEqual(offenders(adminSources, MUTATION), []);
+  });
+
+  it('routes administration through its HTTP adapter, not its own role checks', () => {
+    const routeFile = serverSources.find((file) => file.path.endsWith('aiAdminRoutes.ts'));
+    assert.ok(routeFile, 'aiAdminRoutes.ts must exist');
+    // A route file that compares roles is a route file that can forget to.
+    assert.equal(/super_admin|organization_admin|team_admin/.test(routeFile.text), false);
+    assert.equal(/requireCapability|resolveAdminActor/.test(routeFile.text), false);
+    assert.ok(routeFile.text.includes('executeAdminHttpRequest'));
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 

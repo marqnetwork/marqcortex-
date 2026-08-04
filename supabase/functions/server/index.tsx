@@ -22,7 +22,11 @@ import {
   runCortexAnalysis,
   type AIRouteRegistrar,
 } from "./aiRoutes.ts";
-import { initializeControlPlane } from "./ai/index.ts";
+import {
+  registerAIAdminRoutes,
+  type AIAdminRouteRegistrar,
+} from "./aiAdminRoutes.ts";
+import { getAIAdministration, initializeControlPlane } from "./ai/index.ts";
 import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
@@ -349,6 +353,20 @@ const controlPlane = initializeControlPlane({
     await kv.set(key, JSON.stringify(value));
   },
   kvRead: async (key: string) => kv.get(key),
+  // Atomic conditional write, backed by the `kv_compare_and_swap` SQL function
+  // (migration 20260803120000). The comparison and the write are one statement,
+  // so two isolates writing the same expected version cannot both succeed —
+  // which is what stops one administrator's kill switch being lost to another's
+  // unrelated edit. A false result is a lost race, not a failure.
+  kvCompareAndSwap: async (key: string, expectedVersion: number, value: unknown) => {
+    const { data, error } = await supabaseAdmin.rpc('kv_compare_and_swap', {
+      p_key: key,
+      p_expected_version: expectedVersion,
+      p_value: JSON.stringify(value),
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  },
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed
@@ -360,6 +378,26 @@ registerAIRoutes(app as unknown as AIRouteRegistrar, {
   verifyTeamToken,
   prefix: '/make-server-324f4fbe',
 });
+
+// ============================================================================
+// AI ADMINISTRATION — the operational layer over the control plane (Batch 2)
+//
+// Registered only once the administration service exists. It is built inside
+// `initializeControlPlane` from the same authenticator the AI Guard uses, so
+// the console's roles are the roles the identity provider reports rather than
+// anything a caller can assert. Absent it, the routes are simply not mounted:
+// an administration surface that fails open is worse than one that is missing.
+// ============================================================================
+
+const aiAdministration = getAIAdministration();
+if (aiAdministration) {
+  registerAIAdminRoutes(app as unknown as AIAdminRouteRegistrar, {
+    administration: aiAdministration,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] administration service unavailable — AI admin routes are not mounted');
+}
 
 // ============================================================================
 // HELPER — safe JSON parse (handles JSONB that might be string or object)

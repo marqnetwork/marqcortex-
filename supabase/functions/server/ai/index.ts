@@ -31,6 +31,7 @@ export { createControlPlane, type AIControlPlane, type ControlPlaneOptions } fro
 export {
   initializeControlPlane,
   getControlPlane,
+  getAIAdministration,
   resetControlPlaneForTests,
   type BootstrapDependencies,
 } from './bootstrap.ts';
@@ -82,6 +83,67 @@ export {
   type CopilotPlanOutput,
   type SectionCopilotOutput,
 } from './features/index.ts';
+
+// ── Administration (AI-01 Batch 2) ──────────────────────────────────────────
+//
+// The operational layer over the plane: RBAC, settings, provider and budget
+// management, usage analytics, diagnostics and the administrative change trail.
+// It administers the plane through the plane's own surfaces — it is not a
+// second way to execute AI, and nothing here can reach a provider.
+export {
+  createAIAdministration,
+  MAX_ADMIN_SPEND_CAP_MICRO_USD,
+  type AIAdministration,
+  type AdminBudgetView,
+  type AdminDiagnostics,
+  type AdminOverview,
+  type AdminProviderView,
+  type AdminRequestMeta,
+  type AdministrationDependencies,
+} from './admin/administration.ts';
+export {
+  ADMIN_ROLE_CAPABILITIES,
+  resolveAdminActor,
+  resolveAdminRole,
+  hasCapability,
+  type AIAdminActor,
+  type AIAdminCapability,
+  type AIAdminRole,
+} from './admin/rbac.ts';
+export {
+  ADMIN_OPERATION,
+  executeAdminHttpRequest,
+  type AdminHttpRequest,
+  type AdminHttpResponse,
+  type AdminOperation,
+} from './admin/httpAdapter.ts';
+export {
+  ADMIN_ACTION,
+  type AdminAction,
+  type AdminAuditRecord,
+  type AdminAuditStore,
+} from './admin/adminAudit.ts';
+export {
+  createMemorySettingsStore,
+  parseStoredSettings,
+  type AdminSettingsStore,
+} from './admin/settingsStore.ts';
+export { buildUsageReport, type UsageReport } from './admin/usage.ts';
+export {
+  baselineSettings,
+  effectivePreference,
+  effectiveRealRequestsEnabled,
+  normalizeOperationalSettings,
+  SETTINGS_BOUNDS,
+  type AIOperationalSettings,
+  type AIOperationalSettingsPatch,
+} from './runtime/operationalSettings.ts';
+export {
+  ADMIN_SETTINGS_KEY,
+  adminAuditKeyFor,
+  createKvAdminAuditStore,
+  createKvAdminSettingsStore,
+} from './adapters/kvAdminStores.ts';
 
 // ── Governance primitives, reusable by future AI capabilities ───────────────
 export { enforceFactLock } from './governance/factLock.ts';
