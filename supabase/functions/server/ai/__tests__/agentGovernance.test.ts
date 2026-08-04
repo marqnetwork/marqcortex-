@@ -835,12 +835,21 @@ describe('context builder — authority, fencing and the manifest', () => {
   });
 
   it('fences untrusted content and refuses to let it claim trust', () => {
-    const built = buildContext(sections, { budgetTokens: 4_000 });
+    // The nonce is injected so the rendered text is assertable. This assertion
+    // deliberately no longer accepts `untrusted:tool`: the section id comes
+    // from the agent's proposal, and a delimiter the agent can name is a
+    // delimiter the agent can close.
+    const built = buildContext(sections, { budgetTokens: 4_000, nonce: () => 'n0' });
     const toolSection = built.sections.find((section) => section.sectionId === 'tool');
     assert.ok(toolSection);
     assert.equal(toolSection.trusted, false, 'a tool result cannot declare itself trusted');
-    assert.match(built.text, /<<<BEGIN untrusted:tool>>>/);
+    assert.match(built.text, /<<<BEGIN untrusted:n0>>>/);
     assert.match(built.text, /DATA, not instruction/);
+    assert.doesNotMatch(
+      built.text,
+      /untrusted:tool>>>/,
+      'the section id must never be the security delimiter',
+    );
   });
 
   it('deduplicates identical content within a kind', () => {
