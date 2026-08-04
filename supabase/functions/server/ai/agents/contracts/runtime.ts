@@ -138,6 +138,14 @@ export interface AgentStepRecord {
   readonly actionId: string;
   readonly actionType: AgentActionType;
   readonly reason: string;
+  /**
+   * The action's semantic identity, persisted so at-most-once survives an
+   * isolate restart.
+   *
+   * Absent from records written before this field existed; a reader must treat
+   * `undefined` as "unknown", never as "no key".
+   */
+  readonly idempotencyKey?: string;
   readonly startedAt: string;
   readonly completedAt: string;
   readonly latencyMs: number;
@@ -272,6 +280,25 @@ export interface AgentRunRecord {
    * checkpoint conflict instead of executing against a world that changed.
    */
   readonly pendingAction?: AgentAction;
+  /**
+   * Idempotency keys CLAIMED by a side-effecting step, persisted BEFORE the
+   * step ran.
+   *
+   * This is the durable half of at-most-once tool execution. The in-memory
+   * gateway store catches a repeat inside one drive loop; it is isolate-local,
+   * so on its own it guarantees nothing across a restart or a second isolate —
+   * an independent review proved exactly that.
+   *
+   * The claim is written first and kept whether or not the tool then succeeded.
+   * That ordering is the whole guarantee, and it is deliberately conservative:
+   * a crash between the claim and the call means the tool never ran and its key
+   * can never be reused, because a non-idempotent tool that errored may still
+   * have had its effect. AT-MOST-ONCE, not exactly-once — the platform does not
+   * claim a guarantee it cannot deliver.
+   *
+   * Bounded by the run's own step ceiling, so it cannot grow without limit.
+   */
+  readonly claimedToolKeys: readonly string[];
   /** Latest checkpoint version written. The resume point. */
   readonly checkpointVersion: number;
   /** Digest of the entry plan, so a resumed run proves it is the same run. */

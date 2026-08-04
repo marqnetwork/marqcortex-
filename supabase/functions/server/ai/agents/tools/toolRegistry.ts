@@ -129,12 +129,23 @@ export interface ToolIdempotencyStore {
 /**
  * In-memory idempotency, bounded per run and globally.
  *
- * Correct for a single isolate and for tests. Durable idempotency across
- * isolates is provided by the run record itself: the orchestrator persists each
- * executed action with its idempotency key before the next step, so a resumed
- * run does not re-propose an action it has already taken. This store exists to
- * catch a repeat WITHIN one drive loop, where the run record has not yet been
- * re-read.
+ * ISOLATE-LOCAL, AND THAT IS ALL IT IS. This store catches a repeat inside one
+ * drive loop, where the run record has not yet been re-read. It survives
+ * nothing: not a restart, not a second isolate, not a redeploy.
+ *
+ * An earlier revision of this comment claimed the run record made idempotency
+ * durable "because the orchestrator persists each executed action with its
+ * idempotency key". That was false when it was written — the step record had no
+ * such field — and an independent review demonstrated the same non-idempotent
+ * call executing twice across an isolate boundary. The comment is corrected
+ * here and the guarantee is now implemented where it belongs.
+ *
+ * The durable half lives in `orchestrator/agentOrchestrator.ts`: before a
+ * non-idempotent tool runs, the orchestrator CLAIMS its key in the run record
+ * under compare-and-swap, and refuses any later call carrying a claimed key.
+ * That yields AT-MOST-ONCE — never exactly-once. A crash between the claim and
+ * the call means the tool never ran and its key is spent, which is the
+ * conservative direction for a side effect that cannot be inspected.
  */
 export function createMemoryToolIdempotencyStore(
   options: { maxRuns?: number; maxKeysPerRun?: number } = {},

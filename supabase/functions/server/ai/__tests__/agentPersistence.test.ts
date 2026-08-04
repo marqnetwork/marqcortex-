@@ -79,6 +79,7 @@ function makeRun(overrides: Partial<AgentRunRecord> = {}): AgentRunRecord {
     tokens: emptyTokenLedger(),
     cost: emptyCostLedger(),
     loop: initialLoopState(AGENT_ID.primary),
+    claimedToolKeys: [],
     checkpointVersion: 0,
     planDigest: 'digest',
     configurationVersion: 1,

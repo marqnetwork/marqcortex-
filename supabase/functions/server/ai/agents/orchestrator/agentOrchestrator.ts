@@ -114,7 +114,19 @@ export interface AgentRuntimeState {
   readonly aiEnabled: boolean;
   readonly executionAvailable: boolean;
   readonly degraded: boolean;
-  readonly requireCertification: boolean;
+  /**
+   * Certification requirements, one per population.
+   *
+   * Deliberately three fields rather than one. An independent review found that
+   * a single `requireCertification` flag meant an operator hardening PROVIDER
+   * certification silently also refused uncertified agents and tools — safe in
+   * direction, invisible in effect, and impossible to reason about during an
+   * incident. Providers, agents and tools are certified by different people
+   * against different contracts.
+   */
+  readonly requireCertifiedProviders: boolean;
+  readonly requireCertifiedAgents: boolean;
+  readonly requireCertifiedTools: boolean;
   readonly configurationVersion: number;
 }
 
@@ -231,7 +243,7 @@ export function createAgentOrchestrator(
       executionAvailable: state.executionAvailable,
       degraded: state.degraded,
       aiEnabled: state.aiEnabled,
-      requireCertification: state.requireCertification,
+      requireCertification: state.requireCertifiedProviders,
     };
   }
 
@@ -328,6 +340,27 @@ export function createAgentOrchestrator(
   async function persist(next: AgentRunRecord, expectedVersion: number): Promise<AgentRunRecord> {
     await runs.save(next, expectedVersion);
     return next;
+  }
+
+  /**
+   * Refuse an ordinary control operation on a run that owes a human a decision.
+   *
+   * The state machine already refuses `pause` and `resume` from
+   * `waiting_for_approval`. This is the second, independent guard, and it is
+   * not redundancy: it keys on the PENDING APPROVAL rather than on the state,
+   * so a run that somehow holds an undecided approval in any other state — a
+   * record written by an older revision, a future code path — is still refused
+   * rather than driven past its gate. The defect this closes was reachable
+   * through the public API with ordinary permissions.
+   */
+  function assertNoPendingApproval(record: AgentRunRecord, operation: string): void {
+    if (record.pendingApprovalId === undefined) return;
+    throw agentFailure('approval_required', 'This run is waiting for an approval decision.', {
+      runId: record.context.runId,
+      diagnostics:
+        `${operation} refused: run holds undecided approval ${record.pendingApprovalId} ` +
+        `in state ${record.state}`,
+    });
   }
 
   async function loadRun(organizationId: string, runId: string): Promise<AgentRunRecord> {
@@ -753,11 +786,45 @@ export function createAgentOrchestrator(
           // Spending the approval is what makes it single-use. It happens here,
           // once, before the action runs — not inside each executor, where four
           // call sites would each have to remember.
-          await approvals.consume(
-            record.context.organizationId,
-            record.pendingApprovalId,
-            pending.actionId,
-          );
+          //
+          // A FAILURE HERE RETURNS THE RUN TO ITS GATE. If the approval expired
+          // between the decision and this step, or was consumed by a concurrent
+          // drive, the run must go back to `waiting_for_approval` holding its
+          // pending action rather than settling in `running` with an action
+          // nobody can authorise. That stranded state is the defect this
+          // recovery closes; the run stays recoverable — an operator can cancel
+          // it, and its deadline still expires it.
+          try {
+            await approvals.consume(
+              record.context.organizationId,
+              record.pendingApprovalId,
+              pending.actionId,
+            );
+          } catch (error) {
+            const failure = isAgentRuntimeError(error) ? error.failure : 'approval_required';
+            const returned = transition(record, 'waiting_for_approval', 'step', {
+              reason: 'the approval could not be spent; the run is waiting again',
+              actorId: input.actor.actorId,
+              failure,
+            });
+            record = await persist(returned, record.runVersion);
+            writeAudit(record, {
+              event: AGENT_AUDIT_EVENT.approvalDecided,
+              outcome: 'denied',
+              requestId: input.requestId,
+              correlationId: input.correlationId,
+              actorId: input.actor.actorId,
+              actionId: pending.actionId,
+              actionType: pending.actionType,
+              failure,
+              reason: 'the approval could not be spent; the run returned to waiting',
+              detail: {
+                approvalId: record.pendingApprovalId ?? '',
+                diagnostics: isAgentRuntimeError(error) ? error.diagnostics ?? '' : String(error),
+              },
+            });
+            throw error;
+          }
         }
         if (pending.actionType === 'request_approval') {
           // The agent asked for a decision and got one. There is nothing to
@@ -1003,6 +1070,7 @@ export function createAgentOrchestrator(
       actionId: action.actionId,
       actionType: action.actionType,
       reason: action.reason,
+      idempotencyKey: action.idempotencyKey,
       startedAt: nowIso,
       completedAt: nowIso,
       latencyMs: 0,
@@ -1132,6 +1200,24 @@ export function createAgentOrchestrator(
       }
 
       case 'complete': {
+        // A completion the agent's policy says a human must sign off does NOT
+        // complete. It parks, exactly as an approval-gated tool call does, and
+        // the sealed completion is what a later approval releases.
+        //
+        // This gate was declared in `AgentApprovalPolicy` and enforced nowhere
+        // until an independent review proved a run with `requireForCompletion:
+        // true` completed with no approval at all. A governance control that
+        // reads as enforced and is not is worse than one that is absent: an
+        // agent author configures it and stops looking.
+        if (agent.approvals.requireForCompletion && record.pendingApprovalId === undefined) {
+          return parkForApproval(
+            context,
+            `Run ${record.context.runId} has finished and needs sign-off before it is accepted.`,
+            [...agent.completion.requiredOutputFields].slice(0, 12),
+            { tokens: 0, costMicroUsd: 0 },
+          );
+        }
+
         const output = action.output;
         const committed = await commitStep(context, {
           nextState: 'completed',
@@ -1276,13 +1362,62 @@ export function createAgentOrchestrator(
       );
     }
 
-    // Park in `waiting_for_tool` BEFORE calling. An isolate that dies mid-call
-    // leaves a run that says what it was doing.
+    // ── Durable at-most-once, for a tool that is not safe to repeat ─────────
+    //
+    // The gateway's own store catches a repeat inside one drive loop and is
+    // isolate-local, so on its own it guarantees nothing across a restart or a
+    // second isolate. The run record is the authority.
+    //
+    // The check reads BOTH the claim list and the persisted step history: the
+    // claim covers a call that was authorised, and the history covers one that
+    // completed, so a record written before claims existed is still honoured.
+    const toolDescriptor = tools.describe(action.toolId);
+    const repeatable = toolDescriptor?.idempotency === 'idempotent';
+    if (!repeatable) {
+      const claimed =
+        record.claimedToolKeys.includes(action.idempotencyKey) ||
+        record.steps.some(
+          (step) =>
+            step.actionType === 'tool_call' &&
+            // `executed` only. A step recorded while PARKING the same call for
+            // approval carries the same key and has not run — counting it would
+            // make every approval-gated tool refuse itself the moment a human
+            // said yes, which is exactly what it did before this predicate was
+            // narrowed.
+            step.outcome === 'executed' &&
+            step.idempotencyKey === action.idempotencyKey,
+        );
+      if (claimed) {
+        throw agentFailure('invalid_action', 'That tool call has already been made.', {
+          runId: record.context.runId,
+          agentId: agent.agentId,
+          diagnostics:
+            `tool ${action.toolId} is non-idempotent and key ${action.idempotencyKey} ` +
+            'is already claimed in this run',
+        });
+      }
+    }
+
+    // Park in `waiting_for_tool` BEFORE calling, and CLAIM THE KEY in the same
+    // write. An isolate that dies mid-call leaves a run that says what it was
+    // doing and a key that can never be reused — a non-idempotent tool that
+    // errored may still have had its effect, so a spent claim is the only safe
+    // reading. Two isolates racing this write contend on one compare-and-swap:
+    // exactly one claims and calls, the other is refused before it can.
+    //
+    // AT-MOST-ONCE, NOT EXACTLY-ONCE. A crash between the claim and the call
+    // means the tool never runs and the key is gone. That is the direction this
+    // platform chooses, and it is stated plainly rather than dressed up.
     const parked = transition(record, 'waiting_for_tool', 'step', {
       reason: `calling ${action.toolId}`,
       actorId: input.actor.actorId,
     });
-    const waiting = await persist(parked, record.runVersion);
+    const waiting = await persist(
+      repeatable
+        ? parked
+        : { ...parked, claimedToolKeys: [...parked.claimedToolKeys, action.idempotencyKey] },
+      record.runVersion,
+    );
 
     writeAudit(waiting, {
       event: AGENT_AUDIT_EVENT.toolRequested,
@@ -1849,6 +1984,27 @@ export function createAgentOrchestrator(
       ? error.diagnostics ?? message
       : String(error);
 
+    // A LOST RACE IS NOT A RUN FAILURE. Another isolate holds this run and has
+    // already advanced it; terminating here would let the loser of a race
+    // destroy work the winner did — and, with the durable tool claim below, the
+    // loser is precisely the caller that must fail harmlessly. The reloaded
+    // record is returned as it stands.
+    if (failure === 'stale_run_version' || failure === 'checkpoint_conflict') {
+      writeAudit(record, {
+        event: AGENT_AUDIT_EVENT.actionDecided,
+        outcome: 'denied',
+        requestId: input.requestId,
+        correlationId: input.correlationId,
+        actorId: input.actor.actorId,
+        actionId: action?.actionId,
+        actionType: action?.actionType,
+        failure,
+        reason: 'another writer advanced this run first',
+        detail: { diagnostics },
+      });
+      return record;
+    }
+
     const agent = registry.find(record.currentAgentId);
     const maxRetries = agent?.limits.maxRetries ?? 0;
 
@@ -1970,6 +2126,7 @@ export function createAgentOrchestrator(
         tokens: emptyTokenLedger(),
         cost: emptyCostLedger(),
         loop: initialLoopState(agent.agentId),
+        claimedToolKeys: [],
         checkpointVersion: 0,
         planDigest: digestValue({ agentId: agent.agentId, version: agent.version, objective }),
         configurationVersion: state.configurationVersion,
@@ -2077,6 +2234,7 @@ export function createAgentOrchestrator(
 
     async pause(input) {
       const record = await loadRun(input.organizationId, input.runId);
+      assertNoPendingApproval(record, 'pause');
       const next = transition(record, 'paused', 'pause', {
         reason: input.reason,
         actorId: input.actor.actorId,
@@ -2095,6 +2253,7 @@ export function createAgentOrchestrator(
 
     async resume(input) {
       const record = await loadRun(input.organizationId, input.runId);
+      assertNoPendingApproval(record, 'resume');
       const next = transition(record, 'running', 'resume', {
         reason: input.reason,
         actorId: input.actor.actorId,
