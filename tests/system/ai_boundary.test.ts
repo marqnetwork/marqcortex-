@@ -307,6 +307,201 @@ describe('agent runtime boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 3B added a workflow engine. It is the part of the platform with the
+ * most reasons to grow a shortcut: a workflow that "just needs to call the model"
+ * is one import away from bypassing the control plane, a workflow that "just needs
+ * a tool" is one import away from bypassing the gateway, and a workflow that "just
+ * needs to know what the agent is doing" is one import away from reaching into the
+ * agent runtime's own state.
+ *
+ * These assertions are structural for the same reason the ones above are: a
+ * behavioural test can prove the path it exercises is governed, and cannot prove
+ * the ABSENCE of an ungoverned one.
+ */
+describe('workflow engine boundary', () => {
+  const WORKFLOWS_DIR = join(SERVER_ROOT, 'ai', 'workflows') + sep;
+  const workflowSources = serverSources.filter(
+    (file) => file.path.startsWith(WORKFLOWS_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty workflow tree', () => {
+    assert.ok(
+      workflowSources.length >= 20,
+      `expected the workflow tree, found ${workflowSources.length}`,
+    );
+  });
+
+  it('never imports a provider adapter or names a vendor', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(workflowSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(workflowSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(workflowSources, CREDENTIAL), []);
+  });
+
+  it('never invokes a provider adapter directly', () => {
+    assert.deepEqual(offenders(workflowSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('holds the control plane only in its assembly, never in the engine', () => {
+    // The engine takes a `ModelExecutionPort`. Only `workflowRuntime.ts` — the
+    // assembly — may hold an `AIControlPlane`, and it derives the port from it.
+    // Anything else importing the plane would be a second way for a workflow node
+    // to reach a model.
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    const offending = workflowSources
+      .filter((file) => !file.path.endsWith('workflowRuntime.ts'))
+      .filter((file) => PLANE_IMPORT.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(
+      offending,
+      [],
+      'only the workflow runtime assembly may import the control plane',
+    );
+  });
+
+  it('reaches the agent runtime through exactly one bridge', () => {
+    // `agentBridge.ts` is the only module that may hold an `AgentOrchestrator`, and
+    // `workflowRuntime.ts` is the only one that may hold the whole `AgentRuntime` to
+    // wire it. A third would be a second way to drive an agent run.
+    const ORCHESTRATOR_IMPORT = /from\s+['"][^'"]*agents\/orchestrator\/agentOrchestrator\.ts['"]/;
+    const permitted = ['agentBridge.ts', 'workflowRuntime.ts', 'workflowOrchestrator.ts'];
+    const offending = workflowSources
+      .filter((file) => !permitted.some((name) => file.path.endsWith(name)))
+      .filter((file) => ORCHESTRATOR_IMPORT.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(offending, []);
+
+    const bridge = workflowSources.find((file) => file.path.endsWith('agentBridge.ts'));
+    assert.ok(bridge, 'the agent bridge must exist');
+    assert.match(bridge.text, /orchestrator\.createRun/, 'the bridge creates agent runs');
+    assert.match(bridge.text, /orchestrator\.advance/, 'the bridge advances agent runs');
+  });
+
+  it('reaches the tool gateway through exactly one bridge', () => {
+    const GATEWAY_IMPORT = /from\s+['"][^'"]*agents\/tools\/toolRegistry\.ts['"]/;
+    const permitted = ['toolBridge.ts', 'workflowRuntime.ts'];
+    const offending = workflowSources
+      .filter((file) => !permitted.some((name) => file.path.endsWith(name)))
+      .filter((file) => GATEWAY_IMPORT.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(offending, []);
+
+    const bridge = workflowSources.find((file) => file.path.endsWith('toolBridge.ts'));
+    assert.ok(bridge, 'the tool bridge must exist');
+    assert.match(bridge.text, /gateway\.execute/, 'the bridge executes through the gateway');
+  });
+
+  it('never writes to an agent run, checkpoint or ledger', () => {
+    // The workflow engine may DRIVE an agent run through the bridge. It may not
+    // mutate one: no store save, no checkpoint write, no ledger edit. The bridge's
+    // own `loadRun` is a read, and it is the only agent-store call permitted.
+    const AGENT_WRITE =
+      /agentRuntime\.runs\.save|agentRuntime\.checkpoints\.write|agentRuntime\.approvals\.decide|\.runs\.create\(/;
+    assert.deepEqual(offenders(workflowSources, AGENT_WRITE), []);
+  });
+
+  it('does not re-implement a Batch 1, 2 or 3A guarantee', () => {
+    // Spend enforcement, provider selection, request authorization, policy
+    // evaluation, the execution pipeline, the administration surface and the AGENT
+    // runtime each have exactly one implementation. A second one inside the workflow
+    // engine would not weaken the first — it would replace it for whatever flows
+    // through it.
+    const DUPLICATED =
+      // Word boundaries matter here: `createToolGatewayBridge` is the permitted
+      // bridge and `createToolGateway` is the thing it must not reimplement, and the
+      // first contains the second as a substring.
+      /\bcreateSpendLedger\b|\bcreateProviderSelector\b|\bcreateAIGuard\b|\bcreatePolicyEngine\b|\bcreateExecutionPipeline\b|\bcreateAIAdministration\b|\bcreateAgentOrchestrator\b|\bcreateToolGateway\b|\bcreateApprovalGate\b/;
+    assert.deepEqual(offenders(workflowSources, DUPLICATED), []);
+  });
+
+  it('reuses the hardened context fence rather than writing a second one', () => {
+    // A second fence implementation is a second thing to get wrong, and the first
+    // has already survived an independent review that broke an earlier version of
+    // it. The optimizer must delegate rendering.
+    const optimizer = workflowSources.find((file) => file.path.endsWith('tokenOptimizer.ts'));
+    assert.ok(optimizer, 'the token optimizer must exist');
+    assert.match(optimizer.text, /from '\.\.\/\.\.\/agents\/runtime\/contextBuilder\.ts'/);
+    // And it must not contain fence markers of its own.
+    assert.equal(
+      /<<<BEGIN|<<<END/.test(optimizer.text),
+      false,
+      'the optimizer must not render its own fence',
+    );
+  });
+
+  it('exposes no mutation of a run, a node, a checkpoint or an audit record', () => {
+    const MUTATION =
+      /\b(deleteWorkflowRun|removeWorkflowRun|editWorkflowRun|purgeWorkflowRun|deleteNode|rewriteCheckpoint|deleteCheckpoint|deleteAudit|clearAudit|purgeAudit|reopenWorkflowRun)\b/;
+    assert.deepEqual(offenders(workflowSources, MUTATION), []);
+  });
+
+  it('evaluates conditions and transforms from a registry, never from a string', () => {
+    // An expression language in a definition needs a parser, the parser needs an
+    // evaluator, and the evaluator is one convenience feature away from reaching
+    // something it should not. Neither may exist.
+    const DYNAMIC = /\bnew Function\b|\beval\s*\(|\bvm\.|node:vm/;
+    assert.deepEqual(offenders(workflowSources, DYNAMIC), []);
+  });
+
+  it('routes the workflow HTTP surface through its adapter, not its own role checks', () => {
+    const routeFile = serverSources.find((file) => file.path.endsWith('workflowRoutes.ts'));
+    assert.ok(routeFile, 'workflowRoutes.ts must exist');
+    // A route file that resolves an actor or compares a role is a route file that
+    // can forget to.
+    assert.equal(/resolveWorkflowActor|requireWorkflowCapability/.test(routeFile.text), false);
+    assert.equal(/super_admin|organization_admin|consultant/.test(routeFile.text), false);
+    assert.ok(routeFile.text.includes('executeWorkflowHttpRequest'));
+  });
+
+  it('exposes no route that creates or edits a workflow definition', () => {
+    const routeFile = serverSources.find((file) => file.path.endsWith('workflowRoutes.ts'));
+    assert.ok(routeFile);
+    // Customer-created workflows are out of Batch 3B's scope, and a route file is
+    // where that scope would quietly arrive.
+    const MUTATION = /workflows\/registry['"`]\s*,\s*\(c\)\s*=>\s*run\(c,\s*WORKFLOW_OPERATION\.(create|update|delete)/;
+    assert.equal(MUTATION.test(routeFile.text), false);
+    assert.equal(
+      /app\.(post|put|patch|delete)\(`\$\{prefix\}\/ai\/workflows\/registry/.test(routeFile.text),
+      false,
+      'the registry is read-only over HTTP',
+    );
+  });
+
+  it('registers no production workflow in the bootstrap', () => {
+    // Business workflows are out of AI-01 Batch 3B's scope. The production registry
+    // starts empty, and a definition appearing in bootstrap would be exactly the
+    // inline production workflow the batch forbids.
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap);
+    assert.equal(
+      /workflows:\s*\[[^\]]*\w/.test(bootstrap.text),
+      false,
+      'bootstrap must not register workflow definitions',
+    );
+  });
+
+  it('keys every cache entry and durable record by its tenant', () => {
+    const cache = workflowSources.find((file) => file.path.endsWith(join('runtime', 'cache.ts')));
+    assert.ok(cache, 'the cache module must exist');
+    // The key builder REFUSES rather than defaulting, so a cross-tenant entry is
+    // arithmetically unreachable rather than a call-site discipline.
+    assert.match(cache.text, /organizationId/);
+    assert.match(cache.text, /cache_policy_denied/);
+
+    const stores = workflowSources.find((file) => file.path.endsWith('kvWorkflowStores.ts'));
+    assert.ok(stores, 'the durable stores must exist');
+    assert.match(stores.text, /tenantScopedKey/, 'every key is built by the tenant-scoped builder');
+    assert.equal(
+      /`org:\$\{/.test(stores.text),
+      false,
+      'a key must never be hand-assembled around the tenant builder',
+    );
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 

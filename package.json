@@ -18,6 +18,7 @@
     "scan:boundaries": "node --experimental-strip-types --test tests/system/ai_boundary.test.ts",
     "verify:ai": "node --experimental-strip-types scripts/ai-runtime-verify.ts",
     "verify:agents": "node --experimental-strip-types scripts/agent-runtime-verify.ts",
+    "verify:workflows": "node --experimental-strip-types scripts/workflow-verify.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts tests/database/kv_compare_and_swap.test.ts",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",

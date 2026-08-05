@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, ChevronRight, CircleSlash,
-  Clock, Cpu, DollarSign, FileClock, Gauge, Loader2, Lock, Power, RefreshCw,
+  Clock, Cpu, DollarSign, FileClock, Gauge, GitBranch, Loader2, Lock, Power, RefreshCw,
   Server, ShieldAlert, ShieldCheck, Wallet, Zap,
 } from 'lucide-react';
 import {
@@ -60,6 +60,21 @@ import {
   type AgentDescriptorView,
   type AgentRuntimeOverview,
 } from '@/app/services/agentRuntimeService';
+import {
+  WorkflowServiceError,
+  decideWorkflowApproval,
+  fetchOptimizationSavings,
+  fetchWorkflowFinancialSummary,
+  fetchWorkflowOverview,
+  fetchWorkflowRegistry,
+  formatTokens,
+  formatWorkflowCost,
+  hasWorkflowCapability,
+  type OptimizationSavingsSummaryView,
+  type WorkflowDescriptorView,
+  type WorkflowFinancialSummaryView,
+  type WorkflowOverview,
+} from '@/app/services/workflowService';
 
 interface Props {
   accessToken?: string;
@@ -69,6 +84,7 @@ type TabId =
   | 'overview'
   | 'providers'
   | 'agents'
+  | 'workflows'
   | 'budget'
   | 'usage'
   | 'settings'
@@ -79,6 +95,7 @@ const TABS: { id: TabId; label: string; icon: typeof Activity }[] = [
   { id: 'overview',    label: 'Overview',    icon: Activity },
   { id: 'providers',   label: 'Providers',   icon: Server },
   { id: 'agents',      label: 'Agents',      icon: Bot },
+  { id: 'workflows',   label: 'Workflows',   icon: GitBranch },
   { id: 'budget',      label: 'Budget',      icon: Wallet },
   { id: 'usage',       label: 'Usage',       icon: BarChart3 },
   { id: 'settings',    label: 'Settings',    icon: Gauge },
@@ -126,6 +143,11 @@ export function AIAdministrationConsole({ accessToken }: Props) {
   const [agents, setAgents] = useState<AgentRuntimeOverview | null>(null);
   const [agentRegistry, setAgentRegistry] = useState<AgentDescriptorView[]>([]);
   const [agentError, setAgentError] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowOverview | null>(null);
+  const [workflowRegistry, setWorkflowRegistry] = useState<WorkflowDescriptorView[]>([]);
+  const [finance, setFinance] = useState<WorkflowFinancialSummaryView | null>(null);
+  const [savings, setSavings] = useState<OptimizationSavingsSummaryView | null>(null);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; forbidden: boolean } | null>(null);
@@ -194,7 +216,30 @@ export function AIAdministrationConsole({ accessToken }: Props) {
         );
       fetchAgentRegistry(accessToken).then(setAgentRegistry).catch(() => undefined);
     }
-  }, [tab, accessToken, overview, diagnostics, executionAudit.length, changes.length, agents]);
+    if (tab === 'workflows' && !workflows) {
+      // Like the agent surface, the workflow engine has its own RBAC, so a refusal
+      // here is reported in place rather than blanking the console.
+      fetchWorkflowOverview(accessToken)
+        .then((next) => {
+          setWorkflows(next);
+          setWorkflowError(null);
+        })
+        .catch((err: unknown) =>
+          setWorkflowError(
+            err instanceof WorkflowServiceError
+              ? err.message
+              : 'The workflow engine is unavailable.',
+          ),
+        );
+      fetchWorkflowRegistry(accessToken).then(setWorkflowRegistry).catch(() => undefined);
+      // FINANCE IS A SEPARATE CAPABILITY. These two calls are expected to be
+      // refused for an operator who may read runs but not costs, and a refusal is
+      // swallowed rather than surfaced: the section simply does not render, which is
+      // the same outcome the server would enforce anyway.
+      fetchWorkflowFinancialSummary(accessToken).then(setFinance).catch(() => undefined);
+      fetchOptimizationSavings(accessToken).then(setSavings).catch(() => undefined);
+    }
+  }, [tab, accessToken, overview, diagnostics, executionAudit.length, changes.length, agents, workflows]);
 
   /** Re-read the agent surface after a decision, without touching the rest. */
   const reloadAgents = useCallback(async () => {
@@ -208,6 +253,68 @@ export function AIAdministrationConsole({ accessToken }: Props) {
       );
     }
   }, [accessToken]);
+
+  /** Re-read the workflow surface after a decision, without touching the rest. */
+  const reloadWorkflows = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      setWorkflows(await fetchWorkflowOverview(accessToken));
+      setWorkflowError(null);
+    } catch (err) {
+      setWorkflowError(
+        err instanceof WorkflowServiceError ? err.message : 'The workflow engine is unavailable.',
+      );
+    }
+    // Finance may legitimately be refused; a failure here leaves the previous
+    // figures in place rather than blanking them.
+    fetchWorkflowFinancialSummary(accessToken).then(setFinance).catch(() => undefined);
+  }, [accessToken]);
+
+  /**
+   * Decide a pending WORKFLOW approval.
+   *
+   * A separate callback from the agent one on purpose: they are different durable
+   * objects on different trails with different authority tables, and one function
+   * branching on which kind it was handed is how the wrong trail gets written.
+   */
+  const decideWorkflowGate = useCallback(
+    async (
+      workflowRunId: string,
+      workflowApprovalId: string,
+      decision: 'approve' | 'reject',
+    ) => {
+      const reason = window.prompt(
+        `${decision === 'approve' ? 'Approve' : 'Reject'} this workflow step.\n\n` +
+          'This is recorded on the workflow audit trail. State why:',
+      );
+      if (reason === null) return;
+      if (reason.trim().length < 4) {
+        notify('A reason of at least four characters is required.', 'error');
+        return;
+      }
+      setBusy(true);
+      try {
+        await decideWorkflowApproval(accessToken ?? '', {
+          workflowRunId,
+          workflowApprovalId,
+          decision,
+          reason: reason.trim(),
+        });
+        await reloadWorkflows();
+        notify(`Workflow approval ${decision === 'approve' ? 'granted' : 'rejected'} and recorded.`);
+      } catch (err) {
+        notify(
+          err instanceof WorkflowServiceError
+            ? err.message
+            : 'The decision could not be recorded.',
+          'error',
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [accessToken, notify, reloadWorkflows],
+  );
 
   /**
    * Decide a pending approval.
@@ -1035,6 +1142,351 @@ export function AIAdministrationConsole({ accessToken }: Props) {
           </div>
         )}
 
+        {/* ── Workflows and Financial Intelligence (AI-01 Batch 3B) ──────── */}
+        {tab === 'workflows' && (
+          <div className="space-y-6">
+            {workflowError ? (
+              <Empty
+                icon={ShieldAlert}
+                title="Workflow engine unavailable"
+                body={workflowError}
+              />
+            ) : !workflows ? (
+              <div className="flex items-center gap-2 py-8 text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading workflow runs…
+              </div>
+            ) : (
+              <>
+                <Section title="Workflow runs">
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    <Field
+                      label="Active"
+                      value={String(workflows.active.length)}
+                      hint="running, waiting or retrying"
+                    />
+                    <Field
+                      label="Awaiting approval"
+                      value={String(workflows.awaitingApproval.length)}
+                      hint="stopped for a human decision"
+                    />
+                    <Field
+                      label="Completed outcomes"
+                      value={String(workflows.completedOutcomes)}
+                      hint="finished AND output accepted"
+                    />
+                    <Field
+                      label="Registered workflows"
+                      value={String(workflows.registeredWorkflows)}
+                      hint={`scope: ${workflows.scope}`}
+                    />
+                  </div>
+                </Section>
+
+                <Section title="In flight">
+                  <Table
+                    head={['Run', 'Workflow', 'State', 'Node', 'Branches', 'Steps', 'Tokens', 'Cost']}
+                    rows={workflows.active.map((run) => [
+                      run.workflowRunId,
+                      run.workflowId,
+                      run.state,
+                      run.currentNodeId ?? '—',
+                      `${run.activeBranches} active / ${run.completedBranches} done${
+                        run.failedBranches > 0 ? ` / ${run.failedBranches} failed` : ''
+                      }`,
+                      String(run.stepCount),
+                      formatTokens(run.totalTokens),
+                      formatWorkflowCost(run.costMicroUsd),
+                    ])}
+                    empty="No workflow runs are in flight."
+                  />
+                </Section>
+
+                {workflows.pendingApprovals.length > 0 && (
+                  <Section title="Waiting for a decision">
+                    <div className="space-y-3">
+                      {workflows.pendingApprovals.map((approval) => (
+                        <div
+                          key={approval.workflowApprovalId}
+                          className="rounded-lg border border-amber-200 bg-amber-50 p-4"
+                        >
+                          <p className="text-sm font-medium text-slate-900">
+                            {approval.impactSummary}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-600">
+                            {approval.workflowId} · node {approval.nodeId}
+                            {approval.branchId ? ` · branch ${approval.branchId}` : ''} · run{' '}
+                            {approval.workflowRunId}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-600">
+                            {approval.proposedAction}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Up to {formatTokens(approval.estimatedAdditionalTokens)} tokens ·{' '}
+                            {formatWorkflowCost(approval.estimatedAdditionalCostMicroUsd)} · expires{' '}
+                            {relativeTime(approval.expiresAt)} · deciders:{' '}
+                            {approval.authorizedRoles.join(', ')}
+                          </p>
+                          {hasWorkflowCapability(
+                            workflows.capabilities,
+                            'workflow.approval.decide',
+                          ) && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  decideWorkflowGate(
+                                    approval.workflowRunId,
+                                    approval.workflowApprovalId,
+                                    'approve',
+                                  )
+                                }
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  decideWorkflowGate(
+                                    approval.workflowRunId,
+                                    approval.workflowApprovalId,
+                                    'reject',
+                                  )
+                                }
+                                className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {workflows.bottlenecks.length > 0 && (
+                  <Section title="Bottlenecks">
+                    <Table
+                      head={['Node', 'Runs stopped here']}
+                      rows={workflows.bottlenecks.map((entry) => [
+                        entry.nodeId,
+                        String(entry.runs),
+                      ])}
+                      empty="No node is holding runs up."
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      The node an unfinished or failed run last sat on. A node every run passes
+                      through is not a bottleneck; a node runs stop at is.
+                    </p>
+                  </Section>
+                )}
+
+                {workflows.recentFailures.length > 0 && (
+                  <Section title="Recent failures">
+                    <Table
+                      head={['Run', 'Workflow', 'State', 'Reason', 'Steps', 'Cost']}
+                      rows={workflows.recentFailures.map((run) => [
+                        run.workflowRunId,
+                        run.workflowId,
+                        run.state,
+                        run.failureMessage ?? run.failure ?? '—',
+                        String(run.stepCount),
+                        formatWorkflowCost(run.costMicroUsd),
+                      ])}
+                      empty="No recent failures."
+                    />
+                  </Section>
+                )}
+
+                {/*
+                  FINANCE IS A SEPARATE CAPABILITY, so this whole block renders only
+                  when the server actually returned it. An operator who may watch runs
+                  but not read costs sees the sections above and nothing here — the
+                  same outcome the server enforces regardless of what was drawn.
+                */}
+                {finance && (
+                  <Section title="Financial intelligence">
+                    <div className="grid gap-4 sm:grid-cols-4">
+                      <Field
+                        label="Actual spend"
+                        value={formatWorkflowCost(finance.totals.actualMicroUsd)}
+                        hint={`${finance.runs} run(s), ${finance.totals.calls} call(s)`}
+                      />
+                      <Field
+                        label="Avoided spend"
+                        value={formatWorkflowCost(finance.totals.avoidedMicroUsd)}
+                        hint="priced against a versioned estimate"
+                      />
+                      <Field
+                        label="Cost per successful run"
+                        value={formatWorkflowCost(finance.costPerSuccessfulRunMicroUsd)}
+                        hint={`${finance.successfulRuns} succeeded`}
+                      />
+                      <Field
+                        label="Cost per completed outcome"
+                        value={formatWorkflowCost(finance.costPerCompletedOutcomeMicroUsd)}
+                        hint={`${finance.completedOutcomes} accepted`}
+                      />
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-4">
+                      <Field
+                        label="Retry cost"
+                        value={formatWorkflowCost(finance.retryCostMicroUsd)}
+                        hint="measured, not apportioned"
+                      />
+                      <Field
+                        label="Repair cost"
+                        value={formatWorkflowCost(finance.repairCostMicroUsd)}
+                        hint="output-contract retries"
+                      />
+                      <Field
+                        label="Parallel branch cost"
+                        value={formatWorkflowCost(finance.parallelBranchCostMicroUsd)}
+                      />
+                      <Field
+                        label="Cost per failed run"
+                        value={formatWorkflowCost(finance.costPerFailedRunMicroUsd)}
+                        hint={`${finance.failedRuns} failed`}
+                      />
+                    </div>
+
+                    {/*
+                      A PROJECTION IS LABELLED A PROJECTION. The caveat is the
+                      server's own sentence, rendered verbatim, because a monthly
+                      burn extrapolated from four hours of traffic is a guess and a
+                      reader has no way to know unless the page says so.
+                    */}
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Projected monthly burn — estimate
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">
+                        {formatWorkflowCost(finance.projection.projectedMonthlyBurnMicroUsd)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">{finance.projection.caveat}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Source: {finance.source === 'durable_run_records'
+                          ? 'durable run records'
+                          : 'process-lifetime metrics'}
+                        {' · '}window {finance.projection.windowDays} day(s)
+                      </p>
+                    </div>
+
+                    {(finance.byDimension.workflow ?? []).length > 0 && (
+                      <div className="mt-4">
+                        <Table
+                          head={['Workflow', 'Runs', 'Succeeded', 'Actual', 'Avoided', 'Tokens']}
+                          rows={(finance.byDimension.workflow ?? []).slice(0, 10).map((bucket) => [
+                            bucket.key,
+                            String(bucket.runs),
+                            String(bucket.successfulRuns),
+                            formatWorkflowCost(bucket.actualMicroUsd),
+                            formatWorkflowCost(bucket.avoidedMicroUsd),
+                            formatTokens(bucket.totalTokens),
+                          ])}
+                          empty="No attributed spend yet."
+                        />
+                      </div>
+                    )}
+
+                    {(finance.byDimension.model ?? []).length > 0 && (
+                      <div className="mt-4">
+                        <Table
+                          head={['Model', 'Calls', 'Actual', 'Tokens']}
+                          rows={(finance.byDimension.model ?? []).slice(0, 10).map((bucket) => [
+                            bucket.key,
+                            String(bucket.calls),
+                            formatWorkflowCost(bucket.actualMicroUsd),
+                            formatTokens(bucket.totalTokens),
+                          ])}
+                          empty="No model spend yet."
+                        />
+                      </div>
+                    )}
+                  </Section>
+                )}
+
+                {savings && (
+                  <Section title="Optimization savings">
+                    <div className="grid gap-4 sm:grid-cols-4">
+                      <Field
+                        label="Avoided calls"
+                        value={String(savings.avoidedCalls)}
+                        hint={`${formatWorkflowCost(savings.avoidedMicroUsd)} not spent`}
+                      />
+                      <Field
+                        label="Cache hits"
+                        value={String(savings.cacheHits)}
+                        hint={formatWorkflowCost(savings.cacheSavingsMicroUsd)}
+                      />
+                      <Field
+                        label="Tokens saved"
+                        value={formatTokens(savings.totalTokensSaved)}
+                        hint="trimmed, deduplicated or cached"
+                      />
+                      <Field
+                        label="Duplicate tokens removed"
+                        value={formatTokens(savings.duplicateTokensRemoved)}
+                        hint={`history: ${formatTokens(savings.historyTokensRemoved)}`}
+                      />
+                    </div>
+
+                    {savings.byReason.length > 0 && (
+                      <div className="mt-4">
+                        <Table
+                          head={['Reason', 'Calls avoided', 'Tokens', 'Not spent']}
+                          rows={savings.byReason.map((bucket) => [
+                            bucket.reason.replace(/_/g, ' '),
+                            String(bucket.avoidedCalls),
+                            formatTokens(bucket.avoidedTokens),
+                            formatWorkflowCost(bucket.avoidedMicroUsd),
+                          ])}
+                          empty="Nothing avoided yet."
+                        />
+                      </div>
+                    )}
+
+                    <p className="mt-2 text-xs text-slate-500">
+                      Every saving is priced against the model profile the avoided call would have
+                      used, on estimate basis{savings.estimateVersions.length === 1 ? ' ' : 'es '}
+                      {savings.estimateVersions.join(', ') || 'none'}.
+                      {savings.estimateVersions.length > 1
+                        ? ' These figures span a pricing-basis change and are not comparable to either basis alone.'
+                        : ''}
+                    </p>
+                  </Section>
+                )}
+
+                <Section title="Registered workflows">
+                  <Table
+                    head={['Workflow', 'Version', 'Status', 'Safety', 'Nodes', 'Approvals', 'Side effects']}
+                    rows={workflowRegistry.map((workflow) => [
+                      workflow.workflowId,
+                      workflow.version,
+                      workflow.enabled ? workflow.certification : 'disabled',
+                      workflow.safetyClass,
+                      `${workflow.nodeCount} / ${workflow.edgeCount} edges`,
+                      workflow.approvalNodeIds.join(', ') || '—',
+                      workflow.sideEffectingNodeIds.join(', ') || '—',
+                    ])}
+                    empty="No workflows are registered. Business workflows arrive in a later batch."
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Workflows plan. Agents propose. The orchestrator decides. The AI Control Plane
+                    executes — every model node goes through the same governed path as every other
+                    AI feature, every agent node through the certified agent runtime, and every tool
+                    node through its gateway.
+                  </p>
+                </Section>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Diagnostics ────────────────────────────────────────────────── */}
         {tab === 'diagnostics' && (
           <div className="space-y-6">
@@ -1164,11 +1616,28 @@ function Section({
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  /**
+   * What the value was measured against, in a few words.
+   *
+   * Optional because most fields on this page are self-explanatory. The financial
+   * ones are not: "avoided spend" means nothing without "priced against a versioned
+   * estimate", and a figure a reader cannot interpret is a figure they will
+   * interpret wrongly.
+   */
+  hint?: string;
+}) {
   return (
     <div>
       <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
+      {hint === undefined ? null : <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
     </div>
   );
 }

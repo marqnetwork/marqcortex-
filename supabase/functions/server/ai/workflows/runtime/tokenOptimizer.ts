@@ -38,9 +38,19 @@
  * would make the token estimate — and therefore the budget control built on it —
  * non-deterministic, which is the property the rest of this engine is built on.
  *
- * SAVINGS ARE DIFFERENCES BETWEEN TWO MEASUREMENTS. The unoptimized estimate is
- * computed and kept, so every figure this module reports is arithmetic a reviewer
- * can redo rather than a number it asserted.
+ * SAVINGS ARE DIFFERENCES BETWEEN TWO COMPARABLE MEASUREMENTS, and the word
+ * "comparable" is doing work. An earlier revision measured the baseline as the raw
+ * character count of every candidate section and the final figure as the RENDERED
+ * prompt — which includes section headings and the per-section fence. Those are not
+ * the same unit: on a node with nothing to trim the "final" figure came out larger
+ * than the "original", and a saving computed between them would have been noise
+ * dressed as arithmetic.
+ *
+ * So the baseline is now a full second render: every candidate section, at full
+ * length, through the same builder, at an unbounded budget. Both numbers are then
+ * rendered prompt tokens, the subtraction means something, and a reviewer can redo
+ * it. The extra build is bounded by the node's declared section cap and is
+ * deterministic, which is a cheap price for a figure that is actually checkable.
  */
 
 import type {
@@ -243,6 +253,7 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
     ),
   );
 
+  /** Sections dropped before rendering, with the reason each was dropped. */
   const excluded: ContextManifestExclusion[] = [];
   const exclude = (
     declaration: WorkflowContextDeclaration,
@@ -266,14 +277,13 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
   }
 
   const candidates: Candidate[] = [];
-  let originalContextTokens = estimatePromptTokens(input.systemInstructions) +
-    estimatePromptTokens(input.objective);
-
   for (const section of input.sections) {
     const declaration = section.declaration;
     const content = section.content?.trim() ?? '';
+    // Per-section raw estimate. Used for the per-exclusion figures in the manifest,
+    // where "how big was the thing we dropped?" is the question — not for the
+    // baseline total, which is a rendered figure. See the module header.
     const originalTokens = estimatePromptTokens(content);
-    originalContextTokens += originalTokens;
 
     if (section.content === undefined) {
       exclude(declaration, 'absent', 0);
@@ -478,6 +488,52 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
     ...(input.nonce === undefined ? {} : { nonce: input.nonce }),
   });
 
+  // ── The comparable baseline ───────────────────────────────────────────────
+  //
+  // Every section this node could have carried, at full length, rendered through
+  // the same builder. This is what the prompt WOULD have cost with no optimization
+  // at all, in the same unit as the figure below — see the module header for why
+  // the two have to match.
+  const baselineInputs: ContextInput[] = [
+    {
+      sectionId: 'workflow_instructions',
+      kind: 'system_instructions',
+      label: 'Workflow instructions',
+      content: input.systemInstructions,
+      trusted: true,
+      priority: 100,
+    },
+    {
+      sectionId: 'node_objective',
+      kind: 'objective',
+      label: 'Node objective',
+      content: input.objective,
+      trusted: true,
+      priority: 95,
+    },
+    ...input.sections
+      .filter((section) => (section.content?.trim() ?? '') !== '')
+      .map((section) => ({
+        sectionId: section.declaration.sectionId,
+        kind: sectionKindFor(section.declaration.authority),
+        label: `${section.declaration.sectionId} (${section.declaration.relevanceReason})`.slice(
+          0,
+          120,
+        ),
+        content: section.content ?? '',
+        trusted: false,
+        priority: section.declaration.priority,
+      })),
+  ];
+  const baseline = buildContext(baselineInputs, {
+    // Deliberately generous: the baseline is "what if nothing were trimmed", so it
+    // must not be shaped by the budget the optimizer was working inside.
+    budgetTokens: Number.MAX_SAFE_INTEGER,
+    maxSectionChars: Number.MAX_SAFE_INTEGER,
+    ...(input.nonce === undefined ? {} : { nonce: input.nonce }),
+  });
+
+  const originalRenderedTokens = baseline.manifest.estimatedPromptTokens;
   const finalContextTokens = built.manifest.estimatedPromptTokens;
   const cachedTokensUsed = Math.max(0, Math.floor(input.cachedTokensUsed ?? 0));
 
@@ -493,7 +549,7 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
   const completionTokensReduced = Math.max(0, input.completionAllowance - completionAllowance);
 
   const savings: TokenSavingsBreakdown = {
-    originalContextTokens,
+    originalContextTokens: originalRenderedTokens,
     finalContextTokens,
     duplicateTokensRemoved,
     historyTokensRemoved,
@@ -502,7 +558,7 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
     completionTokensReduced,
     cachedTokensUsed,
     totalTokensSaved:
-      Math.max(0, originalContextTokens - finalContextTokens) +
+      Math.max(0, originalRenderedTokens - finalContextTokens) +
       completionTokensReduced +
       cachedTokensUsed,
   };
@@ -530,7 +586,7 @@ export function optimizeWorkflowContext(input: OptimizeContextInput): OptimizedC
     // Read off the rendered context, so it reflects what the model saw rather
     // than what this module intended it to see.
     authorityOrder: built.manifest.included.map((section) => section.kind),
-    originalContextTokens,
+    originalContextTokens: originalRenderedTokens,
     finalContextTokens,
     savedTokens: savings.totalTokensSaved,
     budgetTokens,
