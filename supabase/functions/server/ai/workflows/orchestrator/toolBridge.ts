@@ -30,11 +30,17 @@
  *   requires the field and a workflow principal must never be askable for an
  *   intention.
  *
- *   IT CANNOT SOFTEN AN APPROVAL. Its `requireForToolRisk` is the full risk set,
- *   so the gateway's `requiresApproval` returns true for anything above read-only
- *   whatever the workflow declared. A principal that could declare a tool
- *   low-risk would be a way to route around the approval gate, so it declares the
- *   opposite of convenient.
+ *   IT CANNOT SOFTEN AN APPROVAL. Its `requireForToolRisk` is the platform's own
+ *   posture — moderate and high — which is the same set the agent runtime applies,
+ *   and it can only be WIDENED by the node's own rule, never narrowed. A tool that
+ *   declares `requiresApproval: true` is gated whatever the principal says, because
+ *   the gateway checks the tool's own flag first. So a principal is never the reason
+ *   a tool skipped its gate.
+ *
+ *   Making the set exhaustive instead — gating read-only tools too — was tried and
+ *   is wrong: it forced an approval on every workflow tool node, including the
+ *   deterministic read-only ones, which turns the gate into noise and trains
+ *   operators to click through it.
  *
  * The alternative — a second authorization path inside the workflow engine —
  * would mean two implementations of tool permission, and the one that drifts is
@@ -44,6 +50,7 @@
 import type { AgentDefinition } from '../../agents/contracts/agent.ts';
 import type { ToolDescriptor } from '../../agents/contracts/tools.ts';
 import type { ToolGateway } from '../../agents/tools/toolRegistry.ts';
+import { ACTOR_TOOL_CAPABILITY } from '../../agents/tools/toolRegistry.ts';
 import type { WorkflowDefinition, WorkflowToolNode } from '../contracts/workflow.ts';
 import { isAgentRuntimeError } from '../../agents/contracts/failures.ts';
 import { workflowFailure } from '../contracts/failures.ts';
@@ -98,7 +105,33 @@ export interface ToolExecutionPort {
  */
 const INERT_CONTRACT = jsonObject({ maxDepth: 8, maxNodes: 2_000 });
 
-const ALL_TOOL_RISKS = ['read_only', 'low', 'moderate', 'high'] as const;
+/**
+ * The workflow capability that authorises a person to cause a tool call.
+ *
+ * The gateway asks whether the ACTOR holds `agent.run.create` — its way of asking
+ * "may this person cause a tool to execute at all?". A workflow caller holds the
+ * workflow-surface equivalent, `workflow.run.create`, and holds it for exactly the
+ * same reason. So the bridge translates ONE capability, in ONE direction, for ONE
+ * question.
+ *
+ * Stated explicitly because it is a privilege translation and those deserve to be
+ * visible: an actor who cannot create a workflow run gains nothing, the translation
+ * adds no other agent capability, and it does not touch the tool's own permission
+ * checks, its certification, its schema validation or its approval requirement. The
+ * alternative — granting workflow callers `agent.run.create` in the RBAC table —
+ * would let them drive agent runs directly, which is a much wider grant than the
+ * question being asked.
+ */
+const WORKFLOW_TOOL_ACTOR_CAPABILITY = 'workflow.run.create';
+
+/**
+ * The risk classes a workflow principal demands approval for.
+ *
+ * Identical to the posture the agent fixtures and the platform's own guidance
+ * apply. A read-only, certified, side-effect-free tool does not need a human in
+ * front of it; anything that can change something does.
+ */
+const APPROVAL_RISK_CLASSES = ['moderate', 'high'] as const;
 
 /**
  * Build the one-call authorization principal for a workflow tool node.
@@ -150,10 +183,10 @@ export function workflowToolPrincipal(
       maxActualCostMicroUsd: 0,
     },
     approvals: {
-      // The full risk set, deliberately. A principal must never be the reason a
-      // tool skipped its approval, so it demands one for every risk class and lets
-      // the tool's own `requiresApproval` and the node's rule decide the rest.
-      requireForToolRisk: ALL_TOOL_RISKS,
+      // The platform posture. The tool's own `requiresApproval` flag and the node's
+      // own rule can each add a gate on top; neither this nor anything else can
+      // remove one.
+      requireForToolRisk: APPROVAL_RISK_CLASSES,
       requireForHandoff: true,
       requireForCompletion: false,
       approverRoles: node.approval?.approverRoles ?? ['owner', 'admin'],
@@ -176,6 +209,21 @@ export function workflowToolPrincipal(
       );
     },
   };
+}
+
+/**
+ * The actor capabilities the gateway is handed.
+ *
+ * The workflow capability is carried through unchanged and the single agent
+ * capability the gateway checks is added only when its workflow equivalent is
+ * present. Nothing is added unconditionally.
+ */
+export function gatewayActorCapabilities(
+  actorCapabilities: readonly string[],
+): readonly string[] {
+  if (!actorCapabilities.includes(WORKFLOW_TOOL_ACTOR_CAPABILITY)) return actorCapabilities;
+  if (actorCapabilities.includes(ACTOR_TOOL_CAPABILITY)) return actorCapabilities;
+  return [...actorCapabilities, ACTOR_TOOL_CAPABILITY];
 }
 
 export function createToolGatewayBridge(deps: {
@@ -203,7 +251,7 @@ export function createToolGatewayBridge(deps: {
           runId: request.workflowRunId,
           organizationId: request.organizationId,
           actorId: request.actorId,
-          actorCapabilities: request.actorCapabilities,
+          actorCapabilities: gatewayActorCapabilities(request.actorCapabilities),
           correlationId: request.correlationId,
           idempotencyKey: request.idempotencyKey,
           input: request.input,

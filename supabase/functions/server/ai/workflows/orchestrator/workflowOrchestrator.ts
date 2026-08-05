@@ -830,6 +830,15 @@ export function createWorkflowOrchestrator(
    * the previous iteration is settled before another node is chosen. Evaluating the
    * join lazily — only when somebody asks — is what would let a satisfied join sit
    * unfired while the engine waited for a branch that had already arrived.
+   *
+   * EVERY MUTATION HERE IS PERSISTED BEFORE THE NEXT ONE IS COMPUTED, and the
+   * invariant that makes that work is stated once: on entry and on exit, `current`
+   * carries the version the STORE holds. An earlier revision mutated the branch
+   * table, the join table and the run state in memory and returned them unpersisted;
+   * the next node executor then wrote against a version the store had never seen,
+   * lost its compare-and-swap, and the drive loop re-settled the same branch and
+   * re-fired the same join until it hit its backstop. Three fan-out cases failed on
+   * exactly that, which is why the persist is not an optimisation.
    */
   async function settleBranchArrivals(
     record: WorkflowRunRecord,
@@ -840,6 +849,14 @@ export function createWorkflowOrchestrator(
     let current = record;
 
     for (const branchId of [...current.activeBranchIds].sort()) {
+      // Re-checked against the CURRENT record on every iteration, not against the
+      // snapshot the loop is walking. Firing a join can cancel the arms behind it,
+      // and a loop that trusted its snapshot would then try to record an arrival for
+      // a branch that had just been cancelled — at a join that had just fired. That
+      // is a `join_conflict` raised against the engine's own bookkeeping, and it
+      // failed three fan-out cases before this check existed.
+      if (!current.activeBranchIds.includes(branchId)) continue;
+
       const branch = current.branches.find((entry) => entry.branchId === branchId);
       if (!branch) continue;
 
@@ -853,6 +870,29 @@ export function createWorkflowOrchestrator(
 
       const joinRecord = current.joins.find((entry) => entry.joinNodeId === branch.joinNodeId);
       if (!joinRecord) continue;
+      // A join that has already fired takes no further arrivals. The branch is still
+      // closed and removed from the active set — it simply does not vote, which is
+      // what `cancel_remaining` means.
+      if (joinRecord.satisfied) {
+        current = await persist(
+          touch({
+            ...current,
+            branches: current.branches.map((entry) =>
+              entry.branchId === branchId
+                ? {
+                    ...entry,
+                    state: 'cancelled' as const,
+                    currentNodeId: undefined,
+                    endedAt: clock.isoNow(),
+                  }
+                : entry,
+            ),
+            activeBranchIds: current.activeBranchIds.filter((entry) => entry !== branchId),
+          }),
+          current.runVersion,
+        );
+        continue;
+      }
 
       const updatedJoin = recordBranchArrival(joinRecord, {
         branchId,
@@ -867,22 +907,25 @@ export function createWorkflowOrchestrator(
         endedAt: clock.isoNow(),
       };
 
-      current = {
-        ...current,
-        branches: current.branches.map((entry) => (entry.branchId === branchId ? closed : entry)),
-        joins: current.joins.map((entry) =>
-          entry.joinNodeId === updatedJoin.joinNodeId ? updatedJoin : entry,
-        ),
-        activeBranchIds: current.activeBranchIds.filter((entry) => entry !== branchId),
-        completedBranchIds:
-          outcome === 'completed'
-            ? [...current.completedBranchIds, branchId].sort()
-            : current.completedBranchIds,
-        failedBranchIds:
-          outcome === 'failed'
-            ? [...current.failedBranchIds, branchId].sort()
-            : current.failedBranchIds,
-      };
+      current = await persist(
+        touch({
+          ...current,
+          branches: current.branches.map((entry) => (entry.branchId === branchId ? closed : entry)),
+          joins: current.joins.map((entry) =>
+            entry.joinNodeId === updatedJoin.joinNodeId ? updatedJoin : entry,
+          ),
+          activeBranchIds: current.activeBranchIds.filter((entry) => entry !== branchId),
+          completedBranchIds:
+            outcome === 'completed'
+              ? [...current.completedBranchIds, branchId].sort()
+              : current.completedBranchIds,
+          failedBranchIds:
+            outcome === 'failed'
+              ? [...current.failedBranchIds, branchId].sort()
+              : current.failedBranchIds,
+        }),
+        current.runVersion,
+      );
 
       writeAudit(current, {
         event: WORKFLOW_AUDIT_EVENT.branchClosed,
@@ -901,7 +944,10 @@ export function createWorkflowOrchestrator(
         },
       });
 
-      current = admitBranches(current, definition);
+      const readmitted = admitBranches(current, definition);
+      if (readmitted !== current) {
+        current = await persist(touch(readmitted), current.runVersion);
+      }
       current = await evaluateAndMaybeFire(current, definition, plan, updatedJoin.joinNodeId, input);
       if (isTerminalWorkflowState(current.state)) return current;
     }
@@ -959,6 +1005,9 @@ export function createWorkflowOrchestrator(
     // Cancel the arms the policy says are no longer needed, and credit the model
     // calls they will now never make. That is a genuine avoided call, priced
     // against the profile the cancelled node declared.
+    // Everything below builds ONE record in memory and persists it once, through the
+    // single write in the `released` block. Persisting per cancelled branch would
+    // bump the version several times for what is logically one transition.
     const toCancel = branchesToCancel(joinRecord, joinPlan, record.branches);
     let current = record;
     for (const branchId of toCancel) {
@@ -1042,16 +1091,18 @@ export function createWorkflowOrchestrator(
       },
     });
 
-    // The fan-out is over; the main path owns execution again.
-    if (current.state === 'waiting_for_parallel' || current.state === 'waiting_for_join') {
-      current = transition(current, 'running', 'step', {
-        reason: 'the join was satisfied',
-        actorId: input.actor.actorId,
-      });
-    } else {
-      current = touch(current);
-    }
-    return current;
+    // The fan-out is over; the main path owns execution again. The write below is
+    // what makes the fired join durable: without it the next node executor would
+    // compare-and-swap against a version the store never saw.
+    const expectedVersion = current.runVersion;
+    const released =
+      current.state === 'waiting_for_parallel' || current.state === 'waiting_for_join'
+        ? transition(current, 'running', 'step', {
+            reason: 'the join was satisfied',
+            actorId: input.actor.actorId,
+          })
+        : touch(current);
+    return persist(released, expectedVersion);
   }
 
   /**
