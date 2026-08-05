@@ -22,6 +22,8 @@ import type { EnvSource } from './runtime/env.ts';
 import type { AIAdministration } from './admin/administration.ts';
 import type { AdminAuditStore } from './admin/adminAudit.ts';
 import type { AgentRuntime } from './agents/agentRuntime.ts';
+import type { WorkflowRuntime } from './workflows/workflowRuntime.ts';
+import type { WorkflowAuditStore } from './workflows/observability/workflowAudit.ts';
 import type { AgentAuditStore } from './agents/observability/agentAudit.ts';
 import type {
   KvAgentConditionalWriter,
@@ -34,6 +36,13 @@ import {
   createKvAgentRunStore,
 } from './agents/persistence/kvAgentStores.ts';
 import { createKvAgentAuditStore } from './agents/observability/agentAudit.ts';
+import { createWorkflowRuntime } from './workflows/workflowRuntime.ts';
+import {
+  createKvWorkflowApprovalStore,
+  createKvWorkflowCheckpointStore,
+  createKvWorkflowRunStore,
+} from './workflows/persistence/kvWorkflowStores.ts';
+import { createKvWorkflowAuditStore } from './workflows/observability/workflowAudit.ts';
 import { DETERMINISTIC_TOOLS } from './agents/tools/mockTools.ts';
 import { createControlPlane } from './controlPlane.ts';
 import { loadControlPlaneConfig } from './runtime/config.ts';
@@ -86,6 +95,7 @@ export interface BootstrapDependencies {
 let plane: AIControlPlane | undefined;
 let administration: AIAdministration | undefined;
 let agentRuntime: AgentRuntime | undefined;
+let workflowRuntime: WorkflowRuntime | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -321,7 +331,88 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     ids: systemIdFactory,
   });
 
+  // ── Workflow engine (AI-01 Batch 3B) ──────────────────────────────────────
+  //
+  // Assembled over the SAME plane, the SAME authenticator and the certified
+  // agent runtime built above. It is not a third execution path: every model
+  // node goes through `controlPlane.execute`, every agent node through the
+  // Batch 3A orchestrator and every tool node through the Batch 3A gateway, so
+  // it inherits the guard, the policy engine, the governance layer, the spend
+  // ceiling, the tool claims and the audit trail rather than reimplementing any
+  // of them.
+  //
+  // NO WORKFLOWS ARE REGISTERED HERE. Business workflows are out of Batch 3B's
+  // scope, and inventing one to populate the console would be exactly the
+  // "inline production workflow" the batch forbids. The registry starts empty
+  // and a deployment registers definitions explicitly.
+  const workflowAuditStores: WorkflowAuditStore[] = [];
+  if (config.audit.durable && deps.kvWrite) {
+    workflowAuditStores.push(
+      createKvWorkflowAuditStore({
+        write: deps.kvWrite,
+        retentionDays: config.audit.retentionDays,
+        onError: (error) =>
+          console.error(
+            '[ai] durable workflow audit write failed:',
+            error instanceof Error ? error.message : String(error),
+          ),
+      }),
+    );
+  }
+
+  const workflowStorageOptions =
+    deps.kvRead !== undefined &&
+    deps.kvReadByPrefix !== undefined &&
+    deps.kvCompareAndSwapField !== undefined
+      ? {
+          read: deps.kvRead,
+          readByPrefix: deps.kvReadByPrefix,
+          compareAndSwap: deps.kvCompareAndSwapField,
+          onCorrupt: (key: string, detail: string) =>
+            console.error(`[ai] workflow record at ${key} is unreadable: ${detail}`),
+        }
+      : undefined;
+
+  if (workflowStorageOptions === undefined) {
+    console.error(
+      '[ai] no durable key-value port with field-keyed conditional writes was injected — ' +
+        'workflow runs, approvals and checkpoints are isolate-local, will not survive a ' +
+        'restart, and cannot be advanced from another isolate.',
+    );
+  }
+
+  workflowRuntime = createWorkflowRuntime({
+    plane,
+    agentRuntime,
+    authenticator,
+    organizationOptions: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    ...(workflowStorageOptions === undefined
+      ? {}
+      : {
+          runStore: createKvWorkflowRunStore(workflowStorageOptions),
+          checkpointStore: createKvWorkflowCheckpointStore(workflowStorageOptions),
+          approvalStore: createKvWorkflowApprovalStore(workflowStorageOptions),
+        }),
+    auditStores: workflowAuditStores,
+    auditBufferSize: config.audit.bufferSize,
+    clock: systemClock,
+    ids: systemIdFactory,
+    // High-risk caching stays OFF unless a deployment says otherwise. A cached
+    // answer to a high-risk question is the one cache entry most likely to be
+    // wrong in a way somebody notices late.
+    highRiskCachingPermitted: readBool(env, 'WORKFLOW_CACHE_HIGH_RISK', false),
+  });
+
   return plane;
+}
+
+/** The initialised workflow engine, or `undefined` before bootstrap. */
+export function getWorkflowRuntime(): WorkflowRuntime | undefined {
+  return workflowRuntime;
 }
 
 /** The initialised agent runtime, or `undefined` before bootstrap. */
@@ -344,4 +435,5 @@ export function resetControlPlaneForTests(): void {
   plane = undefined;
   administration = undefined;
   agentRuntime = undefined;
+  workflowRuntime = undefined;
 }

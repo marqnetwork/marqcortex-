@@ -31,8 +31,13 @@ import {
   type AgentRouteRegistrar,
 } from "./agentRuntimeRoutes.ts";
 import {
+  registerWorkflowRoutes,
+  type WorkflowRouteRegistrar,
+} from "./workflowRoutes.ts";
+import {
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   initializeControlPlane,
 } from "./ai/index.ts";
 import {
@@ -446,6 +451,30 @@ if (agentRuntime) {
   });
 } else {
   console.error('[ai] agent runtime unavailable — agent routes are not mounted');
+}
+
+// ============================================================================
+// WORKFLOW ENGINE — durable, cost-aware plan execution (AI-01 Batch 3B)
+//
+// WORKFLOWS PLAN. AGENTS PROPOSE. THE ORCHESTRATOR DECIDES.
+// THE AI CONTROL PLANE EXECUTES.
+//
+// Mounted only once the engine exists, and the engine only exists once the
+// agent runtime does — every agent node runs through the certified Batch 3A
+// orchestrator and every tool node through its gateway, so there is no
+// workflow surface without them. Absent either, the routes are simply not
+// mounted: a workflow surface that fails open is worse than one that is
+// missing.
+// ============================================================================
+
+const workflowRuntime = getWorkflowRuntime();
+if (workflowRuntime) {
+  registerWorkflowRoutes(app as unknown as WorkflowRouteRegistrar, {
+    service: workflowRuntime.service,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] workflow engine unavailable — workflow routes are not mounted');
 }
 
 // ============================================================================

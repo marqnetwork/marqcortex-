@@ -33,6 +33,7 @@ export {
   getControlPlane,
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   resetControlPlaneForTests,
   type BootstrapDependencies,
 } from './bootstrap.ts';
@@ -328,6 +329,253 @@ export {
   type AgentHttpResponse,
   type AgentOperation,
 } from './agents/http/agentHttpAdapter.ts';
+
+// ── Workflow engine (AI-01 Batch 3B) ────────────────────────────────────────
+//
+// Durable, deterministic, cost-aware plan execution over the certified Batch 3A
+// agent runtime. It is NOT a third AI execution path: every model node goes
+// through `controlPlane.execute`, every agent node through the Batch 3A
+// orchestrator, and every tool node through the Batch 3A gateway — with the same
+// guard, policy engine, governance, spend ceiling, tool claims and audit trail.
+// What it adds is the layer above: registry, planner, state machine,
+// orchestrator, joins, token optimization, model-profile routing, cost
+// optimization, a safe cache, avoided-call accounting and financial attribution.
+//
+//   WORKFLOWS PLAN. AGENTS PROPOSE. THE ORCHESTRATOR DECIDES.
+//   THE AI CONTROL PLANE EXECUTES.
+export {
+  createWorkflowRuntime,
+  WORKFLOW_SPEND_SCOPE,
+  type WorkflowRuntime,
+  type WorkflowRuntimeOptions,
+} from './workflows/workflowRuntime.ts';
+export {
+  createWorkflowRegistry,
+  validateWorkflowDefinition,
+  type WorkflowRegistry,
+} from './workflows/registry/workflowRegistry.ts';
+export {
+  PLATFORM_PLAN_BOUNDS,
+  SIDE_EFFECTING_NODE_TYPES,
+  TERMINAL_NODE_TYPES,
+  WORKFLOW_LIMIT_BOUNDS,
+  WORKFLOW_NODE_TYPES,
+  describeWorkflow,
+  isWorkflowNodeType,
+  type WorkflowDefinition,
+  type WorkflowDescriptor,
+  type WorkflowEdge,
+  type WorkflowLimits,
+  type WorkflowNode,
+  type WorkflowNodeType,
+  type WorkflowSafetyClass,
+} from './workflows/contracts/workflow.ts';
+export {
+  TERMINAL_WORKFLOW_STATES,
+  WORKFLOW_APPROVAL_BOUNDS,
+  WORKFLOW_CHECKPOINT_BOUNDS,
+  WORKFLOW_HISTORY_BOUNDS,
+  WORKFLOW_RUN_STATES,
+  isTerminalWorkflowState,
+  type WorkflowApprovalRequest,
+  type WorkflowCheckpoint,
+  type WorkflowRunContext,
+  type WorkflowRunRecord,
+  type WorkflowRunState,
+} from './workflows/contracts/runtime.ts';
+export {
+  WorkflowError,
+  isNodeRetryable,
+  isWorkflowError,
+  terminalStateFor as workflowTerminalStateFor,
+  workflowFailure,
+  type WorkflowFailureCode,
+} from './workflows/contracts/failures.ts';
+export {
+  ACTIVE_WORKFLOW_STATES,
+  FAILED_WORKFLOW_STATES,
+  OPERATION_SOURCES as WORKFLOW_OPERATION_SOURCES,
+  OPERATION_TARGETS as WORKFLOW_OPERATION_TARGETS,
+  PAUSABLE_STATES as WORKFLOW_PAUSABLE_STATES,
+  TRANSITIONS as WORKFLOW_TRANSITIONS,
+  assertWorkflowTransition,
+  canTransition as canWorkflowTransition,
+} from './workflows/runtime/stateMachine.ts';
+export {
+  buildGraph,
+  findCycle,
+  reachableFrom,
+  reachesTerminal,
+  type WorkflowGraph,
+} from './workflows/runtime/graph.ts';
+export {
+  nextNodeId,
+  planWorkflow,
+  type WorkflowPlan,
+  type WorkflowPlanManifest,
+} from './workflows/planner/workflowPlanner.ts';
+export {
+  MAPPING_BOUNDS,
+  VALUE_SPACE_ROOTS,
+  applyOutputMapping,
+  resolveMapping,
+  resolvePath,
+  type WorkflowValueSpace,
+} from './workflows/runtime/mapping.ts';
+export {
+  PREDICATE,
+  createPredicateRegistry,
+  evaluatePredicate,
+  registerDefaultPredicates,
+  type Predicate,
+  type PredicateRegistry,
+} from './workflows/runtime/predicates.ts';
+export {
+  TRANSFORM,
+  createTransformRegistry,
+  registerDefaultTransforms,
+  runTransform,
+  type Transform,
+  type TransformRegistry,
+} from './workflows/runtime/transforms.ts';
+export {
+  OPTIMIZER_VERSION,
+  decideTokenAction,
+  optimizeWorkflowContext,
+  type OptimizationDecision,
+  type WorkflowContextManifest,
+} from './workflows/runtime/tokenOptimizer.ts';
+export {
+  COMPLEXITY_FORMULA_VERSION,
+  TASK_COMPLEXITY_CLASSES,
+  classifyTaskComplexity,
+  impliedQualityFor,
+  routingComplexityFor,
+  type TaskComplexityClass,
+} from './workflows/runtime/complexity.ts';
+export {
+  isWorkflowRoutingRefused,
+  isWorkflowRoutingSelected,
+  routeWorkflowProfile,
+  type WorkflowRoutingOutcome,
+} from './workflows/runtime/profileRouter.ts';
+export {
+  decideWorkflowCost,
+  emptyWorkflowCostLedger,
+  projectWorkflowStepCost,
+  releaseWorkflowCost,
+  reserveWorkflowCost,
+  settleWorkflowCost,
+  type WorkflowCostDecision,
+  type WorkflowCostProjection,
+} from './workflows/runtime/costOptimizer.ts';
+export {
+  CACHE_KEY_VERSION,
+  buildCacheKey,
+  cacheEligibilityFor,
+  createMemoryWorkflowCache,
+  createSafeWorkflowCache,
+  isEntryUsable,
+  type CacheEntry,
+  type WorkflowCachePort,
+} from './workflows/runtime/cache.ts';
+export {
+  AVOIDED_ESTIMATE_VERSION,
+  buildAvoidedCallRecord,
+  emptyWorkflowTokenLedger,
+  reconcileWorkflowUsage,
+  summarizeAvoidedCalls,
+} from './workflows/runtime/ledgers.ts';
+export {
+  branchesToCancel,
+  evaluateJoin,
+  initialJoinRecord,
+  mergeBranchOutputs,
+  recordBranchArrival,
+} from './workflows/runtime/joins.ts';
+export {
+  OPTIMIZATION_SCORE_VERSION,
+  computeOptimizationScore,
+  type OptimizationScore,
+} from './workflows/runtime/optimizationScore.ts';
+export {
+  attributeBy,
+  buildFinancialSummary,
+  buildOptimizationSavingsSummary,
+  projectMonthlyBurn,
+  type AttributionDimension,
+  type OptimizationSavingsSummary,
+  type WorkflowFinancialSummary,
+} from './workflows/analytics/financials.ts';
+export {
+  createMemoryWorkflowApprovalStore,
+  createMemoryWorkflowCheckpointStore,
+  createMemoryWorkflowRunStore,
+  type WorkflowApprovalStore,
+  type WorkflowCheckpointStore,
+  type WorkflowRunStore,
+} from './workflows/persistence/ports.ts';
+export {
+  createKvWorkflowApprovalStore,
+  createKvWorkflowCheckpointStore,
+  createKvWorkflowRunStore,
+  workflowApprovalKeyFor,
+  workflowCheckpointKeyFor,
+  workflowRunKeyFor,
+  type KvWorkflowConditionalWriter,
+  type KvWorkflowPrefixReader,
+  type KvWorkflowReader,
+} from './workflows/persistence/kvWorkflowStores.ts';
+export {
+  createWorkflowApprovalGate,
+  type WorkflowApprovalGate,
+} from './workflows/approvals/workflowApprovalGate.ts';
+export {
+  WORKFLOW_AUDIT_EVENT,
+  createKvWorkflowAuditStore,
+  createMemoryWorkflowAuditStore,
+  type WorkflowAuditRecord,
+  type WorkflowAuditStore,
+} from './workflows/observability/workflowAudit.ts';
+export {
+  createWorkflowOrchestrator,
+  type WorkflowOrchestrator,
+  type WorkflowRuntimeState,
+} from './workflows/orchestrator/workflowOrchestrator.ts';
+export {
+  createAgentRuntimeBridge,
+  type AgentExecutionPort,
+} from './workflows/orchestrator/agentBridge.ts';
+export {
+  createToolGatewayBridge,
+  workflowToolPrincipal,
+  type ToolExecutionPort,
+} from './workflows/orchestrator/toolBridge.ts';
+export {
+  createWorkflowService,
+  scoreRun,
+  toWorkflowRunDetail,
+  toWorkflowRunSummary,
+  type WorkflowOverview,
+  type WorkflowRunDetail,
+  type WorkflowRunSummary,
+  type WorkflowService,
+} from './workflows/service/workflowService.ts';
+export {
+  WORKFLOW_ROLE_CAPABILITIES,
+  financeScopeFor,
+  hasWorkflowCapability,
+  resolveWorkflowActor,
+  type WorkflowActor,
+  type WorkflowCapability,
+} from './workflows/service/workflowRbac.ts';
+export {
+  WORKFLOW_OPERATION,
+  executeWorkflowHttpRequest,
+  type WorkflowHttpRequest,
+  type WorkflowHttpResponse,
+  type WorkflowOperation,
+} from './workflows/http/workflowHttpAdapter.ts';
 
 // ── Governance primitives, reusable by future AI capabilities ───────────────
 export { enforceFactLock } from './governance/factLock.ts';
