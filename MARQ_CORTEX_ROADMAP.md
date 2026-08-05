@@ -71,7 +71,7 @@ Status Legend
 | AI-01 Batch 1 | Secure AI Foundation — AI Control Plane | ✅ |
 | AI-01 Batch 2 | AI Administration & Operations | ✅ |
 | AI-01 Batch 3A | Agent Runtime & Orchestrator Core | ✅ |
-| AI-01 Batch 3B | Agent Workflows & Business Agents | ⏳ |
+| AI-01 Batch 3B | Agent Workflows, Token Optimization & Financial Intelligence | ✅ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -135,6 +135,50 @@ console.
 Agents propose. The orchestrator decides. The AI Control Plane executes. No
 production business agents ship in this batch: the registry starts empty by
 design.
+
+AI-01 Batch 3B completed 2026-08-05.
+
+Delivered: the permanent workflow orchestration, token optimization and financial
+intelligence layer (`supabase/functions/server/ai/workflows/`). A versioned
+workflow registry that refuses duplicate ids, non-semantic versions, missing
+initial nodes, unknown edge targets, unreachable nodes, any cycle, branch paths
+with no terminal outcome, joins nobody feeds, joins two parallels claim, undeclared
+agents, tools or profiles, invalid limits and unsafe side effects with no approval.
+A deterministic planner — no language model builds a plan — that compiles the
+graph, computes worst-case steps, retries, tokens and cost with per-node branch
+multiplicity, refuses a plan above the platform bounds, and returns a digest and a
+manifest persisted on the run. One explicit nineteen-state machine with three
+tables, immutable terminal states and optimistic concurrency.
+
+An orchestrator that is the sole authority over workflow execution: sequential
+nodes, bounded fan-out with branch-local state and ledgers, deterministic
+conditions from a typed predicate registry, four join policies with declared
+failure handling, deterministic transforms, wait gates, durable runs, immutable
+versioned checkpoints and single-use checkpoint-bound human approvals. Agent nodes
+execute through the certified Batch 3A orchestrator, tool nodes through its
+gateway, and model nodes through `controlPlane.execute` — three ports, no provider
+import, no credential.
+
+A Token Optimization Engine that selects declared context, deduplicates by digest
+within an authority band, applies per-section ceilings, trims lowest-authority
+content first, excludes optional retrieval and unapproved memory, and renders
+through the hardened Batch 3A fence rather than reimplementing it — reporting a
+baseline and a final figure in the same unit so every saving is arithmetic a
+reviewer can redo. Deterministic complexity classification, minimum-capable
+model-profile routing that explains its candidates, rejections, downgrades and
+escalations, and a Cost Optimization Engine that projects retry, repair, branch,
+child-agent and approval-resume exposure and returns one of ten named actions. A
+cache whose key builder refuses to produce a key without a tenant, so a
+cross-tenant entry is arithmetically unreachable. Avoided-call accounting where
+every saving names the profile and estimate version it was priced against.
+Provider-neutral financial attribution across eleven dimensions from durable run
+records, with projections labelled as projections. An explainable, versioned
+optimization score that cannot be maximised by producing nothing. Secure APIs with
+tenant-scoped RBAC and finance as its own separately scoped capability, plus a
+read-only Workflows tab in the AI Administration console.
+
+Workflows plan. Agents propose. The orchestrator decides. The AI Control Plane
+executes. No business workflows ship with this batch; the registry starts empty.
 
 ---
 

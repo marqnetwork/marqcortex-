@@ -22,6 +22,7 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 **AI Control Plane (AI-01 Batch 1):** `supabase/functions/server/ai/index.ts` — read the module header first  
 **AI Administration (AI-01 Batch 2):** `supabase/functions/server/ai/admin/administration.ts`  
 **Agent Runtime (AI-01 Batch 3A):** `supabase/functions/server/ai/agents/agentRuntime.ts` — read the module header first  
+**Workflow Engine (AI-01 Batch 3B):** `supabase/functions/server/ai/workflows/workflowRuntime.ts` — read the module header first  
 **AI completion reports:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md` · `architecture/ai/AI-01-BATCH-2-COMPLETION.md`  
 **Add an AI provider or feature:** `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
@@ -243,6 +244,28 @@ AGENT RUNTIME (canonical path — AI-01 Batch 3A)
   The agent runtime is not a second AI execution path: it has no provider
   import, no credential and exactly one module that can reach a model.
 
+WORKFLOW ENGINE (canonical path — AI-01 Batch 3B)
+  Caller → workflowRoutes → workflow HTTP adapter (authorise, then dispatch)
+    → Workflow Service (RBAC, tenant scope, finance scope, read models)
+    → Workflow Registry (versioned definition, certification, allow lists)
+    → Workflow Planner (deterministic compile → worst-case exposure → digest)
+    → Workflow Orchestrator (state machine → cursor → input mapping →
+      approval gate → token optimizer → complexity → routing → cache →
+      cost preflight → reserve → execute → validate → reconcile →
+      output mapping → checkpoint → persist)
+    → agent node: agent bridge → certified Batch 3A Agent Orchestrator
+    → tool node:  tool bridge  → certified Batch 3A Tool Gateway
+    → model node: control plane bridge → AI Control Plane → provider
+  WORKFLOWS PLAN. AGENTS PROPOSE. THE ORCHESTRATOR DECIDES.
+  THE AI CONTROL PLANE EXECUTES.
+  The workflow engine is not a third AI execution path. It has no provider
+  import and no credential; the control plane is held only by its assembly, the
+  agent runtime is reached through exactly one bridge and the tool gateway
+  through exactly one. Parallelism is LOGICAL and execution is DETERMINISTIC:
+  branches carry independent state, ledgers, failure handling and real join
+  semantics, but they interleave one node at a time in branch-id order, because
+  every mutation is a compare-and-swap on one run record.
+
 AI ADMINISTRATION (canonical path — AI-01 Batch 2)
   AIAdministrationConsole → aiAdminService.ts → Edge Function → aiAdminRoutes
     → admin HTTP adapter (authorise, then dispatch) → AI Administration service
@@ -421,6 +444,7 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `ai/observability/` | Audit, metrics, events, health, structured logger |
 | `ai/admin/` | AI Administration (AI-01 Batch 2) — settings, RBAC, providers, budget, change trail |
 | `ai/agents/` | **Agent Runtime** (AI-01 Batch 3A, MQC-SVC-056) — registry, state machine, orchestrator, tools, approvals, limits, ledgers, durable runs |
+| `ai/workflows/` | **Workflow Engine** (AI-01 Batch 3B, MQC-SVC-057) — registry, planner, state machine, orchestrator, joins, token optimization, routing, cost optimization, cache, avoided-call accounting, financial attribution |
 | `agentRuntimeRoutes.ts` | Agent runtime HTTP routes (MQC-SVC-074) |
 | `emailService.ts` | Resend emails |
 | `revenueSnapshot.ts` | Deterministic deal snapshots (no LLM) |
@@ -588,6 +612,82 @@ control operation at any role.
 Console: the **Agents** tab of `src/app/components/AIAdministrationConsole.tsx`
 — run visibility, the approval queue and the registry, read-only apart from an
 approval decision.
+
+### 12.4 Workflow Engine (AI-01 Batch 3B)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `WORKFLOW_CACHE_HIGH_RISK` | `false` | Permit caching of nodes the complexity classifier rates `high_risk`. Off deliberately: a cached answer to a high-risk question is the entry most likely to be wrong in a way somebody notices late |
+
+The workflow engine takes no credentials, no provider configuration and no
+certification switch of its own. Workflow certification follows
+`AI_REQUIRE_CERTIFIED_AGENTS` rather than introducing a fifth switch: a workflow
+is a plan over agents, tools and profiles, all three of which already have one,
+and a separate control nobody sets would be a control that is effectively always
+off.
+
+Durable storage uses the same ports and the same migration as the agent runtime
+(`kvReadByPrefix`, `kvCompareAndSwapField`, migration
+`20260804120000_kv_compare_and_swap_field.sql`). Without them the engine is
+isolate-local and says so loudly at bootstrap.
+
+**No production workflows ship with this batch.** The registry starts empty; a
+definition registered in `bootstrap.ts` would be the inline production workflow
+the batch forbids, and the boundary scan asserts its absence.
+
+**What the engine cannot express.** There is no loop construct, so any cycle in a
+definition's edge list is refused at registration as an unbounded loop. There is
+no expression language: `condition` nodes name a registered predicate and
+`transform` nodes a registered transform, and the boundary scan asserts the
+absence of `eval`, `new Function` and `node:vm` anywhere in the tree. There is no
+API that creates or edits a definition — definitions are code, reviewed as code.
+
+**Three digests worth knowing about.** The PLAN digest covers the executable
+identity (graph, node multiplicity, attempts, branches, joins) and is persisted on
+every run: a run whose stored digest disagrees with the plan compiled now is
+refused rather than executed against a definition that changed underneath it. The
+MANIFEST digest additionally covers advisory figures such as worst-case cost, so
+re-pricing a profile does not invalidate a running workflow. The CONTEXT manifest
+digest is taken over the selected sections rather than the rendered text, because
+the text carries a per-build fence nonce and digesting it would destroy the one
+property the digest exists for.
+
+| Route (prefix `/make-server-324f4fbe`) | Method | Capability |
+|----------------------------------------|--------|------------|
+| `/ai/workflows/overview` | GET | `workflow.run.read` |
+| `/ai/workflows/registry` | GET | `workflow.registry.read` |
+| `/ai/workflows/registry/:workflowId` | GET | `workflow.registry.read` |
+| `/ai/workflows/runs` | GET | `workflow.run.read` |
+| `/ai/workflows/runs` | POST | `workflow.run.create` |
+| `/ai/workflows/runs/:workflowRunId` | GET | `workflow.run.read` |
+| `/ai/workflows/runs/:workflowRunId/nodes` | GET | `workflow.run.read` |
+| `/ai/workflows/runs/:workflowRunId/branches` | GET | `workflow.run.read` |
+| `/ai/workflows/runs/:workflowRunId/tokens` | GET | `workflow.run.read` |
+| `/ai/workflows/runs/:workflowRunId/cost` | GET | `workflow.finance.read` |
+| `/ai/workflows/runs/:workflowRunId/pause` | POST | `workflow.run.control` |
+| `/ai/workflows/runs/:workflowRunId/resume` | POST | `workflow.run.control` |
+| `/ai/workflows/runs/:workflowRunId/cancel` | POST | `workflow.run.control` |
+| `/ai/workflows/runs/:workflowRunId/retry` | POST | `workflow.run.control` + `workflow.run.create` |
+| `/ai/workflows/runs/:workflowRunId/approvals/:workflowApprovalId` | POST | `workflow.approval.decide` |
+| `/ai/workflows/approvals` | GET | `workflow.run.read` |
+| `/ai/workflows/finance` | GET | `workflow.finance.read` |
+| `/ai/workflows/savings` | GET | `workflow.finance.read` |
+| `/ai/workflows/audit` | GET | `workflow.run.read` |
+
+**Finance is a separate capability with its own tenant scope.** Cost data is
+commercially sensitive in a way run state is not, so `workflow.finance.read` is
+granted separately from `workflow.run.read` and `workflow.finance.read.platform`
+separately again. Holding the platform RUN read never widens a cost report:
+`readScopeFor` and `financeScopeFor` are distinct functions gated on distinct
+capabilities, and the RBAC suite asserts they disagree for an actor holding one
+and not the other. Only `super_admin` / `platform_admin` hold either platform
+read, and both are READS — there is no cross-tenant control operation at any role.
+
+Console: the **Workflows** tab of `src/app/components/AIAdministrationConsole.tsx`
+— runs in flight with their current node and branch counts, the approval queue,
+bottlenecks, failures, financial attribution and optimization savings. The finance
+block renders only when the server returned it, and the projected monthly burn
+carries the server's own caveat verbatim.
 
 ## 13. Contexts & hooks
 
