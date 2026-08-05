@@ -51,6 +51,11 @@ import { ACTIVE_STATES } from '../runtime/stateMachine.ts';
 import { AGENT_RUN_STATES, isTerminalState } from '../contracts/runtime.ts';
 import { agentFailure } from '../contracts/failures.ts';
 import { adoptOrCreateId } from '../../contracts/ids.ts';
+import type { OptimizationLedger } from '../../optimization/optimizationLedger.ts';
+import {
+  coerceOptimizationLedger,
+  optimizationScore,
+} from '../../optimization/optimizationLedger.ts';
 
 // ── Read models ─────────────────────────────────────────────────────────────
 
@@ -87,6 +92,9 @@ export interface AgentRunDetail extends AgentRunSummary {
   readonly resultDigest?: string;
   readonly tokens: AgentRunRecord['tokens'];
   readonly cost: AgentRunRecord['cost'];
+  /** What optimisation avoided for this run. Total: absent reads as empty. */
+  readonly optimization: OptimizationLedger;
+  readonly optimizationScore: number;
   readonly transitions: AgentRunRecord['transitions'];
   readonly transitionsTruncated: number;
   readonly handoffs: AgentRunRecord['handoffs'];
@@ -123,12 +131,22 @@ export interface AgentStepView {
   readonly approvalId?: string;
   readonly executionRequestId?: string;
   readonly checkpointVersion: number;
+  /** Optimisation facts (AI-01 Batch 3B). Absent means "not measured". */
+  readonly cacheHit?: boolean;
+  readonly complexityScore?: number;
+  readonly complexityClass?: string;
+  readonly avoidedCostMicroUsd?: number;
+  readonly contextTokensSaved?: number;
+  readonly downgradedFromProfileId?: string;
 }
 
 export interface AgentRunUsage {
   readonly runId: string;
   readonly tokens: AgentRunRecord['tokens'];
   readonly cost: AgentRunRecord['cost'];
+  /** Avoided spend, reported apart from spend. Never summed with it. */
+  readonly optimization: OptimizationLedger;
+  readonly optimizationScore: number;
   readonly stepCount: number;
   readonly handoffCount: number;
   readonly elapsedRuntimeMs: number;
@@ -217,6 +235,7 @@ function limitsReached(record: AgentRunRecord): readonly string[] {
 }
 
 export function toRunDetail(record: AgentRunRecord): AgentRunDetail {
+  const optimization = coerceOptimizationLedger(record.optimization);
   return {
     ...toRunSummary(record),
     correlationId: record.context.correlationId,
@@ -226,6 +245,8 @@ export function toRunDetail(record: AgentRunRecord): AgentRunDetail {
     ...(record.resultDigest === undefined ? {} : { resultDigest: record.resultDigest }),
     tokens: record.tokens,
     cost: record.cost,
+    optimization,
+    optimizationScore: optimizationScore(optimization),
     transitions: record.transitions,
     transitionsTruncated: record.transitionsTruncated,
     handoffs: record.handoffs,
@@ -271,6 +292,18 @@ export function toStepViews(record: AgentRunRecord): readonly AgentStepView[] {
     ...(step.executionRequestId === undefined
       ? {}
       : { executionRequestId: step.executionRequestId }),
+    ...(step.cacheHit === undefined ? {} : { cacheHit: step.cacheHit }),
+    ...(step.complexityScore === undefined ? {} : { complexityScore: step.complexityScore }),
+    ...(step.complexityClass === undefined ? {} : { complexityClass: step.complexityClass }),
+    ...(step.avoidedCostMicroUsd === undefined
+      ? {}
+      : { avoidedCostMicroUsd: step.avoidedCostMicroUsd }),
+    ...(step.contextTokensSaved === undefined
+      ? {}
+      : { contextTokensSaved: step.contextTokensSaved }),
+    ...(step.downgradedFromProfileId === undefined
+      ? {}
+      : { downgradedFromProfileId: step.downgradedFromProfileId }),
   }));
 }
 
@@ -647,10 +680,13 @@ export function createAgentRuntimeService(
     async getRunUsage(actor, runId, organizationId) {
       requireAgentCapability(actor, 'agent.run.read');
       const record = await loadScoped(actor, runId, organizationId);
+      const optimization = coerceOptimizationLedger(record.optimization);
       return {
         runId: record.context.runId,
         tokens: record.tokens,
         cost: record.cost,
+        optimization,
+        optimizationScore: optimizationScore(optimization),
         stepCount: record.stepCount,
         handoffCount: record.handoffCount,
         elapsedRuntimeMs: record.elapsedRuntimeMs,

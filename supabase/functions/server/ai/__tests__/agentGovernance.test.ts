@@ -448,7 +448,13 @@ describe('agent runtime — token and cost ceilings', () => {
     assert.equal(row.agentId, AGENT_ID.primary);
     assert.equal(row.providerId, 'primary');
     assert.equal(row.modelId, 'mock-standard');
-    assert.equal(row.feature, 'cortex.agent_step');
+    // AI-01 Batch 3B: the fixture's step classifies `low`, so minimum-capable
+    // routing sends it to the compact profile — which executes through the
+    // compact agent-step FEATURE. The attribution row names whichever governed
+    // feature actually served the call, and that is the point of the row.
+    // `optimization.test.ts` pins both halves: this id with routing on, and
+    // `cortex.agent_step` with it off.
+    assert.equal(row.feature, 'cortex.agent_step_compact');
     assert.equal(row.calls, 1);
     assert.equal(run.organizationId, 'acme');
   });
@@ -516,7 +522,12 @@ describe('agent runtime — the control plane is the only execution path', () =>
     const { run } = await startRun(harness, 'model_then_complete');
 
     const planeAudit = harness.plane.recentAudit(50);
-    const stepRecord = planeAudit.find((record) => record.featureId === 'cortex.agent_step');
+    // Either registered agent-step feature is a governed path; which one serves
+    // a given step is the Batch 3B routing decision, and the claim under test
+    // here is that the step went through the plane at all.
+    const stepRecord = planeAudit.find((record) =>
+      record.featureId === 'cortex.agent_step' || record.featureId === 'cortex.agent_step_compact',
+    );
     assert.ok(stepRecord, 'the model step appears in the control plane audit trail');
     assert.equal(stepRecord.organizationId, 'acme');
     assert.equal(stepRecord.actorId, 'user-consultant');
@@ -570,8 +581,13 @@ describe('agent runtime — the control plane is the only execution path', () =>
       .recentAudit(actor, 100)
       .find((record) => record.event === AGENT_AUDIT_EVENT.modelRouted);
     assert.ok(routed);
-    assert.equal(routed.detail.profileId, AGENT_MODEL_PROFILE.standard);
-    assert.equal(routed.detail.featureId, 'cortex.agent_step');
+    // AI-01 Batch 3B: minimum-capable routing classified this step and chose the
+    // compact profile. The record carries both the choice and the reason it was
+    // made, which is what makes the decision reviewable after the fact.
+    assert.equal(routed.detail.profileId, AGENT_MODEL_PROFILE.compact);
+    assert.equal(routed.detail.featureId, 'cortex.agent_step_compact');
+    assert.equal(routed.detail.complexity, 'low');
+    assert.equal(routed.detail.minimumCapableFrom, AGENT_MODEL_PROFILE.standard);
     // The runtime never names a provider when it routes — that is the plane's
     // decision, and it appears only on the executed record afterwards.
     assert.equal('providerId' in routed.detail, false);

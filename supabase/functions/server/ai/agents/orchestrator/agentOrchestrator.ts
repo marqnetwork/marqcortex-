@@ -108,6 +108,22 @@ import {
 import { buildContext, type ContextInput, type ContextSectionKind } from '../runtime/contextBuilder.ts';
 import { canonicalBytes, digestValue } from '../runtime/digest.ts';
 import { isFailure, describeIssues } from '../../security/validation.ts';
+import { classifyComplexity, complexitySignalsFor } from '../../optimization/complexity.ts';
+import { selectMinimumCapableProfile } from '../../optimization/profileSelection.ts';
+import { optimizeContext } from '../../optimization/contextOptimizer.ts';
+import type { PromptCache } from '../../optimization/promptCache.ts';
+import { cacheKeyFor, isCacheEligible } from '../../optimization/promptCache.ts';
+import type { OptimizationLedger } from '../../optimization/optimizationLedger.ts';
+import {
+  coerceOptimizationLedger,
+  emptyOptimizationLedger,
+  recordAvoidedCall,
+  recordCacheIneligible,
+  recordCacheMiss,
+  recordContextSaving,
+  recordProfileDowngrade,
+  recordSpend,
+} from '../../optimization/optimizationLedger.ts';
 
 /** Administrative and health facts the runtime re-reads before every step. */
 export interface AgentRuntimeState {
@@ -162,6 +178,29 @@ export interface AgentOrchestratorDependencies {
   readonly assumedProviderAttempts?: number;
   /** Micro-USD above which a step needs approval. Absent means no threshold. */
   readonly costApprovalThresholdMicroUsd?: number;
+  /**
+   * Token and cost optimisation (AI-01 Batch 3B).
+   *
+   * Absent means the orchestrator behaves exactly as Batch 3A certified it:
+   * context is built from the agent's contributions unreduced, routing uses the
+   * standard complexity floor, and every model step reaches the control plane.
+   * That is deliberate — an optimisation that cannot be turned off is an
+   * optimisation whose effect cannot be isolated during an incident.
+   */
+  readonly optimization?: OptimizationOptions;
+}
+
+/** How much of the Batch 3B optimisation layer this runtime applies. */
+export interface OptimizationOptions {
+  /** Deterministic context reduction before the certified builder runs. */
+  readonly contextReduction: boolean;
+  /** Complexity classification and minimum-capable profile routing. */
+  readonly minimumCapableRouting: boolean;
+  /**
+   * The safe cache. Absent means every eligible step still reports its
+   * eligibility, and every step still reaches the control plane.
+   */
+  readonly cache?: PromptCache;
 }
 
 export interface CreateRunInput {
@@ -234,6 +273,20 @@ export function createAgentOrchestrator(
 ): AgentOrchestrator {
   const { registry, profiles, tools, runs, checkpoints, approvals, models, audit, clock, ids } = deps;
   const assumedAttempts = Math.max(1, deps.assumedProviderAttempts ?? 2);
+
+  /**
+   * The optimisation posture, resolved once.
+   *
+   * Defaulting every switch to OFF keeps an orchestrator built the Batch 3A way
+   * behaving the Batch 3A way. The runtime assembly turns them on; a test that
+   * wants the certified baseline simply does not.
+   */
+  const optimization: OptimizationOptions =
+    deps.optimization ?? { contextReduction: false, minimumCapableRouting: false };
+
+  /** A run's optimisation ledger, made total. Records predating 3B read empty. */
+  const optimizationOf = (record: AgentRunRecord): OptimizationLedger =>
+    coerceOptimizationLedger(record.optimization);
 
   // ── Small helpers ─────────────────────────────────────────────────────────
 
@@ -1617,21 +1670,67 @@ export function createAgentOrchestrator(
 
     const remaining = remainingBudget(record, agent.limits, clock.now(), context.deadlineMs);
 
-    // ── Context assembly ────────────────────────────────────────────────────
-    const contextInputs = contextInputsFor(agent, context.progress, action.context ?? []);
+    // ── Classification, BEFORE anything is assembled ────────────────────────
+    //
+    // Classified from the RAW contributions rather than from the built context,
+    // so the reduction below cannot influence the class it is selected by. A
+    // classifier fed its own output would report every step as small.
+    const rawInputs = contextInputsFor(agent, context.progress, action.context ?? []);
+    const classification = classifyComplexity(
+      complexitySignalsFor({
+        contextChars: rawInputs.reduce((total, entry) => total + (entry.content?.length ?? 0), 0),
+        includedSections: rawInputs.length,
+        untrustedSections: rawInputs.filter((entry) => entry.trusted === false).length,
+        requiredOutputFields: action.expectedOutput?.requiredFields.length ?? 0,
+        requiresStructuredOutput: true,
+        stepCount: record.stepCount,
+        handoffCount: record.handoffCount,
+        lastObservationFailed: context.progress.lastObservation?.ok === false,
+        objectiveChars: action.objective?.length ?? 0,
+      }),
+    );
+
+    // ── Deterministic context reduction, then the certified builder ─────────
+    const reduction = optimization.contextReduction
+      ? optimizeContext(rawInputs, classification)
+      : undefined;
+    const contextInputs = reduction === undefined ? rawInputs : reduction.inputs;
     let built = buildContext(contextInputs, {
       budgetTokens: Math.max(1, Math.min(agent.limits.maxPromptTokens, remaining.promptTokens)),
     });
 
     // ── Routing ─────────────────────────────────────────────────────────────
+    //
+    // Minimum-capable selection reinterprets the agent's requested profile as a
+    // CEILING. It can only offer something cheaper, and the certified router
+    // still applies the allow list, the hard requirements, provider health and
+    // affordability to whatever is offered.
+    const selection = optimization.minimumCapableRouting
+      ? selectMinimumCapableProfile(profiles, {
+          allowedProfileIds: agent.allowedModelProfiles,
+          requestedProfileId: action.modelProfileId,
+          classification,
+          requiresStructuredOutput: true,
+          safety: agent.safetyClass === 'external_effect' ? 'strict' : 'standard',
+          estimatedPromptTokens: built.manifest.estimatedPromptTokens,
+          maxCompletionTokens: agent.limits.maxCompletionTokens,
+        })
+      : undefined;
+    const requestedProfileId =
+      selection === undefined || selection.profileId === ''
+        ? action.modelProfileId
+        : selection.profileId;
+
     const routing = routeModelProfile(
       profiles,
       {
         allowedProfileIds: agent.allowedModelProfiles,
-        requestedProfileId: action.modelProfileId,
+        requestedProfileId,
         requiresStructuredOutput: true,
-        complexity: 'standard',
-        minimumQuality: 'standard',
+        complexity: optimization.minimumCapableRouting ? classification.complexity : 'standard',
+        minimumQuality: optimization.minimumCapableRouting
+          ? classification.minimumQuality
+          : 'standard',
         latency: 'interactive',
         safety: agent.safetyClass === 'external_effect' ? 'strict' : 'standard',
         remainingTotalTokens: remaining.totalTokens,
@@ -1691,6 +1790,22 @@ export function createAgentOrchestrator(
         contextReduced: built.manifest.reduced,
         contextSections: built.manifest.included.length,
         contextExcluded: built.manifest.excluded.length,
+        complexity: classification.complexity,
+        complexityScore: classification.score,
+        complexityDrivers: classification.drivers.join(' '),
+        minimumQuality: classification.minimumQuality,
+        ...(selection?.downgradedFrom === undefined
+          ? {}
+          : {
+              minimumCapableFrom: selection.downgradedFrom,
+              projectedSavingMicroUsd: selection.projectedSavingMicroUsd,
+            }),
+        ...(reduction === undefined
+          ? {}
+          : {
+              optimizerTokensSaved: reduction.tokensSaved,
+              optimizerSectionsRemoved: reduction.removed.length,
+            }),
       },
     });
 
@@ -1828,6 +1943,152 @@ export function createAgentOrchestrator(
       );
     }
 
+    // ── Optimisation accounting for this step ───────────────────────────────
+    //
+    // Folded onto the run BEFORE the call, so a step that then fails still
+    // records what the reduction and the routing decision avoided. These are
+    // properties of the decision, not of the outcome.
+    let optimizationLedger = optimizationOf(record);
+    if (reduction !== undefined) {
+      optimizationLedger = recordContextSaving(optimizationLedger, {
+        tokensSaved: reduction.tokensSaved,
+        sectionsRemoved: reduction.removed.length,
+      });
+    }
+    if (selection?.downgradedFrom !== undefined) {
+      optimizationLedger = recordProfileDowngrade(
+        optimizationLedger,
+        selection.projectedSavingMicroUsd,
+      );
+    }
+
+    // ── The safe cache, consulted only once the step is authorised ──────────
+    //
+    // AFTER the token and cost preflights, deliberately. A cache hit costs
+    // nothing, which makes it tempting to serve one to a run that has spent its
+    // allowance — and that is precisely how a run continues indefinitely past a
+    // ceiling somebody set. The ceilings decide whether a step may happen; the
+    // cache decides only whether it has to be paid for.
+    const eligibility = isCacheEligible({
+      enabled: optimization.cache !== undefined,
+      safetyClass: agent.safetyClass,
+      requiresStructuredOutput: true,
+      // A step being replayed under a granted approval was authorised as THIS
+      // call. Serving a stored answer would satisfy the approval with work
+      // nobody approved.
+      approvalInFlight: record.pendingApprovalId !== undefined,
+    });
+
+    const cacheKey = cacheKeyFor({
+      organizationId: record.context.organizationId,
+      featureId: profile.featureId,
+      modelProfileId: profile.profileId,
+      // The MANIFEST digest, never the rendered text. The text carries a
+      // per-build fence nonce, so digesting it would make every key unique and
+      // the cache could never hit anything.
+      promptDigest: built.manifest.digest,
+      outputFields: action.expectedOutput?.requiredFields ?? [],
+      configurationVersion: deps.runtimeState().configurationVersion,
+      agentId: agent.agentId,
+    });
+
+    const cachedEntry =
+      eligibility.eligible && optimization.cache !== undefined
+        ? optimization.cache.get(record.context.organizationId, cacheKey)
+        : undefined;
+
+    if (optimization.cache !== undefined && !eligibility.eligible) {
+      optimizationLedger = recordCacheIneligible(
+        optimizationLedger,
+        eligibility.refusedBecause ?? 'disabled',
+      );
+    }
+
+    if (cachedEntry !== undefined) {
+      // A call not made. The run's token and cost ledgers are untouched, because
+      // nothing was consumed and nothing was spent — what the platform avoided
+      // is recorded where avoided things are recorded, and never as spend.
+      optimizationLedger = recordAvoidedCall(optimizationLedger, {
+        usage: cachedEntry.usage,
+        costMicroUsd: cachedEntry.costMicroUsd,
+      });
+
+      const cachedObservation: AgentObservation = {
+        kind: 'model',
+        ok: true,
+        digest: cachedEntry.outputDigest,
+        output: cachedEntry.output,
+      };
+
+      const servedFromCache = await commitStep(
+        {
+          ...context,
+          record: {
+            ...record,
+            optimization: optimizationLedger,
+            pendingApprovalId: undefined,
+            pendingAction: undefined,
+          },
+        },
+        {
+          nextState: 'running',
+          outcome: 'executed',
+          observation: cachedObservation,
+          outputDigest: cachedObservation.digest,
+          stepFields: {
+            modelProfileId: profile.profileId,
+            providerId: cachedEntry.providerId,
+            modelId: cachedEntry.modelId,
+            // The ORIGINAL control plane request id. Two steps pointing at one
+            // request is the truth being recorded: this step was answered by
+            // the call that request made.
+            executionRequestId: cachedEntry.sourceRequestId,
+            actualPromptTokens: 0,
+            actualCompletionTokens: 0,
+            actualCostMicroUsd: 0,
+            estimatedCostMicroUsd: projection.projectedMicroUsd,
+            cacheHit: true,
+            avoidedCostMicroUsd: cachedEntry.costMicroUsd,
+            complexityScore: classification.score,
+            complexityClass: classification.complexity,
+            ...(reduction === undefined ? {} : { contextTokensSaved: reduction.tokensSaved }),
+            ...(selection?.downgradedFrom === undefined
+              ? {}
+              : { downgradedFromProfileId: selection.downgradedFrom }),
+          },
+          progress: { ...context.progress, lastObservation: cachedObservation },
+          reason: action.reason,
+          stop: false,
+        },
+      );
+
+      writeAudit(servedFromCache.record, {
+        event: AGENT_AUDIT_EVENT.modelExecuted,
+        outcome: 'executed',
+        requestId: input.requestId,
+        correlationId: input.correlationId,
+        actorId: input.actor.actorId,
+        actionId: action.actionId,
+        actionType: 'model_call',
+        executionRequestId: cachedEntry.sourceRequestId,
+        reason: 'Served from the governed answer cache; no model call was made.',
+        detail: {
+          cacheHit: true,
+          profileId: profile.profileId,
+          featureId: profile.featureId,
+          avoidedCostMicroUsd: cachedEntry.costMicroUsd,
+          avoidedTotalTokens: cachedEntry.usage.totalTokens,
+          outputDigest: cachedEntry.outputDigest,
+          cacheEntryHits: cachedEntry.hits,
+        },
+      });
+      return servedFromCache;
+    }
+
+    if (eligibility.eligible) {
+      optimizationLedger = recordCacheMiss(optimizationLedger);
+    }
+
     // ── Reserve, park, execute ──────────────────────────────────────────────
     const reservedLedger = reserveCost(record.cost, projection.projectedMicroUsd);
     const estimatedTokens = recordEstimate(record.tokens, estimate);
@@ -1837,6 +2098,7 @@ export function createAgentOrchestrator(
         ...record,
         cost: reservedLedger,
         tokens: estimatedTokens,
+        optimization: optimizationLedger,
         runVersion: record.runVersion + 1,
         updatedAt: clock.isoNow(),
       },
@@ -1900,6 +2162,26 @@ export function createAgentOrchestrator(
       output,
     };
 
+    // Store the GOVERNED answer — redacted, fact-locked and validated against
+    // the feature's output contract by the time it reached here. A cache of raw
+    // provider text would be a way to serve content that never passed the
+    // governance layer.
+    if (eligibility.eligible && optimization.cache !== undefined) {
+      optimization.cache.put({
+        key: cacheKey,
+        organizationId: record.context.organizationId,
+        output,
+        outputDigest: observation.digest,
+        usage: result.usage,
+        costMicroUsd: result.costMicroUsd,
+        providerId: result.providerId,
+        modelId: result.modelId,
+        sourceRequestId: result.requestId,
+      });
+    }
+
+    const spentLedger = recordSpend(optimizationLedger, result.costMicroUsd);
+
     const committed = await commitStep(
       {
         ...context,
@@ -1907,6 +2189,7 @@ export function createAgentOrchestrator(
           ...parked,
           tokens: reconciledTokens,
           cost: settledCost,
+          optimization: spentLedger,
           pendingApprovalId: undefined,
           pendingAction: undefined,
         },
@@ -1925,6 +2208,13 @@ export function createAgentOrchestrator(
           actualCompletionTokens: result.usage.completionTokens,
           actualCostMicroUsd: result.costMicroUsd,
           estimatedCostMicroUsd: projection.projectedMicroUsd,
+          cacheHit: false,
+          complexityScore: classification.score,
+          complexityClass: classification.complexity,
+          ...(reduction === undefined ? {} : { contextTokensSaved: reduction.tokensSaved }),
+          ...(selection?.downgradedFrom === undefined
+            ? {}
+            : { downgradedFromProfileId: selection.downgradedFrom }),
         },
         tokens: reconciledTokens,
         cost: settledCost,
@@ -2125,6 +2415,7 @@ export function createAgentOrchestrator(
         repeatedActionCount: 0,
         tokens: emptyTokenLedger(),
         cost: emptyCostLedger(),
+        optimization: emptyOptimizationLedger(),
         loop: initialLoopState(agent.agentId),
         claimedToolKeys: [],
         checkpointVersion: 0,

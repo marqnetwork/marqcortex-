@@ -45,6 +45,8 @@ import type { AgentOrchestrator, AgentRuntimeState } from './orchestrator/agentO
 import type { AgentRuntimeService } from './service/agentRuntimeService.ts';
 import type { ApprovalGate } from './approvals/approvalGate.ts';
 import type { ModelExecutionPort } from './orchestrator/controlPlaneBridge.ts';
+import type { PromptCache } from '../optimization/promptCache.ts';
+import { createPromptCache } from '../optimization/promptCache.ts';
 
 import { systemClock } from '../runtime/clock.ts';
 import { systemIdFactory } from '../contracts/ids.ts';
@@ -101,6 +103,23 @@ export interface AgentRuntimeOptions {
   readonly costApprovalThresholdMicroUsd?: number;
   /** Override the model port. Tests substitute a deterministic one. */
   readonly modelPort?: ModelExecutionPort;
+  /**
+   * Token and cost optimisation (AI-01 Batch 3B).
+   *
+   * Defaults to deterministic context reduction and minimum-capable routing ON,
+   * and the safe cache OFF. The first two cannot change what a step is permitted
+   * to do — one removes provably redundant context, the other can only route to
+   * a cheaper profile the certified router would already have accepted. The
+   * cache serves a previously governed answer instead of making a call, which is
+   * a larger claim, so a deployment opts into it.
+   */
+  readonly optimization?: {
+    readonly contextReduction?: boolean;
+    readonly minimumCapableRouting?: boolean;
+    readonly cacheEnabled?: boolean;
+    readonly cacheMaxEntries?: number;
+    readonly cacheTtlMs?: number;
+  };
 }
 
 export interface AgentRuntime {
@@ -113,6 +132,15 @@ export interface AgentRuntime {
   readonly runs: AgentRunStore;
   readonly checkpoints: AgentCheckpointStore;
   readonly audit: AgentAuditWriter;
+  /**
+   * The governed answer cache, when the deployment enabled one.
+   *
+   * Exposed so the operator surface can report hit rate and size. There is no
+   * read of an ENTRY on this handle — a console that could print cached answers
+   * would be a second way to see content the read models deliberately reduce to
+   * digests.
+   */
+  readonly promptCache?: PromptCache;
   /** The administrative and health facts the orchestrator reads per step. */
   state(): AgentRuntimeState;
 }
@@ -203,6 +231,20 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 
   const models = options.modelPort ?? createControlPlaneModelPort(options.plane);
 
+  const promptCache =
+    options.optimization?.cacheEnabled === true
+      ? createPromptCache({
+          now: () => clock.now(),
+          isoNow: () => clock.isoNow(),
+          ...(options.optimization.cacheMaxEntries === undefined
+            ? {}
+            : { maxEntries: options.optimization.cacheMaxEntries }),
+          ...(options.optimization.cacheTtlMs === undefined
+            ? {}
+            : { ttlMs: options.optimization.cacheTtlMs }),
+        })
+      : undefined;
+
   const orchestrator = createAgentOrchestrator({
     registry,
     profiles,
@@ -228,6 +270,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ...(options.costApprovalThresholdMicroUsd === undefined
       ? {}
       : { costApprovalThresholdMicroUsd: options.costApprovalThresholdMicroUsd }),
+    optimization: {
+      contextReduction: options.optimization?.contextReduction !== false,
+      minimumCapableRouting: options.optimization?.minimumCapableRouting !== false,
+      ...(promptCache === undefined ? {} : { cache: promptCache }),
+    },
   });
 
   const service = createAgentRuntimeService({
@@ -257,6 +304,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     runs,
     checkpoints,
     audit,
+    ...(promptCache === undefined ? {} : { promptCache }),
     state,
   };
 }

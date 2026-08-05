@@ -28,6 +28,7 @@
 
 import type { AgentFailureCode } from './failures.ts';
 import type { AgentAction, AgentActionType } from './actions.ts';
+import type { OptimizationLedger } from '../../optimization/optimizationLedger.ts';
 
 // ── States ──────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,28 @@ export interface AgentStepRecord {
   readonly targetAgentId?: string;
   readonly approvalId?: string;
   readonly checkpointVersion: number;
+
+  // ── Optimisation (AI-01 Batch 3B) ─────────────────────────────────────────
+  //
+  // Recorded on the step rather than only on the run, because "which step was
+  // served from cache?" and "which step was routed down?" are the questions a
+  // cost review asks, and a run-level total cannot answer either.
+  //
+  // Every field is optional. Steps written before Batch 3B carry none of them,
+  // and a reader must treat `undefined` as "not measured", never as "no".
+
+  /** True when a stored governed answer was served instead of a model call. */
+  readonly cacheHit?: boolean;
+  /** The complexity score this step was classified at. */
+  readonly complexityScore?: number;
+  /** Complexity class the routing floor was derived from. */
+  readonly complexityClass?: 'low' | 'standard' | 'high';
+  /** Micro-USD the replaced call originally cost. Only on a cache hit. */
+  readonly avoidedCostMicroUsd?: number;
+  /** Prompt tokens the deterministic context reduction removed. */
+  readonly contextTokensSaved?: number;
+  /** Profile the agent asked for, when the step was routed to a cheaper one. */
+  readonly downgradedFromProfileId?: string;
 }
 
 export interface AgentHandoffRecord {
@@ -267,6 +290,19 @@ export interface AgentRunRecord {
   readonly repeatedActionCount: number;
   readonly tokens: AgentTokenLedger;
   readonly cost: AgentCostLedger;
+  /**
+   * What optimisation avoided for this run (AI-01 Batch 3B).
+   *
+   * Optional because records written before Batch 3B do not carry it, and a
+   * reader must treat its absence as "nothing measured" rather than as a run
+   * that optimised nothing. `coerceOptimizationLedger` turns either into a
+   * usable value.
+   *
+   * Kept apart from `tokens` and `cost`, which record what was SPENT. A ledger
+   * that mixed spend with avoided spend would be unable to answer either
+   * question, and the answer it did give would be the one nobody could check.
+   */
+  readonly optimization?: OptimizationLedger;
   readonly loop: AgentLoopState;
   /** Approval the run is currently blocked on, if any. */
   readonly pendingApprovalId?: string;

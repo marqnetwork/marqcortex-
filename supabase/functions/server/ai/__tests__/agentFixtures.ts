@@ -455,6 +455,16 @@ export interface TestAgentRuntimeOptions {
   readonly approvalStore?: Parameters<typeof createAgentRuntime>[0]['approvalStore'];
   readonly costApprovalThresholdMicroUsd?: number;
   readonly clock?: MutableClock;
+  /**
+   * AI-01 Batch 3B optimisation switches.
+   *
+   * Omitted, the harness builds the runtime the way production does: context
+   * reduction and minimum-capable routing on, the cache off. A suite that wants
+   * the certified Batch 3A routing behaviour turns them off explicitly, which is
+   * what makes "the optimisation is what changed this" a testable claim rather
+   * than an assertion about the whole runtime.
+   */
+  readonly optimization?: Parameters<typeof createAgentRuntime>[0]['optimization'];
 }
 
 export function buildTestAgentRuntime(
@@ -510,6 +520,7 @@ export function buildTestAgentRuntime(
     ...(options.costApprovalThresholdMicroUsd === undefined
       ? {}
       : { costApprovalThresholdMicroUsd: options.costApprovalThresholdMicroUsd }),
+    ...(options.optimization === undefined ? {} : { optimization: options.optimization }),
   });
 
   return {
