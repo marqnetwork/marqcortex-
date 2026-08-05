@@ -33,6 +33,14 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
  * source — an agent runtime with its own id generator would be the one part of
  * the platform whose ids a test could not control.
  */
+/**
+ * The `wfr`, `wfn`, `wfa` and `wfd` kinds belong to the workflow engine (AI-01
+ * Batch 3B): a workflow run, a node execution, a workflow approval and a
+ * workflow audit record. They share this factory for exactly the reason the
+ * agent runtime's kinds do — a test that pins identifiers pins ALL of them from
+ * one deterministic source, and a workflow engine with its own id generator
+ * would be the one part of the platform whose ids a test could not control.
+ */
 export type IdKind =
   | 'req'
   | 'cor'
@@ -44,7 +52,11 @@ export type IdKind =
   | 'stp'
   | 'apr'
   | 'cpt'
-  | 'hof';
+  | 'hof'
+  | 'wfr'
+  | 'wfn'
+  | 'wfa'
+  | 'wfd';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without
