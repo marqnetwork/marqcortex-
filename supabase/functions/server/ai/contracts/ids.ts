@@ -33,6 +33,13 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
  * source — an agent runtime with its own id generator would be the one part of
  * the platform whose ids a test could not control.
  */
+/**
+ * `wfr` and `wfs` belong to the workflow engine (AI-01 Batch 3B): a workflow
+ * run and a workflow step. They are distinct from `run` and `stp` on purpose —
+ * a workflow run and the agent runs it drives appear side by side in the same
+ * log line, and an identifier that says which of the two it is saves a lookup
+ * every time somebody reads one.
+ */
 export type IdKind =
   | 'req'
   | 'cor'
@@ -44,7 +51,9 @@ export type IdKind =
   | 'stp'
   | 'apr'
   | 'cpt'
-  | 'hof';
+  | 'hof'
+  | 'wfr'
+  | 'wfs';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without

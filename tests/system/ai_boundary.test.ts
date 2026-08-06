@@ -307,6 +307,136 @@ describe('agent runtime boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 3B added a workflow engine. It sits one level further from the
+ * model than the agent runtime does, and that distance is exactly what makes it
+ * tempting to shorten: a node "just needs to call the agent's model", or "just
+ * needs to check whether the tool succeeded", and either shortcut steps outside
+ * the Agent Orchestrator — and therefore outside the limits, loop protection,
+ * budgets, approvals, tool permissions and audit trail that Batch 3A places on
+ * every agent step.
+ *
+ * The claim being asserted here is narrow and absolute: THE ONLY WAY FROM A
+ * WORKFLOW TO AN AGENT IS `engine/agentNodePort.ts`. A behavioural test can
+ * show that the port works; only a source scan can show there is no second way.
+ */
+describe('workflow engine boundary', () => {
+  const WORKFLOWS_DIR = join(SERVER_ROOT, 'ai', 'workflows') + sep;
+  const PORT = join('engine', 'agentNodePort.ts');
+  const ASSEMBLY = 'workflowRuntime.ts';
+  const workflowSources = serverSources.filter(
+    (file) => file.path.startsWith(WORKFLOWS_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty workflow tree', () => {
+    assert.ok(
+      workflowSources.length >= 10,
+      `expected the workflow tree, found ${workflowSources.length}`,
+    );
+  });
+
+  it('never imports a provider adapter, names a vendor or reads a credential', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(workflowSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(workflowSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(workflowSources, CREDENTIAL), []);
+  });
+
+  it('never holds the control plane or invokes a provider adapter', () => {
+    // The workflow engine is TWO layers from a model call: it drives agent runs,
+    // and the agent runtime's own bridge is the only thing that reaches the
+    // plane. A plane import here would skip both.
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    assert.deepEqual(offenders(workflowSources, PLANE_IMPORT), []);
+    assert.deepEqual(offenders(workflowSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('never reaches a tool gateway, a tool registry or a prompt', () => {
+    // Tools belong to the agent that declared them. A workflow that could call
+    // one would be executing an effect no agent definition authorised.
+    const TOOL_IMPORT = /from\s+['"][^'"]*(tools\/toolRegistry|tools\/mockTools|prompts\/)/;
+    assert.deepEqual(offenders(workflowSources, TOOL_IMPORT), []);
+    const TOOL_CALL = /\b(toolGateway|gateway)\s*\.\s*(execute|invoke|call)\s*\(/;
+    assert.deepEqual(offenders(workflowSources, TOOL_CALL), []);
+  });
+
+  it('reaches the agent runtime through exactly one module', () => {
+    // `engine/agentNodePort.ts` is the only place that may hold an
+    // AgentOrchestrator. `workflowRuntime.ts` is the assembly that hands it one
+    // — it constructs the port and resolves the actor through the agent
+    // runtime's own RBAC, and never drives a run itself.
+    const AGENT_EXECUTION_IMPORT =
+      /from\s+['"][^'"]*agents\/(orchestrator|service|tools|approvals|registry)\//;
+    const offending = workflowSources
+      .filter((file) => !file.path.endsWith(PORT) && !file.path.endsWith(ASSEMBLY))
+      .filter((file) => AGENT_EXECUTION_IMPORT.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(
+      offending,
+      [],
+      'only the agent node port and the runtime assembly may import agent execution modules',
+    );
+
+    const port = workflowSources.find((file) => file.path.endsWith(PORT));
+    assert.ok(port, 'the agent node port must exist');
+    assert.match(port.text, /orchestrator\.createRun\(/, 'the port creates child runs');
+    assert.match(port.text, /orchestrator\.advance\(/, 'the port drives child runs');
+  });
+
+  it('imports only pure contracts and the canonical serializer from the agent tree', () => {
+    // Everything else a workflow module may borrow from `agents/` has to be
+    // free of behaviour. `runtime/digest.ts` is the one non-contract exception
+    // and it is a bounded, side-effect-free serializer — duplicating it would
+    // give the platform two canonical forms to keep in step.
+    const ALLOWED = /^\.\.\/\.\.\/agents\/(contracts\/[a-zA-Z]+\.ts|runtime\/digest\.ts)$/;
+    const IMPORT = /from\s+['"](\.\.\/\.\.\/agents\/[^'"]+)['"]/g;
+    const offending: string[] = [];
+    for (const file of workflowSources) {
+      if (file.path.endsWith(PORT) || file.path.endsWith(ASSEMBLY)) continue;
+      for (const match of file.text.matchAll(IMPORT)) {
+        if (!ALLOWED.test(match[1])) {
+          offending.push(`${relative(SERVER_ROOT, file.path)} -> ${match[1]}`);
+        }
+      }
+    }
+    assert.deepEqual(offending, []);
+  });
+
+  it('does not re-implement a guarantee that already has one implementation', () => {
+    // Spend enforcement, provider selection, request authorization, policy
+    // evaluation, the agent state machine and the agent registry each have
+    // exactly one implementation. A second one inside the workflow engine would
+    // not weaken the first — it would replace it for whatever flows through it.
+    const DUPLICATED =
+      /createSpendLedger|createProviderSelector|createAIGuard|createPolicyEngine|createAgentRegistry|createAgentOrchestrator/;
+    assert.deepEqual(offenders(workflowSources, DUPLICATED), []);
+  });
+
+  it('changes workflow run state in exactly one place', () => {
+    // Every state change goes through `assertTransition` and the store's
+    // compare-and-swap. A `state:` assignment outside the engine's transition
+    // helper would be a state the machine never agreed to.
+    const engine = workflowSources.filter(
+      (file) => file.path.includes(join('engine', 'workflowOrchestrator.ts')),
+    );
+    assert.equal(engine.length, 1, 'the workflow engine must exist');
+    assert.match(engine[0].text, /assertTransition\(\{/);
+    const others = workflowSources.filter(
+      (file) =>
+        !file.path.includes(join('engine', 'workflowOrchestrator.ts')) &&
+        !file.path.includes(join('runtime', 'workflowStateMachine.ts')) &&
+        !file.path.includes(join('contracts', 'run.ts')),
+    );
+    assert.deepEqual(
+      offenders(others, /\bstate:\s*'(running|completed|failed|cancelled|expired)'/),
+      [],
+      'a workflow state is assigned outside the engine',
+    );
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 
