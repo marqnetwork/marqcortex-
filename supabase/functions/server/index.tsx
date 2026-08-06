@@ -31,8 +31,13 @@ import {
   type AgentRouteRegistrar,
 } from "./agentRuntimeRoutes.ts";
 import {
+  registerWorkflowRoutes,
+  type WorkflowRouteRegistrar,
+} from "./workflowRoutes.ts";
+import {
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   initializeControlPlane,
 } from "./ai/index.ts";
 import {
@@ -446,6 +451,25 @@ if (agentRuntime) {
   });
 } else {
   console.error('[ai] agent runtime unavailable — agent routes are not mounted');
+}
+
+// ============================================================================
+// AI-01 BATCH 3B — WORKFLOW RUNTIME ROUTES
+//
+// Mounted only when the workflow runtime was assembled, which requires the
+// agent runtime, which requires the control plane. Absent any of the three the
+// routes are simply not mounted: a workflow surface that fails open is worse
+// than one that is missing.
+// ============================================================================
+
+const workflowRuntime = getWorkflowRuntime();
+if (workflowRuntime) {
+  registerWorkflowRoutes(app as unknown as WorkflowRouteRegistrar, {
+    service: workflowRuntime.service,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] workflow runtime unavailable — workflow routes are not mounted');
 }
 
 // ============================================================================

@@ -33,6 +33,7 @@ export {
   getControlPlane,
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   resetControlPlaneForTests,
   type BootstrapDependencies,
 } from './bootstrap.ts';
@@ -328,6 +329,216 @@ export {
   type AgentHttpResponse,
   type AgentOperation,
 } from './agents/http/agentHttpAdapter.ts';
+
+// ── Optimisation (AI-01 Batch 3B) ───────────────────────────────────────────
+//
+// Deterministic token, context and cost optimisation. It decides nothing about
+// permission and executes nothing: it classifies a step's difficulty, removes
+// provably redundant context, offers the certified router a cheaper profile it
+// would already have accepted, and accounts for what a governed answer cache
+// avoided. Everything it reports is measured, and avoided spend is never summed
+// with spend.
+export {
+  COMPLEXITY_THRESHOLDS,
+  classifyComplexity,
+  complexitySignalsFor,
+  type ComplexityClassification,
+  type ComplexitySignals,
+} from './optimization/complexity.ts';
+export {
+  selectMinimumCapableProfile,
+  type ProfileSelection,
+  type ProfileSelectionRequest,
+} from './optimization/profileSelection.ts';
+export {
+  normalizeContent,
+  optimizeContext,
+  type ContextOptimization,
+  type ContextRemoval,
+} from './optimization/contextOptimizer.ts';
+export {
+  cacheKeyFor,
+  createPromptCache,
+  isCacheEligible,
+  outputDigestOf,
+  type CacheEntry,
+  type CacheKeyInput,
+  type CacheRefusal,
+  type PromptCache,
+  type PromptCacheStats,
+} from './optimization/promptCache.ts';
+export {
+  cacheHitRate,
+  coerceOptimizationLedger,
+  emptyOptimizationLedger,
+  mergeOptimizationLedgers,
+  optimizationScore,
+  recordAvoidedCall,
+  recordCacheIneligible,
+  recordCacheMiss,
+  recordContextSaving,
+  recordProfileDowngrade,
+  recordSpend,
+  type OptimizationLedger,
+} from './optimization/optimizationLedger.ts';
+export {
+  attributeFinancials,
+  type AttributionSource,
+  type FinancialAttributionReport,
+  type FinancialAttributionRow,
+  type FinancialTotals,
+} from './optimization/financialAttribution.ts';
+
+// ── Workflow Runtime (AI-01 Batch 3B) ───────────────────────────────────────
+//
+// The layer above the agent runtime. It is NOT a third execution path: an agent
+// node runs through the certified agent orchestrator, a tool node through the
+// certified tool gateway under the permission of the agent it names, and a
+// model call happens only where it always has.
+//
+//   WORKFLOWS PLAN. AGENTS PROPOSE. THE ORCHESTRATOR DECIDES.
+//   THE AI CONTROL PLANE EXECUTES.
+export {
+  createWorkflowRuntime,
+  type WorkflowRuntime,
+  type WorkflowRuntimeOptions,
+} from './workflows/workflowRuntime.ts';
+export {
+  createWorkflowRegistry,
+  validateWorkflowDefinition,
+  type WorkflowRegistry,
+  type WorkflowRegistryOptions,
+} from './workflows/registry/workflowRegistry.ts';
+export {
+  WORKFLOW_BOUNDS,
+  WORKFLOW_LIMIT_BOUNDS,
+  WORKFLOW_NODE_KINDS,
+  describeWorkflow,
+  type WorkflowAgentNode,
+  type WorkflowApprovalNode,
+  type WorkflowCondition,
+  type WorkflowDefinition,
+  type WorkflowDescriptor,
+  type WorkflowJoin,
+  type WorkflowJoinPolicy,
+  type WorkflowLimits,
+  type WorkflowNode,
+  type WorkflowNodeKind,
+  type WorkflowTerminalNode,
+  type WorkflowToolNode,
+} from './workflows/contracts/workflow.ts';
+export {
+  MAX_WORKFLOW_TRANSITIONS,
+  TERMINAL_WORKFLOW_STATES,
+  WORKFLOW_NODE_STATES,
+  WORKFLOW_RUN_OPERATIONS,
+  WORKFLOW_RUN_STATES,
+  isSettledNodeState,
+  isTerminalWorkflowState,
+  type WorkflowCheckpoint,
+  type WorkflowFactMap,
+  type WorkflowNodeRecord,
+  type WorkflowNodeState,
+  type WorkflowPlan,
+  type WorkflowRunRecord,
+  type WorkflowRunState,
+} from './workflows/contracts/runtime.ts';
+export {
+  isWorkflowRuntimeError,
+  terminalWorkflowStateFor,
+  workflowFailure,
+  WorkflowRuntimeError,
+  type WorkflowFailureCode,
+} from './workflows/contracts/failures.ts';
+export {
+  plannedNodeIds,
+  planWorkflow,
+  waveOfNode,
+} from './workflows/planner/workflowPlanner.ts';
+export {
+  WORKFLOW_ACTIVE_STATES,
+  WORKFLOW_OPERATION_SOURCES,
+  WORKFLOW_OPERATION_TARGETS,
+  WORKFLOW_PAUSABLE_STATES,
+  WORKFLOW_TRANSITIONS,
+  assertWorkflowTransition,
+  canOperateWorkflowFrom,
+  canTransitionWorkflow,
+} from './workflows/runtime/workflowStateMachine.ts';
+export {
+  admitNode,
+  allNodesSettled,
+  evaluateCondition,
+  evaluateGuard,
+  nodeStatesOf,
+  requiredSuccesses,
+  type AdmissionDecision,
+  type NodeAdmission,
+} from './workflows/runtime/conditions.ts';
+export {
+  createMemoryWorkflowCheckpointStore,
+  createMemoryWorkflowRunStore,
+  type WorkflowCheckpointStore,
+  type WorkflowRunQuery,
+  type WorkflowRunStore,
+} from './workflows/persistence/workflowPorts.ts';
+export {
+  createKvWorkflowCheckpointStore,
+  createKvWorkflowRunStore,
+  workflowCheckpointKeyFor,
+  workflowRunKeyFor,
+  type KvWorkflowConditionalWriter,
+  type KvWorkflowPrefixReader,
+  type KvWorkflowStoreOptions,
+} from './workflows/persistence/kvWorkflowStores.ts';
+export {
+  WORKFLOW_AUDIT_EVENT,
+  createKvWorkflowAuditStore,
+  createMemoryWorkflowAuditStore,
+  createWorkflowAuditWriter,
+  type WorkflowAuditRecord,
+  type WorkflowAuditStore,
+  type WorkflowAuditWriter,
+} from './workflows/observability/workflowAudit.ts';
+export {
+  createWorkflowApprovalGate,
+  type WorkflowApprovalGate,
+} from './workflows/approvals/workflowApprovalGate.ts';
+export {
+  createAgentExecutionPort,
+  type AgentExecutionPort,
+  type AgentNodeExecutionOutcome,
+} from './workflows/orchestrator/agentRuntimePort.ts';
+export {
+  createWorkflowOrchestrator,
+  type WorkflowOrchestrator,
+  type WorkflowRuntimeState,
+} from './workflows/orchestrator/workflowOrchestrator.ts';
+export {
+  createWorkflowService,
+  toWorkflowRunDetail,
+  toWorkflowRunSummary,
+  type CreateWorkflowRunRequest,
+  type OptimizationReport,
+  type WorkflowRequestMeta,
+  type WorkflowRunDetail,
+  type WorkflowRunSummary,
+  type WorkflowRuntimeOverview,
+  type WorkflowService,
+} from './workflows/service/workflowService.ts';
+export {
+  hasWorkflowCapability,
+  requireWorkflowCapability,
+  workflowCapabilitiesOf,
+  type WorkflowCapability,
+} from './workflows/service/workflowRbac.ts';
+export {
+  WORKFLOW_OPERATION,
+  executeWorkflowHttpRequest,
+  type WorkflowHttpRequest,
+  type WorkflowHttpResponse,
+  type WorkflowOperation,
+} from './workflows/http/workflowHttpAdapter.ts';
 
 // ── Governance primitives, reusable by future AI capabilities ───────────────
 export { enforceFactLock } from './governance/factLock.ts';

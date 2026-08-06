@@ -35,6 +35,16 @@ import {
 } from './agents/persistence/kvAgentStores.ts';
 import { createKvAgentAuditStore } from './agents/observability/agentAudit.ts';
 import { DETERMINISTIC_TOOLS } from './agents/tools/mockTools.ts';
+import type { WorkflowRuntime } from './workflows/workflowRuntime.ts';
+import type { WorkflowAuditStore } from './workflows/observability/workflowAudit.ts';
+import { createWorkflowRuntime } from './workflows/workflowRuntime.ts';
+import { createKvWorkflowAuditStore } from './workflows/observability/workflowAudit.ts';
+import {
+  createKvWorkflowCheckpointStore,
+  createKvWorkflowRunStore,
+} from './workflows/persistence/kvWorkflowStores.ts';
+import { createMemoryApprovalStore } from './agents/persistence/ports.ts';
+import { createMetrics } from './observability/metrics.ts';
 import { createControlPlane } from './controlPlane.ts';
 import { loadControlPlaneConfig } from './runtime/config.ts';
 import { readBool, runtimeEnv } from './runtime/env.ts';
@@ -86,6 +96,7 @@ export interface BootstrapDependencies {
 let plane: AIControlPlane | undefined;
 let administration: AIAdministration | undefined;
 let agentRuntime: AgentRuntime | undefined;
+let workflowRuntime: WorkflowRuntime | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -295,6 +306,15 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
         }
       : undefined;
 
+  // The approval store is built once and shared, because a workflow gate and an
+  // agent gate are the same kind of object in the same operator queue. Two
+  // stores would mean two queues, and an operator with two places to look is an
+  // operator who will look in one of them.
+  const approvalStore =
+    agentStorageOptions === undefined
+      ? createMemoryApprovalStore()
+      : createKvAgentApprovalStore(agentStorageOptions);
+
   agentRuntime = createAgentRuntime({
     plane,
     authenticator,
@@ -308,20 +328,83 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     // default is an empty tool registry, because a tool nobody asked for is a
     // capability nobody reviewed.
     tools: readBool(env, 'AGENT_MOCK_TOOLS_ENABLED', false) ? DETERMINISTIC_TOOLS : [],
+    approvalStore,
     ...(agentStorageOptions === undefined
       ? {}
       : {
           runStore: createKvAgentRunStore(agentStorageOptions),
           checkpointStore: createKvAgentCheckpointStore(agentStorageOptions),
-          approvalStore: createKvAgentApprovalStore(agentStorageOptions),
         }),
     auditStores: agentAuditStores,
     auditBufferSize: config.audit.bufferSize,
     clock: systemClock,
     ids: systemIdFactory,
+    // AI-01 Batch 3B. Deterministic context reduction and minimum-capable
+    // routing are on: neither can change what a step is permitted to do. The
+    // governed answer cache is a larger claim — it serves a previously governed
+    // answer instead of making a call — so a deployment opts into it.
+    optimization: {
+      contextReduction: readBool(env, 'AI_CONTEXT_OPTIMIZATION_ENABLED', true),
+      minimumCapableRouting: readBool(env, 'AI_MINIMUM_CAPABLE_ROUTING_ENABLED', true),
+      cacheEnabled: readBool(env, 'AI_ANSWER_CACHE_ENABLED', false),
+    },
+  });
+
+  // ── Workflow runtime (AI-01 Batch 3B) ─────────────────────────────────────
+  //
+  // Assembled over the SAME agent runtime, which is assembled over the same
+  // plane and the same authenticator. It is not a third execution path: an
+  // agent node runs through the certified agent orchestrator, a tool node
+  // through the certified tool gateway, and a model call happens only where it
+  // always has.
+  //
+  // NO WORKFLOWS ARE REGISTERED HERE. Business workflows and customer-authored
+  // workflows are both out of Batch 3B's scope; the registry starts empty and a
+  // deployment registers definitions explicitly.
+  const workflowAuditStores: WorkflowAuditStore[] = [];
+  if (config.audit.durable && deps.kvWrite) {
+    workflowAuditStores.push(
+      createKvWorkflowAuditStore({
+        write: deps.kvWrite,
+        retentionDays: config.audit.retentionDays,
+        onError: (error) =>
+          console.error(
+            '[ai] durable workflow audit write failed:',
+            error instanceof Error ? error.message : String(error),
+          ),
+      }),
+    );
+  }
+
+  workflowRuntime = createWorkflowRuntime({
+    agentRuntime,
+    authenticator,
+    organizationOptions: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    approvalStore,
+    ...(agentStorageOptions === undefined
+      ? {}
+      : {
+          runStore: createKvWorkflowRunStore(agentStorageOptions),
+          checkpointStore: createKvWorkflowCheckpointStore(agentStorageOptions),
+        }),
+    auditStores: workflowAuditStores,
+    auditBufferSize: config.audit.bufferSize,
+    clock: systemClock,
+    ids: systemIdFactory,
+    logger: plane.logger,
+    metrics: createMetrics(),
   });
 
   return plane;
+}
+
+/** The initialised workflow runtime, or `undefined` before bootstrap. */
+export function getWorkflowRuntime(): WorkflowRuntime | undefined {
+  return workflowRuntime;
 }
 
 /** The initialised agent runtime, or `undefined` before bootstrap. */
@@ -344,4 +427,5 @@ export function resetControlPlaneForTests(): void {
   plane = undefined;
   administration = undefined;
   agentRuntime = undefined;
+  workflowRuntime = undefined;
 }

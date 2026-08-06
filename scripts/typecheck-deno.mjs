@@ -43,6 +43,7 @@ const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'aiRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'aiAdminRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'agentRuntimeRoutes.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'workflowRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'teamAuthorization.ts'),
 ];
 
