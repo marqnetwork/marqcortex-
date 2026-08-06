@@ -44,7 +44,19 @@ export type IdKind =
   | 'stp'
   | 'apr'
   | 'cpt'
-  | 'hof';
+  | 'hof'
+  // ── Workflow runtime (AI-01 Batch 3B) ─────────────────────────────────────
+  //
+  // Distinct prefixes rather than reusing `run`, `apr` and `aud`. A workflow run
+  // and an agent run are different objects in different stores with different
+  // lifetimes, and an id that does not say which one it names is an id that will
+  // eventually be looked up in the wrong place.
+  /** A workflow run. */
+  | 'wfr'
+  /** A workflow audit record. */
+  | 'wfa'
+  /** A workflow approval gate. */
+  | 'wap';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without

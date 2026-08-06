@@ -174,6 +174,17 @@ export interface WorkflowToolNode extends WorkflowNodeBase {
   readonly kind: 'tool';
   /** A registered tool id. Executed through the certified tool gateway. */
   readonly toolId: string;
+  /**
+   * The agent whose permission this tool call runs under.
+   *
+   * Required, and it is the whole reason a workflow cannot widen anything. The
+   * Batch 3A tool gateway is agent-scoped by construction: it takes an agent
+   * definition and refuses a tool that is not in that agent's allow list. A
+   * workflow node therefore names the permission holder rather than calling the
+   * gateway on its own authority — which would have meant either a second
+   * gateway or a definition that grants itself tools nobody reviewed.
+   */
+  readonly onBehalfOfAgentId: string;
   readonly inputFromFacts?: Readonly<Record<string, string>>;
   readonly input?: Readonly<Record<string, string | number | boolean>>;
 }
@@ -298,7 +309,9 @@ export function describeWorkflow(definition: WorkflowDefinition): WorkflowDescri
       conditions: node.when?.length ?? 0,
       optional: node.optional === true,
       ...(node.kind === 'agent' ? { agentId: node.agentId } : {}),
-      ...(node.kind === 'tool' ? { toolId: node.toolId } : {}),
+      ...(node.kind === 'tool'
+        ? { toolId: node.toolId, agentId: node.onBehalfOfAgentId }
+        : {}),
     })),
     limits: definition.limits,
   };
