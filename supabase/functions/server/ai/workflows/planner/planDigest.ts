@@ -51,8 +51,68 @@
  */
 
 import type { WorkflowPlanStep } from '../contracts/plan.ts';
-import { isAgentStep } from '../contracts/plan.ts';
+import { isAgentStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
 import { canonicalJson, digestText } from '../../agents/runtime/digest.ts';
+
+/**
+ * The per-kind half of the projection (AI-01 Batch 3B, Part 4).
+ *
+ * Split out when parallel and join steps arrived: four kinds inside one object
+ * literal is where a digest starts quietly omitting a field of the kind added
+ * last, and a digest with a hole in it is worse than no digest — it reports
+ * "unchanged" for a change.
+ *
+ * For a parallel step everything that decides what the fan-out DOES is inside:
+ * the branch names, their order, their heads, their bodies, the join it
+ * converges on, both policies and the effective ceiling. Reordering the branch
+ * list changes the merge order, so it changes the digest.
+ */
+function stepProjection(step: WorkflowPlanStep): Record<string, unknown> {
+  if (isAgentStep(step)) {
+    return {
+      agentId: step.agentId,
+      maxAttempts: step.maxAttempts,
+      nextNodeId: step.nextNodeId ?? null,
+      inputMapping: step.inputMapping ?? null,
+      outputMapping: step.outputMapping ?? null,
+      // Presence only — see the header for why a validator's body is not
+      // hashable and what that costs.
+      hasInputContract: step.inputContract !== undefined,
+      hasOutputContract: step.outputContract !== undefined,
+    };
+  }
+
+  if (isParallelStep(step)) {
+    return {
+      joinNodeId: step.joinNodeId,
+      joinPolicy: step.joinPolicy,
+      failurePolicy: step.failurePolicy,
+      maximumParallelBranches: step.maximumParallelBranches,
+      branches: step.branches.map((branch) => ({
+        branchName: branch.branchName,
+        startNodeId: branch.startNodeId,
+        ordinal: branch.ordinal,
+        bodyNodeIds: branch.bodyNodeIds,
+      })),
+    };
+  }
+
+  if (isJoinStep(step)) {
+    return {
+      policy: step.policy,
+      parallelNodeId: step.parallelNodeId,
+      branchNames: step.branchNames,
+      nextNodeId: step.nextNodeId ?? null,
+      hasMergeContract: step.mergeContract !== undefined,
+    };
+  }
+
+  return {
+    expression: step.expression,
+    trueNodeId: step.trueNodeId,
+    falseNodeId: step.falseNodeId,
+  };
+}
 
 /**
  * `canonicalJson` is reused rather than re-derived. It already sorts object
@@ -79,23 +139,7 @@ export function computePlanDigest(input: {
       // "no mapping" and "no loop" each have to say so explicitly for the
       // absence to be part of what is hashed.
       loop: step.loop === undefined ? null : { maxIterations: step.loop.maxIterations },
-      ...(isAgentStep(step)
-        ? {
-            agentId: step.agentId,
-            maxAttempts: step.maxAttempts,
-            nextNodeId: step.nextNodeId ?? null,
-            inputMapping: step.inputMapping ?? null,
-            outputMapping: step.outputMapping ?? null,
-            // Presence only — see the header for why a validator's body is not
-            // hashable and what that costs.
-            hasInputContract: step.inputContract !== undefined,
-            hasOutputContract: step.outputContract !== undefined,
-          }
-        : {
-            expression: step.expression,
-            trueNodeId: step.trueNodeId,
-            falseNodeId: step.falseNodeId,
-          }),
+      ...stepProjection(step),
     })),
   };
 

@@ -59,19 +59,32 @@
  * limited.
  */
 
-import type { WorkflowDefinition, WorkflowEdge, WorkflowNode } from '../contracts/workflow.ts';
+import type {
+  WorkflowDefinition,
+  WorkflowEdge,
+  WorkflowJoinNode,
+  WorkflowNode,
+  WorkflowParallelNode,
+} from '../contracts/workflow.ts';
 import type {
   WorkflowPlan,
+  WorkflowPlanBranch,
   WorkflowPlanLoop,
   WorkflowPlanMetadata,
   WorkflowPlanResult,
   WorkflowPlanStep,
 } from '../contracts/plan.ts';
-import { WORKFLOW_BOUNDS, isAgentNode } from '../contracts/workflow.ts';
-import { isAgentStep } from '../contracts/plan.ts';
+import {
+  WORKFLOW_BOUNDS,
+  isAgentNode,
+  isJoinNode,
+  isParallelNode,
+} from '../contracts/workflow.ts';
+import { isAgentStep, isParallelStep } from '../contracts/plan.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 import { validateWorkflowDefinition } from '../validation/workflowValidation.ts';
 import type { WorkflowValidationOptions } from '../validation/workflowValidation.ts';
+import { effectiveBranchCeiling } from '../validation/parallelValidation.ts';
 import { computePlanDigest } from './planDigest.ts';
 
 export type WorkflowPlannerOptions = WorkflowValidationOptions;
@@ -126,10 +139,17 @@ export function planWorkflow(
   const problems: string[] = [
     ...unreachableProblems(nodes, reachable, start.nodeId),
     ...loops.problems,
+    ...parallelInLoopProblems(nodes, loops.byHeader),
   ];
   if (problems.length > 0) return { ok: false, problems };
 
-  const steps = buildSteps(nodes, successors, start.nodeId, loops.byHeader);
+  const steps = buildSteps(definition, nodes, successors, start.nodeId, loops.byHeader);
+  // The last thing that can still refuse a plan. Everything above proves the
+  // graph is walkable; this proves the plan it produced is one the engine can
+  // execute — a parallel step whose join is missing from the enumeration would
+  // be a fan-out with nowhere to converge, discovered at run time.
+  const planProblems = parallelPlanProblems(steps);
+  if (planProblems.length > 0) return { ok: false, problems: planProblems };
 
   const plan: WorkflowPlan = {
     workflowId: definition.workflowId,
@@ -181,6 +201,23 @@ function successorIndex(
       const trueEdge = list.find((entry) => entry.when === true);
       const falseEdge = list.find((entry) => entry.when === false);
       index.set(node.nodeId, [trueEdge, falseEdge].filter((entry): entry is Successor => !!entry));
+    } else if (node.kind === 'parallel') {
+      // DECLARED BRANCH ORDER, not edge order. The branch list is what a
+      // reviewer approved and what the merge reads, so the plan enumerates the
+      // fan-out the same way — reordering the `edges` array must not change a
+      // plan digest, and reordering `branches` must.
+      const rank = new Map(
+        (node.branches ?? []).map((branch, ordinal) => [branch?.branchName, ordinal]),
+      );
+      const unranked = rank.size;
+      index.set(
+        node.nodeId,
+        [...list].sort(
+          (a, b) =>
+            (rank.get(a.edge.branch ?? '') ?? unranked) -
+            (rank.get(b.edge.branch ?? '') ?? unranked),
+        ),
+      );
     } else {
       index.set(node.nodeId, list);
     }
@@ -434,6 +471,7 @@ function canReach(
  * than from a sort applied afterwards.
  */
 function buildSteps(
+  definition: WorkflowDefinition,
   nodes: ReadonlyMap<string, WorkflowNode>,
   successors: ReadonlyMap<string, readonly Successor[]>,
   startNodeId: string,
@@ -480,6 +518,40 @@ function buildSteps(
       };
     }
 
+    if (isParallelNode(node)) {
+      // Validation guarantees the join exists, is a join node, and is named by
+      // this node alone — so its policy and merge contract are resolved onto
+      // BOTH steps here. The engine then reads one step to open the fan-out and
+      // one to merge it, and neither has to look the other up mid-run.
+      const join = nodes.get(node.joinNodeId) as WorkflowJoinNode;
+      return {
+        ...base,
+        kind: 'parallel' as const,
+        branches: planBranches(node, successors),
+        joinNodeId: node.joinNodeId,
+        joinPolicy: join.policy,
+        failurePolicy: node.failurePolicy,
+        maximumParallelBranches: effectiveBranchCeiling(definition, node),
+        terminal: false,
+      };
+    }
+
+    if (isJoinNode(node)) {
+      const parallel = [...nodes.values()].find(
+        (candidate): candidate is WorkflowParallelNode =>
+          isParallelNode(candidate) && candidate.joinNodeId === node.nodeId,
+      ) as WorkflowParallelNode;
+      return {
+        ...base,
+        kind: 'join' as const,
+        policy: node.policy,
+        mergeContract: node.mergeContract,
+        parallelNodeId: parallel.nodeId,
+        branchNames: (parallel.branches ?? []).map((branch) => branch.branchName),
+        ...(out[0] === undefined ? {} : { nextNodeId: out[0].to }),
+      };
+    }
+
     // Validation guarantees a condition node has exactly one true and one false
     // edge, and `successorIndex` orders them [true, false].
     return {
@@ -493,6 +565,109 @@ function buildSteps(
   });
 }
 
+/**
+ * Resolve each branch's body once, at planning.
+ *
+ * The engine never re-derives a branch body: it reads `bodyNodeIds` to know
+ * which nodes a branch may visit and follows the ordinary successor edges to
+ * walk them. Resolving here is also what makes a branch's worst-case cost
+ * countable before anything runs.
+ *
+ * The walk stops at the join, exactly as validation's does — and it is safe to
+ * assume the shape validation proved, because a definition that failed it never
+ * reaches the planner.
+ */
+function planBranches(
+  node: WorkflowParallelNode,
+  successors: ReadonlyMap<string, readonly Successor[]>,
+): readonly WorkflowPlanBranch[] {
+  return (node.branches ?? []).map((branch, ordinal) => ({
+    branchName: branch.branchName,
+    startNodeId: branch.startNodeId,
+    ordinal,
+    bodyNodeIds: branchBodyNodeIds(successors, branch.startNodeId, node.joinNodeId),
+  }));
+}
+
+/** Breadth-first from the branch head, stopping at the join. Deterministic. */
+function branchBodyNodeIds(
+  successors: ReadonlyMap<string, readonly Successor[]>,
+  startNodeId: string,
+  joinNodeId: string,
+): readonly string[] {
+  const seen = new Set<string>([startNodeId]);
+  const order: string[] = [];
+  const queue: string[] = [startNodeId];
+
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    order.push(current);
+    for (const next of successors.get(current) ?? []) {
+      if (next.to === joinNodeId || seen.has(next.to)) continue;
+      seen.add(next.to);
+      queue.push(next.to);
+    }
+  }
+  return order;
+}
+
+/**
+ * A parallel node inside a loop body, refused.
+ *
+ * A group's identity is `run + parallel node`, with no visit counter, so a
+ * second entry would collide with the first and be refused as a duplicate mid-
+ * run. Adding a counter is not the fix it looks like: it would make branch ids
+ * depend on how many times a loop had gone round, which is precisely the kind of
+ * identity a recovering isolate cannot recompute without replaying the loop.
+ * Refusing the shape is the honest answer, and it is refused where the loop
+ * bodies are known.
+ */
+function parallelInLoopProblems(
+  nodes: ReadonlyMap<string, WorkflowNode>,
+  loops: ReadonlyMap<string, WorkflowPlanLoop>,
+): string[] {
+  const problems: string[] = [];
+  for (const [header, loop] of [...loops.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const nodeId of loop.bodyNodeIds) {
+      const node = nodes.get(nodeId);
+      if (!node || (!isParallelNode(node) && !isJoinNode(node))) continue;
+      problems.push(
+        `${node.kind} node ${nodeId} is inside the loop headed by ${header} — a parallel step ` +
+          'may not be re-entered, because its branch identities are derived without a visit count',
+      );
+    }
+  }
+  return problems.sort();
+}
+
+/** Every parallel step must find its join in the same plan, and vice versa. */
+function parallelPlanProblems(steps: readonly WorkflowPlanStep[]): string[] {
+  const byNodeId = new Map(steps.map((step) => [step.nodeId, step]));
+  const problems: string[] = [];
+
+  for (const step of steps) {
+    if (!isParallelStep(step)) continue;
+    const join = byNodeId.get(step.joinNodeId);
+    if (!join || join.kind !== 'join') {
+      problems.push(
+        `node ${step.nodeId}: join ${step.joinNodeId} is not reachable in the plan, so the ` +
+          'fan-out it opens could never converge',
+      );
+      continue;
+    }
+    for (const branch of step.branches) {
+      if (!byNodeId.has(branch.startNodeId)) {
+        problems.push(
+          `node ${step.nodeId}: branch ${branch.branchName} starts at ${branch.startNodeId}, ` +
+            'which is not in the plan',
+        );
+      }
+    }
+  }
+
+  return problems.sort();
+}
+
 function computeMetadata(
   definition: WorkflowDefinition,
   steps: readonly WorkflowPlanStep[],
@@ -501,13 +676,20 @@ function computeMetadata(
 ): WorkflowPlanMetadata {
   const agentSteps = steps.filter(isAgentStep);
   const agentIds = [...new Set(agentSteps.map((step) => step.agentId))].sort();
+  const parallelSteps = steps.filter(isParallelStep);
 
   return {
     nodeCount: definition.nodes.length,
     edgeCount: definition.edges.length,
     stepCount: steps.length,
     agentNodeCount: agentSteps.length,
-    conditionNodeCount: steps.length - agentSteps.length,
+    conditionNodeCount: steps.filter((step) => step.kind === 'condition').length,
+    parallelNodeCount: parallelSteps.length,
+    joinNodeCount: steps.filter((step) => step.kind === 'join').length,
+    maxBranchCount: parallelSteps.reduce(
+      (widest, step) => Math.max(widest, step.branches.length),
+      0,
+    ),
     // Edges on the longest shortest-path, so a single-node workflow is depth
     // zero rather than depth one — depth counts transitions, not nodes.
     depth: steps.reduce((deepest, step) => Math.max(deepest, step.depth), 0),

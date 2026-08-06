@@ -698,6 +698,9 @@ describe('checkpoint chain', () => {
       outputsDigest: '',
       loopIterations: {},
       nodeVisits: {},
+      // Part 4 put the parallel summary inside the digest. A Part 3 chain has
+      // none, and an empty array is exactly what "no parallel work" means.
+      parallel: [],
       ...(previous === undefined ? {} : { previousDigest: previous.digest }),
     };
     // Built with the production helpers, so a link this test calls well-formed

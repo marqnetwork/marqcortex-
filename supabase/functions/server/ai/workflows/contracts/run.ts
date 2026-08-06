@@ -52,14 +52,22 @@
  */
 
 import type { WorkflowFailureCode } from './failures.ts';
+import type { WorkflowParallelGroup } from './parallel.ts';
 
 // ── States ──────────────────────────────────────────────────────────────────
 
 /**
- * Eleven states, and the two that do not exist are as deliberate as the nine
+ * Twelve states, and the two that do not exist are as deliberate as the ones
  * that do: there is no `waiting_for_approval` and no `retrying`, because
- * workflow approvals and retries are not in this part. A state nothing can
+ * workflow approvals and retries are not in this batch. A state nothing can
  * reach is a state an operator has to ask about.
+ *
+ * Part 4 adds `waiting_for_branches`, and it is a state rather than a flag on
+ * `waiting_for_agent` because the two are operationally different: one run is
+ * waiting on ONE child it can name in `pendingNode`, the other is waiting on
+ * several, each with its own cursor and its own child. Collapsing them would
+ * make "which child is this run waiting on" a question with no single answer
+ * while the field that is supposed to answer it stays empty.
  */
 export const WORKFLOW_RUN_STATES = [
   'created',
@@ -67,6 +75,7 @@ export const WORKFLOW_RUN_STATES = [
   'ready',
   'running',
   'waiting_for_agent',
+  'waiting_for_branches',
   'paused',
   'completed',
   'failed',
@@ -168,7 +177,7 @@ export interface WorkflowStepRecord {
   /** Position in the plan enumeration. Stable across executions of a node. */
   readonly planIndex: number;
   readonly nodeId: string;
-  readonly kind: 'agent' | 'condition';
+  readonly kind: 'agent' | 'condition' | 'parallel' | 'join';
   /** Which visit of this node this was, starting at 1. */
   readonly iteration: number;
   /** Agent nodes only. */
@@ -181,6 +190,19 @@ export interface WorkflowStepRecord {
   readonly branchTaken?: boolean;
   /** Condition nodes only: the node the branch led to. */
   readonly branchNodeId?: string;
+  /**
+   * Set when this step ran INSIDE a parallel branch (AI-01 Batch 3B, Part 4).
+   *
+   * A run's step history is one list, in the order things actually happened, so
+   * branch work and main-line work interleave in it. Without these two fields a
+   * reader could not tell which line of execution a step belonged to — and with
+   * them the same list answers both "what happened, in order" and "what did the
+   * `enrichment` branch do", which are the two questions an incident asks.
+   */
+  readonly branchId?: string;
+  readonly branchName?: string;
+  /** Join nodes only: how many branches contributed to the merge. */
+  readonly mergedBranchCount?: number;
   readonly startedAt: string;
   readonly completedAt: string;
   readonly latencyMs: number;
@@ -232,6 +254,21 @@ export interface WorkflowRunRecord {
   /** Nodes completed. Never decremented, never skipped ahead. */
   readonly stepCount: number;
   readonly pendingNode?: WorkflowPendingNode;
+  /**
+   * Every parallel step this run has executed, open and closed (Part 4).
+   *
+   * THE AUTHORITY FOR BRANCH STATE. Not a cache of it, not a projection of it —
+   * the branches live here, on the versioned record, written through the same
+   * compare-and-swap as everything else. There is no module-level map of
+   * in-flight branches anywhere in the engine, which is the property that makes
+   * a recycled isolate able to resume a fan-out rather than restart it.
+   *
+   * At most one group is `open` at a time: nested parallelism is refused at
+   * planning, so a run is either between parallel steps or inside exactly one.
+   * Closed groups are kept as evidence — what each branch did, which ones the
+   * join accepted, and the digest of what they merged to.
+   */
+  readonly parallelGroups: readonly WorkflowParallelGroup[];
   /** Every child agent run this workflow has created, in order. */
   readonly childAgentRunIds: readonly string[];
   readonly steps: readonly WorkflowStepRecord[];

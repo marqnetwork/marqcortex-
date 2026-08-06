@@ -28,6 +28,14 @@
  * remain meaningful — they are stable identities and shortest-distance facts —
  * but neither is a promise about when a node runs, and nothing reads them as one.
  *
+ * ── WHAT PART 4 CHANGED ────────────────────────────────────────────────────
+ *
+ * A step may now have SEVERAL successors that are all taken. `parallel` carries
+ * its branches — each with a name, an ordinal and the body of nodes a branch
+ * cursor walks — and `join` carries the policy and the merge contract. Both are
+ * resolved at planning, so the engine never re-derives a branch body, a merge
+ * order or a fan-out ceiling from the graph while a run is in flight.
+ *
  * A PLAN CONTAINS NO RUN. No run id, no organization, no timestamp, no input,
  * no state and no cursor. A plan is a function of the definition and nothing
  * else, which is precisely what makes `digest` stable: the same definition
@@ -36,6 +44,7 @@
 
 import type { WorkflowExpression } from './expression.ts';
 import type { WorkflowMapping } from './mapping.ts';
+import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
 import type { Validator } from '../../security/validation.ts';
 
 interface WorkflowPlanStepBase {
@@ -84,7 +93,54 @@ export interface WorkflowConditionPlanStep extends WorkflowPlanStepBase {
   readonly falseNodeId: string;
 }
 
-export type WorkflowPlanStep = WorkflowAgentPlanStep | WorkflowConditionPlanStep;
+/** One branch of a parallel plan step, resolved and ordered. */
+export interface WorkflowPlanBranch {
+  readonly branchName: string;
+  readonly startNodeId: string;
+  /** Declaration order. THE merge order — see `contracts/parallel.ts`. */
+  readonly ordinal: number;
+  /**
+   * The nodes this branch owns, in the order a cursor walks them from the head.
+   *
+   * Resolved once, at planning, so the engine never re-derives a branch body at
+   * runtime. It is also what makes a branch's work countable before anything
+   * runs: `metadata.maxAgentInvocations` accounts for it.
+   */
+  readonly bodyNodeIds: readonly string[];
+}
+
+export interface WorkflowParallelPlanStep extends WorkflowPlanStepBase {
+  readonly kind: 'parallel';
+  readonly branches: readonly WorkflowPlanBranch[];
+  readonly joinNodeId: string;
+  /** Resolved from the join node, so the engine reads one step for both halves. */
+  readonly joinPolicy: WorkflowJoinPolicy;
+  readonly failurePolicy: WorkflowParallelFailurePolicy;
+  /**
+   * The effective ceiling: the tightest of the platform bound, the workflow's
+   * own and the node's own, resolved once at planning so the engine enforces a
+   * number it did not have to derive.
+   */
+  readonly maximumParallelBranches: number;
+}
+
+export interface WorkflowJoinPlanStep extends WorkflowPlanStepBase {
+  readonly kind: 'join';
+  readonly policy: WorkflowJoinPolicy;
+  readonly mergeContract: Validator<unknown>;
+  /** The parallel node that owns this join. Exactly one, guaranteed by validation. */
+  readonly parallelNodeId: string;
+  /** Branch names in merge order. A convenience copy of the parallel step's order. */
+  readonly branchNames: readonly string[];
+  /** The single successor. Absent on a terminal join. */
+  readonly nextNodeId?: string;
+}
+
+export type WorkflowPlanStep =
+  | WorkflowAgentPlanStep
+  | WorkflowConditionPlanStep
+  | WorkflowParallelPlanStep
+  | WorkflowJoinPlanStep;
 
 export function isAgentStep(step: WorkflowPlanStep): step is WorkflowAgentPlanStep {
   return step.kind === 'agent';
@@ -92,6 +148,14 @@ export function isAgentStep(step: WorkflowPlanStep): step is WorkflowAgentPlanSt
 
 export function isConditionStep(step: WorkflowPlanStep): step is WorkflowConditionPlanStep {
   return step.kind === 'condition';
+}
+
+export function isParallelStep(step: WorkflowPlanStep): step is WorkflowParallelPlanStep {
+  return step.kind === 'parallel';
+}
+
+export function isJoinStep(step: WorkflowPlanStep): step is WorkflowJoinPlanStep {
+  return step.kind === 'join';
 }
 
 /**
@@ -105,6 +169,10 @@ export interface WorkflowPlanMetadata {
   readonly stepCount: number;
   readonly agentNodeCount: number;
   readonly conditionNodeCount: number;
+  readonly parallelNodeCount: number;
+  readonly joinNodeCount: number;
+  /** The widest fan-out any parallel step declares. Zero when there is none. */
+  readonly maxBranchCount: number;
   /** Edges on the longest shortest-path from the start node. */
   readonly depth: number;
   /** Distinct agents the plan names, sorted. */

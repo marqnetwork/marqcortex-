@@ -67,6 +67,7 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
     // source table refuses all of them.
     'running',
     'waiting_for_agent',
+    'waiting_for_branches',
     'paused',
     'completed',
     'failed',
@@ -78,13 +79,39 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
   // A child agent run is in flight. `running` is how a finished node returns.
   waiting_for_agent: ['running', 'paused', 'failed', 'cancelled', 'expired', 'policy_denied'],
 
+  // One or more branches of a parallel step are in flight (Part 4).
+  //
+  // A SELF EDGE, like `running`'s and for the same reason: one branch making
+  // progress changes the run's durable state — a branch cursor moved, a branch
+  // output was stored, a checkpoint was written — while the run as a whole is
+  // still waiting on the rest. Every one of those changes is a versioned write,
+  // and the state it writes is the one the run is already in.
+  //
+  // `running` is how a FIRED JOIN returns: the merge is the point at which the
+  // several lines of execution become one again.
+  waiting_for_branches: [
+    'waiting_for_branches',
+    'running',
+    'paused',
+    'failed',
+    'cancelled',
+    'expired',
+    'policy_denied',
+  ],
+
   // Pausing from `waiting_for_agent` is SAFE here in a way it was not for the
   // agent runtime's `waiting_for_approval`, and the difference is worth stating.
   // An approval gate that is paused strands a decision nobody can then make. A
   // paused workflow strands nothing: the child agent run is a durable record
   // with its own state, `pendingNode` still points at it, and resuming re-polls
   // it. Nothing is lost by stopping, so nothing has to be forbidden.
-  paused: ['running', 'cancelled', 'expired', 'failed'],
+  //
+  // `waiting_for_branches` is reachable from here so a paused fan-out resumes
+  // into the state it was actually in. Resuming a group of in-flight branches
+  // into plain `running` would put the cursor back on the parallel node, and
+  // the parallel node's job is to OPEN a group — which would be refused as a
+  // duplicate, correctly, and would strand the run.
+  paused: ['running', 'waiting_for_branches', 'cancelled', 'expired', 'failed'],
 
   completed: [],
   failed: [],
@@ -106,7 +133,10 @@ export const OPERATION_TARGETS: Readonly<
 > = {
   start: ['validating', 'ready', 'running'],
   pause: ['paused'],
-  resume: ['running'],
+  // Two targets, because a resumed run returns to the state it was paused in.
+  // See the `paused` row of TRANSITIONS for why a fan-out must not resume into
+  // plain `running`.
+  resume: ['running', 'waiting_for_branches'],
   cancel: ['cancelled'],
   expire: ['expired'],
   complete: ['completed'],
@@ -123,17 +153,41 @@ export const OPERATION_SOURCES: Readonly<
   Record<WorkflowRunOperation, readonly WorkflowRunState[]>
 > = {
   start: ['created', 'validating', 'ready'],
-  pause: ['ready', 'running', 'waiting_for_agent'],
+  pause: ['ready', 'running', 'waiting_for_agent', 'waiting_for_branches'],
   resume: ['paused'],
   // Cancellation is always available while a run is alive. An operator must be
   // able to stop anything — it is the one escape that is always correct.
-  cancel: ['created', 'validating', 'ready', 'running', 'waiting_for_agent', 'paused'],
-  expire: ['created', 'validating', 'ready', 'running', 'waiting_for_agent', 'paused'],
+  cancel: [
+    'created',
+    'validating',
+    'ready',
+    'running',
+    'waiting_for_agent',
+    'waiting_for_branches',
+    'paused',
+  ],
+  expire: [
+    'created',
+    'validating',
+    'ready',
+    'running',
+    'waiting_for_agent',
+    'waiting_for_branches',
+    'paused',
+  ],
   // Only a run that is between nodes may complete. A run in `waiting_for_agent`
-  // has a child in flight, and completing it there would abandon that child
-  // while reporting success.
+  // or `waiting_for_branches` has work in flight, and completing it there would
+  // abandon that work while reporting success.
   complete: ['running'],
-  fail: ['created', 'validating', 'ready', 'running', 'waiting_for_agent', 'paused'],
+  fail: [
+    'created',
+    'validating',
+    'ready',
+    'running',
+    'waiting_for_agent',
+    'waiting_for_branches',
+    'paused',
+  ],
 };
 
 export function canTransition(from: WorkflowRunState, to: WorkflowRunState): boolean {
@@ -225,6 +279,7 @@ export const PAUSABLE_STATES: readonly WorkflowRunState[] = [
   'ready',
   'running',
   'waiting_for_agent',
+  'waiting_for_branches',
 ];
 
 /** States a run is considered "in flight" for operational reporting. */
@@ -234,4 +289,5 @@ export const ACTIVE_WORKFLOW_STATES: readonly WorkflowRunState[] = [
   'ready',
   'running',
   'waiting_for_agent',
+  'waiting_for_branches',
 ];

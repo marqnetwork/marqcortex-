@@ -60,6 +60,13 @@ export type WorkflowFailureCode =
   | 'workflow_loop_exhausted'
   | 'workflow_checkpoint_conflict'
   | 'workflow_checkpoint_corrupt'
+  // ── Parallel branches and joins (Part 4) ──────────────────────────────────
+  | 'workflow_branch_limit_exceeded'
+  | 'workflow_branch_failed'
+  | 'workflow_branch_conflict'
+  | 'stale_workflow_branch'
+  | 'workflow_merge_rejected'
+  | 'workflow_join_unsatisfied'
   // ── Permission (Part 2) ───────────────────────────────────────────────────
   | 'workflow_unauthorized'
   | 'workflow_tenant_isolation_violation';
@@ -126,6 +133,35 @@ const TRAITS: Record<WorkflowFailureCode, FailureTrait> = {
     retryable: false,
     terminal: 'failed',
   },
+
+  // A definition or a run asked for more fan-out than the platform allows. A
+  // judgement about a ceiling, so re-running reaches the same conclusion.
+  workflow_branch_limit_exceeded: {
+    transport: 'POLICY_DENIED',
+    retryable: false,
+    terminal: 'failed',
+  },
+  // A branch's child agent run reached a terminal failure and the group's
+  // failure policy turned that into the run's outcome. Not retryable, for the
+  // same reason `workflow_node_failed` is not: the agent runtime already decided.
+  workflow_branch_failed: { transport: 'INTERNAL_ERROR', retryable: false, terminal: 'failed' },
+  // A branch or a join was acted on twice: a group opened for a node that
+  // already has one, progress written to a settled branch, a join closed after
+  // it had already fired. A refusal about THIS request, not about the run —
+  // the run is untouched and whatever already happened still stands.
+  workflow_branch_conflict: { transport: 'CONFLICT', retryable: false },
+  // A branch write carried a version the branch has moved past. Retryable in
+  // the CONFLICT sense the platform already uses: re-read and re-apply.
+  stale_workflow_branch: { transport: 'CONFLICT', retryable: true },
+  // The merged branch outputs did not satisfy the join's declared merge
+  // contract. The run stops rather than promoting an unvalidated merge into a
+  // node output later steps would branch on.
+  workflow_merge_rejected: { transport: 'VALIDATION_FAILED', retryable: false, terminal: 'failed' },
+  // Every branch settled and the join policy was not met, or enough branches
+  // failed that it never could be. The group's designed terminal outcome when
+  // the work did not add up — a failure rather than a completion, because the
+  // join is the workflow's own statement of what "enough" meant.
+  workflow_join_unsatisfied: { transport: 'POLICY_DENIED', retryable: false, terminal: 'failed' },
 
   workflow_unauthorized: { transport: 'FORBIDDEN', retryable: false },
   workflow_tenant_isolation_violation: {

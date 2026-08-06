@@ -40,6 +40,10 @@ import type {
   WorkflowRunState,
   WorkflowStepRecord,
 } from '../contracts/run.ts';
+import type {
+  WorkflowBranchState,
+  WorkflowParallelGroup,
+} from '../contracts/parallel.ts';
 import type { WorkflowRegistry } from '../registry/workflowRegistry.ts';
 import type { WorkflowRunStore } from '../persistence/ports.ts';
 import type {
@@ -89,11 +93,88 @@ export interface WorkflowRunDetail extends WorkflowRunSummary {
   /** The join key into the agent runtime's own read models. */
   readonly childAgentRunIds: readonly string[];
   readonly pendingNode?: WorkflowRunRecord['pendingNode'];
+  /** Every parallel step, open and closed, without any branch's outputs. */
+  readonly parallelGroups: readonly WorkflowParallelGroupView[];
   readonly steps: readonly WorkflowStepRecord[];
   readonly transitions: WorkflowRunRecord['transitions'];
   readonly transitionsTruncated: number;
   readonly startedAt?: string;
   readonly endedAt?: string;
+}
+
+/**
+ * A parallel group as an operator may see it (AI-01 Batch 3B, Part 4).
+ *
+ * Branch OUTPUTS are absent, exactly as the run's `input` is: they are the
+ * tenant's business data, they are what the merge contract judged, and a read
+ * model that echoed them would make every console and screenshot a copy of
+ * them. What is here is what an operator needs to answer "where is this run
+ * stuck" — which branch, which cursor, which child agent run, and a digest to
+ * compare against.
+ */
+export interface WorkflowBranchView {
+  readonly branchId: string;
+  readonly branchName: string;
+  readonly ordinal: number;
+  readonly state: WorkflowBranchState;
+  readonly cursorNodeId?: string;
+  readonly stepCount: number;
+  readonly branchVersion: number;
+  /** The join key into the agent runtime's own read models. */
+  readonly childAgentRunIds: readonly string[];
+  readonly pendingAgentRunId?: string;
+  readonly resultDigest?: string;
+  readonly failure?: string;
+  /** Always 0 in Part 4. See `contracts/parallel.ts`. */
+  readonly tokensPlaceholder: number;
+  /** Always 0 in Part 4. See `contracts/parallel.ts`. */
+  readonly costMicroUsdPlaceholder: number;
+}
+
+export interface WorkflowParallelGroupView {
+  readonly groupId: string;
+  readonly parallelNodeId: string;
+  readonly joinNodeId: string;
+  readonly joinPolicy: WorkflowParallelGroup['joinPolicy'];
+  readonly failurePolicy: WorkflowParallelGroup['failurePolicy'];
+  readonly state: WorkflowParallelGroup['state'];
+  readonly joinedAt?: string;
+  readonly joinDigest?: string;
+  readonly groupVersion: number;
+  readonly branches: readonly WorkflowBranchView[];
+}
+
+export function toWorkflowParallelGroupView(
+  group: WorkflowParallelGroup,
+): WorkflowParallelGroupView {
+  return {
+    groupId: group.groupId,
+    parallelNodeId: group.parallelNodeId,
+    joinNodeId: group.joinNodeId,
+    joinPolicy: group.joinPolicy,
+    failurePolicy: group.failurePolicy,
+    state: group.state,
+    ...(group.joinedAt === undefined ? {} : { joinedAt: group.joinedAt }),
+    ...(group.joinDigest === undefined ? {} : { joinDigest: group.joinDigest }),
+    groupVersion: group.groupVersion,
+    branches: group.branches.map((branch) => ({
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      ordinal: branch.ordinal,
+      state: branch.state,
+      ...(branch.cursorNodeId === undefined ? {} : { cursorNodeId: branch.cursorNodeId }),
+      stepCount: branch.stepCount,
+      branchVersion: branch.branchVersion,
+      childAgentRunIds: branch.childAgentRunIds,
+      ...(branch.pendingNode === undefined
+        ? {}
+        : { pendingAgentRunId: branch.pendingNode.agentRunId }),
+      ...(branch.resultDigest === undefined ? {} : { resultDigest: branch.resultDigest }),
+      ...(branch.failure === undefined ? {} : { failure: branch.failure }),
+      tokensPlaceholder: branch.tokensPlaceholder,
+      costMicroUsdPlaceholder: branch.costMicroUsdPlaceholder,
+    })),
+  };
 }
 
 /** The operator overview. Counts and a bounded window, never every run. */
@@ -149,6 +230,7 @@ export function toWorkflowRunDetail(record: WorkflowRunRecord): WorkflowRunDetai
     ...(record.resultDigest === undefined ? {} : { resultDigest: record.resultDigest }),
     childAgentRunIds: record.childAgentRunIds,
     ...(record.pendingNode === undefined ? {} : { pendingNode: record.pendingNode }),
+    parallelGroups: (record.parallelGroups ?? []).map(toWorkflowParallelGroupView),
     steps: record.steps,
     transitions: record.transitions,
     transitionsTruncated: record.transitionsTruncated,

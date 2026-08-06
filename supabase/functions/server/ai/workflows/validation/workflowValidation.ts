@@ -21,21 +21,32 @@
  *
  * ── THE SUCCESSOR RULES ────────────────────────────────────────────────────
  *
- * Part 1 had one rule: at most one outgoing edge, always. Part 3 replaces it
- * with two, one per node kind, and the pair is still a refusal of fan-out:
+ * Part 1 had one rule: at most one outgoing edge, always. Part 3 made it two,
+ * one per node kind. Part 4 makes it four, and the set is still a refusal of
+ * UNDECLARED fan-out:
  *
- *   AGENT NODE      at most ONE outgoing edge, carrying no `when`. Two
- *                   successors from a node that does not choose between them is
- *                   a parallel branch, which needs a join to finish, which is
- *                   not in this batch.
+ *   AGENT NODE      at most ONE outgoing edge, carrying no `when` and no
+ *                   `branch`. Two plain successors from a node that neither
+ *                   chooses between them nor declares a join is a fan-out whose
+ *                   convergence nobody wrote down, and it is still refused.
  *
  *   CONDITION NODE  exactly TWO outgoing edges, one `when: true` and one
  *                   `when: false`. Not one — a branch with a single side is a
  *                   dead end half the time and the author should say where it
  *                   goes. Not three — there is no third value.
  *
+ *   PARALLEL NODE   one edge per DECLARED branch, each naming the branch it
+ *                   opens. Checked in `parallelValidation.ts`, because the rule
+ *                   is about agreement between the edges and a branch list this
+ *                   module cannot see from an edge alone.
+ *
+ *   JOIN NODE       at most ONE outgoing edge, like an agent node. The merge is
+ *                   where several lines of execution become one again, so what
+ *                   leaves it is a single successor.
+ *
  * The result is that the number of successors a run takes from any node is
- * always exactly one. Branching changed which one; it did not change how many.
+ * exactly one, EXCEPT at a parallel node, where it is exactly the number of
+ * branches that node declared and the join is already named.
  */
 
 import type {
@@ -54,8 +65,10 @@ import {
   WORKFLOW_NODE_KINDS,
   WORKFLOW_VERSION_PATTERN,
 } from '../contracts/workflow.ts';
+import { WORKFLOW_PARALLEL_BOUNDS } from '../contracts/parallel.ts';
 import type { ReferenceContext } from './expressionValidation.ts';
 import { validateExpression, validateMapping } from './expressionValidation.ts';
+import { validateParallelStructure } from './parallelValidation.ts';
 
 export interface WorkflowValidationOptions {
   /**
@@ -97,6 +110,11 @@ export function validateWorkflowDefinition(
   const nodeIds = knownNodeIds(definition.nodes);
   problems.push(...edgeProblems(definition.edges, nodeIds, kindsOf(definition.nodes)));
   problems.push(...startNodeProblems(definition, nodeIds));
+  // Parallel structure last: it is the only check that reads a node's branch
+  // list against the edges leaving it, and running it after the node and edge
+  // sets have been judged means it never reports "unknown branch node" for a
+  // node the list above already reported as malformed.
+  problems.push(...validateParallelStructure(definition));
 
   return problems;
 }
@@ -123,6 +141,23 @@ function identityProblems(definition: WorkflowDefinition): string[] {
   }
   if (typeof definition.outputContract?.validate !== 'function') {
     problems.push('outputContract must be a validator');
+  }
+
+  if (definition.maximumParallelBranches !== undefined) {
+    const bounds = WORKFLOW_PARALLEL_BOUNDS;
+    if (!Number.isInteger(definition.maximumParallelBranches)) {
+      problems.push('maximumParallelBranches must be an integer');
+    } else if (
+      definition.maximumParallelBranches < bounds.minParallelBranches ||
+      definition.maximumParallelBranches > bounds.maximumParallelBranches
+    ) {
+      // Only ever a NARROWING of the platform ceiling. A definition that could
+      // raise it would make the bound a suggestion.
+      problems.push(
+        `maximumParallelBranches must be between ${bounds.minParallelBranches} and ` +
+          `${bounds.maximumParallelBranches}`,
+      );
+    }
   }
 
   return problems;
@@ -166,7 +201,7 @@ function nodeProblems(
     if (!WORKFLOW_NODE_KINDS.includes(node.kind)) {
       problems.push(
         `${label}: kind ${String(node.kind)} is not supported — ` +
-          'this batch has agent and condition nodes',
+          'this batch has agent, condition, parallel and join nodes',
       );
       continue;
     }
@@ -175,6 +210,13 @@ function nodeProblems(
       knownNodeIds: declaredIds,
       ownerNodeId: node.nodeId ?? '',
     };
+
+    // Parallel and join nodes carry no expression, no mapping and no agent, so
+    // there is nothing for this module to say about them — everything they
+    // declare is a statement about the GRAPH, and `parallelValidation.ts` owns
+    // that. Naming them here rather than falling through to the agent rules is
+    // what stops a parallel node being reported as an agent node missing an id.
+    if (node.kind === 'parallel' || node.kind === 'join') continue;
 
     problems.push(
       ...(node.kind === 'condition'
@@ -336,6 +378,11 @@ function successorProblems(
 ): string[] {
   const problems: string[] = [];
 
+  // A parallel node's successors are judged against its declared branch list,
+  // which only `parallelValidation.ts` can see. Applying the one-successor rule
+  // here would report every legitimate fan-out as a defect.
+  if (kind === 'parallel') return problems;
+
   if (kind === 'condition') {
     const trueEdges = edges.filter((edge) => edge.when === true);
     const falseEdges = edges.filter((edge) => edge.when === false);
@@ -362,8 +409,11 @@ function successorProblems(
   }
   if (edges.length > 1) {
     problems.push(
-      `node ${nodeId} has ${edges.length} outgoing edges — an agent node takes exactly one ` +
-        'successor, and branching belongs to a condition node',
+      `node ${nodeId} has ${edges.length} outgoing edges — ` +
+        (kind === 'join'
+          ? 'a join node takes exactly one successor'
+          : 'an agent node takes exactly one successor, and branching belongs to a condition ' +
+            'node or a parallel node'),
     );
   }
   return problems;

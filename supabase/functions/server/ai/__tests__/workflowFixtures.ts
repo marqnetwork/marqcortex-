@@ -16,7 +16,13 @@ import type {
   WorkflowConditionNode,
   WorkflowDefinition,
   WorkflowEdge,
+  WorkflowJoinNode,
+  WorkflowParallelNode,
 } from '../workflows/contracts/workflow.ts';
+import type {
+  WorkflowJoinPolicy,
+  WorkflowParallelFailurePolicy,
+} from '../workflows/contracts/parallel.ts';
 import type { WorkflowExpression } from '../workflows/contracts/expression.ts';
 import type { WorkflowMapping } from '../workflows/contracts/mapping.ts';
 import type { WorkflowCheckpointStore } from '../workflows/persistence/ports.ts';
@@ -26,7 +32,8 @@ import type { WorkflowAgentPort } from '../workflows/engine/agentNodePort.ts';
 import type { WorkflowRunStore } from '../workflows/persistence/ports.ts';
 import type { WorkflowRuntime } from '../workflows/workflowRuntime.ts';
 import type { MutableClock } from '../runtime/clock.ts';
-import { num, object, str } from '../security/validation.ts';
+import type { Validator } from '../security/validation.ts';
+import { arrayOf, jsonObject, num, object, str } from '../security/validation.ts';
 import { createTestClock } from '../runtime/clock.ts';
 import { createSequentialIdFactory } from '../contracts/ids.ts';
 import {
@@ -592,6 +599,333 @@ export function buildPart3Runtime(
   return buildTestWorkflowRuntime({
     workflows: PART3_WORKFLOWS,
     agents: PART3_AGENTS,
+    ...options,
+  });
+}
+
+// ── Part 4 fixtures: parallel branches and joins ────────────────────────────
+
+/**
+ * The shape every join in this suite merges to, and the shape the workflows
+ * themselves output.
+ *
+ * `branches` is a `jsonObject` rather than a declared per-branch shape, so the
+ * validated value KEEPS ITS KEY ORDER — `object()` re-emits keys in its own
+ * shape's declaration order, which would hide the very ordering the merge-order
+ * test is asserting on. The name arrays carry the order regardless, and the
+ * tests check both.
+ */
+export const mergeShape = object({
+  branches: jsonObject(),
+  completedBranches: arrayOf(str({ minLength: 1, maxLength: 64 })),
+  failedBranches: arrayOf(str({ minLength: 1, maxLength: 64 })),
+  cancelledBranches: arrayOf(str({ minLength: 1, maxLength: 64 })),
+});
+
+/** A merge contract nothing can satisfy. Drives the invalid-merge path. */
+export const impossibleMergeShape = object({
+  branches: jsonObject(),
+  completedBranches: arrayOf(str({ minLength: 1, maxLength: 64 }), { minItems: 99 }),
+});
+
+export function branchNode(nodeId: string, agentId: string): WorkflowAgentNode {
+  return {
+    ...node({ nodeId, agentId, displayName: `Branch step ${nodeId}` }),
+    outputContract: executionContracts.output,
+  };
+}
+
+/** A branch node with NO output contract, so it contributes nothing to a merge. */
+export function silentBranchNode(nodeId: string, agentId: string): WorkflowAgentNode {
+  return node({ nodeId, agentId, displayName: `Silent branch step ${nodeId}` });
+}
+
+export function parallelNode(
+  nodeId: string,
+  branches: readonly (readonly [string, string])[],
+  joinNodeId: string,
+  failurePolicy: WorkflowParallelFailurePolicy,
+  overrides: Partial<WorkflowParallelNode> = {},
+): WorkflowParallelNode {
+  return {
+    kind: 'parallel',
+    nodeId,
+    displayName: `Fan out ${nodeId}`,
+    branches: branches.map(([branchName, startNodeId]) => ({ branchName, startNodeId })),
+    joinNodeId,
+    failurePolicy,
+    ...overrides,
+  } as WorkflowParallelNode;
+}
+
+export function joinNode(
+  nodeId: string,
+  policy: WorkflowJoinPolicy,
+  mergeContract: Validator<unknown> = mergeShape,
+): WorkflowJoinNode {
+  return {
+    kind: 'join',
+    nodeId,
+    displayName: `Join ${nodeId}`,
+    policy,
+    mergeContract,
+  } as WorkflowJoinNode;
+}
+
+export function branchEdge(from: string, to: string, branch: string): WorkflowEdge {
+  return { from, to, branch };
+}
+
+/**
+ * The canonical Part 4 shape: `fan` opens two branches, each one agent node,
+ * both converging on `gate`.
+ *
+ * Deliberately the smallest graph that can exhibit every policy, so a failing
+ * assertion about a join says something about the join rather than about the
+ * three other things a richer fixture would also be doing.
+ */
+function twoBranchWorkflow(
+  workflowId: string,
+  options: {
+    readonly policy: WorkflowJoinPolicy;
+    readonly failurePolicy: WorkflowParallelFailurePolicy;
+    readonly leftAgent?: string;
+    readonly rightAgent?: string;
+    readonly mergeContract?: Validator<unknown>;
+  },
+): WorkflowDefinition {
+  return {
+    workflowId,
+    displayName: `Part 4 fixture ${workflowId}`,
+    purpose: 'Exercise bounded fan-out, joins and merge policy.',
+    description: 'A deterministic fixture used by the AI-01 Batch 3B Part 4 suites.',
+    owner: 'MARQ Platform Engineering — test fixtures',
+    version: '1.0.0',
+    enabled: true,
+    certification: 'certified',
+    nodes: [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_step'],
+          ['right', 'right_step'],
+        ],
+        'gate',
+        options.failurePolicy,
+      ),
+      branchNode('left_step', options.leftAgent ?? WF_AGENT.alpha),
+      branchNode('right_step', options.rightAgent ?? WF_AGENT.beta),
+      joinNode('gate', options.policy, options.mergeContract ?? mergeShape),
+    ],
+    edges: [
+      branchEdge('fan', 'left_step', 'left'),
+      branchEdge('fan', 'right_step', 'right'),
+      edge('left_step', 'gate'),
+      edge('right_step', 'gate'),
+    ],
+    startNodeId: 'fan',
+    inputContract: executionContracts.input,
+    outputContract: mergeShape,
+  } as WorkflowDefinition;
+}
+
+export const PART4 = {
+  /** Both branches complete. The happy path for every join policy. */
+  allJoin: twoBranchWorkflow('workflow.p4.all', {
+    policy: { kind: 'all' },
+    failurePolicy: 'wait_all',
+  }),
+
+  /** `any` under fail_fast: the first completion fires the join. */
+  anyJoin: twoBranchWorkflow('workflow.p4.any', {
+    policy: { kind: 'any' },
+    failurePolicy: 'minimum_successes',
+    rightAgent: WF_AGENT.failing,
+  }),
+
+  /**
+   * One success is enough, and the branch that fails is the FIRST one.
+   *
+   * Ordinal order matters to what this proves: `left` fails before `right` has
+   * started, so the group has to decline to give up — the minimum is still
+   * reachable — and then fire when `right` succeeds.
+   */
+  minimumJoin: twoBranchWorkflow('workflow.p4.minimum', {
+    policy: { kind: 'minimum_successes', minimum: 1 },
+    failurePolicy: 'minimum_successes',
+    leftAgent: WF_AGENT.failing,
+  }),
+
+  /** `right` is required; `left` fails and is allowed to. */
+  namedJoin: twoBranchWorkflow('workflow.p4.named', {
+    policy: { kind: 'named_required_branches', required: ['right'] },
+    failurePolicy: 'minimum_successes',
+    leftAgent: WF_AGENT.failing,
+  }),
+
+  /** The required branch is the one that fails. The join can never be met. */
+  namedJoinMissing: twoBranchWorkflow('workflow.p4.named_missing', {
+    policy: { kind: 'named_required_branches', required: ['left'] },
+    failurePolicy: 'minimum_successes',
+    leftAgent: WF_AGENT.failing,
+  }),
+
+  /** The first branch failure ends the group. */
+  failFast: twoBranchWorkflow('workflow.p4.fail_fast', {
+    policy: { kind: 'all' },
+    failurePolicy: 'fail_fast',
+    leftAgent: WF_AGENT.failing,
+  }),
+
+  /** A failing branch under wait_all: the sibling still runs to completion. */
+  waitAll: twoBranchWorkflow('workflow.p4.wait_all', {
+    policy: { kind: 'minimum_successes', minimum: 1 },
+    failurePolicy: 'wait_all',
+    leftAgent: WF_AGENT.failing,
+  }),
+
+  /** Both branches complete and the merge contract still refuses the result. */
+  badMerge: twoBranchWorkflow('workflow.p4.bad_merge', {
+    policy: { kind: 'all' },
+    failurePolicy: 'wait_all',
+    mergeContract: impossibleMergeShape,
+  }),
+
+  /** `right` blocks on an approval nobody gives; `left` completes. */
+  blockedBranch: twoBranchWorkflow('workflow.p4.blocked', {
+    policy: { kind: 'any' },
+    failurePolicy: 'wait_all',
+    rightAgent: WF_AGENT.blocking,
+  }),
+
+  /**
+   * A branch with a two-node body, so the BRANCH-LOCAL CURSOR has somewhere to
+   * move. Both branches also run a node with the same id shape, which is what
+   * makes branch-local outputs testable rather than merely asserted.
+   */
+  multiNode: {
+    workflowId: 'workflow.p4.multi_node',
+    displayName: 'Part 4 fixture workflow.p4.multi_node',
+    purpose: 'Exercise a branch-local cursor across more than one node.',
+    description: 'A deterministic fixture used by the AI-01 Batch 3B Part 4 suites.',
+    owner: 'MARQ Platform Engineering — test fixtures',
+    version: '1.0.0',
+    enabled: true,
+    certification: 'certified',
+    nodes: [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_one'],
+          ['right', 'right_one'],
+        ],
+        'gate',
+        'wait_all',
+      ),
+      branchNode('left_one', WF_AGENT.alpha),
+      branchNode('left_two', WF_AGENT.gamma),
+      branchNode('right_one', WF_AGENT.beta),
+      joinNode('gate', { kind: 'all' }),
+      { ...node({ nodeId: 'after', agentId: WF_AGENT.alpha }), outputContract: executionContracts.output },
+    ],
+    edges: [
+      branchEdge('fan', 'left_one', 'left'),
+      branchEdge('fan', 'right_one', 'right'),
+      edge('left_one', 'left_two'),
+      edge('left_two', 'gate'),
+      edge('right_one', 'gate'),
+      edge('gate', 'after'),
+    ],
+    startNodeId: 'fan',
+    inputContract: executionContracts.input,
+    outputContract: executionContracts.output,
+  } as WorkflowDefinition,
+
+  /** A branch whose terminal node stores nothing trusted. It contributes none. */
+  silentBranch: {
+    ...twoBranchWorkflow('workflow.p4.silent', {
+      policy: { kind: 'all' },
+      failurePolicy: 'wait_all',
+    }),
+    nodes: [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_step'],
+          ['right', 'right_step'],
+        ],
+        'gate',
+        'wait_all',
+      ),
+      branchNode('left_step', WF_AGENT.alpha),
+      silentBranchNode('right_step', WF_AGENT.beta),
+      joinNode('gate', { kind: 'all' }),
+    ],
+  } as WorkflowDefinition,
+} as const;
+
+export const PART4_WORKFLOWS: readonly WorkflowDefinition[] = [
+  PART4.allJoin,
+  PART4.anyJoin,
+  PART4.minimumJoin,
+  PART4.namedJoin,
+  PART4.namedJoinMissing,
+  PART4.failFast,
+  PART4.waitAll,
+  PART4.badMerge,
+  PART4.blockedBranch,
+  PART4.multiNode,
+  PART4.silentBranch,
+];
+
+/**
+ * A fan-out of `count` branches, built programmatically.
+ *
+ * Used to prove the ceiling is enforced rather than documented: the same
+ * builder produces a definition the registry accepts at the ceiling and refuses
+ * one branch above it.
+ */
+export function wideParallelWorkflow(
+  count: number,
+  overrides: Partial<WorkflowDefinition> = {},
+): WorkflowDefinition {
+  const branches = Array.from({ length: count }, (_, index) => [
+    `b${index}`,
+    `b${index}_step`,
+  ] as const);
+
+  return {
+    workflowId: `workflow.p4.wide${count}`,
+    displayName: `Part 4 wide fixture (${count})`,
+    purpose: 'Exercise the fan-out ceiling.',
+    description: 'A deterministic fixture used by the AI-01 Batch 3B Part 4 suites.',
+    owner: 'MARQ Platform Engineering — test fixtures',
+    version: '1.0.0',
+    enabled: true,
+    certification: 'certified',
+    nodes: [
+      parallelNode('fan', branches, 'gate', 'wait_all'),
+      ...branches.map(([, startNodeId]) => branchNode(startNodeId, WF_AGENT.alpha)),
+      joinNode('gate', { kind: 'all' }),
+    ],
+    edges: [
+      ...branches.map(([branchName, startNodeId]) => branchEdge('fan', startNodeId, branchName)),
+      ...branches.map(([, startNodeId]) => edge(startNodeId, 'gate')),
+    ],
+    startNodeId: 'fan',
+    inputContract: executionContracts.input,
+    outputContract: mergeShape,
+    ...overrides,
+  } as WorkflowDefinition;
+}
+
+/** A harness carrying the Part 4 workflows over the Part 2 agents. */
+export function buildPart4Runtime(
+  options: TestWorkflowRuntimeOptions = {},
+): TestWorkflowRuntime {
+  return buildTestWorkflowRuntime({
+    workflows: PART4_WORKFLOWS,
+    agents: WORKFLOW_NODE_AGENTS,
     ...options,
   });
 }

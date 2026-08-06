@@ -43,6 +43,7 @@
  */
 
 import type { WorkflowRunState } from './run.ts';
+import type { WorkflowBranchState, WorkflowParallelGroupState } from './parallel.ts';
 
 export interface WorkflowCheckpoint {
   readonly workflowRunId: string;
@@ -72,10 +73,52 @@ export interface WorkflowCheckpoint {
   readonly loopIterations: Readonly<Record<string, number>>;
   /** Times each node has been executed. Drives the `node_visits` counter. */
   readonly nodeVisits: Readonly<Record<string, number>>;
+  /**
+   * What every parallel group looked like when this checkpoint was taken
+   * (AI-01 Batch 3B, Part 4).
+   *
+   * A SUMMARY, not the branches themselves. The branch records — including
+   * their branch-local outputs — live on the run record, which is versioned and
+   * compare-and-swapped and is the authority the engine resumes from. What the
+   * chain adds is TAMPER EVIDENCE: the summary is inside the digest, so a branch
+   * that is recorded as having completed cannot later be re-written as pending,
+   * and a join that fired cannot be made to look as though it never did.
+   *
+   * Deliberately excluded from the summary: timestamps, child agent run ids and
+   * the in-flight `pendingNode`. All three legitimately differ between a crashed
+   * attempt and its retry, and a digest that moved with them would turn the
+   * idempotent re-write in `writeCheckpoint` into a permanent conflict.
+   */
+  readonly parallel: readonly WorkflowParallelCheckpointSummary[];
   /** Digest of the previous checkpoint. Absent on version 1. */
   readonly previousDigest?: string;
   /** Digest of this checkpoint's own content, including `previousDigest`. */
   readonly digest: string;
+}
+
+/** One parallel group, reduced to the facts the chain is willing to prove. */
+export interface WorkflowParallelCheckpointSummary {
+  readonly groupId: string;
+  readonly parallelNodeId: string;
+  readonly joinNodeId: string;
+  readonly state: WorkflowParallelGroupState;
+  /** True once the join has fired. The once-only guarantee, chained. */
+  readonly joined: boolean;
+  readonly joinDigest?: string;
+  /** In ordinal order, always. */
+  readonly branches: readonly WorkflowBranchCheckpointSummary[];
+}
+
+export interface WorkflowBranchCheckpointSummary {
+  readonly branchId: string;
+  readonly branchName: string;
+  readonly ordinal: number;
+  readonly state: WorkflowBranchState;
+  readonly cursorNodeId?: string;
+  readonly stepCount: number;
+  /** Digest of the branch's own outputs map. Never the outputs. */
+  readonly outputsDigest: string;
+  readonly contributionNodeId?: string;
 }
 
 export const WORKFLOW_CHECKPOINT_BOUNDS = {

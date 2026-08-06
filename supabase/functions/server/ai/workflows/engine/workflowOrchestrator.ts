@@ -1,8 +1,8 @@
 /**
- * The Workflow Execution Engine (AI-01 Batch 3B, Parts 2 and 3).
+ * The Workflow Execution Engine (AI-01 Batch 3B, Parts 2, 3 and 4).
  *
- * Drives a workflow run along a plan, one node at a time, through the Batch 3A
- * Agent Orchestrator. It decides ORDER and DATA FLOW, and nothing else.
+ * Drives a workflow run along a plan, through the Batch 3A Agent Orchestrator.
+ * It decides ORDER and DATA FLOW, and nothing else.
  *
  * ── WHAT THIS ENGINE IS NOT ALLOWED TO DECIDE ──────────────────────────────
  *
@@ -38,11 +38,36 @@
  * checkpoint that does not exist, which recovery cannot distinguish from a
  * deleted one — and must therefore refuse.
  *
- * ── SEQUENTIAL, STILL ──────────────────────────────────────────────────────
+ * ── PARALLEL BRANCHES (PART 4) ─────────────────────────────────────────────
  *
- * One current node. One successor — chosen by a condition, or the only one
- * there is. A durable checkpoint after every node. No fan-out, no joins, no
- * workflow approvals and NO RETRIES: a node that fails fails the run.
+ * A parallel node opens a bounded, named set of BRANCHES, each with its own
+ * cursor, its own trusted outputs, its own version and its own child agent runs.
+ * They live on the run record — see `contracts/parallel.ts` — so a recycled
+ * isolate resumes a fan-out rather than restarting one.
+ *
+ * THE SAME THREE-PHASE ORDERING APPLIES INSIDE A BRANCH, unchanged: create the
+ * child, persist the branch's `pendingNode`, then drive. That is why branches
+ * advance ONE AT A TIME through the drive loop rather than being fired off
+ * together with `Promise.all` — the ordering guarantee is per branch, and a
+ * batch of concurrent writes to one versioned record would be a batch of lost
+ * updates. What is parallel here is the WORK: several agent runs are in flight
+ * at once, each blocked on its own approval or its own model, and the engine
+ * makes progress on whichever can move. What is serialized is the bookkeeping,
+ * because there is one record and it has one version.
+ *
+ * A branch that cannot progress this pass — its child is running or blocked —
+ * is skipped for the remainder of the advance rather than re-polled, so one slow
+ * branch never starves its siblings and never spins the loop.
+ *
+ * THE JOIN FIRES ONCE. `decideJoin` refuses a group that already carries
+ * `joinedAt`, and `closeGroup` refuses to set it twice; both read durable state,
+ * because a flag in isolate memory is `false` again in the next isolate.
+ *
+ * ── STILL NO RETRIES ───────────────────────────────────────────────────────
+ *
+ * A node that fails fails its line of execution — the run for a main-line node,
+ * the branch for a branch node — and what a failed branch does to its siblings
+ * is the group's declared failure policy, not a decision this engine makes.
  * `maxAttempts` is carried on the plan and never spent, and a failed run is
  * restarted as a NEW run, never reopened.
  *
@@ -78,13 +103,23 @@ import type { WorkflowCheckpointStore, WorkflowRunStore } from '../persistence/p
 import type { AgentNodeHandle, WorkflowAgentActor, WorkflowAgentPort } from './agentNodePort.ts';
 import type { EvaluationScope } from '../runtime/expressionEvaluator.ts';
 import type { DataState } from './dataFlow.ts';
+import type {
+  WorkflowBranchRecord,
+  WorkflowParallelGroup,
+} from '../contracts/parallel.ts';
+import type {
+  WorkflowAgentPlanStep,
+  WorkflowConditionPlanStep,
+  WorkflowParallelPlanStep,
+} from '../contracts/plan.ts';
 import {
   MAX_WORKFLOW_TRANSITION_HISTORY,
   WORKFLOW_RUN_BOUNDS,
   isTerminalWorkflowState,
 } from '../contracts/run.ts';
 import { WORKFLOW_CHECKPOINT_BOUNDS } from '../contracts/checkpoint.ts';
-import { isAgentStep } from '../contracts/plan.ts';
+import { WORKFLOW_PARALLEL_BOUNDS, isTerminalBranchState } from '../contracts/parallel.ts';
+import { isAgentStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
 import {
   WorkflowError,
   isWorkflowError,
@@ -94,7 +129,20 @@ import {
 import { assertTransition } from '../runtime/workflowStateMachine.ts';
 import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
 import { applyMapping } from '../runtime/mapper.ts';
-import { computeCheckpointDigest, digestOutputs } from '../runtime/checkpointChain.ts';
+import {
+  computeCheckpointDigest,
+  digestOutputs,
+  summarizeParallelGroups,
+} from '../runtime/checkpointChain.ts';
+import { decideJoin, mergeBranchOutputs } from '../runtime/joinPolicy.ts';
+import {
+  applyBranchOutcome,
+  applyBranchProgress,
+  closeGroup,
+  openGroupOf,
+  openParallelGroup,
+  upsertGroup,
+} from './branchScheduler.ts';
 import { emptyDataState, recoverDataState } from './dataFlow.ts';
 import { isFailure } from '../../security/validation.ts';
 // Canonical serialization only. `runtime/digest.ts` is a pure, bounded
@@ -204,6 +252,29 @@ export interface WorkflowOrchestrator {
  * diagnostic instead of spinning inside an edge isolate.
  */
 const MAX_DRIVE_ITERATIONS = 4 * WORKFLOW_RUN_BOUNDS.maxNodeExecutions + 16;
+
+/**
+ * What one `advance` call remembers about itself.
+ *
+ * `parkedBranches` is the only piece of per-call state in the engine, and it is
+ * deliberately NOT durable: "this branch's child had not moved when we last
+ * looked" is true of one moment, and persisting it would mean the next advance
+ * inherits a stale reason to skip a branch that has since finished. It is reset
+ * on every call, which is exactly the lifetime the fact has.
+ */
+interface AdvanceSession {
+  readonly parkedBranches: Set<string>;
+  /**
+   * The branch advanced on the previous turn, so the next turn starts after it.
+   *
+   * This is what makes the fan-out actually overlap: without it the loop would
+   * keep choosing the lowest-ordinal branch that could move, driving branch one
+   * to completion before branch two had created its first child — parallel in
+   * name and sequential in effect. Round-robin gets every branch's child in
+   * flight before any of them is driven twice.
+   */
+  lastBranchId?: string;
+}
 
 export function createWorkflowOrchestrator(
   deps: WorkflowOrchestratorDependencies,
@@ -337,11 +408,43 @@ export function createWorkflowOrchestrator(
    * throw site.
    */
   async function terminate(
-    record: WorkflowRunRecord,
+    stale: WorkflowRunRecord,
     error: WorkflowError,
     actorId: string,
   ): Promise<WorkflowRunRecord> {
+    // RE-READ FIRST. The failure may have been raised after several versioned
+    // writes — a parallel step writes once per branch turn before the join can
+    // reject a merge — and terminating against the version the drive loop last
+    // held would lose the compare-and-swap and surface a
+    // `stale_workflow_version` in place of the real reason the run stopped.
+    //
+    // A run that reached a terminal state in the meantime is returned as it is:
+    // something else already ended it, and terminal means terminal.
+    const record =
+      (await runs.load(stale.context.organizationId, stale.context.workflowRunId)) ?? stale;
+    if (isTerminalWorkflowState(record.state)) return record;
+
     const to = terminalStateFor(error.failure) ?? 'failed';
+
+    // An open parallel group is closed with the run. Its branch children are
+    // not chased here — a run terminating on a typed failure may be doing so
+    // because the store or the registry is unhappy, and a fan of remote
+    // cancellations is the wrong thing to attempt on that path. The record
+    // still stops claiming that branches are running, which is what a reader
+    // needs. `cancel` is the operation that stops children, and it does.
+    const open = openGroupOf(record.parallelGroups);
+    const groups =
+      open === undefined
+        ? record.parallelGroups
+        : upsertGroup(
+            record.parallelGroups,
+            closeGroup(open, {
+              state: 'failed',
+              at: clock.isoNow(),
+              failure: error.failure,
+            }),
+          );
+
     return transition(record, {
       to,
       operation: 'fail',
@@ -354,6 +457,7 @@ export function createWorkflowOrchestrator(
         // sitting on node three". What ran is in `steps`.
         currentNodeId: undefined,
         pendingNode: undefined,
+        parallelGroups: groups,
       },
     });
   }
@@ -434,6 +538,33 @@ export function createWorkflowOrchestrator(
   }
 
   /**
+   * The same scope, seen from inside a branch (Part 4).
+   *
+   * A branch sees the run's own trusted outputs — everything the main line
+   * produced BEFORE the fan-out — with its own outputs layered over the top. It
+   * does NOT see a sibling's, and the omission is the isolation: two branches
+   * that both run a node called `draft` read their own, and neither can
+   * condition on work the join has not yet accepted.
+   *
+   * Sibling outputs become visible exactly once, as the merged value the join
+   * stores under the join node's id, after the merge contract has accepted it.
+   */
+  function branchScopeFor(
+    record: WorkflowRunRecord,
+    data: DataState,
+    branch: WorkflowBranchRecord,
+    result?: { readonly value: unknown },
+  ): EvaluationScope {
+    const base = scopeFor(record, data, result);
+    return {
+      ...base,
+      nodeOutputs: { ...data.outputs, ...branch.outputs },
+      nodeVisits: { ...data.nodeVisits, ...branch.nodeVisits },
+      stepsCompleted: branch.stepCount,
+    };
+  }
+
+  /**
    * Write the next checkpoint, chained to the current one.
    *
    * IDEMPOTENT BY DESIGN. A crash between the checkpoint write and the run save
@@ -447,7 +578,19 @@ export function createWorkflowOrchestrator(
   async function writeCheckpoint(
     record: WorkflowRunRecord,
     data: DataState,
-    facts: { readonly nodeId: string; readonly cursorNodeId?: string; readonly state: WorkflowRunState },
+    facts: {
+      readonly nodeId: string;
+      readonly cursorNodeId?: string;
+      readonly state: WorkflowRunState;
+      /**
+       * The groups AS THEY WILL BE SAVED, not as the record currently holds
+       * them. The checkpoint is written before the run record — see the header
+       * — so the summary has to describe the state the run is moving to, and a
+       * retry after a crash recomputes the identical one from the identical
+       * inputs.
+       */
+      readonly parallelGroups?: readonly WorkflowParallelGroup[];
+    },
   ): Promise<WorkflowCheckpoint> {
     const version = record.checkpointVersion + 1;
     if (version > WORKFLOW_RUN_BOUNDS.maxCheckpoints) {
@@ -485,6 +628,7 @@ export function createWorkflowOrchestrator(
       outputsDigest: digestOutputs(data.outputs),
       loopIterations: { ...data.loopIterations },
       nodeVisits: { ...data.nodeVisits },
+      parallel: summarizeParallelGroups(facts.parallelGroups ?? record.parallelGroups ?? []),
       ...(record.checkpointDigest === undefined
         ? {}
         : { previousDigest: record.checkpointDigest }),
@@ -580,9 +724,14 @@ export function createWorkflowOrchestrator(
     record: WorkflowRunRecord,
     step: WorkflowPlanStep & { kind: 'agent' },
     data: DataState,
+    branch?: WorkflowBranchRecord,
   ): unknown {
+    const scope = branch === undefined
+      ? scopeFor(record, data)
+      : branchScopeFor(record, data, branch);
+
     if (step.inputMapping) {
-      const outcome = applyMapping(step.inputMapping, scopeFor(record, data), step.inputContract);
+      const outcome = applyMapping(step.inputMapping, scope, step.inputContract);
       if (!outcome.ok) {
         throw workflowFailure(
           'workflow_mapping_failed',
@@ -636,13 +785,16 @@ export function createWorkflowOrchestrator(
     step: WorkflowPlanStep & { kind: 'agent' },
     data: DataState,
     raw: unknown,
+    branch?: WorkflowBranchRecord,
   ): { readonly stored: boolean; readonly value?: unknown } {
     if (!step.outputContract) return { stored: false };
 
     if (step.outputMapping) {
       const outcome = applyMapping(
         step.outputMapping,
-        scopeFor(record, data, { value: raw }),
+        branch === undefined
+          ? scopeFor(record, data, { value: raw })
+          : branchScopeFor(record, data, branch, { value: raw }),
         step.outputContract,
       );
       if (!outcome.ok) {
@@ -911,13 +1063,16 @@ export function createWorkflowOrchestrator(
     plan: WorkflowPlanStep,
     facts: {
       readonly nodeId: string;
-      readonly kind: 'agent' | 'condition';
+      readonly kind: 'agent' | 'condition' | 'parallel' | 'join';
       readonly startedAt: string;
       readonly agentId?: string;
       readonly childAgentRunId?: string;
       readonly childState?: string;
       readonly branchTaken?: boolean;
       readonly branchNodeId?: string;
+      readonly branchId?: string;
+      readonly branchName?: string;
+      readonly mergedBranchCount?: number;
       readonly resultDigest?: string;
     },
     data: DataState,
@@ -938,6 +1093,11 @@ export function createWorkflowOrchestrator(
       ...(facts.childState === undefined ? {} : { childState: facts.childState }),
       ...(facts.branchTaken === undefined ? {} : { branchTaken: facts.branchTaken }),
       ...(facts.branchNodeId === undefined ? {} : { branchNodeId: facts.branchNodeId }),
+      ...(facts.branchId === undefined ? {} : { branchId: facts.branchId }),
+      ...(facts.branchName === undefined ? {} : { branchName: facts.branchName }),
+      ...(facts.mergedBranchCount === undefined
+        ? {}
+        : { mergedBranchCount: facts.mergedBranchCount }),
       startedAt: facts.startedAt,
       completedAt,
       latencyMs: Math.max(0, clock.now() - Date.parse(facts.startedAt)),
@@ -1020,6 +1180,894 @@ export function createWorkflowOrchestrator(
     });
   }
 
+  // ── Parallel branches and joins (Part 4) ──────────────────────────────────
+
+  /**
+   * Open a parallel step: create every branch, durably, and start none of them.
+   *
+   * The whole fan-out is written in ONE versioned transition before any branch
+   * runs, so an isolate that dies immediately afterwards comes back to a
+   * complete statement of the work rather than a partial set it would have to
+   * guess the rest of. `openParallelGroup` refuses a second group for the same
+   * node, which is what makes a retried advance land on "already started".
+   */
+  async function openParallelNode(
+    record: WorkflowRunRecord,
+    step: WorkflowParallelPlanStep,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    const group = openParallelGroup({
+      workflowRunId: record.context.workflowRunId,
+      step,
+      existingGroups: record.parallelGroups ?? [],
+      at: clock.isoNow(),
+    });
+
+    metrics.increment('ai.workflow.parallel.opened', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+    logger.info('ai.workflow.parallel.opened', {
+      workflowRunId: record.context.workflowRunId,
+      nodeId: step.nodeId,
+      joinNodeId: step.joinNodeId,
+      // Joined into one field: a log sink takes scalars, and a branch NAME is a
+      // definition-authored label rather than tenant data, so it is safe to
+      // carry where an output never would be.
+      branches: group.branches.map((branch) => branch.branchName).join(','),
+      branchCount: group.branches.length,
+      joinPolicy: group.joinPolicy.kind,
+      failurePolicy: group.failurePolicy,
+    });
+
+    return transition(record, {
+      to: 'waiting_for_branches',
+      operation: 'step',
+      reason: `Parallel ${step.nodeId} opened ${group.branches.length} branches.`,
+      actorId: input.actor.actorId,
+      patch: { parallelGroups: upsertGroup(record.parallelGroups, group) },
+    });
+  }
+
+  function requireOpenGroup(record: WorkflowRunRecord): WorkflowParallelGroup {
+    const group = openGroupOf(record.parallelGroups);
+    if (!group) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: 'run is waiting_for_branches with no open parallel group',
+      });
+    }
+    return group;
+  }
+
+  function branchStepFor(
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    nodeId: string,
+  ): WorkflowAgentPlanStep | WorkflowConditionPlanStep {
+    const step = stepFor(plan, nodeId);
+    if (!step || isParallelStep(step) || isJoinStep(step)) {
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: group.groupId,
+          nodeId,
+          diagnostics:
+            `branch ${branch.branchName} cursor ${nodeId} is not an agent or condition node ` +
+            `in plan ${plan.digest}`,
+        },
+      );
+    }
+    return step;
+  }
+
+  /** What one turn against one branch produced. */
+  interface BranchTurn {
+    readonly record: WorkflowRunRecord;
+    /** True when the branch's child could not progress and the branch is parked. */
+    readonly blocked: boolean;
+    /** True when the branch reached a terminal state on this turn. */
+    readonly settled: boolean;
+  }
+
+  /**
+   * Advance ONE branch by one step.
+   *
+   * Every write here goes through `transition`, so a branch mutation is a
+   * versioned write of the whole run record — and `applyBranchProgress` asserts
+   * the branch's OWN version before the record is rebuilt, which is what stops
+   * a second sweep holding a stale view of this branch from overwriting it.
+   */
+  async function advanceBranch(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    definition: WorkflowDefinition,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    if (branch.state === 'waiting_for_agent') {
+      return driveBranchNode(record, plan, group, branch, data, input);
+    }
+
+    const cursor = branch.cursorNodeId;
+    if (cursor === undefined) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: `branch ${branch.branchId} is ${branch.state} with no cursor`,
+      });
+    }
+
+    const step = branchStepFor(plan, group, branch, cursor);
+    if (step.kind === 'condition') {
+      return runBranchCondition(record, plan, group, branch, step, data, input);
+    }
+    return beginBranchNode(record, definition, group, branch, step, data, input);
+  }
+
+  /**
+   * Phases 1 and 2 for a branch node: build the input, create the child,
+   * persist the branch's pointer. Nothing external has happened on return.
+   */
+  async function beginBranchNode(
+    record: WorkflowRunRecord,
+    definition: WorkflowDefinition,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowAgentPlanStep,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const nodeInput = buildNodeInput(record, step, data, branch);
+
+    const handle = await agents.create({
+      agentId: step.agentId,
+      // TENANT SCOPE. The child is created in the RUN's organization, never in
+      // one a caller named — the same rule every other agent call in this engine
+      // follows, and a branch is not an exception to it.
+      organizationId: record.context.organizationId,
+      actor: input.actor.agent,
+      objective: `${definition.displayName}: ${branch.branchName}/${step.displayName}`.slice(0, 200),
+      input: nodeInput,
+      requestId: input.requestId,
+      correlationId: record.context.correlationId,
+      origin: record.context.origin,
+      workflowId: record.context.workflowId,
+    });
+
+    const updated: WorkflowBranchRecord = {
+      ...branch,
+      state: 'waiting_for_agent',
+      branchVersion: branch.branchVersion + 1,
+      pendingNode: {
+        nodeId: step.nodeId,
+        agentId: step.agentId,
+        agentRunId: handle.agentRunId,
+        startedAt: clock.isoNow(),
+        sequence: step.index,
+      },
+      childAgentRunIds: [...branch.childAgentRunIds, handle.agentRunId],
+    };
+
+    const nextGroup = applyBranchProgress(group, updated, branch.branchVersion);
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId}.`,
+        actorId: input.actor.actorId,
+        patch: {
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+          childAgentRunIds: [...record.childAgentRunIds, handle.agentRunId],
+        },
+      }),
+      blocked: false,
+      settled: false,
+    };
+  }
+
+  /**
+   * Phase 3 for a branch node: drive the child and record the outcome.
+   *
+   * A child that is merely blocked produces NO WRITE and parks the branch for
+   * the rest of this advance — the same rule the main line follows, and the
+   * reason one branch waiting on an approval does not stop its siblings.
+   */
+  async function driveBranchNode(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const pending = branch.pendingNode;
+    if (!pending) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: `branch ${branch.branchId} is waiting_for_agent with no pendingNode`,
+      });
+    }
+
+    const handle = await agents.drive({
+      organizationId: record.context.organizationId,
+      agentRunId: pending.agentRunId,
+      actor: input.actor.agent,
+      authorization: input.authorization,
+      requestId: input.requestId,
+      correlationId: record.context.correlationId,
+      ...(input.clientIp === undefined ? {} : { clientIp: input.clientIp }),
+    });
+
+    if (handle.state === 'running' || handle.state === 'blocked') {
+      logger.info('ai.workflow.branch.waiting', {
+        workflowRunId: record.context.workflowRunId,
+        branchId: branch.branchId,
+        nodeId: pending.nodeId,
+        childAgentRunId: pending.agentRunId,
+        childState: handle.childState,
+      });
+      return { record, blocked: true, settled: false };
+    }
+
+    const step = branchStepFor(plan, group, branch, pending.nodeId);
+    if (!isAgentStep(step)) {
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: pending.nodeId,
+          diagnostics: `branch pending node ${pending.nodeId} is not an agent node`,
+        },
+      );
+    }
+
+    if (handle.state === 'failed') {
+      return failBranch(record, plan, group, branch, step, pending, handle, input);
+    }
+
+    // The node succeeded. Its output becomes BRANCH-LOCAL trusted state before
+    // the branch cursor moves, so a condition later in the same branch sees what
+    // this node produced — and no sibling does.
+    const output = buildNodeOutput(record, step, data, handle.output, branch);
+    const outputs = output.stored
+      ? { ...branch.outputs, [step.nodeId]: output.value }
+      : { ...branch.outputs };
+
+    const outputBytes = canonicalBytes(outputs);
+    if (outputBytes === undefined || outputBytes > WORKFLOW_PARALLEL_BOUNDS.maxBranchOutputsBytes) {
+      throw workflowFailure(
+        'workflow_output_rejected',
+        'A branch of this workflow accumulated more data than it may carry.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics:
+            outputBytes === undefined
+              ? `branch ${branch.branchName} outputs could not be canonically serialized`
+              : `branch ${branch.branchName} outputs are ${outputBytes} bytes, above ` +
+                `${WORKFLOW_PARALLEL_BOUNDS.maxBranchOutputsBytes}`,
+        },
+      );
+    }
+
+    const resultDigest = output.stored ? digestValue(output.value) : handle.resultDigest;
+    const reachedJoin = step.nextNodeId === group.joinNodeId;
+    if (step.nextNodeId === undefined) {
+      // Validation refuses a branch node with no successor, so this is a plan
+      // that no longer matches the run. Refusing beats guessing that the branch
+      // meant to end here — a branch that ends without telling the join is a
+      // join that waits forever.
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics: `branch node ${step.nodeId} has no successor and does not reach the join`,
+        },
+      );
+    }
+
+    const progressed: WorkflowBranchRecord = {
+      ...branch,
+      state: 'running',
+      branchVersion: branch.branchVersion + 1,
+      cursorNodeId: step.nextNodeId,
+      pendingNode: undefined,
+      outputs,
+      nodeVisits: {
+        ...branch.nodeVisits,
+        [step.nodeId]: (branch.nodeVisits[step.nodeId] ?? 0) + 1,
+      },
+      stepCount: branch.stepCount + 1,
+      ...(output.stored ? { contributionNodeId: step.nodeId } : {}),
+    };
+
+    let nextGroup = applyBranchProgress(group, progressed, branch.branchVersion);
+    let settled = false;
+
+    if (reachedJoin) {
+      const outcome = applyBranchOutcome(
+        nextGroup,
+        branch.branchId,
+        {
+          state: 'completed',
+          at: clock.isoNow(),
+          ...(progressed.contributionNodeId === undefined
+            ? {}
+            : { contributionNodeId: progressed.contributionNodeId }),
+          ...(resultDigest === undefined ? {} : { resultDigest }),
+        },
+        progressed.branchVersion,
+      );
+      nextGroup = outcome.group;
+      settled = outcome.applied;
+      if (!outcome.applied) {
+        // A DUPLICATE COMPLETION. Deterministically ignored — see
+        // `applyBranchOutcome`. Counted so an operator can see it happened.
+        metrics.increment('ai.workflow.branch.duplicate_completion', {
+          workflow: record.context.workflowId,
+          node: step.nodeId,
+        });
+      }
+    }
+
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'agent',
+        startedAt: pending.startedAt,
+        agentId: pending.agentId,
+        childAgentRunId: pending.agentRunId,
+        childState: handle.childState,
+        branchId: branch.branchId,
+        branchName: branch.branchName,
+        ...(resultDigest === undefined ? {} : { resultDigest }),
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'waiting_for_branches',
+      cursorNodeId: group.parallelNodeId,
+      parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+    });
+
+    metrics.increment('ai.workflow.branch.node_completed', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} completed ${step.nodeId}.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          checkpointVersion: checkpoint.version,
+          checkpointDigest: checkpoint.digest,
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+        },
+      }),
+      blocked: false,
+      settled,
+    };
+  }
+
+  /**
+   * A branch node whose child failed.
+   *
+   * The BRANCH fails; what that does to the run is the group's failure policy,
+   * decided afterwards by `decideJoin`. No checkpoint is written, for the same
+   * reason a failed main-line node writes none: a checkpoint is a point a line
+   * of execution resumes from, and this one does not resume.
+   */
+  async function failBranch(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowPlanStep,
+    pending: WorkflowPendingNode,
+    handle: AgentNodeHandle,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    void plan;
+    const outcome = applyBranchOutcome(
+      group,
+      branch.branchId,
+      { state: 'failed', at: clock.isoNow(), failure: 'workflow_branch_failed' },
+      branch.branchVersion,
+    );
+
+    if (!outcome.applied) {
+      metrics.increment('ai.workflow.branch.duplicate_completion', {
+        workflow: record.context.workflowId,
+        node: pending.nodeId,
+      });
+      return { record, blocked: false, settled: false };
+    }
+
+    metrics.increment('ai.workflow.branch.failed', {
+      workflow: record.context.workflowId,
+      node: pending.nodeId,
+    });
+
+    const stepRecord: WorkflowStepRecord = {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: step.index,
+      nodeId: pending.nodeId,
+      kind: 'agent',
+      iteration: countVisits(record, pending.nodeId) + 1,
+      agentId: pending.agentId,
+      childAgentRunId: pending.agentRunId,
+      childState: handle.childState,
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      startedAt: pending.startedAt,
+      completedAt: clock.isoNow(),
+      latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
+      outcome: 'failed',
+      attempt: 1,
+      failure: 'workflow_branch_failed',
+      checkpointVersion: record.checkpointVersion,
+    };
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} failed at ${pending.nodeId}.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          parallelGroups: upsertGroup(record.parallelGroups, outcome.group),
+        },
+      }),
+      blocked: false,
+      settled: true,
+    };
+  }
+
+  /** A condition node inside a branch. Pure, branch-local, and never a child run. */
+  async function runBranchCondition(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowPlanStep & { kind: 'condition' },
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const startedAt = clock.isoNow();
+    const taken = evaluateExpression(step.expression, branchScopeFor(record, data, branch));
+    const target = taken ? step.trueNodeId : step.falseNodeId;
+
+    const progressed: WorkflowBranchRecord = {
+      ...branch,
+      state: 'running',
+      branchVersion: branch.branchVersion + 1,
+      cursorNodeId: target,
+      nodeVisits: {
+        ...branch.nodeVisits,
+        [step.nodeId]: (branch.nodeVisits[step.nodeId] ?? 0) + 1,
+      },
+      stepCount: branch.stepCount + 1,
+    };
+
+    let nextGroup = applyBranchProgress(group, progressed, branch.branchVersion);
+    let settled = false;
+
+    if (target === group.joinNodeId) {
+      const outcome = applyBranchOutcome(
+        nextGroup,
+        branch.branchId,
+        {
+          state: 'completed',
+          at: clock.isoNow(),
+          ...(branch.contributionNodeId === undefined
+            ? {}
+            : { contributionNodeId: branch.contributionNodeId }),
+        },
+        progressed.branchVersion,
+      );
+      nextGroup = outcome.group;
+      settled = outcome.applied;
+    }
+
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'condition',
+        startedAt,
+        branchTaken: taken,
+        branchNodeId: target,
+        branchId: branch.branchId,
+        branchName: branch.branchName,
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'waiting_for_branches',
+      cursorNodeId: group.parallelNodeId,
+      parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+    });
+
+    void plan;
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} condition ${step.nodeId} took ${target}.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          checkpointVersion: checkpoint.version,
+          checkpointDigest: checkpoint.digest,
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+        },
+      }),
+      blocked: false,
+      settled,
+    };
+  }
+
+  /**
+   * Stop the branches a decision left running, children first.
+   *
+   * The child agent runs are cancelled BEFORE the branches are marked, for the
+   * same reason `cancel` stops a child before it cancels a run: the effects an
+   * operator — or a policy — is trying to stop belong to the children. A child
+   * that refuses to cancel does not block the group, because the group's
+   * decision has already been made and the child has its own deadline.
+   */
+  async function cancelBranches(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branchIds: readonly string[],
+    reason: string,
+    input: { readonly actor: WorkflowRunActor; readonly requestId: string },
+  ): Promise<WorkflowParallelGroup> {
+    let next = group;
+    const at = clock.isoNow();
+
+    for (const branchId of branchIds) {
+      const branch = next.branches.find((candidate) => candidate.branchId === branchId);
+      if (!branch || isTerminalBranchState(branch.state)) continue;
+
+      if (branch.pendingNode) {
+        try {
+          await agents.cancel({
+            organizationId: record.context.organizationId,
+            agentRunId: branch.pendingNode.agentRunId,
+            actor: input.actor.agent,
+            reason,
+            requestId: input.requestId,
+            correlationId: record.context.correlationId,
+          });
+        } catch (error) {
+          logger.warn('ai.workflow.branch_cancel_failed', {
+            workflowRunId: record.context.workflowRunId,
+            branchId: branch.branchId,
+            childAgentRunId: branch.pendingNode.agentRunId,
+            diagnostics: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      const outcome = applyBranchOutcome(
+        next,
+        branchId,
+        { state: 'cancelled', at },
+        branch.branchVersion,
+      );
+      next = outcome.group;
+      if (outcome.applied) {
+        metrics.increment('ai.workflow.branch.cancelled', {
+          workflow: record.context.workflowId,
+          node: group.parallelNodeId,
+        });
+      }
+    }
+
+    return next;
+  }
+
+  /**
+   * Ask the group what should happen, and do it.
+   *
+   * `whenWaiting` is what "nothing to do yet" means to the caller: after a
+   * branch settles the drive loop should keep going, and when every remaining
+   * branch is parked on a child it should hand the run back.
+   */
+  async function concludeGroup(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+    whenWaiting: boolean,
+  ): Promise<{ readonly record: WorkflowRunRecord; readonly done: boolean }> {
+    const decision = decideJoin(group);
+
+    if (decision.kind === 'wait') return { record, done: whenWaiting };
+
+    if (decision.kind === 'already_joined') {
+      // Reached only if something evaluated a closed group. Nothing is done —
+      // that IS the guarantee — and it is logged rather than swallowed.
+      logger.warn('ai.workflow.join.duplicate', {
+        workflowRunId: record.context.workflowRunId,
+        groupId: group.groupId,
+      });
+      metrics.increment('ai.workflow.join.duplicate', {
+        workflow: record.context.workflowId,
+        node: group.parallelNodeId,
+      });
+      return { record, done: true };
+    }
+
+    if (decision.kind === 'fail') {
+      const cancelled = await cancelBranches(
+        record,
+        group,
+        decision.cancelBranchIds,
+        `Parallel step ${group.parallelNodeId} ended: ${decision.reason}`,
+        input,
+      );
+      const closed = closeGroup(cancelled, {
+        state: 'failed',
+        at: clock.isoNow(),
+        failure: decision.failure,
+      });
+
+      metrics.increment('ai.workflow.parallel.failed', {
+        workflow: record.context.workflowId,
+        node: group.parallelNodeId,
+        failure: decision.failure,
+      });
+
+      return {
+        record: await transition(record, {
+          to: terminalStateFor(decision.failure) ?? 'failed',
+          operation: 'fail',
+          reason: decision.reason,
+          actorId: input.actor.actorId,
+          failure: decision.failure,
+          patch: {
+            parallelGroups: upsertGroup(record.parallelGroups, closed),
+            failureMessage: 'A parallel step of this workflow did not complete.',
+            currentNodeId: undefined,
+            pendingNode: undefined,
+          },
+        }),
+        done: true,
+      };
+    }
+
+    return { record: await fireJoin(record, plan, group, data, input, decision.reason,
+      decision.cancelBranchIds), done: false };
+  }
+
+  /**
+   * Fire the join: cancel the stragglers, merge in ordinal order, hold the
+   * result to the declared merge contract, and move the run's cursor past it.
+   *
+   * The merge contract is applied BEFORE anything is stored, so the value that
+   * becomes the join node's trusted output — the one later conditions branch on
+   * and later mappings read — has passed a schema the workflow author wrote. A
+   * merge that failed it stops the run rather than promoting several branches'
+   * unvalidated work into one node output.
+   */
+  async function fireJoin(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+    reason: string,
+    cancelBranchIds: readonly string[],
+  ): Promise<WorkflowRunRecord> {
+    const joinStep = stepFor(plan, group.joinNodeId);
+    if (!joinStep || !isJoinStep(joinStep)) {
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: group.joinNodeId,
+          diagnostics: `join ${group.joinNodeId} is not a join node in plan ${plan.digest}`,
+        },
+      );
+    }
+
+    const settledGroup = await cancelBranches(
+      record,
+      group,
+      cancelBranchIds,
+      `Join ${group.joinNodeId} fired before this branch finished.`,
+      input,
+    );
+
+    const merged = mergeBranchOutputs(settledGroup);
+
+    const mergedBytes = canonicalBytes(merged);
+    if (mergedBytes === undefined || mergedBytes > WORKFLOW_PARALLEL_BOUNDS.maxMergedBytes) {
+      throw workflowFailure(
+        'workflow_merge_rejected',
+        'This workflow produced more data in parallel than it can merge.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: group.joinNodeId,
+          diagnostics:
+            mergedBytes === undefined
+              ? 'merged branch outputs could not be canonically serialized'
+              : `merged branch outputs are ${mergedBytes} bytes, above ` +
+                `${WORKFLOW_PARALLEL_BOUNDS.maxMergedBytes}`,
+        },
+      );
+    }
+
+    const validated = joinStep.mergeContract.validate(merged, 'merge');
+    if (isFailure(validated)) {
+      throw workflowFailure(
+        'workflow_merge_rejected',
+        'This workflow could not accept what its parallel branches produced.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: group.joinNodeId,
+          diagnostics: `join ${group.joinNodeId} mergeContract: ${validated.issues
+            .map((issue) => `${issue.path}: ${issue.message}`)
+            .join('; ')}`,
+        },
+      );
+    }
+
+    const startedAt = settledGroup.startedAt;
+    const resultDigest = digestValue(validated.value);
+
+    data.outputs[group.joinNodeId] = validated.value;
+    data.nodeVisits[group.joinNodeId] = (data.nodeVisits[group.joinNodeId] ?? 0) + 1;
+
+    const closed = closeGroup(settledGroup, {
+      state: 'joined',
+      at: clock.isoNow(),
+      joinDigest: resultDigest,
+    });
+
+    const stepRecord = completedStep(
+      record,
+      joinStep,
+      {
+        nodeId: group.joinNodeId,
+        kind: 'join',
+        startedAt,
+        mergedBranchCount: merged.completedBranches.length,
+        resultDigest,
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: group.joinNodeId,
+      state: 'running',
+      parallelGroups: upsertGroup(record.parallelGroups, closed),
+      ...(joinStep.nextNodeId === undefined ? {} : { cursorNodeId: joinStep.nextNodeId }),
+    });
+
+    metrics.increment('ai.workflow.join.fired', {
+      workflow: record.context.workflowId,
+      node: group.joinNodeId,
+      policy: group.joinPolicy.kind,
+    });
+    logger.info('ai.workflow.join.fired', {
+      workflowRunId: record.context.workflowRunId,
+      groupId: group.groupId,
+      nodeId: group.joinNodeId,
+      reason,
+      completedBranches: merged.completedBranches.join(','),
+      failedBranches: merged.failedBranches.join(','),
+      cancelledBranches: merged.cancelledBranches.join(','),
+    });
+
+    return transition(record, {
+      to: 'running',
+      operation: 'step',
+      reason: `Join ${group.joinNodeId} fired: ${reason}`,
+      actorId: input.actor.actorId,
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        checkpointVersion: checkpoint.version,
+        checkpointDigest: checkpoint.digest,
+        parallelGroups: upsertGroup(record.parallelGroups, closed),
+        currentNodeId: joinStep.nextNodeId,
+        resultDigest,
+      },
+    });
+  }
+
+  /**
+   * One turn against the open group.
+   *
+   * Branches are considered in ORDINAL ORDER and the first one that can move is
+   * moved. Deterministic, and it is why a test that runs a fan-out twice gets
+   * the same step sequence both times.
+   */
+  async function driveBranches(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    definition: WorkflowDefinition,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+    session: AdvanceSession,
+  ): Promise<{ readonly record: WorkflowRunRecord; readonly done: boolean }> {
+    const group = requireOpenGroup(record);
+
+    if (record.steps.length >= WORKFLOW_RUN_BOUNDS.maxNodeExecutions) {
+      throw workflowFailure(
+        'workflow_loop_exhausted',
+        'This workflow took more steps than it is allowed to.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          diagnostics: `run reached the ceiling of ${WORKFLOW_RUN_BOUNDS.maxNodeExecutions} node executions`,
+        },
+      );
+    }
+
+    // ROUND-ROBIN, in ordinal order, resuming after the branch that moved last.
+    // Deterministic — the same fan-out produces the same step sequence every
+    // time — and fair, so no branch is driven to completion while a sibling has
+    // not yet started.
+    const ordered = [...group.branches].sort((a, b) => a.ordinal - b.ordinal);
+    const previous = ordered.findIndex((branch) => branch.branchId === session.lastBranchId);
+    const candidate = ordered
+      .map((_, offset) => ordered[(previous + 1 + offset) % ordered.length])
+      .find(
+        (branch) =>
+          !isTerminalBranchState(branch.state) && !session.parkedBranches.has(branch.branchId),
+      );
+
+    if (!candidate) {
+      // Everything is settled or parked on a child that has not moved. Ask the
+      // group once more — an `any` join whose one completion already arrived
+      // fires here rather than waiting for branches it no longer needs.
+      return concludeGroup(record, plan, group, data, input, true);
+    }
+
+    session.lastBranchId = candidate.branchId;
+    const turn = await advanceBranch(record, plan, definition, group, candidate, data, input);
+
+    if (turn.blocked) {
+      session.parkedBranches.add(candidate.branchId);
+      return { record: turn.record, done: false };
+    }
+    if (!turn.settled) return { record: turn.record, done: false };
+
+    const settledGroup = openGroupOf(turn.record.parallelGroups);
+    if (!settledGroup) return { record: turn.record, done: true };
+    return concludeGroup(turn.record, plan, settledGroup, data, input, false);
+  }
+
   // ── Public operations ─────────────────────────────────────────────────────
 
   return {
@@ -1079,6 +2127,7 @@ export function createWorkflowOrchestrator(
         runVersion: 1,
         state: 'created',
         stepCount: 0,
+        parallelGroups: [],
         childAgentRunIds: [],
         steps: [],
         transitions: [],
@@ -1147,6 +2196,8 @@ export function createWorkflowOrchestrator(
         throw error;
       }
 
+      const session: AdvanceSession = { parkedBranches: new Set<string>() };
+
       let iterations = 0;
       for (;;) {
         if ((iterations += 1) > MAX_DRIVE_ITERATIONS) {
@@ -1157,7 +2208,7 @@ export function createWorkflowOrchestrator(
         }
 
         try {
-          const outcome = await driveOnce(record, input, data);
+          const outcome = await driveOnce(record, input, data, session);
           if (outcome.done) return outcome.record;
           record = outcome.record;
         } catch (error) {
@@ -1185,8 +2236,13 @@ export function createWorkflowOrchestrator(
 
     async resume(input) {
       const record = await loadForControl(input);
+      // A run paused mid-fan-out resumes INTO the fan-out. Returning it to
+      // plain `running` would put the cursor back on the parallel node, whose
+      // job is to open a group — and opening one that already exists is refused
+      // as a duplicate, correctly, which would strand the run.
+      const open = openGroupOf(record.parallelGroups);
       return transition(record, {
-        to: 'running',
+        to: open === undefined ? 'running' : 'waiting_for_branches',
         operation: 'resume',
         reason: input.reason,
         actorId: input.actor.actorId,
@@ -1196,9 +2252,9 @@ export function createWorkflowOrchestrator(
     async cancel(input) {
       const record = await loadForControl(input);
 
-      // The child is stopped FIRST. Cancelling the workflow while leaving its
-      // agent run driving would be a cancellation in name only — the effects
-      // the operator is trying to stop are the child's.
+      // The children are stopped FIRST. Cancelling the workflow while leaving
+      // its agent runs driving would be a cancellation in name only — the
+      // effects the operator is trying to stop are the children's.
       if (record.pendingNode) {
         try {
           await agents.cancel({
@@ -1221,12 +2277,35 @@ export function createWorkflowOrchestrator(
         }
       }
 
+      // Every in-flight BRANCH is stopped too, and its child with it. A
+      // cancellation that stopped the run but left four branch agent runs
+      // driving would be the same cancellation-in-name-only, four times over.
+      const open = openGroupOf(record.parallelGroups);
+      const groups =
+        open === undefined
+          ? record.parallelGroups
+          : upsertGroup(
+              record.parallelGroups,
+              closeGroup(
+                await cancelBranches(
+                  record,
+                  open,
+                  open.branches
+                    .filter((branch) => !isTerminalBranchState(branch.state))
+                    .map((branch) => branch.branchId),
+                  `Parent workflow run ${record.context.workflowRunId} was cancelled.`,
+                  input,
+                ),
+                { state: 'cancelled', at: clock.isoNow() },
+              ),
+            );
+
       return transition(record, {
         to: 'cancelled',
         operation: 'cancel',
         reason: input.reason,
         actorId: input.actor.actorId,
-        patch: { pendingNode: undefined, currentNodeId: undefined },
+        patch: { pendingNode: undefined, currentNodeId: undefined, parallelGroups: groups },
       });
     },
 
@@ -1254,6 +2333,23 @@ export function createWorkflowOrchestrator(
     const deadline = Date.parse(record.deadlineAt);
     if (!Number.isFinite(deadline) || clock.now() < deadline) return undefined;
     metrics.increment('ai.workflow.run.expired', { workflow: record.context.workflowId });
+
+    // An open group is closed so an expired record cannot be read as still
+    // running four branches. The children are NOT cancelled here, for the same
+    // reason expiry does not cancel a single pending child: expiry is a sweep
+    // over records whose deadline passed, each child carries its own deadline,
+    // and turning a sweep into a fan of remote cancellations is how a sweep
+    // stops finishing.
+    const at = clock.isoNow();
+    const open = openGroupOf(record.parallelGroups);
+    const groups =
+      open === undefined
+        ? record.parallelGroups
+        : upsertGroup(
+            record.parallelGroups,
+            closeGroup(open, { state: 'cancelled', at, failure: 'workflow_expired' }),
+          );
+
     return transition(record, {
       to: 'expired',
       operation: 'expire',
@@ -1264,6 +2360,7 @@ export function createWorkflowOrchestrator(
         failureMessage: 'This workflow run took longer than its deadline allowed.',
         pendingNode: undefined,
         currentNodeId: undefined,
+        parallelGroups: groups,
       },
     });
   }
@@ -1278,6 +2375,7 @@ export function createWorkflowOrchestrator(
     record: WorkflowRunRecord,
     input: AdvanceWorkflowInput,
     data: DataState,
+    session: AdvanceSession,
   ): Promise<{ readonly record: WorkflowRunRecord; readonly done: boolean }> {
     switch (record.state) {
       case 'created':
@@ -1357,6 +2455,24 @@ export function createWorkflowOrchestrator(
         if (step.kind === 'condition') {
           return { record: await runConditionNode(record, plan, step, data, input), done: false };
         }
+        if (isParallelStep(step)) {
+          return { record: await openParallelNode(record, step, input), done: false };
+        }
+        if (isJoinStep(step)) {
+          // The cursor never rests on a join. A join is executed by its GROUP,
+          // from `waiting_for_branches`, and the cursor moves straight to the
+          // join's successor when it fires — so a cursor sitting here means the
+          // plan the run was admitted with is not the plan in the registry.
+          throw workflowFailure(
+            'workflow_plan_mismatch',
+            'This workflow has changed since the run started.',
+            {
+              workflowRunId: record.context.workflowRunId,
+              nodeId: step.nodeId,
+              diagnostics: `cursor rests on join ${step.nodeId}, which is only reached through its group`,
+            },
+          );
+        }
         return { record: await beginNode(record, step, data, input, definition), done: false };
       }
 
@@ -1366,6 +2482,15 @@ export function createWorkflowOrchestrator(
         return {
           record: outcome.record,
           done: outcome.blocked || isTerminalWorkflowState(outcome.record.state),
+        };
+      }
+
+      case 'waiting_for_branches': {
+        const { plan, definition } = admit(record);
+        const outcome = await driveBranches(record, plan, definition, data, input, session);
+        return {
+          record: outcome.record,
+          done: outcome.done || isTerminalWorkflowState(outcome.record.state),
         };
       }
 

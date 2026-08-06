@@ -449,6 +449,94 @@ describe('workflow engine boundary', () => {
     assert.deepEqual(offenders(stores, MUTATION), []);
   });
 
+  it('creates and drives every parallel branch through the same agent port', () => {
+    // AI-01 Batch 3B Part 4 multiplied the number of agent runs a single
+    // workflow node can produce. The claim that ONE module reaches the agent
+    // runtime has to survive that, so the modules that own branch scheduling and
+    // join policy are named explicitly here: a fan-out that reached an agent any
+    // other way would be several ungoverned agent runs rather than one.
+    const parallelModules = workflowSources.filter(
+      (file) =>
+        file.path.includes(join('engine', 'branchScheduler.ts')) ||
+        file.path.includes(join('runtime', 'joinPolicy.ts')) ||
+        file.path.includes(join('contracts', 'parallel.ts')) ||
+        file.path.includes(join('validation', 'parallelValidation.ts')),
+    );
+    assert.equal(parallelModules.length, 4, 'the Part 4 modules must exist');
+
+    const AGENT_REACH =
+      /agents\/(orchestrator|service|tools|approvals|registry)\/|agentOrchestrator|AgentRunRecord/;
+    assert.deepEqual(
+      offenders(parallelModules, AGENT_REACH),
+      [],
+      'a parallel module reaches the agent runtime instead of taking the port',
+    );
+
+    // They hold no store either. Branch state is written by the engine, through
+    // the run record's compare-and-swap; a scheduler that could persist would be
+    // a second writer to the record the join reads.
+    assert.deepEqual(
+      offenders(parallelModules, /WorkflowRunStore|WorkflowCheckpointStore|\.save\(|\.write\(/),
+      [],
+      'a parallel module persists state instead of returning a value',
+    );
+  });
+
+  it('fires a join through exactly one merge, behind its declared contract', () => {
+    // The merge is the only path by which several branches' work becomes one
+    // trusted node output. A second assignment of the join node's output, or a
+    // merge that skipped `mergeContract.validate`, would put an unvalidated
+    // value where later conditions and mappings read one.
+    const engine = workflowSources.find((file) =>
+      file.path.includes(join('engine', 'workflowOrchestrator.ts')),
+    );
+    assert.ok(engine, 'the workflow engine must exist');
+    assert.equal(
+      (engine.text.match(/data\.outputs\[group\.joinNodeId\]\s*=/g) ?? []).length,
+      1,
+      'the join node output is assigned in more than one place',
+    );
+    assert.match(engine.text, /mergeContract\.validate\(/);
+
+    // And `joinedAt` — the once-only stamp — is set in exactly one place.
+    const scheduler = workflowSources.find((file) =>
+      file.path.includes(join('engine', 'branchScheduler.ts')),
+    );
+    assert.ok(scheduler);
+    assert.equal(
+      (scheduler.text.match(/joinedAt:\s*[^?]/g) ?? []).length,
+      1,
+      'joinedAt is stamped in more than one place',
+    );
+    // Everything else may READ `joinedAt` — the read model projects it, the
+    // policy checks it — and nothing else may SET it from a clock. A second
+    // writer would be a second way for a group to claim it had merged.
+    assert.deepEqual(
+      offenders(
+        workflowSources.filter((file) => file !== scheduler),
+        /joinedAt:\s*(clock\.|at\b|closure\.|new Date)/,
+      ),
+      [],
+      'a module outside the branch scheduler stamps a join as fired',
+    );
+  });
+
+  it('never returns a branch output through a read model', () => {
+    // Branch outputs are the tenant's business data, exactly as a run's `input`
+    // is. The service projects branches to identity, state and digests; a
+    // projection that carried `outputs` would make every console a copy of them.
+    const service = workflowSources.find((file) =>
+      file.path.includes(join('service', 'workflowRuntimeService.ts')),
+    );
+    assert.ok(service, 'the workflow service must exist');
+    assert.equal(
+      /outputs:\s*branch\.outputs|outputs:\s*group\./.test(service.text),
+      false,
+      'a workflow read model returns branch outputs',
+    );
+    assert.match(service.text, /toWorkflowParallelGroupView/);
+  });
+
   it('changes workflow run state in exactly one place', () => {
     // Every state change goes through `assertTransition` and the store's
     // compare-and-swap. A `state:` assignment outside the engine's transition

@@ -18,7 +18,7 @@
  * workflow cannot widen it, and there is no field here through which it could
  * try.
  *
- * ── WHAT PART 3 ADDED, AND WHAT IT STILL CANNOT EXPRESS ────────────────────
+ * ── WHAT PART 3 ADDED ──────────────────────────────────────────────────────
  *
  * Part 1 shipped a one-member `WorkflowNodeKind` and a single-successor rule,
  * because an edge carried no condition and a fan-out without a join is a shape
@@ -27,10 +27,23 @@
  * representable in exactly one form: TWO successors, chosen by a boolean, from
  * a node kind that exists to make the choice visible.
  *
- * What is still unrepresentable is the whole of the parallel story. There is no
- * node with two successors both taken, no join, no barrier and no approval
- * node. An agent node still has at most one successor. Fan-out remains a shape
- * this batch refuses rather than one it accepts and ignores.
+ * ── WHAT PART 4 ADDS, AND THE SHAPE IT STILL REFUSES ───────────────────────
+ *
+ * Fan-out, in exactly one form: a `parallel` node that declares a bounded,
+ * NAMED set of branches and the `join` node they all converge on. Part 3's
+ * argument against fan-out was that a node with two successors both taken cannot
+ * finish without a join — so the join is not optional, it is part of the same
+ * declaration, and a parallel node without one is not representable.
+ *
+ * What is still refused is fan-out as a property of edges. Two plain edges out
+ * of an agent node remain invalid, exactly as in Part 3, because that is a fan-
+ * out whose convergence nobody declared. Parallelism has to be a node an
+ * operator can see, with a policy an operator can read, or it is not available.
+ *
+ * There is still no approval node, no barrier that waits on something outside
+ * the run, no nested parallel and no parallel node inside a loop — see
+ * `planner/workflowPlanner.ts` for why the last of those is refused rather than
+ * given a visit counter.
  *
  * Cycles have moved the same way: Part 1 refused all of them because a loop
  * needs an exit and an exit needs a condition. Now that conditions exist, a
@@ -50,18 +63,33 @@
 import type { Validator } from '../../security/validation.ts';
 import type { WorkflowExpression } from './expression.ts';
 import type { WorkflowMapping } from './mapping.ts';
+import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
 
 /**
  * What a node does when the plan reaches it.
  *
- * Two members. `agent` runs a registered agent through the orchestrator;
- * `condition` evaluates a declared expression and takes one of two edges.
- * Neither can do the other's job, which is the point — a branch is always a
- * node an operator can see in the plan, never a property of an edge.
+ * Four members, and none of them can do another's job — which is the point: a
+ * branch is always a node an operator can see in the plan, never a property of
+ * an edge.
+ *
+ *   agent      runs a registered agent through the orchestrator
+ *   condition  evaluates a declared expression and takes one of two edges
+ *   parallel   opens a bounded, named set of branches
+ *   join       merges what those branches produced, under a declared policy
+ *
+ * `parallel` and `join` arrive as a PAIR. Neither is meaningful alone, and the
+ * definition makes that structural rather than conventional: a parallel node
+ * names its join node, and a join node is refused unless exactly one parallel
+ * node names it.
  */
-export type WorkflowNodeKind = 'agent' | 'condition';
+export type WorkflowNodeKind = 'agent' | 'condition' | 'parallel' | 'join';
 
-export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = ['agent', 'condition'];
+export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
+  'agent',
+  'condition',
+  'parallel',
+  'join',
+];
 
 /**
  * Certification status, with the same three-way meaning agents carry: only
@@ -133,7 +161,65 @@ export interface WorkflowConditionNode extends WorkflowNodeBase {
   readonly expression: WorkflowExpression;
 }
 
-export type WorkflowNode = WorkflowAgentNode | WorkflowConditionNode;
+/**
+ * One named branch of a parallel node.
+ *
+ * The name is not decoration. It is the merge key, the identity inside the
+ * deterministic branch id, the thing `named_required_branches` names, and the
+ * label an operator reads in the console — so it is declared once, here, and
+ * every other use derives from it rather than from a position in a list.
+ */
+export interface WorkflowBranchDeclaration {
+  readonly branchName: string;
+  /** The first node of the branch body. Owned exclusively by this branch. */
+  readonly startNodeId: string;
+}
+
+export interface WorkflowParallelNode extends WorkflowNodeBase {
+  readonly kind: 'parallel';
+  /**
+   * The branches, in the order they will be merged.
+   *
+   * DECLARATION ORDER IS MERGE ORDER. It is not completion order and it is not
+   * sorted by name: a merged value that depended on which branch finished first
+   * would differ between two runs of the same workflow over the same data, and
+   * a reviewer approving this list is approving the order too.
+   */
+  readonly branches: readonly WorkflowBranchDeclaration[];
+  /** The join node every branch of this node converges on. */
+  readonly joinNodeId: string;
+  readonly failurePolicy: WorkflowParallelFailurePolicy;
+  /**
+   * A ceiling this workflow places on its own fan-out.
+   *
+   * May only LOWER the platform ceiling in `WORKFLOW_PARALLEL_BOUNDS`. Present
+   * so a workflow that should never fan out past two says so in its definition
+   * rather than relying on nobody adding a third branch later.
+   */
+  readonly maximumParallelBranches?: number;
+}
+
+export interface WorkflowJoinNode extends WorkflowNodeBase {
+  readonly kind: 'join';
+  readonly policy: WorkflowJoinPolicy;
+  /**
+   * REQUIRED. The shape the merged branch outputs must satisfy.
+   *
+   * Not optional, unlike an agent node's `outputContract`, and the asymmetry is
+   * deliberate: an agent node with no contract simply stores nothing trusted,
+   * which is a coherent choice. A join with no contract would promote whatever
+   * several branches happened to produce into a single value later nodes branch
+   * on, with nobody having declared what that value is. A merge is the one place
+   * in this batch where the schema is the point.
+   */
+  readonly mergeContract: Validator<unknown>;
+}
+
+export type WorkflowNode =
+  | WorkflowAgentNode
+  | WorkflowConditionNode
+  | WorkflowParallelNode
+  | WorkflowJoinNode;
 
 /**
  * A directed transition between two nodes.
@@ -141,6 +227,11 @@ export type WorkflowNode = WorkflowAgentNode | WorkflowConditionNode;
  * `when` is required on the two edges leaving a condition node and forbidden
  * everywhere else, so a branch target is never ambiguous and a non-condition
  * node can never acquire one.
+ *
+ * `branch` is required on the edges leaving a PARALLEL node and forbidden
+ * everywhere else. It names which declared branch the edge opens, so a fan-out
+ * edge is never anonymous — an edge out of a parallel node that named no branch
+ * would be a successor the merge has no key for.
  *
  * `loop` marks a back edge and declares its ceiling. An edge that closes a
  * cycle without one is an unbounded loop and is refused at registration.
@@ -152,6 +243,8 @@ export interface WorkflowEdge {
   readonly label?: string;
   /** Which branch of a condition node this edge is. */
   readonly when?: boolean;
+  /** Which declared branch of a parallel node this edge opens. */
+  readonly branch?: string;
   readonly loop?: WorkflowLoopBound;
 }
 
@@ -186,6 +279,14 @@ export interface WorkflowDefinition {
    * a declared start still has to survive cycle and reachability analysis.
    */
   readonly startNodeId?: string;
+  /**
+   * A workflow-wide ceiling on fan-out.
+   *
+   * Applies to every parallel node the graph contains, and may only lower the
+   * platform ceiling. A per-node ceiling can still lower it further; neither can
+   * raise it, and the engine re-checks both before it creates a branch.
+   */
+  readonly maximumParallelBranches?: number;
   /** The shape a run's input must have for this workflow to accept it. */
   readonly inputContract: Validator<unknown>;
   /** The shape this workflow's output must have to be accepted as complete. */
@@ -205,6 +306,10 @@ export interface WorkflowDescriptor {
   readonly nodeCount: number;
   readonly edgeCount: number;
   readonly conditionCount: number;
+  readonly parallelCount: number;
+  readonly joinCount: number;
+  /** The widest fan-out any single parallel node declares. Zero when there is none. */
+  readonly maxBranchCount: number;
   /** Distinct agent ids the graph names, sorted. */
   readonly agentIds: readonly string[];
 }
@@ -217,11 +322,20 @@ export function isConditionNode(node: WorkflowNode): node is WorkflowConditionNo
   return node.kind === 'condition';
 }
 
+export function isParallelNode(node: WorkflowNode): node is WorkflowParallelNode {
+  return node.kind === 'parallel';
+}
+
+export function isJoinNode(node: WorkflowNode): node is WorkflowJoinNode {
+  return node.kind === 'join';
+}
+
 export function describeWorkflow(definition: WorkflowDefinition): WorkflowDescriptor {
   const nodes = definition.nodes ?? [];
   const agentIds = [
     ...new Set(nodes.filter(isAgentNode).map((node) => node.agentId)),
   ].sort();
+  const parallelNodes = nodes.filter(isParallelNode);
   return {
     workflowId: definition.workflowId,
     displayName: definition.displayName,
@@ -234,6 +348,12 @@ export function describeWorkflow(definition: WorkflowDefinition): WorkflowDescri
     nodeCount: nodes.length,
     edgeCount: definition.edges?.length ?? 0,
     conditionCount: nodes.filter(isConditionNode).length,
+    parallelCount: parallelNodes.length,
+    joinCount: nodes.filter(isJoinNode).length,
+    maxBranchCount: parallelNodes.reduce(
+      (widest, node) => Math.max(widest, node.branches?.length ?? 0),
+      0,
+    ),
     agentIds,
   };
 }
@@ -259,6 +379,15 @@ export const WORKFLOW_BOUNDS = {
    */
   loopIterations: { min: 1, max: 32 },
   maxTotalLoopIterations: 64,
+  /**
+   * Parallel nodes one graph may declare.
+   *
+   * Each one costs a durable group on the run record, and the run-record ceiling
+   * in `WORKFLOW_PARALLEL_BOUNDS.maxGroupsPerRun` is what a run can actually
+   * spend — this bound keeps a definition from declaring more than a run could
+   * ever execute, which is a mistake better caught at registration.
+   */
+  parallelNodes: { max: 4 },
 } as const;
 
 /** Node and workflow identifiers must be safe in a key, a log line and a label. */
