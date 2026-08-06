@@ -1,5 +1,5 @@
 /**
- * The Workflow Planner (AI-01 Batch 3B, Part 1).
+ * The Workflow Planner (AI-01 Batch 3B, Parts 1 and 3).
  *
  * Turns a workflow definition into an execution plan — or refuses, with every
  * reason it found. Nothing here executes, schedules, persists or reaches a
@@ -25,39 +25,50 @@
  *      kind of mistake that produces a workflow which quietly does less than it
  *      appears to.
  *
- *   4. IS THERE A CYCLE? Depth-first with three colours, reporting the actual
- *      path rather than the fact of one.
+ *   4. ARE THE CYCLES BOUNDED AND ESCAPABLE? See below.
  *
  *   5. WHAT IS THE PLAN? Only once 2–4 are clean.
  *
  * Steps 3 and 4 both run before the planner gives up, so an author sees the
- * orphan AND the cycle in one pass. Step 2 does not: without a start node there
- * is nothing to be reachable from, and reporting "every node is unreachable"
- * would bury the one problem that matters.
+ * orphan AND the unbounded loop in one pass. Step 2 does not: without a start
+ * node there is nothing to be reachable from, and reporting "every node is
+ * unreachable" would bury the one problem that matters.
  *
- * ── WHY EVERY CYCLE IS INVALID HERE ────────────────────────────────────────
+ * ── CYCLES: FROM ALWAYS-INVALID TO BOUNDED-AND-ESCAPABLE ───────────────────
  *
- * A cycle is a loop, and a loop needs an exit. An exit is a condition, and an
- * edge in this batch carries no condition — see the single-successor rule in
- * `validation/workflowValidation.ts`. So a cycle in a Part 1 graph is not a
- * bounded retry that the planner is being conservative about; it is a shape
- * with no way to terminate, and the planner would be describing an infinite
- * run. Bounded loops, if they are ever wanted, need the iteration ceiling and
- * the exit predicate that Part 2 introduces — and they will be a declared
- * construct, not a cycle that slipped through.
+ * Part 1 refused every cycle, and the reasoning was exact: a loop needs an
+ * exit, an exit needs a condition, and Part 1 had no conditions — so a cycle
+ * was a shape with no way to terminate. Part 3 supplies conditions, and the
+ * refusal narrows to the two things that are still always wrong:
  *
- * There is no option to disable this check. A control that a setting can turn
- * into a no-op is a control that will be, during the incident it was built for.
+ *   AN UNDECLARED BACK EDGE is an unbounded loop. Every edge that closes a
+ *   cycle must carry `loop.maxIterations`. This is the direct successor to
+ *   Part 1's rule, and it is why "no unbounded cycle may become valid" holds:
+ *   depth-first search finds a back edge for EVERY cycle, so a cycle with no
+ *   declared edge anywhere on it cannot slip through.
+ *
+ *   A LOOP WITH NO EXIT is bounded but pointless — it can only ever end by
+ *   exhaustion, which is a typed failure. So the body must contain at least one
+ *   node with a successor outside it, which in practice means a condition node
+ *   with one branch leaving the loop. An author who wants "do this five times"
+ *   still has to say what happens on the fifth.
+ *
+ * A declared `loop` that is NOT a back edge is refused too. It would suggest a
+ * ceiling on a forward edge that can only be taken once, and a bound that never
+ * binds is worse than no bound: it reads, in a review, as though something is
+ * limited.
  */
 
 import type { WorkflowDefinition, WorkflowEdge, WorkflowNode } from '../contracts/workflow.ts';
 import type {
   WorkflowPlan,
+  WorkflowPlanLoop,
   WorkflowPlanMetadata,
   WorkflowPlanResult,
   WorkflowPlanStep,
 } from '../contracts/plan.ts';
-import { WORKFLOW_BOUNDS } from '../contracts/workflow.ts';
+import { WORKFLOW_BOUNDS, isAgentNode } from '../contracts/workflow.ts';
+import { isAgentStep } from '../contracts/plan.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 import { validateWorkflowDefinition } from '../validation/workflowValidation.ts';
 import type { WorkflowValidationOptions } from '../validation/workflowValidation.ts';
@@ -87,6 +98,13 @@ export function createWorkflowPlanner(options: WorkflowPlannerOptions = {}): Wor
   };
 }
 
+/** One edge, indexed by where it goes and how. */
+interface Successor {
+  readonly to: string;
+  readonly when?: boolean;
+  readonly edge: WorkflowEdge;
+}
+
 /** The planner as a free function. `createWorkflowPlanner` wraps this. */
 export function planWorkflow(
   definition: WorkflowDefinition,
@@ -96,32 +114,34 @@ export function planWorkflow(
   if (structural.length > 0) return { ok: false, problems: structural };
 
   const nodes = new Map(definition.nodes.map((node) => [node.nodeId, node]));
-  const successors = successorIndex(definition.edges);
+  const successors = successorIndex(definition.nodes, definition.edges);
   const predecessorCounts = predecessorIndex(definition.edges);
 
   const start = resolveStartNode(definition, predecessorCounts);
   if (!start.ok) return { ok: false, problems: start.problems };
 
+  const reachable = reachableFrom(successors, start.nodeId);
+  const loops = analyseLoops(definition.nodes, successors, start.nodeId);
+
   const problems: string[] = [
-    ...unreachableProblems(nodes, successors, start.nodeId),
-    ...cycleProblems(definition.nodes, successors),
+    ...unreachableProblems(nodes, reachable, start.nodeId),
+    ...loops.problems,
   ];
   if (problems.length > 0) return { ok: false, problems };
 
-  const steps = buildSteps(nodes, successors, start.nodeId);
-  if (!steps.ok) return { ok: false, problems: steps.problems };
+  const steps = buildSteps(nodes, successors, start.nodeId, loops.byHeader);
 
   const plan: WorkflowPlan = {
     workflowId: definition.workflowId,
     version: definition.version,
     startNodeId: start.nodeId,
-    steps: steps.steps,
-    metadata: computeMetadata(definition, steps.steps, successors, start.nodeId),
+    steps,
+    metadata: computeMetadata(definition, steps, start.nodeId, loops.byHeader),
     digest: computePlanDigest({
       workflowId: definition.workflowId,
       version: definition.version,
       startNodeId: start.nodeId,
-      steps: steps.steps,
+      steps,
     }),
   };
 
@@ -131,21 +151,40 @@ export function planWorkflow(
 // ── Graph indexes ───────────────────────────────────────────────────────────
 
 /**
- * Successors by node id, each list sorted.
+ * Successors by node id, in DETERMINISTIC order.
  *
- * Part 1's single-successor rule means every list holds at most one entry by
- * the time the planner sees it, but the index is built as a general adjacency
- * list: the traversals below are graph algorithms, and writing them against a
- * "one or none" shape would make them wrong rather than merely narrow.
+ * For a condition node the order is [true, false] — fixed by meaning, not by
+ * sorting, so a plan's enumeration does not change when someone renames a node.
+ * For an agent node there is at most one. The whole plan's stability rests on
+ * this ordering being a property of the definition rather than of the ids.
  */
-function successorIndex(edges: readonly WorkflowEdge[]): ReadonlyMap<string, readonly string[]> {
-  const index = new Map<string, string[]>();
+function successorIndex(
+  nodes: readonly WorkflowNode[],
+  edges: readonly WorkflowEdge[],
+): ReadonlyMap<string, readonly Successor[]> {
+  const byFrom = new Map<string, Successor[]>();
   for (const edge of edges) {
-    const existing = index.get(edge.from);
-    if (existing) existing.push(edge.to);
-    else index.set(edge.from, [edge.to]);
+    const entry: Successor = {
+      to: edge.to,
+      ...(edge.when === undefined ? {} : { when: edge.when }),
+      edge,
+    };
+    const list = byFrom.get(edge.from);
+    if (list) list.push(entry);
+    else byFrom.set(edge.from, [entry]);
   }
-  for (const list of index.values()) list.sort();
+
+  const index = new Map<string, readonly Successor[]>();
+  for (const node of nodes) {
+    const list = byFrom.get(node.nodeId) ?? [];
+    if (node.kind === 'condition') {
+      const trueEdge = list.find((entry) => entry.when === true);
+      const falseEdge = list.find((entry) => entry.when === false);
+      index.set(node.nodeId, [trueEdge, falseEdge].filter((entry): entry is Successor => !!entry));
+    } else {
+      index.set(node.nodeId, list);
+    }
+  }
   return index;
 }
 
@@ -163,11 +202,11 @@ type StartResolution =
 
 /**
  * A declared start is taken as declared — validation has already confirmed it
- * names a real node, and the cycle and reachability checks still apply to it.
+ * names a real node, and the loop and reachability checks still apply to it.
  * An undeclared one is the node nothing points at, and there has to be exactly
- * one: none means every node has a predecessor, which is only possible if the
- * graph is one closed loop; several means the definition describes more than
- * one workflow and the planner is not going to guess which.
+ * one: none means every node has a predecessor, which now happens legitimately
+ * whenever a loop returns to what would otherwise be the entry point — so a
+ * workflow with a loop back to its first node must DECLARE its start.
  */
 function resolveStartNode(
   definition: WorkflowDefinition,
@@ -187,7 +226,8 @@ function resolveStartNode(
     return {
       ok: false,
       problems: [
-        'no start node: every node has an incoming edge, so the graph has no entry point',
+        'no start node: every node has an incoming edge, so the graph has no entry point — ' +
+          'a workflow whose loop returns to its first node must declare startNodeId',
       ],
     };
   }
@@ -202,69 +242,77 @@ function resolveStartNode(
 
 // ── Step 3: reachability ────────────────────────────────────────────────────
 
-function unreachableProblems(
-  nodes: ReadonlyMap<string, WorkflowNode>,
-  successors: ReadonlyMap<string, readonly string[]>,
+function reachableFrom(
+  successors: ReadonlyMap<string, readonly Successor[]>,
   startNodeId: string,
-): string[] {
+): ReadonlySet<string> {
   const seen = new Set<string>([startNodeId]);
   const queue: string[] = [startNodeId];
 
-  // Breadth-first, and the `seen` guard is what makes this terminate on a
-  // cyclic graph — reachability is asked BEFORE cycles are ruled out, so it
-  // cannot assume the graph is acyclic.
+  // The `seen` guard is what makes this terminate on a cyclic graph — loops are
+  // legal now, so reachability could not assume acyclicity even if it wanted to.
   while (queue.length > 0) {
     const current = queue.shift() as string;
     for (const next of successors.get(current) ?? []) {
-      if (seen.has(next)) continue;
-      seen.add(next);
-      queue.push(next);
+      if (seen.has(next.to)) continue;
+      seen.add(next.to);
+      queue.push(next.to);
     }
   }
-
-  const unreachable = [...nodes.keys()].filter((nodeId) => !seen.has(nodeId)).sort();
-  if (unreachable.length === 0) return [];
-  return [
-    `unreachable from ${startNodeId}: ${unreachable.join(', ')}`,
-  ];
+  return seen;
 }
 
-// ── Step 4: cycles ──────────────────────────────────────────────────────────
+function unreachableProblems(
+  nodes: ReadonlyMap<string, WorkflowNode>,
+  reachable: ReadonlySet<string>,
+  startNodeId: string,
+): string[] {
+  const unreachable = [...nodes.keys()].filter((nodeId) => !reachable.has(nodeId)).sort();
+  if (unreachable.length === 0) return [];
+  return [`unreachable from ${startNodeId}: ${unreachable.join(', ')}`];
+}
+
+// ── Step 4: loops ───────────────────────────────────────────────────────────
+
+interface LoopAnalysis {
+  readonly problems: readonly string[];
+  /** Loop keyed by its HEADER — the node a back edge returns to. */
+  readonly byHeader: ReadonlyMap<string, WorkflowPlanLoop>;
+}
 
 /**
- * Depth-first with three colours: unvisited, on the current path, finished.
- * Reaching a node that is on the current path is a back edge, and the segment
- * of the path from that node onward is the cycle — reported as the actual route
- * (`draft -> review -> draft`) rather than as the bare fact that one exists,
- * because the route is what an author has to edit.
+ * Find every back edge, require each to be declared, and require each loop to
+ * have a way out.
  *
- * Roots are taken in declaration order and successors in sorted order, so the
- * same graph always reports the same cycles in the same sequence.
+ * Depth-first with three colours. An edge to a node that is currently ON the
+ * search path is a back edge, and every cycle in a directed graph contains at
+ * least one — which is what makes "every back edge is declared" equivalent to
+ * "every cycle is bounded" rather than merely correlated with it.
+ *
+ * Roots are taken in declaration order and successors in their fixed
+ * [true, false] order, so the same graph produces the same analysis every time.
  */
-function cycleProblems(
+function analyseLoops(
   nodes: readonly WorkflowNode[],
-  successors: ReadonlyMap<string, readonly string[]>,
-): string[] {
+  successors: ReadonlyMap<string, readonly Successor[]>,
+  startNodeId: string,
+): LoopAnalysis {
   const onPath = new Set<string>();
   const finished = new Set<string>();
   const path: string[] = [];
-  const found: string[] = [];
-  const reported = new Set<string>();
+  const problems: string[] = [];
+  const backEdges: { from: string; to: string; edge: WorkflowEdge }[] = [];
 
   const visit = (nodeId: string): void => {
     onPath.add(nodeId);
     path.push(nodeId);
 
     for (const next of successors.get(nodeId) ?? []) {
-      if (onPath.has(next)) {
-        const route = [...path.slice(path.indexOf(next)), next].join(' -> ');
-        if (!reported.has(route)) {
-          reported.add(route);
-          found.push(route);
-        }
+      if (onPath.has(next.to)) {
+        backEdges.push({ from: nodeId, to: next.to, edge: next.edge });
         continue;
       }
-      if (!finished.has(next)) visit(next);
+      if (!finished.has(next.to)) visit(next.to);
     }
 
     path.pop();
@@ -272,103 +320,227 @@ function cycleProblems(
     finished.add(nodeId);
   };
 
-  // Recursion depth is bounded by the node ceiling (see WORKFLOW_BOUNDS.nodes),
-  // which validation has already enforced by the time the planner runs.
-  for (const node of nodes) {
-    if (!finished.has(node.nodeId)) visit(node.nodeId);
+  // Start first so back edges are found relative to the real entry point, then
+  // the rest in declaration order for the unreachable components validation has
+  // not yet rejected.
+  visit(startNodeId);
+  for (const node of nodes) if (!finished.has(node.nodeId)) visit(node.nodeId);
+
+  // Recursion depth is bounded by the node ceiling, enforced by validation.
+  const declaredNotBack = new Set<WorkflowEdge>();
+  for (const list of successors.values()) {
+    for (const entry of list) if (entry.edge.loop !== undefined) declaredNotBack.add(entry.edge);
   }
 
-  return found.map((route) => `cycle: ${route}`);
+  const byHeader = new Map<string, WorkflowPlanLoop>();
+  for (const back of backEdges) {
+    declaredNotBack.delete(back.edge);
+
+    if (back.edge.loop === undefined) {
+      problems.push(
+        `unbounded loop: edge ${back.from} -> ${back.to} closes a cycle without ` +
+          'declaring loop.maxIterations',
+      );
+      continue;
+    }
+
+    const body = loopBody(successors, back.to, back.from);
+    const exits = [...body]
+      .sort()
+      .filter((nodeId) =>
+        (successors.get(nodeId) ?? []).some((next) => !body.has(next.to)),
+      );
+    if (exits.length === 0) {
+      problems.push(
+        `loop ${back.to} -> ... -> ${back.from} has no exit: no node in its body has a ` +
+          'successor outside it, so it can only end by exhaustion',
+      );
+      continue;
+    }
+
+    // Two back edges onto one header would give the header two ceilings. The
+    // stricter one is not a merge anybody asked for, so it is refused.
+    if (byHeader.has(back.to)) {
+      problems.push(`node ${back.to} is the target of more than one loop edge`);
+      continue;
+    }
+    byHeader.set(back.to, {
+      maxIterations: back.edge.loop.maxIterations,
+      fromNodeId: back.from,
+      bodyNodeIds: [...body].sort(),
+    });
+  }
+
+  for (const edge of declaredNotBack) {
+    problems.push(
+      `edge ${edge.from} -> ${edge.to} declares loop.maxIterations but does not close a cycle — ` +
+        'a bound that never binds reads like a limit and is not one',
+    );
+  }
+
+  return { problems: problems.sort(), byHeader };
+}
+
+/**
+ * The natural loop body for a back edge `from -> header`: every node reachable
+ * from the header that can also reach `from`.
+ *
+ * This is the standard definition and it is the right one here: those are
+ * exactly the nodes an iteration can pass through, which makes "does the loop
+ * have an exit" a question about their successors and nothing else.
+ */
+function loopBody(
+  successors: ReadonlyMap<string, readonly Successor[]>,
+  header: string,
+  from: string,
+): ReadonlySet<string> {
+  const forward = reachableFrom(successors, header);
+  const body = new Set<string>([header, from]);
+
+  for (const candidate of forward) {
+    if (body.has(candidate)) continue;
+    if (canReach(successors, candidate, from)) body.add(candidate);
+  }
+  return body;
+}
+
+function canReach(
+  successors: ReadonlyMap<string, readonly Successor[]>,
+  origin: string,
+  target: string,
+): boolean {
+  const seen = new Set<string>([origin]);
+  const queue = [origin];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const next of successors.get(current) ?? []) {
+      if (next.to === target) return true;
+      if (seen.has(next.to)) continue;
+      seen.add(next.to);
+      queue.push(next.to);
+    }
+  }
+  return false;
 }
 
 // ── Step 5: the plan ────────────────────────────────────────────────────────
 
-type StepResolution =
-  | { readonly ok: true; readonly steps: readonly WorkflowPlanStep[] }
-  | { readonly ok: false; readonly problems: readonly string[] };
-
 /**
- * Walk the chain from the start node.
+ * Enumerate the nodes breadth-first from the start.
  *
- * A graph that is acyclic, fully reachable and single-successor IS a chain, so
- * the plan order is the walk order and there is nothing to tie-break — the
- * determinism of this plan is a property of the shape the validator enforces,
- * not of a sorting rule applied afterwards. When Part 2 makes fan-out
- * representable this walk becomes a topological order with an explicit
- * tie-break, and that is the point at which a tie-break earns its place.
- *
- * The iteration ceiling is a guard against a future edit, not against the
- * inputs this function can currently receive: cycles are already ruled out, so
- * a walk that exceeds the node count means an invariant above it has been
- * broken, and stopping with a diagnostic beats looping inside a planner.
+ * Not an execution order — see the header of `contracts/plan.ts`. It is a
+ * stable identity for every node plus its shortest distance from the entry
+ * point, and the determinism comes from the fixed successor ordering rather
+ * than from a sort applied afterwards.
  */
 function buildSteps(
   nodes: ReadonlyMap<string, WorkflowNode>,
-  successors: ReadonlyMap<string, readonly string[]>,
+  successors: ReadonlyMap<string, readonly Successor[]>,
   startNodeId: string,
-): StepResolution {
-  const steps: WorkflowPlanStep[] = [];
-  const visited = new Set<string>();
-  let current: string | undefined = startNodeId;
-  let index = 0;
+  loops: ReadonlyMap<string, WorkflowPlanLoop>,
+): readonly WorkflowPlanStep[] {
+  const order: { nodeId: string; depth: number }[] = [];
+  const seen = new Set<string>([startNodeId]);
+  const queue: { nodeId: string; depth: number }[] = [{ nodeId: startNodeId, depth: 0 }];
 
-  while (current !== undefined) {
-    if (visited.has(current) || index > WORKFLOW_BOUNDS.maxPlanDepth) {
-      return {
-        ok: false,
-        problems: [`plan walk did not terminate at ${current} — the graph is not a chain`],
-      };
+  while (queue.length > 0) {
+    const current = queue.shift() as { nodeId: string; depth: number };
+    order.push(current);
+    for (const next of successors.get(current.nodeId) ?? []) {
+      if (seen.has(next.to)) continue;
+      seen.add(next.to);
+      queue.push({ nodeId: next.to, depth: current.depth + 1 });
     }
-    visited.add(current);
-
-    const node = nodes.get(current);
-    if (!node) {
-      return { ok: false, problems: [`plan walk reached unknown node ${current}`] };
-    }
-
-    const next: string | undefined = (successors.get(current) ?? [])[0];
-    steps.push({
-      index,
-      nodeId: node.nodeId,
-      kind: node.kind,
-      agentId: node.agentId,
-      displayName: node.displayName,
-      maxAttempts: node.maxAttempts,
-      depth: index,
-      nextNodeId: next,
-      terminal: next === undefined,
-    });
-
-    current = next;
-    index += 1;
   }
 
-  return { ok: true, steps };
+  return order.map((entry, index) => {
+    const node = nodes.get(entry.nodeId) as WorkflowNode;
+    const out = successors.get(entry.nodeId) ?? [];
+    const loop = loops.get(entry.nodeId);
+    const base = {
+      index,
+      nodeId: node.nodeId,
+      displayName: node.displayName,
+      depth: entry.depth,
+      terminal: out.length === 0,
+      ...(loop === undefined ? {} : { loop }),
+    };
+
+    if (isAgentNode(node)) {
+      return {
+        ...base,
+        kind: 'agent' as const,
+        agentId: node.agentId,
+        maxAttempts: node.maxAttempts,
+        ...(node.inputMapping === undefined ? {} : { inputMapping: node.inputMapping }),
+        ...(node.inputContract === undefined ? {} : { inputContract: node.inputContract }),
+        ...(node.outputMapping === undefined ? {} : { outputMapping: node.outputMapping }),
+        ...(node.outputContract === undefined ? {} : { outputContract: node.outputContract }),
+        ...(out[0] === undefined ? {} : { nextNodeId: out[0].to }),
+      };
+    }
+
+    // Validation guarantees a condition node has exactly one true and one false
+    // edge, and `successorIndex` orders them [true, false].
+    return {
+      ...base,
+      kind: 'condition' as const,
+      expression: node.expression,
+      trueNodeId: out[0].to,
+      falseNodeId: out[1].to,
+      terminal: false,
+    };
+  });
 }
 
 function computeMetadata(
   definition: WorkflowDefinition,
   steps: readonly WorkflowPlanStep[],
-  successors: ReadonlyMap<string, readonly string[]>,
   startNodeId: string,
+  loops: ReadonlyMap<string, WorkflowPlanLoop>,
 ): WorkflowPlanMetadata {
-  const agentIds = [...new Set(steps.map((step) => step.agentId))].sort();
-  const terminalNodeIds = steps
-    .filter((step) => (successors.get(step.nodeId) ?? []).length === 0)
-    .map((step) => step.nodeId)
-    .sort();
+  const agentSteps = steps.filter(isAgentStep);
+  const agentIds = [...new Set(agentSteps.map((step) => step.agentId))].sort();
 
   return {
     nodeCount: definition.nodes.length,
     edgeCount: definition.edges.length,
     stepCount: steps.length,
-    // Edges on the longest path, so a single-node workflow is depth zero
-    // rather than depth one — depth counts transitions, not nodes.
-    depth: steps.length === 0 ? 0 : steps[steps.length - 1].depth,
+    agentNodeCount: agentSteps.length,
+    conditionNodeCount: steps.length - agentSteps.length,
+    // Edges on the longest shortest-path, so a single-node workflow is depth
+    // zero rather than depth one — depth counts transitions, not nodes.
+    depth: steps.reduce((deepest, step) => Math.max(deepest, step.depth), 0),
     agentIds,
     distinctAgentCount: agentIds.length,
     startNodeId,
-    terminalNodeIds,
-    maxAgentInvocations: steps.reduce((total, step) => total + step.maxAttempts, 0),
+    terminalNodeIds: steps.filter((step) => step.terminal).map((step) => step.nodeId).sort(),
+    loopCount: loops.size,
+    maxAgentInvocations: worstCaseInvocations(agentSteps, loops),
   };
+}
+
+/**
+ * Worst case: each agent node's attempt ceiling, multiplied by the iteration
+ * ceilings of every loop whose body contains it.
+ *
+ * Nested loops multiply, which is exactly the number an operator needs — three
+ * nested loops of eight around one node is five hundred and twelve agent runs,
+ * and that figure should be visible in the plan rather than discovered from a
+ * bill. Capped at the run-wide iteration ceiling so a pathological definition
+ * reports a bounded number rather than an astronomical one.
+ */
+function worstCaseInvocations(
+  agentSteps: readonly { nodeId: string; maxAttempts: number }[],
+  loops: ReadonlyMap<string, WorkflowPlanLoop>,
+): number {
+  let total = 0;
+  for (const step of agentSteps) {
+    let multiplier = 1;
+    for (const loop of loops.values()) {
+      if (loop.bodyNodeIds.includes(step.nodeId)) multiplier *= loop.maxIterations + 1;
+    }
+    total += step.maxAttempts * multiplier;
+  }
+  return Math.min(total, WORKFLOW_BOUNDS.maxPlanDepth * WORKFLOW_BOUNDS.loopIterations.max * 64);
 }

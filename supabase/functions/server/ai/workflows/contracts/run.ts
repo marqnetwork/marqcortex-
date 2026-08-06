@@ -156,24 +156,48 @@ export interface WorkflowTransitionRecord {
  */
 export interface WorkflowStepRecord {
   readonly stepId: string;
-  /** Position in the plan. Matches `WorkflowPlanStep.index`. */
+  /**
+   * Execution ordinal within the run, starting at zero.
+   *
+   * NOT the plan index. Part 3 introduced loops, so one plan node can execute
+   * several times and a position in the plan no longer identifies an execution.
+   * `planIndex` carries the plan position; this carries the order things
+   * actually happened in, which is what a reader following an incident needs.
+   */
   readonly sequence: number;
+  /** Position in the plan enumeration. Stable across executions of a node. */
+  readonly planIndex: number;
   readonly nodeId: string;
-  readonly agentId: string;
+  readonly kind: 'agent' | 'condition';
+  /** Which visit of this node this was, starting at 1. */
+  readonly iteration: number;
+  /** Agent nodes only. */
+  readonly agentId?: string;
   /** The child agent run this node drove. The join key into Batch 3A. */
-  readonly childAgentRunId: string;
+  readonly childAgentRunId?: string;
   /** Terminal state of the child run, verbatim from the agent runtime. */
-  readonly childState: string;
+  readonly childState?: string;
+  /** Condition nodes only: which branch the expression selected. */
+  readonly branchTaken?: boolean;
+  /** Condition nodes only: the node the branch led to. */
+  readonly branchNodeId?: string;
   readonly startedAt: string;
   readonly completedAt: string;
   readonly latencyMs: number;
   readonly outcome: 'completed' | 'failed' | 'cancelled';
-  /** Always 1 in Part 2 — there are no retries. Persisted for Part 3. */
+  /** Always 1 — there are no retries in this batch. Persisted for Part 4. */
   readonly attempt: number;
-  /** Digest of the child's accepted output. Never the output. */
+  /**
+   * Digest of the TRUSTED output this step stored, or of the child's accepted
+   * output when the node declared no output contract.
+   *
+   * A digest, never the value. This is the data-flow audit metadata: a reader
+   * can prove which value a later condition branched on without the run record
+   * ever holding it.
+   */
   readonly resultDigest?: string;
   readonly failure?: WorkflowFailureCode;
-  /** Checkpoint pointer this step produced. */
+  /** Checkpoint version this step produced. */
   readonly checkpointVersion: number;
 }
 
@@ -215,18 +239,24 @@ export interface WorkflowRunRecord {
   /** Transitions dropped from the ring. Non-zero means history is partial. */
   readonly transitionsTruncated: number;
   /**
-   * The recovery pointer: incremented on every durable write that advances the
-   * run past a node.
+   * The recovery pointer: the version of the latest checkpoint this run wrote.
    *
-   * There is deliberately NO separate checkpoint store in Part 2. Batch 3A
-   * needed one because agent progress is a large, chained, immutable payload
-   * that a run resumes INTO. A workflow's recoverable state is three small
-   * fields — the cursor, the pending child and the completed steps — and they
-   * are already written atomically with the record under one version. A second
-   * store would be a second thing to keep consistent with the first, and the
-   * only guarantee it could add is one the run record already provides.
+   * Part 2 held no checkpoints and this was a bare counter. Part 3 made node
+   * outputs durable state that conditions branch on, so it now NAMES a record
+   * in the append-only checkpoint store — see `contracts/checkpoint.ts` for why
+   * the facts changed and `persistence/ports.ts` for the two contracts.
    */
   readonly checkpointVersion: number;
+  /**
+   * The digest of that checkpoint, so the pointer is verifiable.
+   *
+   * Without it, recovery would trust whatever the store returned for "the
+   * latest version". With it, a run can only be resumed from a checkpoint whose
+   * content still hashes to what the run recorded when it wrote it — and the
+   * chain behind that checkpoint is verified too. Absent before the first node
+   * completes.
+   */
+  readonly checkpointDigest?: string;
   /**
    * The validated run input, as every node receives it.
    *
@@ -264,8 +294,23 @@ export const MAX_WORKFLOW_TRANSITION_HISTORY = 128;
  */
 export const WORKFLOW_RUN_BOUNDS = {
   runtimeMs: { min: 1_000, max: 3_600_000, default: 900_000 },
-  /** Steps a record keeps. Equal to Part 1's node ceiling — a node runs once. */
-  maxStepHistory: 64,
+  /**
+   * Node executions one run may spend, across every node and every loop pass.
+   *
+   * THE run-wide ceiling, and the one that makes bounded loops actually
+   * bounded. A per-loop ceiling caps one loop; nested loops multiply, and three
+   * of thirty-two around one node is thirty-two thousand agent runs while every
+   * individual bound is respected. This is checked before each node executes,
+   * so the multiplication cannot happen.
+   *
+   * It also bounds everything sized off it: the step history, the checkpoint
+   * chain the recovery path verifies, and the engine's drive loop.
+   */
+  maxNodeExecutions: 256,
+  /** Steps a record keeps. Equal to the execution ceiling — one step each. */
+  maxStepHistory: 256,
+  /** Checkpoints a run may write. One per node execution. */
+  maxCheckpoints: 256,
   /**
    * Ceiling on the canonical size of the stored input. Matches the agent
    * runtime's checkpoint progress bound, because the two hold the same kind of

@@ -7,6 +7,12 @@
  * one organization is literally unable to return another's rows.
  *
  *   org:{org}:ai:workflow_run:{workflowRunId}
+ *   org:{org}:ai:workflow_checkpoint:{workflowRunId}:{version padded to 6}
+ *
+ * Checkpoint versions are zero-padded so a lexicographic prefix scan returns
+ * them in numeric order. Without the padding, version 10 sorts before version 2
+ * and "the latest checkpoint" becomes a full re-scan and a comparison — which
+ * is exactly the kind of thing that works in a test with three checkpoints.
  *
  * CONCURRENCY. Every mutation is an atomic compare-and-swap on the record's own
  * `runVersion` field, through the same `kv_compare_and_swap_field` contract
@@ -29,7 +35,8 @@
  */
 
 import type { WorkflowRunRecord } from '../contracts/run.ts';
-import type { WorkflowRunStore } from './ports.ts';
+import type { WorkflowCheckpoint } from '../contracts/checkpoint.ts';
+import type { WorkflowCheckpointStore, WorkflowRunStore } from './ports.ts';
 import { boundedLimit, matchesWorkflowRunQuery, sortWorkflowRuns } from './ports.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 import { isolationKeyFor, tenantScopedKey } from '../../security/tenancy.ts';
@@ -53,19 +60,49 @@ export type KvWorkflowConditionalWriter = (
   value: unknown,
 ) => Promise<boolean>;
 
-const NAMESPACE = 'workflow_run';
-const SCHEMA = 'ai.workflow.run.v1';
+const NAMESPACE = { run: 'workflow_run', checkpoint: 'workflow_checkpoint' } as const;
+const SCHEMA = {
+  run: 'ai.workflow.run.v1',
+  checkpoint: 'ai.workflow.checkpoint.v1',
+} as const;
+
+const CHECKPOINT_VERSION_WIDTH = 6;
 
 function scope(organizationId: string): { readonly isolationKey: string } {
   return { isolationKey: isolationKeyFor(organizationId) };
 }
 
 export function workflowRunKeyFor(organizationId: string, workflowRunId: string): string {
-  return tenantScopedKey(scope(organizationId), NAMESPACE, workflowRunId);
+  return tenantScopedKey(scope(organizationId), NAMESPACE.run, workflowRunId);
 }
 
 export function workflowRunPrefixFor(organizationId: string): string {
-  return tenantScopedKey(scope(organizationId), NAMESPACE, 'x').slice(0, -1);
+  return tenantScopedKey(scope(organizationId), NAMESPACE.run, 'x').slice(0, -1);
+}
+
+export function workflowCheckpointKeyFor(
+  organizationId: string,
+  workflowRunId: string,
+  version: number,
+): string {
+  return tenantScopedKey(
+    scope(organizationId),
+    NAMESPACE.checkpoint,
+    workflowRunId,
+    String(Math.max(0, Math.floor(version))).padStart(CHECKPOINT_VERSION_WIDTH, '0'),
+  );
+}
+
+export function workflowCheckpointPrefixFor(
+  organizationId: string,
+  workflowRunId: string,
+): string {
+  return tenantScopedKey(
+    scope(organizationId),
+    NAMESPACE.checkpoint,
+    workflowRunId,
+    'x',
+  ).slice(0, -1);
 }
 
 /**
@@ -144,7 +181,7 @@ export function createKvWorkflowRunStore(options: KvWorkflowStoreOptions): Workf
       );
       const won = await options.compareAndSwap(key, 'runVersion', 0, {
         ...record,
-        _schema: SCHEMA,
+        _schema: SCHEMA.run,
       });
       if (!won) {
         throw workflowFailure('workflow_persistence_failed', 'That run already exists.', {
@@ -161,7 +198,7 @@ export function createKvWorkflowRunStore(options: KvWorkflowStoreOptions): Workf
       );
       const won = await options.compareAndSwap(key, 'runVersion', expectedVersion, {
         ...record,
-        _schema: SCHEMA,
+        _schema: SCHEMA.run,
       });
       if (!won) {
         throw workflowFailure('stale_workflow_version', 'This run has changed since it was read.', {
@@ -180,6 +217,95 @@ export function createKvWorkflowRunStore(options: KvWorkflowStoreOptions): Workf
         if (record && matchesWorkflowRunQuery(record, query)) records.push(record);
       }
       return sortWorkflowRuns(records).slice(0, boundedLimit(query.limit));
+    },
+  };
+}
+
+// ── Checkpoints ─────────────────────────────────────────────────────────────
+
+/**
+ * Durable, append-only checkpoint storage.
+ *
+ * `write` uses expected version 0, which the CAS function implements as
+ * insert-if-absent. That single call IS the immutability guarantee: there is no
+ * code path in this module that can overwrite a written checkpoint, because
+ * there is no call that passes a non-zero expected version. A checkpoint's own
+ * `version` field is its identity, not its concurrency token — it never moves,
+ * so there is nothing to compare against.
+ */
+export function createKvWorkflowCheckpointStore(
+  options: KvWorkflowStoreOptions,
+): WorkflowCheckpointStore {
+  function parse(raw: unknown, key: string): WorkflowCheckpoint | undefined {
+    const record = coerce(raw);
+    if (!record) {
+      options.onCorrupt?.(key, 'stored workflow checkpoint is not a readable object');
+      return undefined;
+    }
+    if (
+      typeof record.version !== 'number' ||
+      typeof record.digest !== 'string' ||
+      typeof record.workflowRunId !== 'string' ||
+      typeof record.organizationId !== 'string'
+    ) {
+      options.onCorrupt?.(key, 'stored workflow checkpoint is missing its identity or digest');
+      return undefined;
+    }
+    return record as unknown as WorkflowCheckpoint;
+  }
+
+  return {
+    async write(checkpoint) {
+      const key = workflowCheckpointKeyFor(
+        checkpoint.organizationId,
+        checkpoint.workflowRunId,
+        checkpoint.version,
+      );
+      const won = await options.compareAndSwap(key, 'version', 0, {
+        ...checkpoint,
+        _schema: SCHEMA.checkpoint,
+      });
+      if (!won) {
+        throw workflowFailure(
+          'workflow_checkpoint_conflict',
+          'That checkpoint has already been written.',
+          {
+            workflowRunId: checkpoint.workflowRunId,
+            diagnostics: `checkpoint version ${checkpoint.version} already exists`,
+          },
+        );
+      }
+    },
+
+    async latest(organizationId, workflowRunId) {
+      const all = await this.history(organizationId, workflowRunId);
+      return all[all.length - 1];
+    },
+
+    async read(organizationId, workflowRunId, version) {
+      const key = workflowCheckpointKeyFor(organizationId, workflowRunId, version);
+      const checkpoint = parse(await options.read(key), key);
+      if (checkpoint && checkpoint.organizationId !== organizationId) {
+        options.onCorrupt?.(key, 'stored checkpoint does not match the key it was read from');
+        return undefined;
+      }
+      return checkpoint;
+    },
+
+    async history(organizationId, workflowRunId) {
+      const prefix = workflowCheckpointPrefixFor(organizationId, workflowRunId);
+      const rows = await options.readByPrefix(prefix);
+      const checkpoints: WorkflowCheckpoint[] = [];
+      for (const row of rows) {
+        const checkpoint = parse(row, prefix);
+        if (checkpoint && checkpoint.organizationId === organizationId) {
+          checkpoints.push(checkpoint);
+        }
+      }
+      // Sorted numerically rather than trusting the scan. The padded keys make
+      // the two orders agree, and relying on that agreement without asserting it
+      // would make "the latest checkpoint" depend on a key-format detail.
+      return checkpoints.sort((a, b) => a.version - b.version);
     },
   };
 }

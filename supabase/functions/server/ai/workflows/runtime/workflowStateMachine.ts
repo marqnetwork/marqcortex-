@@ -58,6 +58,14 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
   ready: ['running', 'paused', 'cancelled', 'failed', 'expired', 'policy_denied'],
 
   running: [
+    // A SELF EDGE, and only the engine's internal `step` can take it. A
+    // condition node evaluates, moves the cursor to one of its two branches and
+    // writes a checkpoint — the run's STATE did not change, but its durable
+    // position did, and every durable position change goes through one
+    // versioned write. No caller operation can drive this: `resume` starts only
+    // from `paused` and `start` only from the pre-execution states, so the
+    // source table refuses all of them.
+    'running',
     'waiting_for_agent',
     'paused',
     'completed',

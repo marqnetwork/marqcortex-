@@ -54,6 +54,12 @@ export type WorkflowFailureCode =
   | 'workflow_node_failed'
   | 'workflow_persistence_failed'
   | 'workflow_runtime_disabled'
+  // ── Data flow and checkpoints (Part 3) ────────────────────────────────────
+  | 'workflow_mapping_failed'
+  | 'workflow_output_rejected'
+  | 'workflow_loop_exhausted'
+  | 'workflow_checkpoint_conflict'
+  | 'workflow_checkpoint_corrupt'
   // ── Permission (Part 2) ───────────────────────────────────────────────────
   | 'workflow_unauthorized'
   | 'workflow_tenant_isolation_violation';
@@ -94,6 +100,32 @@ const TRAITS: Record<WorkflowFailureCode, FailureTrait> = {
   workflow_node_failed: { transport: 'INTERNAL_ERROR', retryable: false, terminal: 'failed' },
   workflow_persistence_failed: { transport: 'INTERNAL_ERROR', retryable: true, terminal: 'failed' },
   workflow_runtime_disabled: { transport: 'AI_DISABLED', retryable: true },
+
+  // A mapping that could not be built is a definition meeting data it does not
+  // fit. Not retryable: the same data maps the same way next time.
+  workflow_mapping_failed: { transport: 'VALIDATION_FAILED', retryable: false, terminal: 'failed' },
+  // A node produced something its declared output contract refuses. The run
+  // stops rather than storing an output later nodes would branch on.
+  workflow_output_rejected: {
+    transport: 'VALIDATION_FAILED',
+    retryable: false,
+    terminal: 'failed',
+  },
+  // A bounded loop reached its declared ceiling. This is the loop's designed
+  // terminal outcome, not a defect — and it is a failure rather than a
+  // completion because the exit condition never held.
+  workflow_loop_exhausted: { transport: 'POLICY_DENIED', retryable: false, terminal: 'failed' },
+  // Two isolates wrote the same checkpoint version. Retryable in the CONFLICT
+  // sense: re-read and re-apply. The engine resolves it internally when the
+  // existing checkpoint is byte-identical to the one it meant to write.
+  workflow_checkpoint_conflict: { transport: 'CONFLICT', retryable: true },
+  // A stored checkpoint failed its digest or its chain link. Terminal, and
+  // deliberately not retryable: recovery must never fall back to guessing.
+  workflow_checkpoint_corrupt: {
+    transport: 'INTERNAL_ERROR',
+    retryable: false,
+    terminal: 'failed',
+  },
 
   workflow_unauthorized: { transport: 'FORBIDDEN', retryable: false },
   workflow_tenant_isolation_violation: {

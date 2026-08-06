@@ -414,6 +414,41 @@ describe('workflow engine boundary', () => {
     assert.deepEqual(offenders(workflowSources, DUPLICATED), []);
   });
 
+  it('executes no code the definition supplied as data', () => {
+    // AI-01 Batch 3B Part 3 gave workflow definitions a condition language and
+    // a mapping language. Both are DATA STRUCTURES walked by a switch — there
+    // is no parser, so there is no injection surface — and the whole claim
+    // rests on nothing in the tree being able to evaluate a string.
+    //
+    // A behavioural test cannot prove the absence of such a path. This can.
+    const CODE_EXECUTION =
+      /\beval\s*\(|new\s+Function\s*\(|\bFunction\s*\(\s*['"`]|setTimeout\s*\(\s*['"`]|setInterval\s*\(\s*['"`]/;
+    assert.deepEqual(
+      offenders(workflowSources, CODE_EXECUTION),
+      [],
+      'a code-execution primitive appears in the workflow tree',
+    );
+
+    // No JSONPath, JMESPath or template engine either. Every one of them ships
+    // a predicate language, and several evaluate it with `eval`.
+    const QUERY_LIBRARY = /from\s+['"](jsonpath|jmespath|jsonata|handlebars|mustache|lodash)/;
+    assert.deepEqual(offenders(workflowSources, QUERY_LIBRARY), []);
+  });
+
+  it('keeps checkpoints append-only in the store contract itself', () => {
+    // The immutability guarantee is the ABSENCE of a writer, not a rule about
+    // how the writer is called. A `save`, `update` or `delete` on the
+    // checkpoint port would make the digest chain a statement about intent.
+    const stores = workflowSources.filter((file) =>
+      file.path.includes(join('persistence', 'ports.ts')) ||
+      file.path.includes(join('persistence', 'kvWorkflowStores.ts')),
+    );
+    assert.equal(stores.length, 2, 'both persistence modules must exist');
+    const MUTATION =
+      /\b(deleteCheckpoint|removeCheckpoint|updateCheckpoint|clearCheckpoint|purgeCheckpoint)\b/;
+    assert.deepEqual(offenders(stores, MUTATION), []);
+  });
+
   it('changes workflow run state in exactly one place', () => {
     // Every state change goes through `assertTransition` and the store's
     // compare-and-swap. A `state:` assignment outside the engine's transition

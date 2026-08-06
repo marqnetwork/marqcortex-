@@ -44,7 +44,7 @@ import type { AIAuthenticator, AuthenticatedSubject } from '../security/actor.ts
 import type { OrganizationResolutionOptions } from '../security/tenancy.ts';
 import type { AgentRuntime } from '../agents/agentRuntime.ts';
 import type { WorkflowDefinition } from './contracts/workflow.ts';
-import type { WorkflowRunStore } from './persistence/ports.ts';
+import type { WorkflowCheckpointStore, WorkflowRunStore } from './persistence/ports.ts';
 import type { WorkflowRegistry } from './registry/workflowRegistry.ts';
 import type {
   WorkflowAgentPort,
@@ -59,7 +59,10 @@ import { systemClock } from '../runtime/clock.ts';
 import { systemIdFactory } from '../contracts/ids.ts';
 import { createMetrics } from '../observability/metrics.ts';
 import { createWorkflowRegistry } from './registry/workflowRegistry.ts';
-import { createMemoryWorkflowRunStore } from './persistence/ports.ts';
+import {
+  createMemoryWorkflowCheckpointStore,
+  createMemoryWorkflowRunStore,
+} from './persistence/ports.ts';
 import { createAgentRuntimeNodePort } from './engine/agentNodePort.ts';
 import { createWorkflowOrchestrator } from './engine/workflowOrchestrator.ts';
 import { createWorkflowRuntimeService } from './service/workflowRuntimeService.ts';
@@ -73,8 +76,9 @@ export interface WorkflowRuntimeOptions {
   readonly organizationOptions: OrganizationResolutionOptions;
   /** Workflows to register. Part 2 ships none; callers supply their own. */
   readonly workflows?: readonly WorkflowDefinition[];
-  /** Durable store. Omitted, the runtime is isolate-local — tests only. */
+  /** Durable stores. Omitted, the runtime is isolate-local — tests only. */
   readonly runStore?: WorkflowRunStore;
+  readonly checkpointStore?: WorkflowCheckpointStore;
   readonly clock?: Clock;
   readonly ids?: IdFactory;
   readonly logger?: Logger;
@@ -90,6 +94,7 @@ export interface WorkflowRuntime {
   readonly orchestrator: WorkflowOrchestrator;
   readonly service: WorkflowRuntimeService;
   readonly runs: WorkflowRunStore;
+  readonly checkpoints: WorkflowCheckpointStore;
   readonly agents: WorkflowAgentPort;
   /** The administrative and health facts the engine reads per advance. */
   state(): WorkflowRuntimeState;
@@ -132,12 +137,14 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
   if (options.workflows?.length) registry.registerAll(options.workflows);
 
   const runs = options.runStore ?? createMemoryWorkflowRunStore();
+  const checkpoints = options.checkpointStore ?? createMemoryWorkflowCheckpointStore();
   const agents =
     options.agentPort ?? createAgentRuntimeNodePort(options.agentRuntime.orchestrator);
 
   const orchestrator = createWorkflowOrchestrator({
     registry,
     runs,
+    checkpoints,
     agents,
     clock,
     ids,
@@ -165,7 +172,7 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     logger.warn('ai.workflow.registry.issue', { issue });
   }
 
-  return { registry, orchestrator, service, runs, agents, state };
+  return { registry, orchestrator, service, runs, checkpoints, agents, state };
 }
 
 /**

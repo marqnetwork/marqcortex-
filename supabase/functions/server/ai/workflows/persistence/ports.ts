@@ -6,20 +6,30 @@
  * and written to a store before anything acts on them, and a write that loses a
  * version race is refused rather than merged.
  *
- * ONE PORT, NOT THREE. The agent runtime needed separate stores for runs,
- * checkpoints and approvals because those three have genuinely different
- * contracts — read-modify-write, append-only-immutable, and a decision queue. A
- * workflow run in Part 2 has none of that: no approvals in this part, and its
- * recoverable state is small enough to live in the record. See the note on
- * `checkpointVersion` in `contracts/run.ts` for why a second store would add a
- * consistency problem rather than a guarantee.
+ * TWO PORTS, TWO DIFFERENT CONTRACTS, AND THE DIFFERENCE IS THE POINT.
  *
- * The in-memory implementation here is correct for tests and for a single
- * instance. `kvWorkflowStores.ts` provides the durable one. Both satisfy this
- * same contract, and the durability tests run the SAME assertions against both.
+ *   Runs         Read-modify-write under optimistic concurrency. `save` carries
+ *                the version it read; a mismatch is a typed conflict the caller
+ *                resolves by re-reading, never by overwriting.
+ *
+ *   Checkpoints  Append-only and immutable. `write` refuses a version that
+ *                already exists — not "last write wins", because a checkpoint
+ *                that can be rewritten is not a point you can resume from with
+ *                any confidence about what it contained.
+ *
+ * Part 2 shipped only the first, and argued correctly that its recoverable
+ * state was small enough to live in the record. Part 3 changed the facts: node
+ * outputs are now durable state that conditions branch on and mappings read,
+ * and that state is large, accumulated and exactly the thing an auditor needs
+ * to know was not edited. See `contracts/checkpoint.ts` for the full reasoning.
+ *
+ * The in-memory implementations here are correct for tests and for a single
+ * instance. `kvWorkflowStores.ts` provides the durable ones. Both satisfy these
+ * same contracts, and the durability tests run the SAME assertions against both.
  */
 
 import type { WorkflowRunRecord, WorkflowRunState } from '../contracts/run.ts';
+import type { WorkflowCheckpoint } from '../contracts/checkpoint.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 
 /** Filter for a run listing. Every field narrows; none widens. */
@@ -47,6 +57,28 @@ export interface WorkflowRunStore {
    */
   save(record: WorkflowRunRecord, expectedVersion: number): Promise<void>;
   list(query: WorkflowRunQuery): Promise<readonly WorkflowRunRecord[]>;
+}
+
+export interface WorkflowCheckpointStore {
+  /**
+   * Append a checkpoint. Throws `workflow_checkpoint_conflict` when that
+   * version already exists.
+   *
+   * There is no `save` and no `delete`, and their absence is the contract: a
+   * checkpoint is written once and read forever. Everything the digest chain
+   * proves rests on this method being the only writer.
+   */
+  write(checkpoint: WorkflowCheckpoint): Promise<void>;
+  /** The highest-versioned checkpoint for a run, or undefined. */
+  latest(organizationId: string, workflowRunId: string): Promise<WorkflowCheckpoint | undefined>;
+  /** One version, or undefined. */
+  read(
+    organizationId: string,
+    workflowRunId: string,
+    version: number,
+  ): Promise<WorkflowCheckpoint | undefined>;
+  /** Every checkpoint for a run, oldest first. Bounded by the run's nodes. */
+  history(organizationId: string, workflowRunId: string): Promise<readonly WorkflowCheckpoint[]>;
 }
 
 const DEFAULT_LIST_LIMIT = 50;
@@ -154,6 +186,68 @@ export function createMemoryWorkflowRunStore(
     },
 
     clear: () => records.clear(),
+    size: () => records.size,
+  };
+}
+
+/**
+ * In-memory checkpoint store with the production's append-only semantics.
+ *
+ * `poke` exists so the corruption tests can do the one thing the contract
+ * forbids — rewrite a written checkpoint — and prove that recovery notices.
+ * A durability guarantee nobody tried to break is a guarantee nobody checked.
+ */
+export function createMemoryWorkflowCheckpointStore(): WorkflowCheckpointStore & {
+  poke(organizationId: string, workflowRunId: string, checkpoint: WorkflowCheckpoint): void;
+  size(): number;
+} {
+  const records = new Map<string, WorkflowCheckpoint>();
+  const keyOf = (organizationId: string, workflowRunId: string, version: number) =>
+    `${organizationId}:${workflowRunId}:${String(version).padStart(6, '0')}`;
+
+  function forRun(organizationId: string, workflowRunId: string): WorkflowCheckpoint[] {
+    const prefix = `${organizationId}:${workflowRunId}:`;
+    return [...records.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, checkpoint]) => checkpoint);
+  }
+
+  return {
+    write(checkpoint) {
+      const key = keyOf(checkpoint.organizationId, checkpoint.workflowRunId, checkpoint.version);
+      if (records.has(key)) {
+        return Promise.reject(
+          workflowFailure(
+            'workflow_checkpoint_conflict',
+            'That checkpoint has already been written.',
+            {
+              workflowRunId: checkpoint.workflowRunId,
+              diagnostics: `checkpoint version ${checkpoint.version} already exists`,
+            },
+          ),
+        );
+      }
+      records.set(key, checkpoint);
+      return Promise.resolve();
+    },
+
+    latest(organizationId, workflowRunId) {
+      const all = forRun(organizationId, workflowRunId);
+      return Promise.resolve(all[all.length - 1]);
+    },
+
+    read(organizationId, workflowRunId, version) {
+      return Promise.resolve(records.get(keyOf(organizationId, workflowRunId, version)));
+    },
+
+    history: (organizationId, workflowRunId) =>
+      Promise.resolve(forRun(organizationId, workflowRunId)),
+
+    poke(organizationId, workflowRunId, checkpoint) {
+      records.set(keyOf(organizationId, workflowRunId, checkpoint.version), checkpoint);
+    },
+
     size: () => records.size,
   };
 }

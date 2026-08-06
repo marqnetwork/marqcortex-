@@ -12,20 +12,27 @@
  */
 
 import type {
+  WorkflowAgentNode,
+  WorkflowConditionNode,
   WorkflowDefinition,
   WorkflowEdge,
-  WorkflowNode,
 } from '../workflows/contracts/workflow.ts';
+import type { WorkflowExpression } from '../workflows/contracts/expression.ts';
+import type { WorkflowMapping } from '../workflows/contracts/mapping.ts';
+import type { WorkflowCheckpointStore } from '../workflows/persistence/ports.ts';
 import type { AgentDefinition, AgentProposalInput } from '../agents/contracts/agent.ts';
 import type { AgentActionProposal } from '../agents/contracts/actions.ts';
 import type { WorkflowAgentPort } from '../workflows/engine/agentNodePort.ts';
 import type { WorkflowRunStore } from '../workflows/persistence/ports.ts';
 import type { WorkflowRuntime } from '../workflows/workflowRuntime.ts';
 import type { MutableClock } from '../runtime/clock.ts';
-import { object, str } from '../security/validation.ts';
+import { num, object, str } from '../security/validation.ts';
 import { createTestClock } from '../runtime/clock.ts';
 import { createSequentialIdFactory } from '../contracts/ids.ts';
-import { createMemoryWorkflowRunStore } from '../workflows/persistence/ports.ts';
+import {
+  createMemoryWorkflowCheckpointStore,
+  createMemoryWorkflowRunStore,
+} from '../workflows/persistence/ports.ts';
 import { createAgentRuntimeNodePort } from '../workflows/engine/agentNodePort.ts';
 import { createWorkflowRuntime } from '../workflows/workflowRuntime.ts';
 import type { TestAgentRuntime, TestAgentRuntimeOptions } from './agentFixtures.ts';
@@ -52,7 +59,9 @@ export const workflowContracts = {
   output: object({ summary: str({ minLength: 1, maxLength: 200 }) }),
 };
 
-export function node(overrides: Partial<WorkflowNode> & Pick<WorkflowNode, 'nodeId'>): WorkflowNode {
+export function node(
+  overrides: Partial<WorkflowAgentNode> & Pick<WorkflowAgentNode, 'nodeId'>,
+): WorkflowAgentNode {
   return {
     kind: 'agent',
     agentId: WORKFLOW_AGENT_ID.draft,
@@ -297,11 +306,14 @@ export interface TestWorkflowRuntime {
   readonly agentRuntime: TestAgentRuntime;
   readonly clock: MutableClock;
   readonly runStore: WorkflowRunStore;
+  readonly checkpointStore: WorkflowCheckpointStore;
   meta(token: string): { authorization: string; correlationId: string };
 }
 
 export interface TestWorkflowRuntimeOptions {
   readonly workflows?: readonly WorkflowDefinition[];
+  readonly agents?: readonly AgentDefinition[];
+  readonly checkpointStore?: WorkflowCheckpointStore;
   readonly clock?: MutableClock;
   /** Share a store across two runtimes to simulate an isolate restart. */
   readonly runStore?: WorkflowRunStore;
@@ -325,7 +337,7 @@ export function buildTestWorkflowRuntime(
 ): TestWorkflowRuntime {
   const clock = options.clock ?? createTestClock();
   const agentRuntime = buildTestAgentRuntime({
-    agents: WORKFLOW_NODE_AGENTS,
+    agents: options.agents ?? WORKFLOW_NODE_AGENTS,
     clock,
     ...(options.agentRunStore === undefined ? {} : { runStore: options.agentRunStore }),
     ...(options.agentCheckpointStore === undefined
@@ -337,6 +349,7 @@ export function buildTestWorkflowRuntime(
   });
 
   const runStore = options.runStore ?? createMemoryWorkflowRunStore();
+  const checkpointStore = options.checkpointStore ?? createMemoryWorkflowCheckpointStore();
   const realPort = createAgentRuntimeNodePort(agentRuntime.runtime.orchestrator);
 
   const workflows = createWorkflowRuntime({
@@ -349,6 +362,7 @@ export function buildTestWorkflowRuntime(
     },
     workflows: options.workflows ?? EXECUTABLE_WORKFLOWS,
     runStore,
+    checkpointStore,
     clock,
     ids: createSequentialIdFactory('wf'),
     logger: agentRuntime.plane.logger,
@@ -363,6 +377,221 @@ export function buildTestWorkflowRuntime(
     agentRuntime,
     clock,
     runStore,
+    checkpointStore,
     meta: (token) => ({ authorization: bearer(token), correlationId: 'cor_test_workflow' }),
   };
+}
+
+// ── Part 3 fixtures: data flow, conditions and loops ────────────────────────
+
+/**
+ * A scorer whose output is DERIVED FROM ITS INPUT, deterministically.
+ *
+ * `score` is the topic's length. That is deliberately boring: a condition test
+ * asserting "the true branch was taken" is only meaningful if the value it
+ * branched on is one the test chose, and an agent that reasoned would make
+ * every branch assertion a statement about the agent instead of the engine.
+ */
+export const scoredOutput = object({
+  finding: str({ minLength: 1, maxLength: 2_000 }),
+  score: num({ min: 0, max: 100_000 }),
+});
+
+const noteInput = object({ note: str({ minLength: 1, maxLength: 500 }) });
+const noteOutput = object({ finding: str({ minLength: 1, maxLength: 2_000 }) });
+
+export const WF3_AGENT = {
+  /** Emits `{ finding, score }` with score = topic length. */
+  scorer: 'agent.wf.scorer',
+  /** Takes `{ note }` — NOT the workflow input's shape, so it must be mapped. */
+  recorder: 'agent.wf.recorder',
+} as const;
+
+function part3Propose(input: AgentProposalInput): AgentActionProposal {
+  if (input.agentId === WF3_AGENT.recorder) {
+    const data = input.input as { note: string };
+    return {
+      actionType: 'complete',
+      reason: 'Note recorded.',
+      idempotencyKey: `complete:${input.runId}`,
+      output: { finding: `recorded: ${data.note}` },
+    };
+  }
+  const data = input.input as { topic: string };
+  return {
+    actionType: 'complete',
+    reason: 'Scored.',
+    idempotencyKey: `complete:${input.runId}`,
+    output: { finding: `scored ${data.topic}`, score: data.topic.length },
+  };
+}
+
+export const PART3_AGENTS: readonly AgentDefinition[] = [
+  ...WORKFLOW_NODE_AGENTS,
+  {
+    ...workflowNodeAgent(WF3_AGENT.scorer),
+    outputContract: scoredOutput,
+    propose: part3Propose,
+  } as AgentDefinition,
+  {
+    ...workflowNodeAgent(WF3_AGENT.recorder),
+    inputContract: noteInput,
+    outputContract: noteOutput,
+    propose: part3Propose,
+  } as AgentDefinition,
+];
+
+/** The Part 3 workflow input: a topic, a branch threshold and a loop count. */
+export const part3Input = object({
+  topic: str({ minLength: 1, maxLength: 200 }),
+  threshold: num({ min: 0, max: 100_000 }),
+  rounds: num({ min: 0, max: 100 }),
+});
+
+export function conditionNode(
+  nodeId: string,
+  expression: WorkflowExpression,
+): WorkflowConditionNode {
+  return { kind: 'condition', nodeId, displayName: `Condition ${nodeId}`, expression };
+}
+
+function part3Workflow(
+  workflowId: string,
+  nodes: readonly (WorkflowAgentNode | WorkflowConditionNode)[],
+  edges: readonly WorkflowEdge[],
+  startNodeId: string,
+): WorkflowDefinition {
+  return {
+    workflowId,
+    displayName: `Part 3 fixture ${workflowId}`,
+    purpose: 'Exercise data flow, conditions and bounded loops.',
+    description: 'A deterministic fixture used by the AI-01 Batch 3B Part 3 suites.',
+    owner: 'MARQ Platform Engineering — test fixtures',
+    version: '1.0.0',
+    enabled: true,
+    certification: 'certified',
+    nodes,
+    edges,
+    startNodeId,
+    inputContract: part3Input,
+    outputContract: object({ finding: str({ minLength: 1, maxLength: 2_000 }) }),
+  } as WorkflowDefinition;
+}
+
+const scorerNode = (nodeId: string): WorkflowAgentNode => ({
+  ...node({ nodeId, agentId: WF3_AGENT.scorer, displayName: 'Score the topic' }),
+  outputContract: scoredOutput,
+});
+
+/** `score > threshold` — the canonical branch. */
+export const scoreExceedsThreshold: WorkflowExpression = {
+  op: 'greater_than',
+  left: { source: 'node', nodeId: 'score', path: 'score' },
+  right: { source: 'input', path: 'threshold' },
+};
+
+export const PART3 = {
+  /** score → condition → high | low. Both branches terminate. */
+  branching: part3Workflow(
+    'workflow.p3.branching',
+    [
+      scorerNode('score'),
+      conditionNode('gate', scoreExceedsThreshold),
+      { ...node({ nodeId: 'high', agentId: WF_AGENT.alpha }), outputContract: noteOutput },
+      { ...node({ nodeId: 'low', agentId: WF_AGENT.beta }), outputContract: noteOutput },
+    ],
+    [
+      edge('score', 'gate'),
+      { from: 'gate', to: 'high', when: true },
+      { from: 'gate', to: 'low', when: false },
+    ],
+    'score',
+  ),
+
+  /** score → recorder, whose input shape differs and must be mapped. */
+  mapped: part3Workflow(
+    'workflow.p3.mapped',
+    [
+      scorerNode('score'),
+      {
+        ...node({ nodeId: 'record', agentId: WF3_AGENT.recorder }),
+        inputMapping: {
+          assignments: [
+            { to: 'note', from: { source: 'node', nodeId: 'score', path: 'finding' }, required: true },
+          ],
+        },
+        inputContract: noteInput,
+        outputMapping: {
+          assignments: [
+            { to: 'finding', from: { source: 'result', path: 'finding' }, required: true },
+          ],
+        },
+        outputContract: noteOutput,
+      },
+    ],
+    [edge('score', 'record')],
+    'score',
+  ),
+
+  /**
+   * tick → gate. The gate exits when tick has run `rounds` times and otherwise
+   * loops back — a bounded loop with an explicit exit, which is the only shape
+   * a cycle may take.
+   */
+  loop: part3Workflow(
+    'workflow.p3.loop',
+    [
+      { ...node({ nodeId: 'tick', agentId: WF_AGENT.alpha }), outputContract: noteOutput },
+      conditionNode('gate', {
+        op: 'greater_than_or_equal',
+        left: { source: 'counter', counter: 'node_visits', nodeId: 'tick' },
+        right: { source: 'input', path: 'rounds' },
+      }),
+      { ...node({ nodeId: 'done', agentId: WF_AGENT.beta }), outputContract: noteOutput },
+    ],
+    [
+      edge('tick', 'gate'),
+      { from: 'gate', to: 'done', when: true },
+      { from: 'gate', to: 'tick', when: false, loop: { maxIterations: 4 } },
+    ],
+    'tick',
+  ),
+
+  /** The same shape with an exit that never holds. Exhaustion is the outcome. */
+  loopExhausted: part3Workflow(
+    'workflow.p3.loop_exhausted',
+    [
+      { ...node({ nodeId: 'tick', agentId: WF_AGENT.alpha }), outputContract: noteOutput },
+      conditionNode('gate', {
+        op: 'equals',
+        left: { source: 'literal', value: true },
+        right: { source: 'literal', value: false },
+      }),
+      { ...node({ nodeId: 'done', agentId: WF_AGENT.beta }), outputContract: noteOutput },
+    ],
+    [
+      edge('tick', 'gate'),
+      { from: 'gate', to: 'done', when: true },
+      { from: 'gate', to: 'tick', when: false, loop: { maxIterations: 2 } },
+    ],
+    'tick',
+  ),
+} as const;
+
+export const PART3_WORKFLOWS: readonly WorkflowDefinition[] = [
+  PART3.branching,
+  PART3.mapped,
+  PART3.loop,
+  PART3.loopExhausted,
+];
+
+/** A harness carrying the Part 3 agents and workflows. */
+export function buildPart3Runtime(
+  options: TestWorkflowRuntimeOptions = {},
+): TestWorkflowRuntime {
+  return buildTestWorkflowRuntime({
+    workflows: PART3_WORKFLOWS,
+    agents: PART3_AGENTS,
+    ...options,
+  });
 }

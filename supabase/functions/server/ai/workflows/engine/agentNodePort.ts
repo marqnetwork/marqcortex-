@@ -66,8 +66,27 @@ export interface AgentNodeHandle {
   readonly state: AgentNodeState;
   /** The child's own state, verbatim. Recorded for operators, never branched on. */
   readonly childState: string;
-  /** Digest of the child's accepted output. Never the output. */
+  /** Digest of the child's accepted output. */
   readonly resultDigest?: string;
+  /**
+   * The child's ACCEPTED output, present only on completion (AI-01 Batch 3B,
+   * Part 3).
+   *
+   * Part 2 returned a digest and nothing else, and for Part 2 that was right:
+   * the engine had no use for the value and carrying it would have been an
+   * un-needed copy of a tenant's data. Part 3 has a use — conditions branch on
+   * node outputs and mappings read them — and there are only two ways to get
+   * one: this, or reaching into the agent runtime's checkpoint store. The
+   * second is exactly the "agent internals" access this batch forbids.
+   *
+   * So it comes back through the port, and it comes back ALREADY GOVERNED: the
+   * orchestrator accepted it against the agent's own `outputContract` before it
+   * would complete the run, so this is a contract-validated projection and
+   * never a raw model completion. The workflow then applies its OWN declared
+   * output contract before storing it — see `contracts/checkpoint.ts` for why
+   * "trusted" requires both.
+   */
+  readonly output?: unknown;
   readonly failure?: string;
   /** Caller-safe message from the child. Never a provider or storage message. */
   readonly failureMessage?: string;
@@ -128,7 +147,7 @@ export interface WorkflowAgentPort {
  * definition of "the node succeeded" — a second one inside the engine would be
  * the beginning of the engine having an opinion about agent states.
  */
-export function projectAgentRun(record: AgentRunRecord): AgentNodeHandle {
+export function projectAgentRun(record: AgentRunRecord, output?: unknown): AgentNodeHandle {
   const terminal = isTerminalState(record.state);
   const state: AgentNodeState = terminal
     ? record.state === 'completed'
@@ -142,6 +161,10 @@ export function projectAgentRun(record: AgentRunRecord): AgentNodeHandle {
     agentRunId: record.context.runId,
     state,
     childState: record.state,
+    // Carried only when the node succeeded. A failed, cancelled or expired
+    // child has no accepted output, and passing whatever it last held would
+    // make a partial result look like a governed one.
+    ...(state === 'completed' && output !== undefined ? { output } : {}),
     ...(record.resultDigest === undefined ? {} : { resultDigest: record.resultDigest }),
     ...(record.failure === undefined ? {} : { failure: record.failure }),
     ...(record.failureMessage === undefined ? {} : { failureMessage: record.failureMessage }),
@@ -180,7 +203,19 @@ export function createAgentRuntimeNodePort(
         correlationId: input.correlationId,
         ...(input.clientIp === undefined ? {} : { clientIp: input.clientIp }),
       });
-      return projectAgentRun(record);
+
+      if (record.state !== 'completed') return projectAgentRun(record);
+
+      // The accepted output lives on the checkpoint that accepted it.
+      // `latestCheckpoint` is part of the orchestrator's PUBLIC contract —
+      // documented for exactly this, "a resume or an operator read" — so this
+      // stays inside the sanctioned seam rather than reaching into the agent
+      // runtime's checkpoint store, which the port exists to make unnecessary.
+      const checkpoint = await orchestrator.latestCheckpoint(
+        input.organizationId,
+        input.agentRunId,
+      );
+      return projectAgentRun(record, checkpoint?.output);
     },
 
     async cancel(input) {

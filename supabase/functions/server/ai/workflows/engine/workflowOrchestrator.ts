@@ -1,8 +1,8 @@
 /**
- * The Workflow Execution Engine (AI-01 Batch 3B, Part 2).
+ * The Workflow Execution Engine (AI-01 Batch 3B, Parts 2 and 3).
  *
  * Drives a workflow run along a plan, one node at a time, through the Batch 3A
- * Agent Orchestrator. It decides ORDER and nothing else.
+ * Agent Orchestrator. It decides ORDER and DATA FLOW, and nothing else.
  *
  * ── WHAT THIS ENGINE IS NOT ALLOWED TO DECIDE ──────────────────────────────
  *
@@ -11,13 +11,12 @@
  * gets, whether it is looping, whether it is certified. Every one of those is
  * decided by the Agent Orchestrator on the child run, and the engine cannot
  * influence any of them because it holds no provider, no plane, no gateway and
- * no agent definition — only `WorkflowAgentPort`, which returns four fields.
- * See `engine/agentNodePort.ts` for why that boundary is a module rather than a
- * rule.
+ * no agent definition — only `WorkflowAgentPort`. See `engine/agentNodePort.ts`
+ * for why that boundary is a module rather than a rule.
  *
  * ── THE ORDERING THAT MAKES RECOVERY REAL ──────────────────────────────────
  *
- * For every node, in this order and no other:
+ * For every agent node, in this order and no other:
  *
  *   1. CREATE the child agent run. Durable, and inert — the orchestrator
  *      persists it in `created` and executes nothing.
@@ -25,34 +24,35 @@
  *   3. DRIVE the child. This is the first moment anything external happens.
  *
  * An isolate that dies between 2 and 3 comes back, reads `pendingNode`, and
- * drives THE SAME child — no second agent run, no repeated effect. That is the
- * whole reason `create` and `drive` are separate calls on the port.
+ * drives THE SAME child — no second agent run, no repeated effect. That is why
+ * `create` and `drive` are separate calls on the port.
  *
- * The narrow window is between 1 and 2: a crash there leaves a child agent run
- * that no workflow points at. It is stated here rather than hidden because the
- * consequence is bounded and worth knowing — the orphan was never driven, so it
- * holds no spend and had no effect, and it reaches `expired` on its own
- * deadline. Closing the window entirely would need the orchestrator to accept a
- * caller-supplied run id, which is a change to Batch 3A's contract and not
- * something Part 2 should reach for.
+ * And for every node that finishes, agent or condition:
  *
- * ── SEQUENTIAL MEANS SEQUENTIAL ────────────────────────────────────────────
+ *   4. WRITE the checkpoint — append-only, chained to the one before it.
+ *   5. SAVE the run record, pointing at that checkpoint by version AND digest.
  *
- * One current node. One successor, taken from the plan. A durable write after
- * every node that reaches a terminal outcome. No fan-out, no conditions, no
- * joins, no approvals at the workflow level, and NO RETRIES — a node that fails
- * fails the run. `maxAttempts` is carried on the plan and never spent, and a
- * failed run is restarted as a NEW run, never reopened.
+ * Checkpoint first, deliberately. A crash between 4 and 5 leaves a checkpoint
+ * nothing points at, and the next advance rewrites the identical one and adopts
+ * it (see `writeCheckpoint`). The reverse order would leave a run pointing at a
+ * checkpoint that does not exist, which recovery cannot distinguish from a
+ * deleted one — and must therefore refuse.
  *
- * ── NODES ARE SEQUENCED, NOT CHAINED BY DATA ───────────────────────────────
+ * ── SEQUENTIAL, STILL ──────────────────────────────────────────────────────
  *
- * Every node receives the workflow run's validated input. There is no mapping
- * of node N's output into node N+1's input, because a mapping language is a
- * expression evaluator, and an expression evaluator is the same machinery
- * conditions need — which is Part 3. What Part 2 does record is each node's
- * output DIGEST, so the data flow that arrives later has something to be
- * checked against. Pretending to chain data by quietly passing the previous
- * output would be a semantics nobody specified.
+ * One current node. One successor — chosen by a condition, or the only one
+ * there is. A durable checkpoint after every node. No fan-out, no joins, no
+ * workflow approvals and NO RETRIES: a node that fails fails the run.
+ * `maxAttempts` is carried on the plan and never spent, and a failed run is
+ * restarted as a NEW run, never reopened.
+ *
+ * ── LOOPS ARE BOUNDED IN TWO PLACES ────────────────────────────────────────
+ *
+ * Each loop declares its own iteration ceiling, checked when its back edge is
+ * taken. And the RUN has a ceiling on total node executions, checked before
+ * every node. The second is what makes the first meaningful: per-loop bounds
+ * multiply under nesting, and three nested loops of thirty-two would be
+ * thirty-two thousand agent runs with every individual bound respected.
  */
 
 import type { Clock } from '../../runtime/clock.ts';
@@ -61,6 +61,8 @@ import type { Logger } from '../../observability/logger.ts';
 import type { Metrics } from '../../observability/metrics.ts';
 import type { WorkflowPlan, WorkflowPlanStep } from '../contracts/plan.ts';
 import type { WorkflowDefinition } from '../contracts/workflow.ts';
+import type { WorkflowCheckpoint } from '../contracts/checkpoint.ts';
+import type { WorkflowMetadataField } from '../contracts/expression.ts';
 import type {
   WorkflowPendingNode,
   WorkflowRunContext,
@@ -72,20 +74,33 @@ import type {
   WorkflowTransitionRecord,
 } from '../contracts/run.ts';
 import type { WorkflowRegistry } from '../registry/workflowRegistry.ts';
-import type { WorkflowRunStore } from '../persistence/ports.ts';
+import type { WorkflowCheckpointStore, WorkflowRunStore } from '../persistence/ports.ts';
 import type { AgentNodeHandle, WorkflowAgentActor, WorkflowAgentPort } from './agentNodePort.ts';
+import type { EvaluationScope } from '../runtime/expressionEvaluator.ts';
+import type { DataState } from './dataFlow.ts';
 import {
   MAX_WORKFLOW_TRANSITION_HISTORY,
   WORKFLOW_RUN_BOUNDS,
   isTerminalWorkflowState,
 } from '../contracts/run.ts';
-import { WorkflowError, isWorkflowError, terminalStateFor, workflowFailure } from '../contracts/failures.ts';
+import { WORKFLOW_CHECKPOINT_BOUNDS } from '../contracts/checkpoint.ts';
+import { isAgentStep } from '../contracts/plan.ts';
+import {
+  WorkflowError,
+  isWorkflowError,
+  terminalStateFor,
+  workflowFailure,
+} from '../contracts/failures.ts';
 import { assertTransition } from '../runtime/workflowStateMachine.ts';
+import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
+import { applyMapping } from '../runtime/mapper.ts';
+import { computeCheckpointDigest, digestOutputs } from '../runtime/checkpointChain.ts';
+import { emptyDataState, recoverDataState } from './dataFlow.ts';
 import { isFailure } from '../../security/validation.ts';
 // Canonical serialization only. `runtime/digest.ts` is a pure, bounded
-// serializer with no agent semantics — the same one Part 1's plan digest uses —
-// and duplicating it here would be a second canonical form to keep in step with
-// the first. The boundary scan exempts it by name for exactly this reason.
+// serializer with no agent semantics — the same one the plan digest uses — and
+// duplicating it would be a second canonical form to keep in step with the
+// first. The boundary scan exempts it by name for exactly this reason.
 import { canonicalBytes, digestValue } from '../../agents/runtime/digest.ts';
 
 /** The administrative and health facts the engine reads before every advance. */
@@ -116,6 +131,7 @@ export interface WorkflowRunActor {
 export interface WorkflowOrchestratorDependencies {
   readonly registry: WorkflowRegistry;
   readonly runs: WorkflowRunStore;
+  readonly checkpoints: WorkflowCheckpointStore;
   readonly agents: WorkflowAgentPort;
   readonly clock: Clock;
   readonly ids: IdFactory;
@@ -182,18 +198,17 @@ export interface WorkflowOrchestrator {
 /**
  * Hard ceiling on one `advance` call.
  *
- * Not a limit on the workflow — the plan's own node count is that. This bounds
- * the DRIVE LOOP, so an invariant broken above it (a cursor that does not move,
- * a state that returns to itself) stops with a diagnostic instead of spinning
- * inside an edge isolate. Two internal transitions per node plus admission and
- * completion is the true worst case; the multiplier is slack, not headroom.
+ * Not a limit on the workflow — `maxNodeExecutions` is that, and it is the one
+ * that binds. This bounds the DRIVE LOOP, so an invariant broken above it (a
+ * cursor that does not move, a state that returns to itself) stops with a
+ * diagnostic instead of spinning inside an edge isolate.
  */
-const MAX_DRIVE_ITERATIONS = 4 * WORKFLOW_RUN_BOUNDS.maxStepHistory + 8;
+const MAX_DRIVE_ITERATIONS = 4 * WORKFLOW_RUN_BOUNDS.maxNodeExecutions + 16;
 
 export function createWorkflowOrchestrator(
   deps: WorkflowOrchestratorDependencies,
 ): WorkflowOrchestrator {
-  const { registry, runs, agents, clock, ids, logger, metrics } = deps;
+  const { registry, runs, checkpoints, agents, clock, ids, logger, metrics } = deps;
 
   // ── Small helpers ─────────────────────────────────────────────────────────
 
@@ -319,8 +334,7 @@ export function createWorkflowOrchestrator(
    *
    * The terminal state comes from the failure's own trait table, so "what does
    * this failure do to a run" is answered in one place rather than at each
-   * throw site. A failure with no terminal trait is about the request, not the
-   * run, and reaching here with one is a programming error worth surfacing.
+   * throw site.
    */
   async function terminate(
     record: WorkflowRunRecord,
@@ -351,16 +365,17 @@ export function createWorkflowOrchestrator(
    * its definition between two nodes of a live run. Resolving once at creation
    * and trusting it forever would let a run that is no longer permitted finish
    * on the strength of a decision made minutes ago, so admission is re-checked
-   * every time the run passes through `validating`.
+   * every time the engine needs the plan.
    *
    * The plan digest is the sharp end of it: a changed definition produces a
    * changed digest, and a run whose remaining nodes are not the nodes it was
    * admitted with is denied rather than migrated. Migrating it would mean
    * guessing which node of the new plan corresponds to the cursor of the old.
    */
-  function admit(record: WorkflowRunRecord): { plan: WorkflowPlan; definition: WorkflowDefinition } {
-    // `require` enforces registration, revocation, the enable switch and the
-    // certification requirement, and throws the typed failure for each.
+  function admit(record: WorkflowRunRecord): {
+    plan: WorkflowPlan;
+    definition: WorkflowDefinition;
+  } {
     const definition = registry.require(record.context.workflowId);
     const plan = registry.requirePlan(record.context.workflowId);
 
@@ -385,28 +400,148 @@ export function createWorkflowOrchestrator(
     return plan.steps.find((step) => step.nodeId === nodeId);
   }
 
+  // ── Data flow ─────────────────────────────────────────────────────────────
+
+  /**
+   * Everything a condition or a mapping may see, assembled fresh per evaluation.
+   *
+   * Note what the metadata carries and what it does not: identity and counters,
+   * never a credential, never a setting, never another run. `result` is passed
+   * only where an output mapping is being applied.
+   */
+  function scopeFor(
+    record: WorkflowRunRecord,
+    data: DataState,
+    result?: { readonly value: unknown },
+  ): EvaluationScope {
+    const metadata: Record<WorkflowMetadataField, string | number> = {
+      workflowId: record.context.workflowId,
+      workflowVersion: record.context.workflowVersion,
+      planDigest: record.context.planDigest,
+      organizationId: record.context.organizationId,
+      stepCount: record.stepCount,
+      checkpointVersion: record.checkpointVersion,
+    };
+    return {
+      input: record.input,
+      nodeOutputs: data.outputs,
+      metadata,
+      loopIterations: data.loopIterations,
+      nodeVisits: data.nodeVisits,
+      stepsCompleted: record.stepCount,
+      ...(result === undefined ? {} : { result: result.value }),
+    };
+  }
+
+  /**
+   * Write the next checkpoint, chained to the current one.
+   *
+   * IDEMPOTENT BY DESIGN. A crash between the checkpoint write and the run save
+   * leaves an orphan checkpoint, and the retried advance recomputes an
+   * identical one. Rather than failing on the conflict, the existing record is
+   * read and compared: byte-identical means the previous attempt got this far
+   * and the work is simply already done. Anything else is a genuine conflict —
+   * two isolates that computed DIFFERENT next states for one version — and that
+   * is refused, because adopting either would discard the other's decision.
+   */
+  async function writeCheckpoint(
+    record: WorkflowRunRecord,
+    data: DataState,
+    facts: { readonly nodeId: string; readonly cursorNodeId?: string; readonly state: WorkflowRunState },
+  ): Promise<WorkflowCheckpoint> {
+    const version = record.checkpointVersion + 1;
+    if (version > WORKFLOW_RUN_BOUNDS.maxCheckpoints) {
+      throw workflowFailure('workflow_loop_exhausted', 'This run has taken too many steps.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: `checkpoint ${version} exceeds the ceiling of ${WORKFLOW_RUN_BOUNDS.maxCheckpoints}`,
+      });
+    }
+
+    const outputsBytes = canonicalBytes(data.outputs);
+    if (outputsBytes === undefined || outputsBytes > WORKFLOW_CHECKPOINT_BOUNDS.maxOutputsBytes) {
+      throw workflowFailure(
+        'workflow_output_rejected',
+        'This workflow has accumulated more data than a run may carry.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          diagnostics:
+            outputsBytes === undefined
+              ? 'accumulated outputs could not be canonically serialized'
+              : `accumulated outputs are ${outputsBytes} bytes, above ${WORKFLOW_CHECKPOINT_BOUNDS.maxOutputsBytes}`,
+        },
+      );
+    }
+
+    const body: Omit<WorkflowCheckpoint, 'digest'> = {
+      workflowRunId: record.context.workflowRunId,
+      organizationId: record.context.organizationId,
+      version,
+      createdAt: clock.isoNow(),
+      state: facts.state,
+      nodeId: facts.nodeId,
+      stepCount: record.steps.length + 1,
+      ...(facts.cursorNodeId === undefined ? {} : { cursorNodeId: facts.cursorNodeId }),
+      outputs: { ...data.outputs },
+      outputsDigest: digestOutputs(data.outputs),
+      loopIterations: { ...data.loopIterations },
+      nodeVisits: { ...data.nodeVisits },
+      ...(record.checkpointDigest === undefined
+        ? {}
+        : { previousDigest: record.checkpointDigest }),
+    };
+    const checkpoint: WorkflowCheckpoint = { ...body, digest: computeCheckpointDigest(body) };
+
+    try {
+      await checkpoints.write(checkpoint);
+    } catch (error) {
+      if (!isWorkflowError(error) || error.failure !== 'workflow_checkpoint_conflict') throw error;
+      const existing = await checkpoints.read(
+        record.context.organizationId,
+        record.context.workflowRunId,
+        version,
+      );
+      if (!existing || existing.digest !== checkpoint.digest) throw error;
+      logger.info('ai.workflow.checkpoint.adopted', {
+        workflowRunId: record.context.workflowRunId,
+        version,
+      });
+      return existing;
+    }
+
+    metrics.increment('ai.workflow.checkpoint.written', {
+      workflow: record.context.workflowId,
+    });
+    return checkpoint;
+  }
+
   // ── Node execution ────────────────────────────────────────────────────────
 
   /**
-   * Phase 1 and 2 of the ordering: create the child, then persist the pointer.
-   * Nothing external has happened when this returns.
+   * Phase 1 and 2: build the node's input, create the child, persist the
+   * pointer. Nothing external has happened when this returns.
    */
   async function beginNode(
     record: WorkflowRunRecord,
-    plan: WorkflowPlan,
     step: WorkflowPlanStep,
+    data: DataState,
     input: AdvanceWorkflowInput,
     definition: WorkflowDefinition,
   ): Promise<WorkflowRunRecord> {
+    if (!isAgentStep(step)) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: `beginNode reached non-agent node ${step.nodeId}`,
+      });
+    }
+
+    const nodeInput = buildNodeInput(record, step, data);
+
     const handle = await agents.create({
       agentId: step.agentId,
       organizationId: record.context.organizationId,
       actor: input.actor.agent,
-      objective: objectiveFor(definition, step),
-      // Every node receives the run's input — the same value, validated once at
-      // creation and read back from the record. See the header: Part 2
-      // sequences nodes, it does not chain their data.
-      input: record.input,
+      objective: `${definition.displayName}: ${step.displayName}`.slice(0, 200),
+      input: nodeInput,
       requestId: input.requestId,
       correlationId: record.context.correlationId,
       origin: record.context.origin,
@@ -434,6 +569,187 @@ export function createWorkflowOrchestrator(
   }
 
   /**
+   * The value a node is handed.
+   *
+   * Three cases, and the middle one matters: a node with a contract but no
+   * mapping still VALIDATES the run input against that contract. Declaring a
+   * shape and having it ignored because no mapping was written would be the
+   * worst kind of check — one that reads as present and is not.
+   */
+  function buildNodeInput(
+    record: WorkflowRunRecord,
+    step: WorkflowPlanStep & { kind: 'agent' },
+    data: DataState,
+  ): unknown {
+    if (step.inputMapping) {
+      const outcome = applyMapping(step.inputMapping, scopeFor(record, data), step.inputContract);
+      if (!outcome.ok) {
+        throw workflowFailure(
+          'workflow_mapping_failed',
+          'This workflow could not prepare a step.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics: `node ${step.nodeId} input mapping (${outcome.failure}): ${outcome.detail}`,
+          },
+        );
+      }
+      return outcome.value;
+    }
+
+    if (step.inputContract) {
+      const validated = step.inputContract.validate(record.input, 'input');
+      if (isFailure(validated)) {
+        throw workflowFailure(
+          'workflow_mapping_failed',
+          'This workflow could not prepare a step.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics: `node ${step.nodeId} input contract: ${validated.issues
+              .map((issue) => `${issue.path}: ${issue.message}`)
+              .join('; ')}`,
+          },
+        );
+      }
+      return validated.value;
+    }
+
+    // Part 2's behaviour, and still the default: the run's validated input,
+    // unchanged. Nodes are sequenced, not chained by data, unless a mapping
+    // says otherwise.
+    return record.input;
+  }
+
+  /**
+   * Turn a child's accepted result into a TRUSTED node output, or nothing.
+   *
+   * A node with no output contract stores NOTHING referenceable, and that is
+   * the definition of the word doing its work: "trusted" means "passed a
+   * declared schema", so a value nobody declared a schema for does not become
+   * one a later condition can branch on. It is still digested for the audit
+   * trail — a reader can prove what a node produced without the platform
+   * keeping it.
+   */
+  function buildNodeOutput(
+    record: WorkflowRunRecord,
+    step: WorkflowPlanStep & { kind: 'agent' },
+    data: DataState,
+    raw: unknown,
+  ): { readonly stored: boolean; readonly value?: unknown } {
+    if (!step.outputContract) return { stored: false };
+
+    if (step.outputMapping) {
+      const outcome = applyMapping(
+        step.outputMapping,
+        scopeFor(record, data, { value: raw }),
+        step.outputContract,
+      );
+      if (!outcome.ok) {
+        throw workflowFailure(
+          'workflow_mapping_failed',
+          'A step of this workflow produced something it could not record.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics: `node ${step.nodeId} output mapping (${outcome.failure}): ${outcome.detail}`,
+          },
+        );
+      }
+      return { stored: true, value: outcome.value };
+    }
+
+    const validated = step.outputContract.validate(raw, 'output');
+    if (isFailure(validated)) {
+      throw workflowFailure(
+        'workflow_output_rejected',
+        'A step of this workflow produced something it could not record.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics: `node ${step.nodeId} output contract: ${validated.issues
+            .map((issue) => `${issue.path}: ${issue.message}`)
+            .join('; ')}`,
+        },
+      );
+    }
+
+    const bytes = canonicalBytes(validated.value);
+    if (bytes === undefined || bytes > WORKFLOW_CHECKPOINT_BOUNDS.maxNodeOutputBytes) {
+      throw workflowFailure(
+        'workflow_output_rejected',
+        'A step of this workflow produced something it could not record.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics:
+            bytes === undefined
+              ? `node ${step.nodeId} output could not be canonically serialized`
+              : `node ${step.nodeId} output is ${bytes} bytes, above ${WORKFLOW_CHECKPOINT_BOUNDS.maxNodeOutputBytes}`,
+        },
+      );
+    }
+    return { stored: true, value: validated.value };
+  }
+
+  /**
+   * Move the cursor to `to`, counting a loop iteration when the move is a back
+   * edge, and refusing when a ceiling is reached.
+   *
+   * The engine identifies a back edge from the PLAN rather than from the edge
+   * list: the loop header carries `fromNodeId`, so "we are moving to H from H's
+   * declared loop source" is the whole test. That keeps the runtime free of
+   * graph analysis, which the planner already did once and recorded.
+   */
+  function advanceCursor(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    from: string,
+    to: string | undefined,
+    data: DataState,
+  ): void {
+    if (to === undefined) return;
+    const target = stepFor(plan, to);
+    const loop = target?.loop;
+    if (!loop || loop.fromNodeId !== from) return;
+
+    const taken = (data.loopIterations[to] ?? 0) + 1;
+    if (taken > loop.maxIterations) {
+      throw workflowFailure(
+        'workflow_loop_exhausted',
+        'This workflow repeated a step more times than it is allowed to.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: to,
+          diagnostics:
+            `loop into ${to} would take iteration ${taken}, above its ceiling of ${loop.maxIterations}`,
+        },
+      );
+    }
+
+    const total = Object.values({ ...data.loopIterations, [to]: taken }).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    if (total > WORKFLOW_RUN_BOUNDS.maxNodeExecutions) {
+      throw workflowFailure(
+        'workflow_loop_exhausted',
+        'This workflow repeated a step more times than it is allowed to.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          diagnostics: `total loop iterations ${total} exceeds the run ceiling`,
+        },
+      );
+    }
+
+    data.loopIterations[to] = taken;
+    metrics.increment('ai.workflow.loop.iteration', {
+      workflow: record.context.workflowId,
+      node: to,
+    });
+  }
+
+  /**
    * Phase 3: drive the child, and record the node when it reaches a terminal
    * outcome.
    *
@@ -445,18 +761,15 @@ export function createWorkflowOrchestrator(
   async function driveNode(
     record: WorkflowRunRecord,
     plan: WorkflowPlan,
+    data: DataState,
     input: AdvanceWorkflowInput,
   ): Promise<{ readonly record: WorkflowRunRecord; readonly blocked: boolean }> {
     const pending = record.pendingNode;
     if (!pending) {
-      throw workflowFailure(
-        'workflow_persistence_failed',
-        'This run cannot be continued.',
-        {
-          workflowRunId: record.context.workflowRunId,
-          diagnostics: 'run is waiting_for_agent with no pendingNode',
-        },
-      );
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: 'run is waiting_for_agent with no pendingNode',
+      });
     }
 
     const handle = await agents.drive({
@@ -480,81 +793,231 @@ export function createWorkflowOrchestrator(
     }
 
     const step = stepFor(plan, pending.nodeId);
-    const completedAt = clock.isoNow();
-    const stepRecord: WorkflowStepRecord = {
-      stepId: ids.next('wfs'),
-      sequence: pending.sequence,
-      nodeId: pending.nodeId,
+    if (!step || !isAgentStep(step)) {
+      throw workflowFailure('workflow_plan_mismatch', 'This workflow has changed since the run started.', {
+        workflowRunId: record.context.workflowRunId,
+        nodeId: pending.nodeId,
+        diagnostics: `pending node ${pending.nodeId} is not an agent node in plan ${plan.digest}`,
+      });
+    }
+
+    if (handle.state === 'failed') {
+      return { record: await failNode(record, step, pending, handle, input), blocked: false };
+    }
+
+    // The node succeeded. Its output becomes trusted state BEFORE the cursor
+    // moves, so a condition on the next node sees what this one produced.
+    const output = buildNodeOutput(record, step, data, handle.output);
+    if (output.stored) data.outputs[step.nodeId] = output.value;
+    data.nodeVisits[step.nodeId] = (data.nodeVisits[step.nodeId] ?? 0) + 1;
+    advanceCursor(record, plan, step.nodeId, step.nextNodeId, data);
+
+    const resultDigest = output.stored ? digestValue(output.value) : handle.resultDigest;
+    const stepRecord = completedStep(record, step, {
+      nodeId: step.nodeId,
+      kind: 'agent',
+      startedAt: pending.startedAt,
       agentId: pending.agentId,
       childAgentRunId: pending.agentRunId,
       childState: handle.childState,
-      startedAt: pending.startedAt,
-      completedAt,
-      latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
-      outcome: handle.state === 'completed' ? 'completed' : 'failed',
-      // Always 1. Part 2 implements no retries, and a field that silently
-      // stayed at 1 while retries existed would be worse than no field.
-      attempt: 1,
-      ...(handle.resultDigest === undefined ? {} : { resultDigest: handle.resultDigest }),
-      ...(handle.state === 'completed' ? {} : { failure: 'workflow_node_failed' as const }),
-      checkpointVersion: record.checkpointVersion + 1,
-    };
+      ...(resultDigest === undefined ? {} : { resultDigest }),
+    }, data);
 
-    if (handle.state === 'failed') {
-      // The child already decided. No retry, no second attempt, no skipping to
-      // the next node — a workflow whose node failed has failed.
-      metrics.increment('ai.workflow.node.failed', {
-        workflow: record.context.workflowId,
-        node: pending.nodeId,
-      });
-      const failed = await transition(record, {
-        to: 'failed',
-        operation: 'fail',
-        reason: `Node ${pending.nodeId} failed in agent run ${pending.agentRunId}.`,
-        actorId: input.actor.actorId,
-        failure: 'workflow_node_failed',
-        patch: {
-          steps: [...record.steps, stepRecord],
-          stepCount: record.steps.length + 1,
-          checkpointVersion: record.checkpointVersion + 1,
-          pendingNode: undefined,
-          currentNodeId: undefined,
-          failureMessage: handle.failureMessage ?? 'A step of this workflow did not complete.',
-        },
-      });
-      return { record: failed, blocked: false };
-    }
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'running',
+      ...(step.nextNodeId === undefined ? {} : { cursorNodeId: step.nextNodeId }),
+    });
 
-    // The durable write after a completed node: the step is recorded, the
-    // checkpoint pointer advances and the cursor moves to the single successor.
-    // Absent successor means the plan is finished; completion is the NEXT
-    // transition, from `running`, so "the last node finished" and "the run
-    // completed" are two facts with two versions.
     metrics.increment('ai.workflow.node.completed', {
       workflow: record.context.workflowId,
-      node: pending.nodeId,
+      node: step.nodeId,
     });
+
     const advanced = await transition(record, {
       to: 'running',
       operation: 'step',
-      reason: `Node ${pending.nodeId} completed.`,
+      reason: `Node ${step.nodeId} completed.`,
       actorId: input.actor.actorId,
       patch: {
         steps: [...record.steps, stepRecord],
         stepCount: record.steps.length + 1,
-        checkpointVersion: record.checkpointVersion + 1,
+        checkpointVersion: checkpoint.version,
+        checkpointDigest: checkpoint.digest,
         pendingNode: undefined,
-        currentNodeId: step?.nextNodeId,
-        ...(stepRecord.resultDigest === undefined
-          ? {}
-          : { resultDigest: stepRecord.resultDigest }),
+        currentNodeId: step.nextNodeId,
+        ...(resultDigest === undefined ? {} : { resultDigest }),
       },
     });
     return { record: advanced, blocked: false };
   }
 
-  function objectiveFor(definition: WorkflowDefinition, step: WorkflowPlanStep): string {
-    return `${definition.displayName}: ${step.displayName}`.slice(0, 200);
+  async function failNode(
+    record: WorkflowRunRecord,
+    step: WorkflowPlanStep,
+    pending: WorkflowPendingNode,
+    handle: AgentNodeHandle,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    // The child already decided. No retry, no second attempt, no skipping to
+    // the next node — a workflow whose node failed has failed. No checkpoint is
+    // written either: a checkpoint is a point a run RESUMES from, and this run
+    // does not resume.
+    metrics.increment('ai.workflow.node.failed', {
+      workflow: record.context.workflowId,
+      node: pending.nodeId,
+    });
+    const stepRecord: WorkflowStepRecord = {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: step.index,
+      nodeId: pending.nodeId,
+      kind: 'agent',
+      iteration: countVisits(record, pending.nodeId) + 1,
+      agentId: pending.agentId,
+      childAgentRunId: pending.agentRunId,
+      childState: handle.childState,
+      startedAt: pending.startedAt,
+      completedAt: clock.isoNow(),
+      latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
+      outcome: 'failed',
+      attempt: 1,
+      failure: 'workflow_node_failed',
+      checkpointVersion: record.checkpointVersion,
+    };
+
+    return transition(record, {
+      to: 'failed',
+      operation: 'fail',
+      reason: `Node ${pending.nodeId} failed in agent run ${pending.agentRunId}.`,
+      actorId: input.actor.actorId,
+      failure: 'workflow_node_failed',
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        pendingNode: undefined,
+        currentNodeId: undefined,
+        failureMessage: handle.failureMessage ?? 'A step of this workflow did not complete.',
+      },
+    });
+  }
+
+  function countVisits(record: WorkflowRunRecord, nodeId: string): number {
+    return record.steps.filter((step) => step.nodeId === nodeId).length;
+  }
+
+  function completedStep(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlanStep,
+    facts: {
+      readonly nodeId: string;
+      readonly kind: 'agent' | 'condition';
+      readonly startedAt: string;
+      readonly agentId?: string;
+      readonly childAgentRunId?: string;
+      readonly childState?: string;
+      readonly branchTaken?: boolean;
+      readonly branchNodeId?: string;
+      readonly resultDigest?: string;
+    },
+    data: DataState,
+  ): WorkflowStepRecord {
+    void data;
+    const completedAt = clock.isoNow();
+    return {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: plan.index,
+      nodeId: facts.nodeId,
+      kind: facts.kind,
+      iteration: countVisits(record, facts.nodeId) + 1,
+      ...(facts.agentId === undefined ? {} : { agentId: facts.agentId }),
+      ...(facts.childAgentRunId === undefined
+        ? {}
+        : { childAgentRunId: facts.childAgentRunId }),
+      ...(facts.childState === undefined ? {} : { childState: facts.childState }),
+      ...(facts.branchTaken === undefined ? {} : { branchTaken: facts.branchTaken }),
+      ...(facts.branchNodeId === undefined ? {} : { branchNodeId: facts.branchNodeId }),
+      startedAt: facts.startedAt,
+      completedAt,
+      latencyMs: Math.max(0, clock.now() - Date.parse(facts.startedAt)),
+      outcome: 'completed',
+      attempt: 1,
+      ...(facts.resultDigest === undefined ? {} : { resultDigest: facts.resultDigest }),
+      checkpointVersion: record.checkpointVersion + 1,
+    };
+  }
+
+  /**
+   * Evaluate a condition node and take its branch.
+   *
+   * The whole node: no child run, no agent, no external call, no clock read
+   * that could vary. It reads durable state, produces a boolean, moves the
+   * cursor and writes a checkpoint recording which way it went.
+   *
+   * The branch is recorded on the step, so an operator reading an incident can
+   * see WHICH way a condition went without re-deriving it from data that has
+   * since changed — and can see it without the run record ever holding the
+   * values it branched on, which are represented by digests alone.
+   */
+  async function runConditionNode(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    step: WorkflowPlanStep & { kind: 'condition' },
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    const startedAt = clock.isoNow();
+    const taken = evaluateExpression(step.expression, scopeFor(record, data));
+    const target = taken ? step.trueNodeId : step.falseNodeId;
+
+    data.nodeVisits[step.nodeId] = (data.nodeVisits[step.nodeId] ?? 0) + 1;
+    advanceCursor(record, plan, step.nodeId, target, data);
+
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'condition',
+        startedAt,
+        branchTaken: taken,
+        branchNodeId: target,
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'running',
+      cursorNodeId: target,
+    });
+
+    metrics.increment('ai.workflow.condition.evaluated', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+      branch: taken ? 'true' : 'false',
+    });
+    logger.info('ai.workflow.condition.evaluated', {
+      workflowRunId: record.context.workflowRunId,
+      nodeId: step.nodeId,
+      branch: taken,
+      target,
+    });
+
+    return transition(record, {
+      to: 'running',
+      operation: 'step',
+      reason: `Condition ${step.nodeId} evaluated ${taken} and took ${target}.`,
+      actorId: input.actor.actorId,
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        checkpointVersion: checkpoint.version,
+        checkpointDigest: checkpoint.digest,
+        currentNodeId: target,
+      },
+    });
   }
 
   // ── Public operations ─────────────────────────────────────────────────────
@@ -671,6 +1134,19 @@ export function createWorkflowOrchestrator(
         );
       }
 
+      // RECOVERY. The durable checkpoint chain is verified end to end before a
+      // single node runs, so a resumed run either continues from state it can
+      // prove, or does not continue.
+      let data: DataState;
+      try {
+        data = await recoverDataState(record, checkpoints);
+      } catch (error) {
+        if (isWorkflowError(error) && terminalStateFor(error.failure) !== undefined) {
+          return await terminate(record, error, input.actor.actorId);
+        }
+        throw error;
+      }
+
       let iterations = 0;
       for (;;) {
         if ((iterations += 1) > MAX_DRIVE_ITERATIONS) {
@@ -681,7 +1157,7 @@ export function createWorkflowOrchestrator(
         }
 
         try {
-          const outcome = await driveOnce(record, input);
+          const outcome = await driveOnce(record, input, data);
           if (outcome.done) return outcome.record;
           record = outcome.record;
         } catch (error) {
@@ -801,6 +1277,7 @@ export function createWorkflowOrchestrator(
   async function driveOnce(
     record: WorkflowRunRecord,
     input: AdvanceWorkflowInput,
+    data: DataState,
   ): Promise<{ readonly record: WorkflowRunRecord; readonly done: boolean }> {
     switch (record.state) {
       case 'created':
@@ -847,14 +1324,22 @@ export function createWorkflowOrchestrator(
         // is in flight.
         if (!record.currentNodeId) {
           return {
-            record: await transition(record, {
-              to: 'completed',
-              operation: 'complete',
-              reason: `All ${record.steps.length} node(s) completed.`,
-              actorId: input.actor.actorId,
-            }),
+            record: await completeRun(record, definition, data, input),
             done: true,
           };
+        }
+
+        // THE RUN-WIDE CEILING. Checked before every node, which is what makes
+        // nested loops bounded rather than merely each individually bounded.
+        if (record.steps.length >= WORKFLOW_RUN_BOUNDS.maxNodeExecutions) {
+          throw workflowFailure(
+            'workflow_loop_exhausted',
+            'This workflow took more steps than it is allowed to.',
+            {
+              workflowRunId: record.context.workflowRunId,
+              diagnostics: `run reached the ceiling of ${WORKFLOW_RUN_BOUNDS.maxNodeExecutions} node executions`,
+            },
+          );
         }
 
         const step = stepFor(plan, record.currentNodeId);
@@ -869,12 +1354,15 @@ export function createWorkflowOrchestrator(
           });
         }
 
-        return { record: await beginNode(record, plan, step, input, definition), done: false };
+        if (step.kind === 'condition') {
+          return { record: await runConditionNode(record, plan, step, data, input), done: false };
+        }
+        return { record: await beginNode(record, step, data, input, definition), done: false };
       }
 
       case 'waiting_for_agent': {
         const { plan } = admit(record);
-        const outcome = await driveNode(record, plan, input);
+        const outcome = await driveNode(record, plan, data, input);
         return {
           record: outcome.record,
           done: outcome.blocked || isTerminalWorkflowState(outcome.record.state),
@@ -886,4 +1374,52 @@ export function createWorkflowOrchestrator(
         return { record, done: true };
     }
   }
+
+  /**
+   * Finish the run, holding the last trusted output to the workflow's own
+   * output contract.
+   *
+   * The check applies only when the terminal node stored a trusted output —
+   * a node with no output contract stores nothing, and there is nothing to
+   * validate. That is a real limit and it is stated rather than hidden: a
+   * workflow that wants its result checked declares an output contract on the
+   * node that produces it. Enforcing it unconditionally would fail every
+   * workflow whose last node simply does work and returns nothing.
+   */
+  async function completeRun(
+    record: WorkflowRunRecord,
+    definition: WorkflowDefinition,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    const lastStep = record.steps[record.steps.length - 1];
+    const finalOutput =
+      lastStep === undefined ? undefined : data.outputs[lastStep.nodeId];
+
+    if (finalOutput !== undefined) {
+      const validated = definition.outputContract.validate(finalOutput, 'output');
+      if (isFailure(validated)) {
+        throw workflowFailure(
+          'workflow_output_rejected',
+          'This workflow finished with a result it could not accept.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            diagnostics: `workflow outputContract: ${validated.issues
+              .map((issue) => `${issue.path}: ${issue.message}`)
+              .join('; ')}`,
+          },
+        );
+      }
+    }
+
+    return transition(record, {
+      to: 'completed',
+      operation: 'complete',
+      reason: `All ${record.steps.length} node execution(s) completed.`,
+      actorId: input.actor.actorId,
+    });
+  }
 }
+
+/** Re-exported so the assembly can seed a run with no checkpoints. */
+export { emptyDataState };

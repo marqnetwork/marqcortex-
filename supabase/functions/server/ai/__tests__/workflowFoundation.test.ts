@@ -18,6 +18,7 @@ import { createWorkflowRegistry } from '../workflows/registry/workflowRegistry.t
 import { isWorkflowError } from '../workflows/contracts/failures.ts';
 import type { WorkflowDefinition } from '../workflows/contracts/workflow.ts';
 import type { WorkflowPlanResult } from '../workflows/contracts/plan.ts';
+import { isAgentStep } from '../workflows/contracts/plan.ts';
 import {
   WORKFLOW_AGENT_ID,
   agentExists,
@@ -91,10 +92,12 @@ describe('workflow validation — nodes', () => {
   });
 
   it('refuses a node kind this batch cannot execute', () => {
+    // Part 3 added `condition`; everything else is still unrepresentable, and
+    // the refusal names what the batch actually has rather than what it lacks.
     const found = validateWorkflowDefinition(
-      variant({ nodes: [node({ nodeId: 'intake', kind: 'condition' as never })], edges: [] }),
+      variant({ nodes: [node({ nodeId: 'intake', kind: 'parallel' as never })], edges: [] }),
     );
-    assert.ok(matches(found, /condition, parallel, join and approval nodes are not part of this batch/));
+    assert.ok(matches(found, /this batch has agent and condition nodes/));
   });
 
   it('bounds the attempt ceiling in both directions', () => {
@@ -159,16 +162,26 @@ describe('workflow validation — edges', () => {
     assert.ok(matches(found, /duplicate edge/));
   });
 
-  it('refuses branching, and says which capability is missing', () => {
+  it('refuses fan-out from an agent node, and says where branching belongs', () => {
+    // Part 3 did not loosen this. An AGENT node still takes exactly one
+    // successor — two would be a parallel branch needing a join. Branching
+    // moved to a node kind that makes the choice visible, not to the edges.
     const found = validateWorkflowDefinition(
       variant({ edges: [edge('intake', 'draft'), edge('intake', 'review')] }),
     );
     assert.ok(
       matches(
         found,
-        /node intake has 2 outgoing edges — branching requires conditions, parallel execution and joins/,
+        /node intake has 2 outgoing edges — an agent node takes exactly one successor/,
       ),
     );
+  });
+
+  it('refuses a when label on an edge out of an agent node', () => {
+    const found = validateWorkflowDefinition(
+      variant({ edges: [{ from: 'intake', to: 'draft', when: true }, edge('draft', 'review')] }),
+    );
+    assert.ok(matches(found, /only a condition node may declare when/));
   });
 
   it('refuses a declared start node that does not exist', () => {
@@ -228,7 +241,10 @@ describe('workflow planner — graph analysis', () => {
     assert.ok(matches(found, /unreachable from intake: orphan/));
   });
 
-  it('detects a cycle and reports the route, not just its existence', () => {
+  it('refuses an undeclared cycle as an unbounded loop', () => {
+    // Part 1 refused every cycle. Part 3 refuses the UNDECLARED ones, and this
+    // is the direct successor to that rule: a cycle whose closing edge names no
+    // iteration ceiling has no way to stop.
     const found = problems(
       variant({
         nodes: [node({ nodeId: 'a' }), node({ nodeId: 'b' }), node({ nodeId: 'c' })],
@@ -236,7 +252,7 @@ describe('workflow planner — graph analysis', () => {
         startNodeId: 'a',
       }),
     );
-    assert.ok(matches(found, /cycle: b -> c -> b/), found.join('; '));
+    assert.ok(matches(found, /unbounded loop: edge c -> b closes a cycle/), found.join('; '));
   });
 
   it('reports an orphan and a cycle in one pass', () => {
@@ -253,7 +269,7 @@ describe('workflow planner — graph analysis', () => {
       }),
     );
     assert.ok(matches(found, /unreachable from a: x, y/));
-    assert.ok(matches(found, /cycle: x -> y -> x/));
+    assert.ok(matches(found, /unbounded loop: edge y -> x/));
   });
 
   it('terminates on a cyclic graph instead of walking it forever', () => {
@@ -283,7 +299,7 @@ describe('workflow planner — the plan', () => {
       ],
     );
     assert.deepEqual(
-      result.plan.steps.map((step) => step.nextNodeId),
+      result.plan.steps.filter(isAgentStep).map((step) => step.nextNodeId),
       ['draft', 'review', undefined],
     );
   });
@@ -303,12 +319,15 @@ describe('workflow planner — the plan', () => {
       nodeCount: 3,
       edgeCount: 2,
       stepCount: 3,
+      agentNodeCount: 3,
+      conditionNodeCount: 0,
       depth: 2,
       agentIds: [WORKFLOW_AGENT_ID.draft, WORKFLOW_AGENT_ID.intake, WORKFLOW_AGENT_ID.review].sort(),
       distinctAgentCount: 3,
       startNodeId: 'intake',
       terminalNodeIds: ['review'],
-      // 1 + 3 + 2 attempt ceilings.
+      loopCount: 0,
+      // 1 + 3 + 2 attempt ceilings, in no loop.
       maxAgentInvocations: 6,
     });
   });
