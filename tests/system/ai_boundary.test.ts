@@ -73,11 +73,13 @@ function offenders(files: readonly SourceFile[], pattern: RegExp): string[] {
  * So the patterns below are matched against the file with block and line
  * comments stripped. A real defect is code, and code is what this looks at.
  */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 function strippedOffenders(files: readonly SourceFile[], pattern: RegExp): string[] {
-  const strip = (text: string): string =>
-    text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
   return files
-    .filter((file) => pattern.test(strip(file.text)))
+    .filter((file) => pattern.test(stripComments(file.text)))
     .map((file) => relative(SERVER_ROOT, file.path));
 }
 
@@ -889,6 +891,301 @@ describe('cost compression boundary', () => {
       existsSync(join(SERVER_ROOT, 'ai', 'optimization', 'http')),
       false,
       'Part 6A ships no HTTP surface',
+    );
+  });
+});
+
+/**
+ * AI-01 Batch 3B Part 6B added an Intelligent Reuse & Cache Engine. It is the
+ * component with the strongest motive of all to become a second execution path,
+ * because its job is to make model calls DISAPPEAR — and a component that can
+ * make a call disappear is one short step from a component that answers it
+ * itself, out of a store, without the guard, the policy engine, the spend
+ * ceiling, the approval gate, the certification checks or the audit trail.
+ *
+ * It is also the component with the strongest motive to lie about money. An
+ * avoided call leaves NO PROVIDER INVOICE, so the only record that an inference
+ * did not happen is the one the platform writes about itself. Every other
+ * savings figure in Cortex can eventually be reconciled against a bill; this one
+ * cannot.
+ *
+ * Three claims, narrow and absolute:
+ *
+ *   THE REUSE LAYER RECOMMENDS AND NEVER EXECUTES.
+ *   THERE IS EXACTLY ONE SAVINGS LEDGER, AND IT IS PART 6A'S.
+ *   THERE IS NO EMBEDDING PROVIDER, SO THERE IS NO SECOND AI EXECUTION PATH.
+ *
+ * A behavioural test can show the reuse path is governed. Only a source scan can
+ * show there is no ungoverned one beside it.
+ */
+describe('intelligent reuse boundary', () => {
+  const REUSE_DIR = join(SERVER_ROOT, 'ai', 'reuse') + sep;
+  const OPTIMIZATION_DIR = join(SERVER_ROOT, 'ai', 'optimization') + sep;
+  const reuseSources = serverSources.filter(
+    (file) => file.path.startsWith(REUSE_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty reuse tree', () => {
+    assert.ok(reuseSources.length >= 10, `expected the reuse tree, found ${reuseSources.length}`);
+  });
+
+  it('NEVER REACHES A PROVIDER: no adapter, no vendor, no credential, no invoke', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(reuseSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(reuseSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(reuseSources, CREDENTIAL), []);
+    assert.deepEqual(offenders(reuseSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('never holds the control plane, an orchestrator, a tool gateway or a prompt', () => {
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    assert.deepEqual(offenders(reuseSources, PLANE_IMPORT), []);
+    const EXECUTION_IMPORT =
+      /from\s+['"][^'"]*(agents\/(orchestrator|service|tools|approvals|registry)\/|workflows\/(engine|service|approvals)\/|tools\/toolRegistry|prompts\/[a-z]|pipeline\/)/;
+    assert.deepEqual(offenders(reuseSources, EXECUTION_IMPORT), []);
+    const TOOL_CALL = /\b(toolGateway|gateway)\s*\.\s*(execute|invoke|call)\s*\(/;
+    assert.deepEqual(offenders(reuseSources, TOOL_CALL), []);
+  });
+
+  it('GRANTS NOTHING: it checks authority as evidence and never resolves it', () => {
+    // The gate REFUSES when an authorization verdict is false. It must have no
+    // way to produce one — a reuse layer that could resolve an actor, evaluate a
+    // capability or decide an approval would be a second answer to "may this
+    // happen", and the second answer is always the one an attacker aims at.
+    const AUTHORITY_RESOLUTION =
+      /resolveAdminActor|resolveAgentActor|requireCapability|requireAgentCapability|requireWorkflowCapability|createAIGuard|createPolicyEngine|createSpendLedger|createProviderSelector/;
+    assert.deepEqual(offenders(reuseSources, AUTHORITY_RESOLUTION), []);
+    // And it cannot decide an approval or set an approval state.
+    assert.deepEqual(
+      offenders(reuseSources, /approvalState:\s*'|approvals\s*\.\s*decide\s*\(/),
+      [],
+      'the reuse layer decides an approval',
+    );
+    // No model or provider identifiers of any kind: the abstraction is the band.
+    assert.deepEqual(offenders(reuseSources, /\bmodelId\b|\bproviderId\b/), []);
+  });
+
+  it('IS NOT A SECOND SAVINGS LEDGER', () => {
+    // Part 6B supplies a `ValidatedPriorOutput` and Part 6A does the accounting.
+    // A savings record built here would be a second partition of the same gap,
+    // and the two would eventually both be counted.
+    // Stripped, because `avoidedCallLedger.ts` explains at length WHY it must
+    // not build a savings record — and scanning the raw text would make the
+    // explanation the violation.
+    assert.deepEqual(
+      strippedOffenders(
+        reuseSources,
+        /buildSavingsRecord|reconcileSavings|SavingsWeight|estimateBaselineCost/,
+      ),
+      [],
+      'the reuse tree builds or reconciles a savings record',
+    );
+    // The one place Part 6B may compute an avoided figure reads it from a plan.
+    const ledger = reuseSources.find((file) =>
+      file.path.includes(join('accounting', 'avoidedCallLedger.ts')),
+    );
+    assert.ok(ledger, 'the avoided-call ledger must exist');
+    assert.match(ledger.text, /plan\.baseline\.baselineEstimatedCostMicroUsd/);
+    assert.match(ledger.text, /reuse_attribution_conflict/);
+
+    // THE FRAUD THE WHOLE SUBSYSTEM IS EXPOSED TO: counting what the source
+    // generation cost as newly avoided cost. The field exists for provenance and
+    // nothing sums it — asserted on the code, with comments stripped, because
+    // the file explains at length why it must not be summed.
+    assert.deepEqual(
+      strippedOffenders(reuseSources, /\+=\s*[a-z.]*sourceOriginalCostMicroUsd/i),
+      [],
+      'a source generation cost is being summed into an avoided total',
+    );
+    assert.deepEqual(
+      strippedOffenders(reuseSources, /costAvoidedMicroUsd:\s*[a-z.]*originalActual/i),
+      [],
+      'an avoided cost is being taken from a source generation cost',
+    );
+  });
+
+  it('DERIVES NO BASELINE AND NO SAVING FROM A TARGET', () => {
+    assert.deepEqual(
+      strippedOffenders(reuseSources, /\/\s*\(\s*1\s*-\s*[a-z_.]*(target|savings|desired)/i),
+      [],
+      'a figure is being derived from a savings target',
+    );
+  });
+
+  it('ADDS NO EMBEDDING PROVIDER, NO MODEL AND NO ML ROUTING', () => {
+    // The design finding, asserted rather than asserted-in-prose: this repository
+    // has no certified embedding or retrieval path, and Part 6B does not add one.
+    // A model call to decide whether a model call can be avoided would be a
+    // second AI execution path with none of the governance the first one has.
+    const EMBEDDING =
+      /embed(ding)?\s*\(|createEmbedding|embeddings\.|vectorStore|vectorSearch|pgvector|cosineSimilarity|dotProduct|\bknn\b|nearestNeighbou?r/i;
+    assert.deepEqual(
+      strippedOffenders(reuseSources, EMBEDDING),
+      [],
+      'an embedding or vector search primitive appears in the reuse tree',
+    );
+    // Discovery scores DECLARED LABELS with set arithmetic. Nothing learned.
+    const port = reuseSources.find((file) =>
+      file.path.includes(join('discovery', 'semanticDiscoveryPort.ts')),
+    );
+    assert.ok(port, 'the semantic discovery port must exist');
+    assert.match(port.text, /export interface SemanticReuseDiscoveryPort/);
+    assert.match(port.text, /declaredFeatureSimilarity/);
+  });
+
+  it('reaches a reuse hit through exactly one gate', () => {
+    // Every path to reuse runs through `evaluateReuseEligibility`. A second
+    // decision function would be a second definition of "still valid", and the
+    // looser one would be the one a caller reached for.
+    const gate = reuseSources.find((file) =>
+      file.path.includes(join('engine', 'eligibilityGate.ts')),
+    );
+    assert.ok(gate, 'the eligibility gate must exist');
+    const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR) && !isTest(file));
+    const defining = aiSources
+      .filter((file) => /export function evaluateReuseEligibility/.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(defining, [relative(SERVER_ROOT, gate.path)]);
+
+    // The pipeline is the only caller, and it cannot reach a hit without one.
+    const pipeline = reuseSources.find((file) =>
+      file.path.includes(join('engine', 'reuseDecisionPipeline.ts')),
+    );
+    assert.ok(pipeline, 'the reuse decision pipeline must exist');
+    assert.equal(
+      (stripComments(pipeline.text).match(/contractValidated:\s*true/g) ?? []).length,
+      1,
+      'a validated prior output is minted in more than one place',
+    );
+    // `contractValidated: true` is set from the gate's verdict and nowhere else
+    // in the AI tree — that flag is the whole difference between "the caller
+    // says this is valid" and "the gate established that it is".
+    assert.deepEqual(
+      strippedOffenders(
+        aiSources.filter((file) => file !== pipeline),
+        /contractValidated:\s*true/,
+      ),
+      [],
+      'a module outside the reuse pipeline mints a validated prior output',
+    );
+  });
+
+  it('exposes no way to delete a reusable result or clear an invalidation', () => {
+    // An invalidated record is unusable and still readable: the evidence behind
+    // any avoided-call accounting that cited it has to outlive its usefulness.
+    // The absence of a writer IS the guarantee.
+    const MUTATION =
+      /\b(deleteReusableResult|removeReusableResult|purgeReusableResult|clearInvalidation|revalidate|reviveReusableResult|extendExpiry|refreshExpiry|touchReusableResult)\b/;
+    assert.deepEqual(offenders(reuseSources, MUTATION), []);
+
+    // And no read path recomputes an expiry. A sliding window would make a
+    // popular wrong answer live forever, and popularity is not evidence.
+    const stores = reuseSources.filter((file) => file.path.includes(`persistence${sep}`));
+    assert.equal(stores.length, 2, 'both persistence modules must exist');
+    assert.deepEqual(
+      strippedOffenders(stores, /expiresAt:\s*(?!record\.expiresAt)/),
+      [],
+      'a store writes an expiry',
+    );
+  });
+
+  it('keeps the reuse layer out of the Part 6A tree, and Part 6A pure', () => {
+    // Part 6A holds no store and no clock, and Part 6B needs both. Keeping them
+    // in separate trees is what lets the Part 6A scan keep asserting purity —
+    // a cache inside `optimization/` would have forced that assertion to be
+    // relaxed, and a relaxed assertion protects nothing.
+    const optimizationSources = serverSources.filter(
+      (file) => file.path.startsWith(OPTIMIZATION_DIR) && !isTest(file),
+    );
+    assert.deepEqual(
+      offenders(optimizationSources, /from\s+['"][^'"]*reuse\//),
+      [],
+      'the cost compression tree imports the reuse tree',
+    );
+    // The dependency runs one way: reuse reads Part 6A's contracts, never the
+    // reverse, so Part 6A remains reviewable without reading Part 6B.
+    const gate = reuseSources.find((file) =>
+      file.path.includes(join('engine', 'eligibilityGate.ts')),
+    );
+    assert.ok(gate);
+    assert.match(gate.text, /optimization\/contracts\/compression\.ts/);
+  });
+
+  it('scopes every store method and every invalidation to one organization', () => {
+    // Cross-tenant reuse is not a policy this platform enforces — it is a query
+    // this platform cannot express. Asserted on the port, because a method
+    // without an organization parameter is a method that will eventually be
+    // called without one.
+    const ports = reuseSources.find((file) => file.path.includes(join('persistence', 'ports.ts')));
+    assert.ok(ports, 'the reuse storage port must exist');
+    const contract = ports.text.slice(
+      ports.text.indexOf('export interface ReusableResultStore'),
+      ports.text.indexOf('export const DEFAULT_CANDIDATE_LIMIT'),
+    );
+    assert.ok(contract.length > 200, 'the store interface must be found');
+    for (const method of ['getById', 'findExact', 'invalidate', 'listByDependency']) {
+      assert.match(
+        contract,
+        new RegExp(`${method}\\([\\s\\S]{0,40}organizationId`),
+        `${method} must take an organization`,
+      );
+    }
+    assert.match(contract, /findCandidates\(query: ReuseCandidateQuery\)/);
+    assert.match(ports.text, /interface ReuseCandidateQuery[\s\S]{0,200}readonly organizationId: string;/);
+  });
+
+  it('holds no clock and no randomness — every reuse decision is reproducible', () => {
+    // A reuse decision that cannot be reproduced from its inputs cannot be
+    // explained after an incident. Times arrive as numbers on the request, so a
+    // verdict is a pure function of a record and a request.
+    assert.deepEqual(
+      offenders(reuseSources, /\bMath\.random\s*\(|\bcrypto\.getRandomValues\s*\(/),
+      [],
+    );
+    assert.deepEqual(
+      strippedOffenders(reuseSources, /\bDate\.now\s*\(|new\s+Date\s*\(/),
+      [],
+      'the reuse tree reads a clock instead of taking a time',
+    );
+    const SCHEDULING = /setTimeout\s*\(|setInterval\s*\(|Deno\.cron|new\s+Worker\s*\(|queueMicrotask\s*\(/;
+    assert.deepEqual(offenders(reuseSources, SCHEDULING), []);
+  });
+
+  it('reuses the existing storage primitives rather than adding a second stack', () => {
+    // No new migration and no second database architecture for caching. The
+    // durable store uses the same tenant-scoped key builder and the same
+    // field-named compare-and-swap contract the agent and workflow stores use.
+    const kv = reuseSources.find((file) =>
+      file.path.includes(join('persistence', 'kvReusableResultStore.ts')),
+    );
+    assert.ok(kv, 'the durable reuse store must exist');
+    assert.match(kv.text, /tenantScopedKey/);
+    assert.match(kv.text, /isolationKeyFor/);
+    assert.match(kv.text, /compareAndSwap\(key, VERSION_FIELD, 0,/);
+    assert.deepEqual(
+      offenders(reuseSources, /createClient\s*\(|new\s+Pool\s*\(|\bredis\b|\bmemcached\b/i),
+      [],
+      'the reuse tree opens its own storage stack',
+    );
+  });
+
+  it('adds no HTTP route, dashboard, admin surface or financial intelligence', () => {
+    const SURFACE = /\bapp\.(get|post|put|patch|delete)\s*\(|new\s+Hono\s*\(|Response\s*\(/;
+    assert.deepEqual(offenders(reuseSources, SURFACE), []);
+    for (const directory of ['http', 'routes', 'admin', 'financial']) {
+      assert.equal(
+        existsSync(join(SERVER_ROOT, 'ai', 'reuse', directory)),
+        false,
+        `Part 6B ships no ${directory} surface`,
+      );
+    }
+    // Financial Intelligence is Part 6C. `metrics/` produces the figures it will
+    // read and produces nothing else.
+    assert.deepEqual(
+      strippedOffenders(reuseSources, /optimizationScore|financialIntelligence|dashboard/i),
+      [],
     );
   });
 });
