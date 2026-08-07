@@ -8,6 +8,13 @@
  *
  *   org:{org}:ai:workflow_run:{workflowRunId}
  *   org:{org}:ai:workflow_checkpoint:{workflowRunId}:{version padded to 6}
+ *   org:{org}:ai:workflow_approval:{workflowApprovalId}
+ *
+ * The approval key is scoped by ORGANIZATION and not by run, and that is what
+ * makes an operator queue a single prefix scan rather than a walk of every run
+ * a tenant has. The run id is inside the approval id and on the record, so
+ * "this run's approvals" is still answerable — it is simply not the access
+ * pattern the key is shaped for, because it is not the one an approver uses.
  *
  * Checkpoint versions are zero-padded so a lexicographic prefix scan returns
  * them in numeric order. Without the padding, version 10 sorts before version 2
@@ -36,8 +43,19 @@
 
 import type { WorkflowRunRecord } from '../contracts/run.ts';
 import type { WorkflowCheckpoint } from '../contracts/checkpoint.ts';
-import type { WorkflowCheckpointStore, WorkflowRunStore } from './ports.ts';
-import { boundedLimit, matchesWorkflowRunQuery, sortWorkflowRuns } from './ports.ts';
+import type { WorkflowApprovalRecord } from '../contracts/approval.ts';
+import type {
+  WorkflowApprovalStore,
+  WorkflowCheckpointStore,
+  WorkflowRunStore,
+} from './ports.ts';
+import {
+  boundedLimit,
+  matchesWorkflowApprovalQuery,
+  matchesWorkflowRunQuery,
+  sortWorkflowApprovals,
+  sortWorkflowRuns,
+} from './ports.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 import { isolationKeyFor, tenantScopedKey } from '../../security/tenancy.ts';
 
@@ -60,10 +78,15 @@ export type KvWorkflowConditionalWriter = (
   value: unknown,
 ) => Promise<boolean>;
 
-const NAMESPACE = { run: 'workflow_run', checkpoint: 'workflow_checkpoint' } as const;
+const NAMESPACE = {
+  run: 'workflow_run',
+  checkpoint: 'workflow_checkpoint',
+  approval: 'workflow_approval',
+} as const;
 const SCHEMA = {
   run: 'ai.workflow.run.v1',
   checkpoint: 'ai.workflow.checkpoint.v1',
+  approval: 'ai.workflow.approval.v1',
 } as const;
 
 const CHECKPOINT_VERSION_WIDTH = 6;
@@ -78,6 +101,17 @@ export function workflowRunKeyFor(organizationId: string, workflowRunId: string)
 
 export function workflowRunPrefixFor(organizationId: string): string {
   return tenantScopedKey(scope(organizationId), NAMESPACE.run, 'x').slice(0, -1);
+}
+
+export function workflowApprovalKeyFor(
+  organizationId: string,
+  workflowApprovalId: string,
+): string {
+  return tenantScopedKey(scope(organizationId), NAMESPACE.approval, workflowApprovalId);
+}
+
+export function workflowApprovalPrefixFor(organizationId: string): string {
+  return tenantScopedKey(scope(organizationId), NAMESPACE.approval, 'x').slice(0, -1);
 }
 
 export function workflowCheckpointKeyFor(
@@ -306,6 +340,115 @@ export function createKvWorkflowCheckpointStore(
       // the two orders agree, and relying on that agreement without asserting it
       // would make "the latest checkpoint" depend on a key-format detail.
       return checkpoints.sort((a, b) => a.version - b.version);
+    },
+  };
+}
+
+// ── Approvals ───────────────────────────────────────────────────────────────
+
+/**
+ * Durable approval storage (AI-01 Batch 3B, Part 5).
+ *
+ * Read-modify-write under the same field-named compare-and-swap the run store
+ * uses, on the approval's OWN `approvalVersion`. That single choice is what
+ * makes "single use" a guarantee rather than an intention: two advances racing
+ * to spend one approved request both read version N and both try to write N+1,
+ * and the storage layer lets exactly one of them win. The loser is told the
+ * approval moved, re-reads, and finds it consumed.
+ *
+ * `create` uses expected version 0 — insert-if-absent — so a recomputed
+ * deterministic id never silently overwrites a decision somebody has already
+ * made or is about to.
+ *
+ * NO NEW MIGRATION, for the reason stated at the top of this file: the contract
+ * this needs is exactly the contract that already exists.
+ */
+export function createKvWorkflowApprovalStore(
+  options: KvWorkflowStoreOptions,
+): WorkflowApprovalStore {
+  function parse(raw: unknown, key: string): WorkflowApprovalRecord | undefined {
+    const record = coerce(raw);
+    if (!record) {
+      options.onCorrupt?.(key, 'stored workflow approval is not a readable object');
+      return undefined;
+    }
+    // Structural sanity only. A record that does not carry its identity, its
+    // tenant and its version cannot be safely written back, and guessing the
+    // missing parts would produce an approval whose single-use guarantee is
+    // meaningless.
+    if (
+      typeof record.approvalVersion !== 'number' ||
+      typeof record.approvalState !== 'string' ||
+      typeof record.workflowApprovalId !== 'string' ||
+      typeof record.workflowRunId !== 'string' ||
+      typeof record.organizationId !== 'string'
+    ) {
+      options.onCorrupt?.(key, 'stored workflow approval is missing its identity or version');
+      return undefined;
+    }
+    return record as unknown as WorkflowApprovalRecord;
+  }
+
+  return {
+    async load(organizationId, workflowApprovalId) {
+      const key = workflowApprovalKeyFor(organizationId, workflowApprovalId);
+      const record = parse(await options.read(key), key);
+      // Belt and braces: the key already scopes the read, and the record is
+      // checked against the caller's organization anyway. "The key was right"
+      // and "this belongs to this tenant" are different claims.
+      if (record && record.organizationId !== organizationId) {
+        options.onCorrupt?.(key, 'stored workflow approval does not match the key it came from');
+        return undefined;
+      }
+      return record;
+    },
+
+    async create(record) {
+      const key = workflowApprovalKeyFor(record.organizationId, record.workflowApprovalId);
+      const won = await options.compareAndSwap(key, 'approvalVersion', 0, {
+        ...record,
+        _schema: SCHEMA.approval,
+      });
+      if (!won) {
+        throw workflowFailure(
+          'workflow_approval_conflict',
+          'That approval has already been requested.',
+          {
+            workflowRunId: record.workflowRunId,
+            nodeId: record.nodeId,
+            diagnostics: `approval id ${record.workflowApprovalId} is already taken`,
+          },
+        );
+      }
+    },
+
+    async save(record, expectedVersion) {
+      const key = workflowApprovalKeyFor(record.organizationId, record.workflowApprovalId);
+      const won = await options.compareAndSwap(key, 'approvalVersion', expectedVersion, {
+        ...record,
+        _schema: SCHEMA.approval,
+      });
+      if (!won) {
+        throw workflowFailure(
+          'stale_workflow_approval',
+          'This approval has changed since it was read.',
+          {
+            workflowRunId: record.workflowRunId,
+            diagnostics: `compare-and-swap lost at version ${expectedVersion}`,
+          },
+        );
+      }
+    },
+
+    async list(query) {
+      const prefix = workflowApprovalPrefixFor(query.organizationId);
+      const rows = await options.readByPrefix(prefix);
+      const records: WorkflowApprovalRecord[] = [];
+      for (const row of rows) {
+        const record = parse(row, prefix);
+        if (record && matchesWorkflowApprovalQuery(record, query)) records.push(record);
+      }
+      return sortWorkflowApprovals(records).slice(0, boundedLimit(query.limit));
     },
   };
 }

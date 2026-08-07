@@ -382,10 +382,14 @@ function branchBodyProblems(options: {
       problems.push(`${label}: reaches unknown node ${nodeId}`);
       return;
     }
-    if (node.kind !== 'agent' && node.kind !== 'condition') {
+    // Agent, condition and — from Part 5 — approval. A branch may stop for a
+    // person; what it may not do is fan out again, because a group's identity
+    // is `run + parallel node` with no visit counter and nesting would make
+    // branch identities unrecomputable by a recovering isolate.
+    if (node.kind !== 'agent' && node.kind !== 'condition' && node.kind !== 'approval') {
       problems.push(
-        `${label}: reaches ${node.kind} node ${nodeId} — a branch body holds agent and ` +
-          'condition nodes only, and parallelism does not nest in this batch',
+        `${label}: reaches ${node.kind} node ${nodeId} — a branch body holds agent, ` +
+          'condition and approval nodes only, and parallelism does not nest in this batch',
       );
       return;
     }
@@ -407,8 +411,11 @@ function branchBodyProblems(options: {
     for (const edge of incoming.get(nodeId) ?? []) {
       if (edge.from === parallelNodeId) continue;
       const from = byId.get(edge.from);
-      if (from && (from.kind === 'agent' || from.kind === 'condition') &&
-        owner.get(edge.from) === ownerKey) {
+      if (
+        from &&
+        (from.kind === 'agent' || from.kind === 'condition' || from.kind === 'approval') &&
+        owner.get(edge.from) === ownerKey
+      ) {
         continue;
       }
       problems.push(

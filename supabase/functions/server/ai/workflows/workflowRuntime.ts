@@ -44,8 +44,13 @@ import type { AIAuthenticator, AuthenticatedSubject } from '../security/actor.ts
 import type { OrganizationResolutionOptions } from '../security/tenancy.ts';
 import type { AgentRuntime } from '../agents/agentRuntime.ts';
 import type { WorkflowDefinition } from './contracts/workflow.ts';
-import type { WorkflowCheckpointStore, WorkflowRunStore } from './persistence/ports.ts';
+import type {
+  WorkflowApprovalStore,
+  WorkflowCheckpointStore,
+  WorkflowRunStore,
+} from './persistence/ports.ts';
 import type { WorkflowRegistry } from './registry/workflowRegistry.ts';
+import type { WorkflowApprovalGate } from './approvals/workflowApprovalGate.ts';
 import type {
   WorkflowAgentPort,
 } from './engine/agentNodePort.ts';
@@ -60,9 +65,11 @@ import { systemIdFactory } from '../contracts/ids.ts';
 import { createMetrics } from '../observability/metrics.ts';
 import { createWorkflowRegistry } from './registry/workflowRegistry.ts';
 import {
+  createMemoryWorkflowApprovalStore,
   createMemoryWorkflowCheckpointStore,
   createMemoryWorkflowRunStore,
 } from './persistence/ports.ts';
+import { createWorkflowApprovalGate } from './approvals/workflowApprovalGate.ts';
 import { createAgentRuntimeNodePort } from './engine/agentNodePort.ts';
 import { createWorkflowOrchestrator } from './engine/workflowOrchestrator.ts';
 import { createWorkflowRuntimeService } from './service/workflowRuntimeService.ts';
@@ -79,6 +86,7 @@ export interface WorkflowRuntimeOptions {
   /** Durable stores. Omitted, the runtime is isolate-local — tests only. */
   readonly runStore?: WorkflowRunStore;
   readonly checkpointStore?: WorkflowCheckpointStore;
+  readonly approvalStore?: WorkflowApprovalStore;
   readonly clock?: Clock;
   readonly ids?: IdFactory;
   readonly logger?: Logger;
@@ -95,6 +103,16 @@ export interface WorkflowRuntime {
   readonly service: WorkflowRuntimeService;
   readonly runs: WorkflowRunStore;
   readonly checkpoints: WorkflowCheckpointStore;
+  readonly approvalStore: WorkflowApprovalStore;
+  /**
+   * The approval gate.
+   *
+   * Exposed so an operator surface can read the queue and so the service can
+   * record a decision. Note what is NOT exposed: the engine's own use of it.
+   * There is one gate, both paths go through it, and the single-use guarantee
+   * is a property of the store beneath it rather than of who called.
+   */
+  readonly approvals: WorkflowApprovalGate;
   readonly agents: WorkflowAgentPort;
   /** The administrative and health facts the engine reads per advance. */
   state(): WorkflowRuntimeState;
@@ -138,6 +156,11 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
 
   const runs = options.runStore ?? createMemoryWorkflowRunStore();
   const checkpoints = options.checkpointStore ?? createMemoryWorkflowCheckpointStore();
+  const approvalStore = options.approvalStore ?? createMemoryWorkflowApprovalStore();
+  // ONE GATE, shared by the engine and the service. Two would be two writers
+  // to one store with two ideas about single use, and the compare-and-swap
+  // beneath them would be the only thing keeping them honest.
+  const approvals = createWorkflowApprovalGate({ store: approvalStore, clock });
   const agents =
     options.agentPort ?? createAgentRuntimeNodePort(options.agentRuntime.orchestrator);
 
@@ -145,6 +168,7 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     registry,
     runs,
     checkpoints,
+    approvals,
     agents,
     clock,
     ids,
@@ -157,6 +181,7 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     orchestrator,
     registry,
     runs,
+    approvals,
     authenticator: options.authenticator,
     organizationOptions: options.organizationOptions,
     clock,
@@ -172,7 +197,17 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     logger.warn('ai.workflow.registry.issue', { issue });
   }
 
-  return { registry, orchestrator, service, runs, checkpoints, agents, state };
+  return {
+    registry,
+    orchestrator,
+    service,
+    runs,
+    checkpoints,
+    approvalStore,
+    approvals,
+    agents,
+    state,
+  };
 }
 
 /**

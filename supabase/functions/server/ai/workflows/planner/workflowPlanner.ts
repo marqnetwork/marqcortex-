@@ -77,10 +77,12 @@ import type {
 import {
   WORKFLOW_BOUNDS,
   isAgentNode,
+  isApprovalNode,
   isJoinNode,
   isParallelNode,
 } from '../contracts/workflow.ts';
 import { isAgentStep, isParallelStep } from '../contracts/plan.ts';
+import { resolveRetryPolicy } from '../runtime/retryPolicy.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 import { validateWorkflowDefinition } from '../validation/workflowValidation.ts';
 import type { WorkflowValidationOptions } from '../validation/workflowValidation.ts';
@@ -504,12 +506,33 @@ function buildSteps(
       ...(loop === undefined ? {} : { loop }),
     };
 
+    if (isApprovalNode(node)) {
+      return {
+        ...base,
+        kind: 'approval' as const,
+        approverRoles: node.approverRoles,
+        reason: node.reason,
+        impactSummary: node.impactSummary,
+        expiresAfterMs: node.expiresAfterMs,
+        onRejection: node.onRejection,
+        // Absent means zero, resolved here so the engine and the gate never
+        // branch on absence. See `contracts/approval.ts` for why these are
+        // declared figures rather than computed ones.
+        estimatedAdditionalTokens: node.estimatedAdditionalTokens ?? 0,
+        estimatedAdditionalCostMicroUsd: node.estimatedAdditionalCostMicroUsd ?? 0,
+        ...(out[0] === undefined ? {} : { nextNodeId: out[0].to }),
+      };
+    }
+
     if (isAgentNode(node)) {
       return {
         ...base,
         kind: 'agent' as const,
         agentId: node.agentId,
         maxAttempts: node.maxAttempts,
+        // Resolved once, here, so the engine reads one shape at every failure
+        // and the digest records the policy a reviewer approved.
+        retryPolicy: resolveRetryPolicy(node.retryPolicy),
         ...(node.inputMapping === undefined ? {} : { inputMapping: node.inputMapping }),
         ...(node.inputContract === undefined ? {} : { inputContract: node.inputContract }),
         ...(node.outputMapping === undefined ? {} : { outputMapping: node.outputMapping }),
@@ -686,6 +709,7 @@ function computeMetadata(
     conditionNodeCount: steps.filter((step) => step.kind === 'condition').length,
     parallelNodeCount: parallelSteps.length,
     joinNodeCount: steps.filter((step) => step.kind === 'join').length,
+    approvalNodeCount: steps.filter((step) => step.kind === 'approval').length,
     maxBranchCount: parallelSteps.reduce(
       (widest, step) => Math.max(widest, step.branches.length),
       0,

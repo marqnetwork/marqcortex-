@@ -46,12 +46,17 @@ export type WorkflowRuntimeCapability =
   | 'workflow.run.control'
   /** Read the workflow registry and its plans. */
   | 'workflow.registry.read'
+  /** Read the approval queue for the actor's organization (Part 5). */
+  | 'workflow.approval.read'
+  /** Answer an approval request (Part 5). */
+  | 'workflow.approval.decide'
   /** Read runs across every organization. The platform operator only. */
   | 'workflow.run.read.platform';
 
 const READER: readonly WorkflowRuntimeCapability[] = [
   'workflow.run.read',
   'workflow.registry.read',
+  'workflow.approval.read',
 ];
 
 const OPERATOR: readonly WorkflowRuntimeCapability[] = [
@@ -61,25 +66,48 @@ const OPERATOR: readonly WorkflowRuntimeCapability[] = [
 ];
 
 /**
+ * The capability to ANSWER an approval, held separately from the capability to
+ * start a run (AI-01 Batch 3B, Part 5).
+ *
+ * `consultant` and `analyst` are operators and do not have it. That is a
+ * deliberate separation of duties: somebody who starts a workflow should not be
+ * the person who waves its approval gate through, and a grant table that gave
+ * every operator both would make every approval node in the platform a formality
+ * the requester could complete alone.
+ *
+ * It is not the only check. The gate ALSO requires one of the roles the approval
+ * NODE declared, resolved server-side — so holding this capability lets a person
+ * reach the queue, and the workflow's own definition decides which requests in
+ * it they may answer.
+ */
+const APPROVER: readonly WorkflowRuntimeCapability[] = ['workflow.approval.decide'];
+
+/**
  * Role → capability grants.
  *
  * Deliberately the same shape as `AGENT_ROLE_CAPABILITIES`, including the
- * judgement that `reviewer` reads but does not start. A reviewer who could
- * start a workflow would be starting agent runs it may then be asked to approve
- * — and would in any case be refused by the agent runtime at the first node,
- * which is a worse way to learn the same thing.
+ * judgement that `reviewer` reads and approves but does not start. A reviewer
+ * who could start a workflow would be starting agent runs it may then be asked
+ * to approve — and would in any case be refused by the agent runtime at the
+ * first node, which is a worse way to learn the same thing.
  */
 export const WORKFLOW_ROLE_CAPABILITIES: Readonly<
   Record<string, readonly WorkflowRuntimeCapability[]>
 > = {
-  super_admin: [...OPERATOR, 'workflow.run.read.platform'],
-  platform_admin: [...OPERATOR, 'workflow.run.read.platform'],
-  owner: [...OPERATOR],
-  admin: [...OPERATOR],
+  super_admin: [...OPERATOR, ...APPROVER, 'workflow.run.read.platform'],
+  platform_admin: [...OPERATOR, ...APPROVER, 'workflow.run.read.platform'],
+  owner: [...OPERATOR, ...APPROVER],
+  admin: [...OPERATOR, ...APPROVER],
   consultant: [...OPERATOR],
   analyst: [...OPERATOR],
-  reviewer: [...READER],
-  /** Machine actors invoked by platform jobs. */
+  reviewer: [...READER, ...APPROVER],
+  /**
+   * Machine actors invoked by platform jobs.
+   *
+   * NOT an approver, and this is the sharpest case for the separation: an
+   * approval exists to put a human in the path, and a service account that could
+   * answer one would be an automatic approval wearing a role name.
+   */
   service: [...READER, 'workflow.run.create', 'workflow.run.control'],
 };
 

@@ -44,6 +44,15 @@ import type {
   WorkflowBranchState,
   WorkflowParallelGroup,
 } from '../contracts/parallel.ts';
+import type {
+  WorkflowApprovalDecision,
+  WorkflowApprovalRecord,
+  WorkflowApprovalState,
+  WorkflowPendingApproval,
+  WorkflowRejectionPolicy,
+} from '../contracts/approval.ts';
+import type { WorkflowNodeAttempt } from '../contracts/retry.ts';
+import type { WorkflowApprovalGate } from '../approvals/workflowApprovalGate.ts';
 import type { WorkflowRegistry } from '../registry/workflowRegistry.ts';
 import type { WorkflowRunStore } from '../persistence/ports.ts';
 import type {
@@ -93,6 +102,18 @@ export interface WorkflowRunDetail extends WorkflowRunSummary {
   /** The join key into the agent runtime's own read models. */
   readonly childAgentRunIds: readonly string[];
   readonly pendingNode?: WorkflowRunRecord['pendingNode'];
+  /** The decision this run is parked on, if it is parked on one (Part 5). */
+  readonly pendingApproval?: WorkflowPendingApproval;
+  /**
+   * Attempt state per node, per line of execution (Part 5).
+   *
+   * Passed through whole: every field is a count, a bound, a classification or
+   * a timestamp the platform itself produced, and none of it is tenant content.
+   * This is what lets a console answer "why has this run not moved" — which is
+   * usually "it is waiting ninety seconds for attempt three" — without a second
+   * request.
+   */
+  readonly retries: readonly WorkflowNodeAttempt[];
   /** Every parallel step, open and closed, without any branch's outputs. */
   readonly parallelGroups: readonly WorkflowParallelGroupView[];
   readonly steps: readonly WorkflowStepRecord[];
@@ -125,9 +146,11 @@ export interface WorkflowBranchView {
   readonly pendingAgentRunId?: string;
   readonly resultDigest?: string;
   readonly failure?: string;
-  /** Always 0 in Part 4. See `contracts/parallel.ts`. */
+  /** The decision this branch is parked on, if any (Part 5). */
+  readonly pendingApproval?: WorkflowPendingApproval;
+  /** Always 0. See `contracts/parallel.ts`. */
   readonly tokensPlaceholder: number;
-  /** Always 0 in Part 4. See `contracts/parallel.ts`. */
+  /** Always 0. See `contracts/parallel.ts`. */
   readonly costMicroUsdPlaceholder: number;
 }
 
@@ -171,9 +194,100 @@ export function toWorkflowParallelGroupView(
         : { pendingAgentRunId: branch.pendingNode.agentRunId }),
       ...(branch.resultDigest === undefined ? {} : { resultDigest: branch.resultDigest }),
       ...(branch.failure === undefined ? {} : { failure: branch.failure }),
+      ...(branch.pendingApproval === undefined
+        ? {}
+        : { pendingApproval: branch.pendingApproval }),
       tokensPlaceholder: branch.tokensPlaceholder,
       costMicroUsdPlaceholder: branch.costMicroUsdPlaceholder,
     })),
+  };
+}
+
+/**
+ * An approval as a decider may see it (AI-01 Batch 3B, Part 5).
+ *
+ * NOTHING IS REMOVED, because there was nothing to remove. Look at what the
+ * record holds: identifiers, the definition-authored `reason` and
+ * `impactSummary`, declared estimates, roles, versions and timestamps. There is
+ * no node input, no node output, no merged value and no agent observation on a
+ * `WorkflowApprovalRecord`, and there is no field for one — see
+ * `contracts/approval.ts`.
+ *
+ * That is the design doing the work rather than this projection: an approval is
+ * read by whoever holds the approver role, which is a WIDER audience than the
+ * run itself, so the way to keep a tenant's business content off it is not to
+ * filter it here but never to put it there. A read model that had to strip
+ * fields would be one field away from forgetting to.
+ *
+ * The projection exists anyway, for the reason the run projections exist: the
+ * stored shape is free to gain an internal field, and a view that spreads the
+ * record would export it the day it appeared.
+ */
+export interface WorkflowApprovalView {
+  readonly workflowApprovalId: string;
+  readonly workflowRunId: string;
+  readonly organizationId: string;
+  readonly workflowId: string;
+  readonly nodeId: string;
+  readonly branchId?: string;
+  readonly branchName?: string;
+  readonly requestedBy: string;
+  readonly reason: string;
+  readonly impactSummary: string;
+  /** Placeholder. Always the declared figure, or zero. */
+  readonly estimatedAdditionalTokens: number;
+  /** Placeholder. Always the declared figure, or zero. */
+  readonly estimatedAdditionalCostMicroUsd: number;
+  readonly authorizedRoles: readonly string[];
+  readonly checkpointVersion: number;
+  readonly workflowRunVersion: number;
+  readonly branchVersion?: number;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly decidedAt?: string;
+  readonly decidedBy?: string;
+  readonly decision?: WorkflowApprovalDecision;
+  readonly decisionReason?: string;
+  readonly consumedAt?: string;
+  readonly singleUse: true;
+  readonly approvalState: WorkflowApprovalState;
+  readonly onRejection: WorkflowRejectionPolicy;
+  readonly approvalVersion: number;
+  readonly closureReason?: string;
+}
+
+export function toWorkflowApprovalView(
+  record: WorkflowApprovalRecord,
+): WorkflowApprovalView {
+  return {
+    workflowApprovalId: record.workflowApprovalId,
+    workflowRunId: record.workflowRunId,
+    organizationId: record.organizationId,
+    workflowId: record.workflowId,
+    nodeId: record.nodeId,
+    ...(record.branchId === undefined ? {} : { branchId: record.branchId }),
+    ...(record.branchName === undefined ? {} : { branchName: record.branchName }),
+    requestedBy: record.requestedBy,
+    reason: record.reason,
+    impactSummary: record.impactSummary,
+    estimatedAdditionalTokens: record.estimatedAdditionalTokens,
+    estimatedAdditionalCostMicroUsd: record.estimatedAdditionalCostMicroUsd,
+    authorizedRoles: record.authorizedRoles,
+    checkpointVersion: record.checkpointVersion,
+    workflowRunVersion: record.workflowRunVersion,
+    ...(record.branchVersion === undefined ? {} : { branchVersion: record.branchVersion }),
+    createdAt: record.createdAt,
+    expiresAt: record.expiresAt,
+    ...(record.decidedAt === undefined ? {} : { decidedAt: record.decidedAt }),
+    ...(record.decidedBy === undefined ? {} : { decidedBy: record.decidedBy }),
+    ...(record.decision === undefined ? {} : { decision: record.decision }),
+    ...(record.decisionReason === undefined ? {} : { decisionReason: record.decisionReason }),
+    ...(record.consumedAt === undefined ? {} : { consumedAt: record.consumedAt }),
+    singleUse: record.singleUse,
+    approvalState: record.approvalState,
+    onRejection: record.onRejection,
+    approvalVersion: record.approvalVersion,
+    ...(record.closureReason === undefined ? {} : { closureReason: record.closureReason }),
   };
 }
 
@@ -185,6 +299,8 @@ export interface WorkflowRuntimeOverview {
   readonly active: readonly WorkflowRunSummary[];
   readonly recentFailures: readonly WorkflowRunSummary[];
   readonly registeredWorkflows: number;
+  /** Requests waiting on a person in this organization (Part 5). */
+  readonly pendingApprovals: number;
   readonly capabilities: readonly WorkflowRuntimeCapability[];
   readonly generatedAt: string;
 }
@@ -230,6 +346,10 @@ export function toWorkflowRunDetail(record: WorkflowRunRecord): WorkflowRunDetai
     ...(record.resultDigest === undefined ? {} : { resultDigest: record.resultDigest }),
     childAgentRunIds: record.childAgentRunIds,
     ...(record.pendingNode === undefined ? {} : { pendingNode: record.pendingNode }),
+    ...(record.pendingApproval === undefined
+      ? {}
+      : { pendingApproval: record.pendingApproval }),
+    retries: record.retries ?? [],
     parallelGroups: (record.parallelGroups ?? []).map(toWorkflowParallelGroupView),
     steps: record.steps,
     transitions: record.transitions,
@@ -266,6 +386,28 @@ export interface WorkflowControlRequest extends WorkflowRunRequest {
   readonly reason: string;
 }
 
+/**
+ * A decision (AI-01 Batch 3B, Part 5).
+ *
+ * Note what a caller does NOT supply: who they are, what roles they hold, or
+ * which organization the approval belongs to. All three are resolved from the
+ * authenticated subject, which is the whole of "approval authority is resolved
+ * server-side" — there is no field on this request through which a caller could
+ * assert authority, so there is nothing to validate away.
+ */
+export interface WorkflowApprovalDecisionRequest extends WorkflowRequestMeta {
+  readonly workflowApprovalId: string;
+  readonly decision: WorkflowApprovalDecision;
+  readonly reason: string;
+}
+
+export interface WorkflowApprovalListRequest extends WorkflowRequestMeta {
+  /** Only requests that can still be decided. Defaults to true — it is a queue. */
+  readonly pendingOnly?: boolean;
+  readonly workflowRunId?: string;
+  readonly limit?: number;
+}
+
 export interface WorkflowRuntimeService {
   /** Create the run and drive it until it blocks, completes or fails. */
   startRun(request: StartWorkflowRunRequest): Promise<WorkflowRunDetail>;
@@ -283,12 +425,31 @@ export interface WorkflowRuntimeService {
   listWorkflows(request: WorkflowRequestMeta): Promise<readonly WorkflowDescriptor[]>;
   getPlan(request: WorkflowRequestMeta & { workflowId: string }): Promise<WorkflowPlan>;
   overview(request: WorkflowRequestMeta): Promise<WorkflowRuntimeOverview>;
+  /**
+   * Answer an approval (Part 5).
+   *
+   * Records the decision and returns. IT DOES NOT ADVANCE THE RUN, and the
+   * omission is deliberate: a decider is not necessarily permitted to drive
+   * workflow runs — `reviewer` holds `workflow.approval.decide` and not
+   * `workflow.run.create` — so advancing here would either execute agent runs
+   * under an actor who may not start them, or quietly require approvers to be
+   * operators. The run picks the decision up on its next advance, by reading
+   * the durable record.
+   */
+  decideApproval(request: WorkflowApprovalDecisionRequest): Promise<WorkflowApprovalView>;
+  /** The approval queue for the actor's organization. Oldest first. */
+  listApprovals(request: WorkflowApprovalListRequest): Promise<readonly WorkflowApprovalView[]>;
+  getApproval(
+    request: WorkflowRequestMeta & { workflowApprovalId: string },
+  ): Promise<WorkflowApprovalView>;
 }
 
 export interface WorkflowRuntimeServiceDependencies {
   readonly orchestrator: WorkflowOrchestrator;
   readonly registry: WorkflowRegistry;
   readonly runs: WorkflowRunStore;
+  /** The SAME gate the engine holds. See `workflowRuntime.ts`. */
+  readonly approvals: WorkflowApprovalGate;
   readonly authenticator: AIAuthenticator;
   readonly organizationOptions: OrganizationResolutionOptions;
   readonly clock: Clock;
@@ -527,9 +688,63 @@ export function createWorkflowRuntimeService(
           .slice(0, 20)
           .map(toWorkflowRunSummary),
         registeredWorkflows: deps.registry.size(),
+        pendingApprovals: (await deps.approvals.pending(organizationId, 200)).length,
         capabilities: actor.capabilities,
         generatedAt: deps.clock.isoNow(),
       };
+    },
+
+    async decideApproval(request) {
+      const { actor } = await context(request);
+      requireWorkflowCapability(actor, 'workflow.approval.decide');
+
+      // THE ACTOR'S OWN ORGANIZATION, ALWAYS. A platform reader may READ another
+      // tenant's runs; nobody decides another tenant's approvals, at any role.
+      // A decision is an act on a tenant's work, and cross-tenant reads exist
+      // for operators to see what happened rather than to change it.
+      const decided = await deps.approvals.decide({
+        organizationId: actor.organization.organizationId,
+        workflowApprovalId: request.workflowApprovalId,
+        decision: request.decision,
+        reason: request.reason,
+        deciderId: actor.actorId,
+        // Resolved from the authenticated subject, never from the request.
+        deciderRoles: actor.roles,
+      });
+      return toWorkflowApprovalView(decided);
+    },
+
+    async listApprovals(request) {
+      const { actor } = await context(request);
+      requireWorkflowCapability(actor, 'workflow.approval.read');
+      const organizationId = workflowReadScopeFor(actor, request.organizationId);
+
+      // One query, both filters, so a caller who supplies a run id AND asks for
+      // the whole history gets exactly that rather than whichever of the two
+      // the implementation happened to apply first.
+      const records = await deps.approvals.list({
+        organizationId,
+        pendingOnly: request.pendingOnly !== false,
+        ...(request.workflowRunId === undefined
+          ? {}
+          : { workflowRunId: request.workflowRunId }),
+        ...(request.limit === undefined ? {} : { limit: request.limit }),
+      });
+      return records.map(toWorkflowApprovalView);
+    },
+
+    async getApproval(request) {
+      const { actor } = await context(request);
+      requireWorkflowCapability(actor, 'workflow.approval.read');
+      const organizationId = workflowReadScopeFor(actor, request.organizationId);
+      const record = await deps.approvals.get(organizationId, request.workflowApprovalId);
+      if (!record) {
+        throw workflowFailure('workflow_approval_not_found', 'That approval is not available.', {
+          diagnostics:
+            `organizationId=${organizationId} approval=${request.workflowApprovalId}`,
+        });
+      }
+      return toWorkflowApprovalView(record);
     },
   };
 

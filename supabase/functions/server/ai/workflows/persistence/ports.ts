@@ -6,7 +6,7 @@
  * and written to a store before anything acts on them, and a write that loses a
  * version race is refused rather than merged.
  *
- * TWO PORTS, TWO DIFFERENT CONTRACTS, AND THE DIFFERENCE IS THE POINT.
+ * THREE PORTS, THREE DIFFERENT CONTRACTS, AND THE DIFFERENCES ARE THE POINT.
  *
  *   Runs         Read-modify-write under optimistic concurrency. `save` carries
  *                the version it read; a mismatch is a typed conflict the caller
@@ -16,6 +16,15 @@
  *                already exists — not "last write wins", because a checkpoint
  *                that can be rewritten is not a point you can resume from with
  *                any confidence about what it contained.
+ *
+ *   Approvals    Read-modify-write, like runs, and separate from them because
+ *                the readers are different (AI-01 Batch 3B, Part 5). A decision
+ *                is made by somebody who is not driving the run, it is listed
+ *                in an operator queue that must not have to read every run
+ *                record to build itself, and it is written by a request that
+ *                touches nothing else. `create` is insert-if-absent so a
+ *                recomputed deterministic id is refused rather than
+ *                overwriting a pending decision.
  *
  * Part 2 shipped only the first, and argued correctly that its recoverable
  * state was small enough to live in the record. Part 3 changed the facts: node
@@ -30,6 +39,7 @@
 
 import type { WorkflowRunRecord, WorkflowRunState } from '../contracts/run.ts';
 import type { WorkflowCheckpoint } from '../contracts/checkpoint.ts';
+import type { WorkflowApprovalRecord } from '../contracts/approval.ts';
 import { workflowFailure } from '../contracts/failures.ts';
 
 /** Filter for a run listing. Every field narrows; none widens. */
@@ -81,6 +91,42 @@ export interface WorkflowCheckpointStore {
   history(organizationId: string, workflowRunId: string): Promise<readonly WorkflowCheckpoint[]>;
 }
 
+/** Filter for an approval listing. Every field narrows; none widens. */
+export interface WorkflowApprovalQuery {
+  /** Required. There is no cross-tenant approval listing, by design. */
+  readonly organizationId: string;
+  readonly workflowRunId?: string;
+  /** The operator queue: requests that can still be decided. */
+  readonly pendingOnly?: boolean;
+  readonly limit?: number;
+}
+
+export interface WorkflowApprovalStore {
+  /** One approval, or undefined. Never another tenant's. */
+  load(
+    organizationId: string,
+    workflowApprovalId: string,
+  ): Promise<WorkflowApprovalRecord | undefined>;
+  /**
+   * Create an approval that does not exist. Refuses if the id is taken.
+   *
+   * The engine derives approval ids deterministically, so a duplicate is not a
+   * collision — it is a retried advance recomputing the id of a request it
+   * already made. Refusing rather than overwriting is what lets the gate tell
+   * those apart: it reads the existing record and adopts it if, and only if, it
+   * is still pending.
+   */
+  create(record: WorkflowApprovalRecord): Promise<void>;
+  /**
+   * Persist a decision. `expectedVersion` is the version the caller read.
+   * Throws `stale_workflow_approval` when the stored version has moved on —
+   * which is what makes two people deciding at once resolve to one decision
+   * rather than to a merge of two.
+   */
+  save(record: WorkflowApprovalRecord, expectedVersion: number): Promise<void>;
+  list(query: WorkflowApprovalQuery): Promise<readonly WorkflowApprovalRecord[]>;
+}
+
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 200;
 
@@ -102,6 +148,35 @@ export function matchesWorkflowRunQuery(
   if (query.workflowId && record.context.workflowId !== query.workflowId) return false;
   if (query.actorId && record.context.actorId !== query.actorId) return false;
   return true;
+}
+
+export function matchesWorkflowApprovalQuery(
+  record: WorkflowApprovalRecord,
+  query: WorkflowApprovalQuery,
+): boolean {
+  if (record.organizationId !== query.organizationId) return false;
+  if (query.workflowRunId && record.workflowRunId !== query.workflowRunId) return false;
+  if (query.pendingOnly && record.approvalState !== 'pending') return false;
+  return true;
+}
+
+/**
+ * OLDEST first, and this is the one listing in the batch that is not newest
+ * first.
+ *
+ * An approval queue is work, not history: the request that has been waiting
+ * longest is the one closest to expiring and the one holding a run up. Sorting
+ * it like an audit trail would put the newest question at the top and let the
+ * oldest quietly time out at the bottom of page four.
+ */
+export function sortWorkflowApprovals(
+  records: readonly WorkflowApprovalRecord[],
+): readonly WorkflowApprovalRecord[] {
+  return [...records].sort(
+    (a, b) =>
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.workflowApprovalId.localeCompare(b.workflowApprovalId),
+  );
 }
 
 /** Newest first. Stable: ties break on run id so paging is reproducible. */
@@ -248,6 +323,90 @@ export function createMemoryWorkflowCheckpointStore(): WorkflowCheckpointStore &
       records.set(keyOf(organizationId, workflowRunId, checkpoint.version), checkpoint);
     },
 
+    size: () => records.size,
+  };
+}
+
+/**
+ * Bounded in-memory approval store (AI-01 Batch 3B, Part 5).
+ *
+ * Same shape and same bounding argument as the run store: an isolate that
+ * accumulated one record per approval forever would be a memory leak with an
+ * SLA, and eviction is safe precisely because this store is not the authority
+ * in a deployment that has a durable one.
+ */
+export function createMemoryWorkflowApprovalStore(
+  options: { maxApprovals?: number } = {},
+): WorkflowApprovalStore & { clear(): void; size(): number } {
+  const maxApprovals = options.maxApprovals ?? 1_000;
+  const records = new Map<string, WorkflowApprovalRecord>();
+  const keyOf = (organizationId: string, workflowApprovalId: string) =>
+    `${organizationId}:${workflowApprovalId}`;
+
+  return {
+    load(organizationId, workflowApprovalId) {
+      return Promise.resolve(records.get(keyOf(organizationId, workflowApprovalId)));
+    },
+
+    create(record) {
+      const key = keyOf(record.organizationId, record.workflowApprovalId);
+      if (records.has(key)) {
+        return Promise.reject(
+          workflowFailure(
+            'workflow_approval_conflict',
+            'That approval has already been requested.',
+            {
+              workflowRunId: record.workflowRunId,
+              nodeId: record.nodeId,
+              diagnostics: `duplicate approval id ${record.workflowApprovalId}`,
+            },
+          ),
+        );
+      }
+      if (records.size >= maxApprovals) {
+        const oldest = records.keys().next().value;
+        if (oldest !== undefined) records.delete(oldest);
+      }
+      records.set(key, record);
+      return Promise.resolve();
+    },
+
+    save(record, expectedVersion) {
+      const key = keyOf(record.organizationId, record.workflowApprovalId);
+      const stored = records.get(key);
+      if (!stored) {
+        return Promise.reject(
+          workflowFailure('workflow_approval_not_found', 'That approval is not available.', {
+            workflowRunId: record.workflowRunId,
+            diagnostics: `approval ${record.workflowApprovalId} no longer exists`,
+          }),
+        );
+      }
+      if (stored.approvalVersion !== expectedVersion) {
+        return Promise.reject(
+          workflowFailure(
+            'stale_workflow_approval',
+            'This approval has changed since it was read.',
+            {
+              workflowRunId: record.workflowRunId,
+              diagnostics:
+                `expected version ${expectedVersion}, stored ${stored.approvalVersion}`,
+            },
+          ),
+        );
+      }
+      records.set(key, record);
+      return Promise.resolve();
+    },
+
+    list(query) {
+      const matched = [...records.values()].filter((record) =>
+        matchesWorkflowApprovalQuery(record, query),
+      );
+      return Promise.resolve(sortWorkflowApprovals(matched).slice(0, boundedLimit(query.limit)));
+    },
+
+    clear: () => records.clear(),
     size: () => records.size,
   };
 }

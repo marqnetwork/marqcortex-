@@ -44,6 +44,13 @@
  *                   where several lines of execution become one again, so what
  *                   leaves it is a single successor.
  *
+ *   APPROVAL NODE   at most ONE outgoing edge (Part 5). A barrier does not
+ *                   branch: "where does an approved run go" must have one
+ *                   answer, and what a REJECTION does is `onRejection` on the
+ *                   node rather than a second edge — an edge would make refusal
+ *                   look like an ordinary path through the workflow, which is
+ *                   the one thing it must never look like.
+ *
  * The result is that the number of successors a run takes from any node is
  * exactly one, EXCEPT at a parallel node, where it is exactly the number of
  * branches that node declared and the join is already named.
@@ -51,6 +58,7 @@
 
 import type {
   WorkflowAgentNode,
+  WorkflowApprovalNode,
   WorkflowConditionNode,
   WorkflowDefinition,
   WorkflowEdge,
@@ -64,8 +72,15 @@ import {
   WORKFLOW_NODE_ID_PATTERN,
   WORKFLOW_NODE_KINDS,
   WORKFLOW_VERSION_PATTERN,
+  isApprovalNode,
 } from '../contracts/workflow.ts';
 import { WORKFLOW_PARALLEL_BOUNDS } from '../contracts/parallel.ts';
+import {
+  WORKFLOW_APPROVAL_BOUNDS,
+  WORKFLOW_APPROVER_ROLE_PATTERN,
+  WORKFLOW_REJECTION_POLICIES,
+} from '../contracts/approval.ts';
+import { WORKFLOW_RETRY_BACKOFFS, WORKFLOW_RETRY_BOUNDS } from '../contracts/retry.ts';
 import type { ReferenceContext } from './expressionValidation.ts';
 import { validateExpression, validateMapping } from './expressionValidation.ts';
 import { validateParallelStructure } from './parallelValidation.ts';
@@ -177,6 +192,14 @@ function nodeProblems(
     problems.push(`nodes has ${nodes.length} entries, above the ceiling of ${bound.max}`);
   }
 
+  const approvals = nodes.filter((node) => node?.kind === 'approval').length;
+  if (approvals > WORKFLOW_BOUNDS.approvalNodes.max) {
+    problems.push(
+      `nodes declare ${approvals} approval nodes, above the ceiling of ` +
+        `${WORKFLOW_BOUNDS.approvalNodes.max}`,
+    );
+  }
+
   const seen = new Set<string>();
   for (const [index, node] of nodes.entries()) {
     const label = node?.nodeId ? `node ${node.nodeId}` : `node at index ${index}`;
@@ -201,7 +224,7 @@ function nodeProblems(
     if (!WORKFLOW_NODE_KINDS.includes(node.kind)) {
       problems.push(
         `${label}: kind ${String(node.kind)} is not supported — ` +
-          'this batch has agent, condition, parallel and join nodes',
+          'this batch has agent, condition, parallel, join and approval nodes',
       );
       continue;
     }
@@ -218,6 +241,11 @@ function nodeProblems(
     // what stops a parallel node being reported as an agent node missing an id.
     if (node.kind === 'parallel' || node.kind === 'join') continue;
 
+    if (isApprovalNode(node)) {
+      problems.push(...approvalNodeProblems(node, label));
+      continue;
+    }
+
     problems.push(
       ...(node.kind === 'condition'
         ? conditionNodeProblems(node, references, label)
@@ -226,6 +254,95 @@ function nodeProblems(
   }
 
   return problems;
+}
+
+/**
+ * An approval node is judged entirely on its governance, because governance is
+ * all it has: it names no agent, carries no mapping and produces no output.
+ *
+ * Every field below is one an approver depends on or one the platform enforces
+ * on their behalf, so every one of them is required rather than defaulted. A
+ * node that declared no approver roles would be an approval nobody could give;
+ * one that defaulted its roles to something sensible would be a workflow whose
+ * authority came from a constant instead of from a review.
+ */
+function approvalNodeProblems(node: WorkflowApprovalNode, label: string): string[] {
+  const problems: string[] = [];
+  const bounds = WORKFLOW_APPROVAL_BOUNDS;
+
+  const roles = node.approverRoles;
+  if (!Array.isArray(roles)) {
+    problems.push(`${label}: approverRoles must be an array`);
+  } else if (roles.length < bounds.approverRoles.min || roles.length > bounds.approverRoles.max) {
+    problems.push(
+      `${label}: approverRoles must name between ${bounds.approverRoles.min} and ` +
+        `${bounds.approverRoles.max} roles`,
+    );
+  } else {
+    for (const role of roles) {
+      if (typeof role !== 'string' || !WORKFLOW_APPROVER_ROLE_PATTERN.test(role)) {
+        problems.push(
+          `${label}: approver role ${String(role)} must be lower-case alphanumeric ` +
+            'with underscores',
+        );
+      }
+    }
+    if (new Set(roles).size !== roles.length) {
+      problems.push(`${label}: approverRoles contains a duplicate`);
+    }
+  }
+
+  problems.push(...textProblems(node.reason, bounds.reason, `${label}: reason`));
+  problems.push(
+    ...textProblems(node.impactSummary, bounds.impactSummary, `${label}: impactSummary`),
+  );
+
+  if (!Number.isInteger(node.expiresAfterMs)) {
+    problems.push(`${label}: expiresAfterMs must be an integer`);
+  } else if (
+    node.expiresAfterMs < bounds.expiresAfterMs.min ||
+    node.expiresAfterMs > bounds.expiresAfterMs.max
+  ) {
+    problems.push(
+      `${label}: expiresAfterMs must be between ${bounds.expiresAfterMs.min} and ` +
+        `${bounds.expiresAfterMs.max}`,
+    );
+  }
+
+  if (!WORKFLOW_REJECTION_POLICIES.includes(node.onRejection)) {
+    problems.push(
+      `${label}: onRejection must be one of ${WORKFLOW_REJECTION_POLICIES.join(', ')} — ` +
+        'what a refusal does is declared, never assumed',
+    );
+  }
+
+  for (const [field, value] of [
+    ['estimatedAdditionalTokens', node.estimatedAdditionalTokens],
+    ['estimatedAdditionalCostMicroUsd', node.estimatedAdditionalCostMicroUsd],
+  ] as const) {
+    if (value === undefined) continue;
+    if (!Number.isInteger(value) || value < bounds.estimate.min || value > bounds.estimate.max) {
+      problems.push(
+        `${label}: ${field} must be an integer between ${bounds.estimate.min} and ` +
+          `${bounds.estimate.max}`,
+      );
+    }
+  }
+
+  return problems;
+}
+
+function textProblems(
+  value: unknown,
+  bounds: { readonly min: number; readonly max: number },
+  label: string,
+): string[] {
+  if (typeof value !== 'string' || value.trim() === '') return [`${label} is empty`];
+  const length = value.trim().length;
+  if (length < bounds.min || length > bounds.max) {
+    return [`${label} must be between ${bounds.min} and ${bounds.max} characters`];
+  }
+  return [];
 }
 
 function agentNodeProblems(
@@ -248,6 +365,8 @@ function agentNodeProblems(
   } else if (node.maxAttempts < attempts.min || node.maxAttempts > attempts.max) {
     problems.push(`${label}: maxAttempts must be between ${attempts.min} and ${attempts.max}`);
   }
+
+  problems.push(...retryPolicyProblems(node, label));
 
   if (node.inputMapping !== undefined) {
     problems.push(...validateMapping(node.inputMapping, references, `${label}.inputMapping`));
@@ -281,6 +400,88 @@ function agentNodeProblems(
       `${label}: outputMapping needs an outputContract — ` +
         'a stored node output must have passed a declared schema to be trusted',
     );
+  }
+
+  return problems;
+}
+
+/**
+ * A declared retry policy has to agree with itself (AI-01 Batch 3B, Part 5).
+ *
+ * Two refusals, and both are about a field that reads as though it does
+ * something and does not:
+ *
+ *   A DELAY ON `immediate` would appear in a review as a wait that never
+ *   happens. `maxDelayMs` on `fixed_delay` is the same mistake — nothing grows,
+ *   so nothing is capped.
+ *
+ *   A POLICY THAT WAITS AND DECLARES NO DELAY would silently behave as
+ *   `immediate`, which is the opposite of what its author wrote down.
+ *
+ * A policy on a node whose `maxAttempts` is 1 is refused for the same family of
+ * reasons: it declares a backoff for retries that can never happen.
+ */
+function retryPolicyProblems(node: WorkflowAgentNode, label: string): string[] {
+  const policy = node.retryPolicy;
+  if (policy === undefined) return [];
+
+  const problems: string[] = [];
+  const bounds = WORKFLOW_RETRY_BOUNDS;
+
+  if (!WORKFLOW_RETRY_BACKOFFS.includes(policy.backoff)) {
+    return [
+      `${label}: retryPolicy.backoff must be one of ${WORKFLOW_RETRY_BACKOFFS.join(', ')}`,
+    ];
+  }
+
+  if (node.maxAttempts === 1) {
+    problems.push(
+      `${label}: retryPolicy is declared but maxAttempts is 1 — ` +
+        'a backoff for retries that cannot happen reads like a limit and is not one',
+    );
+  }
+
+  if (policy.backoff === 'immediate') {
+    if (policy.delayMs !== undefined) {
+      problems.push(`${label}: retryPolicy.delayMs is not permitted with immediate backoff`);
+    }
+    if (policy.maxDelayMs !== undefined) {
+      problems.push(`${label}: retryPolicy.maxDelayMs is not permitted with immediate backoff`);
+    }
+    return problems;
+  }
+
+  if (!Number.isInteger(policy.delayMs)) {
+    problems.push(`${label}: retryPolicy.delayMs must be an integer for ${policy.backoff} backoff`);
+  } else if (
+    (policy.delayMs as number) < bounds.delayMs.min ||
+    (policy.delayMs as number) > bounds.delayMs.max
+  ) {
+    problems.push(
+      `${label}: retryPolicy.delayMs must be between ${bounds.delayMs.min} and ` +
+        `${bounds.delayMs.max}`,
+    );
+  }
+
+  if (policy.backoff === 'fixed_delay' && policy.maxDelayMs !== undefined) {
+    problems.push(
+      `${label}: retryPolicy.maxDelayMs is not permitted with fixed_delay backoff — ` +
+        'a fixed delay does not grow, so there is nothing to cap',
+    );
+  }
+
+  if (policy.backoff === 'exponential' && policy.maxDelayMs !== undefined) {
+    if (!Number.isInteger(policy.maxDelayMs)) {
+      problems.push(`${label}: retryPolicy.maxDelayMs must be an integer`);
+    } else if (
+      policy.maxDelayMs < bounds.maxDelayMs.min ||
+      policy.maxDelayMs > bounds.maxDelayMs.max
+    ) {
+      problems.push(
+        `${label}: retryPolicy.maxDelayMs must be between ${bounds.maxDelayMs.min} and ` +
+          `${bounds.maxDelayMs.max}`,
+      );
+    }
   }
 
   return problems;
@@ -412,8 +613,11 @@ function successorProblems(
       `node ${nodeId} has ${edges.length} outgoing edges — ` +
         (kind === 'join'
           ? 'a join node takes exactly one successor'
-          : 'an agent node takes exactly one successor, and branching belongs to a condition ' +
-            'node or a parallel node'),
+          : kind === 'approval'
+            ? 'an approval node takes exactly one successor, and what a rejection does is ' +
+              'declared in onRejection rather than as a second edge'
+            : 'an agent node takes exactly one successor, and branching belongs to a condition ' +
+              'node or a parallel node'),
     );
   }
   return problems;

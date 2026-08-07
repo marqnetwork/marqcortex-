@@ -1,5 +1,5 @@
 /**
- * The Workflow Execution Engine (AI-01 Batch 3B, Parts 2, 3 and 4).
+ * The Workflow Execution Engine (AI-01 Batch 3B, Parts 2, 3, 4 and 5).
  *
  * Drives a workflow run along a plan, through the Batch 3A Agent Orchestrator.
  * It decides ORDER and DATA FLOW, and nothing else.
@@ -63,13 +63,54 @@
  * `joinedAt`, and `closeGroup` refuses to set it twice; both read durable state,
  * because a flag in isolate memory is `false` again in the next isolate.
  *
- * ── STILL NO RETRIES ───────────────────────────────────────────────────────
+ * ── APPROVALS (PART 5) ─────────────────────────────────────────────────────
  *
- * A node that fails fails its line of execution — the run for a main-line node,
- * the branch for a branch node — and what a failed branch does to its siblings
- * is the group's declared failure policy, not a decision this engine makes.
- * `maxAttempts` is carried on the plan and never spent, and a failed run is
- * restarted as a NEW run, never reopened.
+ * An approval node parks its line of execution on a durable decision. The
+ * ordering is the same three-phase discipline every other durable thing in this
+ * engine follows, and for the same reason:
+ *
+ *   1. WRITE the approval record. Durable, pending, and inert.
+ *   2. PERSIST the run — or the branch — carrying `pendingApproval`.
+ *   3. Do nothing. There is no third phase, because the next thing that happens
+ *      is a person deciding, through a completely different call path.
+ *
+ * An isolate that dies between 1 and 2 comes back, recomputes the approval's
+ * DETERMINISTIC id, finds its own pending request and adopts it — no second row
+ * in anybody's queue. One that dies between 2 and the decision loses nothing at
+ * all: the request is pending, the run is parked, and both are durable.
+ *
+ * RELEASING A PARKED RUN SPENDS THE APPROVAL FIRST, and the order is deliberate
+ * in the other direction from checkpoints: single-use is the stronger guarantee,
+ * so the consume is committed before the transition that benefits from it. A
+ * crash in between leaves an approval marked consumed and a run still parked,
+ * which the next advance recognises — and ONLY recognises — because the binding
+ * still matches exactly. Any real progress moves the checkpoint version, so
+ * there is no path by which a spent approval releases a run twice.
+ *
+ * THE ENGINE NEVER DECIDES. It requests, it reads, it spends. `decide` lives on
+ * the gate and is reached by a person through the service, which is why a
+ * decision survives an isolate that was never driving the run.
+ *
+ * ── RETRIES (PART 5) ───────────────────────────────────────────────────────
+ *
+ * A node that fails may be tried again, up to the `maxAttempts` its definition
+ * has carried since Part 1. A retry is A NEW CHILD AGENT RUN — never a second
+ * drive of a child that already reached a terminal state — and it happens only
+ * when `runtime/retryPolicy.ts` classifies the child's failure as transient.
+ * Authorization, policy, budget, invalid definitions, invalid transitions and
+ * approval rejections are decisions, and re-running a decision spends an agent
+ * run to reach the same conclusion.
+ *
+ * The attempt is incremented, the backoff stamp computed and the pending node
+ * cleared IN ONE VERSIONED WRITE with the failed step record. That is what
+ * stops a crash mid-retry from either double-counting an attempt or abandoning
+ * one. Nothing wakes a run up when a delay elapses — there is no scheduler in
+ * this batch — so a run whose next attempt is not yet due is handed back
+ * unchanged, having created nothing.
+ *
+ * What a failed branch does to its siblings is still the group's declared
+ * failure policy, retries are still branch-local, and a failed run is still
+ * restarted as a NEW run rather than reopened.
  *
  * ── LOOPS ARE BOUNDED IN TWO PLACES ────────────────────────────────────────
  *
@@ -109,9 +150,16 @@ import type {
 } from '../contracts/parallel.ts';
 import type {
   WorkflowAgentPlanStep,
+  WorkflowApprovalPlanStep,
   WorkflowConditionPlanStep,
   WorkflowParallelPlanStep,
 } from '../contracts/plan.ts';
+import type {
+  WorkflowApprovalBinding,
+  WorkflowApprovalRecord,
+} from '../contracts/approval.ts';
+import type { WorkflowNodeAttempt } from '../contracts/retry.ts';
+import type { WorkflowApprovalGate } from '../approvals/workflowApprovalGate.ts';
 import {
   MAX_WORKFLOW_TRANSITION_HISTORY,
   WORKFLOW_RUN_BOUNDS,
@@ -119,7 +167,7 @@ import {
 } from '../contracts/run.ts';
 import { WORKFLOW_CHECKPOINT_BOUNDS } from '../contracts/checkpoint.ts';
 import { WORKFLOW_PARALLEL_BOUNDS, isTerminalBranchState } from '../contracts/parallel.ts';
-import { isAgentStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
+import { isAgentStep, isApprovalStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
 import {
   WorkflowError,
   isWorkflowError,
@@ -127,6 +175,17 @@ import {
   workflowFailure,
 } from '../contracts/failures.ts';
 import { assertTransition } from '../runtime/workflowStateMachine.ts';
+import {
+  applyAttempt,
+  classifyChildFailure,
+  clearAttempt,
+  clearBranchAttempts,
+  currentAttempt,
+  findAttempt,
+  nextAttemptRecord,
+  retriesExhausted,
+  retryDelayRemainingMs,
+} from '../runtime/retryPolicy.ts';
 import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
 import { applyMapping } from '../runtime/mapper.ts';
 import {
@@ -180,6 +239,15 @@ export interface WorkflowOrchestratorDependencies {
   readonly registry: WorkflowRegistry;
   readonly runs: WorkflowRunStore;
   readonly checkpoints: WorkflowCheckpointStore;
+  /**
+   * The approval gate (AI-01 Batch 3B, Part 5).
+   *
+   * The engine holds the GATE, not the store. It requests, reads and spends;
+   * it has no method through which it could decide, which is what makes "the
+   * engine never approves anything" a property of the type rather than a rule
+   * somebody has to remember.
+   */
+  readonly approvals: WorkflowApprovalGate;
   readonly agents: WorkflowAgentPort;
   readonly clock: Clock;
   readonly ids: IdFactory;
@@ -279,7 +347,7 @@ interface AdvanceSession {
 export function createWorkflowOrchestrator(
   deps: WorkflowOrchestratorDependencies,
 ): WorkflowOrchestrator {
-  const { registry, runs, checkpoints, agents, clock, ids, logger, metrics } = deps;
+  const { registry, runs, checkpoints, approvals, agents, clock, ids, logger, metrics } = deps;
 
   // ── Small helpers ─────────────────────────────────────────────────────────
 
@@ -426,6 +494,8 @@ export function createWorkflowOrchestrator(
 
     const to = terminalStateFor(error.failure) ?? 'failed';
 
+    await withdrawApprovals(record, 'The run ended before this could be decided.');
+
     // An open parallel group is closed with the run. Its branch children are
     // not chased here — a run terminating on a typed failure may be doing so
     // because the store or the registry is unhappy, and a fan of remote
@@ -457,9 +527,49 @@ export function createWorkflowOrchestrator(
         // sitting on node three". What ran is in `steps`.
         currentNodeId: undefined,
         pendingNode: undefined,
+        pendingApproval: undefined,
         parallelGroups: groups,
       },
     });
+  }
+
+  /**
+   * Close every pending request a terminal run leaves behind.
+   *
+   * BEST EFFORT, and deliberately so. A run reaching a terminal state is the
+   * decision that matters; an approval store that will not accept the closure
+   * must not stop the run from ending, and the request expires on its own
+   * deadline regardless. Failures are logged rather than swallowed.
+   *
+   * Withdrawal is never approval — see `approvals/workflowApprovalGate.ts`. All
+   * this does is stop an undecidable question sitting at the top of a queue.
+   */
+  async function withdrawApprovals(
+    record: WorkflowRunRecord,
+    reason: string,
+  ): Promise<void> {
+    const pointers = [
+      record.pendingApproval,
+      ...(record.parallelGroups ?? []).flatMap((group) =>
+        group.branches.map((branch) => branch.pendingApproval),
+      ),
+    ].filter((pointer): pointer is NonNullable<typeof pointer> => pointer !== undefined);
+
+    for (const pointer of pointers) {
+      try {
+        const stored = await approvals.get(
+          record.context.organizationId,
+          pointer.workflowApprovalId,
+        );
+        if (stored) await approvals.withdraw(stored, reason);
+      } catch (error) {
+        logger.warn('ai.workflow.approval.withdraw_failed', {
+          workflowRunId: record.context.workflowRunId,
+          workflowApprovalId: pointer.workflowApprovalId,
+          diagnostics: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   /**
@@ -679,6 +789,7 @@ export function createWorkflowOrchestrator(
     }
 
     const nodeInput = buildNodeInput(record, step, data);
+    const attempt = currentAttempt(record.retries, step.nodeId);
 
     const handle = await agents.create({
       agentId: step.agentId,
@@ -698,17 +809,56 @@ export function createWorkflowOrchestrator(
       agentRunId: handle.agentRunId,
       startedAt: clock.isoNow(),
       sequence: step.index,
+      attempt,
     };
 
     return transition(record, {
       to: 'waiting_for_agent',
       operation: 'step',
-      reason: `Node ${step.nodeId} handed to ${step.agentId}.`,
+      reason:
+        attempt === 1
+          ? `Node ${step.nodeId} handed to ${step.agentId}.`
+          : `Node ${step.nodeId} handed to ${step.agentId} (attempt ${attempt}).`,
       actorId: input.actor.actorId,
       patch: {
         pendingNode,
         childAgentRunIds: [...record.childAgentRunIds, handle.agentRunId],
       },
+    });
+  }
+
+  /**
+   * May this node start its next attempt yet?
+   *
+   * Returns the milliseconds still to wait, which is zero for a node that has
+   * never failed and for every `immediate` policy. A positive number means the
+   * caller hands the run back untouched, having created nothing — see the
+   * header for why this is a park rather than a scheduled wake-up.
+   */
+  function retryWaitMs(
+    record: WorkflowRunRecord,
+    nodeId: string,
+    branchId?: string,
+  ): number {
+    return retryDelayRemainingMs(findAttempt(record.retries, nodeId, branchId), clock.now());
+  }
+
+  function logRetryWait(
+    record: WorkflowRunRecord,
+    nodeId: string,
+    waitMs: number,
+    branchId?: string,
+  ): void {
+    metrics.increment('ai.workflow.retry.not_due', {
+      workflow: record.context.workflowId,
+      node: nodeId,
+    });
+    logger.info('ai.workflow.retry.not_due', {
+      workflowRunId: record.context.workflowRunId,
+      nodeId,
+      ...(branchId === undefined ? {} : { branchId }),
+      waitMs,
+      nextAttemptAt: findAttempt(record.retries, nodeId, branchId)?.nextAttemptAt,
     });
   }
 
@@ -972,6 +1122,7 @@ export function createWorkflowOrchestrator(
       agentId: pending.agentId,
       childAgentRunId: pending.agentRunId,
       childState: handle.childState,
+      attempt: pending.attempt,
       ...(resultDigest === undefined ? {} : { resultDigest }),
     }, data);
 
@@ -998,12 +1149,30 @@ export function createWorkflowOrchestrator(
         checkpointDigest: checkpoint.digest,
         pendingNode: undefined,
         currentNodeId: step.nextNodeId,
+        // The node succeeded, so its attempt budget is no longer a live fact —
+        // and a node inside a loop must start its next visit with a full one.
+        // See `runtime/retryPolicy.ts`.
+        retries: clearAttempt(record.retries, step.nodeId),
         ...(resultDigest === undefined ? {} : { resultDigest }),
       },
     });
     return { record: advanced, blocked: false };
   }
 
+  /**
+   * A main-line node whose child failed: retry it, or end the run.
+   *
+   * THE DECISION IS TAKEN IN ONE PLACE AND WRITTEN IN ONE TRANSITION. Whichever
+   * way it goes, the failed step, the attempt state and the cleared pending
+   * pointer become durable together — so a crash cannot leave a run that has
+   * recorded a failure but not the attempt it spent, or an attempt it never
+   * made.
+   *
+   * No checkpoint is written on either path. A checkpoint is a point a line of
+   * execution RESUMES from, and a failed attempt is not one: the retry starts
+   * from exactly the durable state the failed attempt started from, which is
+   * what makes "retry" mean the same thing after a restart as before one.
+   */
   async function failNode(
     record: WorkflowRunRecord,
     step: WorkflowPlanStep,
@@ -1011,14 +1180,24 @@ export function createWorkflowOrchestrator(
     handle: AgentNodeHandle,
     input: AdvanceWorkflowInput,
   ): Promise<WorkflowRunRecord> {
-    // The child already decided. No retry, no second attempt, no skipping to
-    // the next node — a workflow whose node failed has failed. No checkpoint is
-    // written either: a checkpoint is a point a run RESUMES from, and this run
-    // does not resume.
+    const maxAttempts = isAgentStep(step) ? step.maxAttempts : 1;
+    const classification = classifyChildFailure(handle.failure);
+    const exhausted = retriesExhausted(pending.attempt, maxAttempts);
+    const willRetry = classification.retryable && !exhausted;
+
     metrics.increment('ai.workflow.node.failed', {
       workflow: record.context.workflowId,
       node: pending.nodeId,
+      classification: classification.classification,
+      retried: willRetry ? 'yes' : 'no',
     });
+
+    const failure = willRetry
+      ? 'workflow_node_failed'
+      : classification.retryable && exhausted
+        ? 'workflow_retry_exhausted'
+        : 'workflow_node_failed';
+
     const stepRecord: WorkflowStepRecord = {
       stepId: ids.next('wfs'),
       sequence: record.steps.length,
@@ -1033,24 +1212,109 @@ export function createWorkflowOrchestrator(
       completedAt: clock.isoNow(),
       latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
       outcome: 'failed',
-      attempt: 1,
-      failure: 'workflow_node_failed',
+      attempt: pending.attempt,
+      failureClass: classification.classification,
+      retryScheduled: willRetry,
+      failure,
       checkpointVersion: record.checkpointVersion,
     };
 
+    if (!willRetry) {
+      logger.info('ai.workflow.node.not_retried', {
+        workflowRunId: record.context.workflowRunId,
+        nodeId: pending.nodeId,
+        attempt: pending.attempt,
+        maxAttempts,
+        classification: classification.classification,
+        diagnostics: classification.detail,
+      });
+
+      return transition(record, {
+        to: 'failed',
+        operation: 'fail',
+        reason: exhausted && classification.retryable
+          ? `Node ${pending.nodeId} failed on attempt ${pending.attempt} of ${maxAttempts}.`
+          : `Node ${pending.nodeId} failed in agent run ${pending.agentRunId}.`,
+        actorId: input.actor.actorId,
+        failure,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          pendingNode: undefined,
+          currentNodeId: undefined,
+          failureMessage: handle.failureMessage ?? 'A step of this workflow did not complete.',
+        },
+      });
+    }
+
+    const attemptRecord = scheduleNodeRetry(record, step, pending, classification, handle);
+
+    metrics.increment('ai.workflow.retry.scheduled', {
+      workflow: record.context.workflowId,
+      node: pending.nodeId,
+      backoff: attemptRecord.backoff,
+    });
+    logger.info('ai.workflow.retry.scheduled', {
+      workflowRunId: record.context.workflowRunId,
+      nodeId: pending.nodeId,
+      attempt: attemptRecord.attempt,
+      maxAttempts,
+      backoff: attemptRecord.backoff,
+      delayMs: attemptRecord.delayMs,
+      nextAttemptAt: attemptRecord.nextAttemptAt,
+      childFailure: classification.childFailure,
+    });
+
+    // Back to `running` with the cursor ON THE SAME NODE. There is no
+    // `retrying` state — see `contracts/run.ts` — and the cursor not moving is
+    // precisely what makes the next drive pass start the node again.
     return transition(record, {
-      to: 'failed',
-      operation: 'fail',
-      reason: `Node ${pending.nodeId} failed in agent run ${pending.agentRunId}.`,
+      to: 'running',
+      operation: 'step',
+      reason:
+        `Node ${pending.nodeId} failed on attempt ${pending.attempt}; ` +
+        `attempt ${attemptRecord.attempt} of ${maxAttempts} scheduled.`,
       actorId: input.actor.actorId,
-      failure: 'workflow_node_failed',
       patch: {
         steps: [...record.steps, stepRecord],
         stepCount: record.steps.length + 1,
         pendingNode: undefined,
-        currentNodeId: undefined,
-        failureMessage: handle.failureMessage ?? 'A step of this workflow did not complete.',
+        currentNodeId: pending.nodeId,
+        retries: applyAttempt(
+          record.retries,
+          attemptRecord,
+          attemptRecord.attemptVersion - 1,
+        ),
       },
+    });
+  }
+
+  /** The attempt record a scheduled retry produces. A value, never a write. */
+  function scheduleNodeRetry(
+    record: WorkflowRunRecord,
+    step: WorkflowPlanStep,
+    pending: WorkflowPendingNode,
+    classification: ReturnType<typeof classifyChildFailure>,
+    handle: AgentNodeHandle,
+    branch?: WorkflowBranchRecord,
+  ): WorkflowNodeAttempt {
+    const existing = findAttempt(record.retries, pending.nodeId, branch?.branchId);
+    return nextAttemptRecord(existing, {
+      nodeId: pending.nodeId,
+      ...(branch === undefined
+        ? {}
+        : { branchId: branch.branchId, branchName: branch.branchName }),
+      maxAttempts: isAgentStep(step) ? step.maxAttempts : 1,
+      policy: isAgentStep(step) ? step.retryPolicy : { backoff: 'immediate' },
+      failedAttempt: pending.attempt,
+      nowMs: clock.now(),
+      at: clock.isoNow(),
+      failure: 'workflow_node_failed',
+      classification: classification.classification,
+      ...(classification.childFailure === undefined
+        ? {}
+        : { childFailure: classification.childFailure }),
+      childAgentRunId: handle.agentRunId,
     });
   }
 
@@ -1063,7 +1327,7 @@ export function createWorkflowOrchestrator(
     plan: WorkflowPlanStep,
     facts: {
       readonly nodeId: string;
-      readonly kind: 'agent' | 'condition' | 'parallel' | 'join';
+      readonly kind: 'agent' | 'condition' | 'parallel' | 'join' | 'approval';
       readonly startedAt: string;
       readonly agentId?: string;
       readonly childAgentRunId?: string;
@@ -1074,6 +1338,9 @@ export function createWorkflowOrchestrator(
       readonly branchName?: string;
       readonly mergedBranchCount?: number;
       readonly resultDigest?: string;
+      readonly attempt?: number;
+      readonly workflowApprovalId?: string;
+      readonly approvalDecision?: WorkflowStepRecord['approvalDecision'];
     },
     data: DataState,
   ): WorkflowStepRecord {
@@ -1102,7 +1369,16 @@ export function createWorkflowOrchestrator(
       completedAt,
       latencyMs: Math.max(0, clock.now() - Date.parse(facts.startedAt)),
       outcome: 'completed',
-      attempt: 1,
+      // Defaults to 1 for the kinds that cannot retry — a condition, a join and
+      // an approval each happen exactly once per visit, because none of them
+      // executes anything that could transiently fail.
+      attempt: facts.attempt ?? 1,
+      ...(facts.workflowApprovalId === undefined
+        ? {}
+        : { workflowApprovalId: facts.workflowApprovalId }),
+      ...(facts.approvalDecision === undefined
+        ? {}
+        : { approvalDecision: facts.approvalDecision }),
       ...(facts.resultDigest === undefined ? {} : { resultDigest: facts.resultDigest }),
       checkpointVersion: record.checkpointVersion + 1,
     };
@@ -1180,6 +1456,356 @@ export function createWorkflowOrchestrator(
     });
   }
 
+  // ── Approvals (Part 5) ────────────────────────────────────────────────────
+
+  /**
+   * Park the run on a human decision.
+   *
+   * The approval record is written FIRST and the run is parked second — see the
+   * header. Nothing else happens here: there is no third phase, because what
+   * comes next is a person deciding through a different call path entirely.
+   *
+   * `workflowRunVersion` is stamped as the version the park is ABOUT to
+   * produce, not the one the record currently carries. That is what makes the
+   * binding checkable later: while a run is parked on an approval nothing may
+   * touch it — pause is refused from `waiting_for_approval` and every other
+   * operation is terminal — so the number the approval names is the number the
+   * run will still be at when the decision arrives.
+   */
+  async function runApprovalNode(
+    record: WorkflowRunRecord,
+    step: WorkflowApprovalPlanStep,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    const approval = await approvals.request({
+      workflowRunId: record.context.workflowRunId,
+      organizationId: record.context.organizationId,
+      workflowId: record.context.workflowId,
+      nodeId: step.nodeId,
+      // The run's own actor, never the person who will decide.
+      requestedBy: record.context.actorId,
+      reason: step.reason,
+      impactSummary: step.impactSummary,
+      estimatedAdditionalTokens: step.estimatedAdditionalTokens,
+      estimatedAdditionalCostMicroUsd: step.estimatedAdditionalCostMicroUsd,
+      approverRoles: step.approverRoles,
+      onRejection: step.onRejection,
+      expiresAfterMs: step.expiresAfterMs,
+      checkpointVersion: record.checkpointVersion,
+      workflowRunVersion: record.runVersion + 1,
+    });
+
+    metrics.increment('ai.workflow.approval.requested', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+    logger.info('ai.workflow.approval.requested', {
+      workflowRunId: record.context.workflowRunId,
+      workflowApprovalId: approval.workflowApprovalId,
+      nodeId: step.nodeId,
+      // A definition-authored role list, safe in a log line where a node output
+      // never would be.
+      authorizedRoles: approval.authorizedRoles.join(','),
+      expiresAt: approval.expiresAt,
+    });
+
+    return transition(record, {
+      to: 'waiting_for_approval',
+      operation: 'step',
+      reason: `Node ${step.nodeId} is waiting for an approval.`,
+      actorId: input.actor.actorId,
+      patch: {
+        pendingApproval: {
+          workflowApprovalId: approval.workflowApprovalId,
+          nodeId: step.nodeId,
+          requestedAt: approval.createdAt,
+          expiresAt: approval.expiresAt,
+        },
+      },
+    });
+  }
+
+  /**
+   * Read the decision a parked run is waiting on, and act on it.
+   *
+   * Five outcomes, and only one of them moves the run forward. A pending
+   * request produces NO WRITE at all — there is nothing new to persist, and a
+   * write per poll would burn a run version on every operator refresh.
+   */
+  async function resolveApproval(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<{ readonly record: WorkflowRunRecord; readonly done: boolean }> {
+    const pointer = record.pendingApproval;
+    if (!pointer) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: 'run is waiting_for_approval with no pendingApproval',
+      });
+    }
+
+    const step = stepFor(plan, pointer.nodeId);
+    if (!step || !isApprovalStep(step)) {
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: pointer.nodeId,
+          diagnostics: `pending approval node ${pointer.nodeId} is not an approval node`,
+        },
+      );
+    }
+
+    const approval = await approvals.expireIfDue(
+      await approvals.require(record.context.organizationId, pointer.workflowApprovalId),
+    );
+
+    const binding: WorkflowApprovalBinding = {
+      nodeId: step.nodeId,
+      checkpointVersion: record.checkpointVersion,
+      workflowRunVersion: record.runVersion,
+    };
+
+    switch (approval.approvalState) {
+      case 'pending':
+        return { record, done: true };
+
+      case 'expired':
+        // EXPIRY IS NEVER APPROVAL. It ends the run, and it ends it as a
+        // failure rather than as the run's own `expired` state — that word is
+        // reserved for a run that outlived its deadline, and this is a workflow
+        // that did not get an answer it required.
+        throw workflowFailure(
+          'workflow_approval_expired',
+          'This workflow was not approved in time.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics:
+              `approval ${approval.workflowApprovalId} expired at ${approval.expiresAt}`,
+          },
+        );
+
+      case 'withdrawn':
+        throw workflowFailure(
+          'workflow_approval_conflict',
+          'This run is waiting on an approval that was withdrawn.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics: `approval ${approval.workflowApprovalId} was withdrawn`,
+          },
+        );
+
+      case 'rejected':
+        return { record: await applyRejection(record, step, approval, input), done: true };
+
+      case 'consumed': {
+        // A CRASH BETWEEN THE CONSUME AND THE TRANSITION, and nothing else.
+        // The binding is re-checked here rather than trusted, and the only way
+        // it still matches is that the release never happened — every form of
+        // real progress moves the checkpoint version. Anything else is a replay
+        // and is refused without touching the run.
+        const stale = bindingProblem(approval, binding);
+        if (stale) {
+          throw workflowFailure(
+            'workflow_approval_conflict',
+            'That approval has already been used.',
+            {
+              workflowRunId: record.context.workflowRunId,
+              nodeId: step.nodeId,
+              diagnostics: `${approval.workflowApprovalId} already consumed: ${stale}`,
+            },
+          );
+        }
+        logger.info('ai.workflow.approval.release_resumed', {
+          workflowRunId: record.context.workflowRunId,
+          workflowApprovalId: approval.workflowApprovalId,
+          nodeId: step.nodeId,
+        });
+        return { record: await releaseApproval(record, plan, step, approval, data, input), done: false };
+      }
+
+      default: {
+        // Approved. SPEND IT FIRST — single use is the stronger guarantee, so
+        // the consume is committed before the transition that benefits from it.
+        const consumed = await approvals.consume(
+          record.context.organizationId,
+          approval.workflowApprovalId,
+          binding,
+        );
+        return { record: await releaseApproval(record, plan, step, consumed, data, input), done: false };
+      }
+    }
+  }
+
+  /**
+   * Does this approval still authorise movement from where the run is?
+   *
+   * A read-only mirror of the gate's own binding check, used on the recovery
+   * path where the engine has to ASK before it acts rather than be told by a
+   * refusal. The gate remains the enforcer — this never replaces a `consume`,
+   * it only decides whether calling one is meaningful.
+   */
+  function bindingProblem(
+    approval: WorkflowApprovalRecord,
+    binding: WorkflowApprovalBinding,
+  ): string | undefined {
+    if (approval.nodeId !== binding.nodeId) return 'a different node';
+    if ((approval.branchId ?? undefined) !== (binding.branchId ?? undefined)) {
+      return 'a different branch';
+    }
+    if (approval.branchId !== undefined) {
+      return approval.branchVersion === binding.branchVersion
+        ? undefined
+        : 'a branch version this branch has moved past';
+    }
+    if (approval.checkpointVersion !== binding.checkpointVersion) {
+      return 'a checkpoint this run has moved past';
+    }
+    if (approval.workflowRunVersion !== binding.workflowRunVersion) {
+      return 'a run version this run has moved past';
+    }
+    return undefined;
+  }
+
+  /** Move the run past a spent approval, exactly as a completed node would. */
+  async function releaseApproval(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    step: WorkflowApprovalPlanStep,
+    approval: WorkflowApprovalRecord,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    data.nodeVisits[step.nodeId] = (data.nodeVisits[step.nodeId] ?? 0) + 1;
+    advanceCursor(record, plan, step.nodeId, step.nextNodeId, data);
+
+    // NO OUTPUT. An approval produces nothing referenceable — a later condition
+    // must not be able to branch on "what the approver said", because the only
+    // thing an approval decides is whether the run continues, and it has.
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'approval',
+        startedAt: record.pendingApproval?.requestedAt ?? approval.createdAt,
+        workflowApprovalId: approval.workflowApprovalId,
+        approvalDecision: 'approve',
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'running',
+      ...(step.nextNodeId === undefined ? {} : { cursorNodeId: step.nextNodeId }),
+    });
+
+    metrics.increment('ai.workflow.approval.consumed', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+    logger.info('ai.workflow.approval.consumed', {
+      workflowRunId: record.context.workflowRunId,
+      workflowApprovalId: approval.workflowApprovalId,
+      nodeId: step.nodeId,
+      decidedBy: approval.decidedBy,
+    });
+
+    return transition(record, {
+      to: 'running',
+      operation: 'step',
+      reason: `Approval ${step.nodeId} was granted.`,
+      actorId: input.actor.actorId,
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        checkpointVersion: checkpoint.version,
+        checkpointDigest: checkpoint.digest,
+        pendingApproval: undefined,
+        currentNodeId: step.nextNodeId,
+      },
+    });
+  }
+
+  /**
+   * A human said no. What that does is the NODE's declared policy.
+   *
+   * `fail` raises a typed terminal failure and lets `terminate` end the run,
+   * which is the same path every other terminal workflow failure takes. `cancel`
+   * transitions directly, because cancellation is an operation rather than a
+   * failure and a run cancelled by a declared policy should read in the history
+   * exactly as one cancelled by an operator does.
+   */
+  async function applyRejection(
+    record: WorkflowRunRecord,
+    step: WorkflowApprovalPlanStep,
+    approval: WorkflowApprovalRecord,
+    input: AdvanceWorkflowInput,
+  ): Promise<WorkflowRunRecord> {
+    metrics.increment('ai.workflow.approval.rejected', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+      policy: step.onRejection,
+    });
+
+    const stepRecord: WorkflowStepRecord = {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: step.index,
+      nodeId: step.nodeId,
+      kind: 'approval',
+      iteration: countVisits(record, step.nodeId) + 1,
+      workflowApprovalId: approval.workflowApprovalId,
+      approvalDecision: 'reject',
+      startedAt: record.pendingApproval?.requestedAt ?? approval.createdAt,
+      completedAt: clock.isoNow(),
+      latencyMs: Math.max(
+        0,
+        clock.now() - Date.parse(record.pendingApproval?.requestedAt ?? approval.createdAt),
+      ),
+      outcome: step.onRejection === 'cancel' ? 'cancelled' : 'failed',
+      attempt: 1,
+      failure: 'workflow_approval_rejected',
+      checkpointVersion: record.checkpointVersion,
+    };
+
+    if (step.onRejection === 'cancel') {
+      return transition(record, {
+        to: 'cancelled',
+        operation: 'cancel',
+        reason: `Approval ${step.nodeId} was rejected.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          pendingApproval: undefined,
+          currentNodeId: undefined,
+        },
+      });
+    }
+
+    return transition(record, {
+      to: 'failed',
+      operation: 'fail',
+      reason: `Approval ${step.nodeId} was rejected.`,
+      actorId: input.actor.actorId,
+      failure: 'workflow_approval_rejected',
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        pendingApproval: undefined,
+        currentNodeId: undefined,
+        failureMessage: 'A step of this workflow was not approved.',
+      },
+    });
+  }
+
   // ── Parallel branches and joins (Part 4) ──────────────────────────────────
 
   /**
@@ -1245,7 +1871,7 @@ export function createWorkflowOrchestrator(
     group: WorkflowParallelGroup,
     branch: WorkflowBranchRecord,
     nodeId: string,
-  ): WorkflowAgentPlanStep | WorkflowConditionPlanStep {
+  ): WorkflowAgentPlanStep | WorkflowConditionPlanStep | WorkflowApprovalPlanStep {
     const step = stepFor(plan, nodeId);
     if (!step || isParallelStep(step) || isJoinStep(step)) {
       throw workflowFailure(
@@ -1255,8 +1881,8 @@ export function createWorkflowOrchestrator(
           workflowRunId: group.groupId,
           nodeId,
           diagnostics:
-            `branch ${branch.branchName} cursor ${nodeId} is not an agent or condition node ` +
-            `in plan ${plan.digest}`,
+            `branch ${branch.branchName} cursor ${nodeId} is not an agent, condition or ` +
+            `approval node in plan ${plan.digest}`,
         },
       );
     }
@@ -1292,6 +1918,9 @@ export function createWorkflowOrchestrator(
     if (branch.state === 'waiting_for_agent') {
       return driveBranchNode(record, plan, group, branch, data, input);
     }
+    if (branch.state === 'waiting_for_approval') {
+      return resolveBranchApproval(record, plan, group, branch, data, input);
+    }
 
     const cursor = branch.cursorNodeId;
     if (cursor === undefined) {
@@ -1305,6 +1934,19 @@ export function createWorkflowOrchestrator(
     if (step.kind === 'condition') {
       return runBranchCondition(record, plan, group, branch, step, data, input);
     }
+    if (isApprovalStep(step)) {
+      return parkBranchApproval(record, group, branch, step, input);
+    }
+
+    // A branch node whose next attempt is not yet due parks for the rest of
+    // this advance, exactly as one waiting on a slow child does — so a sibling
+    // is never held up by another branch's backoff.
+    const waitMs = retryWaitMs(record, step.nodeId, branch.branchId);
+    if (waitMs > 0) {
+      logRetryWait(record, step.nodeId, waitMs, branch.branchId);
+      return { record, blocked: true, settled: false };
+    }
+
     return beginBranchNode(record, definition, group, branch, step, data, input);
   }
 
@@ -1338,6 +1980,8 @@ export function createWorkflowOrchestrator(
       workflowId: record.context.workflowId,
     });
 
+    const attempt = currentAttempt(record.retries, step.nodeId, branch.branchId);
+
     const updated: WorkflowBranchRecord = {
       ...branch,
       state: 'waiting_for_agent',
@@ -1348,6 +1992,7 @@ export function createWorkflowOrchestrator(
         agentRunId: handle.agentRunId,
         startedAt: clock.isoNow(),
         sequence: step.index,
+        attempt,
       },
       childAgentRunIds: [...branch.childAgentRunIds, handle.agentRunId],
     };
@@ -1358,7 +2003,11 @@ export function createWorkflowOrchestrator(
       record: await transition(record, {
         to: 'waiting_for_branches',
         operation: 'step',
-        reason: `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId}.`,
+        reason:
+          attempt === 1
+            ? `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId}.`
+            : `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId} ` +
+              `(attempt ${attempt}).`,
         actorId: input.actor.actorId,
         patch: {
           parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
@@ -1530,6 +2179,7 @@ export function createWorkflowOrchestrator(
         childState: handle.childState,
         branchId: branch.branchId,
         branchName: branch.branchName,
+        attempt: pending.attempt,
         ...(resultDigest === undefined ? {} : { resultDigest }),
       },
       data,
@@ -1559,6 +2209,9 @@ export function createWorkflowOrchestrator(
           checkpointVersion: checkpoint.version,
           checkpointDigest: checkpoint.digest,
           parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+          // BRANCH-LOCAL. The key includes this branch's id, so clearing it
+          // cannot reach a sibling's count for the same node.
+          retries: clearAttempt(record.retries, step.nodeId, branch.branchId),
         },
       }),
       blocked: false,
@@ -1585,6 +2238,19 @@ export function createWorkflowOrchestrator(
     input: AdvanceWorkflowInput,
   ): Promise<BranchTurn> {
     void plan;
+
+    const maxAttempts = isAgentStep(step) ? step.maxAttempts : 1;
+    const classification = classifyChildFailure(handle.failure);
+    const exhausted = retriesExhausted(pending.attempt, maxAttempts);
+
+    // A RETRY KEEPS THE BRANCH ALIVE. It is decided before the branch is
+    // settled, because settling is irreversible — `applyBranchOutcome` refuses
+    // a second outcome — and a branch that failed its first attempt has not
+    // finished until its budget has.
+    if (classification.retryable && !exhausted) {
+      return retryBranchNode(record, group, branch, step, pending, classification, handle, input);
+    }
+
     const outcome = applyBranchOutcome(
       group,
       branch.branchId,
@@ -1621,8 +2287,12 @@ export function createWorkflowOrchestrator(
       completedAt: clock.isoNow(),
       latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
       outcome: 'failed',
-      attempt: 1,
-      failure: 'workflow_branch_failed',
+      attempt: pending.attempt,
+      failureClass: classification.classification,
+      retryScheduled: false,
+      failure: exhausted && classification.retryable
+        ? 'workflow_retry_exhausted'
+        : 'workflow_branch_failed',
       checkpointVersion: record.checkpointVersion,
     };
 
@@ -1630,12 +2300,471 @@ export function createWorkflowOrchestrator(
       record: await transition(record, {
         to: 'waiting_for_branches',
         operation: 'step',
-        reason: `Branch ${branch.branchName} failed at ${pending.nodeId}.`,
+        reason: exhausted && classification.retryable
+          ? `Branch ${branch.branchName} failed ${pending.nodeId} on attempt ` +
+            `${pending.attempt} of ${maxAttempts}.`
+          : `Branch ${branch.branchName} failed at ${pending.nodeId}.`,
         actorId: input.actor.actorId,
         patch: {
           steps: [...record.steps, stepRecord],
           stepCount: record.steps.length + 1,
           parallelGroups: upsertGroup(record.parallelGroups, outcome.group),
+          // The branch is settled, so its attempt records go with it — and only
+          // its own. A sibling's counts for the very same node are a different
+          // key and are untouched.
+          retries: clearBranchAttempts(record.retries, branch.branchId),
+        },
+      }),
+      blocked: false,
+      settled: true,
+    };
+  }
+
+  /**
+   * A branch node that failed transiently and still has attempts.
+   *
+   * The branch goes back to `running` with its cursor ON THE SAME NODE, exactly
+   * as the main line does. `applyBranchProgress` — not `applyBranchOutcome` —
+   * because this is progress rather than a settlement: the branch has not
+   * finished, and a settled branch takes no further work.
+   */
+  async function retryBranchNode(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowPlanStep,
+    pending: WorkflowPendingNode,
+    classification: ReturnType<typeof classifyChildFailure>,
+    handle: AgentNodeHandle,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const attemptRecord = scheduleNodeRetry(
+      record,
+      step,
+      pending,
+      classification,
+      handle,
+      branch,
+    );
+    const maxAttempts = isAgentStep(step) ? step.maxAttempts : 1;
+
+    const progressed: WorkflowBranchRecord = {
+      ...branch,
+      state: 'running',
+      branchVersion: branch.branchVersion + 1,
+      cursorNodeId: pending.nodeId,
+      pendingNode: undefined,
+    };
+    const nextGroup = applyBranchProgress(group, progressed, branch.branchVersion);
+
+    const stepRecord: WorkflowStepRecord = {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: step.index,
+      nodeId: pending.nodeId,
+      kind: 'agent',
+      iteration: countVisits(record, pending.nodeId) + 1,
+      agentId: pending.agentId,
+      childAgentRunId: pending.agentRunId,
+      childState: handle.childState,
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      startedAt: pending.startedAt,
+      completedAt: clock.isoNow(),
+      latencyMs: Math.max(0, clock.now() - Date.parse(pending.startedAt)),
+      outcome: 'failed',
+      attempt: pending.attempt,
+      failureClass: classification.classification,
+      retryScheduled: true,
+      failure: 'workflow_branch_failed',
+      checkpointVersion: record.checkpointVersion,
+    };
+
+    metrics.increment('ai.workflow.retry.scheduled', {
+      workflow: record.context.workflowId,
+      node: pending.nodeId,
+      backoff: attemptRecord.backoff,
+    });
+    logger.info('ai.workflow.branch.retry_scheduled', {
+      workflowRunId: record.context.workflowRunId,
+      branchId: branch.branchId,
+      nodeId: pending.nodeId,
+      attempt: attemptRecord.attempt,
+      maxAttempts,
+      backoff: attemptRecord.backoff,
+      nextAttemptAt: attemptRecord.nextAttemptAt,
+    });
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason:
+          `Branch ${branch.branchName} failed ${pending.nodeId} on attempt ` +
+          `${pending.attempt}; attempt ${attemptRecord.attempt} of ${maxAttempts} scheduled.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+          retries: applyAttempt(
+            record.retries,
+            attemptRecord,
+            attemptRecord.attemptVersion - 1,
+          ),
+        },
+      }),
+      blocked: false,
+      settled: false,
+    };
+  }
+
+  /**
+   * Park ONE BRANCH on a human decision (AI-01 Batch 3B, Part 5).
+   *
+   * The run stays `waiting_for_branches`. Only this branch stops, and it is
+   * returned as `blocked` so the drive loop parks it for the rest of the
+   * advance and moves on to its siblings — which is the whole reason a fan-out
+   * with one approval in it is not a fan-out that stops.
+   *
+   * The binding is the BRANCH's version, not the run's: a sibling completing a
+   * node legitimately writes a checkpoint and bumps the run version while this
+   * branch sits untouched. See `contracts/approval.ts`.
+   */
+  async function parkBranchApproval(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowApprovalPlanStep,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const approval = await approvals.request({
+      workflowRunId: record.context.workflowRunId,
+      organizationId: record.context.organizationId,
+      workflowId: record.context.workflowId,
+      nodeId: step.nodeId,
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      requestedBy: record.context.actorId,
+      reason: step.reason,
+      impactSummary: step.impactSummary,
+      estimatedAdditionalTokens: step.estimatedAdditionalTokens,
+      estimatedAdditionalCostMicroUsd: step.estimatedAdditionalCostMicroUsd,
+      approverRoles: step.approverRoles,
+      onRejection: step.onRejection,
+      expiresAfterMs: step.expiresAfterMs,
+      checkpointVersion: record.checkpointVersion,
+      workflowRunVersion: record.runVersion + 1,
+      branchVersion: branch.branchVersion + 1,
+    });
+
+    const parked: WorkflowBranchRecord = {
+      ...branch,
+      state: 'waiting_for_approval',
+      branchVersion: branch.branchVersion + 1,
+      pendingApproval: {
+        workflowApprovalId: approval.workflowApprovalId,
+        nodeId: step.nodeId,
+        branchId: branch.branchId,
+        requestedAt: approval.createdAt,
+        expiresAt: approval.expiresAt,
+      },
+    };
+    const nextGroup = applyBranchProgress(group, parked, branch.branchVersion);
+
+    metrics.increment('ai.workflow.approval.requested', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+    logger.info('ai.workflow.branch.approval_requested', {
+      workflowRunId: record.context.workflowRunId,
+      branchId: branch.branchId,
+      workflowApprovalId: approval.workflowApprovalId,
+      nodeId: step.nodeId,
+      expiresAt: approval.expiresAt,
+    });
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} is waiting for an approval at ${step.nodeId}.`,
+        actorId: input.actor.actorId,
+        patch: { parallelGroups: upsertGroup(record.parallelGroups, nextGroup) },
+      }),
+      blocked: true,
+      settled: false,
+    };
+  }
+
+  /**
+   * Read the decision a parked BRANCH is waiting on, and act on it.
+   *
+   * A rejection settles the BRANCH — failed, or cancelled under
+   * `onRejection: 'cancel'` — and what that does to its siblings is the group's
+   * declared failure policy, decided afterwards by `decideJoin`. The engine
+   * does not promote a branch's rejection into a run's outcome, because a
+   * workflow that declared `wait_all` and `minimum_successes: 1` has already
+   * said what one refused branch means.
+   */
+  async function resolveBranchApproval(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    const pointer = branch.pendingApproval;
+    if (!pointer) {
+      throw workflowFailure('workflow_persistence_failed', 'This run cannot be continued.', {
+        workflowRunId: record.context.workflowRunId,
+        diagnostics: `branch ${branch.branchId} is waiting_for_approval with no pendingApproval`,
+      });
+    }
+
+    const step = branchStepFor(plan, group, branch, pointer.nodeId);
+    if (!isApprovalStep(step)) {
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: pointer.nodeId,
+          diagnostics: `branch pending approval node ${pointer.nodeId} is not an approval node`,
+        },
+      );
+    }
+
+    const approval = await approvals.expireIfDue(
+      await approvals.require(record.context.organizationId, pointer.workflowApprovalId),
+    );
+
+    const binding: WorkflowApprovalBinding = {
+      nodeId: step.nodeId,
+      branchId: branch.branchId,
+      checkpointVersion: record.checkpointVersion,
+      workflowRunVersion: record.runVersion,
+      branchVersion: branch.branchVersion,
+    };
+
+    if (approval.approvalState === 'pending') {
+      return { record, blocked: true, settled: false };
+    }
+
+    if (approval.approvalState === 'expired' || approval.approvalState === 'withdrawn') {
+      return settleBranchApproval(record, group, branch, step, approval, input, {
+        state: 'failed',
+        failure: 'workflow_approval_expired',
+        reason: `Branch ${branch.branchName} was not approved in time at ${step.nodeId}.`,
+      });
+    }
+
+    if (approval.approvalState === 'rejected') {
+      return settleBranchApproval(record, group, branch, step, approval, input, {
+        state: step.onRejection === 'cancel' ? 'cancelled' : 'failed',
+        failure: 'workflow_approval_rejected',
+        reason: `Branch ${branch.branchName} was rejected at ${step.nodeId}.`,
+      });
+    }
+
+    if (approval.approvalState === 'consumed') {
+      // The same crash-recovery window the main line has, judged the same way.
+      const stale = bindingProblem(approval, binding);
+      if (stale) {
+        throw workflowFailure(
+          'workflow_approval_conflict',
+          'That approval has already been used.',
+          {
+            workflowRunId: record.context.workflowRunId,
+            nodeId: step.nodeId,
+            diagnostics: `${approval.workflowApprovalId} already consumed: ${stale}`,
+          },
+        );
+      }
+      return releaseBranchApproval(record, group, branch, step, approval, data, input);
+    }
+
+    const consumed = await approvals.consume(
+      record.context.organizationId,
+      approval.workflowApprovalId,
+      binding,
+    );
+    return releaseBranchApproval(record, group, branch, step, consumed, data, input);
+  }
+
+  /** Move a branch past a spent approval, onto the next node of its body. */
+  async function releaseBranchApproval(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowApprovalPlanStep,
+    approval: WorkflowApprovalRecord,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+  ): Promise<BranchTurn> {
+    if (step.nextNodeId === undefined) {
+      // Validation refuses a branch node with no successor, so this is a plan
+      // that no longer matches the run. Refusing beats guessing — a branch that
+      // ends without telling the join is a join that waits forever.
+      throw workflowFailure(
+        'workflow_plan_mismatch',
+        'This workflow has changed since the run started.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics: `branch approval ${step.nodeId} has no successor`,
+        },
+      );
+    }
+
+    const reachedJoin = step.nextNodeId === group.joinNodeId;
+    const progressed: WorkflowBranchRecord = {
+      ...branch,
+      state: 'running',
+      branchVersion: branch.branchVersion + 1,
+      cursorNodeId: step.nextNodeId,
+      pendingApproval: undefined,
+      nodeVisits: {
+        ...branch.nodeVisits,
+        [step.nodeId]: (branch.nodeVisits[step.nodeId] ?? 0) + 1,
+      },
+      stepCount: branch.stepCount + 1,
+    };
+
+    let nextGroup = applyBranchProgress(group, progressed, branch.branchVersion);
+    let settled = false;
+
+    if (reachedJoin) {
+      const outcome = applyBranchOutcome(
+        nextGroup,
+        branch.branchId,
+        {
+          state: 'completed',
+          at: clock.isoNow(),
+          ...(branch.contributionNodeId === undefined
+            ? {}
+            : { contributionNodeId: branch.contributionNodeId }),
+        },
+        progressed.branchVersion,
+      );
+      nextGroup = outcome.group;
+      settled = outcome.applied;
+    }
+
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'approval',
+        startedAt: branch.pendingApproval?.requestedAt ?? approval.createdAt,
+        branchId: branch.branchId,
+        branchName: branch.branchName,
+        workflowApprovalId: approval.workflowApprovalId,
+        approvalDecision: 'approve',
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'waiting_for_branches',
+      cursorNodeId: group.parallelNodeId,
+      parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+    });
+
+    metrics.increment('ai.workflow.approval.consumed', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+    });
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} was approved at ${step.nodeId}.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          checkpointVersion: checkpoint.version,
+          checkpointDigest: checkpoint.digest,
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+        },
+      }),
+      blocked: false,
+      settled,
+    };
+  }
+
+  /** End a branch on a refused, expired or withdrawn approval. */
+  async function settleBranchApproval(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowApprovalPlanStep,
+    approval: WorkflowApprovalRecord,
+    input: AdvanceWorkflowInput,
+    closure: {
+      readonly state: 'failed' | 'cancelled';
+      readonly failure: 'workflow_approval_rejected' | 'workflow_approval_expired';
+      readonly reason: string;
+    },
+  ): Promise<BranchTurn> {
+    const outcome = applyBranchOutcome(
+      group,
+      branch.branchId,
+      { state: closure.state, at: clock.isoNow(), failure: closure.failure },
+      branch.branchVersion,
+    );
+
+    if (!outcome.applied) {
+      metrics.increment('ai.workflow.branch.duplicate_completion', {
+        workflow: record.context.workflowId,
+        node: step.nodeId,
+      });
+      return { record, blocked: false, settled: false };
+    }
+
+    metrics.increment('ai.workflow.approval.rejected', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+      policy: step.onRejection,
+    });
+
+    const startedAt = branch.pendingApproval?.requestedAt ?? approval.createdAt;
+    const stepRecord: WorkflowStepRecord = {
+      stepId: ids.next('wfs'),
+      sequence: record.steps.length,
+      planIndex: step.index,
+      nodeId: step.nodeId,
+      kind: 'approval',
+      iteration: countVisits(record, step.nodeId) + 1,
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      workflowApprovalId: approval.workflowApprovalId,
+      ...(approval.decision === undefined ? {} : { approvalDecision: approval.decision }),
+      startedAt,
+      completedAt: clock.isoNow(),
+      latencyMs: Math.max(0, clock.now() - Date.parse(startedAt)),
+      outcome: closure.state === 'cancelled' ? 'cancelled' : 'failed',
+      attempt: 1,
+      failure: closure.failure,
+      checkpointVersion: record.checkpointVersion,
+    };
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: closure.reason,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          parallelGroups: upsertGroup(record.parallelGroups, outcome.group),
+          retries: clearBranchAttempts(record.retries, branch.branchId),
         },
       }),
       blocked: false,
@@ -2128,6 +3257,7 @@ export function createWorkflowOrchestrator(
         state: 'created',
         stepCount: 0,
         parallelGroups: [],
+        retries: [],
         childAgentRunIds: [],
         steps: [],
         transitions: [],
@@ -2252,6 +3382,12 @@ export function createWorkflowOrchestrator(
     async cancel(input) {
       const record = await loadForControl(input);
 
+      // CANCEL IS THE ESCAPE PATH FROM AN APPROVAL, and this is what makes it
+      // one: the pending request is withdrawn so it stops sitting in a queue
+      // nobody can clear. Withdrawal is never approval — the run is ending, not
+      // proceeding.
+      await withdrawApprovals(record, 'The run was cancelled.');
+
       // The children are stopped FIRST. Cancelling the workflow while leaving
       // its agent runs driving would be a cancellation in name only — the
       // effects the operator is trying to stop are the children's.
@@ -2305,7 +3441,12 @@ export function createWorkflowOrchestrator(
         operation: 'cancel',
         reason: input.reason,
         actorId: input.actor.actorId,
-        patch: { pendingNode: undefined, currentNodeId: undefined, parallelGroups: groups },
+        patch: {
+          pendingNode: undefined,
+          pendingApproval: undefined,
+          currentNodeId: undefined,
+          parallelGroups: groups,
+        },
       });
     },
 
@@ -2350,6 +3491,12 @@ export function createWorkflowOrchestrator(
             closeGroup(open, { state: 'cancelled', at, failure: 'workflow_expired' }),
           );
 
+    // A request the run can no longer spend is withdrawn rather than left in a
+    // queue. Unlike the child agent runs, an approval costs nothing to close —
+    // it is a local write, not a fan of remote cancellations — so the argument
+    // that keeps expiry from chasing children does not apply here.
+    await withdrawApprovals(record, 'The run passed its deadline.');
+
     return transition(record, {
       to: 'expired',
       operation: 'expire',
@@ -2359,6 +3506,7 @@ export function createWorkflowOrchestrator(
       patch: {
         failureMessage: 'This workflow run took longer than its deadline allowed.',
         pendingNode: undefined,
+        pendingApproval: undefined,
         currentNodeId: undefined,
         parallelGroups: groups,
       },
@@ -2455,6 +3603,12 @@ export function createWorkflowOrchestrator(
         if (step.kind === 'condition') {
           return { record: await runConditionNode(record, plan, step, data, input), done: false };
         }
+        if (isApprovalStep(step)) {
+          // Parking is the END of this advance, not a step within it: what
+          // happens next is a person deciding, and there is nothing further to
+          // drive until they do.
+          return { record: await runApprovalNode(record, step, input), done: true };
+        }
         if (isParallelStep(step)) {
           return { record: await openParallelNode(record, step, input), done: false };
         }
@@ -2473,8 +3627,21 @@ export function createWorkflowOrchestrator(
             },
           );
         }
+        // THE RETRY GATE. A node whose next attempt is not yet due hands the
+        // run back untouched, having created nothing — no child, no version, no
+        // write. Nothing wakes it up when the delay elapses; a caller advances
+        // the run again and it proceeds. See the header.
+        const waitMs = retryWaitMs(record, step.nodeId);
+        if (waitMs > 0) {
+          logRetryWait(record, step.nodeId, waitMs);
+          return { record, done: true };
+        }
+
         return { record: await beginNode(record, step, data, input, definition), done: false };
       }
+
+      case 'waiting_for_approval':
+        return resolveApproval(record, admit(record).plan, data, input);
 
       case 'waiting_for_agent': {
         const { plan } = admit(record);

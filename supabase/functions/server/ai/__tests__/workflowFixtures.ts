@@ -13,10 +13,12 @@
 
 import type {
   WorkflowAgentNode,
+  WorkflowApprovalNode,
   WorkflowConditionNode,
   WorkflowDefinition,
   WorkflowEdge,
   WorkflowJoinNode,
+  WorkflowNode,
   WorkflowParallelNode,
 } from '../workflows/contracts/workflow.ts';
 import type {
@@ -25,7 +27,10 @@ import type {
 } from '../workflows/contracts/parallel.ts';
 import type { WorkflowExpression } from '../workflows/contracts/expression.ts';
 import type { WorkflowMapping } from '../workflows/contracts/mapping.ts';
-import type { WorkflowCheckpointStore } from '../workflows/persistence/ports.ts';
+import type {
+  WorkflowApprovalStore,
+  WorkflowCheckpointStore,
+} from '../workflows/persistence/ports.ts';
 import type { AgentDefinition, AgentProposalInput } from '../agents/contracts/agent.ts';
 import type { AgentActionProposal } from '../agents/contracts/actions.ts';
 import type { WorkflowAgentPort } from '../workflows/engine/agentNodePort.ts';
@@ -37,6 +42,7 @@ import { arrayOf, jsonObject, num, object, str } from '../security/validation.ts
 import { createTestClock } from '../runtime/clock.ts';
 import { createSequentialIdFactory } from '../contracts/ids.ts';
 import {
+  createMemoryWorkflowApprovalStore,
   createMemoryWorkflowCheckpointStore,
   createMemoryWorkflowRunStore,
 } from '../workflows/persistence/ports.ts';
@@ -314,6 +320,8 @@ export interface TestWorkflowRuntime {
   readonly clock: MutableClock;
   readonly runStore: WorkflowRunStore;
   readonly checkpointStore: WorkflowCheckpointStore;
+  /** Shared across two runtimes to simulate an isolate restart, like the others. */
+  readonly approvalStore: WorkflowApprovalStore;
   meta(token: string): { authorization: string; correlationId: string };
 }
 
@@ -321,6 +329,7 @@ export interface TestWorkflowRuntimeOptions {
   readonly workflows?: readonly WorkflowDefinition[];
   readonly agents?: readonly AgentDefinition[];
   readonly checkpointStore?: WorkflowCheckpointStore;
+  readonly approvalStore?: WorkflowApprovalStore;
   readonly clock?: MutableClock;
   /** Share a store across two runtimes to simulate an isolate restart. */
   readonly runStore?: WorkflowRunStore;
@@ -330,6 +339,14 @@ export interface TestWorkflowRuntimeOptions {
   /** Wrap the real agent port. Crash and blocking simulations only. */
   readonly wrapAgentPort?: (port: WorkflowAgentPort) => WorkflowAgentPort;
   readonly requireCertifiedWorkflows?: () => boolean;
+  /**
+   * Distinguishes the identifiers TWO runtimes over ONE store may mint.
+   *
+   * See `TestAgentRuntimeOptions.idSeed` — the same problem, and it reaches the
+   * workflow ids too: a restart test that shares a run store needs the second
+   * isolate to mint ids the first one did not, exactly as a real one does.
+   */
+  readonly idSeed?: string;
 }
 
 /**
@@ -346,6 +363,7 @@ export function buildTestWorkflowRuntime(
   const agentRuntime = buildTestAgentRuntime({
     agents: options.agents ?? WORKFLOW_NODE_AGENTS,
     clock,
+    ...(options.idSeed === undefined ? {} : { idSeed: options.idSeed }),
     ...(options.agentRunStore === undefined ? {} : { runStore: options.agentRunStore }),
     ...(options.agentCheckpointStore === undefined
       ? {}
@@ -357,6 +375,7 @@ export function buildTestWorkflowRuntime(
 
   const runStore = options.runStore ?? createMemoryWorkflowRunStore();
   const checkpointStore = options.checkpointStore ?? createMemoryWorkflowCheckpointStore();
+  const approvalStore = options.approvalStore ?? createMemoryWorkflowApprovalStore();
   const realPort = createAgentRuntimeNodePort(agentRuntime.runtime.orchestrator);
 
   const workflows = createWorkflowRuntime({
@@ -370,8 +389,9 @@ export function buildTestWorkflowRuntime(
     workflows: options.workflows ?? EXECUTABLE_WORKFLOWS,
     runStore,
     checkpointStore,
+    approvalStore,
     clock,
-    ids: createSequentialIdFactory('wf'),
+    ids: createSequentialIdFactory(`wf${options.idSeed ?? ''}`),
     logger: agentRuntime.plane.logger,
     agentPort: options.wrapAgentPort ? options.wrapAgentPort(realPort) : realPort,
     ...(options.requireCertifiedWorkflows === undefined
@@ -385,6 +405,7 @@ export function buildTestWorkflowRuntime(
     clock,
     runStore,
     checkpointStore,
+    approvalStore,
     meta: (token) => ({ authorization: bearer(token), correlationId: 'cor_test_workflow' }),
   };
 }
@@ -926,6 +947,379 @@ export function buildPart4Runtime(
   return buildTestWorkflowRuntime({
     workflows: PART4_WORKFLOWS,
     agents: WORKFLOW_NODE_AGENTS,
+    ...options,
+  });
+}
+
+// ── Part 5 fixtures: approvals and retries ──────────────────────────────────
+
+/**
+ * THE APPROVER ROLES EVERY PART 5 FIXTURE USES.
+ *
+ * `owner` and `reviewer`, and NOT `consultant`. That pairing is what makes the
+ * authorization tests mean something: `consultant` is a full workflow operator
+ * (it starts runs and controls them) and still may not answer an approval, so a
+ * refusal proves the gate consulted the NODE's roles rather than the caller's
+ * general standing.
+ */
+export const APPROVER_ROLES: readonly string[] = ['owner', 'reviewer'];
+
+export function approvalNode(
+  nodeId: string,
+  overrides: Partial<WorkflowApprovalNode> = {},
+): WorkflowApprovalNode {
+  return {
+    kind: 'approval',
+    nodeId,
+    displayName: `Approve ${nodeId}`,
+    approverRoles: APPROVER_ROLES,
+    reason: 'A person must confirm this workflow may continue.',
+    impactSummary: 'Continuing runs the remaining steps of this workflow.',
+    expiresAfterMs: 3_600_000,
+    onRejection: 'fail',
+    estimatedAdditionalTokens: 1_200,
+    estimatedAdditionalCostMicroUsd: 3_400,
+    ...overrides,
+  } as WorkflowApprovalNode;
+}
+
+function part5Workflow(
+  workflowId: string,
+  nodes: readonly WorkflowNode[],
+  edges: readonly WorkflowEdge[],
+  startNodeId: string,
+  overrides: Partial<WorkflowDefinition> = {},
+): WorkflowDefinition {
+  return {
+    workflowId,
+    displayName: `Part 5 fixture ${workflowId}`,
+    purpose: 'Exercise approvals, retries and their durable records.',
+    description: 'A deterministic fixture used by the AI-01 Batch 3B Part 5 suites.',
+    owner: 'MARQ Platform Engineering — test fixtures',
+    version: '1.0.0',
+    enabled: true,
+    certification: 'certified',
+    nodes,
+    edges,
+    startNodeId,
+    inputContract: executionContracts.input,
+    outputContract: executionContracts.output,
+    ...overrides,
+  } as WorkflowDefinition;
+}
+
+const contractedNode = (nodeId: string, agentId: string): WorkflowAgentNode => ({
+  ...node({ nodeId, agentId, displayName: `Node ${nodeId}` }),
+  outputContract: executionContracts.output,
+});
+
+/**
+ * A node that may be attempted `maxAttempts` times, with a declared backoff.
+ *
+ * `WF5_AGENT.flaky` is the agent every retry fixture names — see
+ * `flakyAgentPort` for how a transient failure is produced without inventing an
+ * agent that fails on a timer.
+ */
+function retryingNode(
+  nodeId: string,
+  options: {
+    readonly agentId?: string;
+    readonly maxAttempts: number;
+    readonly retryPolicy?: WorkflowAgentNode['retryPolicy'];
+  },
+): WorkflowAgentNode {
+  return {
+    ...node({
+      nodeId,
+      agentId: options.agentId ?? WF5_AGENT.flaky,
+      displayName: `Node ${nodeId}`,
+      maxAttempts: options.maxAttempts,
+    }),
+    outputContract: executionContracts.output,
+    ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
+  };
+}
+
+export const WF5_AGENT = {
+  /**
+   * Completes normally. The port wrapper is what makes it fail transiently, so
+   * the agent itself stays the dullest thing that can exist — see
+   * `workflowNodePropose` above for why every fixture agent is.
+   */
+  flaky: 'agent.wf.flaky',
+} as const;
+
+export const PART5_AGENTS: readonly AgentDefinition[] = [
+  ...WORKFLOW_NODE_AGENTS,
+  workflowNodeAgent(WF5_AGENT.flaky),
+];
+
+export const PART5 = {
+  /** approve → work. The smallest workflow with a barrier in it. */
+  approval: part5Workflow(
+    'workflow.p5.approval',
+    [approvalNode('gate'), contractedNode('work', WF_AGENT.alpha)],
+    [edge('gate', 'work')],
+    'gate',
+  ),
+
+  /** work → approve → more. A barrier reached after a checkpoint exists. */
+  approvalMidway: part5Workflow(
+    'workflow.p5.approval_midway',
+    [
+      contractedNode('first', WF_AGENT.alpha),
+      approvalNode('gate'),
+      contractedNode('second', WF_AGENT.beta),
+    ],
+    [edge('first', 'gate'), edge('gate', 'second')],
+    'first',
+  ),
+
+  /** The same barrier, declaring that a refusal CANCELS rather than fails. */
+  approvalCancels: part5Workflow(
+    'workflow.p5.approval_cancels',
+    [
+      approvalNode('gate', { onRejection: 'cancel' }),
+      contractedNode('work', WF_AGENT.alpha),
+    ],
+    [edge('gate', 'work')],
+    'gate',
+  ),
+
+  /** A barrier only `owner` may answer. For the role-scoping assertions. */
+  approvalOwnerOnly: part5Workflow(
+    'workflow.p5.approval_owner',
+    [
+      approvalNode('gate', { approverRoles: ['owner'] }),
+      contractedNode('work', WF_AGENT.alpha),
+    ],
+    [edge('gate', 'work')],
+    'gate',
+  ),
+
+  /** A barrier with a one-minute window, so expiry is reachable on a test clock. */
+  approvalShort: part5Workflow(
+    'workflow.p5.approval_short',
+    [
+      approvalNode('gate', { expiresAfterMs: 60_000 }),
+      contractedNode('work', WF_AGENT.alpha),
+    ],
+    [edge('gate', 'work')],
+    'gate',
+  ),
+
+  /**
+   * A fan-out where ONE branch stops for a person and the other does not.
+   *
+   * The shape the "a parallel branch waits safely" claim needs: if the sibling
+   * cannot finish while `left` is parked, the claim is false, and this is the
+   * smallest graph that can show it either way.
+   */
+  branchApproval: part5Workflow(
+    'workflow.p5.branch_approval',
+    [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_gate'],
+          ['right', 'right_step'],
+        ],
+        'gate',
+        'wait_all',
+      ),
+      approvalNode('left_gate'),
+      branchNode('left_step', WF_AGENT.alpha),
+      branchNode('right_step', WF_AGENT.beta),
+      joinNode('gate', { kind: 'all' }),
+    ],
+    [
+      branchEdge('fan', 'left_gate', 'left'),
+      branchEdge('fan', 'right_step', 'right'),
+      edge('left_gate', 'left_step'),
+      edge('left_step', 'gate'),
+      edge('right_step', 'gate'),
+    ],
+    'fan',
+    { outputContract: mergeShape },
+  ),
+
+  /** One attempt only. A transient failure must NOT be retried. */
+  retryOnce: part5Workflow(
+    'workflow.p5.retry_once',
+    [retryingNode('work', { maxAttempts: 1 })],
+    [],
+    'work',
+  ),
+
+  /** Three attempts, retried immediately. The plain retry path. */
+  retryImmediate: part5Workflow(
+    'workflow.p5.retry_immediate',
+    [retryingNode('work', { maxAttempts: 3 })],
+    [],
+    'work',
+  ),
+
+  /** Three attempts with a thirty-second fixed delay between them. */
+  retryDelayed: part5Workflow(
+    'workflow.p5.retry_delayed',
+    [
+      retryingNode('work', {
+        maxAttempts: 3,
+        retryPolicy: { backoff: 'fixed_delay', delayMs: 30_000 },
+      }),
+    ],
+    [],
+    'work',
+  ),
+
+  /** Two attempts, exponential. For the persisted backoff metadata. */
+  retryExponential: part5Workflow(
+    'workflow.p5.retry_exponential',
+    [
+      retryingNode('work', {
+        maxAttempts: 3,
+        retryPolicy: { backoff: 'exponential', delayMs: 10_000, maxDelayMs: 60_000 },
+      }),
+    ],
+    [],
+    'work',
+  ),
+
+  /** A retryable node followed by another node, so a recovered run has somewhere to go. */
+  retryThenContinue: part5Workflow(
+    'workflow.p5.retry_then_continue',
+    [
+      retryingNode('work', { maxAttempts: 3 }),
+      contractedNode('after', WF_AGENT.beta),
+    ],
+    [edge('work', 'after')],
+    'work',
+  ),
+
+  /**
+   * Both branches run a retryable node, so "one branch's retry did not touch
+   * its sibling's count" is a claim about two live counters rather than about
+   * one counter and an absence.
+   */
+  branchRetry: part5Workflow(
+    'workflow.p5.branch_retry',
+    [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_step'],
+          ['right', 'right_step'],
+        ],
+        'gate',
+        'wait_all',
+      ),
+      retryingNode('left_step', { maxAttempts: 3 }),
+      retryingNode('right_step', { maxAttempts: 3 }),
+      joinNode('gate', { kind: 'all' }),
+    ],
+    [
+      branchEdge('fan', 'left_step', 'left'),
+      branchEdge('fan', 'right_step', 'right'),
+      edge('left_step', 'gate'),
+      edge('right_step', 'gate'),
+    ],
+    'fan',
+    { outputContract: mergeShape },
+  ),
+} as const;
+
+export const PART5_WORKFLOWS: readonly WorkflowDefinition[] = [
+  PART5.approval,
+  PART5.approvalMidway,
+  PART5.approvalCancels,
+  PART5.approvalOwnerOnly,
+  PART5.approvalShort,
+  PART5.branchApproval,
+  PART5.retryOnce,
+  PART5.retryImmediate,
+  PART5.retryDelayed,
+  PART5.retryExponential,
+  PART5.retryThenContinue,
+  PART5.branchRetry,
+];
+
+/** What one `flakyAgentPort` was asked to do, so a test can count real calls. */
+export interface FlakyPortLog {
+  /** Child agent run ids created, in order. Duplicates would be the defect. */
+  readonly created: string[];
+  /** Child agent run ids driven, in order. One id twice after it failed is the defect. */
+  readonly driven: string[];
+  /** How many child runs the port failed on purpose. */
+  failures: number;
+}
+
+/**
+ * Wrap the REAL agent port so a designated agent's child runs fail with a
+ * TYPED, RETRYABLE failure for the first `failures` attempts.
+ *
+ * WHY A PORT WRAPPER AND NOT AN AGENT. A workflow node retry is a judgement
+ * about `AgentNodeHandle.failure` — a transient provider or model failure —
+ * and the fixture agents reach `failed` through the `fail` ACTION, which
+ * deliberately carries no failure code at all (an agent declaring it cannot
+ * continue is not a runtime failure). Producing a genuine `provider_unavailable`
+ * would mean driving the control plane into a real outage from inside a
+ * workflow fixture, which would make every assertion here a statement about the
+ * provider layer instead of about the engine.
+ *
+ * `create` and `cancel` pass straight through to the real port, so the child
+ * runs counted below are REAL agent runs created through the real orchestrator.
+ * Only the drive RESULT is substituted, and only for the named agent.
+ */
+export function flakyAgentPort(options: {
+  readonly agentId: string;
+  readonly failures: number;
+  readonly childFailure?: string;
+  readonly log: FlakyPortLog;
+}): (port: WorkflowAgentPort) => WorkflowAgentPort {
+  return (port) => {
+    const failingRuns = new Set<string>();
+    let remaining = options.failures;
+
+    return {
+      async create(input) {
+        const handle = await port.create(input);
+        options.log.created.push(handle.agentRunId);
+        if (input.agentId === options.agentId && remaining > 0) {
+          remaining -= 1;
+          failingRuns.add(handle.agentRunId);
+        }
+        return handle;
+      },
+
+      async drive(input) {
+        options.log.driven.push(input.agentRunId);
+        if (!failingRuns.has(input.agentRunId)) return port.drive(input);
+        options.log.failures += 1;
+        return {
+          agentRunId: input.agentRunId,
+          state: 'failed',
+          childState: 'failed',
+          failure: options.childFailure ?? 'provider_unavailable',
+          failureMessage: 'The model provider was unavailable.',
+        };
+      },
+
+      cancel: (input) => port.cancel(input),
+    };
+  };
+}
+
+export function emptyFlakyLog(): FlakyPortLog {
+  return { created: [], driven: [], failures: 0 };
+}
+
+/** A harness carrying the Part 5 workflows and agents. */
+export function buildPart5Runtime(
+  options: TestWorkflowRuntimeOptions = {},
+): TestWorkflowRuntime {
+  return buildTestWorkflowRuntime({
+    workflows: PART5_WORKFLOWS,
+    agents: PART5_AGENTS,
     ...options,
   });
 }

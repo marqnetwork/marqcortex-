@@ -455,6 +455,16 @@ export interface TestAgentRuntimeOptions {
   readonly approvalStore?: Parameters<typeof createAgentRuntime>[0]['approvalStore'];
   readonly costApprovalThresholdMicroUsd?: number;
   readonly clock?: MutableClock;
+  /**
+   * Distinguishes the identifiers TWO runtimes over ONE store may mint.
+   *
+   * The sequential factory is a test convenience that restarts at 1, so a
+   * second isolate built over a shared run store would recompute ids the first
+   * one already used — and the store would correctly refuse them as duplicates.
+   * A real second isolate mints random ids; this is the smallest way to say so
+   * without giving up deterministic identifiers.
+   */
+  readonly idSeed?: string;
 }
 
 export function buildTestAgentRuntime(
@@ -483,7 +493,7 @@ export function buildTestAgentRuntime(
       { adapter: createMockProvider({ providerId: 'backup', priority: 2 }), certification: 'certified' },
     ],
     clock,
-    ids: createSequentialIdFactory('plane'),
+    ids: createSequentialIdFactory(`plane${options.idSeed ?? ''}`),
     logSink: sink,
     sleep: () => Promise.resolve(),
     random: () => 0.5,
@@ -500,7 +510,7 @@ export function buildTestAgentRuntime(
     agents: options.agents ?? FIXTURE_AGENTS,
     tools: DETERMINISTIC_TOOLS,
     clock,
-    ids: createSequentialIdFactory('agent'),
+    ids: createSequentialIdFactory(`agent${options.idSeed ?? ''}`),
     logger: plane.logger,
     ...(options.runStore === undefined ? {} : { runStore: options.runStore }),
     ...(options.checkpointStore === undefined

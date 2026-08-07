@@ -51,16 +51,16 @@
  */
 
 import type { WorkflowPlanStep } from '../contracts/plan.ts';
-import { isAgentStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
+import { isAgentStep, isApprovalStep, isJoinStep, isParallelStep } from '../contracts/plan.ts';
 import { canonicalJson, digestText } from '../../agents/runtime/digest.ts';
 
 /**
  * The per-kind half of the projection (AI-01 Batch 3B, Part 4).
  *
- * Split out when parallel and join steps arrived: four kinds inside one object
- * literal is where a digest starts quietly omitting a field of the kind added
- * last, and a digest with a hole in it is worse than no digest — it reports
- * "unchanged" for a change.
+ * Split out when parallel and join steps arrived, and vindicated when Part 5
+ * added a fifth: several kinds inside one object literal is where a digest
+ * starts quietly omitting a field of the kind added last, and a digest with a
+ * hole in it is worse than no digest — it reports "unchanged" for a change.
  *
  * For a parallel step everything that decides what the fan-out DOES is inside:
  * the branch names, their order, their heads, their bodies, the join it
@@ -72,6 +72,15 @@ function stepProjection(step: WorkflowPlanStep): Record<string, unknown> {
     return {
       agentId: step.agentId,
       maxAttempts: step.maxAttempts,
+      // The whole policy, not its presence. Moving a node from `immediate` to
+      // a ninety-second exponential backoff changes how long a run holds a
+      // cursor and how much it may spend, and a reviewer who approved the first
+      // must not find the second running under the same digest.
+      retryPolicy: {
+        backoff: step.retryPolicy.backoff,
+        delayMs: step.retryPolicy.delayMs ?? null,
+        maxDelayMs: step.retryPolicy.maxDelayMs ?? null,
+      },
       nextNodeId: step.nextNodeId ?? null,
       inputMapping: step.inputMapping ?? null,
       outputMapping: step.outputMapping ?? null,
@@ -94,6 +103,24 @@ function stepProjection(step: WorkflowPlanStep): Record<string, unknown> {
         ordinal: branch.ordinal,
         bodyNodeIds: branch.bodyNodeIds,
       })),
+    };
+  }
+
+  if (isApprovalStep(step)) {
+    // EVERYTHING, INCLUDING THE PROSE. `reason` and `impactSummary` are the two
+    // fields a human actually reads before deciding, so changing either changes
+    // what was approved — this is the one place in the digest where display
+    // text is inside rather than out, and the difference from `displayName` is
+    // that nobody makes a decision on the strength of a display name.
+    return {
+      approverRoles: [...step.approverRoles].sort(),
+      reason: step.reason,
+      impactSummary: step.impactSummary,
+      expiresAfterMs: step.expiresAfterMs,
+      onRejection: step.onRejection,
+      estimatedAdditionalTokens: step.estimatedAdditionalTokens,
+      estimatedAdditionalCostMicroUsd: step.estimatedAdditionalCostMicroUsd,
+      nextNodeId: step.nextNodeId ?? null,
     };
   }
 

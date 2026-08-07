@@ -45,15 +45,18 @@
  *
  * ── TOKENS AND COST ARE PLACEHOLDERS, AND SAY SO ───────────────────────────
  *
- * `tokensPlaceholder` and `costMicroUsdPlaceholder` are always zero in this
- * part. Branch-level accounting needs the child agent runs' own spend records
- * rolled up through the port, which is Part 5's work, and a field that quietly
- * reported a wrong number would be worse than one that reports none. They exist
- * so the shape of the record does not change when the numbers arrive.
+ * `tokensPlaceholder` and `costMicroUsdPlaceholder` are always zero, in Part 4
+ * and still in Part 5. Branch-level accounting needs the child agent runs' own
+ * spend records rolled up through the port — token and cost intelligence, which
+ * is out of scope for this batch — and a field that quietly reported a wrong
+ * number would be worse than one that reports none. They exist so the shape of
+ * the record does not change when the numbers arrive, and the approval record
+ * carries the same two placeholders on the same terms.
  */
 
 import type { WorkflowFailureCode } from './failures.ts';
 import type { WorkflowPendingNode } from './run.ts';
+import type { WorkflowPendingApproval } from './approval.ts';
 
 // ── Join policy ─────────────────────────────────────────────────────────────
 
@@ -123,11 +126,21 @@ export type WorkflowParallelFailurePolicy =
 
 // ── Branch state ────────────────────────────────────────────────────────────
 
+/**
+ * `waiting_for_approval` (AI-01 Batch 3B, Part 5) is a BRANCH state rather than
+ * a run state when the barrier is inside a branch, and that asymmetry with the
+ * main line is the point: a run whose `enrichment` branch is waiting on a human
+ * is still driving its `compliance` branch, so the RUN is `waiting_for_branches`
+ * and only the one branch is parked. Promoting it to the run's own state would
+ * report the whole fan-out as blocked on a person while three quarters of it
+ * was making progress.
+ */
 export const WORKFLOW_BRANCH_STATES = [
   /** Created, durable, and not yet started. Nothing external has happened. */
   'pending',
   'running',
   'waiting_for_agent',
+  'waiting_for_approval',
   'completed',
   'failed',
   'cancelled',
@@ -175,6 +188,15 @@ export interface WorkflowBranchRecord {
   readonly cursorNodeId?: string;
   /** The child agent run this branch is waiting on. The recovery pointer. */
   readonly pendingNode?: WorkflowPendingNode;
+  /**
+   * The decision this branch is parked on, or none (AI-01 Batch 3B, Part 5).
+   *
+   * Branch-local, exactly as `pendingNode` is. Two branches may sit on two
+   * different approvals at once, each decided by a different person, and
+   * neither blocks the other — which is only representable because the pointer
+   * is on the branch rather than on the run.
+   */
+  readonly pendingApproval?: WorkflowPendingApproval;
   /**
    * Trusted node outputs produced INSIDE this branch, keyed by node id.
    *

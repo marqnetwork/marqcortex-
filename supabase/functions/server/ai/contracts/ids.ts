@@ -39,6 +39,13 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
  * a workflow run and the agent runs it drives appear side by side in the same
  * log line, and an identifier that says which of the two it is saves a lookup
  * every time somebody reads one.
+ *
+ * `wfa` is a workflow approval (AI-01 Batch 3B, Part 5), and it is distinct
+ * from the agent runtime's `apr` for the same reason: an operator queue shows
+ * both, and the two are decided by different people about different things.
+ * Note that the workflow engine derives its approval ids DETERMINISTICALLY —
+ * see `workflows/contracts/approval.ts` — so this kind exists for the read
+ * models and the id grammar rather than as the engine's generator.
  */
 export type IdKind =
   | 'req'
@@ -53,7 +60,8 @@ export type IdKind =
   | 'cpt'
   | 'hof'
   | 'wfr'
-  | 'wfs';
+  | 'wfs'
+  | 'wfa';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without

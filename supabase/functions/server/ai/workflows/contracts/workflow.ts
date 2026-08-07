@@ -40,8 +40,20 @@
  * out whose convergence nobody declared. Parallelism has to be a node an
  * operator can see, with a policy an operator can read, or it is not available.
  *
- * There is still no approval node, no barrier that waits on something outside
- * the run, no nested parallel and no parallel node inside a loop — see
+ * ── WHAT PART 5 ADDS ───────────────────────────────────────────────────────
+ *
+ * An APPROVAL node: a barrier that waits on a decision from outside the run.
+ * Parts 1–4 had none, and the omission was honest — a workflow that could stop
+ * for a human needs a durable, tenant-scoped, single-use record of the question
+ * and the answer, and until Part 5 there was nowhere for that to live.
+ *
+ * It is a node kind rather than a flag on an agent node for the same reason a
+ * branch is a node kind rather than a property of an edge: a place where a
+ * workflow stops and asks a person is a place an operator must be able to SEE
+ * in the plan, with the roles that may answer and the consequence of a refusal
+ * both written down beside it.
+ *
+ * There is still no nested parallel and no parallel node inside a loop — see
  * `planner/workflowPlanner.ts` for why the last of those is refused rather than
  * given a visit counter.
  *
@@ -64,31 +76,41 @@ import type { Validator } from '../../security/validation.ts';
 import type { WorkflowExpression } from './expression.ts';
 import type { WorkflowMapping } from './mapping.ts';
 import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
+import type { WorkflowRejectionPolicy } from './approval.ts';
+import type { WorkflowRetryPolicy } from './retry.ts';
 
 /**
  * What a node does when the plan reaches it.
  *
- * Four members, and none of them can do another's job — which is the point: a
+ * Five members, and none of them can do another's job — which is the point: a
  * branch is always a node an operator can see in the plan, never a property of
- * an edge.
+ * an edge, and a place the workflow stops to ask a person is never a flag on a
+ * node that also does work.
  *
  *   agent      runs a registered agent through the orchestrator
  *   condition  evaluates a declared expression and takes one of two edges
  *   parallel   opens a bounded, named set of branches
  *   join       merges what those branches produced, under a declared policy
+ *   approval   parks until an authorised person decides (Part 5)
  *
  * `parallel` and `join` arrive as a PAIR. Neither is meaningful alone, and the
  * definition makes that structural rather than conventional: a parallel node
  * names its join node, and a join node is refused unless exactly one parallel
  * node names it.
+ *
+ * `approval` arrives alone, and deliberately does no work of its own: it names
+ * no agent, carries no mapping and produces no output. A barrier that also ran
+ * something would make "did the human approve before or after that happened" a
+ * question with no answer on the record.
  */
-export type WorkflowNodeKind = 'agent' | 'condition' | 'parallel' | 'join';
+export type WorkflowNodeKind = 'agent' | 'condition' | 'parallel' | 'join' | 'approval';
 
 export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
   'agent',
   'condition',
   'parallel',
   'join',
+  'approval',
 ];
 
 /**
@@ -120,10 +142,24 @@ export interface WorkflowAgentNode extends WorkflowNodeBase {
   readonly agentId: string;
   /**
    * Attempts this node may consume before the step is considered failed.
-   * A planning-time ceiling, not a retry implementation — retries are not in
-   * this batch, and a plan that declares an unbounded one is refused here.
+   *
+   * THE SAME FIELD PARTS 1–4 PLANNED AND NEVER SPENT, now spent. Part 5 does
+   * not introduce a second ceiling beside it: a node that declares `3` gets one
+   * initial attempt and up to two retries, and `1` — the default every fixture
+   * and every earlier part used — keeps exactly the single-attempt behaviour
+   * those parts had. Bounded at both ends by `WORKFLOW_BOUNDS.nodeAttempts`, so
+   * an unbounded retry loop is not representable.
    */
   readonly maxAttempts: number;
+  /**
+   * How long to wait before each retry, and how that delay grows.
+   *
+   * Absent means `immediate` — retry as soon as the failure is recorded — which
+   * is the behaviour a node that only declares `maxAttempts` gets. See
+   * `contracts/retry.ts` for what the three shapes compute and for why nothing
+   * in this batch wakes a run up when the delay elapses.
+   */
+  readonly retryPolicy?: WorkflowRetryPolicy;
   /**
    * How this node's input is built. Absent means the run's validated input is
    * handed over unchanged, which is Part 2's behaviour and remains the default.
@@ -215,11 +251,61 @@ export interface WorkflowJoinNode extends WorkflowNodeBase {
   readonly mergeContract: Validator<unknown>;
 }
 
+/**
+ * A place the workflow stops and asks a person (AI-01 Batch 3B, Part 5).
+ *
+ * Everything an approver needs in order to answer is declared HERE, in the
+ * definition, and frozen onto the approval record when the run parks. None of
+ * it is caller-supplied and none of it is read live at decision time:
+ *
+ *   AUTHORITY   `approverRoles` is the workflow author's statement of who may
+ *               answer. It is resolved server-side against the authenticated
+ *               subject's roles, so a caller cannot nominate their own
+ *               approvers — an approval a requester could authorise is an
+ *               approval with extra steps.
+ *
+ *   CONTEXT     `reason` and `impactSummary` are what the approver reads. They
+ *               are definition-authored rather than assembled from run data,
+ *               which is what keeps a tenant's business content off a record
+ *               that a wider audience than the run itself can see.
+ *
+ *   CONSEQUENCE `onRejection` says what "no" does. Declared rather than
+ *               conventional, because "the run fails" and "the run is
+ *               cancelled" look identical to the engine and completely
+ *               different to whoever reads the outcome afterwards.
+ *
+ *   DEADLINE    `expiresAfterMs` bounds how long the run may hold its cursor
+ *               waiting. Reaching it is a typed failure, never a yes.
+ */
+export interface WorkflowApprovalNode extends WorkflowNodeBase {
+  readonly kind: 'approval';
+  /** Roles permitted to decide. At least one; lower-case; bounded. */
+  readonly approverRoles: readonly string[];
+  /** Why this workflow asks. Shown to the approver. */
+  readonly reason: string;
+  /** What proceeding would do. Shown to the approver. */
+  readonly impactSummary: string;
+  readonly expiresAfterMs: number;
+  readonly onRejection: WorkflowRejectionPolicy;
+  /**
+   * PLACEHOLDER estimates, forwarded to the approval record unchanged.
+   *
+   * The workflow author's own figure for what proceeding would spend. This
+   * batch does not compute one — rolling the child agent runs' spend into a
+   * forecast is token and cost intelligence, which is out of scope — and a
+   * number invented here would be a number somebody eventually believed.
+   * Absent means zero.
+   */
+  readonly estimatedAdditionalTokens?: number;
+  readonly estimatedAdditionalCostMicroUsd?: number;
+}
+
 export type WorkflowNode =
   | WorkflowAgentNode
   | WorkflowConditionNode
   | WorkflowParallelNode
-  | WorkflowJoinNode;
+  | WorkflowJoinNode
+  | WorkflowApprovalNode;
 
 /**
  * A directed transition between two nodes.
@@ -308,6 +394,8 @@ export interface WorkflowDescriptor {
   readonly conditionCount: number;
   readonly parallelCount: number;
   readonly joinCount: number;
+  /** Places this workflow stops for a person. Zero means it never does. */
+  readonly approvalCount: number;
   /** The widest fan-out any single parallel node declares. Zero when there is none. */
   readonly maxBranchCount: number;
   /** Distinct agent ids the graph names, sorted. */
@@ -330,6 +418,10 @@ export function isJoinNode(node: WorkflowNode): node is WorkflowJoinNode {
   return node.kind === 'join';
 }
 
+export function isApprovalNode(node: WorkflowNode): node is WorkflowApprovalNode {
+  return node.kind === 'approval';
+}
+
 export function describeWorkflow(definition: WorkflowDefinition): WorkflowDescriptor {
   const nodes = definition.nodes ?? [];
   const agentIds = [
@@ -350,6 +442,7 @@ export function describeWorkflow(definition: WorkflowDefinition): WorkflowDescri
     conditionCount: nodes.filter(isConditionNode).length,
     parallelCount: parallelNodes.length,
     joinCount: nodes.filter(isJoinNode).length,
+    approvalCount: nodes.filter(isApprovalNode).length,
     maxBranchCount: parallelNodes.reduce(
       (widest, node) => Math.max(widest, node.branches?.length ?? 0),
       0,
@@ -388,6 +481,16 @@ export const WORKFLOW_BOUNDS = {
    * ever execute, which is a mistake better caught at registration.
    */
   parallelNodes: { max: 4 },
+  /**
+   * Approval nodes one graph may declare (AI-01 Batch 3B, Part 5).
+   *
+   * Each one is a place a run can sit indefinitely holding a cursor, and each
+   * one costs a durable record and a row in an operator's queue. Eight is
+   * generous for a governance workflow and low enough that a definition which
+   * asks a person at every step is caught at registration rather than by
+   * whoever has to clear the queue.
+   */
+  approvalNodes: { max: 8 },
 } as const;
 
 /** Node and workflow identifiers must be safe in a key, a log line and a label. */

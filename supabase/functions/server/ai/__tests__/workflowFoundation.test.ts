@@ -92,14 +92,16 @@ describe('workflow validation — nodes', () => {
   });
 
   it('refuses a node kind this batch cannot execute', () => {
-    // Part 3 added `condition` and Part 4 added `parallel` and `join`;
-    // everything else is still unrepresentable, and the refusal names what the
-    // batch actually has rather than what it lacks. `approval` is the honest
-    // example — workflow approvals are explicitly out of this batch.
+    // Part 3 added `condition`, Part 4 added `parallel` and `join`, and Part 5
+    // added `approval`; everything else is still unrepresentable, and the
+    // refusal names what the batch actually HAS rather than what it lacks — so
+    // this assertion moves every time the set does, which is the point.
     const found = validateWorkflowDefinition(
-      variant({ nodes: [node({ nodeId: 'intake', kind: 'approval' as never })], edges: [] }),
+      variant({ nodes: [node({ nodeId: 'intake', kind: 'barrier' as never })], edges: [] }),
     );
-    assert.ok(matches(found, /this batch has agent, condition, parallel and join nodes/));
+    assert.ok(
+      matches(found, /this batch has agent, condition, parallel, join and approval nodes/),
+    );
   });
 
   it('bounds the attempt ceiling in both directions', () => {
@@ -325,6 +327,7 @@ describe('workflow planner — the plan', () => {
       conditionNodeCount: 0,
       parallelNodeCount: 0,
       joinNodeCount: 0,
+      approvalNodeCount: 0,
       maxBranchCount: 0,
       depth: 2,
       agentIds: [WORKFLOW_AGENT_ID.draft, WORKFLOW_AGENT_ID.intake, WORKFLOW_AGENT_ID.review].sort(),

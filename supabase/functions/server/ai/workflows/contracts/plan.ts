@@ -36,6 +36,18 @@
  * resolved at planning, so the engine never re-derives a branch body, a merge
  * order or a fan-out ceiling from the graph while a run is in flight.
  *
+ * ── WHAT PART 5 CHANGED ────────────────────────────────────────────────────
+ *
+ * A step may now be an APPROVAL — a barrier resolved at planning, carrying the
+ * roles that may answer it, the deadline and what a refusal does. And an agent
+ * step carries a resolved `retryPolicy` beside the `maxAttempts` it has always
+ * carried, so the engine reads what a reviewer approved rather than deriving a
+ * backoff from a definition mid-run.
+ *
+ * `metadata.maxAgentInvocations` becomes a real forecast at the same moment:
+ * it has always multiplied each node's attempt ceiling through its loops, and
+ * until Part 5 that ceiling was never spent. It is now.
+ *
  * A PLAN CONTAINS NO RUN. No run id, no organization, no timestamp, no input,
  * no state and no cursor. A plan is a function of the definition and nothing
  * else, which is precisely what makes `digest` stable: the same definition
@@ -45,6 +57,8 @@
 import type { WorkflowExpression } from './expression.ts';
 import type { WorkflowMapping } from './mapping.ts';
 import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
+import type { WorkflowRejectionPolicy } from './approval.ts';
+import type { WorkflowRetryPolicy } from './retry.ts';
 import type { Validator } from '../../security/validation.ts';
 
 interface WorkflowPlanStepBase {
@@ -77,6 +91,14 @@ export interface WorkflowAgentPlanStep extends WorkflowPlanStepBase {
   readonly kind: 'agent';
   readonly agentId: string;
   readonly maxAttempts: number;
+  /**
+   * Resolved at planning, never re-derived mid-run (AI-01 Batch 3B, Part 5).
+   *
+   * A node that declared no policy gets `DEFAULT_WORKFLOW_RETRY_POLICY` here,
+   * so the engine reads one shape rather than branching on absence at every
+   * failure — and so the digest records which policy a reviewer approved.
+   */
+  readonly retryPolicy: WorkflowRetryPolicy;
   readonly inputMapping?: WorkflowMapping;
   readonly inputContract?: Validator<unknown>;
   readonly outputMapping?: WorkflowMapping;
@@ -136,11 +158,35 @@ export interface WorkflowJoinPlanStep extends WorkflowPlanStepBase {
   readonly nextNodeId?: string;
 }
 
+/**
+ * An approval barrier, resolved (AI-01 Batch 3B, Part 5).
+ *
+ * Everything the engine needs to park a run and everything the gate needs to
+ * write the approval record, read from ONE step. The alternative — resolving
+ * the approver roles or the expiry from the registry when the decision arrives
+ * — would mean a definition edited while a request was pending could widen who
+ * may answer it or extend how long they have.
+ */
+export interface WorkflowApprovalPlanStep extends WorkflowPlanStepBase {
+  readonly kind: 'approval';
+  readonly approverRoles: readonly string[];
+  readonly reason: string;
+  readonly impactSummary: string;
+  readonly expiresAfterMs: number;
+  readonly onRejection: WorkflowRejectionPolicy;
+  /** Placeholders, forwarded unchanged. See `contracts/approval.ts`. */
+  readonly estimatedAdditionalTokens: number;
+  readonly estimatedAdditionalCostMicroUsd: number;
+  /** The single successor. Absent on a terminal approval. */
+  readonly nextNodeId?: string;
+}
+
 export type WorkflowPlanStep =
   | WorkflowAgentPlanStep
   | WorkflowConditionPlanStep
   | WorkflowParallelPlanStep
-  | WorkflowJoinPlanStep;
+  | WorkflowJoinPlanStep
+  | WorkflowApprovalPlanStep;
 
 export function isAgentStep(step: WorkflowPlanStep): step is WorkflowAgentPlanStep {
   return step.kind === 'agent';
@@ -158,6 +204,10 @@ export function isJoinStep(step: WorkflowPlanStep): step is WorkflowJoinPlanStep
   return step.kind === 'join';
 }
 
+export function isApprovalStep(step: WorkflowPlanStep): step is WorkflowApprovalPlanStep {
+  return step.kind === 'approval';
+}
+
 /**
  * Facts derived from the plan, computed once so no consumer has to re-derive
  * them — and so a reviewer reads the same numbers the planner used.
@@ -171,6 +221,7 @@ export interface WorkflowPlanMetadata {
   readonly conditionNodeCount: number;
   readonly parallelNodeCount: number;
   readonly joinNodeCount: number;
+  readonly approvalNodeCount: number;
   /** The widest fan-out any parallel step declares. Zero when there is none. */
   readonly maxBranchCount: number;
   /** Edges on the longest shortest-path from the start node. */

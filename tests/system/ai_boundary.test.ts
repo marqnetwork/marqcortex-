@@ -537,6 +537,118 @@ describe('workflow engine boundary', () => {
     assert.match(service.text, /toWorkflowParallelGroupView/);
   });
 
+  it('decides an approval in exactly one module, and never in the engine', () => {
+    // AI-01 Batch 3B Part 5. The engine REQUESTS, READS and SPENDS approvals;
+    // it has no path by which it could answer one. That is the difference
+    // between "a human approved this" and "something approved this on a
+    // human's behalf", and a behavioural test cannot prove the second is
+    // impossible — only a source scan can.
+    const gate = workflowSources.find((file) =>
+      file.path.includes(join('approvals', 'workflowApprovalGate.ts')),
+    );
+    assert.ok(gate, 'the workflow approval gate must exist');
+    assert.match(gate.text, /approvalState: input\.decision === 'approve'/);
+
+    // `approved` is written in exactly one place, and it is inside `decide`.
+    assert.equal(
+      (gate.text.match(/approvalState:\s*'approved'/g) ?? []).length,
+      0,
+      'an approval state is set to approved by a literal rather than by a decision',
+    );
+
+    // Nothing else in the tree may set an approval state at all. A second
+    // writer would be a second way for a request to become a yes.
+    assert.deepEqual(
+      offenders(
+        workflowSources.filter((file) => file !== gate),
+        /approvalState:\s*'(approved|rejected|consumed|expired|withdrawn)'/,
+      ),
+      [],
+      'a module outside the approval gate writes an approval state',
+    );
+
+    // And the engine holds the GATE, not the store — so it cannot reach past it.
+    const engine = workflowSources.find((file) =>
+      file.path.includes(join('engine', 'workflowOrchestrator.ts')),
+    );
+    assert.ok(engine);
+    assert.equal(
+      /WorkflowApprovalStore/.test(engine.text),
+      false,
+      'the workflow engine holds an approval store instead of the gate',
+    );
+    assert.equal(
+      /approvals\s*\.\s*decide\s*\(/.test(engine.text),
+      false,
+      'the workflow engine decides an approval',
+    );
+  });
+
+  it('keeps approval records free of any field that could carry run content', () => {
+    // An approval is read by whoever holds the approver role — a WIDER audience
+    // than the run itself. The way a tenant's business data stays off it is that
+    // there is no field for one, which is a claim about the type rather than
+    // about a projection, and therefore a claim a source scan can settle.
+    const contract = workflowSources.find((file) =>
+      file.path.includes(join('contracts', 'approval.ts')),
+    );
+    assert.ok(contract, 'the approval contract must exist');
+
+    const record = contract.text.slice(
+      contract.text.indexOf('export interface WorkflowApprovalRecord'),
+      contract.text.indexOf('export interface WorkflowApprovalBinding'),
+    );
+    assert.ok(record.length > 200, 'the approval record interface must be found');
+    for (const forbidden of ['input', 'output', 'outputs', 'payload', 'merged', 'progress']) {
+      assert.equal(
+        new RegExp(`readonly ${forbidden}\\??:`).test(record),
+        false,
+        `WorkflowApprovalRecord declares a ${forbidden} field`,
+      );
+    }
+  });
+
+  it('adds no scheduler, timer or background worker for retries', () => {
+    // AI-01 Batch 3B Part 5 persists WHEN a retry becomes eligible and wakes
+    // nothing up at that moment. A timer would put the only copy of "this run
+    // needs attention in ninety seconds" in a process that can be recycled,
+    // which is precisely the failure mode the durable stamp exists to avoid.
+    const SCHEDULING = /setTimeout\s*\(|setInterval\s*\(|queueMicrotask\s*\(|Deno\.cron|new\s+Worker\s*\(/;
+    assert.deepEqual(
+      offenders(workflowSources, SCHEDULING),
+      [],
+      'a scheduling primitive appears in the workflow tree',
+    );
+  });
+
+  it('classifies a retryable failure in exactly one place, as an allow-list', () => {
+    // Whether a node may be tried again is one judgement. A second copy of it —
+    // in the engine, in a branch module, in the service — would be a second
+    // answer, and the two would disagree the first time either changed.
+    const policy = workflowSources.find((file) =>
+      file.path.includes(join('runtime', 'retryPolicy.ts')),
+    );
+    assert.ok(policy, 'the retry policy module must exist');
+    assert.match(policy.text, /RETRYABLE_CHILD_FAILURES/);
+
+    assert.deepEqual(
+      offenders(
+        workflowSources.filter((file) => file !== policy),
+        /RETRYABLE_CHILD_FAILURES|\bprovider_unavailable\b/,
+      ),
+      [],
+      'a module outside the retry policy decides what is retryable',
+    );
+
+    // The retry policy is PURE: no store, no clock, no agent. A classifier that
+    // could persist would be a second writer to the record the engine versions.
+    assert.deepEqual(
+      offenders([policy], /WorkflowRunStore|WorkflowCheckpointStore|WorkflowApprovalStore|Clock/),
+      [],
+      'the retry policy holds a store or a clock instead of taking values',
+    );
+  });
+
   it('changes workflow run state in exactly one place', () => {
     // Every state change goes through `assertTransition` and the store's
     // compare-and-swap. A `state:` assignment outside the engine's transition

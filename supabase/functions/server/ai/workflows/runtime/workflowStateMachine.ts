@@ -68,6 +68,7 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
     'running',
     'waiting_for_agent',
     'waiting_for_branches',
+    'waiting_for_approval',
     'paused',
     'completed',
     'failed',
@@ -79,6 +80,25 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
   // A child agent run is in flight. `running` is how a finished node returns.
   waiting_for_agent: ['running', 'paused', 'failed', 'cancelled', 'expired', 'policy_denied'],
 
+  // A person has been asked and has not answered (AI-01 Batch 3B, Part 5).
+  //
+  // NOTE WHAT IS ABSENT: `paused`. Batch 3A refused to let its own approval gate
+  // be paused, and the reasoning holds here unchanged — an approval gate that is
+  // paused strands a decision nobody can then act on. The `paused` row below
+  // explains why the same argument does NOT apply to `waiting_for_agent`, and
+  // the two rows disagreeing is the whole point: one wait resolves by driving
+  // something, the other resolves only when a human decides.
+  //
+  // Absent for a second reason too. The approval is BOUND to the run version the
+  // park produced — see `contracts/approval.ts` — so a pause would bump that
+  // version and make the pending decision unspendable the moment it was granted.
+  // Refusing the transition is honest; permitting it and then failing the
+  // approval would be a bypass that looked like a bug.
+  //
+  // `running` is how a spent approval returns. `cancelled` is always available,
+  // and it is the explicit escape path for a decision nobody is going to make.
+  waiting_for_approval: ['running', 'failed', 'cancelled', 'expired', 'policy_denied'],
+
   // One or more branches of a parallel step are in flight (Part 4).
   //
   // A SELF EDGE, like `running`'s and for the same reason: one branch making
@@ -89,6 +109,12 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
   //
   // `running` is how a FIRED JOIN returns: the merge is the point at which the
   // several lines of execution become one again.
+  //
+  // There is no edge to `waiting_for_approval` here, and its absence is a
+  // deliberate consequence of where a branch approval lives: when a node inside
+  // a branch parks on a human, the BRANCH takes the waiting state and the run
+  // stays `waiting_for_branches`, because its other branches are still moving.
+  // See `contracts/parallel.ts`.
   waiting_for_branches: [
     'waiting_for_branches',
     'running',
@@ -99,9 +125,9 @@ export const TRANSITIONS: Readonly<Record<WorkflowRunState, readonly WorkflowRun
     'policy_denied',
   ],
 
-  // Pausing from `waiting_for_agent` is SAFE here in a way it was not for the
-  // agent runtime's `waiting_for_approval`, and the difference is worth stating.
-  // An approval gate that is paused strands a decision nobody can then make. A
+  // Pausing from `waiting_for_agent` is SAFE in a way it is not from
+  // `waiting_for_approval`, and the difference is worth stating.
+  // An approval gate that is paused strands a decision nobody can then act on. A
   // paused workflow strands nothing: the child agent run is a durable record
   // with its own state, `pendingNode` still points at it, and resuming re-polls
   // it. Nothing is lost by stopping, so nothing has to be forbidden.
@@ -153,10 +179,22 @@ export const OPERATION_SOURCES: Readonly<
   Record<WorkflowRunOperation, readonly WorkflowRunState[]>
 > = {
   start: ['created', 'validating', 'ready'],
+  // `waiting_for_approval` IS ABSENT, and this is the row that enforces it. The
+  // target table alone would not: `pause` may only produce `paused`, and
+  // `waiting_for_approval → paused` is already refused by TRANSITIONS — but a
+  // reader looking for "may an operator pause a run that is waiting on a human"
+  // should find the answer in the table named after the question. Two refusals
+  // for one rule is the difference between "we noticed" and "we prevented".
   pause: ['ready', 'running', 'waiting_for_agent', 'waiting_for_branches'],
+  // `waiting_for_approval` is absent here too, and for the sharper reason: a
+  // run in that state is not paused, so there is nothing to resume. `resume`
+  // starting from an approval wait would be the bypass this part exists to
+  // prevent — an operator releasing a run past a decision by naming a control
+  // operation instead of making the decision.
   resume: ['paused'],
   // Cancellation is always available while a run is alive. An operator must be
-  // able to stop anything — it is the one escape that is always correct.
+  // able to stop anything — it is the one escape that is always correct, and it
+  // is THE escape from an approval nobody is going to decide.
   cancel: [
     'created',
     'validating',
@@ -164,6 +202,7 @@ export const OPERATION_SOURCES: Readonly<
     'running',
     'waiting_for_agent',
     'waiting_for_branches',
+    'waiting_for_approval',
     'paused',
   ],
   expire: [
@@ -173,11 +212,13 @@ export const OPERATION_SOURCES: Readonly<
     'running',
     'waiting_for_agent',
     'waiting_for_branches',
+    'waiting_for_approval',
     'paused',
   ],
-  // Only a run that is between nodes may complete. A run in `waiting_for_agent`
-  // or `waiting_for_branches` has work in flight, and completing it there would
-  // abandon that work while reporting success.
+  // Only a run that is between nodes may complete. A run in `waiting_for_agent`,
+  // `waiting_for_branches` or `waiting_for_approval` has work or a decision
+  // outstanding, and completing it there would abandon that while reporting
+  // success.
   complete: ['running'],
   fail: [
     'created',
@@ -186,6 +227,7 @@ export const OPERATION_SOURCES: Readonly<
     'running',
     'waiting_for_agent',
     'waiting_for_branches',
+    'waiting_for_approval',
     'paused',
   ],
 };
@@ -290,4 +332,16 @@ export const ACTIVE_WORKFLOW_STATES: readonly WorkflowRunState[] = [
   'running',
   'waiting_for_agent',
   'waiting_for_branches',
+  'waiting_for_approval',
+];
+
+/**
+ * States in which the thing a run is waiting for is A PERSON.
+ *
+ * One member today, and it is a list rather than a comparison so an operator
+ * surface can ask "which of my runs are waiting on us" without knowing which
+ * states currently mean that.
+ */
+export const AWAITING_HUMAN_WORKFLOW_STATES: readonly WorkflowRunState[] = [
+  'waiting_for_approval',
 ];

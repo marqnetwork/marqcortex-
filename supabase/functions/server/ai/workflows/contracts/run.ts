@@ -41,26 +41,42 @@
  * against the workflow's own `inputContract` before it is written, so what is
  * stored is a shape the workflow declared rather than whatever a caller sent.
  *
- * ── WHAT PART 2 CARRIES BUT DOES NOT CONSUME ───────────────────────────────
+ * ── WHAT PART 5 ADDS, AND WHY IT IS ON THIS RECORD ─────────────────────────
  *
- * `WorkflowPlanStep.maxAttempts` is planned, persisted and reported, and it is
- * never spent: Part 2 implements NO retries, so every node gets exactly one
- * attempt and every step record says `attempt: 1`. Carrying the ceiling without
- * acting on it is deliberate — the plan is the reviewed artefact, and dropping
- * a field from it because this part does not use it would mean re-planning when
- * retries arrive.
+ * `pendingApproval` and `retries`. Both are here rather than in a store of
+ * their own for the reason the header opens with: they are read before the
+ * engine acts, written in the same compare-and-swap as the state change they
+ * accompany, and a second store would be a second thing to keep consistent
+ * with the run's version.
+ *
+ * The approval RECORD does live in its own store — it is decided by people who
+ * are not driving the run, it outlives any single advance, and it is queried by
+ * an operator queue that must not have to read every run. What is here is the
+ * POINTER, exactly as `checkpointVersion` is the pointer to the chain.
+ *
+ * `WorkflowPlanStep.maxAttempts` — planned, persisted and reported by Parts
+ * 1–4 and never spent — is spent from Part 5 onwards. `attempt` on a step
+ * record is therefore no longer always 1, and the field that was carried for
+ * four parts did not have to change shape to start meaning something.
  */
 
 import type { WorkflowFailureCode } from './failures.ts';
 import type { WorkflowParallelGroup } from './parallel.ts';
+import type { WorkflowPendingApproval } from './approval.ts';
+import type { WorkflowApprovalDecision } from './approval.ts';
+import type { WorkflowNodeAttempt } from './retry.ts';
 
 // ── States ──────────────────────────────────────────────────────────────────
 
 /**
- * Twelve states, and the two that do not exist are as deliberate as the ones
- * that do: there is no `waiting_for_approval` and no `retrying`, because
- * workflow approvals and retries are not in this batch. A state nothing can
- * reach is a state an operator has to ask about.
+ * Thirteen states, and the one that still does not exist is as deliberate as
+ * the ones that do: THERE IS NO `retrying`.
+ *
+ * A node awaiting its next attempt is `running` with its cursor still on that
+ * node and a durable attempt record saying when the attempt becomes eligible.
+ * A separate state would claim the run is doing something it is not — nothing
+ * is in flight, no child exists, and the only thing distinguishing it from any
+ * other run sitting between nodes is a timestamp that is already on the record.
  *
  * Part 4 adds `waiting_for_branches`, and it is a state rather than a flag on
  * `waiting_for_agent` because the two are operationally different: one run is
@@ -68,6 +84,19 @@ import type { WorkflowParallelGroup } from './parallel.ts';
  * several, each with its own cursor and its own child. Collapsing them would
  * make "which child is this run waiting on" a question with no single answer
  * while the field that is supposed to answer it stays empty.
+ *
+ * Part 5 adds `waiting_for_approval`, and it is a state for a sharper reason
+ * than either of those: it is the only state in which the thing a run is
+ * waiting for is A PERSON. Every other wait resolves by driving something —
+ * poll the child, sweep the branches — and this one resolves only when somebody
+ * with the right role decides. An operator scanning a state count has to be
+ * able to tell "stuck on infrastructure" from "stuck on us", and a run parked
+ * on a human inside `waiting_for_agent` would be indistinguishable from one
+ * waiting on a slow model.
+ *
+ * It is also the state a run may NOT be paused out of — see
+ * `runtime/workflowStateMachine.ts` for why, which is the same reason Batch 3A
+ * gave for its own approval gate.
  */
 export const WORKFLOW_RUN_STATES = [
   'created',
@@ -76,6 +105,7 @@ export const WORKFLOW_RUN_STATES = [
   'running',
   'waiting_for_agent',
   'waiting_for_branches',
+  'waiting_for_approval',
   'paused',
   'completed',
   'failed',
@@ -177,7 +207,7 @@ export interface WorkflowStepRecord {
   /** Position in the plan enumeration. Stable across executions of a node. */
   readonly planIndex: number;
   readonly nodeId: string;
-  readonly kind: 'agent' | 'condition' | 'parallel' | 'join';
+  readonly kind: 'agent' | 'condition' | 'parallel' | 'join' | 'approval';
   /** Which visit of this node this was, starting at 1. */
   readonly iteration: number;
   /** Agent nodes only. */
@@ -207,8 +237,32 @@ export interface WorkflowStepRecord {
   readonly completedAt: string;
   readonly latencyMs: number;
   readonly outcome: 'completed' | 'failed' | 'cancelled';
-  /** Always 1 — there are no retries in this batch. Persisted for Part 4. */
+  /**
+   * Which attempt of this node produced this step, starting at 1.
+   *
+   * Parts 2–4 wrote 1 here always, because no node got a second attempt. From
+   * Part 5 a retried node writes ONE STEP PER ATTEMPT — the failed ones with
+   * `outcome: 'failed'` and the successful one with `outcome: 'completed'` —
+   * so the history says what actually happened rather than reporting only the
+   * attempt that worked. `iteration` still counts VISITS to the node (a loop
+   * coming back round); `attempt` counts tries within one visit.
+   */
   readonly attempt: number;
+  /**
+   * Why a failed attempt failed, in retry vocabulary (Part 5).
+   *
+   * Recorded on the step rather than only on the attempt record, because the
+   * attempt record is overwritten by the next try and the step history is not:
+   * "this node failed twice on the provider and once on a budget" is a
+   * question only the history can answer.
+   */
+  readonly failureClass?: string;
+  /** Whether a retry was scheduled after this attempt. */
+  readonly retryScheduled?: boolean;
+  /** Approval nodes only: the decision record this step spent. */
+  readonly workflowApprovalId?: string;
+  /** Approval nodes only: what the approver said. */
+  readonly approvalDecision?: WorkflowApprovalDecision;
   /**
    * Digest of the TRUSTED output this step stored, or of the child's accepted
    * output when the node declared no output contract.
@@ -237,6 +291,16 @@ export interface WorkflowPendingNode {
   readonly startedAt: string;
   /** Plan index, so recovery can verify the cursor without re-planning. */
   readonly sequence: number;
+  /**
+   * Which attempt this child belongs to, starting at 1 (Part 5).
+   *
+   * On the POINTER rather than derived from the attempt record, so a recovered
+   * isolate that drives this child knows which attempt it is completing without
+   * having to reconcile two sources. It is written in the same versioned write
+   * that creates the pointer, which is what makes the number a fact about this
+   * child rather than about whatever the counter says later.
+   */
+  readonly attempt: number;
 }
 
 // ── The run record ──────────────────────────────────────────────────────────
@@ -269,6 +333,32 @@ export interface WorkflowRunRecord {
    * join accepted, and the digest of what they merged to.
    */
   readonly parallelGroups: readonly WorkflowParallelGroup[];
+  /**
+   * The decision this run is parked on, or none (AI-01 Batch 3B, Part 5).
+   *
+   * Written in the SAME versioned transition that moves the run to
+   * `waiting_for_approval`, and only after the approval record itself is
+   * durable — so a run is never parked on a request that does not exist, and a
+   * request never exists for a run that is not parked on it for longer than one
+   * crashed advance. Cleared when the approval is spent, and left alone by
+   * everything else: a paused run cannot reach this state and a terminal one
+   * has had its request withdrawn.
+   */
+  readonly pendingApproval?: WorkflowPendingApproval;
+  /**
+   * Attempt state per node, per line of execution (AI-01 Batch 3B, Part 5).
+   *
+   * THE AUTHORITY FOR RETRY COUNTS, on the same terms as `parallelGroups`: a
+   * versioned field on a compare-and-swapped record, with no module-level
+   * counter anywhere in the engine. A node that has never failed has no entry —
+   * see `contracts/retry.ts` for why absence rather than a zero row.
+   *
+   * Deliberately absent from the checkpoint chain. An attempt count legitimately
+   * differs between a crashed attempt and its retry, and a digest that moved
+   * with it would turn the engine's idempotent checkpoint re-write into a
+   * permanent conflict — the same reasoning that keeps `pendingNode` out.
+   */
+  readonly retries: readonly WorkflowNodeAttempt[];
   /** Every child agent run this workflow has created, in order. */
   readonly childAgentRunIds: readonly string[];
   readonly steps: readonly WorkflowStepRecord[];
