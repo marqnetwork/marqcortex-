@@ -1313,6 +1313,68 @@ export function emptyFlakyLog(): FlakyPortLog {
   return { created: [], driven: [], failures: 0 };
 }
 
+// ── Part 6A fixture: a port that reports spend ──────────────────────────────
+
+/**
+ * Wrap the REAL agent port so every child run reports a fixed CUMULATIVE spend.
+ *
+ * WHY A PORT WRAPPER AND NOT A SPENDING AGENT. The fixture agents make no model
+ * calls — deliberately, so a workflow assertion is about the workflow — which
+ * means their real ledgers are all zero. Producing genuine spend would mean
+ * driving the control plane into real provider traffic from inside a workflow
+ * fixture, and every accounting assertion would then be a statement about the
+ * provider layer instead of about attribution.
+ *
+ * The figures are CUMULATIVE per child run, exactly as the real port reports
+ * them, and each child reports the same totals however many times it is
+ * observed. That is precisely the shape the idempotency claim needs: if the fold
+ * ever added on a second observation, this fixture would show it as a doubled
+ * total rather than hiding it behind a growing number.
+ */
+export function meteredAgentPort(perChild: {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly costMicroUsd: number;
+}): (port: WorkflowAgentPort) => WorkflowAgentPort {
+  const usage = {
+    inputTokens: perChild.inputTokens,
+    outputTokens: perChild.outputTokens,
+    totalTokens: perChild.inputTokens + perChild.outputTokens,
+    costMicroUsd: perChild.costMicroUsd,
+  };
+  const meter = (handle: Awaited<ReturnType<WorkflowAgentPort['drive']>>) => ({
+    ...handle,
+    usage,
+  });
+  return (port) => ({
+    create: (input) => port.create(input),
+    drive: async (input) => meter(await port.drive(input)),
+    cancel: (input) => port.cancel(input),
+  });
+}
+
+/**
+ * The same, but the named agent's children fail transiently AND still report
+ * spend.
+ *
+ * A retry that reported nothing would make "retries are counted as actual
+ * spend" untestable — the failing attempt has to have cost something for the
+ * ledger to be able to get it wrong.
+ */
+export function meteredFlakyAgentPort(options: {
+  readonly agentId: string;
+  readonly failures: number;
+  readonly log: FlakyPortLog;
+  readonly perChild: { readonly inputTokens: number; readonly outputTokens: number; readonly costMicroUsd: number };
+}): (port: WorkflowAgentPort) => WorkflowAgentPort {
+  const flaky = flakyAgentPort({
+    agentId: options.agentId,
+    failures: options.failures,
+    log: options.log,
+  });
+  return (port) => meteredAgentPort(options.perChild)(flaky(port));
+}
+
 /** A harness carrying the Part 5 workflows and agents. */
 export function buildPart5Runtime(
   options: TestWorkflowRuntimeOptions = {},

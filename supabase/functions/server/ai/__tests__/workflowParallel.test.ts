@@ -118,8 +118,6 @@ function branch(
     childAgentRunIds: [],
     stepCount: 0,
     branchVersion: 1,
-    tokensPlaceholder: 0,
-    costMicroUsdPlaceholder: 0,
     startedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
@@ -493,7 +491,12 @@ describe('branch scheduler — bounded fan-out', () => {
     );
   });
 
-  it('carries token and cost placeholders that are always zero in this part', () => {
+  it('CARRIES NO SPEND COUNTER OF ITS OWN — the ledger is the one accumulator', () => {
+    // AI-01 Batch 3B Part 6A deleted `tokensPlaceholder` and
+    // `costMicroUsdPlaceholder` rather than filling them in. A branch's spend is
+    // DERIVED from the run's usage ledger by filtering on `branchId`, so a
+    // per-branch counter reappearing here would be a second accumulator and
+    // therefore a second thing that can disagree with the first.
     const opened = openParallelGroup({
       workflowRunId: RUN_ID,
       step: planStep(['left', 'right']),
@@ -501,8 +504,8 @@ describe('branch scheduler — bounded fan-out', () => {
       at: '2026-01-01T00:00:00.000Z',
     });
     for (const entry of opened.branches) {
-      assert.equal(entry.tokensPlaceholder, 0);
-      assert.equal(entry.costMicroUsdPlaceholder, 0);
+      const fields = Object.keys(entry);
+      assert.equal(fields.some((field) => /token|cost/i.test(field)), false, fields.join(','));
     }
   });
 

@@ -61,6 +61,26 @@ function offenders(files: readonly SourceFile[], pattern: RegExp): string[] {
     .map((file) => relative(SERVER_ROOT, file.path));
 }
 
+/**
+ * The same scan over CODE ONLY, with comments removed.
+ *
+ * This repository documents heavily, and a file that explains in prose why it
+ * must never derive a baseline from a savings target contains the words
+ * "savings target". Scanning the raw text would make the explanation itself the
+ * violation — which teaches the only lesson a source scan must never teach,
+ * that the way to pass is to stop writing down the reasoning.
+ *
+ * So the patterns below are matched against the file with block and line
+ * comments stripped. A real defect is code, and code is what this looks at.
+ */
+function strippedOffenders(files: readonly SourceFile[], pattern: RegExp): string[] {
+  const strip = (text: string): string =>
+    text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  return files
+    .filter((file) => pattern.test(strip(file.text)))
+    .map((file) => relative(SERVER_ROOT, file.path));
+}
+
 describe('AI provider boundary', () => {
   it('has server sources to scan', () => {
     // A scan over zero files passes vacuously, which would make every other
@@ -668,6 +688,207 @@ describe('workflow engine boundary', () => {
       offenders(others, /\bstate:\s*'(running|completed|failed|cancelled|expired)'/),
       [],
       'a workflow state is assigned outside the engine',
+    );
+  });
+});
+
+/**
+ * AI-01 Batch 3B Part 6A added a Cost Compression Engine. It is the component
+ * with the strongest possible motive to become a second execution path: its
+ * entire job is to make model calls cheaper, and the shortest route to "cheaper"
+ * is always to make the call itself, with the cheap model, skipping the layers
+ * that cost something. Every one of those layers — the guard, the policy engine,
+ * the spend ceiling, the certification checks, the audit trail — would then
+ * simply not apply to whatever flowed through it.
+ *
+ * It is also the component with the strongest motive to LIE, which is why the
+ * assertions below cover the accounting as well as the access. A baseline that
+ * could be computed from a savings target, or a savings ledger with a second
+ * writer, would produce numbers no reviewer could check.
+ *
+ * The claims are narrow and absolute: THE ENGINE RECOMMENDS AND NEVER EXECUTES,
+ * and THE BASELINE CANNOT SEE THE RESULT IT IS THE DENOMINATOR OF. A behavioural
+ * test can show the engine's advice is sound; only a source scan can show there
+ * is no second way and no back channel.
+ */
+describe('cost compression boundary', () => {
+  const OPTIMIZATION_DIR = join(SERVER_ROOT, 'ai', 'optimization') + sep;
+  const optimizationSources = serverSources.filter(
+    (file) => file.path.startsWith(OPTIMIZATION_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty cost compression tree', () => {
+    assert.ok(
+      optimizationSources.length >= 10,
+      `expected the optimization tree, found ${optimizationSources.length}`,
+    );
+  });
+
+  it('NEVER REACHES A PROVIDER: no adapter, no vendor, no credential, no invoke', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(optimizationSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(optimizationSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(optimizationSources, CREDENTIAL), []);
+    assert.deepEqual(offenders(optimizationSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('never holds the control plane, an orchestrator, a tool gateway or a prompt', () => {
+    // Three layers from a model call and permitted to hold none of them. The
+    // engine returns advice; the control plane executes it.
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    assert.deepEqual(offenders(optimizationSources, PLANE_IMPORT), []);
+    const EXECUTION_IMPORT =
+      /from\s+['"][^'"]*(agents\/(orchestrator|service|tools|approvals|registry)\/|workflows\/(engine|service|approvals)\/|tools\/toolRegistry|prompts\/|pipeline\/)/;
+    assert.deepEqual(offenders(optimizationSources, EXECUTION_IMPORT), []);
+    const TOOL_CALL = /\b(toolGateway|gateway)\s*\.\s*(execute|invoke|call)\s*\(/;
+    assert.deepEqual(offenders(optimizationSources, TOOL_CALL), []);
+  });
+
+  it('IS NOT A SECOND PROVIDER SELECTOR and re-implements no existing guarantee', () => {
+    // The platform resolves a concrete model in exactly one place. This tree
+    // recommends a capability BAND; a model id, a provider id or a selector here
+    // would be the second resolver the whole design exists to prevent.
+    const DUPLICATED =
+      /createSpendLedger|createProviderSelector|createAIGuard|createPolicyEngine|createExecutionPipeline|createAgentOrchestrator|createWorkflowOrchestrator|routeModelProfile/;
+    assert.deepEqual(offenders(optimizationSources, DUPLICATED), []);
+    // No model or provider identifiers of any kind: the abstraction is the band.
+    assert.deepEqual(offenders(optimizationSources, /\bmodelId\b|\bproviderId\b/), []);
+  });
+
+  it('holds no store, no clock and no randomness — every decision is reproducible', () => {
+    // A cost decision that cannot be reproduced from its inputs cannot be
+    // explained after an incident, and a savings figure that moves between two
+    // runs of the same work is a savings figure nobody will trust twice.
+    assert.deepEqual(
+      offenders(optimizationSources, /\bMath\.random\s*\(|\bcrypto\.getRandomValues\s*\(/),
+      [],
+    );
+    assert.deepEqual(
+      offenders(optimizationSources, /\bDate\.now\s*\(|new\s+Date\s*\(|\bClock\b/),
+      [],
+    );
+    assert.deepEqual(
+      offenders(optimizationSources, /RunStore|CheckpointStore|ApprovalStore|kvGet|kvSet/),
+      [],
+    );
+    const SCHEDULING = /setTimeout\s*\(|setInterval\s*\(|Deno\.cron|new\s+Worker\s*\(/;
+    assert.deepEqual(offenders(optimizationSources, SCHEDULING), []);
+  });
+
+  it('THE BASELINE CANNOT SEE WHAT IT IS THE DENOMINATOR OF', () => {
+    // The single most dangerous defect this subsystem could develop:
+    // `optimised / (1 - target)`. The defence is that the value needed to
+    // compute it is out of scope of the function that would compute it — so the
+    // scan asserts the baseline module never names an optimised or actual cost,
+    // and never names a target at all.
+    const baseline = optimizationSources.find((file) =>
+      file.path.includes(join('baseline', 'baselineCostModel.ts')),
+    );
+    assert.ok(baseline, 'the baseline cost model must exist');
+
+    const declaration = baseline.text.slice(
+      baseline.text.indexOf('export interface BaselineInput'),
+      baseline.text.indexOf('function costMicroUsd'),
+    );
+    assert.ok(declaration.length > 100, 'the baseline input interface must be found');
+    for (const forbidden of [
+      'optimizedCost',
+      'optimizedEstimatedCostMicroUsd',
+      'actualCostMicroUsd',
+      'targetSavings',
+      'savingsTarget',
+      'savingsPercent',
+    ]) {
+      assert.equal(
+        declaration.includes(forbidden),
+        false,
+        `BaselineInput exposes ${forbidden}, which would let a baseline be derived from its own result`,
+      );
+    }
+
+    // And no division by a savings figure anywhere in the tree — in CODE, not
+    // in the paragraphs explaining why there is none.
+    assert.deepEqual(
+      strippedOffenders(optimizationSources, /\/\s*\(\s*1\s*-\s*[a-z_.]*(target|savings|desired)/i),
+      [],
+      'a baseline is being derived from a savings target',
+    );
+  });
+
+  it('attributes savings in exactly one module, and refuses an unbalanced ledger', () => {
+    const ledger = optimizationSources.find((file) =>
+      file.path.includes(join('ledger', 'savingsLedger.ts')),
+    );
+    assert.ok(ledger, 'the savings ledger must exist');
+    assert.match(ledger.text, /savings_reconciliation_failed/);
+
+    // Nothing else may BUILD a savings record or refuse one. A second
+    // constructor would be a second partition of the same gap, and the two
+    // would eventually both be counted; a second reconciler would be a second
+    // opinion about whether they balance.
+    const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR) && !isTest(file));
+    for (const definition of [
+      /export function buildSavingsRecord/,
+      /export function reconcileSavings/,
+    ]) {
+      const defining = aiSources.filter((file) => definition.test(file.text));
+      assert.deepEqual(
+        defining.map((file) => relative(SERVER_ROOT, file.path)),
+        [relative(SERVER_ROOT, ledger.path)],
+        `${definition.source} is defined outside the savings ledger`,
+      );
+    }
+  });
+
+  it('attributes actual usage through exactly one fold', () => {
+    // Parts 4 and 5 left zeroed placeholders precisely so this would arrive as
+    // ONE mechanism. Several folds would mean several opinions about what a run
+    // cost, differing on retries, cached tokens and repair calls.
+    const accounting = optimizationSources.find((file) =>
+      file.path.includes(join('accounting', 'usageAccounting.ts')),
+    );
+    assert.ok(accounting, 'the usage accounting port must exist');
+    assert.match(accounting.text, /export function attributeUsage/);
+
+    const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR) && !isTest(file));
+    const folders = aiSources
+      .filter((file) => file !== accounting)
+      .filter((file) => /function\s+attributeUsage|delta\(previous/.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(folders, [], 'a second module folds usage');
+  });
+
+  it('leaves no placeholder spend field anywhere in the workflow tree', () => {
+    // The Part 4/5 placeholders are gone rather than filled in. A field named
+    // like one reappearing would mean a second accumulator alongside the ledger.
+    const WORKFLOWS_DIR = join(SERVER_ROOT, 'ai', 'workflows') + sep;
+    const workflowSources = serverSources.filter(
+      (file) => file.path.startsWith(WORKFLOWS_DIR) && !isTest(file),
+    );
+    assert.deepEqual(
+      strippedOffenders(workflowSources, /tokensPlaceholder|costMicroUsdPlaceholder/),
+      [],
+      'a spend placeholder survives in the workflow tree',
+    );
+  });
+
+  it('defers semantic and response caching to Part 6B', () => {
+    // Reuse SOURCES need tenant, freshness, provenance and invalidation
+    // contracts that get their own review. Part 6A accepts a prior output the
+    // caller has already re-validated and never decides that one is still valid.
+    const CACHE = /semanticCache|responseCache|embedding|cosineSimilarity|vectorSearch/i;
+    assert.deepEqual(strippedOffenders(optimizationSources, CACHE), []);
+  });
+
+  it('adds no HTTP route, dashboard or admin surface', () => {
+    const SURFACE = /\bapp\.(get|post|put|patch|delete)\s*\(|new\s+Hono\s*\(|Response\s*\(/;
+    assert.deepEqual(offenders(optimizationSources, SURFACE), []);
+    assert.equal(
+      existsSync(join(SERVER_ROOT, 'ai', 'optimization', 'http')),
+      false,
+      'Part 6A ships no HTTP surface',
     );
   });
 });
