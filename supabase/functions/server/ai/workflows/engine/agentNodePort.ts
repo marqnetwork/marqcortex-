@@ -60,6 +60,32 @@ export type WorkflowAgentActor = AgentRunActor;
 
 export type AgentNodeState = 'running' | 'blocked' | 'completed' | 'failed';
 
+/**
+ * What the child agent run has spent SO FAR (AI-01 Batch 3B, Part 6A).
+ *
+ * CUMULATIVE, NOT INCREMENTAL, and that is load-bearing. An incremental report
+ * would require the port to remember what it had already reported, which is
+ * exactly the state an edge isolate loses when it is recycled. Cumulative totals
+ * plus a delta-applying fold on the other side means a recovered isolate
+ * re-observing the same child computes a zero delta and changes nothing.
+ *
+ * It comes through the PORT rather than being read from the agent run record by
+ * whoever wants it, for the same reason `output` does: this is the one seam
+ * between the workflow engine and the agent runtime, and a second reader of the
+ * child's ledgers would be a second opinion about what a run cost — differing by
+ * whether each remembered retries, cached tokens or a repair call.
+ *
+ * Reported for a child in ANY state. A run that failed after two model steps
+ * spent money on both, and a handle that carried usage only on completion would
+ * quietly under-report every failure the platform paid for.
+ */
+export interface AgentNodeUsage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly costMicroUsd: number;
+}
+
 /** Everything the engine is allowed to learn about a child agent run. */
 export interface AgentNodeHandle {
   readonly agentRunId: string;
@@ -87,6 +113,15 @@ export interface AgentNodeHandle {
    * "trusted" requires both.
    */
   readonly output?: unknown;
+  /**
+   * The child's cumulative spend (AI-01 Batch 3B, Part 6A).
+   *
+   * Absent when the child has spent nothing measurable — which is the honest
+   * report for an approval node or a child that has not yet reached the model,
+   * and is why the field is optional rather than a zeroed object. "Not measured"
+   * and "measured zero" are different claims.
+   */
+  readonly usage?: AgentNodeUsage;
   readonly failure?: string;
   /** Caller-safe message from the child. Never a provider or storage message. */
   readonly failureMessage?: string;
@@ -157,10 +192,36 @@ export function projectAgentRun(record: AgentRunRecord, output?: unknown): Agent
       ? 'running'
       : 'blocked';
 
+  // The child's OWN ledgers, verbatim. Not re-derived from its step history and
+  // not recomputed from a price table here — the agent runtime already
+  // reconciled provider-reported usage into these, and a second derivation would
+  // be a second answer to a question that has one.
+  //
+  // A record with no ledgers at all reports NO usage rather than zeroes. That is
+  // the honest projection for a record written before the ledgers existed, and
+  // it keeps "not measured" distinguishable from "measured zero" — which is the
+  // distinction an approval node depends on.
+  const tokens = record.tokens;
+  const cost = record.cost;
+  const measured =
+    tokens !== undefined &&
+    cost !== undefined &&
+    (tokens.actualTotalTokens > 0 || cost.actualMicroUsd > 0)
+      ? {
+          usage: {
+            inputTokens: tokens.actualPromptTokens,
+            outputTokens: tokens.actualCompletionTokens,
+            totalTokens: tokens.actualTotalTokens,
+            costMicroUsd: cost.actualMicroUsd,
+          },
+        }
+      : {};
+
   return {
     agentRunId: record.context.runId,
     state,
     childState: record.state,
+    ...measured,
     // Carried only when the node succeeded. A failed, cancelled or expired
     // child has no accepted output, and passing whatever it last held would
     // make a partial result look like a governed one.

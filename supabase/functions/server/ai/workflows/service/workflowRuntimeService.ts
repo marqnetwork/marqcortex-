@@ -52,6 +52,9 @@ import type {
   WorkflowRejectionPolicy,
 } from '../contracts/approval.ts';
 import type { WorkflowNodeAttempt } from '../contracts/retry.ts';
+import type { UsageLedger } from '../../optimization/contracts/usage.ts';
+import { emptyUsageLedger } from '../../optimization/contracts/usage.ts';
+import { branchUsage, groupUsage, runUsage } from '../runtime/usageAttribution.ts';
 import type { WorkflowApprovalGate } from '../approvals/workflowApprovalGate.ts';
 import type { WorkflowRegistry } from '../registry/workflowRegistry.ts';
 import type { WorkflowRunStore } from '../persistence/ports.ts';
@@ -114,6 +117,19 @@ export interface WorkflowRunDetail extends WorkflowRunSummary {
    * request.
    */
   readonly retries: readonly WorkflowNodeAttempt[];
+  /**
+   * What this run has actually spent (AI-01 Batch 3B, Part 6A).
+   *
+   * Measured, never estimated: these are provider-reported figures the agent
+   * runtime reconciled onto its own child runs and this run's ledger rolled up
+   * through the single accounting port. Retries are included — money spent on an
+   * attempt that failed is money spent, and a console that showed only the
+   * successful attempt would disagree with the invoice.
+   */
+  readonly actualInputTokens: number;
+  readonly actualOutputTokens: number;
+  readonly actualTotalTokens: number;
+  readonly actualCostMicroUsd: number;
   /** Every parallel step, open and closed, without any branch's outputs. */
   readonly parallelGroups: readonly WorkflowParallelGroupView[];
   readonly steps: readonly WorkflowStepRecord[];
@@ -148,10 +164,17 @@ export interface WorkflowBranchView {
   readonly failure?: string;
   /** The decision this branch is parked on, if any (Part 5). */
   readonly pendingApproval?: WorkflowPendingApproval;
-  /** Always 0. See `contracts/parallel.ts`. */
-  readonly tokensPlaceholder: number;
-  /** Always 0. See `contracts/parallel.ts`. */
-  readonly costMicroUsdPlaceholder: number;
+  /**
+   * What this branch's child agent runs actually spent (Part 6A).
+   *
+   * DERIVED from the run's usage ledger by filtering on `branchId`, not read
+   * from a counter on the branch record — there is no such counter, deliberately,
+   * because a second accumulator is a second thing that can disagree with the
+   * first. It replaces the `tokensPlaceholder` / `costMicroUsdPlaceholder`
+   * zeroes Parts 4 and 5 carried.
+   */
+  readonly actualTokens: number;
+  readonly actualCostMicroUsd: number;
 }
 
 export interface WorkflowParallelGroupView {
@@ -164,13 +187,20 @@ export interface WorkflowParallelGroupView {
   readonly joinedAt?: string;
   readonly joinDigest?: string;
   readonly groupVersion: number;
+  /** The group's total spend. Derived from the ledger, never stored twice. */
+  readonly actualTokens: number;
+  readonly actualCostMicroUsd: number;
   readonly branches: readonly WorkflowBranchView[];
 }
 
 export function toWorkflowParallelGroupView(
   group: WorkflowParallelGroup,
+  ledger: UsageLedger,
 ): WorkflowParallelGroupView {
+  const group_ = groupUsage(ledger, group.groupId);
   return {
+    actualTokens: group_.actualTotalTokens,
+    actualCostMicroUsd: group_.actualCostMicroUsd,
     groupId: group.groupId,
     parallelNodeId: group.parallelNodeId,
     joinNodeId: group.joinNodeId,
@@ -181,6 +211,8 @@ export function toWorkflowParallelGroupView(
     ...(group.joinDigest === undefined ? {} : { joinDigest: group.joinDigest }),
     groupVersion: group.groupVersion,
     branches: group.branches.map((branch) => ({
+      actualTokens: branchUsage(ledger, branch.branchId).actualTotalTokens,
+      actualCostMicroUsd: branchUsage(ledger, branch.branchId).actualCostMicroUsd,
       branchId: branch.branchId,
       branchName: branch.branchName,
       ordinal: branch.ordinal,
@@ -197,8 +229,6 @@ export function toWorkflowParallelGroupView(
       ...(branch.pendingApproval === undefined
         ? {}
         : { pendingApproval: branch.pendingApproval }),
-      tokensPlaceholder: branch.tokensPlaceholder,
-      costMicroUsdPlaceholder: branch.costMicroUsdPlaceholder,
     })),
   };
 }
@@ -336,9 +366,26 @@ export function toWorkflowRunSummary(record: WorkflowRunRecord): WorkflowRunSumm
  * it after a restart, and a read model that echoed it back would make every
  * console, log and screenshot a copy of that data.
  */
+/**
+ * The run's usage ledger, or an empty one.
+ *
+ * Records written before AI-01 Batch 3B Part 6A carry no ledger at all. An
+ * empty one reports zeroes, which is the only honest projection available — and
+ * the reason `runUsage` documents that a reader must treat it as "not measured"
+ * rather than as "measured zero".
+ */
+function ledgerOf(record: WorkflowRunRecord): UsageLedger {
+  return record.usage ?? emptyUsageLedger(record.context.organizationId);
+}
+
 export function toWorkflowRunDetail(record: WorkflowRunRecord): WorkflowRunDetail {
+  const spent = runUsage(ledgerOf(record));
   return {
     ...toWorkflowRunSummary(record),
+    actualInputTokens: spent.actualInputTokens,
+    actualOutputTokens: spent.actualOutputTokens,
+    actualTotalTokens: spent.actualTotalTokens,
+    actualCostMicroUsd: spent.actualCostMicroUsd,
     correlationId: record.context.correlationId,
     configurationVersion: record.configurationVersion,
     checkpointVersion: record.checkpointVersion,
@@ -350,7 +397,9 @@ export function toWorkflowRunDetail(record: WorkflowRunRecord): WorkflowRunDetai
       ? {}
       : { pendingApproval: record.pendingApproval }),
     retries: record.retries ?? [],
-    parallelGroups: (record.parallelGroups ?? []).map(toWorkflowParallelGroupView),
+    parallelGroups: (record.parallelGroups ?? []).map((group) =>
+      toWorkflowParallelGroupView(group, ledgerOf(record)),
+    ),
     steps: record.steps,
     transitions: record.transitions,
     transitionsTruncated: record.transitionsTruncated,

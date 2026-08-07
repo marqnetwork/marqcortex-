@@ -60,6 +60,7 @@
  * four parts did not have to change shape to start meaning something.
  */
 
+import type { UsageLedger } from '../../optimization/contracts/usage.ts';
 import type { WorkflowFailureCode } from './failures.ts';
 import type { WorkflowParallelGroup } from './parallel.ts';
 import type { WorkflowPendingApproval } from './approval.ts';
@@ -359,6 +360,29 @@ export interface WorkflowRunRecord {
    * permanent conflict — the same reasoning that keeps `pendingNode` out.
    */
   readonly retries: readonly WorkflowNodeAttempt[];
+  /**
+   * What this run has actually spent (AI-01 Batch 3B, Part 6A).
+   *
+   * THE AUTHORITY FOR SPEND, on the same terms as `parallelGroups` and
+   * `retries`: a versioned field on a compare-and-swapped record, written in the
+   * same transition as the state change it accompanies. There is no separate
+   * usage store and no in-memory accumulator, because a cost figure that lives
+   * anywhere but the record can disagree with the record after a crash between
+   * the two writes.
+   *
+   * It replaces the `tokensPlaceholder` / `costMicroUsdPlaceholder` zeroes Parts
+   * 4 and 5 carried on branch records — and it replaces them by DELETING those
+   * fields rather than filling them in. Branch, group and node totals are
+   * derived from this ledger by filtering (`runtime/usageAttribution.ts`), so
+   * there is exactly one accumulator and nothing to reconcile it against.
+   *
+   * Rows are keyed by CHILD AGENT RUN ID and hold that child's cumulative
+   * spend, which is what makes attribution idempotent across a restart, makes a
+   * retry's spend land as a new row rather than an overwrite, and makes an
+   * approval cost nothing by having nothing to report. See
+   * `optimization/accounting/usageAccounting.ts` for the fold.
+   */
+  readonly usage: UsageLedger;
   /** Every child agent run this workflow has created, in order. */
   readonly childAgentRunIds: readonly string[];
   readonly steps: readonly WorkflowStepRecord[];

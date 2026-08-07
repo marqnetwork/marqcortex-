@@ -164,10 +164,6 @@ export function openParallelGroup(options: {
     childAgentRunIds: [],
     stepCount: 0,
     branchVersion: 1,
-    // Placeholders. Part 5 rolls the children's own spend up into these; a
-    // number invented here would be a number somebody eventually believed.
-    tokensPlaceholder: 0,
-    costMicroUsdPlaceholder: 0,
     startedAt: at,
   }));
 

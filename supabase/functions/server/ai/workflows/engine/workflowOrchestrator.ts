@@ -186,6 +186,8 @@ import {
   retriesExhausted,
   retryDelayRemainingMs,
 } from '../runtime/retryPolicy.ts';
+import { emptyUsageLedger } from '../../optimization/contracts/usage.ts';
+import { absorbChildUsage } from '../runtime/usageAttribution.ts';
 import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
 import { applyMapping } from '../runtime/mapper.ts';
 import {
@@ -1082,6 +1084,19 @@ export function createWorkflowOrchestrator(
       requestId: input.requestId,
       correlationId: record.context.correlationId,
       ...(input.clientIp === undefined ? {} : { clientIp: input.clientIp }),
+    });
+
+    // ATTRIBUTED BEFORE THE OUTCOME IS JUDGED (AI-01 Batch 3B, Part 6A). A child
+    // that failed after two model steps spent money on both, so the fold happens
+    // here rather than on the success path — attributing only what succeeded
+    // would under-report exactly the spend a savings figure must be read next
+    // to. The fold is a delta over the child's cumulative totals, so observing
+    // the same child twice adds nothing; see `runtime/usageAttribution.ts`.
+    record = absorbChildUsage(record, {
+      agentRunId: pending.agentRunId,
+      nodeId: pending.nodeId,
+      attempt: pending.attempt,
+      ...(handle.usage === undefined ? {} : { usage: handle.usage }),
     });
 
     if (handle.state === 'running' || handle.state === 'blocked') {
@@ -2050,6 +2065,19 @@ export function createWorkflowOrchestrator(
       requestId: input.requestId,
       correlationId: record.context.correlationId,
       ...(input.clientIp === undefined ? {} : { clientIp: input.clientIp }),
+    });
+
+    // Same fold as the main line, carrying the branch and group so a branch's
+    // spend is derivable by filtering rather than accumulated a second time on
+    // the branch record — see `contracts/parallel.ts` for why those fields were
+    // deleted rather than filled in.
+    record = absorbChildUsage(record, {
+      agentRunId: pending.agentRunId,
+      nodeId: pending.nodeId,
+      branchId: branch.branchId,
+      groupId: group.groupId,
+      attempt: pending.attempt,
+      ...(handle.usage === undefined ? {} : { usage: handle.usage }),
     });
 
     if (handle.state === 'running' || handle.state === 'blocked') {
@@ -3258,6 +3286,10 @@ export function createWorkflowOrchestrator(
         stepCount: 0,
         parallelGroups: [],
         retries: [],
+        // Empty, and empty means "nothing has been spent" rather than "spend is
+        // unknown" — the run has created no child agent runs yet, so there is
+        // nothing that could have spent anything.
+        usage: emptyUsageLedger(input.organizationId),
         childAgentRunIds: [],
         steps: [],
         transitions: [],

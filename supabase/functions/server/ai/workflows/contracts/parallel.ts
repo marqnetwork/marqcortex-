@@ -43,15 +43,24 @@
  *                            outcome means the join merges whichever duplicate
  *                            arrived second.
  *
- * ── TOKENS AND COST ARE PLACEHOLDERS, AND SAY SO ───────────────────────────
+ * ── TOKENS AND COST ARE NO LONGER PLACEHOLDERS, AND ARE NO LONGER HERE ─────
  *
- * `tokensPlaceholder` and `costMicroUsdPlaceholder` are always zero, in Part 4
- * and still in Part 5. Branch-level accounting needs the child agent runs' own
- * spend records rolled up through the port — token and cost intelligence, which
- * is out of scope for this batch — and a field that quietly reported a wrong
- * number would be worse than one that reports none. They exist so the shape of
- * the record does not change when the numbers arrive, and the approval record
- * carries the same two placeholders on the same terms.
+ * Parts 4 and 5 carried `tokensPlaceholder` and `costMicroUsdPlaceholder`,
+ * always zero, with a comment saying a number invented there would be a number
+ * somebody eventually believed. AI-01 Batch 3B Part 6A supplies the real
+ * figures — and DELETES the fields rather than filling them in.
+ *
+ * The numbers now live in one place: the run record's `usage` ledger, fed by the
+ * single trusted accounting port in `optimization/accounting/usageAccounting.ts`
+ * and keyed by child agent run id. A branch's spend is DERIVED from that ledger
+ * by filtering on `branchId` — see `runtime/usageAttribution.ts` — rather than
+ * accumulated a second time on the branch record.
+ *
+ * That is the same reasoning that keeps `contributionNodeId` a pointer instead
+ * of a copy of the value. A stored per-branch counter maintained alongside the
+ * ledger would be a second thing that can disagree with the first, and the first
+ * question after any disagreement — "which of these two is the spend?" — has no
+ * good answer.
  */
 
 import type { WorkflowFailureCode } from './failures.ts';
@@ -219,10 +228,6 @@ export interface WorkflowBranchRecord {
   readonly stepCount: number;
   /** Optimistic concurrency for this branch alone. Starts at 1. */
   readonly branchVersion: number;
-  /** Always 0 in Part 4. See the header. */
-  readonly tokensPlaceholder: number;
-  /** Always 0 in Part 4. See the header. */
-  readonly costMicroUsdPlaceholder: number;
   readonly startedAt: string;
   readonly endedAt?: string;
   readonly failure?: WorkflowFailureCode;
