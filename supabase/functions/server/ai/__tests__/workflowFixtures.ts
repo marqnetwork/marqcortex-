@@ -358,6 +358,8 @@ export interface TestWorkflowRuntimeOptions {
   readonly nodeCostProfileFor?: WorkflowRuntimeOptions['nodeCostProfileFor'];
   readonly reuseResolver?: WorkflowReuseResolver;
   readonly financialPort?: WorkflowFinancialPort;
+  /** Wrap the assembled recorder. Crash simulations only. */
+  readonly wrapFinancialPort?: (port: WorkflowFinancialPort) => WorkflowFinancialPort;
 }
 
 /**
@@ -416,6 +418,9 @@ export function buildTestWorkflowRuntime(
       : { nodeCostProfileFor: options.nodeCostProfileFor }),
     ...(options.reuseResolver === undefined ? {} : { reuseResolver: options.reuseResolver }),
     ...(options.financialPort === undefined ? {} : { financialPort: options.financialPort }),
+    ...(options.wrapFinancialPort === undefined
+      ? {}
+      : { wrapFinancialPort: options.wrapFinancialPort }),
   });
 
   return {

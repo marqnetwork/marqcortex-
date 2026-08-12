@@ -147,6 +147,16 @@ export interface WorkflowRuntimeOptions {
    * decides nothing produces the same `undefined` a missing envelope does.
    */
   readonly financialPort?: WorkflowFinancialPort;
+  /**
+   * Wrap the assembled recorder. Crash simulations only.
+   *
+   * The symmetric counterpart to `agentPort`, and it exists for one reason: a
+   * crash-window test has to be able to say "this isolate died before it wrote
+   * the settlement" without the engine knowing anything unusual happened. A
+   * wrapper that drops one method is the smallest honest way to say that, and it
+   * keeps every other component on the path production code.
+   */
+  readonly wrapFinancialPort?: (port: WorkflowFinancialPort) => WorkflowFinancialPort;
 }
 
 export interface WorkflowRuntime {
@@ -258,7 +268,7 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     };
   };
 
-  const financial =
+  const assembledFinancial =
     options.financialPort ??
     createWorkflowFinancialRecorder({
       store: financialEvents,
@@ -281,6 +291,10 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
       logger,
       metrics,
     });
+
+  const financial = options.wrapFinancialPort
+    ? options.wrapFinancialPort(assembledFinancial)
+    : assembledFinancial;
 
   const orchestrator = createWorkflowOrchestrator({
     registry,

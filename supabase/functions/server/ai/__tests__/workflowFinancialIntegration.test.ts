@@ -799,7 +799,29 @@ describe('live financial emission — restart', () => {
     assert.deepEqual(after, before);
   });
 
-  it('RECOVERS an event whose pending write was lost, and settles it once', async () => {
+  /**
+   * THE FIVE CRASH WINDOWS, AND WHAT EACH ONE GUARANTEES.
+   *
+   * Stated here rather than claimed in prose, because "exactly once" is the
+   * easiest property in this area to assert and the hardest to hold:
+   *
+   *   1. INFERENCE HAPPENED, THE EVENT WAS NOT WRITTEN. Recovered. `settleAttempt`
+   *      appends before it settles, so the settled row is inserted in one step.
+   *   2. EVENT PENDING, SETTLEMENT LOST. Recovered at terminal finalization,
+   *      which settles from the run's own usage ledger.
+   *   3. SETTLEMENT WRITTEN, TERMINALIZATION LOST. The settled event is
+   *      preserved exactly as it was; finalization never revisits a measurement.
+   *   4. TERMINALIZED, FINALIZATION LOST. The next advance over the terminal run
+   *      finalizes it. Nothing else is required to happen for that to occur.
+   *   5. FINALIZATION REPEATED. Converges. Idempotent by the derived id and by
+   *      the store's refusal to settle twice.
+   *
+   * NOT EXACTLY-ONCE DELIVERY. What is proved is exactly-once ACCOUNTING: the
+   * derived event id means a duplicate write is refused rather than prevented,
+   * and a lost write is recoverable rather than impossible. An event may be
+   * attempted many times; it is stored and settled once.
+   */
+  it('WINDOW 1: inference happened and the pending write was lost — recovered, once', async () => {
     // CRASH WINDOW 1: the child was created and the pointer persisted, but the
     // isolate died before the pending event was written. The financial store is
     // introduced only for the SECOND isolate, so the first wrote nothing.
@@ -832,6 +854,168 @@ describe('live financial emission — restart', () => {
     assert.equal(events.length, 1, 'the recovered settlement wrote more than one row');
     assert.equal(events[0].settlementState, 'settled');
     assert.equal(events[0].actualCostMicroUsd, SPEND.costMicroUsd);
+  });
+
+  it('WINDOW 2: the event was pending and the settlement was lost — settled at finalization', async () => {
+    const runStore = createMemoryWorkflowRunStore();
+    const financialEventStore = createInMemoryFinancialEventStore();
+
+    // An isolate that wrote the pending event and then died before settling it.
+    const first = buildFinancialRuntime({
+      runStore,
+      financialEventStore,
+      wrapAgentPort: meteredAgentPort(SPEND),
+      wrapFinancialPort: (port) => ({ ...port, settleAttempt: () => Promise.resolve() }),
+    });
+    const detail = await first.workflows.service.startRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowId: FIN_WORKFLOW.single.workflowId,
+      input: FIN_TOPIC,
+    });
+
+    assert.equal(detail.state, 'completed');
+    const lost = await eventsFor(financialEventStore, detail.organizationId);
+    assert.equal(lost.length, 1);
+    // The run terminalized through the SAME isolate, so its finalization ran and
+    // settled the event from the ledger. The measurement was never lost, because
+    // the usage fold and the run's state were written together.
+    assert.equal(lost[0].settlementState, 'settled');
+    assert.equal(lost[0].actualCostMicroUsd, SPEND.costMicroUsd);
+    // NEVER ZERO, whichever path settled it.
+    assert.notEqual(lost[0].actualCostMicroUsd, 0);
+  });
+
+  it('WINDOW 3: the settlement was written and terminalization was lost — preserved', async () => {
+    const runStore = createMemoryWorkflowRunStore();
+    const financialEventStore = createInMemoryFinancialEventStore();
+
+    // Node one settles. Node two blocks, so the run does not terminalize here.
+    const first = buildFinancialRuntime({
+      runStore,
+      financialEventStore,
+      wrapAgentPort: meteredAgentPort(SPEND),
+    });
+    const created = await first.workflows.service.startRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowId: FIN_WORKFLOW.blocks.workflowId,
+      input: FIN_TOPIC,
+    });
+    const settledBefore = (await eventsFor(financialEventStore, created.organizationId)).find(
+      (event) => event.nodeId === 'first',
+    );
+    assert.ok(settledBefore);
+    assert.equal(settledBefore.settlementState, 'settled');
+
+    // A second isolate terminalizes the run.
+    const second = buildFinancialRuntime({
+      runStore,
+      financialEventStore,
+      idSeed: 'b',
+      wrapAgentPort: meteredAgentPort(SPEND),
+    });
+    await second.workflows.service.cancelRun({
+      ...second.meta(AGENT_TOKEN.consultant),
+      workflowRunId: created.workflowRunId,
+      reason: 'stopped',
+    });
+
+    const after = (await eventsFor(financialEventStore, created.organizationId)).find(
+      (event) => event.nodeId === 'first',
+    );
+    // BYTE-IDENTICAL. A measurement that arrived is not revisited by a run
+    // ending, and its outcome is not restated to the run's.
+    assert.deepEqual(after, settledBefore);
+  });
+
+  it('WINDOW 4: the run terminalized and finalization was lost — the next advance finalizes it', async () => {
+    const runStore = createMemoryWorkflowRunStore();
+    const financialEventStore = createInMemoryFinancialEventStore();
+
+    // An isolate whose finalization never ran.
+    const first = buildFinancialRuntime({
+      runStore,
+      financialEventStore,
+      wrapFinancialPort: (port) => ({
+        ...port,
+        finalizeRun: () =>
+          Promise.resolve({
+            examined: 0,
+            preserved: 0,
+            settled: 0,
+            abandoned: 0,
+            degraded: false,
+          }),
+      }),
+    });
+    const created = await first.workflows.service.startRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowId: FIN_WORKFLOW.blocks.workflowId,
+      input: FIN_TOPIC,
+    });
+    const cancelled = await first.workflows.service.cancelRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowRunId: created.workflowRunId,
+      reason: 'stopped',
+    });
+    assert.equal(cancelled.state, 'cancelled');
+
+    const stranded = await eventsFor(financialEventStore, cancelled.organizationId);
+    assert.ok(
+      stranded.some((event) => event.settlementState === 'pending'),
+      'the window did not actually leave a pending event',
+    );
+
+    // A recovered isolate advances the terminal run. Advancing a terminal run
+    // does nothing to the run and everything to its unfinished accounting.
+    const second = buildFinancialRuntime({
+      runStore,
+      financialEventStore,
+      idSeed: 'b',
+    });
+    const reread = await second.workflows.service.advanceRun({
+      ...second.meta(AGENT_TOKEN.consultant),
+      workflowRunId: created.workflowRunId,
+    });
+
+    assert.equal(reread.state, 'cancelled', 'finalization must not mutate the execution outcome');
+    const after = await eventsFor(financialEventStore, cancelled.organizationId);
+    assert.equal(after.length, stranded.length, 'recovery wrote a second row');
+    assert.equal(
+      after.filter((event) => event.settlementState === 'pending').length,
+      0,
+      'a terminal run was left with a pending financial event',
+    );
+  });
+
+  it('WINDOW 5: finalization repeated after restart converges on the same rows', async () => {
+    const runStore = createMemoryWorkflowRunStore();
+    const financialEventStore = createInMemoryFinancialEventStore();
+
+    const first = buildFinancialRuntime({ runStore, financialEventStore });
+    const created = await first.workflows.service.startRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowId: FIN_WORKFLOW.blocks.workflowId,
+      input: FIN_TOPIC,
+    });
+    const cancelled = await first.workflows.service.cancelRun({
+      ...first.meta(AGENT_TOKEN.consultant),
+      workflowRunId: created.workflowRunId,
+      reason: 'stopped',
+    });
+    const converged = await eventsFor(financialEventStore, cancelled.organizationId);
+
+    for (const seed of ['b', 'c', 'd']) {
+      const isolate = buildFinancialRuntime({ runStore, financialEventStore, idSeed: seed });
+      await isolate.workflows.service.advanceRun({
+        ...isolate.meta(AGENT_TOKEN.consultant),
+        workflowRunId: created.workflowRunId,
+      });
+      assert.deepEqual(
+        await eventsFor(financialEventStore, cancelled.organizationId),
+        converged,
+        `isolate ${seed} changed the ledger`,
+      );
+    }
   });
 });
 
