@@ -59,6 +59,15 @@ import type {
   WorkflowRuntimeState,
 } from './engine/workflowOrchestrator.ts';
 import type { WorkflowRuntimeService } from './service/workflowRuntimeService.ts';
+import type { FinancialEventStore } from '../financial/persistence/ports.ts';
+import type { WorkflowFinancialPort } from './financial/contracts/emission.ts';
+import type {
+  WorkflowNodeCostProfile,
+  WorkflowNodeLimits,
+} from './financial/nodeCostProfile.ts';
+import type { WorkflowReuseResolver } from './financial/workflowFinancialRecorder.ts';
+import { createInMemoryFinancialEventStore } from '../financial/persistence/ports.ts';
+import { createWorkflowFinancialRecorder } from './financial/workflowFinancialRecorder.ts';
 
 import { systemClock } from '../runtime/clock.ts';
 import { systemIdFactory } from '../contracts/ids.ts';
@@ -95,6 +104,49 @@ export interface WorkflowRuntimeOptions {
   readonly requireCertifiedWorkflows?: () => boolean;
   /** Override the agent port. Tests substitute a deterministic one. */
   readonly agentPort?: WorkflowAgentPort;
+
+  // ── Live financial evidence (AI-01 Batch 3B, Integration Pass) ────────────
+
+  /**
+   * Durable financial events. Omitted, the recorder is isolate-local.
+   *
+   * The same call every other store on this assembly makes, and the same
+   * consequence: an in-memory store is correct for one isolate and for tests,
+   * and a deployment that wants events to outlive an isolate injects the Part 6C
+   * KV store.
+   */
+  readonly financialEventStore?: FinancialEventStore;
+  /**
+   * What a deployment declares about a node's economics.
+   *
+   * Absent, every node gets `nodeCostProfile.ts`'s conservative defaults, which
+   * claim NO saving — a truthful cost against a single-band envelope. Savings
+   * appear when a deployment declares the facts that justify them, and never
+   * because an integration defaulted its way into a flattering number.
+   */
+  readonly nodeCostProfileFor?: (facts: {
+    readonly workflowId: string;
+    readonly nodeId: string;
+    readonly agentId: string;
+  }) => WorkflowNodeCostProfile | undefined;
+  /**
+   * The Part 6B reuse resolver. Absent disables reuse for this deployment.
+   *
+   * Absent BY DEFAULT, deliberately. Resolving a reuse hit needs a
+   * reusable-result store, a task fingerprint, dependency declarations and a
+   * freshness policy — the things Part 6B built and the things a deployment must
+   * supply. Defaulting one here would mean every deployment silently acquired a
+   * cache in front of its model calls.
+   */
+  readonly reuseResolver?: WorkflowReuseResolver;
+  /**
+   * Replace the whole financial port. Tests and disabled deployments only.
+   *
+   * `createNoopWorkflowFinancialPort()` is the explicit way to switch recording
+   * off; the engine's behaviour is identical with it, because a port that
+   * decides nothing produces the same `undefined` a missing envelope does.
+   */
+  readonly financialPort?: WorkflowFinancialPort;
 }
 
 export interface WorkflowRuntime {
@@ -114,6 +166,16 @@ export interface WorkflowRuntime {
    */
   readonly approvals: WorkflowApprovalGate;
   readonly agents: WorkflowAgentPort;
+  /**
+   * The one path from execution to canonical financial evidence.
+   *
+   * Exposed so an operator surface and the Part 6C read models can be pointed at
+   * the same events the engine wrote. Note what is exposed: the PORT and the
+   * STORE, never a total — every figure is folded from the events on read, so
+   * there is nothing here for a second accumulator to disagree with.
+   */
+  readonly financial: WorkflowFinancialPort;
+  readonly financialEvents: FinancialEventStore;
   /** The administrative and health facts the engine reads per advance. */
   state(): WorkflowRuntimeState;
 }
@@ -164,12 +226,69 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
   const agents =
     options.agentPort ?? createAgentRuntimeNodePort(options.agentRuntime.orchestrator);
 
+  const financialEvents = options.financialEventStore ?? createInMemoryFinancialEventStore();
+
+  /**
+   * THE ONE PLACE THE AGENT REGISTRY IS READ FOR LIMITS.
+   *
+   * The workflow tree cannot import the agent registry — the boundary scan
+   * asserts that on the source, and this assembly is one of the two exempt
+   * modules. So the ceilings a baseline is priced against come from the AGENT'S
+   * OWN declared limits, resolved here and handed to the recorder as a function.
+   *
+   * An agent the registry does not hold yields `undefined`, and the recorder then
+   * produces no decision and no event for its nodes. That is the honest outcome:
+   * a baseline priced against an envelope nobody declared is a savings
+   * denominator nobody could defend, and it is exactly the figure an adversarial
+   * reviewer would attack first.
+   */
+  const limitsFor = (agentId: string): WorkflowNodeLimits | undefined => {
+    const definition = options.agentRuntime.registry.find(agentId);
+    if (definition === undefined) return undefined;
+    const limits = definition.limits;
+    return {
+      maxPromptTokens: limits.maxPromptTokens,
+      maxCompletionTokens: limits.maxCompletionTokens,
+      maxTotalTokens: limits.maxTotalTokens,
+      // The ACTUAL ceiling, not the estimated one. It is what the tenant may
+      // really spend on this agent, which is what an envelope's remaining cost
+      // means — and the smaller of the two would understate nothing but the
+      // headroom the optimiser is allowed to see.
+      maxActualCostMicroUsd: limits.maxActualCostMicroUsd,
+    };
+  };
+
+  const financial =
+    options.financialPort ??
+    createWorkflowFinancialRecorder({
+      store: financialEvents,
+      limitsFor,
+      ...(options.nodeCostProfileFor === undefined
+        ? {}
+        : {
+            profileFor: (facts) =>
+              options.nodeCostProfileFor?.({
+                workflowId: facts.workflowId,
+                nodeId: facts.nodeId,
+                agentId: facts.agentId,
+              }),
+          }),
+      ...(options.reuseResolver === undefined ? {} : { reuse: options.reuseResolver }),
+      // Read LIVE, through the same view the engine reads. An operator engaging
+      // the emergency stop must make the next plan a refusal, and a value copied
+      // at assembly would wait for an isolate to recycle.
+      aiEnabled: () => state().aiEnabled,
+      logger,
+      metrics,
+    });
+
   const orchestrator = createWorkflowOrchestrator({
     registry,
     runs,
     checkpoints,
     approvals,
     agents,
+    financial,
     clock,
     ids,
     logger,
@@ -206,6 +325,8 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
     approvalStore,
     approvals,
     agents,
+    financial,
+    financialEvents,
     state,
   };
 }

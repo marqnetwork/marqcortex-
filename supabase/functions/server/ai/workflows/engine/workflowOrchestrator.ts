@@ -188,6 +188,12 @@ import {
 } from '../runtime/retryPolicy.ts';
 import { emptyUsageLedger } from '../../optimization/contracts/usage.ts';
 import { absorbChildUsage } from '../runtime/usageAttribution.ts';
+import type { FinancialOutcome } from '../../financial/contracts/event.ts';
+import type {
+  WorkflowFinancialPort,
+  WorkflowNodeCostDecision,
+  WorkflowNodeFinancialFacts,
+} from '../financial/contracts/emission.ts';
 import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
 import { applyMapping } from '../runtime/mapper.ts';
 import {
@@ -251,6 +257,23 @@ export interface WorkflowOrchestratorDependencies {
    */
   readonly approvals: WorkflowApprovalGate;
   readonly agents: WorkflowAgentPort;
+  /**
+   * The one path from execution to canonical financial evidence
+   * (AI-01 Batch 3B, Integration Pass).
+   *
+   * REQUIRED, and required for the same reason the approval gate is: a
+   * dependency that can be omitted is a dependency half the deployments omit.
+   * A deployment that does not want financial recording injects
+   * `createNoopWorkflowFinancialPort()`, which is an explicit statement rather
+   * than an absence, and the engine's branches are identical either way.
+   *
+   * Note what the engine holds and what it does not. It holds a port with five
+   * methods, none of which can create an agent run, write a checkpoint, spend an
+   * approval or move a run's state. Every method resolves rather than throwing —
+   * see `workflows/financial/workflowFinancialRecorder.ts` for the fail-open
+   * decision — so no financial failure can stop a run from ending.
+   */
+  readonly financial: WorkflowFinancialPort;
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly logger: Logger;
@@ -349,7 +372,8 @@ interface AdvanceSession {
 export function createWorkflowOrchestrator(
   deps: WorkflowOrchestratorDependencies,
 ): WorkflowOrchestrator {
-  const { registry, runs, checkpoints, approvals, agents, clock, ids, logger, metrics } = deps;
+  const { registry, runs, checkpoints, approvals, agents, financial, clock, ids, logger, metrics } =
+    deps;
 
   // ── Small helpers ─────────────────────────────────────────────────────────
 
@@ -453,6 +477,22 @@ export function createWorkflowOrchestrator(
 
     await runs.save(next, record.runVersion);
 
+    // FINANCIAL FINALIZATION, AFTER THE TERMINAL STATE IS DURABLE AND NEVER
+    // BEFORE IT (AI-01 Batch 3B, Integration Pass).
+    //
+    // The order is the whole of the fail-open policy, made structural. Running
+    // it before the save would let a financial store outage hold a run open, and
+    // a run that cannot end still has children spending real money. Running it
+    // after means a crash in between leaves events pending against a terminal
+    // run — which the next `advance` over that run finds and finalizes, because
+    // finalization is idempotent and repeating it converges.
+    //
+    // Hooked HERE rather than at each terminal call site because `transition` is
+    // the one place a run's state changes. Completion, typed failure,
+    // cancellation, expiry and a policy denial all pass through it, so there is
+    // no terminal path that can be added later and quietly skip settlement.
+    if (terminal) await finalizeFinancials(next);
+
     metrics.increment('ai.workflow.transition', {
       workflow: record.context.workflowId,
       to,
@@ -468,6 +508,191 @@ export function createWorkflowOrchestrator(
     });
 
     return next;
+  }
+
+  // ── Financial evidence (AI-01 Batch 3B, Integration Pass) ─────────────────
+
+  /**
+   * The financial outcome a terminal workflow state bought.
+   *
+   * A total mapping over `TERMINAL_WORKFLOW_STATES`, so a state added to the run
+   * contract without a financial meaning fails to type rather than silently
+   * finalizing as something else. A non-terminal state has no outcome yet, which
+   * is what `undefined` says.
+   */
+  function financialOutcomeFor(state: WorkflowRunState): FinancialOutcome | undefined {
+    switch (state) {
+      case 'completed':
+        return 'succeeded';
+      case 'failed':
+        return 'failed';
+      case 'cancelled':
+        return 'cancelled';
+      case 'expired':
+        return 'expired';
+      case 'policy_denied':
+        return 'policy_denied';
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Settle what can be settled, and mark what never will be.
+   *
+   * BOUNDED — one tenant-scoped scan over the run's own events, capped by the
+   * recorder — and IDEMPOTENT: already-settled events are left exactly as they
+   * are, and a pending one becomes `unsettled_terminal` with its measurement
+   * still ABSENT. Unknown spend is never converted to zero; it is reported as
+   * unknown, which is what feeds Part 6C's settlement coverage.
+   *
+   * It never mutates the execution outcome. The run has already reached its
+   * terminal state and been persisted by the time this runs, and nothing here
+   * can write a run record.
+   */
+  async function finalizeFinancials(record: WorkflowRunRecord): Promise<void> {
+    const outcome = financialOutcomeFor(record.state);
+    if (outcome === undefined) return;
+    const createdAt = Date.parse(record.createdAt);
+    const report = await financial.finalizeRun({
+      organizationId: record.context.organizationId,
+      workflowId: record.context.workflowId,
+      workflowRunId: record.context.workflowRunId,
+      outcome,
+      occurredAt: clock.now(),
+      // A record whose creation stamp cannot be parsed still gets a scan; the
+      // window simply starts at the epoch rather than the run. A narrower guess
+      // could exclude the run's own events, and an event excluded from
+      // finalization is spend that stays pending forever.
+      fromMs: Number.isFinite(createdAt) ? createdAt : 0,
+    });
+    if (report.degraded) {
+      metrics.increment('ai.workflow.financial.finalize_degraded', {
+        workflow: record.context.workflowId,
+      });
+    }
+  }
+
+  /**
+   * The facts one node attempt is financially known by.
+   *
+   * IDENTITY AND DECLARED SIZES ONLY. There is no field here through which the
+   * engine could state a cost, a baseline or a saving, which is what keeps the
+   * engine from becoming a second opinion about money.
+   *
+   * `protectedWork` is established from the run's OWN step history: a node the
+   * run reached only because a person approved something is approval-bound work,
+   * and Part 6C's waste analysis must never label it waste. A branch's nodes see
+   * their own branch's approvals and the main line's, and never a sibling's.
+   */
+  function nodeFinancialFacts(
+    record: WorkflowRunRecord,
+    step: WorkflowAgentPlanStep,
+    options: {
+      readonly actorId: string;
+      readonly attempt: number;
+      readonly branchId?: string;
+      readonly groupId?: string;
+      readonly agentRunId?: string;
+      readonly agentVersion?: string;
+    },
+  ): WorkflowNodeFinancialFacts {
+    const approved = record.steps.some(
+      (recorded) =>
+        recorded.kind === 'approval' &&
+        recorded.approvalDecision === 'approve' &&
+        (recorded.branchId === undefined || recorded.branchId === options.branchId),
+    );
+
+    return {
+      organizationId: record.context.organizationId,
+      actorId: options.actorId,
+      workflowId: record.context.workflowId,
+      workflowVersion: record.context.workflowVersion,
+      workflowRunId: record.context.workflowRunId,
+      configurationVersion: record.configurationVersion,
+      nodeId: step.nodeId,
+      ...(options.branchId === undefined ? {} : { branchId: options.branchId }),
+      ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
+      agentId: step.agentId,
+      ...(options.agentRunId === undefined ? {} : { agentRunId: options.agentRunId }),
+      ...(options.agentVersion === undefined ? {} : { agentVersion: options.agentVersion }),
+      attempt: options.attempt,
+      maxAttempts: step.maxAttempts,
+      protectedWork: approved,
+      occurredAt: clock.now(),
+    };
+  }
+
+  /**
+   * Settle one node attempt from the run's OWN usage ledger.
+   *
+   * THE LEDGER ROW, NOT THE HANDLE. `absorbChildUsage` has already folded the
+   * child's cumulative report through the one certified accounting port, and the
+   * row it produced is the high-water mark for that child. Reading the row means
+   * a re-observed child — the shape a restart produces — still settles at the
+   * full measured figure even though its delta was zero, which is the crash
+   * window between "usage arrived" and "the event was settled".
+   *
+   * Called only for a child that reached a terminal state. A child still running
+   * has spent something and will spend more, and settling a partial figure would
+   * close an event that the rest of the spend could then never reach.
+   */
+  async function settleNodeFinancials(
+    record: WorkflowRunRecord,
+    step: WorkflowAgentPlanStep,
+    handle: AgentNodeHandle,
+    options: {
+      readonly actorId: string;
+      readonly attempt: number;
+      readonly branchId?: string;
+      readonly groupId?: string;
+    },
+  ): Promise<void> {
+    if (handle.state !== 'completed' && handle.state !== 'failed') return;
+
+    const row = record.usage?.rows.find((candidate) => candidate.agentRunId === handle.agentRunId);
+    if (row === undefined) {
+      // The child reported no usage at all — an approval-shaped child, or one
+      // that never reached a model. There is nothing measured to settle, and
+      // inventing a zero here is exactly the conversion this batch forbids: the
+      // event stays pending and terminal finalization marks it unsettled.
+      return;
+    }
+
+    const facts = nodeFinancialFacts(record, step, {
+      actorId: options.actorId,
+      attempt: options.attempt,
+      ...(options.branchId === undefined ? {} : { branchId: options.branchId }),
+      ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
+      agentRunId: handle.agentRunId,
+      ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
+    });
+
+    // RE-DERIVED, NOT REMEMBERED. The decision is a pure function of durable
+    // facts, so the second isolate computes the identical plan and therefore the
+    // identical event id. A decision cached in memory would be gone after a
+    // restart, and the settlement would have nothing to attach itself to.
+    const decision = await financial.decideNode(facts);
+    if (decision === undefined) return;
+
+    await financial.settleAttempt(facts, decision, {
+      actualCostMicroUsd: row.attributed.actualCostMicroUsd,
+      actualTokens: row.attributed.actualTotalTokens,
+      outcome: handle.state === 'completed' ? 'succeeded' : 'failed',
+      ...(handle.usage?.providerName === undefined && handle.usage?.modelName === undefined
+        ? {}
+        : {
+            provider: {
+              ...(handle.usage?.providerName === undefined
+                ? {}
+                : { providerName: handle.usage.providerName }),
+              ...(handle.usage?.modelName === undefined
+                ? {}
+                : { modelName: handle.usage.modelName }),
+            },
+          }),
+    });
   }
 
   /**
@@ -778,6 +1003,7 @@ export function createWorkflowOrchestrator(
    */
   async function beginNode(
     record: WorkflowRunRecord,
+    plan: WorkflowPlan,
     step: WorkflowPlanStep,
     data: DataState,
     input: AdvanceWorkflowInput,
@@ -790,8 +1016,52 @@ export function createWorkflowOrchestrator(
       });
     }
 
-    const nodeInput = buildNodeInput(record, step, data);
     const attempt = currentAttempt(record.retries, step.nodeId);
+
+    // ── THE DECISION, BEFORE THE CALL EXISTS ──────────────────────────────────
+    //
+    // Asked here and nowhere else, because this is the last moment at which "does
+    // this call need to happen" is still a question. The facts carry NO child
+    // agent run id, which is what makes avoidance available to them — see
+    // `decideNode`: a node that already has a child has already made the call,
+    // and no plan derived for it may claim the call was avoided.
+    //
+    // The plan is ADVICE. The engine reads it, and the engine acts; nothing
+    // reachable from the port could have created the child itself.
+    const decision = await financial.decideNode(
+      nodeFinancialFacts(record, step, { actorId: input.actor.actorId, attempt }),
+    );
+
+    if (decision !== undefined && decision.refused) {
+      // The optimiser refused. The only condition that produces a refusal is the
+      // administrative kill switch, which `advance` also checks — so reaching
+      // here means AI was disengaged between that check and this node.
+      //
+      // The refusal is RECORDED, and a refusal claims nothing: zero baseline,
+      // zero saving, `not_applicable` settlement. No saving is fabricated merely
+      // because execution stopped. Then the run ends, because executing a node
+      // the platform has just refused would make the record a lie in the other
+      // direction.
+      await financial.recordAttempt(
+        nodeFinancialFacts(record, step, { actorId: input.actor.actorId, attempt }),
+        decision,
+      );
+      throw workflowFailure(
+        'workflow_runtime_disabled',
+        'AI execution is currently unavailable.',
+        {
+          workflowRunId: record.context.workflowRunId,
+          nodeId: step.nodeId,
+          diagnostics: `node ${step.nodeId} was refused: ${decision.plan.reason}`,
+        },
+      );
+    }
+
+    if (decision !== undefined && decision.avoided) {
+      return completeAvoidedNode(record, plan, step, data, input, decision, attempt);
+    }
+
+    const nodeInput = buildNodeInput(record, step, data);
 
     const handle = await agents.create({
       agentId: step.agentId,
@@ -814,7 +1084,7 @@ export function createWorkflowOrchestrator(
       attempt,
     };
 
-    return transition(record, {
+    const started = await transition(record, {
       to: 'waiting_for_agent',
       operation: 'step',
       reason:
@@ -825,6 +1095,131 @@ export function createWorkflowOrchestrator(
       patch: {
         pendingNode,
         childAgentRunIds: [...record.childAgentRunIds, handle.agentRunId],
+      },
+    });
+
+    // RECORDED AFTER THE POINTER IS DURABLE, and that ordering matters twice
+    // over. The pending node is what a recovered isolate reads to know which
+    // child to poll, so writing the financial event first would risk an event
+    // naming a child run nothing points at. And an isolate that dies between
+    // this write and the next is covered from the other side: `settleAttempt`
+    // appends before it settles, so the event is created then instead.
+    //
+    // The event is emitted PENDING. No inference has happened yet — `drive` is
+    // the first moment anything external occurs — and pending is not zero.
+    if (decision !== undefined) {
+      await financial.recordAttempt(
+        nodeFinancialFacts(started, step, {
+          actorId: input.actor.actorId,
+          attempt,
+          agentRunId: handle.agentRunId,
+          ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
+        }),
+        decision,
+      );
+    }
+    return started;
+  }
+
+  /**
+   * A node answered without a model call (AI-01 Batch 3B, Integration Pass).
+   *
+   * Reached only when Part 6A's admission said the call need not exist — a
+   * declared deterministic path, or a prior output the Part 6B eligibility gate
+   * validated. NO CHILD AGENT RUN IS CREATED, and that is what makes the
+   * avoided-call event's zero actual cost a measurement rather than an
+   * assumption: nothing ran, so nothing was billed.
+   *
+   * THE REUSED VALUE IS GOVERNED EXACTLY AS A GENERATED ONE IS. It goes through
+   * `buildNodeOutput`, so the node's own declared output contract accepts or
+   * refuses it before it becomes a trusted output. A reused answer that no longer
+   * satisfies the contract fails the run rather than being stored — which is the
+   * correct outcome, because a stale value that a later condition branches on is
+   * worse than a call the platform had to make.
+   *
+   * A deterministic avoidance carries no value, so it can only answer a node with
+   * no output contract. That is a real limitation and it is stated rather than
+   * worked around: `DeterministicCapability` declares that a path exists, not
+   * what it returns, and inventing a value here would be the optimiser producing
+   * business data.
+   */
+  async function completeAvoidedNode(
+    record: WorkflowRunRecord,
+    plan: WorkflowPlan,
+    step: WorkflowAgentPlanStep,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+    decision: WorkflowNodeCostDecision,
+    attempt: number,
+  ): Promise<WorkflowRunRecord> {
+    const startedAt = clock.isoNow();
+    const facts = nodeFinancialFacts(record, step, {
+      actorId: input.actor.actorId,
+      attempt,
+    });
+
+    // Emitted BEFORE the node is recorded as done. An avoided call settles at
+    // zero on `measured_absence` immediately — there is no later measurement to
+    // wait for — so there is no window in which this event could be lost to a
+    // crash and recovered by a settlement that never comes.
+    await financial.recordAttempt(facts, decision);
+
+    const output = buildNodeOutput(record, step, data, decision.reuse?.output);
+    if (output.stored) data.outputs[step.nodeId] = output.value;
+    data.nodeVisits[step.nodeId] = (data.nodeVisits[step.nodeId] ?? 0) + 1;
+    advanceCursor(record, plan, step.nodeId, step.nextNodeId, data);
+
+    const resultDigest = output.stored ? digestValue(output.value) : undefined;
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'agent',
+        startedAt,
+        agentId: step.agentId,
+        attempt,
+        ...(resultDigest === undefined ? {} : { resultDigest }),
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'running',
+      ...(step.nextNodeId === undefined ? {} : { cursorNodeId: step.nextNodeId }),
+    });
+
+    metrics.increment('ai.workflow.node.avoided', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+      decision: decision.plan.decision,
+    });
+    logger.info('ai.workflow.node.avoided', {
+      workflowRunId: record.context.workflowRunId,
+      nodeId: step.nodeId,
+      decision: decision.plan.decision,
+      reason: decision.plan.reason,
+      ...(decision.reuse === undefined ? {} : { reuseType: decision.reuse.reuseType }),
+      ...(decision.reuse === undefined
+        ? {}
+        : { reusableResultId: decision.reuse.sourceReusableResultId }),
+    });
+
+    return transition(record, {
+      to: 'running',
+      operation: 'step',
+      reason: `Node ${step.nodeId} was answered without a model call.`,
+      actorId: input.actor.actorId,
+      patch: {
+        steps: [...record.steps, stepRecord],
+        stepCount: record.steps.length + 1,
+        checkpointVersion: checkpoint.version,
+        checkpointDigest: checkpoint.digest,
+        pendingNode: undefined,
+        currentNodeId: step.nextNodeId,
+        retries: clearAttempt(record.retries, step.nodeId),
+        ...(resultDigest === undefined ? {} : { resultDigest }),
       },
     });
   }
@@ -1117,6 +1512,15 @@ export function createWorkflowOrchestrator(
         diagnostics: `pending node ${pending.nodeId} is not an agent node in plan ${plan.digest}`,
       });
     }
+
+    // SETTLED BEFORE THE OUTCOME IS JUDGED, for the same reason the usage fold
+    // above happens here: a child that failed after two model steps spent money
+    // on both, and settling only the success path would drop exactly the spend a
+    // savings figure has to be read next to.
+    await settleNodeFinancials(record, step, handle, {
+      actorId: input.actor.actorId,
+      attempt: pending.attempt,
+    });
 
     if (handle.state === 'failed') {
       return { record: await failNode(record, step, pending, handle, input), blocked: false };
@@ -2014,24 +2418,60 @@ export function createWorkflowOrchestrator(
 
     const nextGroup = applyBranchProgress(group, updated, branch.branchVersion);
 
-    return {
-      record: await transition(record, {
-        to: 'waiting_for_branches',
-        operation: 'step',
-        reason:
-          attempt === 1
-            ? `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId}.`
-            : `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId} ` +
-              `(attempt ${attempt}).`,
+    const started = await transition(record, {
+      to: 'waiting_for_branches',
+      operation: 'step',
+      reason:
+        attempt === 1
+          ? `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId}.`
+          : `Branch ${branch.branchName} handed ${step.nodeId} to ${step.agentId} ` +
+            `(attempt ${attempt}).`,
+      actorId: input.actor.actorId,
+      patch: {
+        parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+        childAgentRunIds: [...record.childAgentRunIds, handle.agentRunId],
+      },
+    });
+
+    // ── THE BRANCH'S OWN FINANCIAL EVENT ──────────────────────────────────────
+    //
+    // Carrying `branchId` AND `groupId`, so branch, parallel-group and run
+    // totals are all derivable by FILTERING one event set. There is no
+    // per-branch accumulator here and none on the branch record — see
+    // `contracts/parallel.ts` — so a branch total and a run total cannot be
+    // summed as independent spend, because only one of them is stored.
+    //
+    // The facts carry the child agent run id, and that is what makes avoidance
+    // unavailable to a branch node: the call already exists. Short-circuiting a
+    // branch node would change what the join is handed, which is a Part 4
+    // decision this pass deliberately does not make — so a branch executes, and
+    // its plan reports compression and routing attribution for a call that
+    // happened rather than an avoidance for one that did not.
+    const decision = await financial.decideNode(
+      nodeFinancialFacts(started, step, {
         actorId: input.actor.actorId,
-        patch: {
-          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
-          childAgentRunIds: [...record.childAgentRunIds, handle.agentRunId],
-        },
+        attempt,
+        branchId: branch.branchId,
+        groupId: group.groupId,
+        agentRunId: handle.agentRunId,
+        ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
       }),
-      blocked: false,
-      settled: false,
-    };
+    );
+    if (decision !== undefined) {
+      await financial.recordAttempt(
+        nodeFinancialFacts(started, step, {
+          actorId: input.actor.actorId,
+          attempt,
+          branchId: branch.branchId,
+          groupId: group.groupId,
+          agentRunId: handle.agentRunId,
+          ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
+        }),
+        decision,
+      );
+    }
+
+    return { record: started, blocked: false, settled: false };
   }
 
   /**
@@ -2103,6 +2543,16 @@ export function createWorkflowOrchestrator(
         },
       );
     }
+
+    // Settled before the branch outcome is judged — the same discipline the main
+    // line follows, and the reason a branch that failed still carries the spend
+    // it incurred into the run's totals.
+    await settleNodeFinancials(record, step, handle, {
+      actorId: input.actor.actorId,
+      attempt: pending.attempt,
+      branchId: branch.branchId,
+      groupId: group.groupId,
+    });
 
     if (handle.state === 'failed') {
       return failBranch(record, plan, group, branch, step, pending, handle, input);
@@ -3307,6 +3757,21 @@ export function createWorkflowOrchestrator(
       // Persisted before anything else can happen to it. A run that exists in
       // memory but not in the store is a run a second isolate cannot see.
       await runs.create(record);
+
+      // The run's financial context, established once the run is durable. No
+      // event: a run that has executed no node has spent nothing, and the
+      // baseline that matters is the one each node's plan prices. See
+      // `financial/contracts/emission.ts`.
+      await financial.openRun({
+        organizationId: input.organizationId,
+        actorId: input.actor.actorId,
+        workflowId: definition.workflowId,
+        workflowVersion: definition.version,
+        workflowRunId,
+        configurationVersion: record.configurationVersion,
+        occurredAt: now,
+      });
+
       metrics.increment('ai.workflow.run.created', { workflow: definition.workflowId });
       logger.info('ai.workflow.run.created', {
         workflowRunId,
@@ -3323,7 +3788,18 @@ export function createWorkflowOrchestrator(
       assertExpectedVersion(record, input.expectedVersion);
 
       // Terminal records are returned, never reopened and never re-driven.
-      if (isTerminalWorkflowState(record.state)) return record;
+      //
+      // FINALIZATION IS REPEATED HERE, and repeating it is the point. An isolate
+      // that died between persisting the terminal state and finishing settlement
+      // left events pending against a run nothing will ever drive again; this is
+      // the path a recovered isolate takes over that run, and finalization
+      // converges — already-settled events are preserved, already-abandoned ones
+      // are left alone, and only a still-pending one moves. Nothing here changes
+      // the run: `finalizeRun` cannot write a run record.
+      if (isTerminalWorkflowState(record.state)) {
+        await finalizeFinancials(record);
+        return record;
+      }
 
       const expired = await expireIfPastDeadline(record, input.actor.actorId);
       if (expired) return expired;
@@ -3669,7 +4145,10 @@ export function createWorkflowOrchestrator(
           return { record, done: true };
         }
 
-        return { record: await beginNode(record, step, data, input, definition), done: false };
+        return {
+          record: await beginNode(record, plan, step, data, input, definition),
+          done: false,
+        };
       }
 
       case 'waiting_for_approval':

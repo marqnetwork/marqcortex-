@@ -42,7 +42,10 @@
  * is simply not something the engine branches on.
  */
 
-import type { AgentRunRecord } from '../../agents/contracts/runtime.ts';
+import type {
+  AgentRunRecord,
+  AgentUsageAttribution,
+} from '../../agents/contracts/runtime.ts';
 import type {
   AgentOrchestrator,
   AgentRunActor,
@@ -84,6 +87,32 @@ export interface AgentNodeUsage {
   readonly outputTokens: number;
   readonly totalTokens: number;
   readonly costMicroUsd: number;
+  /**
+   * Prompt tokens the provider served from its own cache
+   * (AI-01 Batch 3B, Integration Pass).
+   *
+   * Reported where the provider reports it, and absent where it does not — the
+   * agent runtime's token ledger carries the figure it was given and invents
+   * none. It is carried as ATTRIBUTION, not as a deduction: cached tokens are
+   * already reflected in `costMicroUsd`, and subtracting them again here would
+   * be one saving counted twice.
+   */
+  readonly cachedTokens?: number;
+  /**
+   * Which provider and model the spend was with, when the trusted usage record
+   * establishes exactly one (AI-01 Batch 3B, Integration Pass).
+   *
+   * ABSENT when the child called several. That is not a limitation being worked
+   * around — a run that spent across two models has no single provider identity,
+   * and naming one of them would attribute the whole cost to it. The financial
+   * event then carries an empty provider identity, which is the honest report.
+   *
+   * Read from the agent runtime's OWN attribution rows, never from a provider
+   * adapter: this tree cannot reach one, and a second reader of provider
+   * responses would be a second opinion about what a call was made against.
+   */
+  readonly providerName?: string;
+  readonly modelName?: string;
 }
 
 /** Everything the engine is allowed to learn about a child agent run. */
@@ -122,6 +151,16 @@ export interface AgentNodeHandle {
    * and "measured zero" are different claims.
    */
   readonly usage?: AgentNodeUsage;
+  /**
+   * The version of the agent that held the child run (AI-01 Batch 3B,
+   * Integration Pass).
+   *
+   * Carried so a financial event can attribute spend to the agent VERSION that
+   * incurred it. A cost-by-agent figure that could not tell two versions apart
+   * would report a regression introduced by a deployment as though the previous
+   * version had always cost that much.
+   */
+  readonly agentVersion?: string;
   readonly failure?: string;
   /** Caller-safe message from the child. Never a provider or storage message. */
   readonly failureMessage?: string;
@@ -182,6 +221,27 @@ export interface WorkflowAgentPort {
  * definition of "the node succeeded" — a second one inside the engine would be
  * the beginning of the engine having an opinion about agent states.
  */
+/**
+ * The provider and model a child's spend can be attributed to, or neither.
+ *
+ * ONE OR NONE, deliberately. The agent runtime records an attribution row per
+ * provider and model it actually called, and a child that called two has no
+ * single identity — reporting the first, the largest or the last would put the
+ * whole of the child's cost against a provider that served part of it. Absence
+ * is the truthful answer, and Part 6C's event contract already treats an empty
+ * provider identity as a fact rather than as missing data.
+ */
+function soleProviderIdentity(
+  attribution: readonly AgentUsageAttribution[],
+): { providerName?: string; modelName?: string } {
+  if (attribution.length === 0) return {};
+  const first = attribution[0];
+  for (const row of attribution) {
+    if (row.providerId !== first.providerId || row.modelId !== first.modelId) return {};
+  }
+  return { providerName: first.providerId, modelName: first.modelId };
+}
+
 export function projectAgentRun(record: AgentRunRecord, output?: unknown): AgentNodeHandle {
   const terminal = isTerminalState(record.state);
   const state: AgentNodeState = terminal
@@ -203,6 +263,7 @@ export function projectAgentRun(record: AgentRunRecord, output?: unknown): Agent
   // distinction an approval node depends on.
   const tokens = record.tokens;
   const cost = record.cost;
+  const identity = tokens === undefined ? {} : soleProviderIdentity(tokens.attribution);
   const measured =
     tokens !== undefined &&
     cost !== undefined &&
@@ -213,6 +274,8 @@ export function projectAgentRun(record: AgentRunRecord, output?: unknown): Agent
             outputTokens: tokens.actualCompletionTokens,
             totalTokens: tokens.actualTotalTokens,
             costMicroUsd: cost.actualMicroUsd,
+            cachedTokens: tokens.cachedTokens,
+            ...identity,
           },
         }
       : {};
@@ -221,6 +284,7 @@ export function projectAgentRun(record: AgentRunRecord, output?: unknown): Agent
     agentRunId: record.context.runId,
     state,
     childState: record.state,
+    agentVersion: record.currentAgentVersion,
     ...measured,
     // Carried only when the node succeeded. A failed, cancelled or expired
     // child has no accepted output, and passing whatever it last held would
