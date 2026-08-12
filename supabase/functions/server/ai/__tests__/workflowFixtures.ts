@@ -360,6 +360,21 @@ export interface TestWorkflowRuntimeOptions {
   readonly financialPort?: WorkflowFinancialPort;
   /** Wrap the assembled recorder. Crash simulations only. */
   readonly wrapFinancialPort?: (port: WorkflowFinancialPort) => WorkflowFinancialPort;
+
+  // ── Production optimization wiring (AI-01 Batch 3B) ───────────────────────
+
+  /** The deployment asked for durable financial events. Reported, not granted. */
+  readonly financialDurableConfigured?: boolean;
+  /** Share a store across two runtimes to simulate an isolate restart. */
+  readonly reusableResultStore?: WorkflowRuntimeOptions['reusableResultStore'];
+  readonly reuseEnabled?: WorkflowRuntimeOptions['reuseEnabled'];
+  readonly semanticDiscovery?: WorkflowRuntimeOptions['semanticDiscovery'];
+  readonly semanticReuseConfigured?: boolean;
+  readonly semanticLabelsFor?: WorkflowRuntimeOptions['semanticLabelsFor'];
+  readonly reuseDependenciesFor?: WorkflowRuntimeOptions['reuseDependenciesFor'];
+  readonly reuseMaxAgeMs?: number;
+  readonly nodeFactsFor?: WorkflowRuntimeOptions['nodeFactsFor'];
+  readonly nodeCostRegistry?: WorkflowRuntimeOptions['nodeCostRegistry'];
 }
 
 /**
@@ -421,6 +436,30 @@ export function buildTestWorkflowRuntime(
     ...(options.wrapFinancialPort === undefined
       ? {}
       : { wrapFinancialPort: options.wrapFinancialPort }),
+    ...(options.financialDurableConfigured === undefined
+      ? {}
+      : { financialDurableConfigured: options.financialDurableConfigured }),
+    ...(options.reusableResultStore === undefined
+      ? {}
+      : { reusableResultStore: options.reusableResultStore }),
+    ...(options.reuseEnabled === undefined ? {} : { reuseEnabled: options.reuseEnabled }),
+    ...(options.semanticDiscovery === undefined
+      ? {}
+      : { semanticDiscovery: options.semanticDiscovery }),
+    ...(options.semanticReuseConfigured === undefined
+      ? {}
+      : { semanticReuseConfigured: options.semanticReuseConfigured }),
+    ...(options.semanticLabelsFor === undefined
+      ? {}
+      : { semanticLabelsFor: options.semanticLabelsFor }),
+    ...(options.reuseDependenciesFor === undefined
+      ? {}
+      : { reuseDependenciesFor: options.reuseDependenciesFor }),
+    ...(options.reuseMaxAgeMs === undefined ? {} : { reuseMaxAgeMs: options.reuseMaxAgeMs }),
+    ...(options.nodeFactsFor === undefined ? {} : { nodeFactsFor: options.nodeFactsFor }),
+    ...(options.nodeCostRegistry === undefined
+      ? {}
+      : { nodeCostRegistry: options.nodeCostRegistry }),
   });
 
   return {

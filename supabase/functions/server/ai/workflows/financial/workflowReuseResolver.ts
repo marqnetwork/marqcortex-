@@ -134,8 +134,15 @@ export interface WorkflowReuseResolverOptions {
   ) => { readonly semanticClass: string; readonly features: readonly string[] } | undefined;
   /** Read live on every resolution. */
   posture(): WorkflowReusePosture;
-  /** Resolved by the assembly from the registries. `undefined` refuses reuse. */
-  agentFactsFor(agentId: string): WorkflowReuseAgentFacts | undefined;
+  /**
+   * Resolved by the assembly from the registries. `undefined` refuses reuse.
+   *
+   * Takes the WHOLE facts rather than an agent id, so the quality contract it
+   * reports is the one this NODE is held to. Two answers to "what quality is
+   * this node held to" would let a reused result clear the gate at a bar the
+   * baseline was never priced against.
+   */
+  agentFactsFor(facts: WorkflowNodeFinancialFacts): WorkflowReuseAgentFacts | undefined;
   /**
    * The authorization the caller ALREADY established, as evidence.
    *
@@ -192,7 +199,7 @@ export function createWorkflowReuseResolver(
       if (!posture.aiEnabled) return miss(facts, 'ai_disabled');
       if (!posture.reuseEnabled) return miss(facts, 'reuse_disabled');
 
-      const agent = options.agentFactsFor(facts.agentId);
+      const agent = options.agentFactsFor(facts);
       if (agent === undefined) return miss(facts, 'agent_facts_unavailable');
 
       const authority = options.authorityFor(facts);

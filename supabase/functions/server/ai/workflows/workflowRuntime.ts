@@ -484,27 +484,15 @@ export function createWorkflowRuntime(options: WorkflowRuntimeOptions): Workflow
               controlPlanePostureVersion: `ai.settings.v${String(live.configurationVersion)}`,
             };
           },
-          agentFactsFor: (agentId) => {
-            const definition = options.agentRuntime.registry.find(agentId);
+          agentFactsFor: (facts) => {
+            const definition = options.agentRuntime.registry.find(facts.agentId);
             if (definition === undefined) return undefined;
-            // The QUALITY CONTRACT THE COST REGISTRY DERIVED, not a second one.
-            // Two answers to "what quality is this node held to" would let a
-            // reused result clear the gate at a bar the baseline was never
-            // priced against.
-            const profile = nodeCostRegistry.profileFor({
-              organizationId: '-',
-              actorId: '-',
-              workflowId: '-',
-              workflowVersion: '-',
-              workflowRunId: '-',
-              configurationVersion: 0,
-              nodeId: '-',
-              agentId,
-              attempt: 1,
-              maxAttempts: 1,
-              protectedWork: false,
-              occurredAt: 0,
-            });
+            // THE QUALITY CONTRACT THE COST REGISTRY DERIVED FOR THIS NODE, not
+            // a second one. Two answers to "what quality is this node held to"
+            // would let a reused result clear the gate at a bar the baseline was
+            // never priced against, so the registry is asked with the same facts
+            // the recorder will price the node with.
+            const profile = nodeCostRegistry.profileFor(facts);
             return {
               agentVersion: definition.version,
               // The certification STATUS, named as the identity of the
