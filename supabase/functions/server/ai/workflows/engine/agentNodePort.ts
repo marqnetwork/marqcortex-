@@ -232,9 +232,12 @@ export interface WorkflowAgentPort {
  * provider identity as a fact rather than as missing data.
  */
 function soleProviderIdentity(
-  attribution: readonly AgentUsageAttribution[],
+  attribution: readonly AgentUsageAttribution[] | undefined,
 ): { providerName?: string; modelName?: string } {
-  if (attribution.length === 0) return {};
+  // A record written before the attribution rows existed reports no identity,
+  // for the same reason one written before the ledgers reports no usage: "not
+  // recorded" and "recorded as nothing" are different claims.
+  if (attribution === undefined || attribution.length === 0) return {};
   const first = attribution[0];
   for (const row of attribution) {
     if (row.providerId !== first.providerId || row.modelId !== first.modelId) return {};
@@ -274,7 +277,12 @@ export function projectAgentRun(record: AgentRunRecord, output?: unknown): Agent
             outputTokens: tokens.actualCompletionTokens,
             totalTokens: tokens.actualTotalTokens,
             costMicroUsd: cost.actualMicroUsd,
-            cachedTokens: tokens.cachedTokens,
+            // ABSENT rather than zero when the provider reported no cache
+            // figure. The same distinction the usage ledger draws everywhere
+            // else: "not reported" is not "reported as none".
+            ...(typeof tokens.cachedTokens === 'number'
+              ? { cachedTokens: tokens.cachedTokens }
+              : {}),
             ...identity,
           },
         }
