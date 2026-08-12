@@ -445,22 +445,23 @@ describe('live financial emission — reuse', () => {
 // ── Compression, routing and deterministic avoidance ────────────────────────
 
 describe('live financial emission — optimisation attribution', () => {
-  it('records a ROUTING DOWNGRADE against the band the caller declared', async () => {
+  it('records a ROUTING DOWNGRADE against the band the AGENT declared', async () => {
     const harness = buildFinancialRuntime({
       wrapAgentPort: meteredAgentPort(SPEND),
       nodeCostProfileFor: () => ({
-        // A deployment that declares its nodes may run at three bands and would
-        // otherwise have used the top one. THIS is what makes a downgrade
-        // saving defensible: the baseline band was declared, not assumed.
-        allowedCapabilityProfiles: ['economy', 'standard', 'reasoning'],
-        maximumCapabilityProfile: 'reasoning',
+        // The deployment declares the WORK, not the bands. Since the production
+        // registry landed, the bands come from the agent's own approved model
+        // profiles — `FIN_AGENT.routed` declares two, at two declared quality
+        // bands — and THAT is what makes a downgrade saving defensible: the
+        // baseline band is a certified fact about the agent, not an assumption
+        // a deployment was free to inflate.
         kind: 'classification',
         quality: 'standard',
       }),
     });
     const detail = await harness.workflows.service.startRun({
       ...harness.meta(AGENT_TOKEN.consultant),
-      workflowId: FIN_WORKFLOW.single.workflowId,
+      workflowId: FIN_WORKFLOW.routed.workflowId,
       input: FIN_TOPIC,
     });
 

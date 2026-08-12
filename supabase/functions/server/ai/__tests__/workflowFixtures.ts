@@ -197,7 +197,7 @@ function workflowNodePropose(input: AgentProposalInput): AgentActionProposal {
   }
 }
 
-function workflowNodeAgent(
+export function workflowNodeAgent(
   agentId: string,
   overrides: Partial<AgentDefinition> = {},
 ): AgentDefinition {

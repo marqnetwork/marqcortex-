@@ -27,6 +27,7 @@
  * about the provider layer rather than about the emission path.
  */
 
+import type { AgentDefinition } from '../agents/contracts/agent.ts';
 import type { WorkflowDefinition } from '../workflows/contracts/workflow.ts';
 import type { FinancialEvent } from '../financial/contracts/event.ts';
 import type { FinancialEventStore } from '../financial/persistence/ports.ts';
@@ -61,7 +62,9 @@ import {
   node,
   parallelNode,
   PART5_AGENTS,
+  workflowNodeAgent,
 } from './workflowFixtures.ts';
+import { AGENT_MODEL_PROFILE } from '../agents/runtime/defaultProfiles.ts';
 
 /** The organization every harness in this suite resolves to. */
 export const FIN_ORG = 'acme';
@@ -112,6 +115,48 @@ const contracted = (nodeId: string, agentId: string, maxAttempts = 1) => ({
   ...node({ nodeId, agentId, displayName: `Node ${nodeId}`, maxAttempts }),
   outputContract: executionContracts.output,
 });
+
+// ── Production wiring fixtures (AI-01 Batch 3B, Production Optimization) ────
+
+/**
+ * Agents whose DECLARED model profiles are what the production cost-profile
+ * registry derives a capability band from.
+ *
+ * These are the only fixture agents that declare any, and the distinction is the
+ * point of the suite: `routed` declares two approved profiles at two declared
+ * quality bands, so a downgrade is a real, reviewed, deployment-authored
+ * narrowing. `pinned` declares one, so no routing saving is reachable for it at
+ * all — and `unknownProfile` names a profile the catalogue cannot resolve, which
+ * must collapse its band list rather than widen it.
+ */
+export const FIN_AGENT = {
+  routed: 'agent.fin.routed',
+  pinned: 'agent.fin.pinned',
+  unknownProfile: 'agent.fin.unknown_profile',
+} as const;
+
+const modelInvoking = (
+  agentId: string,
+  allowedModelProfiles: readonly string[],
+): AgentDefinition =>
+  workflowNodeAgent(agentId, {
+    // The registry refuses a non-empty profile list without this capability.
+    // The fixture's `propose` never asks for a model step, so declaring it
+    // changes what the agent MAY do and not what it does.
+    capabilities: ['agent.model.invoke', 'agent.checkpoint.write'],
+    allowedModelProfiles,
+  });
+
+export const FIN_AGENTS: readonly AgentDefinition[] = [
+  ...PART5_AGENTS,
+  modelInvoking(FIN_AGENT.routed, [AGENT_MODEL_PROFILE.standard, AGENT_MODEL_PROFILE.compact]),
+  modelInvoking(FIN_AGENT.pinned, [AGENT_MODEL_PROFILE.standard]),
+  modelInvoking(FIN_AGENT.unknownProfile, [
+    AGENT_MODEL_PROFILE.standard,
+    // Declared, registered nowhere. The catalogue cannot say what band it is.
+    'profile.agent.retired',
+  ]),
+];
 
 /**
  * The workflows the financial suites run.
@@ -192,6 +237,57 @@ export const FIN_WORKFLOW = {
     { outputContract: mergeShape },
   ),
 
+  /** One node on an agent declaring TWO approved model profiles. */
+  routed: financialWorkflow(
+    'workflow.fin.routed',
+    [contracted('only', FIN_AGENT.routed)],
+    [],
+    'only',
+  ),
+
+  /** One node on an agent declaring ONE approved model profile. */
+  pinned: financialWorkflow(
+    'workflow.fin.pinned',
+    [contracted('only', FIN_AGENT.pinned)],
+    [],
+    'only',
+  ),
+
+  /** One node whose agent names a model profile the catalogue cannot resolve. */
+  unknownProfile: financialWorkflow(
+    'workflow.fin.unknown_profile',
+    [contracted('only', FIN_AGENT.unknownProfile)],
+    [],
+    'only',
+  ),
+
+  /** A fan-out on contracted branch nodes. Branch avoidance. */
+  parallelReuse: financialWorkflow(
+    'workflow.fin.parallel_reuse',
+    [
+      parallelNode(
+        'fan',
+        [
+          ['left', 'left_step'],
+          ['right', 'right_step'],
+        ],
+        'gate',
+        'wait_all',
+      ),
+      contracted('left_step', WF_AGENT.alpha),
+      contracted('right_step', WF_AGENT.beta),
+      joinNode('gate', { kind: 'all' }),
+    ],
+    [
+      branchEdge('fan', 'left_step', 'left'),
+      branchEdge('fan', 'right_step', 'right'),
+      edge('left_step', 'gate'),
+      edge('right_step', 'gate'),
+    ],
+    'fan',
+    { outputContract: mergeShape },
+  ),
+
   /** A node that blocks on an approval nobody gives. Unsettled terminal spend. */
   blocks: financialWorkflow(
     'workflow.fin.blocks',
@@ -208,6 +304,10 @@ export const FIN_WORKFLOWS: readonly WorkflowDefinition[] = [
   FIN_WORKFLOW.retry,
   FIN_WORKFLOW.retryOnce,
   FIN_WORKFLOW.parallel,
+  FIN_WORKFLOW.parallelReuse,
+  FIN_WORKFLOW.routed,
+  FIN_WORKFLOW.pinned,
+  FIN_WORKFLOW.unknownProfile,
   FIN_WORKFLOW.blocks,
   // The Part 2 fixtures too, so a case can use a node with NO output contract —
   // which is the only shape a deterministic avoidance can answer.
@@ -220,7 +320,7 @@ export function buildFinancialRuntime(
 ): TestWorkflowRuntime {
   return buildTestWorkflowRuntime({
     workflows: FIN_WORKFLOWS,
-    agents: PART5_AGENTS,
+    agents: FIN_AGENTS,
     ...options,
   });
 }
