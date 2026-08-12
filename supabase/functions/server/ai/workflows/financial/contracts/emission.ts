@@ -71,6 +71,14 @@ export interface WorkflowNodeFinancialFacts {
   readonly workflowRunId: string;
   /** The administrative configuration in force. Stamped as the policy version. */
   readonly configurationVersion: number;
+  /**
+   * The digest of the plan this run was admitted under.
+   *
+   * An identity the run context already carries. Read by the production reuse
+   * resolver as a VERSION requirement: a stored answer produced under a
+   * different plan is not an answer to this node, however similar it looks.
+   */
+  readonly planDigest?: string;
 
   readonly nodeId: string;
   readonly branchId?: string;
@@ -95,6 +103,21 @@ export interface WorkflowNodeFinancialFacts {
    * wearing a feature's name.
    */
   readonly featureId?: string;
+
+  /**
+   * The digest of the input this node attempt will actually be given.
+   *
+   * ABSENT WHEN THE ENGINE COULD NOT BUILD ONE, and the absence is load-bearing:
+   * the production reuse resolver refuses to resolve without it. An exact reuse
+   * key that does not bind the input is a key under which two different
+   * questions share one answer, which is the worst defect this subsystem could
+   * ship — so "no digest" means "no reuse", never "reuse on the node id alone".
+   *
+   * Derived by the engine through the same canonical serializer everything else
+   * uses. It is a DIGEST, not content: nothing downstream can read the input
+   * back out of it, which is what lets it travel to the accounting trees.
+   */
+  readonly inputDigest?: string;
 
   /** Which attempt of this node this is. 1 is the primary attempt. */
   readonly attempt: number;
