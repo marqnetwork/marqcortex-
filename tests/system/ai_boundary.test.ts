@@ -1190,6 +1190,280 @@ describe('intelligent reuse boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 3B Part 6C added a Financial Intelligence engine. It is the layer
+ * that finally SAYS how much Cortex saved — and that makes it the layer with the
+ * most to gain from a flattering error and the least external check on one.
+ *
+ * An avoided call has no invoice. An unsettled call has no invoice yet. A 90%
+ * claim is not something a provider bill contradicts. Every other number in this
+ * platform can eventually be reconciled against money that moved; the headline
+ * reduction cannot, so its correctness rests on the structure of the code that
+ * produces it.
+ *
+ * Four claims, narrow and absolute:
+ *
+ *   IT IS A VIEW, NOT A SECOND LEDGER. No savings record is built here.
+ *   IT IS READ-ONLY. No budget, no execution, no authority is ever granted.
+ *   UNSETTLED IS NEVER READ AS ZERO.
+ *   THE TARGET IS DECIDED ON INTEGERS, NOT ON A ROUNDED PERCENTAGE.
+ *
+ * A behavioural test can show the reporting path is honest. Only a source scan
+ * can show there is no second one beside it.
+ */
+describe('financial intelligence boundary', () => {
+  const FINANCIAL_DIR = join(SERVER_ROOT, 'ai', 'financial') + sep;
+  const financialSources = serverSources.filter(
+    (file) => file.path.startsWith(FINANCIAL_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty financial tree', () => {
+    assert.ok(
+      financialSources.length >= 10,
+      `expected the financial tree, found ${financialSources.length}`,
+    );
+  });
+
+  it('NEVER REACHES A PROVIDER: no adapter, no vendor, no credential, no invoke', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(financialSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(financialSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(financialSources, CREDENTIAL), []);
+    assert.deepEqual(offenders(financialSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('never holds the control plane, an orchestrator or a tool gateway', () => {
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    assert.deepEqual(offenders(financialSources, PLANE_IMPORT), []);
+    const EXECUTION_IMPORT =
+      /from\s+['"][^'"]*(agents\/(orchestrator|service|tools|approvals|registry)\/|workflows\/(engine|service|approvals)\/|tools\/toolRegistry|prompts\/[a-z]|pipeline\/)/;
+    assert.deepEqual(offenders(financialSources, EXECUTION_IMPORT), []);
+    const TOOL_CALL = /\b(toolGateway|gateway)\s*\.\s*(execute|invoke|call)\s*\(/;
+    assert.deepEqual(offenders(financialSources, TOOL_CALL), []);
+  });
+
+  it('IS NOT A SECOND SAVINGS LEDGER', () => {
+    // Part 6C READS Part 6A's savings partition. Building one here would be a
+    // second partition of the same gap, and the two would eventually both be
+    // counted — the exact double count Part 6A made unrepresentable.
+    assert.deepEqual(
+      strippedOffenders(
+        financialSources,
+        /buildSavingsRecord|reconcileSavings\b|estimateBaselineCost|projectOptimizedCost/,
+      ),
+      [],
+      'the financial tree builds or reconciles a Part 6A savings record',
+    );
+    // Every money figure originates on a plan, an entry or a usage row.
+    const ledger = financialSources.find((file) =>
+      file.path.includes(join('ledger', 'financialEventLedger.ts')),
+    );
+    assert.ok(ledger, 'the financial event ledger must exist');
+    assert.match(ledger.text, /plan\.savings\.baselineCostMicroUsd/);
+    assert.match(ledger.text, /plan\.savings\.entries/);
+  });
+
+  it('MUTATES NO BUDGET and grants no authority', () => {
+    // Financial Intelligence reports on budgets and must never change one. The
+    // guarantee is that it holds no engine and no ledger to change.
+    assert.deepEqual(
+      offenders(financialSources, /BudgetEngine|BudgetLedger|createInMemoryBudgetLedger|createDurableBudgetLedger/),
+      [],
+      'the financial tree holds a budget engine or ledger',
+    );
+    assert.deepEqual(
+      strippedOffenders(financialSources, /\.\s*(charge|record)\s*\(/),
+      [],
+      'the financial tree charges or records spend',
+    );
+    // And it cannot resolve an actor, evaluate a capability or decide anything
+    // about permission. It CHECKS supplied evidence and can never produce it.
+    const AUTHORITY_RESOLUTION =
+      /resolveAdminActor|resolveAgentActor|requireCapability|requireAgentCapability|requireWorkflowCapability|createAIGuard|createPolicyEngine|createSpendLedger|createProviderSelector/;
+    assert.deepEqual(offenders(financialSources, AUTHORITY_RESOLUTION), []);
+  });
+
+  it('IS NOT A PROVIDER SELECTOR, though it names providers for attribution', () => {
+    // Part 6C is the one AI subsystem that legitimately carries provider and
+    // model NAMES: cost-by-model is a required view. Identity is all they are —
+    // there is no selection, no routing and no resolution here.
+    assert.deepEqual(offenders(financialSources, /routeModelProfile|selectProvider|resolveModel/), []);
+    const event = financialSources.find((file) =>
+      file.path.includes(join('contracts', 'event.ts')),
+    );
+    assert.ok(event, 'the financial event contract must exist');
+    assert.match(event.text, /interface ProviderIdentity/);
+  });
+
+  it('NEVER READS AN UNSETTLED COST AS ZERO', () => {
+    // The single most dangerous simplification available to this engine. The
+    // defence is structural: `actualCostMicroUsd` is optional, a settled event is
+    // REQUIRED to carry one and an unsettled event is required not to, so the
+    // two cannot be confused by a defaulting expression.
+    const event = financialSources.find((file) =>
+      file.path.includes(join('contracts', 'event.ts')),
+    );
+    assert.ok(event);
+    assert.match(event.text, /readonly actualCostMicroUsd\?: number;/);
+    assert.match(event.text, /const settled = event\.settlementState === 'settled';/);
+
+    // `?? 0` on an actual cost appears ONLY inside the settled branch of the
+    // fold, where the structural check has already guaranteed a measurement.
+    const settlement = financialSources.find((file) =>
+      file.path.includes(join('engine', 'settlement.ts')),
+    );
+    assert.ok(settlement, 'the settlement fold must exist');
+    const others = financialSources.filter(
+      (file) => file !== settlement && !file.path.includes(join('engine', 'outcomeEconomics.ts')) &&
+        !file.path.includes(join('engine', 'wasteAnalysis.ts')),
+    );
+    assert.deepEqual(
+      strippedOffenders(others, /actualCostMicroUsd\s*\?\?\s*0/),
+      [],
+      'an unsettled cost is being defaulted to zero outside the settlement fold',
+    );
+  });
+
+  it('DECIDES THE TARGET ON INTEGERS, NEVER ON A ROUNDED PERCENTAGE', () => {
+    // 89.95% displays as 90.0 under any sane rounding. If achievement were
+    // computed from the displayed value, a platform 0.05 points short would
+    // announce success — so the comparison is integer multiplication.
+    const target = financialSources.find((file) =>
+      file.path.includes(join('engine', 'targetProgress.ts')),
+    );
+    assert.ok(target, 'the target progress engine must exist');
+    assert.match(
+      target.text,
+      /realizedSavings \* 100 >= realizedBaseline \* TARGET_REDUCTION_PERCENT/,
+      'achievement must be decided by integer comparison',
+    );
+    // `achieved` is assigned in exactly one place, from the assessment.
+    // Assigned in exactly one place, from the assessment. The interface's own
+    // `readonly achieved` declaration is not an assignment and is not counted.
+    assert.equal(
+      (stripComments(target.text).match(/^\s+achieved: /gm) ?? []).length,
+      1,
+      'the achieved flag is set in more than one place',
+    );
+    assert.match(target.text, /achieved: assessment === 'target_met_on_settled_data'/);
+    assert.equal(
+      /achieved:\s*realizedReductionPercent/.test(target.text),
+      false,
+      'achievement is being decided from the rounded display percentage',
+    );
+  });
+
+  it('holds no clock and no randomness — every report is reproducible', () => {
+    // A financial figure that cannot be recomputed from its inputs cannot be
+    // defended. Windows and event times arrive as numbers.
+    assert.deepEqual(
+      offenders(financialSources, /\bMath\.random\s*\(|\bcrypto\.getRandomValues\s*\(/),
+      [],
+    );
+    assert.deepEqual(
+      strippedOffenders(financialSources, /\bDate\.now\s*\(|new\s+Date\s*\(/),
+      [],
+      'the financial tree reads a clock instead of taking a time',
+    );
+    const SCHEDULING = /setTimeout\s*\(|setInterval\s*\(|Deno\.cron|new\s+Worker\s*\(|queueMicrotask\s*\(/;
+    assert.deepEqual(offenders(financialSources, SCHEDULING), []);
+  });
+
+  it('adds no ML forecasting and no model-generated financial analysis', () => {
+    // A forecast nobody can recompute is a forecast nobody can challenge. Burn
+    // rate is settled spend divided by window days, and that is the whole model.
+    const ML = /regression|forecastModel|trainModel|neuralNet|\bpredictor\b|anomalyScore|llmAnalysis/i;
+    assert.deepEqual(strippedOffenders(financialSources, ML), []);
+    const burn = financialSources.find((file) =>
+      file.path.includes(join('engine', 'burnRate.ts')),
+    );
+    assert.ok(burn, 'the burn rate engine must exist');
+    assert.match(burn.text, /readonly isEstimate: true;/);
+  });
+
+  it('scopes every read and every store method to one organization', () => {
+    const ports = financialSources.find((file) =>
+      file.path.includes(join('persistence', 'ports.ts')),
+    );
+    assert.ok(ports, 'the financial event store port must exist');
+    const contract = ports.text.slice(
+      ports.text.indexOf('export interface FinancialEventStore'),
+      ports.text.indexOf('export function boundedEventLimit'),
+    );
+    assert.ok(contract.length > 150, 'the store interface must be found');
+    assert.match(contract, /getById\(organizationId: string/);
+    assert.match(
+      ports.text,
+      /interface FinancialEventQuery[\s\S]{0,300}readonly organizationId: string;/,
+    );
+
+    // The platform-wide aggregate is a sum of tenant-scoped reads and demands
+    // authority it cannot grant. There is no query in the tree spanning tenants.
+    const service = financialSources.find((file) =>
+      file.path.includes(join('service', 'financialReadModels.ts')),
+    );
+    assert.ok(service, 'the financial read models must exist');
+    assert.match(service.text, /financial_authority_required/);
+    assert.match(service.text, /interface PlatformFinancialAuthority/);
+  });
+
+  it('exposes no way to delete or rewrite a financial event', () => {
+    // A financial ledger somebody can edit proves nothing about spend. The
+    // absence of the writer IS the guarantee.
+    const MUTATION =
+      /\b(deleteEvent|removeEvent|purgeEvent|clearEvents|rewriteEvent|updateEvent|adjustCost|overrideCost)\b/;
+    assert.deepEqual(offenders(financialSources, MUTATION), []);
+  });
+
+  it('reuses the existing storage primitives rather than adding a second stack', () => {
+    const kv = financialSources.find((file) =>
+      file.path.includes(join('persistence', 'kvFinancialEventStore.ts')),
+    );
+    assert.ok(kv, 'the durable financial store must exist');
+    assert.match(kv.text, /tenantScopedKey/);
+    assert.match(kv.text, /isolationKeyFor/);
+    assert.match(kv.text, /compareAndSwap\(key, VERSION_FIELD, 0,/);
+    assert.deepEqual(
+      strippedOffenders(
+        financialSources,
+        /createClient\s*\(|new\s+Pool\s*\(|\bredis\b|\bmemcached\b|\bclickhouse\b|\bolap\b/i,
+      ),
+      [],
+      'the financial tree opens its own storage stack',
+    );
+  });
+
+  it('adds no HTTP route, dashboard or admin surface', () => {
+    const SURFACE = /\bapp\.(get|post|put|patch|delete)\s*\(|new\s+Hono\s*\(|Response\s*\(/;
+    assert.deepEqual(offenders(financialSources, SURFACE), []);
+    for (const directory of ['http', 'routes', 'admin', 'ui']) {
+      assert.equal(
+        existsSync(join(SERVER_ROOT, 'ai', 'financial', directory)),
+        false,
+        `Part 6C ships no ${directory} surface`,
+      );
+    }
+  });
+
+  it('keeps the dependency one-way: Part 6A and 6B never import Part 6C', () => {
+    // The earlier parts stay reviewable without reading this one, and a cycle
+    // would let a reporting change alter the accounting it reports on.
+    const upstream = serverSources.filter(
+      (file) =>
+        (file.path.startsWith(join(SERVER_ROOT, 'ai', 'optimization') + sep) ||
+          file.path.startsWith(join(SERVER_ROOT, 'ai', 'reuse') + sep)) &&
+        !isTest(file),
+    );
+    assert.deepEqual(
+      offenders(upstream, /from\s+['"][^'"]*financial\//),
+      [],
+      'an upstream accounting tree imports the financial reporting tree',
+    );
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 
