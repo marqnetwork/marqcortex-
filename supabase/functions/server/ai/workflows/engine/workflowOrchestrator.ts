@@ -601,6 +601,15 @@ export function createWorkflowOrchestrator(
       readonly groupId?: string;
       readonly agentRunId?: string;
       readonly agentVersion?: string;
+      /**
+       * The digest of the input this attempt will be given.
+       *
+       * Supplied only where the engine has actually built the input. Absent
+       * means the production reuse resolver refuses to resolve — see
+       * `contracts/emission.ts` for why an unbound exact key is the worst
+       * defect this subsystem could ship.
+       */
+      readonly inputDigest?: string;
     },
   ): WorkflowNodeFinancialFacts {
     const approved = record.steps.some(
@@ -617,12 +626,17 @@ export function createWorkflowOrchestrator(
       workflowVersion: record.context.workflowVersion,
       workflowRunId: record.context.workflowRunId,
       configurationVersion: record.configurationVersion,
+      // The plan the run was ADMITTED under, from the run's own context. A
+      // workflow whose plan has changed is a different workflow, and reuse
+      // treats the digest as a version requirement rather than a label.
+      planDigest: record.context.planDigest,
       nodeId: step.nodeId,
       ...(options.branchId === undefined ? {} : { branchId: options.branchId }),
       ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
       agentId: step.agentId,
       ...(options.agentRunId === undefined ? {} : { agentRunId: options.agentRunId }),
       ...(options.agentVersion === undefined ? {} : { agentVersion: options.agentVersion }),
+      ...(options.inputDigest === undefined ? {} : { inputDigest: options.inputDigest }),
       attempt: options.attempt,
       maxAttempts: step.maxAttempts,
       protectedWork: approved,
@@ -1024,6 +1038,27 @@ export function createWorkflowOrchestrator(
 
     const attempt = currentAttempt(record.retries, step.nodeId);
 
+    // ── THE INPUT IS BUILT FIRST, AND ITS FAILURE IS HELD ────────────────────
+    //
+    // Reuse is keyed on the question actually being asked, so the decision needs
+    // the input's digest — which means the input has to exist before the
+    // decision is taken. Building it here rather than after would ordinarily
+    // change which failure a broken run reports, so the failure is CAUGHT and
+    // RE-THROWN in its original position: a refusal still wins over a rejected
+    // input, exactly as it did before this pass.
+    //
+    // The one deliberate change is that an AVOIDED node now validates its input
+    // mapping too. That is stricter, not looser, and it is required: the input is
+    // what the exact reuse key is computed over, so a node whose input cannot be
+    // built has no key and must not be answered from a cache.
+    let nodeInput: unknown;
+    let inputFailure: unknown;
+    try {
+      nodeInput = buildNodeInput(record, step, data);
+    } catch (error) {
+      inputFailure = error;
+    }
+
     // ── THE DECISION, BEFORE THE CALL EXISTS ──────────────────────────────────
     //
     // Asked here and nowhere else, because this is the last moment at which "does
@@ -1035,7 +1070,11 @@ export function createWorkflowOrchestrator(
     // The plan is ADVICE. The engine reads it, and the engine acts; nothing
     // reachable from the port could have created the child itself.
     const decision = await financial.decideNode(
-      nodeFinancialFacts(record, step, { actorId: input.actor.actorId, attempt }),
+      nodeFinancialFacts(record, step, {
+        actorId: input.actor.actorId,
+        attempt,
+        ...(inputFailure === undefined ? { inputDigest: digestValue(nodeInput) } : {}),
+      }),
     );
 
     if (decision !== undefined && decision.refused) {
@@ -1063,11 +1102,13 @@ export function createWorkflowOrchestrator(
       );
     }
 
+    // The held failure, re-thrown in the position it would have surfaced from
+    // before the input moved. Everything below this line has a usable input.
+    if (inputFailure !== undefined) throw inputFailure;
+
     if (decision !== undefined && decision.avoided) {
       return completeAvoidedNode(record, plan, step, data, input, decision, attempt);
     }
-
-    const nodeInput = buildNodeInput(record, step, data);
 
     const handle = await agents.create({
       agentId: step.agentId,
@@ -2389,6 +2430,78 @@ export function createWorkflowOrchestrator(
     input: AdvanceWorkflowInput,
   ): Promise<BranchTurn> {
     const nodeInput = buildNodeInput(record, step, data, branch);
+    const attempt = currentAttempt(record.retries, step.nodeId, branch.branchId);
+
+    // ── THE BRANCH DECISION, BEFORE THE CHILD EXISTS ─────────────────────────
+    //
+    // (AI-01 Batch 3B, Production Optimization Wiring.)
+    //
+    // Until this pass a branch node's decision was taken AFTER `agents.create`,
+    // which made avoidance structurally unavailable to it: the facts carried a
+    // child agent run id, and `decideNode` strips every avoidance input from a
+    // node whose call already exists. The consequence was that a fan-out could
+    // not benefit from reuse at all, and the reason given was that changing what
+    // the join receives was a Part 4 decision nobody had taken.
+    //
+    // It is taken here, and it is the NARROWEST one available: an avoided branch
+    // node produces the SAME declared output contract shape an executed one
+    // produces, moves the branch cursor the same way, records the same step,
+    // writes the same checkpoint and reaches the join through the same
+    // `applyBranchOutcome`. Nothing about join policy, merge contracts, branch
+    // schema validation, approval requirements or tenant isolation is relaxed.
+    // The only difference is that no child agent run exists — which is what makes
+    // the avoided-call event's zero actual cost a measurement rather than a
+    // claim.
+    //
+    // The facts carry NO `agentRunId`, deliberately, because none exists yet.
+    const decision = await financial.decideNode(
+      nodeFinancialFacts(record, step, {
+        actorId: input.actor.actorId,
+        attempt,
+        branchId: branch.branchId,
+        groupId: group.groupId,
+        inputDigest: digestValue(nodeInput),
+      }),
+    );
+
+    if (decision !== undefined && decision.refused) {
+      // The same refusal the main line takes, for the same single cause: the
+      // administrative kill switch moved between `advance`'s check and this
+      // node. Recorded — a refusal claims zero baseline and zero saving — and
+      // then the run ends, because executing work the platform has just refused
+      // would make the record a lie in the other direction.
+      await financial.recordAttempt(
+        nodeFinancialFacts(record, step, {
+          actorId: input.actor.actorId,
+          attempt,
+          branchId: branch.branchId,
+          groupId: group.groupId,
+        }),
+        decision,
+      );
+      throw workflowFailure('workflow_runtime_disabled', 'AI execution is currently unavailable.', {
+        workflowRunId: record.context.workflowRunId,
+        nodeId: step.nodeId,
+        diagnostics: `branch ${branch.branchId} node ${step.nodeId} was refused: ${decision.plan.reason}`,
+      });
+    }
+
+    if (decision !== undefined && decision.avoided) {
+      const avoided = await completeAvoidedBranchNode(
+        record,
+        group,
+        branch,
+        step,
+        data,
+        input,
+        decision,
+        attempt,
+      );
+      // `undefined` is a MISS: the avoided value could not satisfy the branch's
+      // own declared output contract, so nothing was recorded, no event was
+      // written and the node executes normally below. See the function.
+      if (avoided !== undefined) return avoided;
+    }
 
     const handle = await agents.create({
       agentId: step.agentId,
@@ -2404,8 +2517,6 @@ export function createWorkflowOrchestrator(
       origin: record.context.origin,
       workflowId: record.context.workflowId,
     });
-
-    const attempt = currentAttempt(record.retries, step.nodeId, branch.branchId);
 
     const updated: WorkflowBranchRecord = {
       ...branch,
@@ -2447,13 +2558,14 @@ export function createWorkflowOrchestrator(
     // `contracts/parallel.ts` — so a branch total and a run total cannot be
     // summed as independent spend, because only one of them is stored.
     //
-    // The facts carry the child agent run id, and that is what makes avoidance
-    // unavailable to a branch node: the call already exists. Short-circuiting a
-    // branch node would change what the join is handed, which is a Part 4
-    // decision this pass deliberately does not make — so a branch executes, and
-    // its plan reports compression and routing attribution for a call that
-    // happened rather than an avoidance for one that did not.
-    const decision = await financial.decideNode(
+    // RE-DERIVED WITH THE CHILD'S IDENTITY, and the re-derivation is the control
+    // that makes branch avoidance safe. The decision above was taken with no
+    // child; this one is taken with one, and `decideNode` strips every avoidance
+    // input from a node whose call already exists. So the plan recorded for an
+    // EXECUTED branch node can never come back `reuse` or `deterministic`, and a
+    // branch that fell through to execution cannot leave an avoided-call event
+    // behind it — whatever the first decision said.
+    const executedDecision = await financial.decideNode(
       nodeFinancialFacts(started, step, {
         actorId: input.actor.actorId,
         attempt,
@@ -2463,7 +2575,7 @@ export function createWorkflowOrchestrator(
         ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
       }),
     );
-    if (decision !== undefined) {
+    if (executedDecision !== undefined) {
       await financial.recordAttempt(
         nodeFinancialFacts(started, step, {
           actorId: input.actor.actorId,
@@ -2473,11 +2585,238 @@ export function createWorkflowOrchestrator(
           agentRunId: handle.agentRunId,
           ...(handle.agentVersion === undefined ? {} : { agentVersion: handle.agentVersion }),
         }),
-        decision,
+        executedDecision,
       );
     }
 
     return { record: started, blocked: false, settled: false };
+  }
+
+  /**
+   * A BRANCH node answered without a model call
+   * (AI-01 Batch 3B, Production Optimization Wiring).
+   *
+   * Reached only when Part 6A's admission said the call need not exist — a
+   * declared deterministic path, or a prior output the Part 6B eligibility gate
+   * validated. NO CHILD AGENT RUN IS CREATED.
+   *
+   * ── THE CONTRACT COMES FIRST, AND THE EVENT SECOND ────────────────────────
+   *
+   * The order is the whole of the safety argument, and it is the one place this
+   * function deliberately differs from its main-line sibling. A branch whose
+   * avoided value cannot satisfy its declared output contract MISSES: it returns
+   * `undefined`, having written nothing at all, and the caller creates the child
+   * and executes normally. If the event were emitted first, that fall-through
+   * would leave an avoided-call event behind for a call that then happened —
+   * zero actual cost, a full baseline "saved", and a provider invoice that
+   * disagrees. Validating first makes that state unreachable rather than merely
+   * unlikely.
+   *
+   * The main line fails the RUN on the same condition rather than falling
+   * through, and that difference is intentional: a failed main-line node has no
+   * sibling to strand, whereas failing one branch of a fan-out would apply a
+   * join's failure policy to what is really a cache disagreement.
+   *
+   * ── COUNTED ONCE, ACROSS RESTARTS AND CONCURRENT ADVANCES ─────────────────
+   *
+   *   ONE EVENT. `recordAttempt` derives its id from the material execution
+   *   identity — run, node, branch, attempt — so a second isolate deriving it
+   *   again computes the same id and the store's insert-if-absent refuses it.
+   *
+   *   ONE COMPLETION. The branch reaches the join through `applyBranchOutcome`,
+   *   the same function an executed branch reaches it through, which refuses a
+   *   second outcome for one branch and reports that it refused.
+   *
+   *   ONE WRITE. `transition` compare-and-swaps on the run version and
+   *   `applyBranchProgress` on the branch's own version, so a concurrent advance
+   *   holding a stale view loses rather than overwriting.
+   *
+   *   NO CHILD AFTER A RESTART. The branch cursor has moved past this node and
+   *   its state is `running` with no pending node, so the recovered isolate
+   *   schedules the NEXT node — there is no path back into `beginBranchNode` for
+   *   a node the branch has already left.
+   */
+  async function completeAvoidedBranchNode(
+    record: WorkflowRunRecord,
+    group: WorkflowParallelGroup,
+    branch: WorkflowBranchRecord,
+    step: WorkflowAgentPlanStep,
+    data: DataState,
+    input: AdvanceWorkflowInput,
+    decision: WorkflowNodeCostDecision,
+    attempt: number,
+  ): Promise<BranchTurn | undefined> {
+    const startedAt = clock.isoNow();
+
+    if (step.nextNodeId === undefined) {
+      // Validation refuses a branch node with no successor, so this is a plan
+      // that no longer matches the run. Not something to avoid around: fall
+      // through and let the ordinary path raise the plan mismatch it always did.
+      return undefined;
+    }
+
+    // ── THE BRANCH'S OWN DECLARED OUTPUT CONTRACT, APPLIED UNCHANGED ─────────
+    //
+    // The same `buildNodeOutput` an executed branch node's result passes
+    // through, with the same branch scope, so the join is handed a value of
+    // exactly the shape ordinary execution would have handed it. A reused value
+    // is governed as a generated one and never more loosely.
+    let output: { readonly stored: boolean; readonly value?: unknown };
+    try {
+      output = buildNodeOutput(record, step, data, decision.reuse?.output, branch);
+    } catch (error) {
+      if (!isWorkflowError(error)) throw error;
+      // MISS. The avoided value is not an answer to this node. Nothing has been
+      // written and no event has been emitted, so the caller executes normally.
+      metrics.increment('ai.workflow.branch.avoidance_rejected', {
+        workflow: record.context.workflowId,
+        node: step.nodeId,
+        failure: error.failure,
+      });
+      logger.info('ai.workflow.branch.avoidance_rejected', {
+        workflowRunId: record.context.workflowRunId,
+        branchId: branch.branchId,
+        nodeId: step.nodeId,
+        failure: error.failure,
+        ...(decision.reuse === undefined
+          ? {}
+          : { reusableResultId: decision.reuse.sourceReusableResultId }),
+      });
+      return undefined;
+    }
+
+    const outputs = output.stored
+      ? { ...branch.outputs, [step.nodeId]: output.value }
+      : { ...branch.outputs };
+
+    const outputBytes = canonicalBytes(outputs);
+    if (outputBytes === undefined || outputBytes > WORKFLOW_PARALLEL_BOUNDS.maxBranchOutputsBytes) {
+      // The same ceiling an executed branch is held to. Over it, this is not an
+      // answer the branch may carry — a MISS rather than a failure, because a
+      // freshly generated value might be smaller.
+      metrics.increment('ai.workflow.branch.avoidance_rejected', {
+        workflow: record.context.workflowId,
+        node: step.nodeId,
+        failure: 'workflow_output_rejected',
+      });
+      return undefined;
+    }
+
+    // ── EXACTLY ONE AVOIDED-CALL EVENT, AFTER THE CONTRACT AGREED ────────────
+    const facts = nodeFinancialFacts(record, step, {
+      actorId: input.actor.actorId,
+      attempt,
+      branchId: branch.branchId,
+      groupId: group.groupId,
+    });
+    await financial.recordAttempt(facts, decision);
+
+    const resultDigest = output.stored ? digestValue(output.value) : undefined;
+    const reachedJoin = step.nextNodeId === group.joinNodeId;
+
+    const progressed: WorkflowBranchRecord = {
+      ...branch,
+      state: 'running',
+      branchVersion: branch.branchVersion + 1,
+      cursorNodeId: step.nextNodeId,
+      pendingNode: undefined,
+      outputs,
+      nodeVisits: {
+        ...branch.nodeVisits,
+        [step.nodeId]: (branch.nodeVisits[step.nodeId] ?? 0) + 1,
+      },
+      stepCount: branch.stepCount + 1,
+      ...(output.stored ? { contributionNodeId: step.nodeId } : {}),
+    };
+
+    let nextGroup = applyBranchProgress(group, progressed, branch.branchVersion);
+    let settled = false;
+
+    if (reachedJoin) {
+      const outcome = applyBranchOutcome(
+        nextGroup,
+        branch.branchId,
+        {
+          state: 'completed',
+          at: clock.isoNow(),
+          ...(progressed.contributionNodeId === undefined
+            ? {}
+            : { contributionNodeId: progressed.contributionNodeId }),
+          ...(resultDigest === undefined ? {} : { resultDigest }),
+        },
+        progressed.branchVersion,
+      );
+      nextGroup = outcome.group;
+      settled = outcome.applied;
+      if (!outcome.applied) {
+        metrics.increment('ai.workflow.branch.duplicate_completion', {
+          workflow: record.context.workflowId,
+          node: step.nodeId,
+        });
+      }
+    }
+
+    const stepRecord = completedStep(
+      record,
+      step,
+      {
+        nodeId: step.nodeId,
+        kind: 'agent',
+        startedAt,
+        agentId: step.agentId,
+        // NO `childAgentRunId` AND NO `childState`. Nothing ran, and a step
+        // record naming a child would be the one place an auditor could read
+        // this as an execution that happened.
+        branchId: branch.branchId,
+        branchName: branch.branchName,
+        attempt,
+        ...(resultDigest === undefined ? {} : { resultDigest }),
+      },
+      data,
+    );
+
+    const checkpoint = await writeCheckpoint(record, data, {
+      nodeId: step.nodeId,
+      state: 'waiting_for_branches',
+      cursorNodeId: group.parallelNodeId,
+      parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+    });
+
+    metrics.increment('ai.workflow.branch.avoided', {
+      workflow: record.context.workflowId,
+      node: step.nodeId,
+      decision: decision.plan.decision,
+    });
+    logger.info('ai.workflow.branch.avoided', {
+      workflowRunId: record.context.workflowRunId,
+      branchId: branch.branchId,
+      nodeId: step.nodeId,
+      decision: decision.plan.decision,
+      reason: decision.plan.reason,
+      ...(decision.reuse === undefined ? {} : { reuseType: decision.reuse.reuseType }),
+      ...(decision.reuse === undefined
+        ? {}
+        : { reusableResultId: decision.reuse.sourceReusableResultId }),
+    });
+
+    return {
+      record: await transition(record, {
+        to: 'waiting_for_branches',
+        operation: 'step',
+        reason: `Branch ${branch.branchName} answered ${step.nodeId} without a model call.`,
+        actorId: input.actor.actorId,
+        patch: {
+          steps: [...record.steps, stepRecord],
+          stepCount: record.steps.length + 1,
+          checkpointVersion: checkpoint.version,
+          checkpointDigest: checkpoint.digest,
+          parallelGroups: upsertGroup(record.parallelGroups, nextGroup),
+          retries: clearAttempt(record.retries, step.nodeId, branch.branchId),
+        },
+      }),
+      blocked: false,
+      settled,
+    };
   }
 
   /**
