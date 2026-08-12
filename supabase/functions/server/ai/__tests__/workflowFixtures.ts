@@ -35,7 +35,10 @@ import type { AgentDefinition, AgentProposalInput } from '../agents/contracts/ag
 import type { AgentActionProposal } from '../agents/contracts/actions.ts';
 import type { WorkflowAgentPort } from '../workflows/engine/agentNodePort.ts';
 import type { WorkflowRunStore } from '../workflows/persistence/ports.ts';
-import type { WorkflowRuntime } from '../workflows/workflowRuntime.ts';
+import type { WorkflowRuntime, WorkflowRuntimeOptions } from '../workflows/workflowRuntime.ts';
+import type { FinancialEventStore } from '../financial/persistence/ports.ts';
+import type { WorkflowFinancialPort } from '../workflows/financial/contracts/emission.ts';
+import type { WorkflowReuseResolver } from '../workflows/financial/workflowFinancialRecorder.ts';
 import type { MutableClock } from '../runtime/clock.ts';
 import type { Validator } from '../security/validation.ts';
 import { arrayOf, jsonObject, num, object, str } from '../security/validation.ts';
@@ -347,6 +350,14 @@ export interface TestWorkflowRuntimeOptions {
    * isolate to mint ids the first one did not, exactly as a real one does.
    */
   readonly idSeed?: string;
+
+  // ── Live financial evidence (AI-01 Batch 3B, Integration Pass) ────────────
+
+  /** Share a store across two runtimes to simulate an isolate restart. */
+  readonly financialEventStore?: FinancialEventStore;
+  readonly nodeCostProfileFor?: WorkflowRuntimeOptions['nodeCostProfileFor'];
+  readonly reuseResolver?: WorkflowReuseResolver;
+  readonly financialPort?: WorkflowFinancialPort;
 }
 
 /**
@@ -397,6 +408,14 @@ export function buildTestWorkflowRuntime(
     ...(options.requireCertifiedWorkflows === undefined
       ? {}
       : { requireCertifiedWorkflows: options.requireCertifiedWorkflows }),
+    ...(options.financialEventStore === undefined
+      ? {}
+      : { financialEventStore: options.financialEventStore }),
+    ...(options.nodeCostProfileFor === undefined
+      ? {}
+      : { nodeCostProfileFor: options.nodeCostProfileFor }),
+    ...(options.reuseResolver === undefined ? {} : { reuseResolver: options.reuseResolver }),
+    ...(options.financialPort === undefined ? {} : { financialPort: options.financialPort }),
   });
 
   return {
@@ -1335,12 +1354,26 @@ export function meteredAgentPort(perChild: {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly costMicroUsd: number;
+  /**
+   * Provider and model identity, as the trusted usage record would carry it
+   * (AI-01 Batch 3B, Integration Pass).
+   *
+   * Optional, so the existing accounting suites keep asserting on the exact
+   * usage shape they always did — and so a case that wants to prove identity
+   * PROPAGATES can be told apart from one that proves it stays absent.
+   */
+  readonly providerName?: string;
+  readonly modelName?: string;
+  readonly cachedTokens?: number;
 }): (port: WorkflowAgentPort) => WorkflowAgentPort {
   const usage = {
     inputTokens: perChild.inputTokens,
     outputTokens: perChild.outputTokens,
     totalTokens: perChild.inputTokens + perChild.outputTokens,
     costMicroUsd: perChild.costMicroUsd,
+    ...(perChild.cachedTokens === undefined ? {} : { cachedTokens: perChild.cachedTokens }),
+    ...(perChild.providerName === undefined ? {} : { providerName: perChild.providerName }),
+    ...(perChild.modelName === undefined ? {} : { modelName: perChild.modelName }),
   };
   const meter = (handle: Awaited<ReturnType<WorkflowAgentPort['drive']>>) => ({
     ...handle,
@@ -1349,7 +1382,13 @@ export function meteredAgentPort(perChild: {
   return (port) => ({
     create: (input) => port.create(input),
     drive: async (input) => meter(await port.drive(input)),
-    cancel: (input) => port.cancel(input),
+    // A CANCELLED CHILD REPORTS WHAT IT SPENT. The real port does — the figure
+    // comes off the child's own ledger, and stopping a run does not un-spend the
+    // money it already spent — so a fixture that reported nothing here would make
+    // "cancellation preserves incurred spend" untestable in the only direction
+    // that can fail. The figure is the same CUMULATIVE total the drive reports,
+    // so absorbing it twice applies a zero delta.
+    cancel: async (input) => meter(await port.cancel(input)),
   });
 }
 
