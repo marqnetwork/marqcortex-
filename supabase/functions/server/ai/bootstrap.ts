@@ -27,7 +27,18 @@ import type {
   KvAgentConditionalWriter,
   KvAgentPrefixReader,
 } from './agents/persistence/kvAgentStores.ts';
+import type { WorkflowRuntime } from './workflows/workflowRuntime.ts';
+import type { FinancialEventStore } from './financial/persistence/ports.ts';
+import type { ReusableResultStore } from './reuse/persistence/ports.ts';
 import { createAgentRuntime } from './agents/agentRuntime.ts';
+import { createWorkflowRuntime } from './workflows/workflowRuntime.ts';
+import { createKvFinancialEventStore } from './financial/persistence/kvFinancialEventStore.ts';
+import { createKvReusableResultStore } from './reuse/persistence/kvReusableResultStore.ts';
+import {
+  createKvWorkflowApprovalStore,
+  createKvWorkflowCheckpointStore,
+  createKvWorkflowRunStore,
+} from './workflows/persistence/kvWorkflowStores.ts';
 import {
   createKvAgentApprovalStore,
   createKvAgentCheckpointStore,
@@ -86,6 +97,7 @@ export interface BootstrapDependencies {
 let plane: AIControlPlane | undefined;
 let administration: AIAdministration | undefined;
 let agentRuntime: AgentRuntime | undefined;
+let workflowRuntime: WorkflowRuntime | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -321,12 +333,119 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     ids: systemIdFactory,
   });
 
+  // ── Workflow runtime and production optimization wiring (AI-01 Batch 3B) ──
+  //
+  // Assembled over the SAME agent runtime and the SAME authenticator, for the
+  // same reason the agent runtime is assembled over the same plane: there is one
+  // path from a workflow to an agent, and one path from an agent to a model.
+  //
+  // NO WORKFLOWS ARE REGISTERED HERE. Business workflows are out of this batch's
+  // scope and inventing one to populate a console would be exactly the inline
+  // production definition the batch forbids. The registry starts empty.
+
+  // DURABLE FINANCIAL EVIDENCE, WHERE THE INFRASTRUCTURE EXISTS.
+  //
+  // The Part 6C key-value store over the same `kv_compare_and_swap_field`
+  // contract the agent, workflow and reuse stores already use — no new database
+  // technology, no second ledger, no new migration. Without a port the recorder
+  // falls back to the isolate-local store, and THAT FACT IS NEVER SILENT: it is
+  // logged as an error, it is reported by `optimizationHealth()`, and a
+  // deployment that cannot tolerate it sets `AI_FINANCIAL_REQUIRED`.
+  const financialStorageOptions =
+    deps.kvRead !== undefined &&
+    deps.kvReadByPrefix !== undefined &&
+    deps.kvCompareAndSwapField !== undefined
+      ? {
+          read: deps.kvRead,
+          readByPrefix: deps.kvReadByPrefix,
+          compareAndSwap: deps.kvCompareAndSwapField,
+          onCorrupt: (key: string, detail: string) =>
+            console.error(`[ai] financial event at ${key} is unreadable: ${detail}`),
+        }
+      : undefined;
+
+  let financialEventStore: FinancialEventStore | undefined;
+  if (config.optimization.financialDurable && financialStorageOptions !== undefined) {
+    financialEventStore = createKvFinancialEventStore(financialStorageOptions);
+  } else if (config.optimization.financialDurable) {
+    console.error(
+      '[ai] AI_FINANCIAL_DURABLE is on but no key-value port with field-keyed conditional ' +
+        'writes was injected — financial events are isolate-local, will not survive a restart, ' +
+        'and no coverage or savings figure computed from them describes the platform.',
+    );
+    if (config.optimization.financialRequired) {
+      // The deployment asked for finance-or-nothing and did not get finance.
+      // Refusing at BOOTSTRAP rather than at the first advance is the only place
+      // this can fail without a reporting layer holding a veto over a run that
+      // already has a child agent spending real money.
+      throw new Error(
+        '[ai] AI_FINANCIAL_REQUIRED is on and durable financial storage could not be initialised.',
+      );
+    }
+  }
+
+  // THE PART 6B REUSABLE-RESULT STORE, on the same primitives.
+  //
+  // Assembled only when reuse is switched on AND the ports exist. Supplying it
+  // is not the same as permitting reuse: the Part 6B eligibility gate decides
+  // every candidate, the kill switch is posture evidence it reads, and a
+  // deployment that seals no results gets truthful misses.
+  let reusableResultStore: ReusableResultStore | undefined;
+  if (config.optimization.exactReuseEnabled && financialStorageOptions !== undefined) {
+    reusableResultStore = createKvReusableResultStore(financialStorageOptions);
+  } else if (config.optimization.exactReuseEnabled) {
+    console.error(
+      '[ai] AI_REUSE_EXACT_ENABLED is on but no durable key-value port was injected — ' +
+        'reuse is unavailable and every node will execute and pay.',
+    );
+  }
+
+  const workflowStorageOptions = financialStorageOptions;
+
+  workflowRuntime = createWorkflowRuntime({
+    agentRuntime,
+    authenticator,
+    organizationOptions: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    ...(workflowStorageOptions === undefined
+      ? {}
+      : {
+          runStore: createKvWorkflowRunStore(workflowStorageOptions),
+          checkpointStore: createKvWorkflowCheckpointStore(workflowStorageOptions),
+          approvalStore: createKvWorkflowApprovalStore(workflowStorageOptions),
+        }),
+    ...(financialEventStore === undefined ? {} : { financialEventStore }),
+    financialDurableConfigured: config.optimization.financialDurable,
+    ...(reusableResultStore === undefined ? {} : { reusableResultStore }),
+    reuseEnabled: () => config.optimization.exactReuseEnabled,
+    // NO SEMANTIC DISCOVERY PORT. This repository ships no certified embedding
+    // or retrieval path, and adding one to decide whether a model call can be
+    // avoided would create a second, ungoverned AI execution path. The switch is
+    // passed through as a DECLARED INTENT so the health read can report the
+    // difference between "asked for" and "available" truthfully.
+    semanticReuseConfigured: config.optimization.semanticReuseEnabled,
+    reuseMaxAgeMs: config.optimization.reuseMaxAgeMs,
+    reuseMinimumSimilarity: config.optimization.reuseMinimumSimilarity,
+    reuseMaximumCandidates: config.optimization.reuseMaximumCandidates,
+    clock: systemClock,
+    ids: systemIdFactory,
+    logger: plane.logger,
+  });
+
   return plane;
 }
 
 /** The initialised agent runtime, or `undefined` before bootstrap. */
 export function getAgentRuntime(): AgentRuntime | undefined {
   return agentRuntime;
+}
+
+/** The initialised workflow runtime, or `undefined` before bootstrap. */
+export function getWorkflowRuntime(): WorkflowRuntime | undefined {
+  return workflowRuntime;
 }
 
 /** The initialised plane, or `undefined` before bootstrap. */
@@ -344,4 +463,5 @@ export function resetControlPlaneForTests(): void {
   plane = undefined;
   administration = undefined;
   agentRuntime = undefined;
+  workflowRuntime = undefined;
 }

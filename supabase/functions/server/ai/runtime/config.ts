@@ -114,6 +114,74 @@ export interface AIControlPlaneConfig {
     readonly bufferSize: number;
   };
 
+  /**
+   * Production optimization wiring (AI-01 Batch 3B).
+   *
+   * ── NARROW ONLY. THESE SWITCHES CANNOT WIDEN A PERMISSION ─────────────────
+   *
+   * Every field here either turns an EXISTING, already-governed component ON or
+   * bounds how far it may go. There is deliberately no setting that grants an
+   * authority, admits a provider, raises a ceiling, relaxes an eligibility
+   * dimension or overrides a certification — the Batch 2 deployment-envelope
+   * rule, applied to the optimisation path.
+   *
+   * In particular there is NO "reuse anyway" switch and no compatibility list
+   * an operator can widen from the environment. The kill switch and the
+   * administrative posture keep the authority they already had; `reuseEnabled`
+   * is a NARROWER switch beside them, and turning it on cannot make reuse
+   * eligible for anything the Part 6B gate refuses.
+   */
+  readonly optimization: {
+    /**
+     * Persist financial events to durable storage. On by default.
+     *
+     * Off makes the ledger isolate-local, which is correct for a local tool and
+     * wrong for a deployment. Neither setting suppresses the degraded report:
+     * an isolate that wanted durability and did not get it says so, loudly, in
+     * exactly the way the spend ledger and the agent stores already do.
+     */
+    readonly financialDurable: boolean;
+    /**
+     * Refuse to serve at all if durable financial storage cannot be assembled.
+     *
+     * OFF by default, and the default is the considered position. A reporting
+     * layer that can stop a platform is an execution authority; a deployment
+     * that genuinely wants finance-or-nothing turns this on deliberately and
+     * accepts that an unreachable key-value store now takes AI down with it.
+     */
+    readonly financialRequired: boolean;
+    /**
+     * Consult the Part 6B reuse engine before a node creates a child.
+     *
+     * OFF by default. Reuse is a behaviour change a deployment opts into, and
+     * defaulting it on would mean every deployment silently acquired a cache in
+     * front of its model calls the day it upgraded.
+     */
+    readonly exactReuseEnabled: boolean;
+    /**
+     * Permit SEMANTIC candidate discovery.
+     *
+     * Reading true here is a request, not a grant. Discovery runs only when a
+     * certified discovery port also exists, and this repository ships none —
+     * see `reuse/discovery/semanticDiscoveryPort.ts`. With the switch on and no
+     * port, production reuse stays exact-only and the health read reports the
+     * discovery path as unavailable rather than as enabled.
+     */
+    readonly semanticReuseEnabled: boolean;
+    /**
+     * The freshness bound a reusing caller imposes, in milliseconds.
+     *
+     * NARROWS a record's own TTL and never extends it: Part 6B takes the
+     * stricter of the two. Zero means the caller imposes none of its own and
+     * the record's declared freshness stands.
+     */
+    readonly reuseMaxAgeMs: number;
+    /** Minimum similarity a discovered candidate must reach. 0–100. */
+    readonly reuseMinimumSimilarity: number;
+    /** Candidates the eligibility gate will be asked to evaluate, at most. */
+    readonly reuseMaximumCandidates: number;
+  };
+
   readonly observability: {
     readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
     /** Emit one structured JSON line per log record. */
@@ -254,6 +322,19 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
       durable: readBool(env, 'AI_AUDIT_DURABLE', true),
       retentionDays: readInt(env, 'AI_AUDIT_RETENTION_DAYS', 400, { min: 1, max: 3_650 }),
       bufferSize: readInt(env, 'AI_AUDIT_BUFFER_SIZE', 200, { min: 10, max: 5_000 }),
+    },
+
+    optimization: {
+      financialDurable: readBool(env, 'AI_FINANCIAL_DURABLE', true),
+      financialRequired: readBool(env, 'AI_FINANCIAL_REQUIRED', false),
+      exactReuseEnabled: readBool(env, 'AI_REUSE_EXACT_ENABLED', false),
+      semanticReuseEnabled: readBool(env, 'AI_REUSE_SEMANTIC_ENABLED', false),
+      // Zero — the default — means the caller imposes no bound of its own and a
+      // record's declared freshness stands. Capped at thirty days because a
+      // caller-side bound wider than any TTL Part 6B accepts narrows nothing.
+      reuseMaxAgeMs: readInt(env, 'AI_REUSE_MAX_AGE_MS', 0, { min: 0, max: 2_592_000_000 }),
+      reuseMinimumSimilarity: readInt(env, 'AI_REUSE_MIN_SIMILARITY', 80, { min: 1, max: 100 }),
+      reuseMaximumCandidates: readInt(env, 'AI_REUSE_MAX_CANDIDATES', 5, { min: 1, max: 25 }),
     },
 
     observability: {

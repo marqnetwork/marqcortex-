@@ -58,6 +58,37 @@ export {
 } from './nodeCostProfile.ts';
 
 export type {
+  ApprovedModelProfile,
+  DeclaredAgentFacts,
+  DeclaredNodeFacts,
+  NodeCostProfileRegistry,
+  NodeCostProfileRegistryOptions,
+} from './nodeCostRegistry.ts';
+export {
+  NODE_COST_REGISTRY_VERSION,
+  createNodeCostProfileRegistry,
+  narrowNodeCostProfile,
+} from './nodeCostRegistry.ts';
+
+export type {
+  WorkflowReuseAgentFacts,
+  WorkflowReusePosture,
+  WorkflowReuseResolverOptions,
+} from './workflowReuseResolver.ts';
+export {
+  WORKFLOW_BASELINE_POLICY_VERSION,
+  WORKFLOW_REUSE_TASK_KIND,
+  createWorkflowReuseResolver,
+} from './workflowReuseResolver.ts';
+
+export type {
+  OptimizationCapabilityHealth,
+  OptimizationHealth,
+  OptimizationHealthInput,
+} from './optimizationHealth.ts';
+export { summarizeOptimizationHealth } from './optimizationHealth.ts';
+
+export type {
   WorkflowFinancialRecorderOptions,
   WorkflowReuseCandidate,
   WorkflowReuseResolver,
