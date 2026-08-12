@@ -32,7 +32,7 @@ import type { Logger } from '../observability/logger.ts';
 import type { Metrics } from '../observability/metrics.ts';
 import type { AgentDefinition } from './contracts/agent.ts';
 import type { ToolDefinition } from './contracts/tools.ts';
-import type { ModelProfile } from './runtime/modelRouting.ts';
+import type { ModelProfile, ModelProfileRegistry } from './runtime/modelRouting.ts';
 import type {
   AgentApprovalStore,
   AgentCheckpointStore,
@@ -105,6 +105,16 @@ export interface AgentRuntimeOptions {
 
 export interface AgentRuntime {
   readonly registry: AgentRegistry;
+  /**
+   * The certified model profile catalogue.
+   *
+   * Exposed READ-ONLY so an assembly can resolve what an agent's declared
+   * `allowedModelProfiles` actually permit — which is what the production node
+   * cost-profile registry derives a truthful capability band from. Nothing
+   * outside this runtime may register into it, and nothing outside the
+   * orchestrator may route with it.
+   */
+  readonly profiles: ModelProfileRegistry;
   readonly tools: ToolRegistry;
   readonly gateway: ToolGateway;
   readonly orchestrator: AgentOrchestrator;
@@ -249,6 +259,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 
   return {
     registry,
+    profiles,
     tools: toolRegistry,
     gateway,
     orchestrator,
