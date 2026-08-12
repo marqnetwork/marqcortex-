@@ -81,6 +81,8 @@ import type { FinancialEventContext } from '../../financial/ledger/financialEven
 import {
   abandonSettlement,
   deriveFinancialEvent,
+  deriveSettlementsFromUsage,
+  settleFinancialEvent,
 } from '../../financial/ledger/financialEventLedger.ts';
 import type { FinancialEventStore } from '../../financial/persistence/ports.ts';
 import type {
@@ -311,14 +313,37 @@ export function createWorkflowFinancialRecorder(
           return undefined;
         }
 
-        const profile = options.profileFor?.(facts);
+        const declared = options.profileFor?.(facts);
+
+        // ── A CALL THAT EXISTS CANNOT BE AVOIDED ──────────────────────────────
+        //
+        // `agentRunId` present means a child agent run was already created for
+        // this attempt, which means the call has happened or is happening. Every
+        // avoidance input is stripped for such a node — no reuse consultation,
+        // no deterministic capabilities — so no plan derived for it can come back
+        // `reuse` or `deterministic`.
+        //
+        // Without this rule the settlement path, which re-derives the decision
+        // from durable facts, could produce an avoided-call event for an
+        // inference that really happened: actual cost zero, full baseline saved,
+        // and a provider invoice that disagrees. It also makes the branch path
+        // safe by construction, since a branch's decision is taken after its
+        // child exists.
+        const executed = facts.agentRunId !== undefined;
+        const profile =
+          declared === undefined
+            ? undefined
+            : executed
+              ? { ...declared, deterministicCapabilities: [] }
+              : declared;
+
         const envelope = workflowNodeEnvelope({
           limits,
           aiEnabled: options.aiEnabled(),
           ...(profile === undefined ? {} : { profile }),
         });
 
-        const candidate = await resolveCandidate(facts);
+        const candidate = executed ? undefined : await resolveCandidate(facts);
         const task = workflowNodeTask({
           facts,
           envelope,
@@ -441,13 +466,14 @@ export function createWorkflowFinancialRecorder(
     async finalizeRun(input) {
       let examined = 0;
       let preserved = 0;
+      let settled = 0;
       let abandoned = 0;
 
       if (!isTerminalOutcome(input.outcome)) {
         // Finalization is what a TERMINAL run does. Asked to finalize a live one
         // it does nothing at all rather than marking live spend permanently
         // unknown, which would be the one way this step could destroy evidence.
-        return { examined: 0, preserved: 0, abandoned: 0, degraded: false };
+        return { examined: 0, preserved: 0, settled: 0, abandoned: 0, degraded: false };
       }
 
       let page: { readonly events: readonly FinancialEvent[] };
@@ -460,8 +486,14 @@ export function createWorkflowFinancialRecorder(
         });
       } catch (error) {
         degrade('finalize_read', { workflowRunId: input.workflowRunId }, error);
-        return { examined: 0, preserved: 0, abandoned: 0, degraded: true };
+        return { examined: 0, preserved: 0, settled: 0, abandoned: 0, degraded: true };
       }
+
+      // The measurements the run's OWN ledger holds, keyed by child agent run.
+      // Read through Part 6C's own derivation rather than folded here — the
+      // rows are already the certified accounting port's high-water marks, and a
+      // second reading of them would be a second answer.
+      const measured = deriveSettlementsFromUsage(input.usageRows);
 
       let degraded = false;
       for (const event of page.events) {
@@ -472,7 +504,25 @@ export function createWorkflowFinancialRecorder(
           preserved += 1;
           continue;
         }
+
+        const measurement =
+          event.agentRunId === undefined ? undefined : measured.get(event.agentRunId);
+
         try {
+          if (measurement !== undefined) {
+            // SETTLED FROM THE LEDGER. A run cancelled while a child was still
+            // running never reached the drive that would have settled this, and
+            // the spend is real and measured. Reporting it as unknown would be
+            // just as wrong as reporting it as zero.
+            const applied = await store.settle({
+              ...settleFinancialEvent(event, measurement),
+              outcome: input.outcome,
+            });
+            if (applied) settled += 1;
+            else preserved += 1;
+            continue;
+          }
+
           // NEVER ZERO. `abandonSettlement` moves the state and leaves the
           // measurement ABSENT, so the spend shows up as unknown rather than as
           // free — and the outcome is stamped so the run's failure, cancellation
@@ -499,10 +549,11 @@ export function createWorkflowFinancialRecorder(
           workflowId: input.workflowId,
           outcome: input.outcome,
           unsettled: abandoned,
-          settled: preserved,
+          settledAtFinalization: settled,
+          alreadySettled: preserved,
         });
       }
-      return { examined, preserved, abandoned, degraded };
+      return { examined, preserved, settled, abandoned, degraded };
     },
   };
 
@@ -538,6 +589,6 @@ export function createNoopWorkflowFinancialPort(): WorkflowFinancialPort {
     recordAttempt: () => Promise.resolve(),
     settleAttempt: () => Promise.resolve(),
     finalizeRun: () =>
-      Promise.resolve({ examined: 0, preserved: 0, abandoned: 0, degraded: false }),
+      Promise.resolve({ examined: 0, preserved: 0, settled: 0, abandoned: 0, degraded: false }),
   };
 }

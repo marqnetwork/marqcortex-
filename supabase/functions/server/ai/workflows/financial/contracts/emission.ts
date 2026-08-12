@@ -48,6 +48,7 @@
  */
 
 import type { CompressionPlan } from '../../../optimization/costCompressionEngine.ts';
+import type { UsageAttributionRow } from '../../../optimization/contracts/usage.ts';
 import type { ReuseType } from '../../../reuse/accounting/avoidedCallLedger.ts';
 import type {
   FinancialOutcome,
@@ -180,6 +181,20 @@ export interface WorkflowFinalizationInput {
   readonly occurredAt: number;
   /** The run's own lifetime, so the scan is bounded to its own events. */
   readonly fromMs: number;
+  /**
+   * The run's OWN usage ledger rows, from the one certified accounting port.
+   *
+   * SETTLE WHAT CAN BE SETTLED, and only then mark the rest. A run cancelled
+   * while a child was mid-flight has real measured spend in this ledger that no
+   * drive ever got to settle, because the child never reached a terminal state
+   * — and abandoning that event would report measured money as unknown, which is
+   * a different lie from the one this batch is mostly guarding against but a lie
+   * all the same.
+   *
+   * `unsettled_terminal` therefore means what it says: no measurement was ever
+   * established, anywhere, for that call.
+   */
+  readonly usageRows: readonly UsageAttributionRow[];
 }
 
 /** What one finalization pass did. Returned so a test can assert convergence. */
@@ -187,6 +202,8 @@ export interface WorkflowFinalizationReport {
   readonly examined: number;
   /** Events that had already settled and were left exactly as they were. */
   readonly preserved: number;
+  /** Pending events settled from the run's ledger during finalization. */
+  readonly settled: number;
   /** Pending events marked `unsettled_terminal`. Never converted to zero. */
   readonly abandoned: number;
   /**

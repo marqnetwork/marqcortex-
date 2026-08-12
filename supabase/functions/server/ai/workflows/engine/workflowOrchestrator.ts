@@ -565,6 +565,12 @@ export function createWorkflowOrchestrator(
       // could exclude the run's own events, and an event excluded from
       // finalization is spend that stays pending forever.
       fromMs: Number.isFinite(createdAt) ? createdAt : 0,
+      // The run's own ledger, so a pending event whose child never reached a
+      // terminal state — the shape a cancellation produces — settles at the
+      // figure the accounting port actually measured instead of being reported
+      // as unknown. Only a call with NO measurement anywhere becomes
+      // `unsettled_terminal`.
+      usageRows: record.usage?.rows ?? [],
     });
     if (report.degraded) {
       metrics.increment('ai.workflow.financial.finalize_degraded', {
@@ -3888,7 +3894,7 @@ export function createWorkflowOrchestrator(
     },
 
     async cancel(input) {
-      const record = await loadForControl(input);
+      let record = await loadForControl(input);
 
       // CANCEL IS THE ESCAPE PATH FROM AN APPROVAL, and this is what makes it
       // one: the pending request is withdrawn so it stops sitting in a queue
@@ -3900,14 +3906,35 @@ export function createWorkflowOrchestrator(
       // its agent runs driving would be a cancellation in name only — the
       // effects the operator is trying to stop are the children's.
       if (record.pendingNode) {
+        const pending = record.pendingNode;
         try {
-          await agents.cancel({
+          const handle = await agents.cancel({
             organizationId: record.context.organizationId,
-            agentRunId: record.pendingNode.agentRunId,
+            agentRunId: pending.agentRunId,
             actor: input.actor.agent,
             reason: `Parent workflow run ${record.context.workflowRunId} was cancelled.`,
             requestId: input.requestId,
             correlationId: record.context.correlationId,
+          });
+
+          // THE SPEND A CANCELLED CHILD ALREADY INCURRED, folded before the run
+          // is closed (AI-01 Batch 3B, Integration Pass).
+          //
+          // A child stopped mid-flight had really spent money, and its last
+          // observation was made during an advance that wrote nothing — a
+          // blocked child produces no write, by design. Without this fold the
+          // durable ledger would have no row for it, terminal finalization would
+          // find no measurement, and the call would be reported as permanently
+          // unknown when the platform had just been told the figure.
+          //
+          // It rides the SAME compare-and-swap as the cancellation below, so a
+          // crash cannot leave the spend recorded against a run that is not
+          // cancelled, or a cancelled run missing the spend.
+          record = absorbChildUsage(record, {
+            agentRunId: pending.agentRunId,
+            nodeId: pending.nodeId,
+            attempt: pending.attempt,
+            ...(handle.usage === undefined ? {} : { usage: handle.usage }),
           });
         } catch (error) {
           // A child that cannot be cancelled must not block the parent's
@@ -3915,7 +3942,7 @@ export function createWorkflowOrchestrator(
           // the two, and the child has its own deadline.
           logger.warn('ai.workflow.child_cancel_failed', {
             workflowRunId: record.context.workflowRunId,
-            childAgentRunId: record.pendingNode.agentRunId,
+            childAgentRunId: pending.agentRunId,
             diagnostics: error instanceof Error ? error.message : String(error),
           });
         }
