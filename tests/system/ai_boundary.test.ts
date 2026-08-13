@@ -1464,6 +1464,176 @@ describe('financial intelligence boundary', () => {
   });
 });
 
+/**
+ * AI-01 Batch 3B Part 7B added the platform's first BUSINESS capability: a
+ * domain agent, its tools, and the workflow that drives them. It sits outside
+ * both trees the scans above protect, and that is deliberate — it is neither
+ * the agent runtime nor the workflow engine, it is a consumer of both.
+ *
+ * Which is exactly why it needs its own boundary. A business capability is the
+ * first place in this platform where somebody will be tempted to "just call the
+ * engines directly", "just write the submission back", or "just mark it
+ * approved" — and every one of those shortcuts steps outside a control that the
+ * two batches above spent their whole scope establishing.
+ */
+describe('business capability boundary', () => {
+  const BUSINESS_DIR = join(SERVER_ROOT, 'ai', 'business') + sep;
+  const businessSources = serverSources.filter(
+    (file) => file.path.startsWith(BUSINESS_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty business tree', () => {
+    assert.ok(
+      businessSources.length >= 8,
+      `expected the business tree, found ${businessSources.length}`,
+    );
+  });
+
+  it('never imports a provider adapter, names a vendor or reads a credential', () => {
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(offenders(businessSources, PROVIDER_IMPORT), []);
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(offenders(businessSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(offenders(businessSources, CREDENTIAL), []);
+  });
+
+  it('holds no orchestrator, no control plane and no engine', () => {
+    // A business capability DECLARES an agent, tools and a workflow. It never
+    // drives one. Holding an orchestrator would let it start an agent run
+    // outside the runtime that governs agent runs, which is the whole of what
+    // the agent runtime is for.
+    const PLANE = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    const ORCHESTRATOR =
+      /from\s+['"][^'"]*(agents\/orchestrator\/|agents\/agentRuntime\.ts|workflows\/engine\/|workflows\/workflowRuntime\.ts)/;
+    assert.deepEqual(offenders(businessSources, PLANE), []);
+    assert.deepEqual(offenders(businessSources, ORCHESTRATOR), []);
+    assert.deepEqual(offenders(businessSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('never writes an approval state or spends an approval', () => {
+    // The commit precondition READS approval records and refuses on what it
+    // finds. A capability that could write one, or consume one, would be a
+    // second path to "this was approved" — and the platform has one, in the
+    // workflow approval gate.
+    assert.deepEqual(
+      offenders(
+        businessSources,
+        /approvalState:\s*'(approved|rejected|consumed|expired|withdrawn)'/,
+      ),
+      [],
+      'a business module writes an approval state',
+    );
+    assert.deepEqual(
+      offenders(businessSources, /approvals\s*\.\s*(decide|consume|request|save)\s*\(/),
+      [],
+      'a business module decides, spends or requests an approval',
+    );
+  });
+
+  it('exposes no writer for a submission, an answer or a submission status', () => {
+    // Part 7A: the readiness manager may not alter a submission, a diagnostic
+    // answer or a submission status. The guarantee is the ABSENCE of a writer
+    // on the dossier port, which a behavioural test cannot prove.
+    const ports = businessSources.filter((file) =>
+      file.path.endsWith(join('persistence', 'ports.ts')),
+    );
+    assert.equal(ports.length, 1, 'the diagnostic persistence port must exist');
+    const WRITER =
+      /interface DiagnosticDossierStore[\s\S]*?\n\}/.exec(ports[0].text)?.[0] ?? '';
+    assert.ok(WRITER.includes('load('), 'the dossier port reads');
+    for (const method of ['save(', 'put(', 'update(', 'create(', 'delete(', 'setStatus(']) {
+      assert.equal(
+        WRITER.includes(method),
+        false,
+        `the dossier port exposes ${method} — a submission must not be writable`,
+      );
+    }
+  });
+
+  it('computes the authority in exactly one module', () => {
+    // A second implementation of the readiness chain would not weaken the
+    // first — it would replace it for whatever flowed through it.
+    const producers = businessSources.filter((file) =>
+      /export function computeReadinessAuthority/.test(file.text),
+    );
+    assert.equal(producers.length, 1, 'the readiness authority has more than one producer');
+  });
+
+  it('ships its first business agent uncertified and disabled', () => {
+    // Part 7B Phase 9. Passing a certification suite is evidence for a
+    // certification decision, not the decision — and an agent that shipped
+    // enabled would make every later agent's certification mean nothing.
+    const agent = businessSources.find((file) =>
+      file.path.endsWith(join('agent', 'readinessManagerAgent.ts')),
+    );
+    assert.ok(agent, 'the readiness manager definition must exist');
+    assert.match(agent.text, /enabled:\s*false/);
+    assert.match(agent.text, /certification:\s*'uncertified'/);
+    assert.equal(
+      /certification:\s*'certified'/.test(agent.text),
+      false,
+      'the shipped business agent certifies itself',
+    );
+
+    const tools = businessSources.find((file) =>
+      file.path.endsWith(join('tools', 'diagnosticTools.ts')),
+    );
+    assert.ok(tools, 'the diagnostic tools must exist');
+    assert.equal(
+      /certification:\s*'certified'/.test(tools.text),
+      false,
+      'a shipped business tool certifies itself',
+    );
+  });
+
+  it('keeps the test-only certification helper out of every other module', () => {
+    // `certifyForTesting` returns copies with the flags flipped so a suite can
+    // drive production code paths. Nothing else may call it, and the assembly
+    // that defines it is the only place it appears.
+    const callers = businessSources
+      .filter((file) => !file.path.endsWith(join('diagnostic', 'index.ts')))
+      .filter((file) => /certifyForTesting/.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(callers, [], 'a non-test module calls certifyForTesting');
+  });
+
+  it('declares no external write and no platform tenant scope', () => {
+    const tools = businessSources.find((file) =>
+      file.path.endsWith(join('tools', 'diagnosticTools.ts')),
+    );
+    assert.ok(tools);
+    const code = stripComments(tools.text);
+    assert.equal(
+      /sideEffect:\s*'external_write'/.test(code),
+      false,
+      'a diagnostic tool declares an external write',
+    );
+    assert.equal(
+      /tenantScope:\s*'platform'/.test(code),
+      false,
+      'a diagnostic tool declares platform tenant scope',
+    );
+  });
+
+  it('takes its tenant from the invocation and never from a payload', () => {
+    const tools = businessSources.find((file) =>
+      file.path.endsWith(join('tools', 'diagnosticTools.ts')),
+    );
+    assert.ok(tools);
+    const code = stripComments(tools.text);
+    assert.match(code, /invocation\.organizationId/);
+    // No input schema may declare an organizationId field. `object()` drops
+    // undeclared keys, so declaring one is the only way a payload could supply
+    // the tenant — and that is what this forbids.
+    assert.equal(
+      /inputSchema:\s*object\(\{[^}]*organizationId/s.test(code),
+      false,
+      'a diagnostic tool accepts an organizationId from its caller',
+    );
+  });
+});
+
 describe('AI source hygiene', () => {
   const aiSources = serverSources.filter((file) => file.path.startsWith(AI_DIR));
 

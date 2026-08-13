@@ -18,6 +18,8 @@
     "scan:boundaries": "node --experimental-strip-types --test tests/system/ai_boundary.test.ts",
     "verify:ai": "node --experimental-strip-types scripts/ai-runtime-verify.ts",
     "verify:agents": "node --experimental-strip-types scripts/agent-runtime-verify.ts",
+    "verify:diagnostic": "node --experimental-strip-types scripts/diagnostic-review-verify.ts",
+    "test:diagnostic": "node --experimental-strip-types --test supabase/functions/server/ai/__tests__/diagnosticReadiness.test.ts supabase/functions/server/ai/__tests__/diagnosticCertification.test.ts tests/features/diagnosticReadinessAuthority.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts tests/database/kv_compare_and_swap.test.ts",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
