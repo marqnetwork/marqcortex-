@@ -30,6 +30,12 @@ import type {
 import type { WorkflowRuntime } from './workflows/workflowRuntime.ts';
 import type { FinancialEventStore } from './financial/persistence/ports.ts';
 import type { ReusableResultStore } from './reuse/persistence/ports.ts';
+import type { DiagnosticCapability } from './business/diagnostic/index.ts';
+import type { DiagnosticDossierStore } from './business/diagnostic/persistence/ports.ts';
+import {
+  createDiagnosticCapability,
+  createWorkflowApprovalAuthorityPort,
+} from './business/diagnostic/index.ts';
 import { createAgentRuntime } from './agents/agentRuntime.ts';
 import { createWorkflowRuntime } from './workflows/workflowRuntime.ts';
 import { createKvFinancialEventStore } from './financial/persistence/kvFinancialEventStore.ts';
@@ -90,6 +96,21 @@ export interface BootstrapDependencies {
   readonly kvCompareAndSwapField?: KvAgentConditionalWriter;
   /** Durable prefix scan, required for listing runs and approvals. */
   readonly kvReadByPrefix?: KvAgentPrefixReader;
+  /**
+   * The submission source the certified diagnostic review capability reads
+   * (AI-01 Batch 3B, Part 7E).
+   *
+   * READ-ONLY BY CONTRACT — the port has no writer, which is how "the readiness
+   * manager cannot alter a submission, an answer or a status" is enforced
+   * rather than asked for. It is injected for the same reason the auth and
+   * key-value ports are: this module assembles the graph and takes no Supabase
+   * dependency of its own.
+   *
+   * Absent, the capability is NOT registered even with the switch on. A
+   * reviewing agent with no submissions to review is a console entry for
+   * something that cannot run.
+   */
+  readonly diagnosticDossiers?: DiagnosticDossierStore;
   /** Override the environment source. Production reads the runtime. */
   readonly env?: EnvSource;
 }
@@ -262,10 +283,11 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   // governance layer, the spend ceiling and the audit trail rather than
   // reimplementing any of them.
   //
-  // NO AGENTS ARE REGISTERED HERE. Business agents are out of Batch 3A's
-  // scope, and inventing one to populate the console would be exactly the
-  // "inline production agent" the batch forbids. The registry starts empty and
-  // a deployment registers definitions explicitly.
+  // NO AGENT IS DEFINED HERE. The registry starts empty and a deployment
+  // registers definitions explicitly; the one business capability this file
+  // knows how to register arrives from its own module, already certified, and
+  // is assembled below. An agent definition written inline in this file would
+  // be an agent whose contract, limits and tool allow list nobody reviewed.
   const durableAgentStorage =
     deps.kvRead !== undefined &&
     deps.kvReadByPrefix !== undefined &&
@@ -307,6 +329,88 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
         }
       : undefined;
 
+  // The workflow, financial, reuse and diagnostic stores all sit on the SAME
+  // `kv_compare_and_swap_field` contract (migration 20260804120000), so they
+  // share one set of options. Hoisted above the agent runtime because the
+  // certified business capability is assembled from it and its definitions have
+  // to exist before the registry that holds them.
+  const financialStorageOptions =
+    deps.kvRead !== undefined &&
+    deps.kvReadByPrefix !== undefined &&
+    deps.kvCompareAndSwapField !== undefined
+      ? {
+          read: deps.kvRead,
+          readByPrefix: deps.kvReadByPrefix,
+          compareAndSwap: deps.kvCompareAndSwapField,
+          onCorrupt: (key: string, detail: string) =>
+            console.error(`[ai] financial event at ${key} is unreadable: ${detail}`),
+        }
+      : undefined;
+
+  // The workflow stores, built once. The engine writes them and the diagnostic
+  // capability's approval-authority port READS them — that shared pair is the
+  // whole binding by which a commit learns which workflow run owns its agent
+  // run, and building a second set here would give the two halves different
+  // rows to look at.
+  const workflowStores =
+    financialStorageOptions === undefined
+      ? undefined
+      : {
+          runStore: createKvWorkflowRunStore(financialStorageOptions),
+          checkpointStore: createKvWorkflowCheckpointStore(financialStorageOptions),
+          approvalStore: createKvWorkflowApprovalStore(financialStorageOptions),
+        };
+
+  // ── The certified diagnostic review capability (AI-01 Batch 3B, Part 7E) ──
+  //
+  // ACTIVATION, WHICH IS NOT CERTIFICATION. The agent, its five tools and the
+  // review workflow are certified by a human decision recorded in their own
+  // definitions. Registering them into THIS deployment is a separate decision,
+  // made here, and it is off unless three things are all true:
+  //
+  //   the deployment asked            `AI_DIAGNOSTIC_REVIEW_ENABLED`, default off
+  //   durable storage exists         the committed review is the record of a
+  //                                  human decision AND the row that refuses a
+  //                                  replayed commit; neither may live in an
+  //                                  isolate-local map
+  //   a submission source exists     a reviewer with nothing to review is a
+  //                                  console entry for something that cannot run
+  //
+  // Any one of them missing means NOTHING IS REGISTERED and the reason is said
+  // out loud. Registering half of it — the workflow without the agent, the
+  // agent without its tools — would produce a run that fails at its first node
+  // with a registry error instead of a deployment that plainly did not turn it
+  // on. And this widens nothing: the definitions carry their own capabilities,
+  // allow list, approver roles and limits, and this file supplies none of them.
+  let diagnostic: DiagnosticCapability | undefined;
+  if (config.business.diagnosticReviewEnabled) {
+    if (financialStorageOptions === undefined || workflowStores === undefined) {
+      console.error(
+        '[ai] AI_DIAGNOSTIC_REVIEW_ENABLED is on but no key-value port with field-keyed ' +
+          'conditional writes was injected — the diagnostic review capability is NOT ' +
+          'registered. A committed review is the business record of a human decision and the ' +
+          'row that refuses a replayed commit, and neither may depend on isolate-local memory.',
+      );
+    } else if (deps.diagnosticDossiers === undefined) {
+      console.error(
+        '[ai] AI_DIAGNOSTIC_REVIEW_ENABLED is on but no submission source was injected — the ' +
+          'diagnostic review capability is NOT registered.',
+      );
+    } else {
+      diagnostic = createDiagnosticCapability({
+        dossiers: deps.diagnosticDossiers,
+        // READ-ONLY, over the engine's own two stores. It can answer which
+        // workflow run owns an agent run and what approvals that run carries;
+        // it cannot grant, spend or create one.
+        authority: createWorkflowApprovalAuthorityPort({
+          runs: workflowStores.runStore,
+          approvals: workflowStores.approvalStore,
+        }),
+        storage: financialStorageOptions,
+      });
+    }
+  }
+
   agentRuntime = createAgentRuntime({
     plane,
     authenticator,
@@ -315,11 +419,18 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
       allowList: config.organizationAllowList,
       allowDefaultOrganization: config.allowDefaultOrganization,
     },
+    // The one certified business agent, or none. Never a definition written
+    // here — this is a reference to a reviewed module, and the boundary scan
+    // holds it that way.
+    agents: diagnostic?.agents ?? [],
     // The deterministic tools are contracts with governance attached, not
     // business integrations. A deployment opts into them explicitly; the
     // default is an empty tool registry, because a tool nobody asked for is a
-    // capability nobody reviewed.
-    tools: readBool(env, 'AGENT_MOCK_TOOLS_ENABLED', false) ? DETERMINISTIC_TOOLS : [],
+    // capability nobody reviewed. The diagnostic tools arrive with — and only
+    // with — the agent that declares every one of them in its allow list.
+    tools: (readBool(env, 'AGENT_MOCK_TOOLS_ENABLED', false) ? DETERMINISTIC_TOOLS : []).concat(
+      diagnostic?.tools ?? [],
+    ),
     ...(agentStorageOptions === undefined
       ? {}
       : {
@@ -339,10 +450,11 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   // same reason the agent runtime is assembled over the same plane: there is one
   // path from a workflow to an agent, and one path from an agent to a model.
   //
-  // NO WORKFLOWS ARE REGISTERED HERE. Business workflows are out of this batch's
-  // scope and inventing one to populate a console would be exactly the inline
-  // production definition the batch forbids. The registry starts empty.
-
+  // NO WORKFLOW IS DEFINED HERE. The only workflow this file can register is
+  // the certified one assembled above, and it arrives with the agent it names
+  // and the tools that agent declares — the three are one reviewed capability
+  // or they are nothing.
+  //
   // DURABLE FINANCIAL EVIDENCE, WHERE THE INFRASTRUCTURE EXISTS.
   //
   // The Part 6C key-value store over the same `kv_compare_and_swap_field`
@@ -351,19 +463,6 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   // falls back to the isolate-local store, and THAT FACT IS NEVER SILENT: it is
   // logged as an error, it is reported by `optimizationHealth()`, and a
   // deployment that cannot tolerate it sets `AI_FINANCIAL_REQUIRED`.
-  const financialStorageOptions =
-    deps.kvRead !== undefined &&
-    deps.kvReadByPrefix !== undefined &&
-    deps.kvCompareAndSwapField !== undefined
-      ? {
-          read: deps.kvRead,
-          readByPrefix: deps.kvReadByPrefix,
-          compareAndSwap: deps.kvCompareAndSwapField,
-          onCorrupt: (key: string, detail: string) =>
-            console.error(`[ai] financial event at ${key} is unreadable: ${detail}`),
-        }
-      : undefined;
-
   let financialEventStore: FinancialEventStore | undefined;
   if (config.optimization.financialDurable && financialStorageOptions !== undefined) {
     financialEventStore = createKvFinancialEventStore(financialStorageOptions);
@@ -400,8 +499,6 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   }
 
-  const workflowStorageOptions = financialStorageOptions;
-
   workflowRuntime = createWorkflowRuntime({
     agentRuntime,
     authenticator,
@@ -410,13 +507,11 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
       allowList: config.organizationAllowList,
       allowDefaultOrganization: config.allowDefaultOrganization,
     },
-    ...(workflowStorageOptions === undefined
-      ? {}
-      : {
-          runStore: createKvWorkflowRunStore(workflowStorageOptions),
-          checkpointStore: createKvWorkflowCheckpointStore(workflowStorageOptions),
-          approvalStore: createKvWorkflowApprovalStore(workflowStorageOptions),
-        }),
+    // The certified review workflow, or none. THE SAME stores the capability's
+    // approval-authority port reads, so a commit's "which run owns me" question
+    // is asked of the rows the engine actually wrote.
+    workflows: diagnostic?.workflows ?? [],
+    ...(workflowStores === undefined ? {} : workflowStores),
     ...(financialEventStore === undefined ? {} : { financialEventStore }),
     financialDurableConfigured: config.optimization.financialDurable,
     ...(reusableResultStore === undefined ? {} : { reusableResultStore }),

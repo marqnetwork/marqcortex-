@@ -396,6 +396,22 @@ const controlPlane = initializeControlPlane({
     return data === true;
   },
   kvReadByPrefix: async (prefix: string) => kv.getByPrefix(prefix),
+  // NO SUBMISSION SOURCE IS INJECTED, AND THAT IS DELIBERATE.
+  //
+  // The certified diagnostic review capability reads a dossier: a submission,
+  // its answers, and the CATEGORY each answer was asked under. The stored
+  // submission at `sub:{id}` carries the first two. It does not carry the
+  // third — categories live in the question catalogues the client renders from,
+  // and reconstructing them here would mean a second copy of a question set
+  // whose first copy already decides what a client is asked.
+  //
+  // The deterministic readiness engines use the category to attribute a
+  // qualified department. Supplying a blank one would not fail; it would
+  // produce readiness results that quietly attribute everything to one unnamed
+  // department, which is a wrong answer rather than a missing one. So the port
+  // stays unsupplied until a submission source can answer honestly, and
+  // `bootstrap.ts` refuses to register the capability without it — even with
+  // `AI_DIAGNOSTIC_REVIEW_ENABLED` on, and loudly.
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed

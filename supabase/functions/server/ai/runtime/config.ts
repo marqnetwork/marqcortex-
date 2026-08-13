@@ -182,6 +182,36 @@ export interface AIControlPlaneConfig {
     readonly reuseMaximumCandidates: number;
   };
 
+  /**
+   * Certified business capabilities a deployment has ACTIVATED (Part 7E).
+   *
+   * ── CERTIFICATION AND ACTIVATION ARE DIFFERENT DECISIONS ──────────────────
+   *
+   * Certification is a judgement about a definition, made by a person and
+   * recorded in the definition itself. Activation is a judgement about a
+   * DEPLOYMENT: whether this environment, with this data and these operators,
+   * should have the capability registered at all. A certified capability that
+   * registered itself everywhere the moment it was certified would collapse the
+   * two, and the first business agent is the wrong place to establish that.
+   *
+   * So every switch here is OFF by default and NARROW: it registers one already
+   * certified capability into the runtimes that already exist. There is no
+   * setting that certifies anything, grants a capability, adds a tool to an
+   * agent's allow list or widens an approver role — those live in the
+   * definitions, where they were reviewed.
+   */
+  readonly business: {
+    /**
+     * Register the certified diagnostic readiness review capability.
+     *
+     * OFF by default. On, the capability is registered only if the deployment
+     * ALSO supplies durable key-value storage and a submission source; a switch
+     * that could half-assemble a capability would be a switch that produced a
+     * console entry for something that cannot run.
+     */
+    readonly diagnosticReviewEnabled: boolean;
+  };
+
   readonly observability: {
     readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
     /** Emit one structured JSON line per log record. */
@@ -335,6 +365,10 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
       reuseMaxAgeMs: readInt(env, 'AI_REUSE_MAX_AGE_MS', 0, { min: 0, max: 2_592_000_000 }),
       reuseMinimumSimilarity: readInt(env, 'AI_REUSE_MIN_SIMILARITY', 80, { min: 1, max: 100 }),
       reuseMaximumCandidates: readInt(env, 'AI_REUSE_MAX_CANDIDATES', 5, { min: 1, max: 25 }),
+    },
+
+    business: {
+      diagnosticReviewEnabled: readBool(env, 'AI_DIAGNOSTIC_REVIEW_ENABLED', false),
     },
 
     observability: {

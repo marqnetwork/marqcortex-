@@ -305,16 +305,40 @@ describe('agent runtime boundary', () => {
     assert.ok(routeFile.text.includes('executeAgentHttpRequest'));
   });
 
-  it('registers no production agent in the bootstrap', () => {
-    // Business agents are out of AI-01 Batch 3A's scope. The production
-    // registry starts empty, and an agent definition appearing in bootstrap
-    // would be exactly the inline production agent the batch forbids.
+  it('defines no agent in the bootstrap, and activates only a reviewed module', () => {
+    // The bootstrap may REGISTER a certified capability; it may not DEFINE one.
+    // An agent literal here would be an agent whose contract, limits and tool
+    // allow list nobody reviewed, arriving through the one file that decides
+    // what a deployment runs.
     const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
     assert.ok(bootstrap);
+    const code = stripComments(bootstrap.text);
     assert.equal(
-      /agents:\s*\[[^\]]*\w/.test(bootstrap.text),
+      /agents:\s*\[[^\]]*\w/.test(code),
       false,
-      'bootstrap must not register agent definitions',
+      'bootstrap must not register agent definitions inline',
+    );
+    // Whatever it registers comes from the capability factory, and the factory
+    // is what a reviewer reads to know what was activated.
+    assert.match(code, /createDiagnosticCapability\(/);
+    // ACTIVATION IS GATED. A capability registered unconditionally would make
+    // the deployment switch decorative.
+    assert.match(code, /config\.business\.diagnosticReviewEnabled/);
+    // And it declares no agent, tool or workflow identity of its own. Provider
+    // certification IS declared here — providers are a different population,
+    // certified by a different party at the point they are registered — so the
+    // rule is about definitions, not about the word.
+    for (const marker of ['agentId:', 'toolId:', 'workflowId:', 'allowedTools:']) {
+      assert.equal(
+        code.includes(marker),
+        false,
+        `bootstrap declares ${marker} — a definition belongs in a reviewed module`,
+      );
+    }
+    assert.equal(
+      /certifyForTesting|uncertifyForTesting/.test(code),
+      false,
+      'bootstrap reaches for a test-only certification helper',
     );
   });
 
