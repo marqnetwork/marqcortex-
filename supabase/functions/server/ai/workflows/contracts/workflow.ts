@@ -73,7 +73,7 @@
  */
 
 import type { Validator } from '../../security/validation.ts';
-import type { WorkflowExpression } from './expression.ts';
+import type { WorkflowExpression, WorkflowValueRef } from './expression.ts';
 import type { WorkflowMapping } from './mapping.ts';
 import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
 import type { WorkflowRejectionPolicy } from './approval.ts';
@@ -276,7 +276,35 @@ export interface WorkflowJoinNode extends WorkflowNodeBase {
  *
  *   DEADLINE    `expiresAfterMs` bounds how long the run may hold its cursor
  *               waiting. Reaching it is a typed failure, never a yes.
+ *
+ *   SUBJECT     `subjectEvidence` says WHAT is being approved — see below. It is
+ *               the one part of the request assembled from run data, and it is
+ *               restricted to identifiers and a digest drawn from a trusted node
+ *               output, which is why it does not contradict CONTEXT above.
  */
+
+/**
+ * Where the approval's subject evidence comes from (Part 7D, F3).
+ *
+ * TWO REFERENCES, AND BOTH MUST NAME A NODE OUTPUT. `source: 'node'` is the
+ * only source validation accepts here, and the reason is the whole point of the
+ * field: a node output is a value that a completed node produced and that
+ * passed that node's declared output contract before it was stored. The run
+ * INPUT is a caller's payload and a raw completion is a model's — neither may
+ * decide what an approval record says it is about.
+ *
+ * The referenced node must also come BEFORE the approval on every path that
+ * reaches it, which registration checks. An evidence reference that had not
+ * resolved by the time the barrier was reached would be an approval request
+ * that fails at the moment a person is needed.
+ */
+export interface WorkflowApprovalEvidence {
+  /** What the decision is about. Resolves to a bounded identifier. */
+  readonly subjectId: WorkflowValueRef;
+  /** The digest of the sealed artefact the decision freezes. */
+  readonly contentDigest: WorkflowValueRef;
+}
+
 export interface WorkflowApprovalNode extends WorkflowNodeBase {
   readonly kind: 'approval';
   /** Roles permitted to decide. At least one; lower-case; bounded. */
@@ -298,6 +326,15 @@ export interface WorkflowApprovalNode extends WorkflowNodeBase {
    */
   readonly estimatedAdditionalTokens?: number;
   readonly estimatedAdditionalCostMicroUsd?: number;
+  /**
+   * What this approval is about, for the human who answers it.
+   *
+   * Optional, because an approval node that governs nothing identifiable is a
+   * legitimate shape and a required field would force every author to invent
+   * one. Declared here, resolved by the engine before the request is written,
+   * and frozen onto the record — see `contracts/approval.ts`.
+   */
+  readonly subjectEvidence?: WorkflowApprovalEvidence;
 }
 
 export type WorkflowNode =

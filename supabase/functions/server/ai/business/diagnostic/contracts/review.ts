@@ -53,6 +53,10 @@ export type DiagnosticFailureCode =
   | 'diagnostic_draft_sealed'
   | 'diagnostic_authority_mismatch'
   | 'diagnostic_content_digest_mismatch'
+  /** The assembled record did not satisfy its own schema. Nothing was sealed. */
+  | 'diagnostic_record_invalid'
+  /** The approval does not carry the evidence that names this sealed draft. */
+  | 'diagnostic_approval_evidence_mismatch'
   | 'diagnostic_not_in_workflow'
   | 'diagnostic_approval_missing'
   | 'diagnostic_approval_not_granted'
@@ -82,6 +86,8 @@ const TRANSPORT_CODE: Readonly<Record<DiagnosticFailureCode, AIErrorCode>> = {
   diagnostic_draft_sealed: 'CONFLICT',
   diagnostic_authority_mismatch: 'VALIDATION_FAILED',
   diagnostic_content_digest_mismatch: 'VALIDATION_FAILED',
+  diagnostic_record_invalid: 'VALIDATION_FAILED',
+  diagnostic_approval_evidence_mismatch: 'FORBIDDEN',
   diagnostic_not_in_workflow: 'FORBIDDEN',
   diagnostic_approval_missing: 'FORBIDDEN',
   diagnostic_approval_not_granted: 'FORBIDDEN',
@@ -230,6 +236,69 @@ export const REVIEW_BOUNDS = {
   factLockPaths: { max: 64, text: 120 },
   escalationDetail: { minLength: 3, maxLength: 500 },
 } as const;
+
+/**
+ * How the fact lock's REPORT is held inside the bounds the record declares
+ * (Part 7D, F1).
+ *
+ * ── THE DEFECT THIS EXISTS FOR ─────────────────────────────────────────────
+ *
+ * `factLockRestored` and `factLockRemoved` are the one part of a review record
+ * whose LENGTH a model can drive. Every invented recommendation entry the lock
+ * removes reports four paths — one per authoritative recommendation field — so
+ * seventeen invented entries produce sixty-eight paths against a ceiling of
+ * sixty-four. A model that wanted its output not to be scrutinised could
+ * therefore make the record that reports on it unrepresentable, and a record
+ * that cannot be validated is a run that fails after the draft is sealed.
+ *
+ * ── WHY BOUNDING THE REPORT IS NOT WEAKENING THE LOCK ──────────────────────
+ *
+ * The lock's CORRECTION is unchanged and unconditional: every authoritative
+ * value is still rebuilt from the authority and every invented recommendation
+ * is still removed whole, however many there are. What is bounded is the list
+ * of PATH NAMES describing what was done — and the count of what did not fit is
+ * carried in a final `+N more …` entry, so the record still states that more
+ * happened and how much more. Evidence is summarised, never dropped silently.
+ *
+ * Raising the ceiling instead would move the same defect to a larger number.
+ */
+export const FACT_LOCK_REPORT = {
+  /**
+   * Paths reported verbatim before the overflow entry.
+   *
+   * One below the schema's ceiling, so the overflow entry always fits and a
+   * fully-summarised list is exactly at the bound rather than one past it.
+   */
+  maxPaths: REVIEW_BOUNDS.factLockPaths.max - 1,
+  maxPathLength: REVIEW_BOUNDS.factLockPaths.text,
+  /**
+   * Characters of a recommendation id that reach a path.
+   *
+   * The id is the only unbounded segment — it comes from model output — and
+   * truncating it where the path is BUILT keeps every reported path inside the
+   * text bound without a second, lossy pass over an assembled string.
+   */
+  maxIdLength: 64,
+} as const;
+
+/**
+ * Hold a list of reported paths inside the record's declared bounds.
+ *
+ * Deterministic in both halves: the same input always produces the same output,
+ * the kept entries are the first ones in the order the lock produced them, and
+ * the overflow entry states the exact count that did not fit. No sorting, no
+ * sampling and no clock.
+ */
+export function boundFactLockPaths(paths: readonly string[]): readonly string[] {
+  const trimmed = paths.map((path) =>
+    path.length > FACT_LOCK_REPORT.maxPathLength
+      ? path.slice(0, FACT_LOCK_REPORT.maxPathLength)
+      : path,
+  );
+  if (trimmed.length <= REVIEW_BOUNDS.factLockPaths.max) return trimmed;
+  const kept = trimmed.slice(0, FACT_LOCK_REPORT.maxPaths);
+  return [...kept, `+${trimmed.length - FACT_LOCK_REPORT.maxPaths} more fact-lock paths`];
+}
 
 export const reviewNarrativeSchema = object({
   executiveSummary: str(REVIEW_BOUNDS.executiveSummary),

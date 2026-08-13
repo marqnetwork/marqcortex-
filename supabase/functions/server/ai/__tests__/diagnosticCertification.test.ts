@@ -21,6 +21,8 @@ import {
   AGENT_TOKEN,
   SUBMISSION,
   buildTestDiagnosticRuntime,
+  createFakeKv,
+  kvStorageFor,
   reviewableDossier,
 } from './diagnosticFixtures.ts';
 import type { TestDiagnosticRuntime } from './diagnosticFixtures.ts';
@@ -37,10 +39,10 @@ import {
   REVIEW_APPROVER_ROLES,
   computeReadinessAuthority,
   createDiagnosticCapability,
-  createMemoryDossierStore,
   readinessManagerAgent,
   readinessReviewWorkflow,
 } from '../business/diagnostic/index.ts';
+import { createMemoryDossierStore } from '../business/diagnostic/persistence/memoryStores.ts';
 import { diagnosticFailureOf } from '../business/diagnostic/contracts/review.ts';
 import type { ReviewApprovalAuthorityPort } from '../business/diagnostic/persistence/authorityPort.ts';
 
@@ -171,6 +173,7 @@ function commitToolOver(
   const capability = createDiagnosticCapability({
     dossiers: createMemoryDossierStore([reviewableDossier]),
     authority,
+    storage: kvStorageFor(),
   });
   const commit = toolFrom(capability.tools, DIAGNOSTIC_TOOL_IDS.commitReview);
   const draft = toolFrom(capability.tools, DIAGNOSTIC_TOOL_IDS.draftReview);
@@ -227,6 +230,33 @@ function portFor(
       ),
     approvalsForRun: () => Promise.resolve(approvals),
   };
+}
+
+/**
+ * The subject evidence a real engine would have written onto the approval.
+ *
+ * Part 7D: the commit tool refuses an approval that does not itself name the
+ * submission and the sealed digest, so a hostile-port fixture that wants to
+ * reach a LATER check has to supply one — which is the point. A test that
+ * simply omitted it would be testing the evidence check over and over.
+ */
+function evidenceFor(contentDigest: string): WorkflowApprovalRecord['subjectEvidence'] {
+  return { subjectId: SUBMISSION.reviewable, contentDigest };
+}
+
+/**
+ * A hostile port whose approval list is completed AFTER the draft is sealed.
+ *
+ * The evidence names a digest, and the digest is not known until the draft
+ * exists. Returning the array the port reads — rather than a copy — is what
+ * lets a test seal first and then say what was approved.
+ */
+function deferredPort(owning: { workflowRunId: string }): {
+  port: ReviewApprovalAuthorityPort;
+  approvals: WorkflowApprovalRecord[];
+} {
+  const approvals: WorkflowApprovalRecord[] = [];
+  return { port: portFor(approvals, owning), approvals };
 }
 
 /** Seal a draft into the given capability, returning its digest. */
@@ -721,10 +751,10 @@ describe('part 7b — a commit is impossible without a real approval', () => {
   });
 
   it('writes the sealed draft’s content, never anything the caller supplied', async () => {
-    const { capability, commit, draft } = commitToolOver(
-      portFor([approvalRecord()], { workflowRunId: 'wfr_1' }),
-    );
+    const { port, approvals } = deferredPort({ workflowRunId: 'wfr_1' });
+    const { capability, commit, draft } = commitToolOver(port);
     const digest = await sealDraft(draft, 'run_direct');
+    approvals.push(approvalRecord({ subjectEvidence: evidenceFor(digest) }));
     await commit.execute(
       invocationFor({ toolId: commit.toolId, input: { contentDigest: digest } }),
     );
@@ -1286,10 +1316,10 @@ describe('part 7b — an agent that misbehaves changes nothing authoritative', (
   it('cannot make two commits race one approval into two reviews', async () => {
     const store = createMemoryWorkflowApprovalStore();
     void store;
-    const { capability, commit, draft } = commitToolOver(
-      portFor([approvalRecord()], { workflowRunId: 'wfr_1' }),
-    );
+    const { port, approvals } = deferredPort({ workflowRunId: 'wfr_1' });
+    const { capability, commit, draft } = commitToolOver(port);
     const digest = await sealDraft(draft, 'run_direct');
+    approvals.push(approvalRecord({ subjectEvidence: evidenceFor(digest) }));
 
     const results = await Promise.allSettled([
       commit.execute(
@@ -1324,6 +1354,7 @@ describe('part 7b — the shipped certification state', () => {
     const capability = createDiagnosticCapability({
       dossiers: createMemoryDossierStore([reviewableDossier]),
       authority: portFor([], undefined),
+      storage: kvStorageFor(),
     });
     for (const tool of capability.tools) {
       assert.equal(tool.certification, 'uncertified', tool.toolId);

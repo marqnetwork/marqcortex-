@@ -157,7 +157,9 @@ import type {
 import type {
   WorkflowApprovalBinding,
   WorkflowApprovalRecord,
+  WorkflowApprovalSubjectEvidence,
 } from '../contracts/approval.ts';
+import { WORKFLOW_APPROVAL_BOUNDS } from '../contracts/approval.ts';
 import type { WorkflowNodeAttempt } from '../contracts/retry.ts';
 import type { WorkflowApprovalGate } from '../approvals/workflowApprovalGate.ts';
 import {
@@ -194,7 +196,7 @@ import type {
   WorkflowNodeCostDecision,
   WorkflowNodeFinancialFacts,
 } from '../financial/contracts/emission.ts';
-import { evaluateExpression } from '../runtime/expressionEvaluator.ts';
+import { evaluateExpression, resolveRef } from '../runtime/expressionEvaluator.ts';
 import { applyMapping } from '../runtime/mapper.ts';
 import {
   computeCheckpointDigest,
@@ -1925,6 +1927,78 @@ export function createWorkflowOrchestrator(
   // ── Approvals (Part 5) ────────────────────────────────────────────────────
 
   /**
+   * What this approval is about, resolved from trusted state (Part 7D, F3).
+   *
+   * Read from the run's TRUSTED NODE OUTPUTS through the same resolver a
+   * condition and a mapping use — values a completed node produced that passed
+   * that node's declared output contract. Registration has already refused any
+   * other source, so there is no path here from a caller's payload or a raw
+   * model completion; this function does not need to re-check that, and could
+   * not usefully, because by now the plan is what a reviewer approved.
+   *
+   * FAIL CLOSED, TWICE. A declared reference that did not resolve, or that
+   * resolved to something that is not a bounded identifier, FAILS THE NODE
+   * rather than parking the run with a blank subject. An approval that told a
+   * person nothing about what they were approving would be worse than one that
+   * never appeared: the queue is where the authority is exercised, and a blank
+   * entry there invites a yes on trust.
+   */
+  function resolveSubjectEvidence(
+    step: WorkflowApprovalPlanStep,
+    scope: EvaluationScope,
+  ): WorkflowApprovalSubjectEvidence | undefined {
+    const declared = step.subjectEvidence;
+    if (declared === undefined) return undefined;
+
+    const read = (ref: typeof declared.subjectId, field: string): string => {
+      const resolved = resolveRef(ref, scope);
+      if (!resolved.found) {
+        throw workflowFailure(
+          'workflow_node_failed',
+          'This approval could not say what it is about.',
+          {
+            nodeId: step.nodeId,
+            diagnostics: `subjectEvidence.${field} did not resolve`,
+          },
+        );
+      }
+      const value = resolved.value;
+      if (typeof value !== 'string' || value.trim() === '') {
+        throw workflowFailure(
+          'workflow_node_failed',
+          'This approval could not say what it is about.',
+          {
+            nodeId: step.nodeId,
+            diagnostics: `subjectEvidence.${field} resolved to a ${typeof value}, not an identifier`,
+          },
+        );
+      }
+      return value;
+    };
+
+    const bounds = WORKFLOW_APPROVAL_BOUNDS.subjectEvidence;
+    const subjectId = read(declared.subjectId, 'subjectId');
+    const contentDigest = read(declared.contentDigest, 'contentDigest');
+    if (
+      subjectId.length > bounds.subjectId ||
+      contentDigest.length > bounds.contentDigest
+    ) {
+      // NOT TRUNCATED. A digest cut to fit is a digest that matches nothing,
+      // and a subject id cut to fit names something else — both would put an
+      // approver in front of a decision about a thing that does not exist.
+      throw workflowFailure(
+        'workflow_node_failed',
+        'This approval could not say what it is about.',
+        {
+          nodeId: step.nodeId,
+          diagnostics: 'subjectEvidence resolved to a value longer than an identifier may be',
+        },
+      );
+    }
+    return { subjectId, contentDigest };
+  }
+
+  /**
    * Park the run on a human decision.
    *
    * The approval record is written FIRST and the run is parked second — see the
@@ -1941,8 +2015,10 @@ export function createWorkflowOrchestrator(
   async function runApprovalNode(
     record: WorkflowRunRecord,
     step: WorkflowApprovalPlanStep,
+    data: DataState,
     input: AdvanceWorkflowInput,
   ): Promise<WorkflowRunRecord> {
+    const evidence = resolveSubjectEvidence(step, scopeFor(record, data));
     const approval = await approvals.request({
       workflowRunId: record.context.workflowRunId,
       organizationId: record.context.organizationId,
@@ -1957,6 +2033,7 @@ export function createWorkflowOrchestrator(
       approverRoles: step.approverRoles,
       onRejection: step.onRejection,
       expiresAfterMs: step.expiresAfterMs,
+      ...(evidence === undefined ? {} : { subjectEvidence: evidence }),
       checkpointVersion: record.checkpointVersion,
       workflowRunVersion: record.runVersion + 1,
     });
@@ -2401,7 +2478,7 @@ export function createWorkflowOrchestrator(
       return runBranchCondition(record, plan, group, branch, step, data, input);
     }
     if (isApprovalStep(step)) {
-      return parkBranchApproval(record, group, branch, step, input);
+      return parkBranchApproval(record, group, branch, step, data, input);
     }
 
     // A branch node whose next attempt is not yet due parks for the rest of
@@ -3259,8 +3336,13 @@ export function createWorkflowOrchestrator(
     group: WorkflowParallelGroup,
     branch: WorkflowBranchRecord,
     step: WorkflowApprovalPlanStep,
+    data: DataState,
     input: AdvanceWorkflowInput,
   ): Promise<BranchTurn> {
+    // The BRANCH's scope, not the run's: a branch approval says what THIS
+    // branch is about, and a sibling's output is not visible to it. See
+    // `branchScopeFor`.
+    const evidence = resolveSubjectEvidence(step, branchScopeFor(record, data, branch));
     const approval = await approvals.request({
       workflowRunId: record.context.workflowRunId,
       organizationId: record.context.organizationId,
@@ -3276,6 +3358,7 @@ export function createWorkflowOrchestrator(
       approverRoles: step.approverRoles,
       onRejection: step.onRejection,
       expiresAfterMs: step.expiresAfterMs,
+      ...(evidence === undefined ? {} : { subjectEvidence: evidence }),
       checkpointVersion: record.checkpointVersion,
       workflowRunVersion: record.runVersion + 1,
       branchVersion: branch.branchVersion + 1,
@@ -4481,7 +4564,7 @@ export function createWorkflowOrchestrator(
           // Parking is the END of this advance, not a step within it: what
           // happens next is a person deciding, and there is nothing further to
           // drive until they do.
-          return { record: await runApprovalNode(record, step, input), done: true };
+          return { record: await runApprovalNode(record, step, data, input), done: true };
         }
         if (isParallelStep(step)) {
           return { record: await openParallelNode(record, step, input), done: false };

@@ -48,6 +48,7 @@ import type {
   WorkflowApprovalDecision,
   WorkflowApprovalRecord,
   WorkflowApprovalState,
+  WorkflowApprovalSubjectEvidence,
   WorkflowPendingApproval,
   WorkflowRejectionPolicy,
 } from '../contracts/approval.ts';
@@ -252,6 +253,19 @@ export function toWorkflowParallelGroupView(
  * The projection exists anyway, for the reason the run projections exist: the
  * stored shape is free to gain an internal field, and a view that spreads the
  * record would export it the day it appeared.
+ *
+ * ── `subjectEvidence` IS EXPORTED ON PURPOSE (Part 7D, F3) ─────────────────
+ *
+ * It is the field that makes this view answerable: without it a decider read a
+ * run id, a node id and definition-authored prose, and had to go and find the
+ * subject somewhere else before they could know what they were granting. With
+ * it, the queue entry names the subject and the digest of the sealed artefact.
+ *
+ * It is exported rather than filtered because of what it is — two bounded
+ * identifiers, one of them a digest — and NOT because the projection has
+ * relaxed. A digest is a fingerprint of content and never content. Anything
+ * that would put business text in front of this audience still belongs on the
+ * run record, behind the run's own read scope.
  */
 export interface WorkflowApprovalView {
   readonly workflowApprovalId: string;
@@ -269,6 +283,8 @@ export interface WorkflowApprovalView {
   /** Placeholder. Always the declared figure, or zero. */
   readonly estimatedAdditionalCostMicroUsd: number;
   readonly authorizedRoles: readonly string[];
+  /** WHAT is being approved: the subject and the sealed content's digest. */
+  readonly subjectEvidence?: WorkflowApprovalSubjectEvidence;
   readonly checkpointVersion: number;
   readonly workflowRunVersion: number;
   readonly branchVersion?: number;
@@ -303,6 +319,14 @@ export function toWorkflowApprovalView(
     estimatedAdditionalTokens: record.estimatedAdditionalTokens,
     estimatedAdditionalCostMicroUsd: record.estimatedAdditionalCostMicroUsd,
     authorizedRoles: record.authorizedRoles,
+    ...(record.subjectEvidence === undefined
+      ? {}
+      : {
+          subjectEvidence: {
+            subjectId: record.subjectEvidence.subjectId,
+            contentDigest: record.subjectEvidence.contentDigest,
+          },
+        }),
     checkpointVersion: record.checkpointVersion,
     workflowRunVersion: record.workflowRunVersion,
     ...(record.branchVersion === undefined ? {} : { branchVersion: record.branchVersion }),

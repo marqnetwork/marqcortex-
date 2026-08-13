@@ -30,6 +30,22 @@
  * a runtime decides what to do with them. A capability that registered itself
  * would be a capability whose presence in a deployment could not be reviewed by
  * reading that deployment's assembly.
+ *
+ * ── AND IT NO LONGER DEFAULTS TO MEMORY (Part 7D, F2) ──────────────────────
+ *
+ * `storage` is REQUIRED and it is a key-value port with compare-and-swap. There
+ * is no in-memory fallback, no optional store parameter and no way to assemble
+ * this capability over anything that can evict a committed review. The reason
+ * is that the committed review is both the business record of record and the
+ * row the commit tool reads to refuse a replay: an eviction reopens the replay
+ * window on an approval that has already been spent.
+ *
+ * The check below is a RUNTIME one even though the type says the field is
+ * required, because a deployment assembles this from configuration a type
+ * cannot see. It fails at assembly rather than at the first commit — the same
+ * call `bootstrap.ts` makes for `AI_FINANCIAL_REQUIRED`, and for the same
+ * reason: the last moment a missing guarantee can be refused without a run
+ * already in flight.
  */
 
 import type { AgentDefinition } from '../../agents/contracts/agent.ts';
@@ -42,11 +58,8 @@ import type {
   ReviewDraftStore,
   ReviewEscalationStore,
 } from './persistence/ports.ts';
-import {
-  createMemoryCommittedReviewStore,
-  createMemoryEscalationStore,
-  createMemoryReviewDraftStore,
-} from './persistence/ports.ts';
+import type { KvDiagnosticStoreOptions } from './persistence/kvDiagnosticStores.ts';
+import { createKvDiagnosticStores } from './persistence/kvDiagnosticStores.ts';
 import { createDiagnosticTools } from './tools/diagnosticTools.ts';
 import { readinessManagerAgent } from './agent/readinessManagerAgent.ts';
 import {
@@ -61,9 +74,15 @@ export interface DiagnosticCapabilityOptions {
   readonly dossiers: DiagnosticDossierStore;
   /** How a commit learns which workflow run it belongs to, and what it approved. */
   readonly authority: ReviewApprovalAuthorityPort;
-  readonly drafts?: ReviewDraftStore;
-  readonly escalations?: ReviewEscalationStore;
-  readonly commits?: CommittedReviewStore;
+  /**
+   * DURABLE PERSISTENCE, REQUIRED. See the header.
+   *
+   * The platform key-value port with field-keyed compare-and-swap — the same
+   * contract the agent, workflow and financial stores use. There is no
+   * alternative parameter: a caller cannot inject a store of its own, so a
+   * store that evicts cannot be reached from here at all.
+   */
+  readonly storage: KvDiagnosticStoreOptions;
 }
 
 export interface DiagnosticCapability {
@@ -78,9 +97,25 @@ export interface DiagnosticCapability {
 export function createDiagnosticCapability(
   options: DiagnosticCapabilityOptions,
 ): DiagnosticCapability {
-  const drafts = options.drafts ?? createMemoryReviewDraftStore();
-  const escalations = options.escalations ?? createMemoryEscalationStore();
-  const commits = options.commits ?? createMemoryCommittedReviewStore();
+  // FAIL CLOSED AT ASSEMBLY. A deployment that reached here without a
+  // conditional writer has no way to keep a committed review, and a capability
+  // that started anyway would refuse a replay only until the first eviction.
+  const storage = options.storage;
+  if (
+    storage === undefined ||
+    typeof storage.read !== 'function' ||
+    typeof storage.readByPrefix !== 'function' ||
+    typeof storage.compareAndSwap !== 'function'
+  ) {
+    throw new Error(
+      '[ai] the diagnostic review capability requires durable key-value storage with ' +
+        'field-keyed conditional writes; committed reviews are the record of record for a ' +
+        'human decision and the row that refuses a replayed commit, and neither may depend ' +
+        'on isolate-local memory.',
+    );
+  }
+
+  const { drafts, escalations, commits } = createKvDiagnosticStores(storage);
 
   const tools = createDiagnosticTools({
     dossiers: options.dossiers,
@@ -152,8 +187,9 @@ export { computeReadinessAuthority } from './deterministic/readinessAuthority.ts
 export { enforceReadinessFactLock } from './agent/factLock.ts';
 export { createWorkflowApprovalAuthorityPort } from './persistence/authorityPort.ts';
 export {
-  createMemoryCommittedReviewStore,
-  createMemoryDossierStore,
-  createMemoryEscalationStore,
-  createMemoryReviewDraftStore,
-} from './persistence/ports.ts';
+  createKvCommittedReviewStore,
+  createKvDiagnosticStores,
+  createKvEscalationStore,
+  createKvReviewDraftStore,
+} from './persistence/kvDiagnosticStores.ts';
+export type { KvDiagnosticStoreOptions } from './persistence/kvDiagnosticStores.ts';

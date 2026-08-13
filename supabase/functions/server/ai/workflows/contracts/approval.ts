@@ -64,6 +64,36 @@
  * itself — so it carries the definition-authored `reason` and `impactSummary`,
  * the estimates, and identifiers. What the run is actually working on stays on
  * the run record and its checkpoints, behind the run's own read scope.
+ *
+ * ── AND ONE NARROW EXCEPTION: `subjectEvidence` (Part 7D, F3) ──────────────
+ *
+ * "No payload" left a real gap: a record that named a run, a node and a
+ * checkpoint version, and did not say WHAT was being approved. An approver
+ * reading the queue had to go and reconstruct the subject from another record
+ * to know what they were answering about — which is not a question a human
+ * should have to do research to answer before granting authority.
+ *
+ * `subjectEvidence` closes it and stays inside the no-payload rule, because it
+ * is bounded IDENTIFIERS AND A DIGEST rather than content:
+ *
+ *   subjectId       what is being decided about — a submission id, an
+ *                   invoice number, whatever the workflow's subject is named
+ *   contentDigest   the digest of the sealed artefact the decision freezes
+ *
+ * Neither carries business text. A digest is a fingerprint of content, not
+ * content, and it is precisely what makes the approval verifiable later: the
+ * committing tool can prove the bytes it is writing are the bytes this record
+ * named, and no substitution — wrong submission, wrong draft, another run's
+ * draft, another tenant's — can satisfy both halves.
+ *
+ * THE VALUES ARE RESOLVED SERVER-SIDE AND ONLY FROM TRUSTED NODE OUTPUTS. The
+ * approval node declares two `WorkflowValueRef`s restricted to `source: 'node'`
+ * — a contract-validated output of a node that has already completed — and the
+ * engine resolves them before it writes this record. There is deliberately no
+ * path from the run INPUT, from a caller's advance payload or from a raw model
+ * completion: validation refuses any other source at registration, so "could a
+ * model choose what its own approval says it is about" is answered by the
+ * grammar rather than by a check somebody has to remember.
  */
 
 import type { WorkflowFailureCode } from './failures.ts';
@@ -132,6 +162,27 @@ export const WORKFLOW_REJECTION_POLICIES = ['fail', 'cancel'] as const;
 
 export type WorkflowRejectionPolicy = (typeof WORKFLOW_REJECTION_POLICIES)[number];
 
+// ── What is being approved ──────────────────────────────────────────────────
+
+/**
+ * The subject of one approval, as the approver sees it (Part 7D, F3).
+ *
+ * Two bounded strings, resolved by the engine from trusted node outputs before
+ * the request is written. Both are IDENTIFIERS — see the header for why a
+ * digest belongs on a record that carries no payload, and for why nothing here
+ * may come from a caller or a model.
+ *
+ * Absent on a workflow whose approval node declares no evidence, which is every
+ * approval node written before this field existed. A reader must therefore treat
+ * absence as "this workflow does not say", never as "there is no subject".
+ */
+export interface WorkflowApprovalSubjectEvidence {
+  /** What the decision is about. A submission id, an order number, an id. */
+  readonly subjectId: string;
+  /** Digest of the sealed artefact this decision freezes. Never its content. */
+  readonly contentDigest: string;
+}
+
 // ── The record ──────────────────────────────────────────────────────────────
 
 export interface WorkflowApprovalRecord {
@@ -178,6 +229,14 @@ export interface WorkflowApprovalRecord {
    * change could widen who may decide a request that is already pending.
    */
   readonly authorizedRoles: readonly string[];
+  /**
+   * WHAT is being approved. Resolved server-side from trusted node outputs.
+   *
+   * Absent when the approval node declares no evidence mapping. See the header
+   * — this is the one exception to "no payload, ever", and it is identifiers
+   * and a digest rather than content.
+   */
+  readonly subjectEvidence?: WorkflowApprovalSubjectEvidence;
   /** The run's checkpoint version when the approval was requested. */
   readonly checkpointVersion: number;
   /** The run version the park produced. See the header for how it is enforced. */
@@ -284,6 +343,16 @@ export const WORKFLOW_APPROVAL_BOUNDS = {
   /** Approvals one run may request, across every node and every branch. */
   maxPerRun: 32,
   estimate: { min: 0, max: 100_000_000 },
+  /**
+   * Ceilings on the subject evidence (Part 7D, F3).
+   *
+   * Both are identifier-sized rather than text-sized, and that is the point: a
+   * field that could hold a paragraph would be a field a workflow author could
+   * put business content in, and this record is read by a wider audience than
+   * the run. 128 accommodates the longest identifier the platform mints; 64 is a
+   * full-length SHA-256 in hex.
+   */
+  subjectEvidence: { subjectId: 128, contentDigest: 64 },
 } as const;
 
 /** Approver roles share the platform's role grammar: lower-case identifiers. */

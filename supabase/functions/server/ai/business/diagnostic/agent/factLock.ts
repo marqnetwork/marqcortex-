@@ -38,6 +38,16 @@
  * skipped is a lock that will be, by the output that was worth skipping it for.
  * `enforceReadinessFactLock` always rebuilds every locked value from the
  * authority.
+ *
+ * ── THE REPORT IS BOUNDED; THE CORRECTION IS NOT (Part 7D, F1) ─────────────
+ *
+ * The number of paths this function can report is driven by the model: an
+ * invented recommendation entry contributes one path per authoritative
+ * recommendation field, so enough of them overflow what `ReviewRecordContent`
+ * declares. The CORRECTION stays unconditional and complete — every invented
+ * entry is still removed, whatever the count — and only the list of path names
+ * is summarised, with a final `+N more` entry stating exactly how many did not
+ * fit. See `boundFactLockPaths` in `contracts/review.ts`.
  */
 
 import { enforceFactLock } from '../../../governance/factLock.ts';
@@ -49,6 +59,7 @@ import {
   AUTHORITATIVE_FIELDS,
   AUTHORITATIVE_RECOMMENDATION_FIELDS,
 } from '../contracts/readiness.ts';
+import { FACT_LOCK_REPORT, boundFactLockPaths } from '../contracts/review.ts';
 
 /** What a model produced, before reconciliation. Shape-tolerant on purpose. */
 export interface ProposedReview {
@@ -60,10 +71,37 @@ export interface ProposedReview {
 export interface ReadinessFactLockResult {
   /** The reconciled object. Every locked value is the authority's. */
   readonly content: Record<string, unknown>;
-  /** Locked paths whose value was changed or omitted, and put back. */
+  /**
+   * Locked paths whose value was changed or omitted, and put back.
+   *
+   * Bounded — see the header. A `+N more fact-lock paths` entry is the last
+   * element when the report did not fit.
+   */
   readonly restored: readonly string[];
-  /** Locked values the model invented, and which were taken out. */
+  /** Locked values the model invented, and which were taken out. Bounded. */
   readonly removed: readonly string[];
+  /**
+   * Paths the lock ACTED ON, before the report was summarised.
+   *
+   * The correction is complete whatever these numbers are; they are here so a
+   * caller — and the certification suite — can tell a bounded report from a
+   * short one without re-deriving the lock.
+   */
+  readonly restoredCount: number;
+  readonly removedCount: number;
+}
+
+/**
+ * A recommendation id as it may appear inside a reported path.
+ *
+ * Model output, so bounded where the path is BUILT rather than trimmed out of
+ * an assembled string later: a path whose id was cut mid-way still names the
+ * field it is about, which is what a reader of the report needs.
+ */
+function pathId(id: string): string {
+  return id.length > FACT_LOCK_REPORT.maxIdLength
+    ? id.slice(0, FACT_LOCK_REPORT.maxIdLength)
+    : id;
 }
 
 /** Deep structural equality over JSON values. Key order is not a difference. */
@@ -139,11 +177,11 @@ export function enforceReadinessFactLock(
       continue;
     }
     if (!authoritative.has(id)) {
-      // A WHOLE RECOMMENDATION NOBODY COMPUTED. Removed, and reported per
-      // locked field so the report says what authority was claimed rather than
-      // merely that something was dropped.
+      // A WHOLE RECOMMENDATION NOBODY COMPUTED. Removed — always, and whatever
+      // the count — and reported per locked field so the report says what
+      // authority was claimed rather than merely that something was dropped.
       for (const field of AUTHORITATIVE_RECOMMENDATION_FIELDS) {
-        removed.push(`recommendations.${id}.${field}`);
+        removed.push(`recommendations.${pathId(id)}.${field}`);
       }
       continue;
     }
@@ -151,7 +189,7 @@ export function enforceReadinessFactLock(
     // second is treated as an entry the authority does not have.
     if (producedById.has(id)) {
       for (const field of AUTHORITATIVE_RECOMMENDATION_FIELDS) {
-        removed.push(`recommendations.${id}.${field}`);
+        removed.push(`recommendations.${pathId(id)}.${field}`);
       }
       continue;
     }
@@ -185,5 +223,14 @@ export function enforceReadinessFactLock(
 
   content.recommendations = reconciled;
 
-  return { content, restored, removed };
+  // THE CORRECTION ABOVE IS COMPLETE. Only the REPORT is held to the record's
+  // declared bounds, and the counts of what was actually acted on travel beside
+  // it so a summarised report is never mistaken for a short one.
+  return {
+    content,
+    restored: boundFactLockPaths(restored),
+    removed: boundFactLockPaths(removed),
+    restoredCount: restored.length,
+    removedCount: removed.length,
+  };
 }

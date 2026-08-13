@@ -19,6 +19,22 @@
  *
  * The uncertified/disabled refusals are themselves asserted, against the SHIPPED
  * definitions, in `diagnosticCertification.test.ts`.
+ *
+ * ── PERSISTENCE IS THE PRODUCTION ONE (Part 7D, F2) ────────────────────────
+ *
+ * The capability is assembled over `createKvDiagnosticStores` — the same durable
+ * stores a deployment gets — with `createFakeKv` underneath, which implements
+ * the real `kv_compare_and_swap_field` contract: insert-if-absent at expected
+ * version 0, and a lost compare-and-swap for the loser of a race. There is no
+ * in-memory store of drafts, escalations or committed reviews anywhere in this
+ * harness, because there is no longer one in the codebase.
+ *
+ * That is what makes two Part 7D proofs possible at all. A SECOND ISOLATE is a
+ * second set of store objects over the SAME key-value rows — pass the same `kv`
+ * — so "the committed review survived the restart" is a fact about storage
+ * rather than about a Map that was never dropped. And two concurrent commits
+ * race one real conditional write, so "exactly one durable record" is observed
+ * rather than assumed.
  */
 
 import type { AgentDefinition } from '../agents/contracts/agent.ts';
@@ -30,9 +46,9 @@ import type { DiagnosticCapability } from '../business/diagnostic/index.ts';
 import {
   certifyForTesting,
   createDiagnosticCapability,
-  createMemoryDossierStore,
   createWorkflowApprovalAuthorityPort,
 } from '../business/diagnostic/index.ts';
+import { createMemoryDossierStore } from '../business/diagnostic/persistence/memoryStores.ts';
 import {
   createMemoryWorkflowApprovalStore,
   createMemoryWorkflowCheckpointStore,
@@ -54,8 +70,9 @@ import {
   agentAuthenticator,
   bearer,
   buildTestAgentRuntime,
+  createFakeKv,
 } from './agentFixtures.ts';
-import type { TestAgentRuntime } from './agentFixtures.ts';
+import type { FakeKv, TestAgentRuntime } from './agentFixtures.ts';
 
 // ── Submissions ─────────────────────────────────────────────────────────────
 
@@ -191,6 +208,27 @@ export const DIAGNOSTIC_DOSSIERS: readonly DiagnosticSubmissionDossier[] = [
   hostileDossier,
 ];
 
+// ── Durable storage, for a suite that assembles the capability itself ───────
+
+/**
+ * The storage option `createDiagnosticCapability` requires, over a fake KV.
+ *
+ * There is no in-memory alternative to hand it — Part 7D removed the memory
+ * draft, escalation and committed-review stores — so every suite that assembles
+ * the capability directly goes through the same durable path production does.
+ * Pass the SAME `kv` to two calls to model two isolates over one storage layer.
+ */
+export function kvStorageFor(kv: FakeKv = createFakeKv()): {
+  read: FakeKv['read'];
+  readByPrefix: FakeKv['readByPrefix'];
+  compareAndSwap: FakeKv['compareAndSwap'];
+} {
+  return { read: kv.read, readByPrefix: kv.readByPrefix, compareAndSwap: kv.compareAndSwap };
+}
+
+export { createFakeKv };
+export type { FakeKv };
+
 // ── Harness ─────────────────────────────────────────────────────────────────
 
 export interface TestDiagnosticRuntime {
@@ -202,6 +240,13 @@ export interface TestDiagnosticRuntime {
   readonly checkpointStore: WorkflowCheckpointStore;
   readonly approvalStore: WorkflowApprovalStore;
   readonly dossiers: ReturnType<typeof createMemoryDossierStore>;
+  /**
+   * The key-value rows the capability's durable stores are written to.
+   *
+   * Pass it to a second harness to model a RESTART: new store objects, new
+   * runtime, same rows.
+   */
+  readonly kv: FakeKv;
   /** The shipped definitions, uncertified and disabled, for posture assertions. */
   readonly shipped: DiagnosticCapability;
   meta(token: string): { authorization: string; correlationId: string };
@@ -213,6 +258,8 @@ export interface TestDiagnosticRuntimeOptions {
   readonly checkpointStore?: WorkflowCheckpointStore;
   readonly approvalStore?: WorkflowApprovalStore;
   readonly dossiers?: readonly DiagnosticSubmissionDossier[];
+  /** Share one across harnesses to model a restart into a second isolate. */
+  readonly kv?: FakeKv;
   readonly idSeed?: string;
   /** Register the SHIPPED definitions rather than the certified copies. */
   readonly useShippedCertification?: boolean;
@@ -235,6 +282,7 @@ export function buildTestDiagnosticRuntime(
   const checkpointStore = options.checkpointStore ?? createMemoryWorkflowCheckpointStore();
   const approvalStore = options.approvalStore ?? createMemoryWorkflowApprovalStore();
   const dossiers = createMemoryDossierStore(options.dossiers ?? DIAGNOSTIC_DOSSIERS);
+  const kv = options.kv ?? createFakeKv();
 
   // THE PORT READS THE SAME TWO STORES THE ENGINE WRITES. That is the whole
   // binding: a commit learns which workflow run owns its agent run from the
@@ -244,7 +292,17 @@ export function buildTestDiagnosticRuntime(
     approvals: approvalStore,
   });
 
-  const shipped = createDiagnosticCapability({ dossiers, authority });
+  // THE DURABLE STORES, over a key-value double with real compare-and-swap
+  // semantics. See the header for why this is not a detail of the harness.
+  const shipped = createDiagnosticCapability({
+    dossiers,
+    authority,
+    storage: {
+      read: kv.read,
+      readByPrefix: kv.readByPrefix,
+      compareAndSwap: kv.compareAndSwap,
+    },
+  });
   const capability = options.useShippedCertification === true
     ? shipped
     : certifyForTesting(shipped);
@@ -296,6 +354,7 @@ export function buildTestDiagnosticRuntime(
     checkpointStore,
     approvalStore,
     dossiers,
+    kv,
     meta: (token) => ({ authorization: bearer(token), correlationId: 'cor_test_diagnostic' }),
   };
 }

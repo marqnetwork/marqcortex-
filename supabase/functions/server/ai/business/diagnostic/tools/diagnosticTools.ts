@@ -59,6 +59,7 @@ import {
   arrayOf,
   bool,
   int,
+  isFailure,
   jsonObject,
   literal,
   num,
@@ -83,6 +84,7 @@ import {
   ESCALATION_REASONS,
   REVIEW_BOUNDS,
   diagnosticFailure,
+  reviewContentSchema,
   reviewNarrativeSchema,
 } from '../contracts/review.ts';
 import { computeReadinessAuthority } from '../deterministic/readinessAuthority.ts';
@@ -400,6 +402,30 @@ export function createDraftReviewTool(deps: DiagnosticToolDependencies): ToolDef
         contradictions: input.contradictions,
       };
 
+      // ── VALIDATED BEFORE IT IS SEALED (Part 7D, F1) ──
+      //
+      // The gateway validates this tool's OUTPUT, which is far too late: by
+      // then the draft is durably sealed, the scope is spent, and a re-draft is
+      // a `diagnostic_draft_sealed` refusal — so a model that produced a record
+      // its own schema cannot represent would have poisoned the run rather than
+      // failed a call. Checking the record here means a refusal leaves NOTHING
+      // written, and a clean retry seals normally.
+      //
+      // The lock now bounds its own report, so this gate should be unreachable
+      // through the fact-lock path. It is here for the case a gate exists for:
+      // some future field whose size nobody re-checked.
+      const validated = reviewContentSchema.validate(content, 'review');
+      if (isFailure(validated)) {
+        throw diagnosticFailure(
+          'diagnostic_record_invalid',
+          'This review could not be recorded.',
+          `assembled review record is not representable: ${validated.issues
+            .map((issue) => `${issue.path}: ${issue.message}`)
+            .join('; ')
+            .slice(0, 300)}`,
+        );
+      }
+
       const { scopeId } = await reviewScopeFor(deps, invocation);
       const contentDigest = digestValue(content);
       const candidate: ReviewDraftRecord = {
@@ -521,12 +547,13 @@ export function createRecordEscalationTool(deps: DiagnosticToolDependencies): To
 // ── 5. Commit the review, behind a real approval ────────────────────────────
 
 /**
- * The seven conditions a commit must satisfy, checked in this order.
+ * The conditions a commit must satisfy, checked in this order.
  *
  * Ordering is deliberate. Ownership first, because everything after it is a
  * question about a run this call has not yet earned the right to ask about;
  * then the approval's identity, then its grant, then its freshness, then who
- * decided it, then what it froze, then whether it has already been spent.
+ * decided it, then what it froze — the caller's claim and then the APPROVAL'S
+ * OWN subject evidence — then whether it has already been spent.
  *
  * Each one is refused with its own code, so the certification suite can prove
  * that the check it thinks it is driving is the check that fired.
@@ -709,6 +736,50 @@ async function requireCommitAuthorization(
       'diagnostic_content_digest_mismatch',
       'That is not the review that was approved.',
       `approved digest ${draft.contentDigest} does not match ${claimedDigest}`,
+    );
+  }
+
+  // 7b. AND THE APPROVAL ITSELF NAMES THIS DRAFT (Part 7D, F3).
+  //
+  // Check 7 proves the CALLER named the sealed draft. It does not prove the
+  // APPROVER was shown it — before Part 7D nothing on the approval record said
+  // what was being approved, so "the person approved these bytes" rested on
+  // graph order: the draft is sealed at `n_review`, the barrier is downstream,
+  // and a node cannot run before a node that has not run.
+  //
+  // That argument is sound and it is not evidence. The approval now carries the
+  // submission and the sealed digest, resolved server-side from the review
+  // node's trusted output before the request was written, and this check
+  // compares BOTH against the draft that is about to be committed. Wrong
+  // submission, wrong digest, a draft sealed for another run, another tenant's
+  // draft: each fails one half or the other, and each is refused here.
+  //
+  // ABSENT EVIDENCE IS A REFUSAL, not a pass. An approval for this node with no
+  // subject on it is either a definition that no longer declares one or a record
+  // from before this field existed — and neither is something a person can be
+  // said to have decided about specific content.
+  const evidence = approval.subjectEvidence;
+  if (evidence === undefined) {
+    throw diagnosticFailure(
+      'diagnostic_approval_evidence_mismatch',
+      'That approval does not say which review it is for.',
+      `approval ${approval.workflowApprovalId} carries no subject evidence`,
+    );
+  }
+  if (evidence.contentDigest !== draft.contentDigest) {
+    throw diagnosticFailure(
+      'diagnostic_approval_evidence_mismatch',
+      'That is not the review that was approved.',
+      `approval ${approval.workflowApprovalId} approved digest ${evidence.contentDigest}, ` +
+        `the sealed draft is ${draft.contentDigest}`,
+    );
+  }
+  if (evidence.subjectId !== draft.submissionId) {
+    throw diagnosticFailure(
+      'diagnostic_approval_evidence_mismatch',
+      'That approval is for a different submission.',
+      `approval ${approval.workflowApprovalId} approved submission ${evidence.subjectId}, ` +
+        `the sealed draft is for ${draft.submissionId}`,
     );
   }
 

@@ -27,6 +27,21 @@
  *
  * Every method takes `organizationId` first and keys by it. There is no listing
  * across tenants at this layer and no method that could be called without one.
+ *
+ * ── INTERFACES ONLY (Part 7D, F2) ──────────────────────────────────────────
+ *
+ * This file used to carry in-memory implementations of all four ports beside
+ * the interfaces, and `createDiagnosticCapability` defaulted to them. That made
+ * an EVICTING, isolate-local store the fallback for the committed review — the
+ * business record of record, and the same row the commit tool reads to refuse a
+ * replay. An eviction there does not merely lose a record; it reopens the
+ * replay window on an approval that was already spent.
+ *
+ * The three record-of-record stores are now durable and live in
+ * `kvDiagnosticStores.ts`; the read-only dossier fixture store lives in
+ * `memoryStores.ts`, which is test and tooling only and which no module in the
+ * production assembly imports. The boundary scan asserts that separation rather
+ * than trusting it.
  */
 
 import type { DiagnosticSubmissionDossier } from '../contracts/dossier.ts';
@@ -35,7 +50,6 @@ import type {
   ReviewDraftRecord,
   ReviewEscalationRecord,
 } from '../contracts/review.ts';
-import { diagnosticFailure } from '../contracts/review.ts';
 
 export interface DiagnosticDossierStore {
   /** The submission, or undefined. Never another tenant's. */
@@ -87,141 +101,4 @@ export interface CommittedReviewStore {
    * makes a replayed commit visible instead of invisible.
    */
   create(record: CommittedReviewRecord): Promise<void>;
-}
-
-// ── In-memory implementations ───────────────────────────────────────────────
-
-/**
- * Bounded in-memory stores.
- *
- * Correct for one isolate and for tests, and NOT the authority in a deployment
- * that has a durable store — the same call every other store in this batch
- * makes. Eviction is oldest-first and safe for exactly that reason.
- */
-export function createMemoryDossierStore(
-  seed: readonly DiagnosticSubmissionDossier[] = [],
-): DiagnosticDossierStore & { put(record: DiagnosticSubmissionDossier): void; size(): number } {
-  const rows = new Map<string, DiagnosticSubmissionDossier>();
-  const keyOf = (organizationId: string, submissionId: string) =>
-    `${organizationId}:${submissionId}`;
-  for (const record of seed) rows.set(keyOf(record.organizationId, record.submissionId), record);
-
-  return {
-    load: (organizationId, submissionId) =>
-      Promise.resolve(rows.get(keyOf(organizationId, submissionId))),
-    put: (record) => {
-      rows.set(keyOf(record.organizationId, record.submissionId), record);
-    },
-    size: () => rows.size,
-  };
-}
-
-export function createMemoryReviewDraftStore(
-  options: { maxDrafts?: number } = {},
-): ReviewDraftStore & { size(): number } {
-  const maxDrafts = options.maxDrafts ?? 500;
-  const rows = new Map<string, ReviewDraftRecord>();
-  const keyOf = (organizationId: string, reviewScopeId: string) =>
-    `${organizationId}:${reviewScopeId}`;
-
-  return {
-    load: (organizationId, reviewScopeId) =>
-      Promise.resolve(rows.get(keyOf(organizationId, reviewScopeId))),
-
-    seal(record) {
-      const key = keyOf(record.organizationId, record.reviewScopeId);
-      const existing = rows.get(key);
-      if (existing) return Promise.resolve(existing);
-      if (rows.size >= maxDrafts) {
-        const oldest = rows.keys().next().value;
-        if (oldest !== undefined) rows.delete(oldest);
-      }
-      rows.set(key, record);
-      return Promise.resolve(record);
-    },
-
-    size: () => rows.size,
-  };
-}
-
-export function createMemoryEscalationStore(
-  options: { maxRecords?: number } = {},
-): ReviewEscalationStore & { size(): number } {
-  const maxRecords = options.maxRecords ?? 500;
-  const rows = new Map<string, ReviewEscalationRecord>();
-  const keyOf = (organizationId: string, escalationId: string) =>
-    `${organizationId}:${escalationId}`;
-
-  return {
-    load: (organizationId, escalationId) =>
-      Promise.resolve(rows.get(keyOf(organizationId, escalationId))),
-
-    append(record) {
-      const key = keyOf(record.organizationId, record.escalationId);
-      const existing = rows.get(key);
-      if (existing) return Promise.resolve(existing);
-      if (rows.size >= maxRecords) {
-        const oldest = rows.keys().next().value;
-        if (oldest !== undefined) rows.delete(oldest);
-      }
-      rows.set(key, record);
-      return Promise.resolve(record);
-    },
-
-    list: (organizationId, reviewScopeId) =>
-      Promise.resolve(
-        [...rows.values()]
-          .filter(
-            (record) =>
-              record.organizationId === organizationId &&
-              record.reviewScopeId === reviewScopeId,
-          )
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-      ),
-
-    size: () => rows.size,
-  };
-}
-
-export function createMemoryCommittedReviewStore(
-  options: { maxRecords?: number } = {},
-): CommittedReviewStore & { size(): number } {
-  const maxRecords = options.maxRecords ?? 500;
-  const rows = new Map<string, CommittedReviewRecord>();
-  const keyOf = (organizationId: string, workflowApprovalId: string) =>
-    `${organizationId}:${workflowApprovalId}`;
-
-  return {
-    loadByApproval: (organizationId, workflowApprovalId) =>
-      Promise.resolve(rows.get(keyOf(organizationId, workflowApprovalId))),
-
-    listByRun: (organizationId, workflowRunId) =>
-      Promise.resolve(
-        [...rows.values()].filter(
-          (record) =>
-            record.organizationId === organizationId && record.workflowRunId === workflowRunId,
-        ),
-      ),
-
-    create(record) {
-      const key = keyOf(record.organizationId, record.workflowApprovalId);
-      if (rows.has(key)) {
-        return Promise.reject(
-          diagnosticFailure(
-            'diagnostic_commit_conflict',
-            'That review has already been committed.',
-            `approval ${record.workflowApprovalId} already carries a committed review`,
-          ),
-        );
-      }
-      if (rows.size >= maxRecords) {
-        const oldest = rows.keys().next().value;
-        if (oldest !== undefined) rows.delete(oldest);
-      }
-      rows.set(key, record);
-      return Promise.resolve();
-    },
-
-    size: () => rows.size,
-  };
 }

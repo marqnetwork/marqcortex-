@@ -204,6 +204,32 @@ const publishApproval: WorkflowApprovalNode = {
     'Committing records the reviewed readiness result against this submission. The narrative ' +
     'is advisory; the scores, ranking and dependencies are the deterministic engines’.',
   expiresAfterMs: 3_600_000,
+  /**
+   * WHAT THE APPROVER IS ANSWERING ABOUT (Part 7D, F3).
+   *
+   * Both values are read from `n_review`'s TRUSTED OUTPUT — the projection that
+   * passed `reviewNodeOutput` before it was stored — and both originate inside
+   * the platform rather than in a model:
+   *
+   *   submissionId    the workflow's own validated input, echoed by the node
+   *   contentDigest   the digest the DRAFT TOOL computed over the record it
+   *                   sealed, returned from durable storage and passed through
+   *                   the agent unchanged
+   *
+   * A model cannot author either. It cannot compute the digest — the tool
+   * computes it over content the tool assembled, after the fact lock — and a
+   * model that emitted a different one would be emitting a value the sealed
+   * draft does not carry, which the commit tool refuses.
+   *
+   * The consequence is the one the barrier exists for: the approval record
+   * itself says which submission and which sealed bytes are being approved, so
+   * an approver reads the queue rather than reconstructing the subject, and the
+   * commit proves the bytes it writes are the bytes this record named.
+   */
+  subjectEvidence: {
+    subjectId: { source: 'node', nodeId: 'n_review', path: 'submissionId' },
+    contentDigest: { source: 'node', nodeId: 'n_review', path: 'contentDigest' },
+  },
   // FAIL, NOT CANCEL. A refused review is a decision somebody made about a
   // draft, and an operator reading the outcome later should see a run that was
   // stopped by a refusal rather than one that was called off.

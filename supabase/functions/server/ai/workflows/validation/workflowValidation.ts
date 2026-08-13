@@ -242,7 +242,7 @@ function nodeProblems(
     if (node.kind === 'parallel' || node.kind === 'join') continue;
 
     if (isApprovalNode(node)) {
-      problems.push(...approvalNodeProblems(node, label));
+      problems.push(...approvalNodeProblems(node, references, label));
       continue;
     }
 
@@ -266,7 +266,11 @@ function nodeProblems(
  * one that defaulted its roles to something sensible would be a workflow whose
  * authority came from a constant instead of from a review.
  */
-function approvalNodeProblems(node: WorkflowApprovalNode, label: string): string[] {
+function approvalNodeProblems(
+  node: WorkflowApprovalNode,
+  references: ReferenceContext,
+  label: string,
+): string[] {
   const problems: string[] = [];
   const bounds = WORKFLOW_APPROVAL_BOUNDS;
 
@@ -326,6 +330,71 @@ function approvalNodeProblems(node: WorkflowApprovalNode, label: string): string
         `${label}: ${field} must be an integer between ${bounds.estimate.min} and ` +
           `${bounds.estimate.max}`,
       );
+    }
+  }
+
+  problems.push(...subjectEvidenceProblems(node, references, label));
+
+  return problems;
+}
+
+/**
+ * Where an approval may learn what it is about (Part 7D, F3).
+ *
+ * ONE SOURCE IS ADMITTED, AND THE RESTRICTION IS THE GUARANTEE. `source: 'node'`
+ * is a value a completed node produced that passed that node's declared output
+ * contract. Every other source in the grammar is refused here by name:
+ *
+ *   input      a caller's payload. An approver reading "you are approving
+ *              submission X" must not be reading a string the requester chose.
+ *   metadata   run identity, which the record already carries.
+ *   counter    a number, and never a subject.
+ *   result     the current node's own result, which an approval node does not
+ *              have — it runs nothing.
+ *   literal    a constant. An evidence field that always said the same thing
+ *              would be prose, and prose belongs in `impactSummary`.
+ *
+ * The referenced node must also be one the definition declares, and it may not
+ * be the approval node itself: an approval cannot be evidence for itself.
+ */
+function subjectEvidenceProblems(
+  node: WorkflowApprovalNode,
+  references: ReferenceContext,
+  label: string,
+): string[] {
+  const evidence = node.subjectEvidence;
+  if (evidence === undefined) return [];
+  const problems: string[] = [];
+
+  if (typeof evidence !== 'object' || evidence === null) {
+    return [`${label}: subjectEvidence must be an object`];
+  }
+
+  for (const field of ['subjectId', 'contentDigest'] as const) {
+    const ref = evidence[field] as unknown;
+    const where = `${label}: subjectEvidence.${field}`;
+    if (typeof ref !== 'object' || ref === null) {
+      problems.push(`${where} must be a value reference`);
+      continue;
+    }
+    const source = (ref as { source?: unknown }).source;
+    if (source !== 'node') {
+      problems.push(
+        `${where} must read a trusted node output — ` +
+          `source ${String(source)} is not one, and an approval may not be told what it ` +
+          'is about by a caller, a counter or a constant',
+      );
+      continue;
+    }
+    const nodeId = (ref as { nodeId?: unknown }).nodeId;
+    const path = (ref as { path?: unknown }).path;
+    if (typeof nodeId !== 'string' || !references.knownNodeIds.has(nodeId)) {
+      problems.push(`${where} references node ${String(nodeId)}, which this workflow has no`);
+    } else if (nodeId === references.ownerNodeId) {
+      problems.push(`${where} references its own approval node`);
+    }
+    if (typeof path !== 'string' || path.trim() === '') {
+      problems.push(`${where} names no path on that node's output`);
     }
   }
 

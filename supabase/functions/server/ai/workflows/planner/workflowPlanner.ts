@@ -520,6 +520,12 @@ function buildSteps(
         // declared figures rather than computed ones.
         estimatedAdditionalTokens: node.estimatedAdditionalTokens ?? 0,
         estimatedAdditionalCostMicroUsd: node.estimatedAdditionalCostMicroUsd ?? 0,
+        // Carried through unchanged. The engine resolves it against the run's
+        // trusted node outputs at park time; the planner only freezes WHERE it
+        // will read from. See `contracts/approval.ts`.
+        ...(node.subjectEvidence === undefined
+          ? {}
+          : { subjectEvidence: node.subjectEvidence }),
         ...(out[0] === undefined ? {} : { nextNodeId: out[0].to }),
       };
     }

@@ -120,6 +120,12 @@ function stepProjection(step: WorkflowPlanStep): Record<string, unknown> {
       onRejection: step.onRejection,
       estimatedAdditionalTokens: step.estimatedAdditionalTokens,
       estimatedAdditionalCostMicroUsd: step.estimatedAdditionalCostMicroUsd,
+      // WHERE the approver's subject evidence is read from is part of what was
+      // approved: a definition that repointed it at a different node would put
+      // a different subject in front of the next approver under the same
+      // digest. `null` for an approval that declares none — the same
+      // explicit-absence convention the rest of this projection uses.
+      subjectEvidence: step.subjectEvidence ?? null,
       nextNodeId: step.nextNodeId ?? null,
     };
   }

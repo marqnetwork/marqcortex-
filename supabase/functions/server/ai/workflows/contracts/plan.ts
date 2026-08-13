@@ -59,6 +59,7 @@ import type { WorkflowMapping } from './mapping.ts';
 import type { WorkflowJoinPolicy, WorkflowParallelFailurePolicy } from './parallel.ts';
 import type { WorkflowRejectionPolicy } from './approval.ts';
 import type { WorkflowRetryPolicy } from './retry.ts';
+import type { WorkflowApprovalEvidence } from './workflow.ts';
 import type { Validator } from '../../security/validation.ts';
 
 interface WorkflowPlanStepBase {
@@ -177,6 +178,14 @@ export interface WorkflowApprovalPlanStep extends WorkflowPlanStepBase {
   /** Placeholders, forwarded unchanged. See `contracts/approval.ts`. */
   readonly estimatedAdditionalTokens: number;
   readonly estimatedAdditionalCostMicroUsd: number;
+  /**
+   * Where the subject evidence comes from, frozen onto the plan (Part 7D, F3).
+   *
+   * On the plan for the same reason `approverRoles` and `expiresAfterMs` are:
+   * the run executes the plan it was admitted with, so a definition edited
+   * mid-run cannot change what an already-parked approval says it is about.
+   */
+  readonly subjectEvidence?: WorkflowApprovalEvidence;
   /** The single successor. Absent on a terminal approval. */
   readonly nextNodeId?: string;
 }

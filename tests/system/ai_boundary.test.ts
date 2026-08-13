@@ -1587,6 +1587,72 @@ describe('business capability boundary', () => {
     );
   });
 
+  it('keeps every record of record off an in-memory store', () => {
+    // Part 7D, F2. The committed review is the business record of a human
+    // decision AND the row that refuses a replayed commit, so an evicting
+    // isolate-local store under it does not merely lose data — it reopens the
+    // replay window. After Part 7D there is no memory implementation of the
+    // draft, escalation or committed-review ports anywhere in the tree, which
+    // is a stronger statement than "the default is durable".
+    const offenders = businessSources
+      .filter((file) => /createMemory(ReviewDraft|Escalation|CommittedReview)Store/.test(file.text))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(offenders, [], 'a record of record has an in-memory implementation');
+
+    const assembly = businessSources.find((file) =>
+      file.path.endsWith(join('diagnostic', 'index.ts')),
+    );
+    assert.ok(assembly, 'the diagnostic assembly must exist');
+    // The assembly reaches the durable stores and nothing else. An import of
+    // the fixture module here would be the defect returning by another door.
+    assert.match(assembly.text, /createKvDiagnosticStores/);
+    assert.equal(
+      /memoryStores\.ts/.test(assembly.text),
+      false,
+      'the production assembly imports the test-only store module',
+    );
+  });
+
+  it('fails closed when the capability is assembled without durable storage', () => {
+    // The type says `storage` is required; a deployment assembles this from
+    // configuration a type cannot see, so the refusal is a runtime one — and it
+    // happens at ASSEMBLY rather than at the first commit, which is the last
+    // moment a missing guarantee can be refused without a run in flight.
+    const assembly = businessSources.find((file) =>
+      file.path.endsWith(join('diagnostic', 'index.ts')),
+    );
+    assert.ok(assembly);
+    const code = stripComments(assembly.text);
+    assert.match(code, /typeof storage\.compareAndSwap !== 'function'/);
+    assert.match(code, /throw new Error\(/);
+  });
+
+  it('writes every durable diagnostic record insert-if-absent, under a tenant key', () => {
+    // Part 7D, F2. Insert-if-absent is expected version 0; a non-zero expected
+    // version anywhere in this module would be an overwrite path, and an
+    // overwrite path is how "exactly one committed review per approval"
+    // silently becomes "the last one wins".
+    const store = businessSources.find((file) =>
+      file.path.endsWith(join('persistence', 'kvDiagnosticStores.ts')),
+    );
+    assert.ok(store, 'the durable diagnostic store must exist');
+    const code = stripComments(store.text);
+
+    const expectations = [...code.matchAll(/compareAndSwap\(\s*key,\s*VERSION_FIELD,\s*(\d+)/g)];
+    assert.equal(expectations.length, 3, 'three durable writes are expected');
+    for (const match of expectations) {
+      assert.equal(match[1], '0', 'a durable diagnostic write is not insert-if-absent');
+    }
+    // Every key is built by the tenant-scoped builder. A template literal key
+    // would be a key that could be formed without its organization.
+    assert.match(code, /tenantScopedKey\(scope\(organizationId\)/);
+    assert.equal(
+      /const key = `/.test(code),
+      false,
+      'a diagnostic storage key is assembled by hand rather than tenant-scoped',
+    );
+  });
+
   it('keeps the test-only certification helper out of every other module', () => {
     // `certifyForTesting` returns copies with the flags flipped so a suite can
     // drive production code paths. Nothing else may call it, and the assembly

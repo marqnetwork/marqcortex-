@@ -18,8 +18,10 @@ import {
   AGENT_TOKEN,
   SUBMISSION,
   buildTestDiagnosticRuntime,
+  createFakeKv,
   emptyDossier,
   hostileDossier,
+  kvStorageFor,
   reviewableDossier,
   thinDossier,
 } from './diagnosticFixtures.ts';
@@ -33,10 +35,10 @@ import {
   READINESS_MANAGER_VERSION,
   computeReadinessAuthority,
   createDiagnosticCapability,
-  createMemoryDossierStore,
   enforceReadinessFactLock,
   readinessManagerAgent,
 } from '../business/diagnostic/index.ts';
+import { createMemoryDossierStore } from '../business/diagnostic/persistence/memoryStores.ts';
 import {
   AUTHORITATIVE_FIELDS,
   AUTHORITATIVE_RECOMMENDATION_FIELDS,
@@ -200,6 +202,7 @@ describe('part 7b — the certified tool surface', () => {
       owningWorkflowRun: () => Promise.resolve(undefined),
       approvalsForRun: () => Promise.resolve([]),
     },
+    storage: kvStorageFor(),
   });
 
   it('ships exactly the five approved tools', () => {
@@ -324,6 +327,7 @@ describe('part 7b — the deterministic authority reaches the agent unaltered', 
       owningWorkflowRun: () => Promise.resolve(undefined),
       approvalsForRun: () => Promise.resolve([]),
     },
+    storage: kvStorageFor(),
   });
   const compute = toolFrom(capability.tools, DIAGNOSTIC_TOOL_IDS.computeReadiness);
 
@@ -562,6 +566,7 @@ describe('part 7b — the draft tool applies the lock, whatever the agent sent',
         owningWorkflowRun: () => Promise.resolve(undefined),
         approvalsForRun: () => Promise.resolve([]),
       },
+      storage: kvStorageFor(),
     });
     return { capability, draft: toolFrom(capability.tools, DIAGNOSTIC_TOOL_IDS.draftReview) };
   }
@@ -807,6 +812,7 @@ describe('part 7b — escalation conditions', () => {
         owningWorkflowRun: () => Promise.resolve(undefined),
         approvalsForRun: () => Promise.resolve([]),
       },
+      storage: kvStorageFor(),
     });
     const tool = toolFrom(capability.tools, DIAGNOSTIC_TOOL_IDS.recordEscalation);
     const invocation = invocationFor({
@@ -830,12 +836,17 @@ describe('part 7b — escalation conditions', () => {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('part 7b — tenant isolation', () => {
+  // ONE key-value layer under both capabilities below, deliberately: the
+  // isolation being asserted is the KEY's, and two separate stores would prove
+  // only that two Maps are two Maps.
+  const kv = createFakeKv();
   const capability = createDiagnosticCapability({
     dossiers: createMemoryDossierStore([reviewableDossier, hostileDossier]),
     authority: {
       owningWorkflowRun: () => Promise.resolve(undefined),
       approvalsForRun: () => Promise.resolve([]),
     },
+    storage: kvStorageFor(kv),
   });
 
   it('refuses another tenant’s submission by id', async () => {
@@ -866,7 +877,9 @@ describe('part 7b — tenant isolation', () => {
         owningWorkflowRun: () => Promise.resolve(undefined),
         approvalsForRun: () => Promise.resolve([]),
       },
-      drafts: capability.drafts,
+      // The SAME storage. Both tenants' drafts land in one key-value layer, and
+      // what keeps them apart is the tenant-scoped key rather than the object.
+      storage: kvStorageFor(kv),
     });
     const otherDraft = toolFrom(otherCapability.tools, DIAGNOSTIC_TOOL_IDS.draftReview);
 

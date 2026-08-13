@@ -56,6 +56,7 @@ import type {
   WorkflowApprovalBinding,
   WorkflowApprovalDecision,
   WorkflowApprovalRecord,
+  WorkflowApprovalSubjectEvidence,
   WorkflowRejectionPolicy,
 } from '../contracts/approval.ts';
 import {
@@ -88,6 +89,16 @@ export interface RequestWorkflowApprovalInput {
   readonly approverRoles: readonly string[];
   readonly onRejection: WorkflowRejectionPolicy;
   readonly expiresAfterMs: number;
+  /**
+   * What is being approved (Part 7D, F3).
+   *
+   * Resolved by the ENGINE from trusted node outputs before this is called — see
+   * `contracts/approval.ts`. Absent for an approval node that declares none.
+   * This module bounds it and writes it; it never derives one, because deriving
+   * it here would mean deriving it from what this module can see, which is the
+   * request rather than the run.
+   */
+  readonly subjectEvidence?: WorkflowApprovalSubjectEvidence;
   /** The position this approval will authorise movement from. */
   readonly checkpointVersion: number;
   readonly workflowRunVersion: number;
@@ -209,6 +220,43 @@ export function createWorkflowApprovalGate(
     return value.trim().slice(0, max);
   }
 
+  /**
+   * Subject evidence, checked rather than coerced (Part 7D, F3).
+   *
+   * `bounded()` above trims prose, which is right for prose. Evidence is not
+   * prose: a `contentDigest` that has been cut to fit is a value that matches no
+   * content at all, and a `subjectId` that has been cut names a different
+   * subject. Both would produce a queue entry that looks authoritative and is
+   * not, so the request is REFUSED instead. The engine has already bounded these
+   * — this is the second of the two checks, in the module that writes the record.
+   */
+  function boundedEvidence(
+    evidence: WorkflowApprovalSubjectEvidence | undefined,
+    workflowApprovalId: string,
+  ): WorkflowApprovalSubjectEvidence | undefined {
+    if (evidence === undefined) return undefined;
+    const bounds = WORKFLOW_APPROVAL_BOUNDS.subjectEvidence;
+    const subjectId = evidence.subjectId?.trim() ?? '';
+    const contentDigest = evidence.contentDigest?.trim() ?? '';
+    if (
+      subjectId === '' ||
+      contentDigest === '' ||
+      subjectId.length > bounds.subjectId ||
+      contentDigest.length > bounds.contentDigest
+    ) {
+      throw workflowFailure(
+        'workflow_invalid_definition',
+        'This approval could not say what it is about.',
+        {
+          diagnostics:
+            `approval ${workflowApprovalId} carries subject evidence that is empty or ` +
+            'longer than an identifier may be',
+        },
+      );
+    }
+    return { subjectId, contentDigest };
+  }
+
   function estimate(value: number): number {
     const bounds = WORKFLOW_APPROVAL_BOUNDS.estimate;
     if (!Number.isFinite(value)) return bounds.min;
@@ -294,6 +342,8 @@ export function createWorkflowApprovalGate(
         );
       }
 
+      const subjectEvidence = boundedEvidence(input.subjectEvidence, workflowApprovalId);
+
       const createdAtMs = clock.now();
       const expiresAfterMs = Math.min(
         WORKFLOW_APPROVAL_BOUNDS.expiresAfterMs.max,
@@ -335,6 +385,12 @@ export function createWorkflowApprovalGate(
         ]
           .slice(0, WORKFLOW_APPROVAL_BOUNDS.approverRoles.max)
           .sort(),
+        // WHAT is being approved. Written verbatim from what the engine
+        // resolved, and REFUSED rather than trimmed if it does not fit: a
+        // truncated digest matches nothing, so an approval carrying one would
+        // be an approval no commit could ever satisfy — and it would look
+        // exactly like a valid one in the queue.
+        ...(subjectEvidence === undefined ? {} : { subjectEvidence }),
         checkpointVersion: input.checkpointVersion,
         workflowRunVersion: input.workflowRunVersion,
         ...(input.branchVersion === undefined ? {} : { branchVersion: input.branchVersion }),
