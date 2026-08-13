@@ -222,13 +222,13 @@ export interface CommittedReviewRecord {
 // ── Schemas ─────────────────────────────────────────────────────────────────
 
 export const REVIEW_BOUNDS = {
-  executiveSummary: { min: 1, max: 2_000 },
-  evidenceAssessment: { min: 1, max: 2_000 },
-  commentary: { min: 1, max: 1_000 },
+  executiveSummary: { minLength: 1, maxLength: 2_000 },
+  evidenceAssessment: { minLength: 1, maxLength: 2_000 },
+  commentary: { minLength: 1, maxLength: 1_000 },
   commentaryEntries: 7,
   contradictions: { max: 12, text: 400 },
   factLockPaths: { max: 64, text: 120 },
-  escalationDetail: { min: 3, max: 500 },
+  escalationDetail: { minLength: 3, maxLength: 500 },
 } as const;
 
 export const reviewNarrativeSchema = object({
