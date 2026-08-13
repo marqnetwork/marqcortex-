@@ -35,6 +35,7 @@ import {
   getAgentRuntime,
   initializeControlPlane,
 } from "./ai/index.ts";
+import { createKvSubmissionDossierSource } from "./diagnostic/submissionDossierSource.ts";
 import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
@@ -309,6 +310,53 @@ async function resolveTeamRole(userId: string | null): Promise<TeamRole | null> 
   }
 }
 
+/**
+ * The organization that owns key-value submissions.
+ *
+ * Submissions at `sub:{id}` predate the tenancy tables and carry no
+ * organization of their own. The migration engine assigns them to the MARQ
+ * organization — `resolveMarqOrganizationId` in `migration/client.ts`, the same
+ * RPC with the same slug fallback — and the certified review has to read them
+ * as the same tenant or it would be reading them as nobody's.
+ *
+ * Memoised on SUCCESS only. A failure returns `undefined`, which the submission
+ * source treats as "no submission resolves for anyone", and the next request
+ * asks again rather than pinning a transient database error for the life of the
+ * isolate.
+ */
+let submissionOwnerOrganizationId: string | undefined;
+async function resolveSubmissionOwnerOrganizationId(): Promise<string | undefined> {
+  if (submissionOwnerOrganizationId !== undefined) return submissionOwnerOrganizationId;
+  try {
+    const { data, error } = await supabaseAdmin.rpc('marq_organization_id');
+    if (!error && typeof data === 'string' && data.length > 0) {
+      submissionOwnerOrganizationId = data;
+      return data;
+    }
+    const { data: org, error: orgError } = await supabaseAdmin
+      .from('organizations')
+      .select('id')
+      .eq('slug', 'marq')
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (orgError || typeof org?.id !== 'string') {
+      console.error(
+        '[ai] the organization owning diagnostic submissions could not be resolved:',
+        error?.message ?? orgError?.message ?? 'not found',
+      );
+      return undefined;
+    }
+    submissionOwnerOrganizationId = org.id;
+    return org.id;
+  } catch (err) {
+    console.error(
+      '[ai] the organization owning diagnostic submissions could not be resolved:',
+      err instanceof Error ? err.message : String(err),
+    );
+    return undefined;
+  }
+}
+
 // ============================================================================
 // AI CONTROL PLANE — the single governed AI execution path (AI-01 Batch 1)
 //
@@ -396,22 +444,27 @@ const controlPlane = initializeControlPlane({
     return data === true;
   },
   kvReadByPrefix: async (prefix: string) => kv.getByPrefix(prefix),
-  // NO SUBMISSION SOURCE IS INJECTED, AND THAT IS DELIBERATE.
+  // THE SUBMISSION SOURCE, over the submissions this deployment already holds.
   //
-  // The certified diagnostic review capability reads a dossier: a submission,
-  // its answers, and the CATEGORY each answer was asked under. The stored
-  // submission at `sub:{id}` carries the first two. It does not carry the
-  // third — categories live in the question catalogues the client renders from,
-  // and reconstructing them here would mean a second copy of a question set
-  // whose first copy already decides what a client is asked.
+  // The certified capability reads a dossier: a submission, its answers, and
+  // the CATEGORY each answer was asked under. The stored record at `sub:{id}`
+  // carries the first two directly and the third by way of the industry the
+  // client chose — `diagnostic/questionCatalogue.ts` names the question and its
+  // section, and `submissionDossierSource.ts` refuses any submission it cannot
+  // name truthfully rather than attributing an answer to a guessed section.
   //
-  // The deterministic readiness engines use the category to attribute a
-  // qualified department. Supplying a blank one would not fail; it would
-  // produce readiness results that quietly attribute everything to one unnamed
-  // department, which is a wrong answer rather than a missing one. So the port
-  // stays unsupplied until a submission source can answer honestly, and
-  // `bootstrap.ts` refuses to register the capability without it — even with
-  // `AI_DIAGNOSTIC_REVIEW_ENABLED` on, and loudly.
+  // READ ONLY. The port has no writer, which is what keeps "the readiness
+  // manager cannot alter a submission, an answer or a status" structural.
+  //
+  // Supplying it is NOT activation: `AI_DIAGNOSTIC_REVIEW_ENABLED` is off by
+  // default, and `bootstrap.ts` registers nothing without both the switch and
+  // durable storage.
+  diagnosticDossiers: createKvSubmissionDossierSource({
+    read: (key: string) => kv.get(key),
+    ownerOrganizationId: resolveSubmissionOwnerOrganizationId,
+    onUnreadable: (submissionId: string, detail: string) =>
+      console.error(`[ai] submission ${submissionId} is not reviewable: ${detail}`),
+  }),
 });
 
 // Reclaim expired rate limit and budget windows. Bounded work on a fixed

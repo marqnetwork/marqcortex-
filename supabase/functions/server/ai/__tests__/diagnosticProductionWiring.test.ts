@@ -13,10 +13,15 @@
  *
  * WHAT IS INJECTED, AND WHAT IS NOT. The environment, the auth lookups, the
  * key-value port and the submission source are injected, exactly as `index.tsx`
- * injects them. Everything downstream — the control plane, the agent runtime,
- * the tool gateway, the workflow engine, the approval gate, the financial
- * recorder and the certified definitions themselves — is production code
- * assembled by production code.
+ * injects them — and the submission source is the PRODUCTION one,
+ * `diagnostic/submissionDossierSource.ts`, reading the `sub:{id}` rows this file
+ * seeds and naming every answer's question and section from the question
+ * catalogue. A memory store here would leave the one component that turns a
+ * stored submission into a reviewable dossier untested by the suite whose whole
+ * subject is the assembly. Everything downstream — the control plane, the agent
+ * runtime, the tool gateway, the workflow engine, the approval gate, the
+ * financial recorder and the certified definitions themselves — is production
+ * code assembled by production code.
  *
  * SAFETY. `AI_ALLOW_REAL_REQUESTS` is never set, so the mock adapter serves
  * every model step, no vendor endpoint is contacted and the MARQ ledger is
@@ -40,7 +45,8 @@ import {
   READINESS_MANAGER_AGENT_ID,
   READINESS_REVIEW_WORKFLOW_ID,
 } from '../business/diagnostic/index.ts';
-import { createMemoryDossierStore } from '../business/diagnostic/persistence/memoryStores.ts';
+import { createKvSubmissionDossierSource } from '../../diagnostic/submissionDossierSource.ts';
+import { DIAGNOSTIC_QUESTION_CATALOGUE } from '../../diagnostic/questionCatalogue.ts';
 import type { WorkflowRunDetail } from '../workflows/service/workflowRuntimeService.ts';
 import { DIAGNOSTIC_DOSSIERS, SUBMISSION } from './diagnosticFixtures.ts';
 import { createFakeKv } from './agentFixtures.ts';
@@ -84,7 +90,60 @@ function meta(token: string): { authorization: string; correlationId: string } {
 
 interface Deployment {
   readonly kv: FakeKv;
-  readonly dossiers: ReturnType<typeof createMemoryDossierStore>;
+  readonly dossiers: ReturnType<typeof createKvSubmissionDossierSource>;
+}
+
+/**
+ * The fixture submissions as a DEPLOYMENT stores them.
+ *
+ * A stored record keys answers by question id and names the industry; the
+ * question text and the section come from the catalogue, which is the whole
+ * reason the production source exists. The fixtures' answer TEXT is carried
+ * over verbatim — it is keyword soup chosen to move every causal family — under
+ * the manufacturing catalogue's own ids.
+ *
+ * COMPLETENESS IS PART OF THE FIXTURE'S MEANING. The dossier fixtures were
+ * written against a six-question diagnostic; the real one asks fourteen, and
+ * answering six of fourteen is a submission the agent escalates for low
+ * confidence — correctly, and that is a fact about the submission rather than
+ * about the wiring. `sub-reviewable` is therefore stored as a COMPLETED
+ * diagnostic: the same six texts, cycled across all fourteen questions, so it
+ * remains what its fixture says it is. `sub-empty` is stored empty, because
+ * that is also what its fixture says.
+ *
+ * `sub-globex` is not seeded: key-value submissions have one owning tenant, so
+ * a second tenant's row is not a state this store can be in. The cross-tenant
+ * case below asserts on that owner instead.
+ */
+function seedSubmissions(kv: FakeKv): void {
+  const catalogue = DIAGNOSTIC_QUESTION_CATALOGUE.manufacturing;
+  for (const dossier of DIAGNOSTIC_DOSSIERS) {
+    if (dossier.organizationId !== ORG) continue;
+    const complete = dossier.submissionId === SUBMISSION.reviewable;
+    const answers =
+      complete && dossier.answers.length > 0
+        ? Object.fromEntries(
+            catalogue.map((question, index) => [
+              String(question.id),
+              dossier.answers[index % dossier.answers.length].answer,
+            ]),
+          )
+        : Object.fromEntries(
+            dossier.answers.map((entry) => [String(entry.questionId), entry.answer]),
+          );
+    kv.poke(
+      `sub:${dossier.submissionId}`,
+      JSON.stringify({
+        id: dossier.submissionId,
+        company: dossier.company,
+        industryId: 'manufacturing',
+        employees: '11-50',
+        submittedAt: dossier.submittedAt,
+        status: dossier.status,
+        answers,
+      }),
+    );
+  }
 }
 
 /**
@@ -105,7 +164,14 @@ function boot(
   resetControlPlaneForTests();
 
   const kv = overrides.kv ?? createFakeKv();
-  const dossiers = createMemoryDossierStore(DIAGNOSTIC_DOSSIERS);
+  seedSubmissions(kv);
+  // The production source, over the rows above. `ORG` owns the key-value
+  // submissions here exactly as the MARQ organization owns them in a
+  // deployment, and the source answers for nobody else.
+  const dossiers = createKvSubmissionDossierSource({
+    read: kv.read,
+    ownerOrganizationId: () => Promise.resolve(ORG),
+  });
   const withKv = overrides.withKv ?? true;
   const withDossiers = overrides.withDossiers ?? true;
 
