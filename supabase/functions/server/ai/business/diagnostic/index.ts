@@ -8,21 +8,28 @@
  *
  * ── THE CERTIFICATION POSTURE, IN ONE PLACE ────────────────────────────────
  *
- * The agent ships `enabled: false, certification: 'uncertified'` and every tool
- * ships `certification: 'uncertified'`. That is deliberate and it is the state
- * this batch ends in — see `agent/readinessManagerAgent.ts`.
+ * The agent, its five tools and the review workflow are CERTIFIED, under the
+ * human certification decision recorded in `agent/readinessManagerAgent.ts`.
+ * They shipped uncertified and disabled through Parts 7A–7D; a person read the
+ * evidence and flipped the flags for this chain and nothing else.
  *
- * The consequence is worth being explicit about, because it is the point: in a
- * deployment that requires certification, NOTHING here runs. The agent registry
- * refuses an uncertified agent, and the tool gateway refuses an uncertified
- * tool. In a deployment that does not, the agent is still disabled and the
- * registry refuses it on that alone. Two independent refusals, and a human
- * certification review has to clear both.
+ * CERTIFICATION IS NOT ACTIVATION, and the distinction is the whole of the
+ * controlled-rollout posture:
  *
- * `certifyForTesting` exists so the certification suite can exercise the
- * production code paths at all. It returns COPIES with the flags flipped and
- * mutates nothing — a test that had to mutate the shipped definition to run
- * would be a test that could leave it mutated.
+ *   certification   removes the registry's and the gateway's refusal. It grants
+ *                   no authority. Every capability, tool, role and limit is the
+ *                   one the definitions already declared.
+ *   activation      is a deployment decision, made once, in `bootstrap.ts`,
+ *                   behind `AI_DIAGNOSTIC_REVIEW_ENABLED` (off by default) and
+ *                   conditional on durable storage and an injected submission
+ *                   source. A deployment that turns nothing on registers
+ *                   nothing.
+ *
+ * `uncertifyForTesting` exists so a suite can still prove what the registry and
+ * the gateway do to an UNCERTIFIED definition — the refusals are the reason
+ * certification means anything, and they would otherwise become untestable the
+ * moment the shipped definitions were certified. It returns COPIES with the
+ * flags cleared and mutates nothing.
  *
  * ── WHAT THIS MODULE DOES NOT DO ───────────────────────────────────────────
  *
@@ -146,26 +153,27 @@ export function createDiagnosticCapability(
 }
 
 /**
- * The same definitions with the certification flags flipped, as COPIES.
+ * The same definitions with the certification flags CLEARED, as COPIES.
  *
  * For the certification suite and the runtime verification script, which have
- * to drive the production code paths and cannot do so against definitions the
- * registry and the gateway are correctly refusing. Nothing in production calls
- * this, the shipped objects are untouched, and the boundary scan asserts that
- * no non-test module does.
+ * to prove that an uncertified agent, an uncertified tool and an uncertified
+ * workflow are refused — the refusals certification exists to lift, and the
+ * only remaining way to exercise them now that the shipped chain is certified.
+ * Nothing in production calls this, the shipped objects are untouched, and the
+ * boundary scan asserts that no non-test module does.
  */
-export function certifyForTesting(capability: DiagnosticCapability): DiagnosticCapability {
+export function uncertifyForTesting(capability: DiagnosticCapability): DiagnosticCapability {
   return {
     ...capability,
-    tools: capability.tools.map((tool) => ({ ...tool, certification: 'certified' as const })),
+    tools: capability.tools.map((tool) => ({ ...tool, certification: 'uncertified' as const })),
     agents: capability.agents.map((agent) => ({
       ...agent,
-      enabled: true,
-      certification: 'certified' as const,
+      enabled: false,
+      certification: 'uncertified' as const,
     })),
     workflows: capability.workflows.map((workflow) => ({
       ...workflow,
-      certification: 'certified' as const,
+      certification: 'uncertified' as const,
     })),
   };
 }

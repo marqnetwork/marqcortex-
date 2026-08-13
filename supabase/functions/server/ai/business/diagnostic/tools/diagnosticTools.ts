@@ -201,9 +201,9 @@ export function createReadDossierTool(deps: DiagnosticToolDependencies): ToolDef
     sideEffect: 'none',
     requiresApproval: false,
     enabled: true,
-    // Uncertified until a human says otherwise — the same posture the agent
-    // itself carries, and for the same reason. See `index.ts`.
-    certification: 'uncertified',
+    // Certified by the same human decision that certified the agent, and only
+    // for the five tools that agent declares. See `index.ts`.
+    certification: 'certified',
     execute: async (invocation) => {
       const input = invocation.input as { submissionId: string };
       const dossier = await requireDossier(deps, invocation, input.submissionId);
@@ -262,7 +262,7 @@ export function createComputeReadinessTool(deps: DiagnosticToolDependencies): To
     sideEffect: 'none',
     requiresApproval: false,
     enabled: true,
-    certification: 'uncertified',
+    certification: 'certified',
     execute: async (invocation) => {
       const input = invocation.input as { submissionId: string };
       const dossier = await requireDossier(deps, invocation, input.submissionId);
@@ -358,7 +358,7 @@ export function createDraftReviewTool(deps: DiagnosticToolDependencies): ToolDef
     sideEffect: 'internal_write',
     requiresApproval: false,
     enabled: true,
-    certification: 'uncertified',
+    certification: 'certified',
     execute: async (invocation) => {
       const input = invocation.input as {
         submissionId: string;
@@ -503,7 +503,7 @@ export function createRecordEscalationTool(deps: DiagnosticToolDependencies): To
     sideEffect: 'internal_write',
     requiresApproval: false,
     enabled: true,
-    certification: 'uncertified',
+    certification: 'certified',
     execute: async (invocation) => {
       const input = invocation.input as {
         submissionId: string;
@@ -845,7 +845,7 @@ export function createCommitReviewTool(deps: DiagnosticToolDependencies): ToolDe
     sideEffect: 'internal_write',
     requiresApproval: false,
     enabled: true,
-    certification: 'uncertified',
+    certification: 'certified',
     execute: async (invocation) => {
       const input = invocation.input as { contentDigest: string };
       const { approval, draft, workflowRunId } = await requireCommitAuthorization(

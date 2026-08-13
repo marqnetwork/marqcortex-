@@ -323,12 +323,12 @@ export const readinessReviewWorkflow: WorkflowDefinition = {
     'cannot be reviewed escalates instead, and never reaches the approval barrier.',
   owner: 'MARQ Diagnostic Assessment & Advisory (D07)',
   version: READINESS_REVIEW_VERSION,
-  // The workflow is enabled; the AGENT it names is not. A workflow whose agent
-  // is disabled is refused at its first node by the agent runtime, which is the
-  // correct place for that decision and the reason both flags are not needed
-  // here. See `index.ts` for the certification posture.
+  // Certified alongside the agent it names and the five tools that agent
+  // declares, by the same human decision and for that chain only. See
+  // `index.ts` for the posture and `agent/readinessManagerAgent.ts` for the
+  // decision itself.
   enabled: true,
-  certification: 'uncertified',
+  certification: 'certified',
   nodes: [reviewNode, reviewableCondition, publishApproval, commitNode, escalateNode],
   edges,
   startNodeId: 'n_review',

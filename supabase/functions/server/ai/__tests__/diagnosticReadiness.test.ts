@@ -271,9 +271,9 @@ describe('part 7b — the certified tool surface', () => {
     }
   });
 
-  it('ships every tool uncertified', () => {
+  it('ships every tool certified, under the human decision', () => {
     for (const tool of capability.tools) {
-      assert.equal(tool.certification, 'uncertified', tool.toolId);
+      assert.equal(tool.certification, 'certified', tool.toolId);
     }
   });
 

@@ -5,15 +5,27 @@
  *   Hierarchy   Manager
  *   Domain      D07 Diagnostic Assessment & Advisory
  *   Version     1.0.0
- *   State       certification: uncertified, enabled: false
+ *   State       certification: certified, enabled: true
  *
- * ── IT SHIPS OFF, AND THAT IS NOT A PLACEHOLDER ────────────────────────────
+ * ── IT IS CERTIFIED, AND A PERSON DID THAT ─────────────────────────────────
  *
  * Passing a certification suite is evidence for a certification decision, not
  * the decision. A first business agent that certified itself the moment its
  * tests went green would make every later agent's certification mean the same
- * thing — which is nothing. Both flags are flipped by a person, in a reviewed
- * change, after reading the evidence. Nothing in this batch flips either.
+ * thing — which is nothing. So the definition shipped `enabled: false,
+ * certification: 'uncertified'` through Parts 7A–7D, and both flags are flipped
+ * here by a person, in a reviewed change, after reading the evidence:
+ *
+ *   the Part 7D technical gate reported READY_TO_CERTIFY with F1, F2 and F3
+ *   passing and no blockers, and a named human authorised certification of
+ *   THIS agent and the capability chain it declares — nothing wider.
+ *
+ * WHAT CERTIFICATION IS NOT. It is not activation. A certified, enabled agent
+ * still runs only where a deployment assembles the capability and turns it on
+ * (`AI_DIAGNOSTIC_REVIEW_ENABLED`, off by default), only over durable storage,
+ * and only behind the same authority, approval, tenant and spend controls every
+ * other agent answers to. Certification removes the registry's refusal; it
+ * grants no authority the definition below does not already declare.
  *
  * ── WHAT THE AGENT DOES, IN ONE SENTENCE PER STEP ──────────────────────────
  *
@@ -540,8 +552,10 @@ function escalationDetailFor(
 /**
  * The definition.
  *
- * `enabled: false` and `certification: 'uncertified'`. See the header — this is
- * the shipped state and it is not a placeholder.
+ * `enabled: true` and `certification: 'certified'` under the human
+ * certification decision recorded in the header. Every other field is the one
+ * the certification review read — the capability list, the tool allow list, the
+ * single model profile, the limits and the approval posture are unchanged.
  */
 export const readinessManagerAgent: AgentDefinition = {
   agentId: READINESS_MANAGER_AGENT_ID,
@@ -556,9 +570,9 @@ export const readinessManagerAgent: AgentDefinition = {
     'qualification or a dependency.',
   owner: 'MARQ Diagnostic Assessment & Advisory (D07)',
   version: READINESS_MANAGER_VERSION,
-  // NOT A DEFAULT. See the header, and Phase 9 of the brief.
-  enabled: false,
-  certification: 'uncertified',
+  // CERTIFIED BY A HUMAN DECISION, not by a passing suite. See the header.
+  enabled: true,
+  certification: 'certified',
   // It writes tenant data — a sealed draft, an escalation, a committed review —
   // and causes no effect outside the platform. `external_effect` would be a
   // claim no tool here could make good on, and `tenant_readonly` would be a

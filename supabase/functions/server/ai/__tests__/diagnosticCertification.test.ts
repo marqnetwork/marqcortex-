@@ -1042,12 +1042,13 @@ describe('part 7b — the switches that stop it', () => {
     assert.equal(finished.state, 'completed');
   });
 
-  it('refuses the shipped, disabled agent', async () => {
-    // THE POSTURE THIS BATCH ENDS IN, asserted against the SHIPPED definitions
-    // rather than the certified copies the rest of this suite uses.
+  it('refuses a disabled, uncertified agent', async () => {
+    // THE REFUSAL CERTIFICATION LIFTS, asserted against copies with the flags
+    // cleared now that the shipped chain is certified. It is the reason a
+    // certification decision means anything, so it stays under test.
     const harness = buildTestDiagnosticRuntime({
       idSeed: 'shipped',
-      useShippedCertification: true,
+      useUncertifiedDefinitions: true,
     });
     const started = await rejection(
       harness.workflows.service.startRun({
@@ -1062,7 +1063,7 @@ describe('part 7b — the switches that stop it', () => {
   it('refuses an uncertified tool where certification is required', async () => {
     const harness = buildTestDiagnosticRuntime({
       idSeed: 'toolcert',
-      useShippedCertification: true,
+      useUncertifiedDefinitions: true,
       requireCertifiedWorkflows: () => true,
     });
     const error = await rejection(
@@ -1344,24 +1345,46 @@ describe('part 7b — an agent that misbehaves changes nothing authoritative', (
 // PHASE 9. THE CERTIFICATION POSTURE
 // ════════════════════════════════════════════════════════════════════════════
 
-describe('part 7b — the shipped certification state', () => {
-  it('ships the agent disabled and uncertified', () => {
-    assert.equal(readinessManagerAgent.enabled, false);
-    assert.equal(readinessManagerAgent.certification, 'uncertified');
+describe('part 7e — the certified state', () => {
+  it('ships the agent enabled and certified', () => {
+    // The human certification decision, asserted where a reviewer looks for it.
+    assert.equal(readinessManagerAgent.enabled, true);
+    assert.equal(readinessManagerAgent.certification, 'certified');
   });
 
-  it('ships every tool uncertified', () => {
+  it('ships every tool certified, and only the five the agent declares', () => {
     const capability = createDiagnosticCapability({
       dossiers: createMemoryDossierStore([reviewableDossier]),
       authority: portFor([], undefined),
       storage: kvStorageFor(),
     });
     for (const tool of capability.tools) {
-      assert.equal(tool.certification, 'uncertified', tool.toolId);
+      assert.equal(tool.certification, 'certified', tool.toolId);
     }
+    // CERTIFICATION DID NOT WIDEN THE CHAIN. The certified tool set is exactly
+    // the agent's allow list — a sixth certified tool would be an authority
+    // nobody reviewed arriving through the same change.
+    assert.deepEqual(
+      [...capability.tools.map((tool) => tool.toolId)].sort(),
+      [...readinessManagerAgent.allowedTools].sort(),
+    );
+    assert.equal(capability.agents.length, 1);
+    assert.equal(capability.workflows.length, 1);
   });
 
-  it('ships the workflow uncertified', () => {
-    assert.equal(readinessReviewWorkflow.certification, 'uncertified');
+  it('ships the workflow certified', () => {
+    assert.equal(readinessReviewWorkflow.certification, 'certified');
+  });
+
+  it('certifies no authority the definitions did not already declare', () => {
+    // Certification removes a refusal. It does not add a capability, a handoff
+    // target, a model profile or an approval role.
+    assert.deepEqual(readinessManagerAgent.allowedHandoffTargets, []);
+    assert.deepEqual(
+      [...readinessManagerAgent.capabilities].sort(),
+      ['agent.checkpoint.write', 'agent.model.invoke', 'agent.tool.invoke'],
+    );
+    assert.equal(readinessManagerAgent.allowedModelProfiles.length, 1);
+    assert.equal(readinessManagerAgent.safetyClass, 'tenant_write');
   });
 });

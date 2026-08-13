@@ -12,10 +12,9 @@
  *
  * SAFETY. The plane is built with the mock adapter only and
  * `AI_ALLOW_REAL_REQUESTS` unset, so no vendor endpoint is contacted and the
- * MARQ spend ledger is never touched. The agent under test is a COPY of the
- * shipped definition with its certification flags flipped — the shipped one is
- * disabled and uncertified and correctly refuses to run, which the last two
- * scenarios assert directly.
+ * MARQ spend ledger is never touched. The agent under test is the SHIPPED,
+ * certified definition — nothing is swapped — and the last scenario drives a
+ * copy with the flags cleared to show the refusal certification lifted.
  *
  *   node --experimental-strip-types scripts/diagnostic-review-verify.ts
  */
@@ -343,14 +342,31 @@ async function main(): Promise<void> {
   // ── 8. The certification posture ──────────────────────────────────────────
   {
     check(
-      'the shipped agent is disabled and uncertified',
-      readinessManagerAgent.enabled === false &&
-        readinessManagerAgent.certification === 'uncertified',
+      'the shipped agent is enabled and certified',
+      readinessManagerAgent.enabled === true &&
+        readinessManagerAgent.certification === 'certified',
       `enabled=${readinessManagerAgent.enabled} certification=${readinessManagerAgent.certification}`,
     );
+    const shippedHarness = buildTestDiagnosticRuntime({ idSeed: 'v7' });
+    check(
+      'every shipped tool and the workflow are certified',
+      shippedHarness.shipped.tools.every((tool) => tool.certification === 'certified') &&
+        readinessReviewWorkflow.certification === 'certified',
+      `${shippedHarness.shipped.tools.length} tool(s)`,
+    );
+    check(
+      'certification did not widen the chain',
+      shippedHarness.shipped.tools.length === readinessManagerAgent.allowedTools.length &&
+        shippedHarness.shipped.tools.every((tool) =>
+          readinessManagerAgent.allowedTools.includes(tool.toolId),
+        ),
+      `${readinessManagerAgent.allowedTools.length} declared tool(s)`,
+    );
+
+    // The refusal certification lifts, still under test.
     const harness = buildTestDiagnosticRuntime({
-      idSeed: 'v7',
-      useShippedCertification: true,
+      idSeed: 'v8',
+      useUncertifiedDefinitions: true,
     });
     const refused = await failureOf(
       harness.workflows.service.startRun({
@@ -360,15 +376,9 @@ async function main(): Promise<void> {
       }),
     );
     check(
-      'the shipped definitions refuse to run',
+      'an uncertified, disabled chain still refuses to run',
       refused !== '(no refusal)',
       refused,
-    );
-    check(
-      'every shipped tool is uncertified',
-      harness.shipped.tools.every((tool) => tool.certification === 'uncertified') &&
-        readinessReviewWorkflow.certification === 'uncertified',
-      `${harness.shipped.tools.length} tool(s)`,
     );
   }
 

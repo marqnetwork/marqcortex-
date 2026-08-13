@@ -8,17 +8,19 @@
  * the commit precondition, the workflow planner and the engine are all
  * production implementations.
  *
- * ── THE ONE THING THAT IS SWAPPED, AND WHY ─────────────────────────────────
+ * ── NOTHING IS SWAPPED ANY MORE, AND THAT IS THE CHANGE ────────────────────
  *
- * `certifyForTesting` returns COPIES of the shipped definitions with the
- * certification flags flipped. The shipped agent is `enabled: false,
- * certification: 'uncertified'` and the shipped tools are uncertified, so a
- * runtime assembled from them correctly refuses to run any of it — which is the
- * posture Part 7B ends in and the reason a suite that wants to exercise the
- * code has to say so explicitly, in one place, where a reviewer can see it.
+ * The shipped definitions are CERTIFIED, so this harness registers them as they
+ * ship: the agent, the tools and the workflow a deployment gets are the ones
+ * every scenario below drives. Until certification the harness had to flip the
+ * flags on copies to exercise the code at all.
  *
- * The uncertified/disabled refusals are themselves asserted, against the SHIPPED
- * definitions, in `diagnosticCertification.test.ts`.
+ * `uncertifyForTesting` is the inverse and is now the exceptional path:
+ * `useUncertifiedDefinitions` registers COPIES with the flags cleared, so the
+ * suite can still prove that the registry refuses a disabled, uncertified agent
+ * and the gateway refuses an uncertified tool. Those refusals are what
+ * certification lifts, and a suite that could no longer reach them would be a
+ * suite that stopped testing the control.
  *
  * ── PERSISTENCE IS THE PRODUCTION ONE (Part 7D, F2) ────────────────────────
  *
@@ -44,9 +46,9 @@ import type { MutableClock } from '../runtime/clock.ts';
 import type { DiagnosticSubmissionDossier } from '../business/diagnostic/contracts/dossier.ts';
 import type { DiagnosticCapability } from '../business/diagnostic/index.ts';
 import {
-  certifyForTesting,
   createDiagnosticCapability,
   createWorkflowApprovalAuthorityPort,
+  uncertifyForTesting,
 } from '../business/diagnostic/index.ts';
 import { createMemoryDossierStore } from '../business/diagnostic/persistence/memoryStores.ts';
 import {
@@ -247,7 +249,7 @@ export interface TestDiagnosticRuntime {
    * runtime, same rows.
    */
   readonly kv: FakeKv;
-  /** The shipped definitions, uncertified and disabled, for posture assertions. */
+  /** The shipped definitions, exactly as a deployment gets them. */
   readonly shipped: DiagnosticCapability;
   meta(token: string): { authorization: string; correlationId: string };
 }
@@ -261,8 +263,8 @@ export interface TestDiagnosticRuntimeOptions {
   /** Share one across harnesses to model a restart into a second isolate. */
   readonly kv?: FakeKv;
   readonly idSeed?: string;
-  /** Register the SHIPPED definitions rather than the certified copies. */
-  readonly useShippedCertification?: boolean;
+  /** Register UNCERTIFIED, disabled copies rather than the shipped ones. */
+  readonly useUncertifiedDefinitions?: boolean;
   readonly requireCertifiedWorkflows?: () => boolean;
   readonly wrapAgentPort?: (port: WorkflowAgentPort) => WorkflowAgentPort;
   /** Extra agents to register beside the readiness manager. */
@@ -303,9 +305,9 @@ export function buildTestDiagnosticRuntime(
       compareAndSwap: kv.compareAndSwap,
     },
   });
-  const capability = options.useShippedCertification === true
-    ? shipped
-    : certifyForTesting(shipped);
+  const capability = options.useUncertifiedDefinitions === true
+    ? uncertifyForTesting(shipped)
+    : shipped;
 
   const agentRuntime = buildTestAgentRuntime({
     agents: [...capability.agents, ...(options.extraAgents ?? [])],

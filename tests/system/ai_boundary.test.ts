@@ -1560,30 +1560,39 @@ describe('business capability boundary', () => {
     assert.equal(producers.length, 1, 'the readiness authority has more than one producer');
   });
 
-  it('ships its first business agent uncertified and disabled', () => {
-    // Part 7B Phase 9. Passing a certification suite is evidence for a
-    // certification decision, not the decision — and an agent that shipped
-    // enabled would make every later agent's certification mean nothing.
+  it('certifies its first business agent for exactly the chain it declares', () => {
+    // Part 7E. Certification is a human decision, and it was made for THIS
+    // agent, THESE five tools and THIS workflow. What the scan holds is the
+    // shape of that decision: the certified tool set is the agent's own allow
+    // list, so a sixth certified business tool cannot arrive as a side effect
+    // of certifying an agent.
     const agent = businessSources.find((file) =>
       file.path.endsWith(join('agent', 'readinessManagerAgent.ts')),
     );
     assert.ok(agent, 'the readiness manager definition must exist');
-    assert.match(agent.text, /enabled:\s*false/);
-    assert.match(agent.text, /certification:\s*'uncertified'/);
-    assert.equal(
-      /certification:\s*'certified'/.test(agent.text),
-      false,
-      'the shipped business agent certifies itself',
-    );
+    assert.match(agent.text, /certification:\s*'certified'/);
 
     const tools = businessSources.find((file) =>
       file.path.endsWith(join('tools', 'diagnosticTools.ts')),
     );
     assert.ok(tools, 'the diagnostic tools must exist');
+    const certified = [...stripComments(tools.text).matchAll(/certification:\s*'certified'/g)];
+    assert.equal(certified.length, 5, 'exactly the five declared tools are certified');
     assert.equal(
-      /certification:\s*'certified'/.test(tools.text),
+      /certification:\s*'revoked'/.test(tools.text),
       false,
-      'a shipped business tool certifies itself',
+      'a diagnostic tool ships revoked',
+    );
+
+    // NO OTHER BUSINESS AGENT IS CERTIFIED. One certification decision, one
+    // capability chain — a second business agent riding in on this one would be
+    // an agent nobody reviewed.
+    const agents = businessSources.filter((file) =>
+      /:\s*AgentDefinition\s*=/.test(stripComments(file.text)),
+    );
+    assert.deepEqual(
+      agents.map((file) => relative(SERVER_ROOT, file.path)),
+      [relative(SERVER_ROOT, agent.path)],
     );
   });
 
@@ -1654,14 +1663,14 @@ describe('business capability boundary', () => {
   });
 
   it('keeps the test-only certification helper out of every other module', () => {
-    // `certifyForTesting` returns copies with the flags flipped so a suite can
-    // drive production code paths. Nothing else may call it, and the assembly
-    // that defines it is the only place it appears.
+    // `uncertifyForTesting` returns copies with the flags CLEARED so a suite can
+    // still drive the refusals certification lifts. Nothing else may call it,
+    // and the assembly that defines it is the only place it appears.
     const callers = businessSources
       .filter((file) => !file.path.endsWith(join('diagnostic', 'index.ts')))
       .filter((file) => /certifyForTesting/.test(file.text))
       .map((file) => relative(SERVER_ROOT, file.path));
-    assert.deepEqual(callers, [], 'a non-test module calls certifyForTesting');
+    assert.deepEqual(callers, [], 'a non-test module calls a certification helper');
   });
 
   it('declares no external write and no platform tenant scope', () => {
