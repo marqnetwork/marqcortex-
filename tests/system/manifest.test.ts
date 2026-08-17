@@ -43,13 +43,17 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * workflow (MQC-SVC-142 → 152) — and the operator surface: the workflow route
  * table, the production submission source, the server-side question catalogue
  * and the console's workflow API client (MQC-SVC-153 → 156) — taking the
- * manifest to 309 nodes. Contract declaration modules, barrel surfaces,
+ * manifest to 309 nodes.
+ *
+ * MCV2-S7.4 registered the outcome shadow read (MQC-SVC-157), the one
+ * observation-only module attached to the KV outcome read, taking the manifest
+ * to 310 nodes. Contract declaration modules, barrel surfaces,
  * in-memory test doubles, fixtures and suites are not registered, which is the
  * granularity Batch 3A used for the agent runtime.
  */
-const CERTIFIED_NODE_COUNT = 309;
+const CERTIFIED_NODE_COUNT = 310;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 156;
+const CERTIFIED_SVC_COUNT = 157;
 
 const entries = Object.entries(manifest.nodes);
 
@@ -336,7 +340,10 @@ describe('DomainType alignment', () => {
   it('every DATA node belongs to the persistence layer', () => {
     const offLayer = entries
       .filter(([, n]) => n.domain === 'DATA')
-      .filter(([, n]) => !/\/(repositories|migration)\//.test(n.filePath) && !/types/i.test(n.filePath))
+      // The persistence layer is three directories: `repositories` (relational
+      // access), `migration` (KV → SQL backfill) and, from MCV2-S7.4,
+      // `storage` (the runtime KV/SQL boundary, where the shadow reads live).
+      .filter(([, n]) => !/\/(repositories|migration|storage)\//.test(n.filePath) && !/types/i.test(n.filePath))
       .map(([, n]) => `${n.id} ${n.filePath}`);
 
     assert.deepEqual(offLayer, [], `DATA nodes outside the persistence layer: ${offLayer.join(', ')}`);

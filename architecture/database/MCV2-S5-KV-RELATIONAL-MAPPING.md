@@ -24,7 +24,7 @@
 | `lead_email:{email}` | `leads.email` (unique per org) | Resolve via email index; drop separate index table | Spot-check email lookups | N/A — index not stored separately |
 | `sub:{id}` | `submissions` + `diagnostic_answers` + `diagnostic_scores` | Parse JSON blob; split `answers` object into rows | Field-level hash on 100 random subs | Truncate diagnostic tables; KV untouched |
 | `sub_email:{email}` | `submissions.contact_email` | Latest submission by email per org | Compare lookup results | N/A |
-| `outcome:{submissionId}` | `outcomes` | 1:1 upsert on `submission_id` | Count match | Truncate outcomes |
+| `outcome:{submissionId}` | `outcomes` | 1:1 upsert keyed on `legacy_kv_key = outcome:{submissionId}` | Count match | Truncate outcomes |
 | Client report JSON (route `/client/.../report`) | `reports` + `report_versions` | Generate version 1 on first backfill | Content checksum | Truncate reports |
 | `cortex:{submissionId}` | `diagnostic_scores` + `domain_scores` | Map analysis output to score rows | Score range validation | Truncate scores |
 

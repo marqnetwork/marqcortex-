@@ -256,7 +256,7 @@
     "src/styles": "Global CSS, theme tokens",
     "src/types": "Shared api.types.ts",
     "src/imports": "Specs, schemas, static assets",
-    "supabase/functions/server": "Hono backend — index.tsx, aiRoutes.ts, ai/ (AI Control Plane), repositories/, migration/",
+    "supabase/functions/server": "Hono backend — index.tsx, aiRoutes.ts, ai/ (AI Control Plane), repositories/, migration/, storage/ (shadow reads)",
     "memory": "failure_library, regression_cases, pattern_violations",
     "utils/supabase": "projectId, publicAnonKey"
   },
@@ -365,7 +365,8 @@
       ],
       "rollback": [
         "supabase/migrations/rollbacks/20260711050000_rollback_tenancy.sql",
-        "supabase/migrations/rollbacks/20260714050000_rollback_diagnostic.sql"
+        "supabase/migrations/rollbacks/20260714050000_rollback_diagnostic.sql",
+        "supabase/migrations/rollbacks/20260817120000_rollback_shadow_read_telemetry.sql"
       ],
       "repositories": [
         "supabase/functions/server/repositories/tenancyRepository.ts",
@@ -375,6 +376,19 @@
         "supabase/functions/server/repositories/reportRepository.ts",
         "supabase/functions/server/repositories/outcomeRepository.ts"
       ],
+      "shadow_reads": {
+        "path": "supabase/functions/server/storage/",
+        "modules": [
+          "supabase/functions/server/storage/outcomeShadowRead.ts"
+        ],
+        "flag": "STORAGE_READ_TELEMETRY_ENABLED",
+        "default": "off",
+        "telemetry_table": "shadow_read_telemetry",
+        "telemetry_rpc": "record_shadow_read_telemetry",
+        "join_axis": "outcomes.legacy_kv_key = 'outcome:{submissionId}'",
+        "authority": "KV — SQL is observation-only, no dual write, no KV mutation",
+        "spec": "architecture/database/MCV2-S7.4-OUTCOME-SHADOW-READ.md"
+      },
       "types": [
         "src/types/database.types.ts",
         "src/types/diagnostic.database.types.ts"
@@ -503,7 +517,7 @@
   "manifest": {
     "file": "src/system/manifest.ts",
     "version": "2.2.0",
-    "node_count": 309,
+    "node_count": 310,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"

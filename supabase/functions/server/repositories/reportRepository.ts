@@ -57,11 +57,12 @@ export function createOutcomeRepository(client?: SupabaseClient): OutcomeReposit
       return mapRow<OutcomeRecord>(data as Record<string, unknown> | null);
     },
 
-    async getOutcomeByLegacyKey(legacyKvKey) {
+    async getOutcomeByLegacyKey(legacyKvKey, organizationId) {
       const { data, error } = await db
         .from('outcomes')
         .select('*')
         .eq('legacy_kv_key', legacyKvKey)
+        .eq('organization_id', organizationId)
         .is('deleted_at', null)
         .maybeSingle();
       throwOnError(error, 'getOutcomeByLegacyKey');

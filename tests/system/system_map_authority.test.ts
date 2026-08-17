@@ -32,7 +32,7 @@ const CANONICAL_MANIFEST = 'src/system/manifest.ts';
 const CANONICAL_VALIDATOR = 'src/system/validate.ts';
 
 const CERTIFIED_ID_FORMAT = 'MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}';
-const CERTIFIED_NODE_COUNT = 309;
+const CERTIFIED_NODE_COUNT = 310;
 const CERTIFIED_CORE_COUNT = 36;
 
 /** Directories that are never part of the active repository surface. */

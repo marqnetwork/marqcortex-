@@ -2137,10 +2137,10 @@ export const manifest: SystemManifest = {
       status: 'LIVE',
       domain: 'DATA',
       filePath: 'supabase/functions/server/repositories/outcomeRepository.ts',
-      description: 'Post-engagement outcome repository. MCV2-S5 — not wired to routes.',
+      description: 'Post-engagement outcome repository. MCV2-S5; read-only use from the MCV2-S7.4 outcome shadow read.',
       dependencies: ['MQC-SVC-014'],
-      dependents: [],
-      notes: 'Maps to KV outcome:{submissionId}.',
+      dependents: ['MQC-SVC-157'],
+      notes: 'Maps to KV outcome:{submissionId}. getOutcomeByLegacyKey is the canonical KV↔SQL correlation and is tenant-scoped; the legacy SUB-* id is never matched against the relational submission_id UUID.',
     },
 
     'MQC-SVC-017': {
@@ -4038,6 +4038,19 @@ export const manifest: SystemManifest = {
       dependencies: ['MQC-SVC-153'],
       dependents: ['MQC-COMP-090'],
       notes: 'Like the other two console clients it has no demo-mode fallback, and it decides nothing — server-supplied capabilities decide what is rendered, and the server refuses the same operation whether or not a button was drawn.',
+    },
+
+    'MQC-SVC-157': {
+      id: 'MQC-SVC-157',
+      name: 'outcomeShadowRead',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/storage/outcomeShadowRead.ts',
+      description: 'MCV2-S7.4 outcome shadow read: correlates the KV outcome record with its SQL row on legacy_kv_key = outcome:{submissionId}, compares them on the conversion axis only, and records the classification. Observation-only.',
+      dependencies: ['MQC-SVC-016'],
+      dependents: [],
+      notes: 'Gated on STORAGE_READ_TELEMETRY_ENABLED (default off; off performs no SQL work). KV stays authoritative and unmutated; no dual write. Telemetry lands in shadow_read_telemetry via an insert-only service-role RPC, inside the same scheduled lifetime. See architecture/database/MCV2-S7.4-OUTCOME-SHADOW-READ.md',
     },
 
     'MQC-TYPE-009': {

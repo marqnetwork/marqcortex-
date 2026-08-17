@@ -108,7 +108,14 @@ export interface OutcomeRepository {
   ): Promise<OutcomeRecord>;
   getOutcomeById(id: string, organizationId: string): Promise<OutcomeRecord | null>;
   getOutcomeBySubmission(submissionId: string, organizationId: string): Promise<OutcomeRecord | null>;
-  getOutcomeByLegacyKey(legacyKvKey: string): Promise<OutcomeRecord | null>;
+  /**
+   * The canonical KV↔SQL correlation (MCV2-S7.4): `legacy_kv_key` carries the
+   * legacy `SUB-…` identity across, where `submission_id` is a relational UUID
+   * that never equals it. Tenant-scoped like every other read here — the unique
+   * index on `legacy_kv_key` is global, so without the organization filter a
+   * caller holding a key could read across tenants.
+   */
+  getOutcomeByLegacyKey(legacyKvKey: string, organizationId: string): Promise<OutcomeRecord | null>;
   updateOutcome(id: string, organizationId: string, patch: Partial<OutcomeRecord>): Promise<OutcomeRecord>;
   listOutcomes(filter: OutcomeListFilter): Promise<OutcomeRecord[]>;
 }

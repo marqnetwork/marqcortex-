@@ -197,6 +197,22 @@ MCV2-S7.4 — Outcome Shadow Read
 
 Status: 🔄 In Progress
 
+The outcome read answers from KV, unchanged. Behind it, gated on
+`STORAGE_READ_TELEMETRY_ENABLED` (default off), the corresponding SQL row is
+read and the comparison recorded in `shadow_read_telemetry`. SQL is observed and
+never consulted: no dual write, no KV mutation, no authority moved.
+
+One canonical join axis: `outcomes.legacy_kv_key = 'outcome:{submissionId}'`.
+The legacy `SUB-…` id is never matched against the relational
+`outcomes.submission_id` UUID.
+
+One comparison axis: conversion (`didConvert` ↔ `outcome_type`). The SQL
+lifecycle status (`open`/`closed`/`archived`) is a different business axis — it
+is recorded as found, including when absent, null or malformed, and never
+compared.
+
+Specification: `architecture/database/MCV2-S7.4-OUTCOME-SHADOW-READ.md`.
+
 ---
 
 # Next Sprint
@@ -209,7 +225,9 @@ MCV2-S7.5 — Outcome Shadow Read Validation
 
 Storage Authority: KV
 
-Shadow Reads: Disabled (except current implementation work)
+Shadow Reads: Disabled by default — the outcome shadow read (S7.4) ships behind
+`STORAGE_READ_TELEMETRY_ENABLED`, which must be the exact string `true` to
+perform any SQL work at all
 
 SQL Authority: No
 

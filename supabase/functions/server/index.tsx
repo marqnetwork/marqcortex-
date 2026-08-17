@@ -61,6 +61,12 @@ import {
   migrateBookingRecord,
   type BookingRecord,
 } from "./bookings/bookingRecord.ts";
+import {
+  isShadowReadEnabled,
+  scheduleOutcomeShadowRead,
+  type OutcomeShadowReadPorts,
+} from "./storage/outcomeShadowRead.ts";
+import { createOutcomeRepository } from "./repositories/outcomeRepository.ts";
 
 const app = new Hono();
 
@@ -361,6 +367,65 @@ async function resolveSubmissionOwnerOrganizationId(): Promise<string | undefine
     return undefined;
   }
 }
+
+// ============================================================================
+// OUTCOME SHADOW READ — MCV2-S7.4
+//
+// KV answers the outcome read, exactly as it did before. Alongside it, and only
+// when `STORAGE_READ_TELEMETRY_ENABLED` is the string `true`, the SQL row that
+// should correspond to the same record is read and the comparison written down.
+// The observation is scheduled, never awaited, and cannot throw into the
+// request: with the flag off, none of the ports below is ever reached.
+//
+// The repository is built lazily so an isolate without service credentials —
+// which is every isolate with the flag off — pays nothing and fails nothing at
+// startup.
+// ============================================================================
+
+let outcomeRepositoryInstance: ReturnType<typeof createOutcomeRepository> | undefined;
+function outcomeRepository(): ReturnType<typeof createOutcomeRepository> {
+  if (!outcomeRepositoryInstance) outcomeRepositoryInstance = createOutcomeRepository();
+  return outcomeRepositoryInstance;
+}
+
+const outcomeShadowReadPorts: OutcomeShadowReadPorts = {
+  isEnabled: () => isShadowReadEnabled(Deno.env.get('STORAGE_READ_TELEMETRY_ENABLED')),
+  resolveOrganizationId: resolveSubmissionOwnerOrganizationId,
+  getOutcomeByLegacyKey: (legacyKvKey, organizationId) =>
+    outcomeRepository().getOutcomeByLegacyKey(legacyKvKey, organizationId),
+  recordTelemetry: async (record) => {
+    const { error } = await supabaseAdmin.rpc('record_shadow_read_telemetry', {
+      p_organization_id: record.organization_id,
+      p_entity: record.entity,
+      p_legacy_kv_key: record.legacy_kv_key,
+      p_classification: record.classification,
+      p_severity: record.severity,
+      p_kv_present: record.kv_present,
+      p_sql_present: record.sql_present,
+      p_kv_conversion: record.kv_conversion,
+      p_sql_conversion: record.sql_conversion,
+      p_sql_lifecycle_status: record.sql_lifecycle_status,
+      p_sql_lifecycle_status_valid: record.sql_lifecycle_status_valid,
+      p_sql_outcome_type: record.sql_outcome_type,
+      p_detail: record.detail,
+      p_observed_at: record.observed_at,
+    });
+    if (error) throw new Error(error.message);
+  },
+  // The whole observation, including its durable write, is one promise handed
+  // to the runtime's task keeper. Without one, it still runs — it simply has no
+  // guarantee of surviving the isolate, which is acceptable for diagnostics and
+  // is why nothing depends on a given row being there.
+  schedule: (task) => {
+    const keeper = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } })
+      .EdgeRuntime;
+    const running = task();
+    if (typeof keeper?.waitUntil === 'function') keeper.waitUntil(running);
+    else void running;
+  },
+  now: () => new Date().toISOString(),
+  logError: (message) => console.error('[storage] outcome shadow read:', message),
+};
 
 // ============================================================================
 // AI CONTROL PLANE — the single governed AI execution path (AI-01 Batch 1)
@@ -3725,6 +3790,9 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
     const outcome = raw ? JSON.parse(raw) : null;
+    // Observation only (MCV2-S7.4). Returns immediately; the answer below is
+    // the KV record and nothing else can change it.
+    scheduleOutcomeShadowRead(outcomeShadowReadPorts, { submissionId, kvOutcome: outcome });
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
