@@ -503,7 +503,7 @@
   "manifest": {
     "file": "src/system/manifest.ts",
     "version": "2.2.0",
-    "node_count": 229,
+    "node_count": 309,
     "id_format": "MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}",
     "viewer": "src/app/components/RegistryViewer.tsx",
     "legacy_orphan": "src/app/utils/registryData*.ts"

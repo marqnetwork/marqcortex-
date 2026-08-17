@@ -35,10 +35,21 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * routing, the agent audit trail, the runtime service, its RBAC, its HTTP
  * adapter and routes, the governed agent-step feature, and the console's API
  * client (MQC-SVC-056 → 076) — taking the manifest to 229 nodes.
+ *
+ * AI-01 Batch 3B added the workflow runtime (MQC-SVC-077 → 106), the Cost
+ * Compression Engine (MQC-SVC-107 → 118), Intelligent Reuse (MQC-SVC-119 →
+ * 129), Financial Intelligence (MQC-SVC-130 → 141), the certified diagnostic
+ * review capability — Business Agent #1, its five tools and its review
+ * workflow (MQC-SVC-142 → 152) — and the operator surface: the workflow route
+ * table, the production submission source, the server-side question catalogue
+ * and the console's workflow API client (MQC-SVC-153 → 156) — taking the
+ * manifest to 309 nodes. Contract declaration modules, barrel surfaces,
+ * in-memory test doubles, fixtures and suites are not registered, which is the
+ * granularity Batch 3A used for the agent runtime.
  */
-const CERTIFIED_NODE_COUNT = 229;
+const CERTIFIED_NODE_COUNT = 309;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 76;
+const CERTIFIED_SVC_COUNT = 156;
 
 const entries = Object.entries(manifest.nodes);
 
