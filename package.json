@@ -19,6 +19,8 @@
     "verify:ai": "node --experimental-strip-types scripts/ai-runtime-verify.ts",
     "verify:agents": "node --experimental-strip-types scripts/agent-runtime-verify.ts",
     "verify:diagnostic": "node --experimental-strip-types scripts/diagnostic-review-verify.ts",
+    "verify:openai": "node --experimental-strip-types scripts/openai-live-proof.ts",
+    "verify:openai:live": "node --experimental-strip-types scripts/openai-live-proof.ts --live",
     "test:diagnostic": "node --experimental-strip-types --test supabase/functions/server/ai/__tests__/diagnosticReadiness.test.ts supabase/functions/server/ai/__tests__/diagnosticCertification.test.ts supabase/functions/server/ai/__tests__/diagnosticRemediation7d.test.ts tests/features/diagnosticReadinessAuthority.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts tests/database/kv_compare_and_swap.test.ts",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
