@@ -695,6 +695,85 @@ describe('workflow engine boundary', () => {
     );
   });
 
+  it('routes the workflow HTTP surface through its adapter, not its own role checks', () => {
+    // The same claim the agent and administration route files carry, and the
+    // reason is the same: a route file that resolves an actor or compares a role
+    // is a route file that can forget to. Every operation this surface exposes
+    // goes through one function, and that function's only way to do anything is
+    // to call a service method that authenticates and enforces a capability for
+    // itself.
+    const routeFile = serverSources.find((file) =>
+      file.path.endsWith('workflowRuntimeRoutes.ts'),
+    );
+    assert.ok(routeFile, 'workflowRuntimeRoutes.ts must exist');
+    // CODE ONLY. This file explains in prose why it never resolves an actor and
+    // never touches `verifyTeamToken`, and scanning the raw text would make the
+    // explanation the violation — see `stripComments` for why that is the one
+    // lesson a source scan must never teach.
+    const code = stripComments(routeFile.text);
+    assert.equal(/resolveWorkflowActor|requireWorkflowCapability/.test(code), false);
+    assert.equal(/super_admin|organization_admin|consultant|reviewer/.test(code), false);
+    assert.ok(code.includes('executeWorkflowHttpRequest'));
+    // It never touches the team bearer check either. That proves membership,
+    // not authority, and this surface starts runs that spend money.
+    assert.equal(/verifyTeamToken/.test(code), false);
+
+    // AND IT NAMES NO WORKFLOW. A route hard-wired to the diagnostic review
+    // would be a second entry point into the engine with its own idea of what to
+    // validate — and the deployment switch is enforced by the registry the
+    // generic path already consults.
+    assert.equal(
+      /workflow\.diagnostic|readiness_review|READINESS_REVIEW/.test(code),
+      false,
+      'a route names a specific workflow instead of taking one',
+    );
+  });
+
+  it('keeps the workflow HTTP adapter free of authority and of the engine', () => {
+    // The adapter maps a request onto a service call. It must hold no
+    // orchestrator, no store and no gate — anything it could reach past the
+    // service would be something reachable without the service's own
+    // authentication and capability check.
+    const adapter = workflowSources.find((file) =>
+      file.path.includes(join('http', 'workflowHttpAdapter.ts')),
+    );
+    assert.ok(adapter, 'the workflow HTTP adapter must exist');
+    // Stripped, for the same reason the route scan above is: this file documents
+    // at length that the tenant is resolved by `resolveOrganization` inside the
+    // service and never here, and the raw text therefore names it.
+    assert.deepEqual(
+      strippedOffenders(
+        [adapter],
+        /WorkflowOrchestrator|WorkflowRunStore|WorkflowApprovalStore|WorkflowApprovalGate|WorkflowRegistry/,
+      ),
+      [],
+      'the workflow HTTP adapter reaches past its service',
+    );
+    // It resolves nothing about identity. Both vocabularies are resolved inside
+    // the service, from the authenticated subject, and a copy here would be a
+    // second answer to "what may this person do".
+    assert.deepEqual(
+      strippedOffenders([adapter], /resolveWorkflowActor|resolveAgentActor|resolveOrganization/),
+      [],
+      'the workflow HTTP adapter resolves an actor or a tenant',
+    );
+    // And it cannot decide an approval or set an approval state.
+    assert.deepEqual(
+      strippedOffenders([adapter], /approvalState:\s*'|approvals\s*\.\s*decide\s*\(/),
+      [],
+      'the workflow HTTP adapter decides an approval',
+    );
+    // The operation is bound by the caller's route table, never lifted out of
+    // the body — the defect that once gave the administration surface two
+    // unauthenticated endpoints.
+    const code = stripComments(adapter.text);
+    assert.equal(
+      /body\.operation|request\.body\s*\.\s*operation/.test(code),
+      false,
+      'the workflow HTTP adapter reads its operation from the request body',
+    );
+  });
+
   it('changes workflow run state in exactly one place', () => {
     // Every state change goes through `assertTransition` and the store's
     // compare-and-swap. A `state:` assignment outside the engine's transition
