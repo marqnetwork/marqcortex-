@@ -177,6 +177,11 @@ cortex/
 | Add an agent model profile | `ai/agents/runtime/defaultProfiles.ts` + a registered feature in `ai/features/` |
 | Agent runtime verification | `node --experimental-strip-types scripts/agent-runtime-verify.ts` (mock mode, no vendor calls) |
 | Diagnose agent runs in production | `GET /ai/agents/overview` · `/ai/agents/runs` · `/ai/agents/approvals` · `/ai/agents/audit` |
+| Register a workflow | `supabase/functions/server/ai/workflows/registry/workflowRegistry.ts` — definitions are data, validated at registration; there is no API that can define one |
+| Change workflow run RBAC | `ai/workflows/service/workflowRbac.ts` (WORKFLOW_ROLE_CAPABILITIES) |
+| Start / approve / cancel a workflow run | `POST /ai/workflows/runs` · `/ai/workflows/approvals/:approvalId` · `/ai/workflows/runs/:runId/cancel` |
+| Diagnose workflow runs in production | `GET /ai/workflows/overview` · `/ai/workflows/runs` · `/ai/workflows/approvals` · `/ai/workflows/registry` |
+| Activate the diagnostic readiness review | `AI_DIAGNOSTIC_REVIEW_ENABLED` (default OFF) + durable KV + an injected submission source — see `ai/bootstrap.ts` |
 | Diagnose AI in production | `GET /ai/health` · `GET /ai/metrics` · `GET /ai/audit` · `GET /ai/catalog` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
@@ -242,6 +247,18 @@ AGENT RUNTIME (canonical path — AI-01 Batch 3A)
   AGENTS PROPOSE. THE ORCHESTRATOR DECIDES. THE CONTROL PLANE EXECUTES.
   The agent runtime is not a second AI execution path: it has no provider
   import, no credential and exactly one module that can reach a model.
+
+WORKFLOW RUNTIME (canonical path — AI-01 Batch 3B)
+  AIAdministrationConsole → workflowRuntimeService.ts → Edge Function
+    → workflowRuntimeRoutes → workflow HTTP adapter (bind operation, map request)
+    → Workflow Runtime Service (authenticate, resolve actor + tenant, enforce
+      capability, project read models)
+    → Workflow Orchestrator (registry → plan → state machine → data flow →
+      checkpoint → persist by compare-and-swap)
+    → agent node: agentNodePort → Agent Orchestrator → the path above
+    → approval node: workflow approval gate → a durable request a person answers
+  The workflow runtime is not a third execution path: it has no provider import,
+  no control plane and exactly one module that can reach an agent.
 
 AI ADMINISTRATION (canonical path — AI-01 Batch 2)
   AIAdministrationConsole → aiAdminService.ts → Edge Function → aiAdminRoutes
@@ -422,6 +439,9 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `ai/admin/` | AI Administration (AI-01 Batch 2) — settings, RBAC, providers, budget, change trail |
 | `ai/agents/` | **Agent Runtime** (AI-01 Batch 3A, MQC-SVC-056) — registry, state machine, orchestrator, tools, approvals, limits, ledgers, durable runs |
 | `agentRuntimeRoutes.ts` | Agent runtime HTTP routes (MQC-SVC-074) |
+| `ai/workflows/` | **Workflow Runtime** (AI-01 Batch 3B) — registry, planner, validation, orchestrator, checkpoints, retries, parallel branches, approval gate, durable runs |
+| `ai/business/diagnostic/` | The first business capability — the readiness manager agent, its five tools and the review workflow. Certified; activated only by `AI_DIAGNOSTIC_REVIEW_ENABLED` |
+| `workflowRuntimeRoutes.ts` | Workflow runtime HTTP routes |
 | `emailService.ts` | Resend emails |
 | `revenueSnapshot.ts` | Deterministic deal snapshots (no LLM) |
 
@@ -588,6 +608,69 @@ control operation at any role.
 Console: the **Agents** tab of `src/app/components/AIAdministrationConsole.tsx`
 — run visibility, the approval queue and the registry, read-only apart from an
 approval decision.
+
+### 12.4 Workflow Runtime (AI-01 Batch 3B)
+
+The layer above the agent runtime: a registered, validated graph of agent,
+condition, parallel and approval nodes driven by a durable state machine, with
+checkpoints, retries, data flow and a barrier that waits for a person.
+
+**It is not a third execution path.** Every node executes as a CHILD AGENT RUN
+through the Agent Orchestrator, on behalf of the same authenticated subject — so
+the agent runtime applies its own RBAC, limits, loop protection, tool
+permissions, spend ceiling and audit trail at every node, and every model step
+still goes through `controlPlane.execute`. `engine/agentNodePort.ts` is the only
+module that may hold an orchestrator, and the boundary scan asserts it.
+
+**A workflow permission is not an agent permission.** `resolveWorkflowActor`
+resolves BOTH vocabularies from one subject and carries both, so somebody who may
+start a workflow but holds no `agent.run.create` is refused at the first node by
+the agent runtime rather than by a check the workflow layer remembered to make.
+
+| Route (prefix `/make-server-324f4fbe`) | Method | Capability |
+|----------------------------------------|--------|------------|
+| `/ai/workflows/overview` | GET | `workflow.run.read` |
+| `/ai/workflows/registry` | GET | `workflow.registry.read` |
+| `/ai/workflows/runs` | GET | `workflow.run.read` |
+| `/ai/workflows/runs` | POST | `workflow.run.create` |
+| `/ai/workflows/runs/:runId` | GET | `workflow.run.read` |
+| `/ai/workflows/runs/:runId/advance` | POST | `workflow.run.create` |
+| `/ai/workflows/runs/:runId/cancel` | POST | `workflow.run.control` |
+| `/ai/workflows/approvals` | GET | `workflow.approval.read` |
+| `/ai/workflows/approvals/:approvalId` | GET | `workflow.approval.read` |
+| `/ai/workflows/approvals/:approvalId` | POST | `workflow.approval.decide` |
+
+`POST /ai/workflows/runs` creates the run AND drives it. Recording a decision
+does NOT drive it: a decider is not necessarily permitted to start agent runs —
+`reviewer` holds `workflow.approval.decide` and not `workflow.run.create` — so
+the run picks the decision up on the next `advance`, which is an operator's call.
+
+Reads are tenant-scoped, and the scope is applied to the storage KEY rather than
+compared afterwards, so another tenant's run is *not found* rather than
+found-and-refused. Only `super_admin` / `platform_admin` hold
+`workflow.run.read.platform`, and even that is a READ — nobody controls another
+tenant's run or decides another tenant's approval at any role.
+
+Read models carry identity, state and DIGESTS. A run's `input`, every node
+output and every branch output stay on the server; an approval record has no
+field that could hold run content, because it is read by a wider audience than
+the run itself. What an approval does carry is `subjectEvidence` — the subject id
+and the digest of the sealed artefact — which is what makes a queue entry
+answerable without reconstructing the subject elsewhere.
+
+**Activation is a deployment decision, separate from certification.** The
+diagnostic readiness review (`workflow.diagnostic.readiness_review`), its agent
+and its five tools are certified by a recorded human decision; registering them
+into a deployment needs `AI_DIAGNOSTIC_REVIEW_ENABLED` (**default OFF**), durable
+key-value storage and an injected submission source. Any one missing and nothing
+is registered — so the surface above refuses to start it with
+`workflow_not_found` and the registry reads empty. There is no route dedicated to
+the review: a second entry point would be a second place the registry's enable
+and certification checks could be skipped.
+
+Console: the **Workflows** tab of `src/app/components/AIAdministrationConsole.tsx`
+— start a review, run and approval visibility, the approve/reject decision,
+advance, cancel, and the final committed-or-escalated outcome.
 
 ## 13. Contexts & hooks
 

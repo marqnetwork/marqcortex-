@@ -27,8 +27,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, ChevronRight, CircleSlash,
-  Clock, Cpu, DollarSign, FileClock, Gauge, Loader2, Lock, Power, RefreshCw,
-  Server, ShieldAlert, ShieldCheck, Wallet, Zap,
+  Clock, Cpu, DollarSign, FileClock, Gauge, Loader2, Lock, PlayCircle, Power, RefreshCw,
+  Server, ShieldAlert, ShieldCheck, Wallet, Workflow, Zap,
 } from 'lucide-react';
 import {
   AIAdminError,
@@ -60,6 +60,27 @@ import {
   type AgentDescriptorView,
   type AgentRuntimeOverview,
 } from '@/app/services/agentRuntimeService';
+import {
+  READINESS_REVIEW_WORKFLOW_ID,
+  WorkflowRuntimeError,
+  advanceWorkflowRun,
+  cancelWorkflowRun,
+  decideWorkflowApproval,
+  describeWorkflowOutcome,
+  fetchWorkflowApprovals,
+  fetchWorkflowOverview,
+  fetchWorkflowRegistry,
+  fetchWorkflowRun,
+  fetchWorkflowRuns,
+  hasWorkflowCapability,
+  isWorkflowTerminal,
+  startWorkflowRun,
+  type WorkflowApprovalView,
+  type WorkflowDescriptorView,
+  type WorkflowRunDetail,
+  type WorkflowRunSummary,
+  type WorkflowRuntimeOverview,
+} from '@/app/services/workflowRuntimeService';
 
 interface Props {
   accessToken?: string;
@@ -69,6 +90,7 @@ type TabId =
   | 'overview'
   | 'providers'
   | 'agents'
+  | 'workflows'
   | 'budget'
   | 'usage'
   | 'settings'
@@ -79,6 +101,7 @@ const TABS: { id: TabId; label: string; icon: typeof Activity }[] = [
   { id: 'overview',    label: 'Overview',    icon: Activity },
   { id: 'providers',   label: 'Providers',   icon: Server },
   { id: 'agents',      label: 'Agents',      icon: Bot },
+  { id: 'workflows',   label: 'Workflows',   icon: Workflow },
   { id: 'budget',      label: 'Budget',      icon: Wallet },
   { id: 'usage',       label: 'Usage',       icon: BarChart3 },
   { id: 'settings',    label: 'Settings',    icon: Gauge },
@@ -126,6 +149,12 @@ export function AIAdministrationConsole({ accessToken }: Props) {
   const [agents, setAgents] = useState<AgentRuntimeOverview | null>(null);
   const [agentRegistry, setAgentRegistry] = useState<AgentDescriptorView[]>([]);
   const [agentError, setAgentError] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowRuntimeOverview | null>(null);
+  const [workflowRegistry, setWorkflowRegistry] = useState<WorkflowDescriptorView[]>([]);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
+  const [workflowApprovals, setWorkflowApprovals] = useState<WorkflowApprovalView[]>([]);
+  const [workflowRun, setWorkflowRun] = useState<WorkflowRunDetail | null>(null);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; forbidden: boolean } | null>(null);
@@ -166,6 +195,46 @@ export function AIAdministrationConsole({ accessToken }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
+  /**
+   * Re-read the whole workflow surface.
+   *
+   * One function for the four reads, so every control below refreshes the same
+   * way and none of them can leave half the tab stale — a page that showed a
+   * decided approval next to a run still marked "waiting for a person" would be
+   * a page an operator stopped believing.
+   *
+   * A refusal is reported IN PLACE. The workflow runtime has its own RBAC and
+   * its own registry, so "your role does not permit this" and "this deployment
+   * has not enabled any workflow" are both normal answers rather than failures
+   * of the console, and neither should blank the rest of it.
+   *
+   * Declared before the effect that calls it: the dependency array is evaluated
+   * during render, so a reference below the effect would be read before it is
+   * initialised.
+   */
+  const reloadWorkflows = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const [nextOverview, registry, runs, approvals] = await Promise.all([
+        fetchWorkflowOverview(accessToken),
+        fetchWorkflowRegistry(accessToken).catch(() => [] as WorkflowDescriptorView[]),
+        fetchWorkflowRuns(accessToken, { limit: 50 }).catch(() => [] as WorkflowRunSummary[]),
+        fetchWorkflowApprovals(accessToken, { limit: 50 }).catch(
+          () => [] as WorkflowApprovalView[],
+        ),
+      ]);
+      setWorkflows(nextOverview);
+      setWorkflowRegistry(registry);
+      setWorkflowRuns(runs);
+      setWorkflowApprovals(approvals);
+      setWorkflowError(null);
+    } catch (err) {
+      setWorkflowError(
+        err instanceof WorkflowRuntimeError ? err.message : 'The workflow runtime is unavailable.',
+      );
+    }
+  }, [accessToken]);
+
   // Lazily fetched: an operator who never opens the audit tab should not pay
   // for a 200-record read on every page load.
   useEffect(() => {
@@ -194,7 +263,20 @@ export function AIAdministrationConsole({ accessToken }: Props) {
         );
       fetchAgentRegistry(accessToken).then(setAgentRegistry).catch(() => undefined);
     }
-  }, [tab, accessToken, overview, diagnostics, executionAudit.length, changes.length, agents]);
+    if (tab === 'workflows' && !workflows) {
+      void reloadWorkflows();
+    }
+  }, [
+    tab,
+    accessToken,
+    overview,
+    diagnostics,
+    executionAudit.length,
+    changes.length,
+    agents,
+    workflows,
+    reloadWorkflows,
+  ]);
 
   /** Re-read the agent surface after a decision, without touching the rest. */
   const reloadAgents = useCallback(async () => {
@@ -247,6 +329,142 @@ export function AIAdministrationConsole({ accessToken }: Props) {
       }
     },
     [accessToken, notify, reloadAgents],
+  );
+
+  // ── Workflow runs (AI-01 Batch 3B) ────────────────────────────────────────
+  //
+  // Four controls, and every one of them is refused server-side on its own
+  // terms whether or not this component drew a button: starting needs
+  // `workflow.run.create`, cancelling needs `workflow.run.control`, deciding
+  // needs `workflow.approval.decide` AND one of the roles the approval node
+  // itself declared. Nothing below asserts a role, a tenant or an authority —
+  // the request carries a bearer token and the server resolves the rest.
+
+  /** One error path for every workflow control, so none of them can skip it. */
+  const workflowAction = useCallback(
+    async (label: string, run: () => Promise<unknown>) => {
+      setBusy(true);
+      try {
+        await run();
+        await reloadWorkflows();
+        notify(label);
+      } catch (err) {
+        notify(
+          err instanceof WorkflowRuntimeError ? err.message : 'The workflow request failed.',
+          'error',
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [notify, reloadWorkflows],
+  );
+
+  /**
+   * Start the certified diagnostic readiness review for one submission.
+   *
+   * The submission id is the ONLY thing an operator supplies, because it is the
+   * only thing the workflow's declared input contract accepts. The tenant the
+   * submission is read under is the operator's own, resolved server-side — an
+   * id belonging to another organization simply does not resolve.
+   */
+  const startReadinessReview = useCallback(async () => {
+    const submissionId = window.prompt(
+      'Start a diagnostic readiness review.\n\n' +
+        'The readiness manager reviews the submission against the deterministic engines and ' +
+        'drafts an advisory review. A declared role must approve it before anything is ' +
+        'committed.\n\nSubmission id:',
+    );
+    if (submissionId === null) return;
+    if (submissionId.trim() === '') {
+      notify('A submission id is required.', 'error');
+      return;
+    }
+    await workflowAction('Review started.', async () => {
+      const started = await startWorkflowRun(accessToken ?? '', {
+        workflowId: READINESS_REVIEW_WORKFLOW_ID,
+        input: { submissionId: submissionId.trim() },
+      });
+      setWorkflowRun(started);
+    });
+  }, [accessToken, notify, workflowAction]);
+
+  /**
+   * Drive a parked run.
+   *
+   * Recording a decision does not move the run — a decider is not necessarily
+   * permitted to drive one — so this is the operator's half of the loop, and it
+   * is a separate control precisely because it needs a different permission.
+   */
+  const advanceRun = useCallback(
+    (workflowRunId: string) =>
+      workflowAction('Run advanced.', async () => {
+        setWorkflowRun(await advanceWorkflowRun(accessToken ?? '', workflowRunId));
+      }),
+    [accessToken, workflowAction],
+  );
+
+  const cancelRun = useCallback(
+    async (workflowRunId: string) => {
+      const reason = window.prompt(
+        'Cancel this workflow run.\n\n' +
+          'The run stops where it is and commits nothing. This is recorded on the run’s ' +
+          'transition history. State why:',
+      );
+      if (reason === null) return;
+      if (reason.trim().length < 4) {
+        notify('A reason of at least four characters is required.', 'error');
+        return;
+      }
+      await workflowAction('Run cancelled.', async () => {
+        setWorkflowRun(
+          await cancelWorkflowRun(accessToken ?? '', { workflowRunId, reason: reason.trim() }),
+        );
+      });
+    },
+    [accessToken, notify, workflowAction],
+  );
+
+  const decideWorkflow = useCallback(
+    async (workflowApprovalId: string, decision: 'approve' | 'reject') => {
+      const reason = window.prompt(
+        `${decision === 'approve' ? 'Approve' : 'Reject'} this diagnostic review.\n\n` +
+          'Approving lets the run commit the reviewed readiness result against the submission. ' +
+          'Rejecting stops the run and commits nothing. This is recorded against your account ' +
+          'on the approval record. State why:',
+      );
+      if (reason === null) return;
+      if (reason.trim().length < 4) {
+        notify('A reason of at least four characters is required.', 'error');
+        return;
+      }
+      await workflowAction(
+        `Decision recorded — ${decision === 'approve' ? 'approved' : 'rejected'}.`,
+        () =>
+          decideWorkflowApproval(accessToken ?? '', {
+            workflowApprovalId,
+            decision,
+            reason: reason.trim(),
+          }),
+      );
+    },
+    [accessToken, notify, workflowAction],
+  );
+
+  /** Open one run's detail. A read, so it needs no reason and no busy guard. */
+  const openWorkflowRun = useCallback(
+    async (workflowRunId: string) => {
+      if (!accessToken) return;
+      try {
+        setWorkflowRun(await fetchWorkflowRun(accessToken, workflowRunId));
+      } catch (err) {
+        notify(
+          err instanceof WorkflowRuntimeError ? err.message : 'That run could not be read.',
+          'error',
+        );
+      }
+    },
+    [accessToken, notify],
   );
 
   /**
@@ -1035,6 +1253,25 @@ export function AIAdministrationConsole({ accessToken }: Props) {
           </div>
         )}
 
+        {/* ── Workflows (AI-01 Batch 3B) ─────────────────────────────────── */}
+        {tab === 'workflows' && (
+          <WorkflowsTab
+            overview={workflows}
+            registry={workflowRegistry}
+            runs={workflowRuns}
+            approvals={workflowApprovals}
+            selected={workflowRun}
+            error={workflowError}
+            busy={busy}
+            onStart={startReadinessReview}
+            onOpen={openWorkflowRun}
+            onAdvance={advanceRun}
+            onCancel={cancelRun}
+            onDecide={decideWorkflow}
+            onDismissSelected={() => setWorkflowRun(null)}
+          />
+        )}
+
         {/* ── Diagnostics ────────────────────────────────────────────────── */}
         {tab === 'diagnostics' && (
           <div className="space-y-6">
@@ -1260,6 +1497,345 @@ function Empty({
       <p className="mt-3 font-semibold text-slate-800">{title}</p>
       <p className="mt-1 max-w-md text-sm text-slate-500">{body}</p>
       {action}
+    </div>
+  );
+}
+
+/**
+ * The workflow operator surface (AI-01 Batch 3B).
+ *
+ * Deliberately a TAB on the console that already exists rather than a page of
+ * its own. What an operator needs here is small and entirely operational —
+ * start a review, see where it is, answer the question it parked on, read what
+ * it produced, stop one that should not continue — and every one of those is
+ * the same shape as the agent tab beside it.
+ *
+ * THREE THINGS THIS COMPONENT DOES NOT DO.
+ *
+ *   It decides nothing. `capabilities` arrives on the overview and is read to
+ *   decide what to RENDER. An operator who cannot start a run is not shown a
+ *   start button; if they were, the server would refuse them anyway. Hiding a
+ *   control is a courtesy, never a control.
+ *
+ *   It knows nothing about the review. The subject of an approval is whatever
+ *   the run put on the record — a submission id and a digest — and this
+ *   component renders those two strings without understanding either. It cannot
+ *   show a draft, because a draft never reaches this surface.
+ *
+ *   It invents no state. A deployment with the diagnostic capability switched
+ *   off has an empty registry, and this says exactly that rather than offering
+ *   a button that would 404.
+ */
+function WorkflowsTab({
+  overview,
+  registry,
+  runs,
+  approvals,
+  selected,
+  error,
+  busy,
+  onStart,
+  onOpen,
+  onAdvance,
+  onCancel,
+  onDecide,
+  onDismissSelected,
+}: {
+  overview: WorkflowRuntimeOverview | null;
+  registry: WorkflowDescriptorView[];
+  runs: WorkflowRunSummary[];
+  approvals: WorkflowApprovalView[];
+  selected: WorkflowRunDetail | null;
+  error: string | null;
+  busy: boolean;
+  onStart: () => void;
+  onOpen: (workflowRunId: string) => void;
+  onAdvance: (workflowRunId: string) => void;
+  onCancel: (workflowRunId: string) => void;
+  onDecide: (workflowApprovalId: string, decision: 'approve' | 'reject') => void;
+  onDismissSelected: () => void;
+}) {
+  if (error) {
+    return <Empty icon={ShieldAlert} title="Workflow runtime unavailable" body={error} />;
+  }
+  if (!overview) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading workflow runs…
+      </div>
+    );
+  }
+
+  const canStart = hasWorkflowCapability(overview.capabilities, 'workflow.run.create');
+  const canControl = hasWorkflowCapability(overview.capabilities, 'workflow.run.control');
+  const canDecide = hasWorkflowCapability(overview.capabilities, 'workflow.approval.decide');
+  const review = registry.find((entry) => entry.workflowId === READINESS_REVIEW_WORKFLOW_ID);
+  const failures = runs.filter((run) =>
+    ['failed', 'cancelled', 'expired', 'policy_denied'].includes(run.state),
+  );
+
+  return (
+    <div className="space-y-6">
+      <Section title="Runs">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            label="Active runs"
+            value={String(overview.active.length)}
+            tone="neutral"
+            icon={Activity}
+          />
+          <Stat
+            label="Waiting for a person"
+            value={String(overview.pendingApprovals)}
+            tone={overview.pendingApprovals > 0 ? 'warn' : 'good'}
+            icon={Lock}
+          />
+          <Stat
+            label="Completed"
+            value={String(overview.counts.completed ?? 0)}
+            tone="good"
+            icon={CheckCircle2}
+          />
+          <Stat
+            label="Failed or stopped"
+            value={String(failures.length)}
+            tone={failures.length > 0 ? 'bad' : 'good'}
+            icon={AlertTriangle}
+          />
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          {overview.registeredWorkflows} registered workflow
+          {overview.registeredWorkflows === 1 ? '' : 's'} · scope {overview.scope} ·{' '}
+          {overview.organizationId}
+        </p>
+      </Section>
+
+      {/* ── The one certified business workflow ─────────────────────────── */}
+      <Section title="Diagnostic readiness review">
+        {review ? (
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="font-medium text-slate-900">{review.displayName}</p>
+              <p className="mt-1 text-sm text-slate-600">{review.purpose}</p>
+              <p className="mt-2 text-xs text-slate-500">
+                v{review.version} · {review.certification} ·{' '}
+                {review.enabled ? 'enabled' : 'disabled'} · {review.nodeCount} nodes ·{' '}
+                {review.approvalCount} approval barrier
+                {review.approvalCount === 1 ? '' : 's'} · {review.owner}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Human initiated. Nothing schedules this — a review runs because somebody with the
+                operator role asked for one, and it commits nothing until a declared role approves
+                it.
+              </p>
+            </div>
+            {canStart && (
+              <button
+                disabled={busy}
+                onClick={onStart}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                <PlayCircle className="h-4 w-4" /> Start a review
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-slate-600">
+              The diagnostic readiness review is not enabled in this deployment.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              The capability is certified but activation is a separate, deliberate decision:
+              <code className="mx-1 rounded bg-slate-100 px-1 py-0.5">
+                AI_DIAGNOSTIC_REVIEW_ENABLED
+              </code>
+              is off by default, and nothing is registered without it, without durable storage and
+              without a submission source. Until then this surface cannot start one.
+            </p>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Decisions waiting on a person ───────────────────────────────── */}
+      {approvals.length > 0 && (
+        <Section title="Approvals waiting">
+          <ul className="space-y-3">
+            {approvals.map((approval) => (
+              <li
+                key={approval.workflowApprovalId}
+                className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+              >
+                <p className="font-medium text-amber-900">{approval.impactSummary}</p>
+                <p className="mt-1 text-sm text-amber-800">{approval.reason}</p>
+                {/*
+                  WHAT IS BEING APPROVED. Without these two the entry names a run
+                  and some definition-authored prose, and a decider has to go and
+                  find the subject somewhere else before they can know what they
+                  are granting. The digest is a fingerprint of the sealed draft —
+                  never its content — which is why it is safe in front of an
+                  audience wider than the run itself.
+                */}
+                {approval.subjectEvidence ? (
+                  <p className="mt-2 text-xs text-amber-900">
+                    Subject{' '}
+                    <span className="font-mono font-semibold">
+                      {approval.subjectEvidence.subjectId}
+                    </span>{' '}
+                    · sealed content{' '}
+                    <span className="font-mono">{approval.subjectEvidence.contentDigest}</span>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-amber-900">
+                    This request names no subject. Read the run before deciding.
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-amber-700">
+                  {approval.workflowId} · node {approval.nodeId} · run {approval.workflowRunId} ·
+                  requested by {approval.requestedBy} · expires{' '}
+                  {relativeTime(approval.expiresAt)} · answerable by{' '}
+                  {approval.authorizedRoles.join(', ')}
+                </p>
+                {canDecide ? (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      disabled={busy}
+                      onClick={() => onDecide(approval.workflowApprovalId, 'approve')}
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => onDecide(approval.workflowApprovalId, 'reject')}
+                      className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-amber-700">
+                    Your role may read this queue and may not answer it.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* ── Every run this tenant has, and what can still be done to it ── */}
+      <Section title="Workflow runs">
+        {runs.length === 0 ? (
+          <p className="text-sm text-slate-500">No workflow run has been started.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {runs.map((run) => (
+              <li
+                key={run.workflowRunId}
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm text-slate-800">{run.workflowRunId}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {run.workflowId} · {run.state}
+                    {run.currentNodeId ? ` at ${run.currentNodeId}` : ''} · {run.stepCount} step
+                    {run.stepCount === 1 ? '' : 's'} · started by {run.actorId} ·{' '}
+                    {relativeTime(run.updatedAt)}
+                    {run.failure ? ` · ${run.failure}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    onClick={() => onOpen(run.workflowRunId)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Open
+                  </button>
+                  {/*
+                    A decision does not move the run — a decider is not
+                    necessarily permitted to drive one — so advancing is a
+                    separate control behind a separate permission.
+                  */}
+                  {canStart && !isWorkflowTerminal(run.state) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => onAdvance(run.workflowRunId)}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      Advance
+                    </button>
+                  )}
+                  {canControl && !isWorkflowTerminal(run.state) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => onCancel(run.workflowRunId)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                    >
+                      <CircleSlash className="h-3.5 w-3.5" /> Cancel
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {/* ── One run, and what it produced ───────────────────────────────── */}
+      {selected && (
+        <Section title="Run detail">
+          <div className="flex items-start justify-between gap-4">
+            <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Run" value={selected.workflowRunId} />
+              <Field label="State" value={selected.state} />
+              <Field label="Outcome" value={describeWorkflowOutcome(selected)} />
+              <Field label="Workflow" value={`${selected.workflowId} v${selected.workflowVersion}`} />
+              <Field label="Input digest" value={selected.inputDigest} />
+              <Field label="Result digest" value={selected.resultDigest ?? '—'} />
+              <Field label="Tokens" value={String(selected.actualTotalTokens)} />
+              <Field label="Cost" value={formatAgentCost(selected.actualCostMicroUsd)} />
+              <Field label="Elapsed" value={formatElapsed(selected.elapsedRuntimeMs)} />
+            </div>
+            <button
+              onClick={onDismissSelected}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="mt-5">
+            <Table
+              head={['Node', 'Kind', 'Outcome', 'When', 'Failure']}
+              rows={selected.steps.map((step) => [
+                step.nodeId,
+                step.kind,
+                step.outcome,
+                relativeTime(step.startedAt),
+                step.failure ?? '—',
+              ])}
+              empty="This run has completed no node yet."
+            />
+          </div>
+
+          {/*
+            The join key into the agent runtime's own view. Every node of a
+            workflow is a child agent run, governed by the agent runtime's RBAC,
+            limits and audit trail — so "what did this workflow actually do" is
+            answered over there, and this is how an operator gets there.
+          */}
+          <p className="mt-3 text-xs text-slate-500">
+            Child agent runs:{' '}
+            {selected.childAgentRunIds.length === 0
+              ? 'none yet'
+              : selected.childAgentRunIds.join(', ')}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            The run’s input and every node output stay on the server. What travels here is
+            identity, state and digests — a fingerprint of content is never content.
+          </p>
+        </Section>
+      )}
     </div>
   );
 }

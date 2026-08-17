@@ -31,8 +31,13 @@ import {
   type AgentRouteRegistrar,
 } from "./agentRuntimeRoutes.ts";
 import {
+  registerWorkflowRuntimeRoutes,
+  type WorkflowRouteRegistrar,
+} from "./workflowRuntimeRoutes.ts";
+import {
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   initializeControlPlane,
 } from "./ai/index.ts";
 import { createKvSubmissionDossierSource } from "./diagnostic/submissionDossierSource.ts";
@@ -515,6 +520,33 @@ if (agentRuntime) {
   });
 } else {
   console.error('[ai] agent runtime unavailable — agent routes are not mounted');
+}
+
+// ============================================================================
+// WORKFLOW RUNTIME — the governed operator surface over workflow runs (3B)
+//
+// Mounted only once the runtime exists, on the same terms as the two surfaces
+// above: it resolves its caller through the same authenticator the AI Guard
+// uses, and every node it drives executes as a child agent run through the
+// Agent Orchestrator, whose own RBAC, limits, budgets and audit trail apply to
+// the same person at every node. There is no third execution path here.
+//
+// MOUNTING THE SURFACE IS NOT ACTIVATING A WORKFLOW. The registry decides what
+// may run: with `AI_DIAGNOSTIC_REVIEW_ENABLED` off — the default — the certified
+// diagnostic readiness review is not registered, so this surface refuses to
+// start it and reports it as unavailable. An operator sees an empty registry
+// rather than a route that quietly starts something the deployment never
+// enabled.
+// ============================================================================
+
+const workflowRuntime = getWorkflowRuntime();
+if (workflowRuntime) {
+  registerWorkflowRuntimeRoutes(app as unknown as WorkflowRouteRegistrar, {
+    service: workflowRuntime.service,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] workflow runtime unavailable — workflow routes are not mounted');
 }
 
 // ============================================================================

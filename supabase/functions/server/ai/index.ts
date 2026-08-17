@@ -33,6 +33,7 @@ export {
   getControlPlane,
   getAIAdministration,
   getAgentRuntime,
+  getWorkflowRuntime,
   resetControlPlaneForTests,
   type BootstrapDependencies,
 } from './bootstrap.ts';
@@ -328,6 +329,74 @@ export {
   type AgentHttpResponse,
   type AgentOperation,
 } from './agents/http/agentHttpAdapter.ts';
+
+// ── Workflow Runtime (AI-01 Batch 3B) ───────────────────────────────────────
+//
+// The layer above the agent runtime: a registered, validated graph of agent,
+// condition, parallel and approval nodes, driven by a durable state machine.
+//
+// It is NOT a third execution path. Every node executes as a CHILD AGENT RUN
+// through the Agent Orchestrator, on behalf of the same authenticated subject —
+// so the agent runtime applies its own RBAC, limits, loop protection, tool
+// permissions, spend ceiling and audit trail at every node, and each of those
+// model steps still goes through `controlPlane.execute`. What the workflow
+// runtime adds is orchestration, data flow, checkpoints, retries and the one
+// thing an agent run cannot express: a barrier that waits for a person.
+//
+// WHAT IS EXPORTED IS THE SERVICE AND ITS HTTP ADAPTER, never the engine. A
+// caller that could reach the orchestrator directly would be a caller that
+// resolved its own actor — see `service/workflowRbac.ts` for why a workflow
+// permission is not an agent permission and cannot become one.
+export {
+  createWorkflowRuntime,
+  type WorkflowRuntime,
+  type WorkflowRuntimeOptions,
+} from './workflows/workflowRuntime.ts';
+export {
+  createWorkflowRuntimeService,
+  toWorkflowApprovalView,
+  toWorkflowRunDetail,
+  toWorkflowRunSummary,
+  type WorkflowApprovalView,
+  type WorkflowRunDetail,
+  type WorkflowRunSummary,
+  type WorkflowRuntimeOverview,
+  type WorkflowRuntimeService,
+} from './workflows/service/workflowRuntimeService.ts';
+export {
+  WORKFLOW_ROLE_CAPABILITIES,
+  hasWorkflowCapability,
+  resolveWorkflowActor,
+  type WorkflowRuntimeActor,
+  type WorkflowRuntimeCapability,
+} from './workflows/service/workflowRbac.ts';
+export {
+  WORKFLOW_OPERATION,
+  executeWorkflowHttpRequest,
+  type WorkflowHttpRequest,
+  type WorkflowHttpResponse,
+  type WorkflowOperation,
+} from './workflows/http/workflowHttpAdapter.ts';
+export {
+  WORKFLOW_RUN_STATES,
+  TERMINAL_WORKFLOW_STATES,
+  isTerminalWorkflowState,
+  type WorkflowRunState,
+  type WorkflowStepRecord,
+} from './workflows/contracts/run.ts';
+export { ACTIVE_WORKFLOW_STATES } from './workflows/runtime/workflowStateMachine.ts';
+export {
+  isWorkflowError,
+  workflowFailure,
+  WorkflowError,
+  type WorkflowFailureCode,
+} from './workflows/contracts/failures.ts';
+export type { WorkflowDescriptor } from './workflows/contracts/workflow.ts';
+export type {
+  WorkflowApprovalDecision,
+  WorkflowApprovalSubjectEvidence,
+  WorkflowPendingApproval,
+} from './workflows/contracts/approval.ts';
 
 // ── Governance primitives, reusable by future AI capabilities ───────────────
 export { enforceFactLock } from './governance/factLock.ts';
