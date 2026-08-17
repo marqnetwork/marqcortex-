@@ -71,7 +71,7 @@ Status Legend
 | AI-01 Batch 1 | Secure AI Foundation — AI Control Plane | ✅ |
 | AI-01 Batch 2 | AI Administration & Operations | ✅ |
 | AI-01 Batch 3A | Agent Runtime & Orchestrator Core | ✅ |
-| AI-01 Batch 3B | Agent Workflows & Business Agents | ⏳ |
+| AI-01 Batch 3B | Agent Workflows & Business Agents | ✅ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -136,6 +136,59 @@ Agents propose. The orchestrator decides. The AI Control Plane executes. No
 production business agents ship in this batch: the registry starts empty by
 design.
 
+AI-01 Batch 3B completed 2026-08-17. Report:
+`architecture/ai/AI-01-BATCH-3B-COMPLETION.md`
+
+Delivered: the workflow runtime above the Batch 3A agent runtime, and the
+platform's first certified business capability on top of it.
+
+A versioned workflow registry that validates the graph, its conditions, its
+mappings and its approval policy at registration, and a planner that turns a
+definition into an executable plan with a digest the run is admitted against.
+One state machine with a central transition table and optimistic concurrency.
+An orchestrator that drives agent, condition, parallel and approval nodes,
+enforces node, loop, branch, retry and deadline limits, checkpoints immutably
+and persists every transition by compare-and-swap. A declarative condition and
+mapping language that is data walked by a switch — there is no parser, so there
+is no injection surface. Parallel branches with join and failure policies, node
+retries whose eligibility is persisted rather than scheduled, and single-use
+approval barriers that park a run for a named human role and carry the subject
+and content digest a decider needs.
+
+Every node executes as a CHILD AGENT RUN through the Agent Orchestrator on
+behalf of the same authenticated subject, so Batch 3A's RBAC, limits, tool
+permissions, budgets and audit trail apply at every node and every model step
+still executes through the AI Control Plane. `engine/agentNodePort.ts` is the
+only module that may reach an agent, and the boundary scan asserts it.
+
+Cost intelligence in three separated trees: a Cost Compression Engine that
+recommends a capability band and never executes, an Intelligent Reuse engine
+that can avoid a call and never answers one itself, and a Financial
+Intelligence layer that reports measured spend, avoided spend and target
+progress on integers — with exactly one savings ledger between them, and no
+embedding provider anywhere.
+
+Business Agent #1: `agent.diagnostic.readiness_manager`, certified with the five
+tools it declares and the `workflow.diagnostic.readiness_review` workflow, by a
+recorded human decision. The readiness manager reviews one diagnostic submission
+against the deterministic engines, drafts an advisory review, escalates what
+cannot be reviewed, and commits only what a declared role approved — through a
+tool that re-checks that approval against durable storage. The scores, ranking
+and dependencies remain the deterministic engines'; the narrative is advisory
+and fact-locked. The capability cannot write a submission, an answer or a
+status: the dossier port has no writer.
+
+A governed operator surface at `/ai/workflows/*` with tenant-scoped RBAC, and a
+Workflows tab in the AI Administration console — start a review, read run
+status, answer the barrier, advance, cancel, read the committed or escalated
+outcome.
+
+CERTIFICATION IS NOT ACTIVATION. `AI_DIAGNOSTIC_REVIEW_ENABLED` is off by
+default and registers nothing without durable storage and an injected submission
+source. A deployment that turns nothing on runs an empty workflow registry, and
+the operator surface refuses to start the review rather than quietly starting
+it.
+
 ---
 
 # Current Sprint
@@ -172,6 +225,21 @@ AI Agent Authority: Agent Orchestrator (`supabase/functions/server/ai/agents/`)
 orchestrator decides; every model step executes through the AI Control Plane.
 Runs, checkpoints and approvals are durable and versioned; the registry ships
 empty until business agents are certified.
+
+AI Workflow Authority: Workflow Orchestrator
+(`supabase/functions/server/ai/workflows/`) — the sole authority over workflow
+execution. Every node executes as a child agent run through the Agent
+Orchestrator; there is no second path to an agent and no path at all to a
+provider. Runs, checkpoints and approvals are durable, versioned and
+compare-and-swap persisted. Workflow definitions are registered in code, never
+through an API.
+
+AI Business Capability Authority: one certified capability —
+`agent.diagnostic.readiness_manager`, its five tools and
+`workflow.diagnostic.readiness_review` (`ai/business/diagnostic/`). Registered
+only where `AI_DIAGNOSTIC_REVIEW_ENABLED` is on AND durable storage and a
+submission source exist; off by default. Readiness scores, ranking and
+dependencies remain the deterministic engines'.
 
 AI Operational Authority: AI Administration (`supabase/functions/server/ai/admin/`)
 — settings overlay persisted at `ai:admin:settings`, versioned by

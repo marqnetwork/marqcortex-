@@ -22,7 +22,9 @@ Cursor rule `.cursor/rules/read-marq-agent-prompt.mdc` enforces this sequence. S
 **AI Control Plane (AI-01 Batch 1):** `supabase/functions/server/ai/index.ts` — read the module header first  
 **AI Administration (AI-01 Batch 2):** `supabase/functions/server/ai/admin/administration.ts`  
 **Agent Runtime (AI-01 Batch 3A):** `supabase/functions/server/ai/agents/agentRuntime.ts` — read the module header first  
-**AI completion reports:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md` · `architecture/ai/AI-01-BATCH-2-COMPLETION.md`  
+**Workflow Runtime (AI-01 Batch 3B):** `supabase/functions/server/ai/workflows/workflowRuntime.ts` — read the module header first  
+**Business Agent #1 (AI-01 Batch 3B):** `supabase/functions/server/ai/business/diagnostic/index.ts` — certified; activation is `AI_DIAGNOSTIC_REVIEW_ENABLED`, off by default  
+**AI completion reports:** `architecture/ai/AI-01-BATCH-1-COMPLETION.md` · `architecture/ai/AI-01-BATCH-2-COMPLETION.md` · `architecture/ai/AI-01-BATCH-3B-COMPLETION.md`  
 **Add an AI provider or feature:** `architecture/ai/AI-PROVIDER-EXTENSION-GUIDE.md`  
 **Frontend AI normalization (MCV2-S2):** `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md`  
 **Data platform architecture (MCV2-S3):** `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md`
@@ -182,6 +184,9 @@ cortex/
 | Start / approve / cancel a workflow run | `POST /ai/workflows/runs` · `/ai/workflows/approvals/:approvalId` · `/ai/workflows/runs/:runId/cancel` |
 | Diagnose workflow runs in production | `GET /ai/workflows/overview` · `/ai/workflows/runs` · `/ai/workflows/approvals` · `/ai/workflows/registry` |
 | Activate the diagnostic readiness review | `AI_DIAGNOSTIC_REVIEW_ENABLED` (default OFF) + durable KV + an injected submission source — see `ai/bootstrap.ts` |
+| Change what Business Agent #1 may do | its own definition in `ai/business/diagnostic/agent/readinessManagerAgent.ts` — re-certification is a human decision, not a config change |
+| Workflow + business capability verification | `npm run verify:diagnostic` — drives the certified agent, its five tools and the review workflow over a real workflow runtime, agent runtime and control plane (mock mode, no vendor calls) |
+| Diagnostic capability tests | `npm run test:diagnostic` |
 | Diagnose AI in production | `GET /ai/health` · `GET /ai/metrics` · `GET /ai/audit` · `GET /ai/catalog` |
 | Frontend AI architecture (MCV2-S2) | `src/imports/MCV2-S2-FRONTEND-GATEWAY-NORMALIZATION.md` |
 | Data platform architecture (MCV2-S3) | `src/imports/MCV2-S3-CORTEX-DATA-PLATFORM-ARCHITECTURE.md` |
