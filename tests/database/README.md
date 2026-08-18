@@ -33,21 +33,28 @@ $env:SUPABASE_ACCESS_TOKEN = "<token>"
 npm run test:database
 ```
 
-## Membership bootstrap (manual)
+## Membership bootstrap (automated)
 
-User memberships are **not** auto-seeded. After migrations, link existing Auth users:
+User memberships are seeded by migration
+`20260818120000_marq_team_membership_bootstrap.sql`. It derives real ids from
+`auth.users` — it never invents one — maps `user_metadata.teamRole` to the
+seeded system role catalog, and inserts an `active` membership in the MARQ
+organization only where no undeleted membership already exists. Re-running it
+changes nothing.
 
-```sql
--- Replace :user_id with a real auth.users.id from Supabase dashboard
-INSERT INTO organization_memberships (organization_id, user_id, role_id, status, joined_at)
-SELECT o.id, :user_id, r.id, 'active', now()
-FROM organizations o
-JOIN roles r ON r.key = 'org_admin' AND r.is_system = true
-WHERE o.slug = 'marq' AND o.deleted_at IS NULL
-ON CONFLICT DO NOTHING;
+Static coverage: `tests/database/static_membership_bootstrap_migration.test.ts`
+(runs under `npm run test:database`).
+
+Live coverage — safe against staging, it creates no users and rolls itself back:
+
+```bash
+psql "$DATABASE_URL" -f tests/database/membership_bootstrap.test.sql
 ```
 
-See `architecture/database/MEMBERSHIP_BOOTSTRAP.md` for full procedure.
+Manual insertion is still required for accounts that are not
+`user_metadata.role = 'team'`, and for platform administrators. See
+`architecture/database/MEMBERSHIP_BOOTSTRAP.md` for the full procedure and the
+role mapping table.
 
 ## Rollback
 

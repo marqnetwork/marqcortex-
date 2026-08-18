@@ -391,20 +391,51 @@ const controlPlane = initializeControlPlane({
     // Organization membership from the tenancy tables. A user with no row gets
     // no membership, and the AI Guard then fails the request closed unless the
     // deployment has explicitly opted into the single-tenant default.
+    //
+    // Three filters, and each one is load-bearing:
+    //
+    //   deleted_at IS NULL — a removed member must not keep resolving an
+    //   organization. The soft delete IS the removal in this schema.
+    //
+    //   status = 'active' — `invited` and `suspended` are the two states that
+    //   exist precisely so a row can be present without granting anything.
+    //   Admitting them would make suspension decorative.
+    //
+    //   roles(key) — the role catalog is joined so the membership carries the
+    //   authority it was granted. This used to be hardcoded `roles: []`, which
+    //   meant an org_admin and a team_viewer resolved to the same empty set and
+    //   the membership contributed nothing an authorization decision could read.
     try {
       const { data, error } = await supabaseAdmin
         .from('organization_memberships')
-        .select('organization_id, organizations(slug)')
+        .select('organization_id, status, organizations(slug), roles(key)')
         .eq('user_id', userId)
+        .eq('status', 'active')
         .is('deleted_at', null);
       if (error || !Array.isArray(data)) return [];
+      // PostgREST returns an embedded to-one relation as an object, but a
+      // client that infers the relationship differently returns a one-element
+      // array. Reading both shapes here keeps a schema-cache difference from
+      // silently emptying the role set.
+      const embedded = (value: unknown): Record<string, unknown> | undefined => {
+        const candidate = Array.isArray(value) ? value[0] : value;
+        return typeof candidate === 'object' && candidate !== null
+          ? (candidate as Record<string, unknown>)
+          : undefined;
+      };
       return data
         .filter((row: any) => typeof row?.organization_id === 'string')
-        .map((row: any) => ({
-          organizationId: String(row.organization_id),
-          slug: typeof row.organizations?.slug === 'string' ? row.organizations.slug : undefined,
-          roles: [] as string[],
-        }));
+        .map((row: any) => {
+          const slug = embedded(row.organizations)?.slug;
+          const roleKey = embedded(row.roles)?.key;
+          const normalizedRole =
+            typeof roleKey === 'string' ? roleKey.trim().toLowerCase() : '';
+          return {
+            organizationId: String(row.organization_id),
+            slug: typeof slug === 'string' ? slug : undefined,
+            roles: normalizedRole === '' ? [] : [normalizedRole],
+          };
+        });
     } catch (err) {
       console.error('[ai] membership lookup failed:', err instanceof Error ? err.message : String(err));
       return [];
