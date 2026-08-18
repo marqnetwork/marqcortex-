@@ -33,28 +33,68 @@ $env:SUPABASE_ACCESS_TOKEN = "<token>"
 npm run test:database
 ```
 
-## Membership bootstrap (automated)
+## Membership bootstrap
 
 User memberships are seeded by migration
 `20260818120000_marq_team_membership_bootstrap.sql`. It derives real ids from
-`auth.users` — it never invents one — maps `user_metadata.teamRole` to the
-seeded system role catalog, and inserts an `active` membership in the MARQ
-organization only where no undeleted membership already exists. Re-running it
-changes nothing.
+`auth.users` — it never invents one — admits only accounts carrying the
+server-written assertion `raw_app_meta_data.marq_team = true`, maps
+`raw_app_meta_data.team_role` to the seeded system role catalog, and inserts an
+`active` membership in the MARQ organization only where **no membership row
+exists at all** for that (organization, user). A soft-deleted membership is
+history, and history blocks re-admission. Re-running it changes nothing.
 
-Static coverage: `tests/database/static_membership_bootstrap_migration.test.ts`
-(runs under `npm run test:database`).
+`raw_user_meta_data` is not read. GoTrue's `PUT /auth/v1/user` lets an account
+holder write it, so it cannot decide who is on the team — see
+`architecture/database/MEMBERSHIP_BOOTSTRAP.md` for the correction and for the
+one-time stamping step that existing accounts need.
 
-Live coverage — safe against staging, it creates no users and rolls itself back:
+### Empirical scenarios (needs a real PostgreSQL 15+)
+
+```bash
+npm run test:database:scenarios
+# or: DATABASE_URL=postgresql://... node scripts/membership-bootstrap-scenarios.mjs
+```
+
+Builds its own scratch database, applies the **real** migration and rollback
+files against a committed fixture, and covers:
+
+- eligible users admitted, ineligible ones not — including an account asserting
+  `role=team` in USER metadata, which must be admitted nowhere
+- the role mapping, `manager` included (it resolves to `team_viewer`, not
+  `org_admin`)
+- a soft-deleted membership neither revived nor duplicated
+- idempotency across three runs
+- the rollback: a pre-existing membership survives, one created afterwards
+  survives, a bootstrap-created one is reverted, a modified one is skipped
+  rather than overwritten, `platform_admin` is untouched
+- a demonstration, on real rows, that the `updated_at = created_at` heuristic
+  this replaced would have revoked a membership it never created
+- four concurrent bootstraps producing no duplicate and no error
+
+Exit code `2` means no database was reachable — distinct from `1` so "not run"
+is never reported as "passed".
+
+### Static coverage (no database)
+
+`tests/database/static_membership_bootstrap_migration.test.ts`, under
+`npm run test:database`. It asserts what the migration must never contain; the
+positive claims are the runner's above.
+
+### Live invariants against a linked project
+
+Safe against staging — it creates no users and rolls itself back:
 
 ```bash
 psql "$DATABASE_URL" -f tests/database/membership_bootstrap.test.sql
 ```
 
-Manual insertion is still required for accounts that are not
-`user_metadata.role = 'team'`, and for platform administrators. See
-`architecture/database/MEMBERSHIP_BOOTSTRAP.md` for the full procedure and the
-role mapping table.
+It warns loudly when the database holds no eligible user, because a green run
+over nobody is not evidence.
+
+Manual steps remain for platform administrators and for the one-time app-metadata
+stamping. See `architecture/database/MEMBERSHIP_BOOTSTRAP.md` for the full
+procedure and the role mapping table.
 
 ## Rollback
 

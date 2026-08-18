@@ -17,8 +17,40 @@
 --
 -- Failing closed is correct. Having nobody to admit is not. This migration
 -- closes the gap the only way that keeps both properties: it derives REAL user
--- ids from `auth.users` rather than inventing them, and it grants nothing that
--- the auth record does not already assert.
+-- ids from `auth.users`, and it admits only accounts the SERVER has marked as
+-- MARQ team accounts.
+--
+-- WHERE ELIGIBILITY COMES FROM, AND WHY IT IS NOT `user_metadata`
+--
+-- The first version of this migration read `raw_user_meta_data ->> 'role'` and
+-- `raw_user_meta_data ->> 'teamRole'`, on the stated grounds that user metadata
+-- "is writable only through the service-role admin API". That is false. GoTrue
+-- serves `PUT /auth/v1/user`, and any signed-in account holding nothing beyond
+-- its own access token and the public anon key may rewrite its own
+-- `raw_user_meta_data`. Under the old predicate, a `viewer` — or anyone who
+-- could obtain any account at all — could set
+-- `{"role":"team","teamRole":"owner"}` on themselves and be granted an
+-- `org_admin` membership in the MARQ organization by this migration. The
+-- bootstrap would have been a self-service privilege escalation with a
+-- migration timestamp on it.
+--
+-- `raw_app_meta_data` is the bag GoTrue refuses to write for a user-scoped
+-- call: only the service role sets it. The platform already trusts it —
+-- `cortex.is_platform_admin()` reads `app_metadata ->> 'platform_role'` — so
+-- this is the strongest authority that already exists here, not a new one.
+--
+-- Eligibility is therefore `raw_app_meta_data ->> 'marq_team' = 'true'`, and
+-- the role comes from `raw_app_meta_data ->> 'team_role'`. `raw_user_meta_data`
+-- is not read anywhere in this file, for eligibility or for privilege.
+--
+-- THE CONSEQUENCE, STATED PLAINLY: on a database whose accounts predate the
+-- provisioning routes that write app metadata, this migration admits NOBODY and
+-- says so. That is the correct outcome, not a regression — deciding who is
+-- internal MARQ staff from a field the account holder controls was never a
+-- decision this migration was entitled to make. The one-time stamping step for
+-- existing accounts is an explicit, reviewed operator action, documented in
+-- architecture/database/MEMBERSHIP_BOOTSTRAP.md. Accounts created or re-roled
+-- through the console after this ships carry the assertion already.
 --
 -- WHAT IT WILL NOT DO
 --
@@ -28,28 +60,104 @@
 --   * It creates no `auth.users` row, and never writes to the auth schema.
 --   * It never assigns `platform_admin`. That role is granted by a person,
 --     through the admin API, with ops approval — not by a backfill.
---   * It never revives a membership somebody deleted, and never re-activates a
---     membership somebody suspended: the guard is "no UNDELETED membership
---     exists", so an `invited` or `suspended` row is left exactly as it is.
+--   * It never revives, re-activates or overwrites an existing membership. The
+--     guard is "no membership row exists AT ALL for this (organization, user)",
+--     so an `invited`, `suspended` or SOFT-DELETED row all mean the same thing
+--     here: somebody already made a decision about this person, and it is not
+--     this migration's to reverse. A removed member does not silently regain
+--     access by being re-admitted alongside their tombstone.
 --
--- IDEMPOTENCY
+-- IDEMPOTENCY AND CONCURRENCY
 --
--- The insert is guarded by NOT EXISTS on (organization, user, deleted_at IS
--- NULL), which is the same predicate as the partial unique index
--- `organization_memberships_active_uidx`. Re-running inserts nothing and
--- changes nothing — including after a role is later changed by an
--- administrator, because this migration never updates an existing row.
+-- A transaction-scoped advisory lock serialises concurrent runs, and the INSERT
+-- carries `ON CONFLICT ... DO NOTHING` inferred on the partial unique index
+-- `organization_memberships_active_uidx`. Two sessions racing — this migration
+-- against itself, or against a console invite creating the same membership —
+-- produce one row and no error, and the loser inserts no ledger entry because
+-- it returned none.
+--
+-- PROVENANCE
+--
+-- Every row this migration creates is recorded in
+-- `cortex.membership_bootstrap_log`, with the role, status and `updated_at` it
+-- was created with. That table is the ONLY thing the rollback consults. The
+-- previous rollback identified its own rows by `updated_at = created_at`, which
+-- is not provenance: it is true of every membership nobody has edited yet,
+-- whoever created it, so the rollback would have revoked access an
+-- administrator granted five minutes earlier. See the rollback file.
 -- ============================================================================
 
 BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- Serialise the whole migration, DDL included.
+--
+-- The lock is taken BEFORE the ledger is created, not inside the DO block
+-- below, and that ordering is a bug fix rather than a preference. With the lock
+-- taken later, two concurrent runs both evaluated `CREATE TABLE IF NOT EXISTS`
+-- against a snapshot in which the table did not exist, and the losers died on
+-- `pg_type_typname_nsp_index` — a unique violation on the system catalog, from
+-- a statement whose whole purpose is to be safe to repeat. `IF NOT EXISTS` is
+-- not atomic against a concurrent creator.
+--
+-- Transaction-scoped, so it is released by COMMIT or by any failure; there is
+-- no path that leaves it held.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('cortex.membership_bootstrap')::BIGINT);
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Provenance ledger
+--
+-- Internal, in the `cortex` schema rather than `public`: nothing in the product
+-- reads it, no API surface should return it, and the tenancy model gains no
+-- column. It records what this migration did so the rollback can undo exactly
+-- that and nothing else.
+--
+-- `cortex` is exposed to PostgREST (supabase/config.toml), so the table is
+-- granted to nobody and RLS is enabled with no policies. The migration runs as
+-- the table owner, which is why RLS is not FORCEd — forcing it with no policy
+-- would lock out the writer below as well as every reader.
+--
+-- It needs no teardown of its own: the tenancy rollback ends with
+-- `DROP SCHEMA IF EXISTS cortex CASCADE`, which takes this with it.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cortex.membership_bootstrap_log (
+  membership_id   UUID PRIMARY KEY
+                  REFERENCES public.organization_memberships(id) ON DELETE CASCADE,
+  migration       TEXT        NOT NULL,
+  organization_id UUID        NOT NULL,
+  user_id         UUID        NOT NULL,
+  -- The state as written. The rollback compares against these, so a row an
+  -- administrator has since re-roled, suspended or removed is recognisable as
+  -- modified without guessing from timestamps.
+  role_id         UUID        NOT NULL,
+  status          TEXT        NOT NULL,
+  row_updated_at  TIMESTAMPTZ NOT NULL,
+  recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  rolled_back_at  TIMESTAMPTZ
+);
+
+COMMENT ON TABLE cortex.membership_bootstrap_log IS
+  'Provenance for memberships created by the membership bootstrap migration. Read only by the matching rollback.';
+
+ALTER TABLE cortex.membership_bootstrap_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON cortex.membership_bootstrap_log FROM PUBLIC;
 
 DO $$
 DECLARE
   v_org_id       UUID;
   v_eligible     INTEGER := 0;
+  v_blocked      INTEGER := 0;
   v_inserted     INTEGER := 0;
   v_duplicates   INTEGER := 0;
 BEGIN
+  -- The advisory lock taken above is still held: it is transaction-scoped and
+  -- this is the same transaction. Another copy of this migration, or a console
+  -- invite racing it, waits there rather than interleaving with the guard below.
+
   SELECT id INTO v_org_id
   FROM public.organizations
   WHERE slug = 'marq' AND deleted_at IS NULL
@@ -62,8 +170,8 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Eligibility is read from the auth record, which is writable only through
-  -- the service-role admin API — a server-side fact, not a caller assertion.
+  -- Eligibility and role, both from `raw_app_meta_data` — see the header. No
+  -- statement in this file reads `raw_user_meta_data`.
   --
   -- `deleted_at` and `banned_until` are read through `to_jsonb(u)` rather than
   -- as columns on purpose: they are GoTrue-managed and their presence varies
@@ -74,13 +182,21 @@ BEGIN
   CREATE TEMP TABLE _marq_membership_candidates ON COMMIT DROP AS
   SELECT
     u.id AS user_id,
-    CASE lower(trim(COALESCE(u.raw_user_meta_data ->> 'teamRole', '')))
-      -- Documented mapping (MEMBERSHIP_BOOTSTRAP.md), extended to cover the
-      -- roles the console actually issues today (TEAM_ROLES in
-      -- supabase/functions/server/teamAuthorization.ts).
+    CASE lower(trim(COALESCE(u.raw_app_meta_data ->> 'team_role', '')))
+      -- THE ONE MAPPING. Mirrors `TEAM_ROLE_TO_ORGANIZATION_ROLE` in
+      -- supabase/functions/server/teamAuthorization.ts, which is the
+      -- definition; tests/features/membershipRoleMapping.test.ts imports that
+      -- map, reads this CASE, and fails if either grows an arm the other does
+      -- not have.
+      --
+      -- `manager` is deliberately absent. It is not a member of `TEAM_ROLES`,
+      -- so `normalizeTeamRole` resolves it to `viewer` — while the previous
+      -- version of this CASE, and `LEGACY_TEAM_ROLE_MAP`, sent it to
+      -- `org_admin`. One table said read-only and the other said organization
+      -- administrator. It now falls to the ELSE below, with everything else the
+      -- console cannot issue.
       WHEN 'owner'      THEN 'org_admin'
       WHEN 'admin'      THEN 'org_admin'
-      WHEN 'manager'    THEN 'org_admin'
       WHEN 'consultant' THEN 'team_member'
       WHEN 'analyst'    THEN 'team_member'
       WHEN 'reviewer'   THEN 'team_member'
@@ -90,7 +206,7 @@ BEGIN
       ELSE 'team_viewer'
     END AS role_key
   FROM auth.users u
-  WHERE COALESCE(u.raw_user_meta_data ->> 'role', '') = 'team'
+  WHERE (u.raw_app_meta_data ->> 'marq_team') = 'true'
     AND (to_jsonb(u) ->> 'deleted_at') IS NULL
     AND (
       (to_jsonb(u) ->> 'banned_until') IS NULL
@@ -99,31 +215,71 @@ BEGIN
 
   SELECT COUNT(*) INTO v_eligible FROM _marq_membership_candidates;
 
-  INSERT INTO public.organization_memberships (
-    organization_id,
-    user_id,
-    role_id,
-    status,
-    joined_at
-  )
-  SELECT
-    v_org_id,
-    c.user_id,
-    r.id,
-    'active',
-    now()
+  -- Reported, not acted on: eligible users this migration will not touch
+  -- because a membership decision already exists for them — active, invited,
+  -- suspended or deleted.
+  SELECT COUNT(*) INTO v_blocked
   FROM _marq_membership_candidates c
-  JOIN public.roles r
-    ON r.key = c.role_key
-   AND r.is_system = true
-   AND r.organization_id IS NULL
-  WHERE NOT EXISTS (
+  WHERE EXISTS (
     SELECT 1
     FROM public.organization_memberships m
     WHERE m.organization_id = v_org_id
       AND m.user_id = c.user_id
-      AND m.deleted_at IS NULL
   );
+
+  WITH created AS (
+    INSERT INTO public.organization_memberships (
+      organization_id,
+      user_id,
+      role_id,
+      status,
+      joined_at
+    )
+    SELECT
+      v_org_id,
+      c.user_id,
+      r.id,
+      'active',
+      now()
+    FROM _marq_membership_candidates c
+    JOIN public.roles r
+      ON r.key = c.role_key
+     -- `roles_scope_key_system_uidx` is UNIQUE on (scope, key) among rows with
+     -- organization_id IS NULL — so (scope, key) is the unique tuple, and `key`
+     -- alone is not. Every role in the seeded catalog is scope = 'platform';
+     -- without pinning the scope, a future system role added at scope =
+     -- 'organization' under the same key would be a legal second match and this
+     -- JOIN would emit two INSERT rows for one user.
+     AND r.scope = 'platform'
+     AND r.is_system = true
+     AND r.organization_id IS NULL
+    -- ANY existing row blocks, deleted ones included. See the header.
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM public.organization_memberships m
+      WHERE m.organization_id = v_org_id
+        AND m.user_id = c.user_id
+    )
+    -- Inferred on `organization_memberships_active_uidx`. A membership created
+    -- by a concurrent session between the NOT EXISTS above and this write is a
+    -- lost race, not an error, and DO NOTHING keeps the other session's row —
+    -- never overwriting it, never changing its role.
+    ON CONFLICT (organization_id, user_id) WHERE deleted_at IS NULL DO NOTHING
+    RETURNING id, organization_id, user_id, role_id, status, updated_at
+  )
+  INSERT INTO cortex.membership_bootstrap_log (
+    membership_id, migration, organization_id, user_id, role_id, status, row_updated_at
+  )
+  SELECT
+    created.id,
+    '20260818120000_marq_team_membership_bootstrap',
+    created.organization_id,
+    created.user_id,
+    created.role_id,
+    created.status,
+    created.updated_at
+  FROM created
+  ON CONFLICT (membership_id) DO NOTHING;
 
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
 
@@ -143,7 +299,12 @@ BEGIN
     RAISE EXCEPTION 'membership bootstrap aborted: % user(s) hold duplicate active memberships', v_duplicates;
   END IF;
 
-  RAISE NOTICE 'membership bootstrap: % eligible team user(s), % membership(s) created', v_eligible, v_inserted;
+  IF v_eligible = 0 THEN
+    RAISE NOTICE 'membership bootstrap: no auth user carries app_metadata.marq_team = true, so none was admitted. See architecture/database/MEMBERSHIP_BOOTSTRAP.md for the one-time stamping step.';
+  END IF;
+
+  RAISE NOTICE 'membership bootstrap: % eligible team user(s), % already decided, % membership(s) created',
+    v_eligible, v_blocked, v_inserted;
 END $$;
 
 COMMIT;

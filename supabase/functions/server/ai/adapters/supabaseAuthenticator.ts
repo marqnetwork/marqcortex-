@@ -11,10 +11,16 @@
  * deliberately short (60s) so a revoked membership stops granting access within
  * a minute rather than for the lifetime of an edge isolate.
  *
- * A failed membership lookup degrades to "no memberships" rather than failing
- * the request. Organization resolution then falls back to the configured
- * default, which is the correct behaviour for the current single-tenant console
- * deployment and is bounded by the organization allow list when one is set.
+ * A failed membership lookup degrades to "no memberships" rather than throwing.
+ * That is not the same as admitting the caller: `resolveOrganization` then fails
+ * the request closed with `ORGANIZATION_REQUIRED`, because
+ * `AI_ALLOW_DEFAULT_ORGANIZATION` is false by default. Only a deployment that
+ * has explicitly opted into the single-tenant fallback resolves anything here,
+ * and what it resolves is marked `membershipVerified: false`.
+ *
+ * (An earlier version of this comment said the lookup "falls back to the
+ * configured default". It did not, and must not: a database outage that widened
+ * access would be the outage granting it.)
  */
 
 import type { AIAuthenticator, AuthenticatedSubject, SubjectMembership } from '../security/actor.ts';
@@ -59,8 +65,9 @@ export function createSupabaseAuthenticator(
       memberships = await options.listMemberships(userId);
     } catch (error) {
       options.onError?.('memberships', error);
-      // Degrade to no memberships. Organization resolution falls back to the
-      // configured default, which the allow list still bounds.
+      // Degrade to no memberships, which is what fails the request closed.
+      // Not "fall back to the default": a lookup failure must never be the
+      // reason somebody is admitted.
       memberships = [];
     }
 

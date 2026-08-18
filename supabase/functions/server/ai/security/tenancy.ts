@@ -82,11 +82,32 @@ function toOrganization(
  *
  * Order of precedence:
  *   1. A caller hint the subject is actually a member of.
- *   2. The subject's first membership.
+ *   2. The subject's SOLE membership, when they hold exactly one.
  *   3. The configured default, for single-tenant console deployments.
  *
  * A hint the subject does NOT hold is a hard failure, never a silent downgrade:
  * treating it as "use your own org instead" would hide a real access attempt.
+ *
+ * STEP 2 USED TO BE `memberships[0]`, AND THAT WAS A BUG WAITING FOR A SECOND
+ * TENANT. The array's order is whatever the membership query returned — no
+ * ORDER BY, so PostgREST's row order, which Postgres does not promise to keep
+ * stable across plans, vacuums or a changed index. A consultant who belongs to
+ * two client organizations would have had their tenant chosen by the planner:
+ * the same request could resolve into a different tenant on the next call, and
+ * every budget, audit record and isolation key would follow it there. Nothing
+ * would fail; the work would just land in the wrong customer's scope.
+ *
+ * "Pick the first deterministically" (lowest id, oldest membership) fixes the
+ * flapping and keeps the real defect: the platform would still be GUESSING
+ * which customer this request is for, and would be right only by luck. There is
+ * no policy that makes one of two equally valid memberships correct.
+ *
+ * So a subject holding more than one membership must SAY which one. That is
+ * `ORGANIZATION_REQUIRED` with a diagnostic naming the choices — a hard, honest
+ * failure a caller fixes by passing the organization it meant. It is not a
+ * default tenant: nothing is selected on the subject's behalf, and a subject
+ * with exactly one membership is unaffected, which is every operator in the
+ * single-organization deployment this ships into.
  */
 export function resolveOrganization(
   subject: AuthenticatedSubject | null,
@@ -112,9 +133,27 @@ export function resolveOrganization(
     return enforceAllowList(toOrganization(normalizedHint, membership, true), options);
   }
 
-  const primary = subject?.memberships[0];
-  if (primary) {
-    return enforceAllowList(toOrganization(primary.organizationId, primary, true), options);
+  const memberships = subject?.memberships ?? [];
+  if (memberships.length === 1) {
+    const sole = memberships[0];
+    return enforceAllowList(toOrganization(sole.organizationId, sole, true), options);
+  }
+  if (memberships.length > 1) {
+    // Deterministic, and deterministically a refusal. The ids are sorted only
+    // so the diagnostic reads the same every time, never to pick one of them.
+    const held = [...memberships]
+      .map((m) => m.organizationId)
+      .sort()
+      .join(',');
+    throw new AIError(
+      'ORGANIZATION_REQUIRED',
+      'This account belongs to more than one organization. Specify which one this request is for.',
+      {
+        diagnostics:
+          `subject=${subject?.subjectId ?? 'anonymous'} holds ${memberships.length} verified ` +
+          `memberships (${held}) and supplied no organization`,
+      },
+    );
   }
 
   // No verified membership. Failing closed here is what stops the default

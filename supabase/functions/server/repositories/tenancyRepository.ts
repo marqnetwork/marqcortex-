@@ -4,6 +4,15 @@
  *
  * Uses service role client for server operations. Future user-scoped reads should
  * pass the caller JWT so RLS applies when runtime cutover begins.
+ *
+ * NOT THE RUNTIME TENANT RESOLVER. The AI execution path resolves organization
+ * membership through `ai/adapters/membershipDirectory.ts` and nothing else; this
+ * module is unwired scaffolding for the repository cutover. The membership reads
+ * below nevertheless carry the SAME organization-liveness restriction the
+ * canonical resolver does — `organizations!inner(deleted_at) IS NULL` — because
+ * an unwired duplicate that admits a membership in an erased tenant is a defect
+ * waiting for the sprint that wires it up. Where the two ever disagree, the
+ * canonical resolver is right and this file is the one to change.
  */
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2.49.8';
@@ -77,10 +86,11 @@ export function createTenancyRepository(client?: SupabaseClient): TenancyReposit
     async listUserMemberships(userId: string): Promise<OrganizationMembershipRecord[]> {
       const { data, error } = await db
         .from('organization_memberships')
-        .select('*, roles(*)')
+        .select('*, roles(*), organizations!inner(id, deleted_at)')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .is('organizations.deleted_at', null);
 
       if (error) {
         throw new TenancyRepositoryError(error.message, 'DATABASE_ERROR');
@@ -91,11 +101,12 @@ export function createTenancyRepository(client?: SupabaseClient): TenancyReposit
     async isOrganizationMember(userId: string, organizationId: string): Promise<boolean> {
       const { data, error } = await db
         .from('organization_memberships')
-        .select('id')
+        .select('id, organizations!inner(deleted_at)')
         .eq('user_id', userId)
         .eq('organization_id', organizationId)
         .eq('status', 'active')
         .is('deleted_at', null)
+        .is('organizations.deleted_at', null)
         .maybeSingle();
 
       if (error) {
@@ -112,6 +123,7 @@ export function createTenancyRepository(client?: SupabaseClient): TenancyReposit
         .from('organization_memberships')
         .select(`
           *,
+          organizations!inner ( deleted_at ),
           roles (
             *,
             role_permissions (
@@ -123,6 +135,7 @@ export function createTenancyRepository(client?: SupabaseClient): TenancyReposit
         .eq('organization_id', organizationId)
         .eq('status', 'active')
         .is('deleted_at', null)
+        .is('organizations.deleted_at', null)
         .maybeSingle();
 
       if (error) {

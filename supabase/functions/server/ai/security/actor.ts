@@ -86,6 +86,47 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly AICapability[]>
   ],
   /** Machine actors invoked by platform jobs (batch analysis, backfills). */
   service: ['ai.analysis.run', 'ai.narrative.generate', 'ai.agent.execute'],
+
+  // ---------------------------------------------------------------------
+  // ORGANIZATION ROLE KEYS
+  //
+  // The keys above are the console's team vocabulary, carried on the auth
+  // record. The three below are the seeded system catalog in
+  // `public.roles`, and they arrive on `SubjectMembership.roles`.
+  //
+  // Both vocabularies had to be here, because a role key that is not in this
+  // table grants nothing. Until they were added, joining `roles(key)` into the
+  // membership query changed what the query RETURNED and nothing about what
+  // any actor could DO — an `org_admin` and a `team_viewer` still resolved to
+  // the same capability set. The commit that added the join claimed otherwise;
+  // this is the half that makes the claim true.
+  //
+  // The grants are set at the level the mapped team role already had, never
+  // above it (`TEAM_ROLE_TO_ORGANIZATION_ROLE` in `teamAuthorization.ts`):
+  //
+  //   org_admin   <- admin, owner        => the admin grant, unchanged.
+  //   team_member <- reviewer, analyst, consultant => the LEAST of the three,
+  //                  which is `reviewer`. A membership row must not hand an
+  //                  analyst capability to somebody the console calls a
+  //                  reviewer, and the three collapse to one key here.
+  //   team_viewer <- viewer              => nothing. `viewer` grants nothing
+  //                  above, and read-only is the entire meaning of the role.
+  //
+  // Roles are additive: an actor holds their team role AND their membership
+  // role, so a consultant keeps `ai.analysis.run` from `consultant` whatever
+  // their membership key is. Nothing here can take a capability away, and
+  // nothing here gives one the mapped team role did not already have.
+  org_admin: [
+    'ai.narrative.generate',
+    'ai.analysis.run',
+    'ai.chat.converse',
+    'ai.block.assist',
+    'ai.copilot.plan',
+    'ai.section.copilot',
+    'ai.agent.execute',
+  ],
+  team_member: ['ai.narrative.generate', 'ai.chat.converse'],
+  team_viewer: [],
 };
 
 /**

@@ -45,9 +45,14 @@ import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
-  normalizeTeamRole,
+  resolveTeamRoleFromAuthRecord,
+  teamAppMetadata,
   type TeamRole,
 } from "./teamAuthorization.ts";
+import {
+  listVerifiedMemberships,
+  type MembershipQueryClient,
+} from "./ai/adapters/membershipDirectory.ts";
 import {
   deriveDealSnapshots,
   summarizeSnapshots,
@@ -200,6 +205,10 @@ async function seedAdminUser() {
         email: adminEmail,
         password: adminPassword,
         user_metadata: { name: adminName, role: 'team', teamRole: 'admin' },
+        // The authority copy. `app_metadata` is the only bag GoTrue will not
+        // write for a user-scoped call, so this — not the line above — is what
+        // the membership bootstrap and `resolveTeamRole` trust.
+        app_metadata: teamAppMetadata('admin'),
         email_confirm: true,
       });
       if (error) {
@@ -298,17 +307,22 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
 /**
  * Resolve the caller's team role from the auth record.
  *
- * `user_metadata` is writable only through the service-role admin API, so this
- * is a server-side fact rather than something the caller can assert in a header
- * or a body field. An unreadable or missing role resolves to `viewer`, the least
- * privileged role — a lookup failure must never widen access.
+ * The role is read from `app_metadata.team_role` when the record carries one,
+ * because `app_metadata` is the bag GoTrue refuses to write for a user-scoped
+ * call. `user_metadata.teamRole` is the fallback for accounts provisioned before
+ * app metadata was written; it is NOT a server-only field, and the routes that
+ * consume this still enforce the rank rules in `teamAuthorization.ts` on every
+ * assignment for exactly that reason.
+ *
+ * An unreadable or missing role resolves to `viewer`, the least privileged role
+ * — a lookup failure must never widen access.
  */
 async function resolveTeamRole(userId: string | null): Promise<TeamRole | null> {
   if (!userId) return null;
   try {
     const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
     if (error || !data?.user) return 'viewer';
-    return normalizeTeamRole(data.user.user_metadata?.teamRole);
+    return resolveTeamRoleFromAuthRecord(data.user);
   } catch (err) {
     console.error('resolveTeamRole failed:', err instanceof Error ? err.message : String(err));
     return 'viewer';
@@ -375,16 +389,25 @@ const controlPlane = initializeControlPlane({
   getUser: async (accessToken: string) => {
     const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
     if (error || !data?.user) return null;
-    // Roles are resolved server-side from `user_metadata`, which only the
-    // service-role admin API can write. Supplying them here is what makes the
-    // policy engine's capability check mean anything: without them every actor
+    // The team role reaches the policy engine here. Without it every actor
     // resolved to the baseline grant, and the four capability-gated features
     // (analysis, block assist, copilot plan, section copilot) were denied to
     // every real user while appearing to be authorized.
+    //
+    // `resolveTeamRoleFromAuthRecord` prefers `app_metadata.team_role`, which
+    // only the service role can write. `user_metadata.teamRole` is still read
+    // when an account carries no app-metadata role — the state of every account
+    // provisioned before this change — and that is a deliberate, bounded
+    // fallback, not a claim that the field is trustworthy. It is not: GoTrue's
+    // `PUT /auth/v1/user` lets an account holder write their own
+    // `user_metadata`. What the fallback can reach is the team-role capability
+    // grant it already reached yesterday. It can no longer establish
+    // organization membership, which is decided by `listMemberships` from
+    // `organization_memberships` alone.
     return {
       id: data.user.id,
       email: data.user.email ?? undefined,
-      roles: [normalizeTeamRole(data.user.user_metadata?.teamRole)],
+      roles: [resolveTeamRoleFromAuthRecord(data.user)],
     };
   },
   listMemberships: async (userId: string) => {
@@ -392,50 +415,22 @@ const controlPlane = initializeControlPlane({
     // no membership, and the AI Guard then fails the request closed unless the
     // deployment has explicitly opted into the single-tenant default.
     //
-    // Three filters, and each one is load-bearing:
-    //
-    //   deleted_at IS NULL — a removed member must not keep resolving an
-    //   organization. The soft delete IS the removal in this schema.
-    //
-    //   status = 'active' — `invited` and `suspended` are the two states that
-    //   exist precisely so a row can be present without granting anything.
-    //   Admitting them would make suspension decorative.
-    //
-    //   roles(key) — the role catalog is joined so the membership carries the
-    //   authority it was granted. This used to be hardcoded `roles: []`, which
-    //   meant an org_admin and a team_viewer resolved to the same empty set and
-    //   the membership contributed nothing an authorization decision could read.
+    // The query and the row->membership transformation both live in
+    // `ai/adapters/membershipDirectory.ts`, so this entry point holds no
+    // filtering rule of its own. That module is importable under Node, which is
+    // what lets the admission rules — undeleted, active, in a LIVE organization,
+    // carrying its role key — be proven behaviourally rather than by a regular
+    // expression over this file.
     try {
-      const { data, error } = await supabaseAdmin
-        .from('organization_memberships')
-        .select('organization_id, status, organizations(slug), roles(key)')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .is('deleted_at', null);
-      if (error || !Array.isArray(data)) return [];
-      // PostgREST returns an embedded to-one relation as an object, but a
-      // client that infers the relationship differently returns a one-element
-      // array. Reading both shapes here keeps a schema-cache difference from
-      // silently emptying the role set.
-      const embedded = (value: unknown): Record<string, unknown> | undefined => {
-        const candidate = Array.isArray(value) ? value[0] : value;
-        return typeof candidate === 'object' && candidate !== null
-          ? (candidate as Record<string, unknown>)
-          : undefined;
-      };
-      return data
-        .filter((row: any) => typeof row?.organization_id === 'string')
-        .map((row: any) => {
-          const slug = embedded(row.organizations)?.slug;
-          const roleKey = embedded(row.roles)?.key;
-          const normalizedRole =
-            typeof roleKey === 'string' ? roleKey.trim().toLowerCase() : '';
-          return {
-            organizationId: String(row.organization_id),
-            slug: typeof slug === 'string' ? slug : undefined,
-            roles: normalizedRole === '' ? [] : [normalizedRole],
-          };
-        });
+      // The cast is the Supabase client's generated generics meeting the
+      // narrow structural port `listVerifiedMemberships` declares. The port is
+      // deliberately smaller than the client — a `from`/`select` that returns a
+      // chainable filter — so the lookup cannot grow a write. Nothing about the
+      // runtime call changes; only the type does.
+      return await listVerifiedMemberships(
+        supabaseAdmin as unknown as MembershipQueryClient,
+        userId,
+      );
     } catch (err) {
       console.error('[ai] membership lookup failed:', err instanceof Error ? err.message : String(err));
       return [];
@@ -2970,8 +2965,10 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
         email:       u.email || '',
         name:        meta.name || u.email?.split('@')[0] || 'Unknown',
         // A missing role reads as the LEAST privileged, never as admin: a data
-        // gap must not present itself to the console as full access.
-        teamRole:    normalizeTeamRole(meta.teamRole),
+        // gap must not present itself to the console as full access. Read
+        // through the same authority the routes enforce with, so the list shows
+        // the role that is actually in force rather than a stale mirror.
+        teamRole:    resolveTeamRoleFromAuthRecord(u),
         status:      'active',
         joinedDate:  u.created_at,
         lastActive:  u.last_sign_in_at || null,
@@ -3017,6 +3014,11 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
       email,
       password,
       user_metadata: { name, role: 'team', teamRole: assignment.role },
+      // Written under the same service-role call that just passed the rank
+      // check above, and unreachable from the account holder's own session.
+      // `user_metadata` below is kept for the console reads that still expect
+      // it; it is a mirror, not the authority.
+      app_metadata: teamAppMetadata(assignment.role),
       email_confirm: true,
     });
 
@@ -3089,8 +3091,12 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
     }
     meta.teamRole = appliedRole;
 
+    // Both bags move together. If only `user_metadata` were updated, a demotion
+    // would leave the authoritative `app_metadata.team_role` at the old, higher
+    // value and `resolveTeamRole` would keep returning it.
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(memberId, {
       user_metadata: meta,
+      app_metadata: teamAppMetadata(appliedRole),
     });
     if (error) throw error;
 
@@ -3201,7 +3207,7 @@ app.get("/make-server-324f4fbe/settings", async (c) => {
         id:       user?.id,
         email:    user?.email,
         name:     user?.user_metadata?.name || 'Team Member',
-        teamRole: normalizeTeamRole(user?.user_metadata?.teamRole),
+        teamRole: resolveTeamRoleFromAuthRecord(user),
       },
       platformSettings,
       health: {
