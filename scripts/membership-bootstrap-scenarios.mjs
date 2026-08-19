@@ -25,10 +25,17 @@
  *   6. mutate: a late joiner, and an administrator re-roling a bootstrap row
  *   7. THE ROLLBACK, twice     -> H1's five properties, and idempotency
  *   8. THE BOOTSTRAP a third time -> no silent re-admission
+ *   9. THE LIFECYCLE MIGRATION -> the real sync/revoke functions, driven over
+ *                                 the bootstrap's own rows (HIGH-1, MED-1), and
+ *                                 the roster stamping artifact (HIGH-3)
  *
- * Then a second, independent scratch database for the concurrency phase, where
- * several copies of the bootstrap run against the same clean fixture at the
- * same time.
+ * Then three more independent scratch databases:
+ *
+ *   - concurrency: several copies of the bootstrap racing on a clean fixture
+ *   - MED-2 (a):   the seeded role catalog missing `org_admin`. The bootstrap
+ *                  must FAIL and leave nothing behind
+ *   - MED-2 (b):   a write that silently drops one candidate. Same requirement,
+ *                  reached through the post-write accounting assertion
  *
  * Usage:
  *   node scripts/membership-bootstrap-scenarios.mjs
@@ -57,6 +64,7 @@ const MIGRATIONS = join(ROOT, 'supabase', 'migrations');
 /** The bootstrap and its rollback, by their real paths. */
 const BOOTSTRAP = join(MIGRATIONS, '20260818120000_marq_team_membership_bootstrap.sql');
 const ROLLBACK = join(MIGRATIONS, 'rollbacks', '20260818120000_rollback_membership_bootstrap.sql');
+const LIFECYCLE = join(MIGRATIONS, '20260818130000_marq_membership_lifecycle.sql');
 
 const STEPS = [
   ['platform stub', join(HARNESS, '00_platform_stub.sql')],
@@ -75,6 +83,58 @@ const STEPS = [
   ['assert rollback re-run', join(HARNESS, '41_assert_rollback_idempotent.sql')],
   ['bootstrap (run 3, after rollback)', BOOTSTRAP],
   ['assert no re-admission', join(HARNESS, '50_assert_no_readmission.sql')],
+];
+
+/** The migrations every scratch database starts from. */
+const BASE_STEPS = [
+  ['platform stub', join(HARNESS, '00_platform_stub.sql')],
+  ['tenancy foundation', join(MIGRATIONS, '20260711050000_cortex_tenancy_foundation.sql')],
+  ['tenancy RLS and seed', join(MIGRATIONS, '20260711050001_cortex_tenancy_rls_and_seed.sql')],
+];
+
+const CONCURRENCY_STEPS = [
+  ...BASE_STEPS,
+  ['concurrency fixture', join(HARNESS, '11_concurrency_fixture.sql')],
+];
+
+/**
+ * The lifecycle phase, on its own database.
+ *
+ * It starts from a freshly bootstrapped deployment rather than from the tail of
+ * the rollback sequence above: the questions are "what does a demotion do to a
+ * membership the bootstrap created" and "what does an invite create", and both
+ * need that membership to still be live. Running them after the rollback would
+ * have answered a different question with the same assertions.
+ */
+const LIFECYCLE_STEPS = [
+  ...BASE_STEPS,
+  ['fixture', join(HARNESS, '10_membership_fixture.sql')],
+  ['bootstrap', BOOTSTRAP],
+  ['membership lifecycle migration', LIFECYCLE],
+  ['assert lifecycle (HIGH-1, MED-1)', join(HARNESS, '70_assert_lifecycle.sql')],
+  ['assert roster stamping (HIGH-3)', join(HARNESS, '75_assert_roster_stamping.sql')],
+];
+
+/**
+ * MED-2. Each phase applies its fixture and then expects the REAL bootstrap to
+ * exit NON-ZERO — a silent short admission is the defect, so "it ran fine" is
+ * the failure this asserts against.
+ */
+const FAILURE_PHASES = [
+  {
+    label: 'MED-2 (a): a role missing from the seeded catalog',
+    database: 'med2_missing_role',
+    fixture: join(HARNESS, '80_med2_missing_role_fixture.sql'),
+    assertion: join(HARNESS, '81_assert_med2_no_partial_state.sql'),
+    expect: /system role catalog is missing/i,
+  },
+  {
+    label: 'MED-2 (b): a write that silently drops a candidate',
+    database: 'med2_silent_drop',
+    fixture: join(HARNESS, '82_med2_silent_drop_fixture.sql'),
+    assertion: join(HARNESS, '83_assert_med2_silent_drop.sql'),
+    expect: /neither admitted nor already decided/i,
+  },
 ];
 
 function psql(args, { database, input } = {}) {
@@ -115,8 +175,13 @@ if (probe.status !== 0) {
   process.exit(2);
 }
 
-for (const [, file] of STEPS) {
+for (const [, file] of [...STEPS, ...CONCURRENCY_STEPS, ...LIFECYCLE_STEPS]) {
   if (!existsSync(file)) fail(`missing SQL file: ${file}`);
+}
+for (const phase of FAILURE_PHASES) {
+  for (const file of [phase.fixture, phase.assertion]) {
+    if (!existsSync(file)) fail(`missing SQL file: ${file}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -129,13 +194,6 @@ if (drop.status !== 0) fail(`could not drop the scratch database:\n${drop.stderr
 
 const create = psql(['-c', `CREATE DATABASE ${SCRATCH_DB}`]);
 if (create.status !== 0) fail(`could not create the scratch database:\n${create.stderr}`);
-
-const CONCURRENCY_STEPS = [
-  ['platform stub', join(HARNESS, '00_platform_stub.sql')],
-  ['tenancy foundation', join(MIGRATIONS, '20260711050000_cortex_tenancy_foundation.sql')],
-  ['tenancy RLS and seed', join(MIGRATIONS, '20260711050001_cortex_tenancy_rls_and_seed.sql')],
-  ['concurrency fixture', join(HARNESS, '11_concurrency_fixture.sql')],
-];
 
 /** How many copies of the bootstrap race each other. */
 const RACERS = 4;
@@ -200,7 +258,80 @@ psql(['-c', `DROP DATABASE IF EXISTS ${RACE_DB} WITH (FORCE)`]);
 if (raceAssert.status !== 0) fail(`assert concurrency\n${(raceAssert.stderr ?? '').trim()}`);
 console.log('  ✓ assert concurrency');
 
-console.log('\n✓ all membership bootstrap + rollback scenarios passed');
+// ---------------------------------------------------------------------------
+// LIFECYCLE — HIGH-1, MED-1 and HIGH-3, against the real functions.
+// ---------------------------------------------------------------------------
+const LIFECYCLE_DB = `${SCRATCH_DB}_lifecycle`;
+console.log(`\nmembership lifecycle — scratch database "${LIFECYCLE_DB}"`);
+
+psql(['-c', `DROP DATABASE IF EXISTS ${LIFECYCLE_DB} WITH (FORCE)`]);
+const createLifecycle = psql(['-c', `CREATE DATABASE ${LIFECYCLE_DB}`]);
+if (createLifecycle.status !== 0) fail(`could not create the lifecycle database:\n${createLifecycle.stderr}`);
+
+for (const [label, file] of LIFECYCLE_STEPS) {
+  const run = psql(['-f', file], { database: LIFECYCLE_DB });
+  const notices = (run.stderr ?? '')
+    .split('\n')
+    .filter((line) => /PASSED/i.test(line))
+    .map((line) => `      ${line.trim()}`)
+    .join('\n');
+  if (run.status !== 0) {
+    psql(['-c', `DROP DATABASE IF EXISTS ${LIFECYCLE_DB} WITH (FORCE)`]);
+    fail(`${label}\n${(run.stderr ?? '').trim()}`);
+  }
+  console.log(`  ✓ ${label}`);
+  if (notices) console.log(notices);
+}
+psql(['-c', `DROP DATABASE IF EXISTS ${LIFECYCLE_DB} WITH (FORCE)`]);
+
+// ---------------------------------------------------------------------------
+// MED-2 — the bootstrap must FAIL rather than admit fewer people than it should.
+//
+// Each phase gets its own scratch database, because the property under test is
+// what the migration does to a clean database with a broken precondition, and
+// state left by an earlier phase could satisfy the assertion for the wrong
+// reason.
+// ---------------------------------------------------------------------------
+for (const phase of FAILURE_PHASES) {
+  const db = `${SCRATCH_DB}_${phase.database}`;
+  console.log(`\n${phase.label} — scratch database "${db}"`);
+
+  psql(['-c', `DROP DATABASE IF EXISTS ${db} WITH (FORCE)`]);
+  const created = psql(['-c', `CREATE DATABASE ${db}`]);
+  if (created.status !== 0) fail(`could not create ${db}:\n${created.stderr}`);
+
+  const teardown = () => psql(['-c', `DROP DATABASE IF EXISTS ${db} WITH (FORCE)`]);
+
+  for (const [label, file] of [...BASE_STEPS, ['fixture', phase.fixture]]) {
+    const run = psql(['-f', file], { database: db });
+    if (run.status !== 0) {
+      teardown();
+      fail(`${phase.label} / ${label}\n${(run.stderr ?? '').trim()}`);
+    }
+    console.log(`  ✓ ${label}`);
+  }
+
+  const attempt = psql(['-f', BOOTSTRAP], { database: db });
+  if (attempt.status === 0) {
+    teardown();
+    fail(`${phase.label}: the bootstrap SUCCEEDED. A short admission must fail loudly.`);
+  }
+  if (!phase.expect.test(attempt.stderr ?? '')) {
+    teardown();
+    fail(
+      `${phase.label}: the bootstrap failed for the wrong reason.\n` +
+        `expected /${phase.expect.source}/\ngot:\n${(attempt.stderr ?? '').trim()}`,
+    );
+  }
+  console.log('  ✓ the bootstrap refused, and named the reason');
+
+  const assertion = psql(['-f', phase.assertion], { database: db });
+  teardown();
+  if (assertion.status !== 0) fail(`${phase.label} / assertion\n${(assertion.stderr ?? '').trim()}`);
+  console.log('  ✓ nothing was left behind');
+}
+
+console.log('\n✓ all membership bootstrap + lifecycle + rollback scenarios passed');
 
 function runPsqlAsync(args, database) {
   const base = process.env.DATABASE_URL

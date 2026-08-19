@@ -45,6 +45,11 @@ const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'agentRuntimeRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'workflowRuntimeRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'teamAuthorization.ts'),
+  // The membership lifecycle is part of the same security surface: it decides
+  // which organization role a team account carries. It takes no Deno-only
+  // import, so it checks cleanly in this boundary and a regression in it is a
+  // blocker rather than a note.
+  join(FUNCTIONS_ROOT, 'server', 'membershipLifecycle.ts'),
 ];
 
 function collectSources(dir) {

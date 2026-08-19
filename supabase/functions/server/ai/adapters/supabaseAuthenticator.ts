@@ -11,6 +11,13 @@
  * deliberately short (60s) so a revoked membership stops granting access within
  * a minute rather than for the lifetime of an edge isolate.
  *
+ * A minute is still a minute, and HIGH-1 requires that a demotion revoke
+ * capability IMMEDIATELY, not eventually. So the cache also listens: the
+ * membership lifecycle publishes the user id it just re-roled or revoked on a
+ * `MembershipInvalidationSignal`, and this cache drops that entry on the spot.
+ * The TTL stays as the backstop for changes made outside this isolate — another
+ * isolate, the SQL console, a migration — which the signal cannot see.
+ *
  * A failed membership lookup degrades to "no memberships" rather than throwing.
  * That is not the same as admitting the caller: `resolveOrganization` then fails
  * the request closed with `ORGANIZATION_REQUIRED`, because
@@ -36,12 +43,47 @@ export interface AuthUser {
 export type UserLookup = (accessToken: string) => Promise<AuthUser | null>;
 export type MembershipLookup = (userId: string) => Promise<readonly SubjectMembership[]>;
 
+/**
+ * A one-way announcement that a user's memberships have changed.
+ *
+ * Deliberately not a reference to the cache: the lifecycle must be able to say
+ * "this changed" without knowing whether anything is listening, and the
+ * authenticator must be able to listen without the lifecycle importing it. Both
+ * halves stay testable on their own.
+ */
+export interface MembershipInvalidationSignal {
+  invalidate(userId: string): void;
+  subscribe(handler: (userId: string) => void): void;
+}
+
+export function createMembershipInvalidationSignal(): MembershipInvalidationSignal {
+  const handlers: ((userId: string) => void)[] = [];
+  return {
+    invalidate(userId: string) {
+      for (const handler of handlers) {
+        try {
+          handler(userId);
+        } catch {
+          // A listener that throws must not fail the membership write that
+          // triggered it. The write is the authority; the cache is an
+          // optimisation, and the TTL still expires it.
+        }
+      }
+    },
+    subscribe(handler: (userId: string) => void) {
+      handlers.push(handler);
+    },
+  };
+}
+
 export interface SupabaseAuthenticatorOptions {
   readonly getUser: UserLookup;
   readonly listMemberships?: MembershipLookup;
   readonly clock: Clock;
   /** Membership cache lifetime. Defaults to 60 seconds. */
   readonly membershipTtlMs?: number;
+  /** Announcements that a user's memberships changed. See HIGH-1. */
+  readonly invalidation?: MembershipInvalidationSignal;
   readonly onError?: (stage: 'user' | 'memberships', error: unknown) => void;
 }
 
@@ -53,6 +95,12 @@ export function createSupabaseAuthenticator(
 ): AIAuthenticator {
   const ttlMs = options.membershipTtlMs ?? DEFAULT_TTL_MS;
   const cache = new Map<string, { memberships: readonly SubjectMembership[]; expiresAtMs: number }>();
+
+  // A membership that has just been re-roled or revoked is not the membership
+  // in this map. Dropping the entry means the next request reads the database,
+  // which is what makes a demotion take effect on the request after it rather
+  // than up to a TTL later.
+  options.invalidation?.subscribe((userId) => cache.delete(userId));
 
   async function membershipsFor(userId: string): Promise<readonly SubjectMembership[]> {
     if (!options.listMemberships) return [];

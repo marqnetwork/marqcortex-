@@ -106,13 +106,19 @@ export const LEGACY_TEAM_ROLE_MAP: Record<string, string> = {
  *    establish organization membership. `listMemberships` in the edge entry
  *    point reads it, and it admits only an undeleted, `active` row in an
  *    undeleted organization.
- * 2. Team role only: `app_metadata.team_role`, falling back to
- *    `user_metadata.teamRole` for accounts provisioned before app metadata was
- *    written. This decides what a team member may do, never which tenant they
- *    are in.
+ * 2. Team role only: `app_metadata.team_role`, on an account the server has
+ *    STAMPED (`app_metadata.marq_team`). This decides what a team member may
+ *    do, never which tenant they are in.
  * 3. Deny.
  *
  * `user_metadata` is writable by the account holder through GoTrue's
- * `PUT /auth/v1/user`, so it is never sufficient for (1).
+ * `PUT /auth/v1/user`, so it is never sufficient for (1) — and, since the
+ * Batch 4A remediation of HIGH-2, it is not read for (2) either. The
+ * `legacy_metadata` arm below is retained as a VOCABULARY entry for records
+ * that predate the change; nothing resolves to it any more, because
+ * `resolveTeamRoleFromAuthRecord` returns `null` for an unstamped account
+ * rather than a role. An account that carried its role only in `user_metadata`
+ * is now `denied` until an operator stamps it through the reviewed roster
+ * artifact (`cortex.stamp_team_roster`).
  */
 export type AuthoritySource = 'membership' | 'legacy_metadata' | 'denied';

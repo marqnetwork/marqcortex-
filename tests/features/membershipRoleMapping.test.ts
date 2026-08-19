@@ -9,6 +9,13 @@
  *   `LEGACY_TEAM_ROLE_MAP`               (src/types/database.types.ts)
  *   a table in prose                     (architecture/database/MEMBERSHIP_BOOTSTRAP.md)
  *
+ * The remediation added a fifth — `cortex.organization_role_for_team_role`,
+ * which is what the console's own invite and role-change writes now go through.
+ * A fifth copy is a fifth chance to disagree, so it is read here too, and so is
+ * `cortex.team_roles()`: the SQL vocabulary and the TypeScript one have to be
+ * the same list or the roster validator would accept a role the console cannot
+ * issue.
+ *
  * The disagreement was not cosmetic. `manager` is not a member of `TEAM_ROLES`,
  * so `normalizeTeamRole` resolves it to `viewer` — while two of the four sent it
  * to `org_admin`. A bootstrap that trusted them would have granted organization
@@ -44,10 +51,22 @@ const migration = readFileSync(
   join(root, 'supabase', 'migrations', '20260818120000_marq_team_membership_bootstrap.sql'),
   'utf8',
 );
+const lifecycleMigration = readFileSync(
+  join(root, 'supabase', 'migrations', '20260818130000_marq_membership_lifecycle.sql'),
+  'utf8',
+);
 const doc = readFileSync(join(root, 'architecture', 'database', 'MEMBERSHIP_BOOTSTRAP.md'), 'utf8');
 
 /** The migration with SQL comments stripped — a mapping is code, not prose. */
 const migrationCode = migration.replace(/^\s*--.*$/gm, ' ');
+const lifecycleCode = lifecycleMigration.replace(/^\s*--.*$/gm, ' ');
+
+/** The body of `cortex.organization_role_for_team_role` — the FIFTH copy, and
+ *  the one the console's own writes now go through. */
+const sqlMappingBody = lifecycleCode.slice(
+  lifecycleCode.indexOf('FUNCTION cortex.organization_role_for_team_role'),
+  lifecycleCode.indexOf('COMMENT ON FUNCTION cortex.organization_role_for_team_role'),
+);
 
 describe('the definition is total and closed', () => {
   it('maps every team role the console can issue', () => {
@@ -146,6 +165,59 @@ describe('every other copy of the mapping agrees with it', () => {
   });
 });
 
+describe('the SQL lifecycle mapping agrees with it too', () => {
+  it('has one arm per team role, mapping to the same key', () => {
+    const arms = [...sqlMappingBody.matchAll(/WHEN\s+'([a-z_]+)'\s+THEN\s+'([a-z_]+)'/gi)];
+    assert.equal(
+      arms.length,
+      TEAM_ROLES.length,
+      `cortex.organization_role_for_team_role has ${arms.length} arms for ${TEAM_ROLES.length} team roles`,
+    );
+    for (const [, role, key] of arms) {
+      assert.ok(
+        (TEAM_ROLES as readonly string[]).includes(role),
+        `the SQL mapping names '${role}', which the console cannot issue`,
+      );
+      assert.equal(
+        key,
+        TEAM_ROLE_TO_ORGANIZATION_ROLE[role as TeamRole],
+        `SQL maps ${role} -> ${key}; the definition maps it -> ${TEAM_ROLE_TO_ORGANIZATION_ROLE[role as TeamRole]}`,
+      );
+    }
+  });
+
+  it('sends everything unrecognised to the least privileged key', () => {
+    assert.match(sqlMappingBody, /ELSE\s+'team_viewer'/i);
+    assert.equal(organizationRoleForTeamRole('manager'), 'team_viewer');
+  });
+
+  it('declares the same team-role vocabulary as TEAM_ROLES', () => {
+    const declared = lifecycleCode
+      .slice(
+        lifecycleCode.indexOf('FUNCTION cortex.team_roles'),
+        lifecycleCode.indexOf('COMMENT ON FUNCTION cortex.team_roles'),
+      )
+      .match(/ARRAY\[([^\]]+)\]/i);
+    assert.ok(declared, 'cortex.team_roles() must declare its array literally');
+    assert.deepEqual(
+      declared![1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')),
+      [...TEAM_ROLES],
+    );
+  });
+
+  it('cannot emit a key outside ORGANIZATION_ROLE_KEYS', () => {
+    const emitted = [...sqlMappingBody.matchAll(/THEN\s+'([a-z_]+)'|ELSE\s+'([a-z_]+)'/gi)]
+      .map((m) => m[1] ?? m[2]);
+    assert.ok(emitted.length > 0);
+    for (const key of emitted) {
+      assert.ok(
+        (ORGANIZATION_ROLE_KEYS as readonly string[]).includes(key),
+        `the SQL mapping can emit '${key}', which is not a declared organization role key`,
+      );
+    }
+  });
+});
+
 describe('the mapping does not increase privilege', () => {
   // An organization role key must grant no capability the team role it is
   // mapped FROM does not already grant. Membership roles are additive, so a key
@@ -200,17 +272,17 @@ describe('the eligibility authority is app metadata', () => {
     assert.equal(isProvisionedTeamAccount(null), false);
   });
 
-  it('prefers the app-metadata role over the user-metadata one', () => {
+  it('reads the role from app metadata, ignoring what user metadata claims', () => {
     assert.equal(
       resolveTeamRoleFromAuthRecord({
-        app_metadata: { team_role: 'viewer' },
+        app_metadata: { marq_team: true, team_role: 'viewer' },
         user_metadata: { teamRole: 'owner' },
       }),
       'viewer',
     );
   });
 
-  it('does not fall back for a stamped account with no role', () => {
+  it('gives a stamped account with no role the LEAST privilege, never a fallback', () => {
     // A stamped account has been through a server-side provisioning path. A
     // missing role there is a data gap, and filling it from the one field the
     // account holder can write would be the escalation this change closes.
@@ -223,29 +295,36 @@ describe('the eligibility authority is app metadata', () => {
     );
   });
 
-  it('falls back to user metadata only when app metadata carries no role', () => {
-    // Bounded, and it grants no more than it granted yesterday: the fallback
-    // reaches the team-role capability set, never organization membership.
-    assert.equal(
-      resolveTeamRoleFromAuthRecord({ app_metadata: {}, user_metadata: { teamRole: 'analyst' } }),
-      'analyst',
-    );
-  });
-
-  it('normalises both paths, so neither can produce a role outside TEAM_ROLES', () => {
+  // HIGH-2. The `user_metadata` fallback is GONE, not narrowed. What it used to
+  // reach was console team ADMINISTRATION, and "no more than it granted
+  // yesterday" was therefore not a bound worth keeping.
+  it('grants nothing at all to an account that is not stamped', () => {
     for (const record of [
-      { app_metadata: { team_role: 'superadmin' } },
-      { user_metadata: { teamRole: 'superadmin' } },
-      { app_metadata: { team_role: 42 } },
+      { app_metadata: {}, user_metadata: { teamRole: 'analyst' } },
+      { app_metadata: {}, user_metadata: { teamRole: 'owner', role: 'team' } },
+      { app_metadata: { team_role: 'owner' }, user_metadata: {} },   // role without the stamp
+      { user_metadata: { marq_team: true, team_role: 'owner' } },
       {},
+      undefined,
     ]) {
-      const role = resolveTeamRoleFromAuthRecord(record);
-      assert.ok((TEAM_ROLES as readonly string[]).includes(role), `resolved '${role}'`);
+      assert.equal(
+        resolveTeamRoleFromAuthRecord(record),
+        null,
+        `an unstamped record resolved a role: ${JSON.stringify(record)}`,
+      );
     }
   });
 
-  it('resolves a missing record to the least privileged role', () => {
-    assert.equal(resolveTeamRoleFromAuthRecord(undefined), 'viewer');
+  it('normalises the app-metadata role, so it cannot produce anything outside TEAM_ROLES', () => {
+    for (const record of [
+      { app_metadata: { marq_team: true, team_role: 'superadmin' } },
+      { app_metadata: { marq_team: true, team_role: 42 } },
+      { app_metadata: { marq_team: true, team_role: '  ADMIN  ' } },
+      { app_metadata: { marq_team: true } },
+    ]) {
+      const role = resolveTeamRoleFromAuthRecord(record);
+      assert.ok(role !== null && (TEAM_ROLES as readonly string[]).includes(role), `resolved '${role}'`);
+    }
   });
 
   it('stamps the flag and the role together', () => {

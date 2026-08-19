@@ -33,13 +33,32 @@
  * the platform's authority elsewhere: `cortex.is_platform_admin()` reads
  * `auth.jwt() -> 'app_metadata' ->> 'platform_role'`.
  *
- * So `app_metadata.team_role` is now the authority, written by the provisioning
- * routes in `index.tsx` and read by `resolveTeamRoleFromAuthRecord` below.
- * `user_metadata.teamRole` remains readable as a fallback for accounts
- * provisioned before this change — it grants no more than it did yesterday — but
- * it is never sufficient on its own to establish organization membership. That
- * decision reads `app_metadata` and nothing else (see
- * `20260818120000_marq_team_membership_bootstrap.sql`).
+ * THE `user_metadata` FALLBACK IS GONE (HIGH-2)
+ *
+ * An earlier revision kept reading `user_metadata.teamRole` when an account
+ * carried no `app_metadata.team_role`, on the reasoning that it "grants no more
+ * than it did yesterday". What it granted yesterday was console team
+ * ADMINISTRATION: an arbitrary authenticated Supabase account that wrote
+ * `{"teamRole":"owner"}` into its own user metadata resolved as an `owner` and
+ * passed `authorizeTeamAdmin`. Public signup being disabled was the only thing
+ * standing in the way, and a signup setting is a product configuration, not an
+ * authorization control.
+ *
+ * So there is now exactly one source of team authority, and it is
+ * `app_metadata`:
+ *
+ *   `app_metadata.marq_team === true`  — this is a server-provisioned MARQ team
+ *   account. Nothing else makes an account one.
+ *
+ *   `app_metadata.team_role`           — what that account may do.
+ *
+ * `user_metadata` is not read by any function in this file. It is a display
+ * mirror the console writes for convenience and reads for nothing that matters.
+ * Accounts provisioned before app metadata existed are NOT team accounts until
+ * an operator stamps them through the reviewed roster artifact
+ * (`architecture/database/MEMBERSHIP_BOOTSTRAP.md`, `cortex.stamp_team_roster`).
+ * That is a deliberate fail-closed cut-over: an unstamped account is refused,
+ * not quietly trusted.
  */
 
 /**
@@ -126,33 +145,66 @@ export function isProvisionedTeamAccount(record: AuthRecordMetadata | null | und
 }
 
 /**
- * Resolve the team role from an auth record, strongest authority first.
+ * What a request may claim about its caller, resolved from server-written
+ * fields alone.
  *
- * 1. `app_metadata.team_role` — only the service role can write it, so it wins
- *    whenever it is present.
- * 2. If the account is STAMPED (`app_metadata.marq_team`) but carries no role,
- *    `viewer`. A stamped account has been through a server-side provisioning
- *    path; a missing role there is a data gap, and reaching into
- *    `user_metadata` to fill it would hand the account holder the one field
- *    they can write.
- * 3. `user_metadata.teamRole` — the fallback for accounts provisioned before app
- *    metadata was written. It is not a server-only field; it grants what it
- *    granted yesterday and nothing more, and it never establishes organization
- *    membership. Stamping an account closes this branch for it permanently,
- *    which is what makes the fallback shrink over time rather than persist.
+ * Two facts, deliberately separate. `provisioned` answers "is this a MARQ team
+ * account at all", which is the question the privileged routes must ask FIRST
+ * — a stranger with a valid Supabase token is authenticated, and that is not
+ * the same as being staff. `role` answers "what may they do", and is only ever
+ * populated for a provisioned account.
+ */
+export interface TeamAuthority {
+  /** `app_metadata.marq_team === true`. Server-written; the account holder
+   *  cannot set it. */
+  readonly provisioned: boolean;
+  /** The team role, or `null` when the account is not a provisioned team
+   *  account. Never inferred from `user_metadata`. */
+  readonly role: TeamRole | null;
+}
+
+/** The authority of a caller who is not a team account at all. */
+export const NO_TEAM_AUTHORITY: TeamAuthority = { provisioned: false, role: null };
+
+/**
+ * Resolve the trusted team authority carried by an auth record.
  *
- * Every branch runs through `normalizeTeamRole`, so none can produce a role
- * outside `TEAM_ROLES`, and every failure lands on `viewer`.
+ * Reads `app_metadata` and nothing else:
+ *
+ *   1. Not stamped (`app_metadata.marq_team !== true`) -> not a team account.
+ *      No role, at all. This is the branch that closes HIGH-2: the record may
+ *      carry `user_metadata.teamRole = 'owner'` and it changes nothing here.
+ *   2. Stamped with a role -> that role, normalised. `normalizeTeamRole` cannot
+ *      return a value outside `TEAM_ROLES`, so a corrupted or invented string
+ *      lands on `viewer`.
+ *   3. Stamped with no role -> `viewer`. A stamped account has been through a
+ *      server-side provisioning path; a missing role there is a data gap, and a
+ *      data gap must resolve to the least privilege, never to the most.
+ */
+export function resolveTeamAuthority(
+  record: AuthRecordMetadata | null | undefined,
+): TeamAuthority {
+  if (!isProvisionedTeamAccount(record)) return NO_TEAM_AUTHORITY;
+  const asserted = record?.app_metadata?.team_role;
+  if (typeof asserted === 'string' && asserted.trim() !== '') {
+    return { provisioned: true, role: normalizeTeamRole(asserted) };
+  }
+  return { provisioned: true, role: 'viewer' };
+}
+
+/**
+ * The team role of an auth record, or `null` when it is not a provisioned team
+ * account.
+ *
+ * The `null` return is the contract, not an inconvenience: every caller has to
+ * decide what an unprovisioned account means to it, and none of them may decide
+ * it means `viewer`-with-console-access. `resolveTeamAuthority` is the fuller
+ * answer; this is the shorthand for the call sites that only need the role.
  */
 export function resolveTeamRoleFromAuthRecord(
   record: AuthRecordMetadata | null | undefined,
-): TeamRole {
-  const asserted = record?.app_metadata?.team_role;
-  if (typeof asserted === 'string' && asserted.trim() !== '') {
-    return normalizeTeamRole(asserted);
-  }
-  if (isProvisionedTeamAccount(record)) return 'viewer';
-  return normalizeTeamRole(record?.user_metadata?.teamRole);
+): TeamRole | null {
+  return resolveTeamAuthority(record).role;
 }
 
 /**
@@ -164,7 +216,7 @@ export function teamAppMetadata(role: TeamRole): { marq_team: true; team_role: T
 }
 
 export interface TeamAuthorizationFailure {
-  readonly status: 401 | 403 | 400;
+  readonly status: 401 | 403 | 400 | 404;
   readonly code: string;
   readonly message: string;
 }
@@ -173,10 +225,27 @@ export type TeamAuthorizationResult =
   | { readonly ok: true; readonly callerRole: TeamRole }
   | { readonly ok: false; readonly failure: TeamAuthorizationFailure };
 
-/** May this caller administer team membership at all? */
+/**
+ * May this caller administer team membership at all?
+ *
+ * THREE gates now, and the first one is the HIGH-2 fix:
+ *
+ *   1. Authenticated. No caller id, no authority.
+ *   2. A PROVISIONED TEAM ACCOUNT. An authenticated stranger — a client-portal
+ *      account, a self-service signup, anyone holding a valid Supabase token
+ *      for this project — is refused here, before their role is even consulted.
+ *      Previously this gate did not exist: the caller's role was resolved from
+ *      metadata they could write, and a plausible-looking role was the whole
+ *      credential.
+ *   3. An administrative role.
+ *
+ * Gate 2 is reported separately from gate 3 (`NOT_A_TEAM_ACCOUNT` rather than
+ * `FORBIDDEN`) because they are different facts and an operator reading a log
+ * needs to tell "a colleague lacks the rank" from "a stranger tried".
+ */
 export function authorizeTeamAdmin(
   callerId: string | null,
-  callerRole: TeamRole | null,
+  authority: TeamAuthority | null,
 ): TeamAuthorizationResult {
   if (!callerId) {
     return {
@@ -184,6 +253,17 @@ export function authorizeTeamAdmin(
       failure: { status: 401, code: 'UNAUTHORIZED', message: 'Authentication is required.' },
     };
   }
+  if (!authority?.provisioned) {
+    return {
+      ok: false,
+      failure: {
+        status: 403,
+        code: 'NOT_A_TEAM_ACCOUNT',
+        message: 'This account is not a provisioned MARQ team account.',
+      },
+    };
+  }
+  const callerRole = authority.role;
   if (!callerRole || !ADMIN_ROLES.includes(callerRole)) {
     return {
       ok: false,
@@ -195,6 +275,36 @@ export function authorizeTeamAdmin(
     };
   }
   return { ok: true, callerRole };
+}
+
+/**
+ * May this account be the TARGET of a team-management action?
+ *
+ * The mirror of `authorizeTeamAdmin`, and it closes a gap that gate cannot see.
+ * `PATCH` and `DELETE` take a user id from the URL, and an administrator who
+ * names an id that is not a team account would otherwise re-role or DELETE an
+ * arbitrary `auth.users` row — a customer's, for instance. The rank guards do
+ * not catch it: an account with no team role has no rank to compare against.
+ *
+ * `404` rather than `403`: the resource this route addresses is a team member,
+ * and that id is not one. It also declines to tell a caller whether an
+ * arbitrary account exists in the project at all.
+ */
+export function requireTeamAccountTarget(
+  record: AuthRecordMetadata | null | undefined,
+): { readonly ok: true; readonly role: TeamRole } | { readonly ok: false; readonly failure: TeamAuthorizationFailure } {
+  const authority = resolveTeamAuthority(record);
+  if (!authority.provisioned || !authority.role) {
+    return {
+      ok: false,
+      failure: {
+        status: 404,
+        code: 'NOT_A_TEAM_ACCOUNT',
+        message: 'That account is not a provisioned MARQ team account.',
+      },
+    };
+  }
+  return { ok: true, role: authority.role };
 }
 
 export interface RoleAssignmentRequest {

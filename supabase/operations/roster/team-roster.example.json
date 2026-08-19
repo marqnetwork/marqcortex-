@@ -1,0 +1,9 @@
+{
+  "artifact": "marq-internal-roster-2026-08-19",
+  "expectedCount": 3,
+  "roster": [
+    { "user_id": "00000000-0000-0000-0000-000000000000", "team_role": "owner",      "note": "replace with a real auth.users id from Supabase Dashboard -> Authentication -> Users" },
+    { "user_id": "00000000-0000-0000-0000-000000000001", "team_role": "admin",      "note": "one entry per reviewed internal account" },
+    { "user_id": "00000000-0000-0000-0000-000000000002", "team_role": "consultant", "note": "valid roles: viewer, reviewer, analyst, consultant, admin, owner" }
+  ]
+}

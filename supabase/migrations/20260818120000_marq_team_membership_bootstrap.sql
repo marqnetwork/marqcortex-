@@ -76,6 +76,21 @@
 -- produce one row and no error, and the loser inserts no ledger entry because
 -- it returned none.
 --
+-- SHORT ADMISSION IS A FAILURE, NOT A SMALLER SUCCESS (MED-2)
+--
+-- The INSERT below joins each candidate to `public.roles` on the mapped key. A
+-- key missing from the seeded catalog therefore removed its candidates from the
+-- INSERT silently: every `owner` and `admin` on the floor if `org_admin` were
+-- absent, `NOTICE: 0 membership(s) created`, exit code 0, and an operator with
+-- no reason to look. Admitting FEWER people than the roster is not a safe
+-- failure — it is the same broken state (`ORGANIZATION_REQUIRED` for real
+-- staff) that this migration exists to end, arriving quietly.
+--
+-- So the catalog is checked before the write, and after the write every
+-- candidate must be accounted for: either it now holds a membership row, or it
+-- already held one and was deliberately left alone. Anything else raises, and
+-- the transaction takes the ledger and the rows with it.
+--
 -- PROVENANCE
 --
 -- Every row this migration creates is recorded in
@@ -153,6 +168,9 @@ DECLARE
   v_blocked      INTEGER := 0;
   v_inserted     INTEGER := 0;
   v_duplicates   INTEGER := 0;
+  v_unaccounted  INTEGER := 0;
+  v_missing_roles TEXT[];
+  v_unadmitted   TEXT[];
 BEGIN
   -- The advisory lock taken above is still held: it is transaction-scoped and
   -- this is the same transaction. Another copy of this migration, or a console
@@ -214,6 +232,30 @@ BEGIN
     );
 
   SELECT COUNT(*) INTO v_eligible FROM _marq_membership_candidates;
+
+  -- MED-2, before the write: every organization role key this migration can
+  -- emit must exist in the seeded system catalog. The full range is checked,
+  -- not only the keys today's candidates happen to need, because a catalog gap
+  -- is a latent defect whether or not a candidate has walked into it yet.
+  SELECT array_agg(DISTINCT k ORDER BY k) INTO v_missing_roles
+  FROM (
+    SELECT unnest(ARRAY['org_admin', 'team_member', 'team_viewer']) AS k
+    UNION
+    SELECT c.role_key FROM _marq_membership_candidates c
+  ) AS emitted
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.roles r
+    WHERE r.key = emitted.k
+      AND r.scope = 'platform'
+      AND r.is_system = true
+      AND r.organization_id IS NULL
+  );
+
+  IF v_missing_roles IS NOT NULL THEN
+    RAISE EXCEPTION
+      'membership bootstrap aborted: the seeded system role catalog is missing %. Admitting the users that happen to map to the roles that ARE present would silently leave the rest without organization authority.',
+      v_missing_roles;
+  END IF;
 
   -- Reported, not acted on: eligible users this migration will not touch
   -- because a membership decision already exists for them — active, invited,
@@ -282,6 +324,34 @@ BEGIN
   ON CONFLICT (membership_id) DO NOTHING;
 
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+  -- MED-2, after the write: EVERY eligible candidate must now be accounted
+  -- for. "Accounted for" is a row in `organization_memberships` for this
+  -- (organization, user) — the one this run created, or the pre-existing one
+  -- that deliberately blocked it. A candidate with no row at all was dropped by
+  -- the JOIN, and being dropped by a JOIN is exactly the silent short admission
+  -- this assertion exists to refuse.
+  --
+  -- Stated over rows rather than over counters on purpose: a counter identity
+  -- (`eligible = blocked + inserted`) would misfire under the concurrency this
+  -- migration explicitly supports, where a membership created by another
+  -- session lands between the guard and the write. A row that exists is a row
+  -- that exists, whoever wrote it.
+  SELECT COUNT(*), array_agg(c.user_id::TEXT || ' -> ' || c.role_key ORDER BY c.user_id::TEXT)
+    INTO v_unaccounted, v_unadmitted
+  FROM _marq_membership_candidates c
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.organization_memberships m
+    WHERE m.organization_id = v_org_id
+      AND m.user_id = c.user_id
+  );
+
+  IF v_unaccounted > 0 THEN
+    RAISE EXCEPTION
+      'membership bootstrap aborted: % eligible team user(s) were neither admitted nor already decided: %. Nothing has been committed.',
+      v_unaccounted, v_unadmitted;
+  END IF;
 
   -- Post-condition, asserted rather than assumed: the bootstrap must never be
   -- the reason a user holds two live memberships in one organization.

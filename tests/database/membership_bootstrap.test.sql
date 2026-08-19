@@ -190,3 +190,84 @@ BEGIN
 END $$;
 
 ROLLBACK;
+
+-- ---------------------------------------------------------------------------
+-- LIFECYCLE INVARIANTS (added by the Batch 4A remediation)
+--
+-- Read-only, like everything above. These check that the deployment carries the
+-- lifecycle at all, and that its privileges are the ones intended — the two
+-- facts most likely to be wrong on a database where migrations were applied out
+-- of order or a grant was edited by hand.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_missing TEXT[];
+  v_leaked  TEXT[];
+  v_emitted TEXT[];
+BEGIN
+  SELECT array_agg(fn ORDER BY fn) INTO v_missing
+  FROM unnest(ARRAY[
+    'public.marq_sync_team_membership',
+    'public.marq_revoke_team_membership',
+    'cortex.stamp_team_roster',
+    'cortex.unstamp_team_roster',
+    'cortex.organization_role_for_team_role',
+    'cortex.team_roles'
+  ]) AS fn
+  WHERE to_regprocedure(fn || '(' ||
+    CASE fn
+      WHEN 'public.marq_sync_team_membership'         THEN 'uuid,text,uuid'
+      WHEN 'public.marq_revoke_team_membership'       THEN 'uuid,uuid'
+      WHEN 'cortex.stamp_team_roster'                 THEN 'jsonb,integer,text,boolean'
+      WHEN 'cortex.unstamp_team_roster'               THEN 'text,boolean'
+      WHEN 'cortex.organization_role_for_team_role'   THEN 'text'
+      ELSE ''
+    END || ')') IS NULL;
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'the membership lifecycle is not applied here: missing %', v_missing;
+  END IF;
+
+  -- The roster functions mutate auth.users. No role may hold EXECUTE on them.
+  SELECT array_agg(p.proname::TEXT ORDER BY p.proname) INTO v_leaked
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'cortex'
+    AND p.proname IN ('stamp_team_roster', 'unstamp_team_roster')
+    AND (
+      has_function_privilege('anon', p.oid, 'EXECUTE')
+      OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      OR has_function_privilege('service_role', p.oid, 'EXECUTE')
+    );
+
+  IF v_leaked IS NOT NULL THEN
+    RAISE EXCEPTION 'a PostgREST role can execute the roster stamper: %', v_leaked;
+  END IF;
+
+  -- Every organization role the mapping can emit exists in the catalog, and
+  -- none of them is platform_admin (MED-2 and invariant H, on the live schema).
+  SELECT array_agg(DISTINCT k ORDER BY k) INTO v_emitted
+  FROM (
+    SELECT cortex.organization_role_for_team_role(role) AS k
+    FROM unnest(cortex.team_roles()) AS role
+    UNION
+    SELECT cortex.organization_role_for_team_role('__unrecognised__')
+  ) AS emitted;
+
+  IF 'platform_admin' = ANY (v_emitted) THEN
+    RAISE EXCEPTION 'the live role mapping can emit platform_admin';
+  END IF;
+
+  SELECT array_agg(k ORDER BY k) INTO v_missing
+  FROM unnest(v_emitted) AS k
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.roles r
+    WHERE r.key = k AND r.scope = 'platform' AND r.is_system = true AND r.organization_id IS NULL
+  );
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'the seeded system role catalog is missing %', v_missing;
+  END IF;
+
+  RAISE NOTICE 'membership lifecycle live invariants: PASSED (% emittable role key(s))', array_length(v_emitted, 1);
+END $$;

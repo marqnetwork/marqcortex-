@@ -45,14 +45,27 @@ import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
+  isProvisionedTeamAccount,
+  requireTeamAccountTarget,
+  resolveTeamAuthority,
   resolveTeamRoleFromAuthRecord,
   teamAppMetadata,
+  type TeamAuthority,
   type TeamRole,
 } from "./teamAuthorization.ts";
+import {
+  applyTeamRoleChange,
+  completeTeamProvisioning,
+  createRpcMembershipPort,
+  revokeTeamAccount,
+  type RpcClient,
+  type TeamLifecycleDeps,
+} from "./membershipLifecycle.ts";
 import {
   listVerifiedMemberships,
   type MembershipQueryClient,
 } from "./ai/adapters/membershipDirectory.ts";
+import { createMembershipInvalidationSignal } from "./ai/adapters/supabaseAuthenticator.ts";
 import {
   deriveDealSnapshots,
   summarizeSnapshots,
@@ -186,6 +199,15 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+/**
+ * The authoritative MARQ membership write, over the database functions in
+ * migration 20260818130000. Declared here because BOTH the startup admin seed
+ * and the console's team routes need it, and two constructions would be two
+ * chances for one of them to be forgotten — which is how the seeded admin came
+ * to hold trusted `app_metadata` and no membership in the first place.
+ */
+const marqMembershipPort = createRpcMembershipPort(supabaseAdmin as unknown as RpcClient);
+
 // ============================================================================
 // SEED ADMIN USER ON STARTUP (idempotent)
 // ============================================================================
@@ -201,7 +223,7 @@ async function seedAdminUser() {
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
     if (!adminExists) {
-      const { error } = await supabaseAdmin.auth.admin.createUser({
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email: adminEmail,
         password: adminPassword,
         user_metadata: { name: adminName, role: 'team', teamRole: 'admin' },
@@ -215,6 +237,26 @@ async function seedAdminUser() {
         console.log('⚠️ Admin user creation error:', error.message);
       } else {
         console.log(`✅ Admin user created: ${adminEmail}`);
+        // The other half of the account. Without it the seeded admin is exactly
+        // the MED-1 state: trusted app metadata, no membership, and every AI
+        // request failing `ORGANIZATION_REQUIRED` at the first hurdle.
+        //
+        // Non-fatal on purpose. This runs at isolate startup, possibly against a
+        // database whose tenancy migrations have not been applied yet; a server
+        // that refuses to start because a seed could not finish is worse than
+        // one that starts and says so. The bootstrap migration admits this
+        // account on its next run either way.
+        if (data?.user?.id) {
+          try {
+            await marqMembershipPort.sync(data.user.id, 'admin');
+            console.log('✅ Admin user membership synchronised');
+          } catch (membershipError) {
+            console.log(
+              '⚠️ Admin user has no MARQ membership yet:',
+              membershipError instanceof Error ? membershipError.message : String(membershipError),
+            );
+          }
+        }
       }
     } else {
       console.log('✅ Admin user already exists');
@@ -275,7 +317,34 @@ console.log('');
 // HELPER — verify team JWT
 // ============================================================================
 
-async function verifyTeamToken(authHeader: string | null): Promise<string | null> {
+/**
+ * Verify that a request carries a MARQ TEAM member's token.
+ *
+ * HIGH-2 lived here, in the gap between two sentences that sound alike:
+ * "the token is valid" and "the caller is staff". This function used to answer
+ * the first and every console route treated it as the second. Any account in
+ * the Supabase project — a client-portal login, a self-service signup, an
+ * account created for a customer — held a valid token, and the only thing
+ * separating it from the team console was that its `teamRole` came out low. It
+ * could then write `user_metadata.teamRole = 'owner'` on itself through
+ * GoTrue's `PUT /auth/v1/user` and come out high.
+ *
+ * So the gate is now the server-written stamp: `app_metadata.marq_team`, which
+ * only the service role can set. An account without it is not a team member, on
+ * EVERY route that calls this — not only the three named in the finding. There
+ * are forty of them, they all mean "a MARQ operator is asking", and fixing the
+ * named three would have left the rest reachable by the same account.
+ *
+ * THE DEPLOYMENT CONSEQUENCE, STATED PLAINLY: an account provisioned before app
+ * metadata existed is refused until it is stamped. That is the fail-closed side
+ * of removing the `user_metadata` fallback, and the reviewed roster artifact
+ * (`cortex.stamp_team_roster`) is how an operator closes it. See
+ * architecture/database/MEMBERSHIP_BOOTSTRAP.md — the stamping step is a
+ * PREREQUISITE of this deployment, not a follow-up to it.
+ */
+async function resolveTeamCaller(
+  authHeader: string | null,
+): Promise<{ userId: string; authority: TeamAuthority } | null> {
   try {
     if (!authHeader?.startsWith('Bearer ')) {
       console.log('⚠️ verifyTeamToken: No Bearer token found');
@@ -295,8 +364,14 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
       console.log('⚠️ verifyTeamToken: No user found');
       return null;
     }
+    if (!isProvisionedTeamAccount(user)) {
+      // Authenticated, and not staff. Logged at this level because it is the
+      // signature of somebody probing the console with an ordinary account.
+      console.log(`⚠️ verifyTeamToken: ${user.id} is not a provisioned MARQ team account`);
+      return null;
+    }
     console.log('✅ verifyTeamToken: User verified:', user.id);
-    return user.id;
+    return { userId: user.id, authority: resolveTeamAuthority(user) };
   } catch (err) {
     console.error('❌ verifyTeamToken: Exception caught:', err);
     console.error('   Error details:', err?.message);
@@ -304,30 +379,45 @@ async function verifyTeamToken(authHeader: string | null): Promise<string | null
   }
 }
 
+/** The user id of a verified team caller, or `null`. The shape every route
+ *  already expects; the provisioning gate above is what changed underneath. */
+async function verifyTeamToken(authHeader: string | null): Promise<string | null> {
+  return (await resolveTeamCaller(authHeader))?.userId ?? null;
+}
+
 /**
- * Resolve the caller's team role from the auth record.
+ * Resolve the trusted team authority of an account, by id.
  *
- * The role is read from `app_metadata.team_role` when the record carries one,
- * because `app_metadata` is the bag GoTrue refuses to write for a user-scoped
- * call. `user_metadata.teamRole` is the fallback for accounts provisioned before
- * app metadata was written; it is NOT a server-only field, and the routes that
- * consume this still enforce the rank rules in `teamAuthorization.ts` on every
- * assignment for exactly that reason.
+ * `app_metadata` and nothing else — see `resolveTeamAuthority`. An account that
+ * is not stamped resolves to NO authority, not to `viewer`: "least privileged
+ * team member" and "not a team member" are different answers, and only the
+ * second one is true of a stranger.
  *
- * An unreadable or missing role resolves to `viewer`, the least privileged role
- * — a lookup failure must never widen access.
+ * A lookup FAILURE also resolves to no authority. The previous version returned
+ * `viewer` there, which reads as least-privilege and is not: `viewer` is a
+ * console user, and a database hiccup must not manufacture one.
  */
-async function resolveTeamRole(userId: string | null): Promise<TeamRole | null> {
+/**
+ * One auth record, by id, or `null`.
+ *
+ * A missing account and a FAILED LOOKUP are both `null`, and the callers all
+ * treat `null` as "no team authority". The previous version of this helper
+ * returned `viewer` on a lookup failure, which reads as least-privilege and is
+ * not: `viewer` is a console user, and a database hiccup must not manufacture
+ * one.
+ */
+async function readAuthRecord(userId: string | null) {
   if (!userId) return null;
   try {
     const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (error || !data?.user) return 'viewer';
-    return resolveTeamRoleFromAuthRecord(data.user);
+    if (error || !data?.user) return null;
+    return data.user;
   } catch (err) {
-    console.error('resolveTeamRole failed:', err instanceof Error ? err.message : String(err));
-    return 'viewer';
+    console.error('readAuthRecord failed:', err instanceof Error ? err.message : String(err));
+    return null;
   }
 }
+
 
 /**
  * The organization that owns key-value submissions.
@@ -385,7 +475,17 @@ async function resolveSubmissionOwnerOrganizationId(): Promise<string | undefine
 // dependency, which is what keeps it unit-testable end to end.
 // ============================================================================
 
+/**
+ * The channel the membership lifecycle uses to tell the AI authenticator that a
+ * user's memberships just changed. Created here, handed to the control plane
+ * below and to the lifecycle further down, so neither has to know about the
+ * other. Without it a demotion would keep granting the old organization role
+ * for the remainder of the cache TTL (HIGH-1).
+ */
+const membershipInvalidation = createMembershipInvalidationSignal();
+
 const controlPlane = initializeControlPlane({
+  membershipInvalidation,
   getUser: async (accessToken: string) => {
     const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
     if (error || !data?.user) return null;
@@ -394,20 +494,22 @@ const controlPlane = initializeControlPlane({
     // (analysis, block assist, copilot plan, section copilot) were denied to
     // every real user while appearing to be authorized.
     //
-    // `resolveTeamRoleFromAuthRecord` prefers `app_metadata.team_role`, which
-    // only the service role can write. `user_metadata.teamRole` is still read
-    // when an account carries no app-metadata role — the state of every account
-    // provisioned before this change — and that is a deliberate, bounded
-    // fallback, not a claim that the field is trustworthy. It is not: GoTrue's
-    // `PUT /auth/v1/user` lets an account holder write their own
-    // `user_metadata`. What the fallback can reach is the team-role capability
-    // grant it already reached yesterday. It can no longer establish
-    // organization membership, which is decided by `listMemberships` from
-    // `organization_memberships` alone.
+    // `resolveTeamRoleFromAuthRecord` reads `app_metadata` and nothing else. An
+    // account that is not a provisioned team account resolves to NO role, which
+    // is the HIGH-2 fix reaching the AI path: the `user_metadata.teamRole`
+    // fallback that used to stand in here is gone, so writing
+    // `{"teamRole":"owner"}` on your own account grants no capability at all.
+    //
+    // An unprovisioned account is still returned rather than rejected — the
+    // control plane's own auth failure is a different answer, and this port's
+    // job is to describe the subject. With no role and no membership, such a
+    // subject holds only the team baseline and then fails closed at
+    // `resolveOrganization` for want of a verified organization.
+    const teamRole = resolveTeamRoleFromAuthRecord(data.user);
     return {
       id: data.user.id,
       email: data.user.email ?? undefined,
-      roles: [resolveTeamRoleFromAuthRecord(data.user)],
+      roles: teamRole ? [teamRole] : [],
     };
   },
   listMemberships: async (userId: string) => {
@@ -680,10 +782,21 @@ async function getTeamEmail(): Promise<string> {
   try {
     const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
     if (users && users.length > 0) {
-      // Prefer admins, fall back to any team user
-      const admin = users.find(u => u.user_metadata?.role === 'team' && u.user_metadata?.teamRole === 'admin');
+      // Prefer admins, fall back to any team user.
+      //
+      // Read through the trusted stamp, not `user_metadata`. This is not an
+      // authorization decision, but it decides who RECEIVES internal
+      // notification mail — and under the old predicate any account holder who
+      // wrote `{"role":"team","teamRole":"admin"}` on themselves could become
+      // that recipient. Self-service is self-service whether the prize is
+      // authority or a copy of every submission notice.
+      const teamAccounts = users.filter(u => isProvisionedTeamAccount(u));
+      const admin = teamAccounts.find(u => {
+        const role = resolveTeamRoleFromAuthRecord(u);
+        return role === 'admin' || role === 'owner';
+      });
       if (admin?.email) return admin.email;
-      const anyTeam = users.find(u => u.user_metadata?.role === 'team');
+      const anyTeam = teamAccounts.find(u => !!u.email);
       if (anyTeam?.email) return anyTeam.email;
       // Fall back to first user with an email
       const firstWithEmail = users.find(u => !!u.email);
@@ -988,6 +1101,23 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
+    // The front door of the team console, gated on the same trusted stamp every
+    // route behind it uses. Credentials for ANY account in this Supabase project
+    // used to produce a session labelled "team": a client-portal login, a
+    // self-service signup, anyone at all. Every console route now refuses that
+    // token, so the escalation is already closed — but a login that succeeds and
+    // is then refused everywhere tells the caller nothing, and tells an operator
+    // reading the logs even less.
+    //
+    // The message is deliberately the same as a wrong password: whether a given
+    // address is internal staff is not something an unauthenticated caller needs
+    // to learn from us.
+    const authority = resolveTeamAuthority(data.user);
+    if (!authority.provisioned) {
+      console.log(`Team login refused: ${data.user?.id} is not a provisioned MARQ team account`);
+      return c.json({ error: "Invalid email or password" }, 401);
+    }
+
     return c.json({
       success: true,
       accessToken: data.session.access_token,
@@ -995,6 +1125,7 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
         id: data.user?.id,
         email: data.user?.email,
         name: data.user?.user_metadata?.name || 'Team Member',
+        teamRole: authority.role,
       },
     });
   } catch (err) {
@@ -2944,7 +3075,43 @@ app.post("/make-server-324f4fbe/client/submission/:id/proposal/respond", async (
 
 // ============================================================================
 // TEAM MANAGEMENT
+//
+// THE MEMBERSHIP LIFECYCLE IS PART OF EVERY WRITE HERE.
+//
+// A MARQ team account is two facts: the trusted `app_metadata` on the auth
+// record, and the row in `public.organization_memberships`. These routes used
+// to write the first and never the second, which is HIGH-1 (a demotion left the
+// membership at `org_admin`, so `ai.agent.execute` survived it) and MED-1 (an
+// invite created an account with no membership, so every new hire failed
+// `ORGANIZATION_REQUIRED`).
+//
+// `membershipLifecycle.ts` owns the ordering, the compensations and the
+// failures; the routes below decide WHO may act and hand it the decision. The
+// membership write itself is a single database function that resolves the
+// organization and the role internally — nothing from a request body reaches it
+// but a user id and a validated team role.
 // ============================================================================
+
+const teamLifecycle: TeamLifecycleDeps = {
+  membership: marqMembershipPort,
+  account: {
+    async writeTeamRole(userId: string, role: TeamRole) {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        app_metadata: teamAppMetadata(role),
+        // The display mirror. Kept in step so the console never shows a role
+        // the platform is not enforcing, and authoritative for nothing.
+        user_metadata: { role: 'team', teamRole: role },
+      });
+      if (error) throw new Error(error.message);
+    },
+    async removeAccount(userId: string) {
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (error) throw new Error(error.message);
+    },
+  },
+  invalidate: (userId: string) => membershipInvalidation.invalidate(userId),
+  log: (message: string) => console.log(message),
+};
 
 // GET /team/members  — list all team members
 app.get("/make-server-324f4fbe/team/members", async (c) => {
@@ -2956,19 +3123,28 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
     const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
     if (error) throw error;
 
-    const teamUsers = (users || []).filter(u => u.user_metadata?.role === 'team');
+    // Provisioned accounts only. The previous filter was
+    // `u.user_metadata?.role === 'team'` — a field the account holder writes
+    // through GoTrue's `PUT /auth/v1/user`, so any customer could put THEMSELVES
+    // and their email address on the console's team roster by editing their own
+    // metadata. It grants nothing, and appearing on an administrative list you
+    // are not on is still not nothing.
+    //
+    // Accounts that predate the stamp are reviewed where the roster is reviewed
+    // — Supabase Dashboard -> Authentication -> Users — which is a list nobody
+    // can add themselves to. See architecture/database/MEMBERSHIP_BOOTSTRAP.md.
+    const teamUsers = (users || []).filter(u => isProvisionedTeamAccount(u));
 
     const members = teamUsers.map(u => {
       const meta = u.user_metadata || {};
+      const authority = resolveTeamAuthority(u);
       return {
         id:          u.id,
         email:       u.email || '',
         name:        meta.name || u.email?.split('@')[0] || 'Unknown',
-        // A missing role reads as the LEAST privileged, never as admin: a data
-        // gap must not present itself to the console as full access. Read
-        // through the same authority the routes enforce with, so the list shows
-        // the role that is actually in force rather than a stale mirror.
-        teamRole:    resolveTeamRoleFromAuthRecord(u),
+        // The role actually in force, read from the trusted field rather than
+        // the display mirror, so the console shows what is enforced.
+        teamRole:    authority.role,
         status:      'active',
         joinedDate:  u.created_at,
         lastActive:  u.last_sign_in_at || null,
@@ -2986,9 +3162,9 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
 // POST /team/invite  — create a new team member
 app.post("/make-server-324f4fbe/team/invite", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    const callerRole = await resolveTeamRole(callerId);
-    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    const caller = await resolveTeamCaller(c.req.header('Authorization'));
+    const callerId = caller?.userId ?? null;
+    const adminCheck = authorizeTeamAdmin(callerId, caller?.authority ?? null);
     if (!adminCheck.ok) {
       return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
     }
@@ -3029,17 +3205,36 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
       throw error;
     }
 
+    // MED-1. The account now exists with trusted `app_metadata` and no
+    // membership — the exact half-provisioned state the finding names. The
+    // lifecycle closes it in the same request, and if it cannot, it removes the
+    // account and this route reports a failure. An operator retrying an invite
+    // is a better outcome than a colleague who can log in and do nothing.
+    const provisioning = await completeTeamProvisioning(teamLifecycle, {
+      userId: data.user.id,
+      role: assignment.role,
+    });
+    if (!provisioning.ok) {
+      console.log(`Invite failed after account creation: ${provisioning.failure.diagnostics}`);
+      return c.json(
+        { error: provisioning.failure.message, code: provisioning.failure.code },
+        provisioning.failure.status,
+      );
+    }
+
     // Get caller info for audit trail
-    const { data: { user: caller } } = await supabaseAdmin.auth.admin.getUserById(callerId);
+    const { data: { user: callerRecord } } = await supabaseAdmin.auth.admin.getUserById(callerId);
 
     const member = {
-      id:          data.user.id,
-      email:       data.user.email,
+      id:            data.user.id,
+      email:         data.user.email,
       name,
-      teamRole:    assignment.role,
-      status:      'active',
-      joinedDate:  new Date().toISOString(),
-      invitedBy:   caller?.email || 'admin',
+      teamRole:      assignment.role,
+      status:        'active',
+      joinedDate:    new Date().toISOString(),
+      invitedBy:     callerRecord?.email || 'admin',
+      organizationId: provisioning.value.organizationId,
+      organizationRole: provisioning.value.roleKey,
     };
 
     // The temporary password is returned to the inviting admin once; it is not
@@ -3058,9 +3253,9 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
 // PATCH /team/members/:id  — update role or name
 app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    const callerRole = await resolveTeamRole(callerId);
-    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    const caller = await resolveTeamCaller(c.req.header('Authorization'));
+    const callerId = caller?.userId ?? null;
+    const adminCheck = authorizeTeamAdmin(callerId, caller?.authority ?? null);
     if (!adminCheck.ok) {
       return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
     }
@@ -3068,44 +3263,77 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
     const memberId = c.req.param('id');
     const updates = await c.req.json();   // { name?, teamRole? }
 
+    // The target must itself be a provisioned team account. Re-roling somebody
+    // who is not one would stamp them into the team as a side effect of an edit
+    // — an invite by another name, without the invite's checks.
+    const target = requireTeamAccountTarget(await readAuthRecord(memberId));
+    if (!target.ok) {
+      return c.json({ error: target.failure.message, code: target.failure.code }, target.failure.status);
+    }
+
     // Preserve the existing role by default. Reading it first is also what makes
     // the rank comparison possible: promoting somebody who already outranks the
     // caller is the same escalation seen from the other end.
-    const targetCurrentRole = await resolveTeamRole(memberId);
-    const meta: Record<string, any> = { role: 'team' };
-    if (updates.name) meta.name = updates.name;
+    const targetCurrentRole = target.role;
 
-    let appliedRole = targetCurrentRole ?? 'viewer';
+    let appliedRole: TeamRole = targetCurrentRole;
     if (updates.teamRole !== undefined) {
       const assignment = authorizeRoleAssignment({
         callerId: callerId as string,
         callerRole: adminCheck.callerRole,
         targetId: memberId,
         requestedRole: updates.teamRole,
-        targetCurrentRole: targetCurrentRole ?? undefined,
+        targetCurrentRole,
       });
       if (!assignment.ok) {
         return c.json({ error: assignment.failure.message, code: assignment.failure.code }, assignment.failure.status);
       }
       appliedRole = assignment.role;
     }
-    meta.teamRole = appliedRole;
 
-    // Both bags move together. If only `user_metadata` were updated, a demotion
-    // would leave the authoritative `app_metadata.team_role` at the old, higher
-    // value and `resolveTeamRole` would keep returning it.
-    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(memberId, {
-      user_metadata: meta,
-      app_metadata: teamAppMetadata(appliedRole),
+    // HIGH-1. The role change moves BOTH systems or it is not applied. The
+    // lifecycle decides the order — membership first on a demotion, so a
+    // failure half-way through has already revoked rather than half-granted —
+    // and compensates whichever side landed if the other cannot.
+    const change = await applyTeamRoleChange(teamLifecycle, {
+      userId: memberId,
+      previousRole: targetCurrentRole,
+      nextRole: appliedRole,
     });
-    if (error) throw error;
+    if (!change.ok) {
+      console.log(`Role change failed for ${memberId}: ${change.failure.diagnostics}`);
+      return c.json(
+        { error: change.failure.message, code: change.failure.code },
+        change.failure.status,
+      );
+    }
 
-    console.log(`Team member ${memberId} updated by ${callerId} to role ${appliedRole}`);
+    // The display name is not authority and is not part of the two-system
+    // change above, so it is written after it and its failure is reported
+    // without unwinding a role change that has already taken effect.
+    if (updates.name) {
+      const { error: nameError } = await supabaseAdmin.auth.admin.updateUserById(memberId, {
+        user_metadata: { role: 'team', teamRole: appliedRole, name: updates.name },
+      });
+      if (nameError) {
+        console.log(`Team member ${memberId} was re-roled but not renamed: ${nameError.message}`);
+      }
+    }
+
+    const { data: refreshed } = await supabaseAdmin.auth.admin.getUserById(memberId);
+
+    console.log(
+      `Team member ${memberId} updated by ${callerId} to role ${appliedRole} ` +
+      `(membership ${change.value.action} -> ${change.value.roleKey})`,
+    );
     return c.json({ success: true, member: {
-      id:       data.user.id,
-      email:    data.user.email,
-      name:     data.user.user_metadata?.name,
-      teamRole: data.user.user_metadata?.teamRole,
+      id:               memberId,
+      email:            refreshed?.user?.email,
+      name:             refreshed?.user?.user_metadata?.name,
+      // Read back through the trusted field, never the display mirror: the
+      // console must show what is enforced.
+      teamRole:         resolveTeamRoleFromAuthRecord(refreshed?.user),
+      organizationRole: change.value.roleKey,
     }});
   } catch (err) {
     console.log('Update team member error:', err);
@@ -3116,30 +3344,50 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
 // DELETE /team/members/:id  — remove a team member
 app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
   try {
-    const callerId = await verifyTeamToken(c.req.header('Authorization'));
-    const callerRole = await resolveTeamRole(callerId);
-    const adminCheck = authorizeTeamAdmin(callerId, callerRole);
+    const caller = await resolveTeamCaller(c.req.header('Authorization'));
+    const callerId = caller?.userId ?? null;
+    const adminCheck = authorizeTeamAdmin(callerId, caller?.authority ?? null);
     if (!adminCheck.ok) {
       return c.json({ error: adminCheck.failure.message, code: adminCheck.failure.code }, adminCheck.failure.status);
     }
 
     const memberId = c.req.param('id');
+
+    // The target must be a provisioned team account. Without this the route
+    // deletes any `auth.users` row whose id an administrator can name —
+    // including a CUSTOMER's — and the rank guard below does not catch it,
+    // because an account with no team role has no rank to compare.
+    const target = requireTeamAccountTarget(await readAuthRecord(memberId));
+    if (!target.ok) {
+      return c.json({ error: target.failure.message, code: target.failure.code }, target.failure.status);
+    }
+
     const removal = authorizeMemberRemoval({
       callerId: callerId as string,
       callerRole: adminCheck.callerRole,
+      targetCurrentRole: target.role,
       targetId: memberId,
-      targetCurrentRole: (await resolveTeamRole(memberId)) ?? undefined,
     });
     if (!removal.ok) {
       return c.json({ error: removal.failure.message, code: removal.failure.code }, removal.failure.status);
     }
 
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(memberId);
-    if (error) throw error;
+    // Membership first, then the account. If the account delete then fails the
+    // person has already lost their organization authority — the reverse order
+    // can leave a live membership behind, and `organization_memberships`
+    // cascades only on a HARD `auth.users` delete.
+    const revocation = await revokeTeamAccount(teamLifecycle, { userId: memberId });
+    if (!revocation.ok) {
+      console.log(`Removal failed for ${memberId}: ${revocation.failure.diagnostics}`);
+      return c.json(
+        { error: revocation.failure.message, code: revocation.failure.code },
+        revocation.failure.status,
+      );
+    }
 
     await kv.del(`team:member:${memberId}`);
 
-    console.log(`Team member ${memberId} removed by ${callerId}`);
+    console.log(`Team member ${memberId} removed by ${callerId} (${revocation.value.revoked} membership revoked)`);
     return c.json({ success: true });
   } catch (err) {
     console.log('Remove team member error:', err);
