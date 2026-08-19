@@ -550,7 +550,11 @@ export function createWorkflowRuntimeService(
     requestId: string;
     correlationId: string;
   }> {
-    const subject = await deps.authenticator.authenticate(meta.authorization);
+    // Authoritative: a workflow drives agent steps, so it resolves authority
+    // the same way an agent run does rather than from a cached snapshot (M-A).
+    const subject = await deps.authenticator.authenticate(meta.authorization, {
+      privileged: true,
+    });
     // The organization is resolved BEFORE agent capabilities, because the agent
     // grant depends on the membership for that organization — resolving them in
     // the other order would grant against whichever membership came first.

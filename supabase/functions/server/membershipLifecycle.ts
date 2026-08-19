@@ -13,6 +13,12 @@
  *           `role_id`, `ROLE_CAPABILITIES.org_admin` kept granting
  *           `ai.agent.execute`, and the demotion revoked nothing that mattered.
  *
+ *   H-A     The first fix for HIGH-1 wrote the membership first and left the
+ *           old `app_metadata` team role standing when the second write failed.
+ *           `admin` grants `ai.agent.execute` on its own, so a partial demotion
+ *           still revoked nothing. See ORDERING below, and `authorityFloor` in
+ *           `ai/security/actor.ts`.
+ *
  *   MED-1   `POST /team/invite` created an account with trusted `app_metadata`
  *           and no membership at all. Every new hire authenticated
  *           successfully and then failed `ORGANIZATION_REQUIRED` at
@@ -37,19 +43,41 @@
  * Two systems cannot be written atomically, so the order is chosen to make the
  * only reachable partial state the safe one:
  *
- *   DEMOTION (the new role ranks lower) — membership FIRST. If the second write
- *   fails, the account has already lost the organization capability and still
- *   holds the old team role, which is strictly less than it had. Revocation
- *   that half-completes must still revoke.
+ *   DEMOTION (the new role ranks lower) — the trusted `app_metadata` team role
+ *   FIRST, then the authority caches, then the membership. `app_metadata` is
+ *   the account's HIGHEST authority: it is what the console's own admin routes
+ *   read, and it is re-read from the auth service on every single request, in
+ *   every isolate, with no cache in front of it. Lowering it first therefore
+ *   takes effect everywhere at once. If the membership write then fails, the
+ *   account is left with the LOWER team role and a stale membership row, and
+ *   `authorityFloor` in `ai/security/actor.ts` grants no more than the lower of
+ *   the two — so the stale row grants nothing.
  *
- *   PROMOTION or a lateral move — `app_metadata` first. Either order grants
- *   something before the other lands, and this is a grant an administrator has
- *   already authorised; the ordering rule that matters is the demotion one.
+ *   PROMOTION or a lateral move — `app_metadata` first as well, and for the
+ *   mirror-image reason: the floor means the higher role does not take effect
+ *   until BOTH systems carry it, so a half-finished promotion grants nothing
+ *   either. The compensating revert still runs, because leaving a promotion
+ *   half-applied is a mess even when it is a safe one.
  *
- * In both directions a failed second write triggers a compensating revert of
- * the first, and a failed compensation is reported as an inconsistency rather
- * than swallowed. The route returns a failure in every one of those cases: a
- * role change that did not fully apply must not answer `200`.
+ * THE ORDER WAS THE OTHER WAY ROUND, AND THAT WAS FINDING H-A. Membership was
+ * written first on a demotion, on the reasoning that the account would "still
+ * hold the old team role, which is strictly less than it had". It was not less:
+ * the old team role was `admin`, `ROLE_CAPABILITIES.admin` grants
+ * `ai.agent.execute` on its own, and the union of the two role sources meant a
+ * failed second write left every capability the demotion was meant to remove.
+ * The test over it asserted only that the `org_admin` LABEL was gone.
+ *
+ * Ordering alone would not have closed it either — reversed, the stale
+ * `org_admin` membership row would have granted the same capability from the
+ * other side. The floor is what makes a partial demotion revoke; the order is
+ * what makes it revoke IMMEDIATELY, in every isolate, without waiting for a
+ * membership read.
+ *
+ * A failed second write is reported as an inconsistency rather than swallowed,
+ * and on a demotion the first write is NEVER compensated: putting the higher
+ * team role back would restore precisely the authority an administrator just
+ * revoked. The route returns a failure in every one of those cases: a role
+ * change that did not fully apply must not answer `200`.
  *
  * NO SECOND ROLE MAPPING
  *
@@ -71,7 +99,35 @@ import {
 // Results and ports
 // ---------------------------------------------------------------------------
 
-export type MembershipAction = 'created' | 'role_changed' | 'unchanged' | 'reactivated';
+/**
+ * What the membership write actually did.
+ *
+ * Every value here is something `marq_sync_team_membership` can DISTINGUISH,
+ * which is the correction finding L4 asked for. The union used to carry
+ * `reactivated`, which the function has never been able to return: a
+ * soft-deleted membership is a tombstone this lifecycle does not revive, so a
+ * user with one and no live row gets a NEW row — `created`, not `reactivated`.
+ * A value no code path can produce is not a report, it is a claim.
+ *
+ *   created      no live row existed and this call inserted one.
+ *   role_changed a live row existed carrying a different role, and now carries
+ *                the mapped one.
+ *   unchanged    a live row already carried the mapped role. Nothing written.
+ *   reconciled   no live row existed when this call looked, another writer
+ *                created one first, and this call set it to the mapped role.
+ *                Reported distinctly rather than folded into `created` or
+ *                `role_changed`, because the prior role is genuinely unknown to
+ *                this session and guessing it would be the same defect in a
+ *                narrower place.
+ */
+export type MembershipAction = 'created' | 'role_changed' | 'unchanged' | 'reconciled';
+
+export const MEMBERSHIP_ACTIONS: ReadonlySet<string> = new Set<MembershipAction>([
+  'created',
+  'role_changed',
+  'unchanged',
+  'reconciled',
+]);
 
 export interface MembershipSyncResult {
   readonly organizationId: string;
@@ -111,9 +167,15 @@ export interface TeamLifecycleDeps {
   readonly membership: MembershipLifecyclePort;
   readonly account: TeamAccountPort;
   /**
-   * Drop this user from the authenticator's membership cache. Without it a
-   * demotion takes up to the cache TTL to reach the AI path, and "immediately"
-   * would be a claim the code does not make.
+   * Drop this user from the authenticator's membership cache IN THIS ISOLATE.
+   *
+   * An optimisation, not the revocation mechanism. A signal cannot reach
+   * another isolate, so correctness across isolates comes from two properties
+   * that hold without it: `app_metadata` is re-read from the auth service on
+   * every request, and any privileged capability resolves memberships from the
+   * database rather than from a snapshot (`PRIVILEGED_CAPABILITIES`). This just
+   * saves the isolate that performed the write from serving an answer it
+   * already knows is stale.
    */
   readonly invalidate?: (userId: string) => void;
   readonly log?: (message: string) => void;
@@ -237,32 +299,45 @@ export async function applyTeamRoleChange(
   const writeAccount = async () => deps.account.writeTeamRole(input.userId, nextRole);
 
   if (isDemotion) {
-    // Membership first: the capability is gone before anything else can fail.
-    let membership: MembershipSyncResult;
+    // 1. The highest authority falls first. `app_metadata` is uncached and
+    //    re-read on every request, so this lands everywhere at once.
     try {
-      membership = await writeMembership();
+      await writeAccount();
     } catch (error) {
+      // Nothing was written. The member keeps the role they had, in both
+      // systems, and the administrator retries.
       return {
         ok: false,
         failure: {
           status: 500,
           code: 'MEMBERSHIP_SYNC_FAILED',
           message: 'The role change was not applied. The member keeps their previous role.',
-          diagnostics: `user=${input.userId} ${previousRole}->${nextRole} stage=membership cause=${detail(error)}`,
+          diagnostics: `user=${input.userId} ${previousRole}->${nextRole} stage=app_metadata cause=${detail(error)}`,
         },
       };
     }
+
+    // 2. Drop the authority snapshots this isolate holds. Other isolates do not
+    //    need telling: they re-read `app_metadata` on the next request, and
+    //    they resolve memberships authoritatively for any privileged capability.
     deps.invalidate?.(input.userId);
 
+    // 3. The membership follows.
+    let membership: MembershipSyncResult;
     try {
-      await writeAccount();
+      membership = await writeMembership();
     } catch (error) {
-      // The membership is already at the LOWER role, so the account holds less
-      // than it did, not more. Restoring the old membership would re-grant what
-      // the administrator just revoked, so this compensation deliberately does
-      // not run — the state is reported instead.
+      // The team role is already DOWN and the membership row is stale HIGH.
+      // The floor grants the lower of the two, so the stale row confers
+      // nothing — the account already holds no more than its new role.
+      //
+      // Restoring the old team role as compensation would undo the revocation
+      // the administrator asked for, so it deliberately does not run. The
+      // inconsistency is named instead, and the route reports a failure.
       deps.log?.(
-        `[membership] partial demotion for ${input.userId}: membership is ${nextRole}, app_metadata is still ${previousRole} (${detail(error)})`,
+        `[membership] partial demotion for ${input.userId}: app_metadata is ${nextRole}, ` +
+        `the membership row is still the ${previousRole} mapping (${detail(error)}). ` +
+        'Authority is already reduced to the lower of the two; re-run the change to reconcile the row.',
       );
       return {
         ok: false,
@@ -270,10 +345,12 @@ export async function applyTeamRoleChange(
           status: 500,
           code: 'MEMBERSHIP_INCONSISTENT',
           message:
-            'The organization capability was revoked but the team role could not be updated. Retry the change.',
+            'The team role was lowered and takes effect now, but the organization membership row ' +
+            'still carries the old role. No elevated access remains. Retry the change to reconcile it.',
           diagnostics:
-            `user=${input.userId} ${previousRole}->${nextRole} stage=app_metadata ` +
-            `membership=${membership.roleKey} cause=${detail(error)}`,
+            `user=${input.userId} ${previousRole}->${nextRole} stage=membership ` +
+            `app_metadata=${nextRole} membership=${organizationRoleForTeamRole(previousRole)} ` +
+            `effective=${nextRole} cause=${detail(error)}`,
         },
       };
     }
@@ -342,12 +419,30 @@ export async function applyTeamRoleChange(
 /**
  * Remove a team account.
  *
- * The membership is revoked FIRST, and that ordering is the whole point: if the
- * account deletion then fails, the person has already lost their organization
- * authority. The reverse order can leave a live membership behind — and while
- * `organization_memberships.user_id` cascades on a hard `auth.users` delete, a
- * soft delete (`deleteUser(id, true)`) does not cascade, and nothing in this
- * code should depend on which of the two the auth provider performed.
+ * THE ACCOUNT GOES FIRST, and it goes first for the reason a demotion lowers
+ * `app_metadata` first: removal is the maximal demotion, and the highest
+ * authority has to fall first.
+ *
+ * This order was the other way round, and the reasoning was the same one that
+ * produced H-A — "revoke the membership first, so a failed second write has
+ * already revoked". It had the same flaw. Revoking the membership takes the
+ * organization capability away and leaves `app_metadata.marq_team` and
+ * `team_role: 'admin'` standing, and those are what `verifyTeamToken` and
+ * `authorizeTeamAdmin` read. A removal that got half-way through left somebody
+ * who had just been removed still able to invite, re-role and delete their
+ * former colleagues through the console.
+ *
+ * Deleting the account first cannot leave authority behind in either system,
+ * because both of them require the caller to authenticate and a deleted account
+ * cannot. If the revocation then fails, what is left is a membership row for an
+ * account that no longer exists — a tidiness problem with no authority attached,
+ * reported as an inconsistency and listed by
+ * `cortex.orphaned_team_accounts()`'s companion in the L2 runbook.
+ *
+ * (A hard `auth.users` delete cascades `organization_memberships.user_id`
+ * anyway, so the row is usually gone before the revocation runs. The revocation
+ * is kept because nothing here should depend on whether the auth provider
+ * performed a hard delete or a soft one.)
  *
  * Revocation is idempotent. A member who never had a row revokes zero rows and
  * that is a success, not a failure — the route must still be able to remove
@@ -357,36 +452,41 @@ export async function revokeTeamAccount(
   deps: TeamLifecycleDeps,
   input: { readonly userId: string },
 ): Promise<LifecycleResult<MembershipRevokeResult>> {
-  let revocation: MembershipRevokeResult;
   try {
-    revocation = await deps.membership.revoke(input.userId);
+    await deps.account.removeAccount(input.userId);
   } catch (error) {
+    // Nothing was written. The member keeps everything, in both systems, and
+    // the operator retries — which is the honest outcome and the safe one.
     return {
       ok: false,
       failure: {
         status: 500,
         code: 'MEMBERSHIP_REVOCATION_FAILED',
-        message: 'The member was not removed: their organization membership could not be revoked.',
-        diagnostics: `user=${input.userId} cause=${detail(error)}`,
+        message: 'The member was not removed: their account could not be deleted.',
+        diagnostics: `user=${input.userId} stage=account cause=${detail(error)}`,
       },
     };
   }
   deps.invalidate?.(input.userId);
 
+  let revocation: MembershipRevokeResult;
   try {
-    await deps.account.removeAccount(input.userId);
+    revocation = await deps.membership.revoke(input.userId);
   } catch (error) {
     deps.log?.(
-      `[membership] ${input.userId} lost its MARQ membership but the account could not be deleted (${detail(error)})`,
+      `[membership] ${input.userId} was deleted but its MARQ membership row could not be revoked ` +
+      `(${detail(error)}). No authority remains — the account cannot authenticate — but the row ` +
+      'is orphaned. Revoke it with public.marq_revoke_team_membership.',
     );
     return {
       ok: false,
       failure: {
         status: 500,
-        code: 'MEMBERSHIP_REVOCATION_FAILED',
+        code: 'MEMBERSHIP_INCONSISTENT',
         message:
-          'The organization membership was revoked but the account could not be deleted. Retry the removal.',
-        diagnostics: `user=${input.userId} stage=account cause=${detail(error)}`,
+          'The account was deleted and can no longer sign in, but its organization membership row ' +
+          'could not be revoked. No access remains. It requires operator attention.',
+        diagnostics: `user=${input.userId} stage=membership cause=${detail(error)}`,
       },
     };
   }
@@ -456,11 +556,23 @@ export function createRpcMembershipPort(client: RpcClient): MembershipLifecycleP
           `${SYNC_MEMBERSHIP_FUNCTION} mapped ${teamRole} to ${roleKey}, expected ${organizationRoleForTeamRole(teamRole)}`,
         );
       }
+      // L4. The action is what the database says it did, and it is checked
+      // rather than cast. `String(x ?? 'unchanged')` reported `unchanged` for a
+      // missing field and passed any other string through as if it were one of
+      // ours — so a console reading a database it does not understand would
+      // have printed the misunderstanding as fact.
+      const action = record.action;
+      if (typeof action !== 'string' || !MEMBERSHIP_ACTIONS.has(action)) {
+        throw new Error(
+          `${SYNC_MEMBERSHIP_FUNCTION} reported the unknown action ${JSON.stringify(action)}`,
+        );
+      }
+
       return {
         organizationId: requireString(record, 'organization_id', SYNC_MEMBERSHIP_FUNCTION),
         membershipId: requireString(record, 'membership_id', SYNC_MEMBERSHIP_FUNCTION),
         roleKey: roleKey as OrganizationRoleKey,
-        action: String(record.action ?? 'unchanged') as MembershipAction,
+        action: action as MembershipAction,
       };
     },
 

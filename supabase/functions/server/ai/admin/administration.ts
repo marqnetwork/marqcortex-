@@ -718,7 +718,10 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     trail,
 
     async authorize(authorization, meta) {
-      const subject = await authenticator.authenticate(authorization);
+      // Always authoritative. Every decision this surface makes is a privileged
+      // one, and an administrator whose organization membership was revoked in
+      // another isolate must not be admitted here from a cached snapshot (M-A).
+      const subject = await authenticator.authenticate(authorization, { privileged: true });
       try {
         return resolveAdminActor(subject);
       } catch (error) {

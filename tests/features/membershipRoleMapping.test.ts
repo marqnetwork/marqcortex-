@@ -44,7 +44,13 @@ import {
   type TeamRole,
 } from '../../supabase/functions/server/teamAuthorization.ts';
 import { LEGACY_TEAM_ROLE_MAP } from '../../src/types/database.types.ts';
-import { ROLE_CAPABILITIES, capabilitiesForRoles } from '../../supabase/functions/server/ai/security/actor.ts';
+import {
+  AUTHORITY_LADDER,
+  MEMBERSHIP_AUTHORITY_CEILING,
+  PRIVILEGED_CAPABILITIES,
+  ROLE_CAPABILITIES,
+  capabilitiesForRoles,
+} from '../../supabase/functions/server/ai/security/actor.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const migration = readFileSync(
@@ -331,3 +337,194 @@ describe('the eligibility authority is app metadata', () => {
     assert.deepEqual(teamAppMetadata('consultant'), { marq_team: true, team_role: 'consultant' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// The AI control plane's copy of the ladder (H-A)
+//
+// `AUTHORITY_LADDER` in `ai/security/actor.ts` is a deliberate copy of
+// `TEAM_ROLES`: the AI control plane takes no import from the console's server
+// modules, which is what keeps `ai/` runnable and testable on its own. A
+// deliberate copy still needs a test that fails when it drifts, and the whole
+// authority floor is decided by that ordering — a ladder one entry out of step
+// would floor a demotion to the wrong role.
+// ---------------------------------------------------------------------------
+
+describe('the AI authority ladder agrees with the console vocabulary', () => {
+  it('is the same roles in the same order', () => {
+    assert.deepEqual(
+      [...AUTHORITY_LADDER],
+      [...TEAM_ROLES],
+      'AUTHORITY_LADDER in ai/security/actor.ts must mirror TEAM_ROLES exactly, order included',
+    );
+  });
+
+  it('gives every organization role key a ceiling on that ladder', () => {
+    assert.deepEqual(
+      Object.keys(MEMBERSHIP_AUTHORITY_CEILING).sort(),
+      [...ORGANIZATION_ROLE_KEYS].sort(),
+      'every seeded organization role key needs a ceiling, or a membership carrying it floors to viewer',
+    );
+  });
+
+  it("each ceiling is the highest team role that maps to that key", () => {
+    // Derived from the definition rather than restated, so the two cannot be
+    // wrong together.
+    const highestFor = new Map<string, TeamRole>();
+    for (const role of TEAM_ROLES) {
+      const key = TEAM_ROLE_TO_ORGANIZATION_ROLE[role];
+      const current = highestFor.get(key);
+      if (current === undefined || TEAM_ROLES.indexOf(role) > TEAM_ROLES.indexOf(current)) {
+        highestFor.set(key, role);
+      }
+    }
+    for (const key of ORGANIZATION_ROLE_KEYS) {
+      assert.equal(
+        MEMBERSHIP_AUTHORITY_CEILING[key],
+        highestFor.get(key),
+        `${key}'s ceiling must be the most privileged team role that maps to it`,
+      );
+    }
+  });
+
+  it('a membership never grants above the team role that produced it', () => {
+    // The property the floor depends on being a no-op in a CONSISTENT state:
+    // if this ever stopped holding, flooring would start removing capabilities
+    // from working accounts instead of only from disagreeing ones.
+    for (const role of TEAM_ROLES) {
+      const fromTeamRole = new Set(capabilitiesForRoles([role]));
+      for (const capability of capabilitiesForRoles([TEAM_ROLE_TO_ORGANIZATION_ROLE[role]])) {
+        assert.ok(
+          fromTeamRole.has(capability),
+          `the ${TEAM_ROLE_TO_ORGANIZATION_ROLE[role]} membership grants ${capability}, which '${role}' does not`,
+        );
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M-B — no arm of the role machinery can produce platform authority
+// ---------------------------------------------------------------------------
+
+describe('nothing in the role machinery mints platform administration', () => {
+  it('the reviewed roster template names only roles the console can issue', () => {
+    const template = JSON.parse(
+      readFileSync(join(root, 'supabase', 'operations', 'roster', 'team-roster.example.json'), 'utf8'),
+    ) as { roster: readonly { team_role: string }[] };
+    for (const entry of template.roster) {
+      assert.ok(
+        (TEAM_ROLES as readonly string[]).includes(entry.team_role),
+        `the example roster names '${entry.team_role}', which is not a team role`,
+      );
+    }
+  });
+
+  it('the roster template offers no platform role as an assignable value', () => {
+    // The check is on the VALUES, not on the file text. The template also
+    // carries a note saying in so many words that `owner` is not AI platform
+    // administration — a disclaimer is worth more here than silence, and a
+    // regex over the raw file would have forbidden writing one down.
+    const template = JSON.parse(
+      readFileSync(join(root, 'supabase', 'operations', 'roster', 'team-roster.example.json'), 'utf8'),
+    ) as { roster: readonly Record<string, unknown>[] };
+
+    for (const entry of template.roster) {
+      for (const [key, value] of Object.entries(entry)) {
+        if (key === 'note') continue;
+        assert.equal(
+          /platform_role|platform_admin|super_?admin/i.test(String(value)),
+          false,
+          `the template offers '${String(value)}' under '${key}'`,
+        );
+      }
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(entry, 'platform_role'),
+        false,
+        'a roster entry must not carry a platform_role field',
+      );
+    }
+  });
+
+  it('the roster template says outright that owner is not platform administration', () => {
+    const raw = readFileSync(
+      join(root, 'supabase', 'operations', 'roster', 'team-roster.example.json'),
+      'utf8',
+    );
+    assert.match(raw, /owner/);
+    assert.match(
+      raw,
+      /grants no AI platform administration/i,
+      'the template must state the M-B separation rather than leave it to be inferred',
+    );
+  });
+
+  it('the stamping function writes exactly two keys, neither of them a platform role', () => {
+    // The stamp is a MERGE of `jsonb_build_object('marq_team', true,
+    // 'team_role', …)`. Any third key here would be a key a roster could set.
+    const stamp = lifecycleMigration.match(
+      /jsonb_build_object\('marq_team', true, 'team_role', b\.team_role\)/,
+    );
+    assert.ok(stamp, 'the stamp must write marq_team and team_role and nothing else');
+    assert.equal(
+      /raw_app_meta_data\s*=\s*jsonb_build_object/.test(lifecycleMigration),
+      false,
+      'the stamp must MERGE into the existing bag, never replace it — replacing would drop platform_role',
+    );
+  });
+
+  it('the provisioning shape the console sends carries no platform key', () => {
+    for (const role of TEAM_ROLES) {
+      assert.deepEqual(Object.keys(teamAppMetadata(role)).sort(), ['marq_team', 'team_role']);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The privileged/baseline partition (M-A)
+//
+// `PRIVILEGED_CAPABILITIES` decides which requests resolve memberships from the
+// database rather than from a snapshot. A capability that is in neither that set
+// nor the baseline would be servable from a stale snapshot AND revocable — the
+// one combination the design must not have.
+// ---------------------------------------------------------------------------
+
+describe('every AI capability is either baseline or privileged', () => {
+  it('partitions the capability vocabulary with no gap and no overlap', () => {
+    // The whole vocabulary, taken from the grant table rather than restated.
+    const every = new Set<string>();
+    for (const grants of Object.values(ROLE_CAPABILITIES)) {
+      for (const capability of grants) every.add(capability);
+    }
+
+    const baseline = new Set<string>(capabilitiesForRoles(['reviewer']));
+    const privileged = new Set<string>(PRIVILEGED_CAPABILITIES);
+
+    for (const capability of every) {
+      const inBaseline = baseline.has(capability);
+      const inPrivileged = privileged.has(capability);
+      assert.ok(
+        inBaseline !== inPrivileged,
+        `${capability} is ${inBaseline && inPrivileged ? 'in both' : 'in neither'} ` +
+        'the baseline and PRIVILEGED_CAPABILITIES; it must be in exactly one',
+      );
+    }
+
+    for (const capability of privileged) {
+      assert.ok(every.has(capability), `${capability} is privileged but no role grants it`);
+    }
+  });
+
+  it('the bottom of the ladder holds nothing privileged', () => {
+    // The floor bottoms out at `viewer`, and an actor floored to the bottom
+    // still receives the baseline. If any privileged capability were in it,
+    // the floor would grant one to a demoted admin.
+    const privileged = new Set<string>(PRIVILEGED_CAPABILITIES);
+    for (const capability of capabilitiesForRoles(['viewer'])) {
+      assert.equal(privileged.has(capability), false);
+    }
+    for (const capability of capabilitiesForRoles([TEAM_ROLE_TO_ORGANIZATION_ROLE.viewer])) {
+      assert.equal(privileged.has(capability), false);
+    }
+  });
+});
+

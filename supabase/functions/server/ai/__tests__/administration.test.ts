@@ -92,8 +92,42 @@ describe('AI administration — role resolution', () => {
     const owner = await harness.actor(ADMIN_TOKEN.organizationOwner);
     // Owning ONE organization is not operating the platform. Conflating them
     // would hand a tenant the ability to clear MARQ's own spend ceiling.
+    //
+    // M-B: `owner` is now an ORGANIZATION role here in both directions. It used
+    // to be a member of `SUPER_ADMIN_ROLES`, so a trusted `team_role = 'owner'`
+    // — assignable by any existing owner through `PATCH /team/members/:id` —
+    // resolved straight to the platform operator tier.
     assert.equal(owner.role, 'organization_admin');
-    assert.equal(owner.capabilities.includes('ai.admin.budget.reset'), false);
+    for (const capability of [
+      'ai.admin.budget.reset',
+      'ai.admin.killswitch',
+      'ai.admin.provider.write',
+      'ai.admin.settings.write',
+      'ai.admin.budget.write',
+    ] as const) {
+      assert.equal(
+        owner.capabilities.includes(capability),
+        false,
+        `a team owner must not hold ${capability}`,
+      );
+    }
+  });
+
+  it('refuses a membership row with no trusted team role behind it', async () => {
+    // H-A at this surface: a stale `org_admin` row on an account whose trusted
+    // `app_metadata` no longer names a team role administers nothing. The row is
+    // not authority; `app_metadata` is.
+    const harness = buildTestAdministration();
+    await rejectsWith(harness.actor(ADMIN_TOKEN.membershipOnly), 'FORBIDDEN');
+    assert.equal(
+      resolveAdminRole({
+        subjectId: 'stale',
+        actorType: 'team_user',
+        globalRoles: [],
+        memberships: [{ organizationId: 'acme', roles: ['org_admin'] }],
+      }),
+      undefined,
+    );
   });
 
   it('grants a team admin visibility and no platform mutation', async () => {

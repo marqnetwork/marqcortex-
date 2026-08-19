@@ -7,16 +7,37 @@
  *
  * Membership lookup is cached with a short TTL. Without it every AI request
  * costs an extra database round trip on the hot path — measurable latency for
- * data that changes when someone is added to a team, not per request. The TTL is
- * deliberately short (60s) so a revoked membership stops granting access within
- * a minute rather than for the lifetime of an edge isolate.
+ * data that changes when someone is added to a team, not per request.
  *
- * A minute is still a minute, and HIGH-1 requires that a demotion revoke
- * capability IMMEDIATELY, not eventually. So the cache also listens: the
- * membership lifecycle publishes the user id it just re-roled or revoked on a
- * `MembershipInvalidationSignal`, and this cache drops that entry on the spot.
- * The TTL stays as the backstop for changes made outside this isolate — another
- * isolate, the SQL console, a migration — which the signal cannot see.
+ * THE CACHE IS NEVER THE AUTHORITY FOR A PRIVILEGED DECISION (M-A).
+ *
+ * A TTL is a promise about eventual consistency, and a revocation needs one
+ * about immediacy. The signal below is isolate-local: `invalidate()` reaches
+ * the isolate that performed the write and no other, so an edge deployment
+ * running N isolates had N-1 of them serving a cached `org_admin` for up to the
+ * TTL after a demotion. That is a stale privileged authorization window, and no
+ * length of it is acceptable.
+ *
+ * So the cache is now scoped by what the answer is FOR:
+ *
+ *   ordinary request   — a capability every authenticated team member already
+ *                        holds. Served from the snapshot; there is nothing here
+ *                        for a revocation to take away, so a round trip would
+ *                        buy latency and no security.
+ *
+ *   privileged request — a capability that required an explicit role grant
+ *                        (`PRIVILEGED_CAPABILITIES` in `security/actor.ts`).
+ *                        Resolved from the database, every time, in every
+ *                        isolate. The snapshot is refreshed as a side effect,
+ *                        never consulted.
+ *
+ * There is still ONE membership resolver — `listMemberships`, the port this
+ * adapter is constructed with. A privileged request does not take a different
+ * path to a different answer; it takes the same path and declines to skip it.
+ *
+ * `MembershipInvalidationSignal` is kept, demoted to what it always actually
+ * was: an optimisation that lets the writing isolate drop a snapshot it knows
+ * is stale. Nothing depends on it for correctness any more.
  *
  * A failed membership lookup degrades to "no memberships" rather than throwing.
  * That is not the same as admitting the caller: `resolveOrganization` then fails
@@ -30,8 +51,14 @@
  * access would be the outage granting it.)
  */
 
-import type { AIAuthenticator, AuthenticatedSubject, SubjectMembership } from '../security/actor.ts';
+import type {
+  AIAuthenticator,
+  AuthenticatedSubject,
+  AuthenticationContext,
+  SubjectMembership,
+} from '../security/actor.ts';
 import type { Clock } from '../runtime/clock.ts';
+import { requiresAuthoritativeResolution } from '../security/actor.ts';
 
 export interface AuthUser {
   readonly id: string;
@@ -97,16 +124,24 @@ export function createSupabaseAuthenticator(
   const cache = new Map<string, { memberships: readonly SubjectMembership[]; expiresAtMs: number }>();
 
   // A membership that has just been re-roled or revoked is not the membership
-  // in this map. Dropping the entry means the next request reads the database,
-  // which is what makes a demotion take effect on the request after it rather
-  // than up to a TTL later.
+  // in this map. Dropping the entry saves the isolate that performed the write
+  // a round trip it already knows the answer to. It is an optimisation and not
+  // a revocation mechanism — see the header.
   options.invalidation?.subscribe((userId) => cache.delete(userId));
 
-  async function membershipsFor(userId: string): Promise<readonly SubjectMembership[]> {
-    if (!options.listMemberships) return [];
+  async function membershipsFor(
+    userId: string,
+    authoritative: boolean,
+  ): Promise<{ memberships: readonly SubjectMembership[]; fromCache: boolean }> {
+    if (!options.listMemberships) return { memberships: [], fromCache: false };
 
-    const cached = cache.get(userId);
-    if (cached && cached.expiresAtMs > options.clock.now()) return cached.memberships;
+    // An authoritative resolution does not read this map. It still WRITES it
+    // below, so a privileged request leaves the next ordinary one fresher than
+    // it found it.
+    const cached = authoritative ? undefined : cache.get(userId);
+    if (cached && cached.expiresAtMs > options.clock.now()) {
+      return { memberships: cached.memberships, fromCache: true };
+    }
 
     let memberships: readonly SubjectMembership[] = [];
     try {
@@ -124,11 +159,14 @@ export function createSupabaseAuthenticator(
       if (oldest !== undefined) cache.delete(oldest);
     }
     cache.set(userId, { memberships, expiresAtMs: options.clock.now() + ttlMs });
-    return memberships;
+    return { memberships, fromCache: false };
   }
 
   return {
-    async authenticate(authorization: string | null): Promise<AuthenticatedSubject | null> {
+    async authenticate(
+      authorization: string | null,
+      context?: AuthenticationContext,
+    ): Promise<AuthenticatedSubject | null> {
       if (!authorization) return null;
       const match = authorization.match(/^Bearer\s+(.+)$/i);
       if (!match) return null;
@@ -146,12 +184,25 @@ export function createSupabaseAuthenticator(
       }
       if (!user) return null;
 
+      // The trusted roles are never cached: `getUser` verifies the token
+      // against the auth service on every request, so `app_metadata` — and the
+      // team role the authority floor reads from it — is always current in
+      // every isolate. Only the membership half has a snapshot, and only an
+      // ordinary request may be answered from it.
+      const membership = await membershipsFor(
+        user.id,
+        requiresAuthoritativeResolution(context),
+      );
+
       return {
         subjectId: user.id,
         email: user.email,
         actorType: 'team_user',
         globalRoles: user.roles ?? [],
-        memberships: await membershipsFor(user.id),
+        memberships: membership.memberships,
+        // Travels with the subject so `resolveActor` can withhold every
+        // privileged capability from an answer that might be stale.
+        membershipsFromCache: membership.fromCache,
       };
     },
   };

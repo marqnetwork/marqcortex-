@@ -46,6 +46,7 @@ import {
   authorizeRoleAssignment,
   authorizeMemberRemoval,
   requireTeamAccountTarget,
+  resolveTrustedGlobalRoles,
   type TeamRole,
 } from '../../supabase/functions/server/teamAuthorization.ts';
 import {
@@ -66,7 +67,18 @@ import {
   createMembershipInvalidationSignal,
   createSupabaseAuthenticator,
 } from '../../supabase/functions/server/ai/adapters/supabaseAuthenticator.ts';
-import { resolveActor } from '../../supabase/functions/server/ai/security/actor.ts';
+import {
+  AUTHORITY_LADDER,
+  MEMBERSHIP_AUTHORITY_CEILING,
+  PRIVILEGED_CAPABILITIES,
+  resolveActor,
+} from '../../supabase/functions/server/ai/security/actor.ts';
+import {
+  resolveAdminActor,
+  resolveAdminRole,
+} from '../../supabase/functions/server/ai/admin/rbac.ts';
+import { resolveAgentActor } from '../../supabase/functions/server/ai/agents/service/agentRbac.ts';
+import { resolveWorkflowActor } from '../../supabase/functions/server/ai/workflows/service/workflowRbac.ts';
 import { resolveOrganization } from '../../supabase/functions/server/ai/security/tenancy.ts';
 import { AIError } from '../../supabase/functions/server/ai/contracts/errors.ts';
 
@@ -280,25 +292,51 @@ class FakeMembershipDatabase {
 // The real resolution path, assembled the way `index.tsx` assembles it
 // ---------------------------------------------------------------------------
 
+interface Resolved {
+  roles: readonly string[];
+  capabilities: readonly string[];
+  organizationId: string;
+  membershipVerified: boolean;
+}
+
+/** How a request asks for a subject. `privileged` mirrors what the AI Guard
+ *  derives from the feature descriptor's declared capability. */
+interface ResolveOptions {
+  organizationHint?: string;
+  privileged?: boolean;
+}
+
+/**
+ * One edge isolate.
+ *
+ * The distinction matters because a cache is per-isolate. Two isolates share
+ * the auth directory and the database and share NOTHING else — not the
+ * membership snapshot, and not the invalidation signal, which cannot cross a
+ * process boundary. That is the M-A geometry, and the only honest way to test
+ * it is to build two of these.
+ */
+interface Isolate {
+  resolveAsync(userId: string, options?: ResolveOptions): Promise<Resolved>;
+}
+
 interface World {
   auth: FakeAuthDirectory;
   db: FakeMembershipDatabase;
   deps: TeamLifecycleDeps;
   /** Bearer token -> resolved actor, through every real component. */
-  resolve(userId: string, organizationHint?: string): {
-    roles: readonly string[];
-    capabilities: readonly string[];
-    organizationId: string;
-    membershipVerified: boolean;
-  };
-  resolveAsync(userId: string, organizationHint?: string): Promise<{
-    roles: readonly string[];
-    capabilities: readonly string[];
-    organizationId: string;
-    membershipVerified: boolean;
-  }>;
+  resolveAsync(userId: string, organizationHint?: string, options?: ResolveOptions): Promise<Resolved>;
+  /** A SECOND isolate over the same two stores: its own cache, no signal. */
+  otherIsolate(): Isolate;
   clockMs: { value: number };
 }
+
+const TENANCY_OPTIONS = {
+  defaultOrganizationId: 'default-org',
+  allowList: [] as readonly string[],
+  // I. The default organization stays disabled. Every assertion below about a
+  // subject with no membership is an assertion about failing CLOSED.
+  allowDefaultOrganization: false,
+};
 
 function createWorld(): World {
   const auth = new FakeAuthDirectory();
@@ -321,46 +359,69 @@ function createWorld(): World {
     invalidate: (userId) => invalidation.invalidate(userId),
   };
 
-  // The authenticator the edge entry point builds, with the same two ports.
-  const authenticator = createSupabaseAuthenticator({
-    getUser: async (token: string) => {
-      const record = auth.get(token);   // the token IS the user id here
-      if (!record) return null;
-      const teamRole = resolveTeamRoleFromAuthRecord(record);
-      return { id: record.id, email: record.email, roles: teamRole ? [teamRole] : [] };
-    },
-    listMemberships: async (userId: string) => listVerifiedMemberships(db.queryClient(), userId),
-    invalidation,
-    clock: { now: () => clockMs.value },
-  });
-
-  const resolveAsync = async (userId: string, organizationHint?: string) => {
-    const subject = await authenticator.authenticate(`Bearer ${userId}`);
-    const organization = resolveOrganization(subject, organizationHint, {
-      defaultOrganizationId: 'default-org',
-      allowList: [],
-      // I. The default organization stays disabled. Every assertion below about
-      // a subject with no membership is an assertion about failing CLOSED.
-      allowDefaultOrganization: false,
+  /**
+   * Build an isolate. `signal` is passed only for the isolate that also runs
+   * the lifecycle; every other isolate is deliberately deaf, because a real one
+   * is.
+   */
+  function createIsolate(signal?: ReturnType<typeof createMembershipInvalidationSignal>): Isolate {
+    // The authenticator the edge entry point builds, with the same two ports.
+    const authenticator = createSupabaseAuthenticator({
+      getUser: async (token: string) => {
+        const record = auth.get(token);   // the token IS the user id here
+        if (!record) return null;
+        // The same trusted resolution `index.tsx` performs: platform authority
+        // and team authority, both from `app_metadata`, neither from the other.
+        return { id: record.id, email: record.email, roles: resolveTrustedGlobalRoles(record) };
+      },
+      listMemberships: async (userId: string) => listVerifiedMemberships(db.queryClient(), userId),
+      invalidation: signal,
+      clock: { now: () => clockMs.value },
     });
-    const actor = resolveActor(subject, organization.organizationId, { allowAnonymous: false });
+
     return {
-      roles: actor.roles,
-      capabilities: actor.capabilities,
-      organizationId: organization.organizationId,
-      membershipVerified: organization.membershipVerified,
+      async resolveAsync(userId: string, options: ResolveOptions = {}) {
+        const subject = await authenticator.authenticate(`Bearer ${userId}`, {
+          privileged: options.privileged,
+        });
+        const organization = resolveOrganization(subject, options.organizationHint, TENANCY_OPTIONS);
+        const actor = resolveActor(subject, organization.organizationId, { allowAnonymous: false });
+        return {
+          roles: actor.roles,
+          capabilities: actor.capabilities,
+          organizationId: organization.organizationId,
+          membershipVerified: organization.membershipVerified,
+        };
+      },
     };
-  };
+  }
+
+  const primary = createIsolate(invalidation);
 
   return {
     auth,
     db,
     deps,
     clockMs,
-    resolveAsync,
-    resolve: () => {
-      throw new Error('use resolveAsync');
-    },
+    resolveAsync: (userId, organizationHint, options = {}) =>
+      primary.resolveAsync(userId, { ...options, organizationHint }),
+    otherIsolate: () => createIsolate(),
+  };
+}
+
+/** The subject an isolate would hand the AI ADMINISTRATION surface. */
+async function adminSubjectFor(
+  world: World,
+  userId: string,
+): Promise<Parameters<typeof resolveAdminRole>[0]> {
+  const record = world.auth.get(userId);
+  assert.ok(record, `${userId} must exist`);
+  return {
+    subjectId: userId,
+    email: record.email,
+    actorType: 'team_user',
+    globalRoles: resolveTrustedGlobalRoles(record),
+    memberships: await listVerifiedMemberships(world.db.queryClient(), userId),
   };
 }
 
@@ -770,7 +831,7 @@ describe('HIGH-2: a team-management action cannot reach a non-team account', () 
 // DELETE / DEACTIVATE
 // ===========================================================================
 
-describe('removal revokes before it deletes', () => {
+describe('removal deletes the account before it revokes', () => {
   it('a removed member holds no live membership and no account', async () => {
     const world = createWorld();
     await invite(world, 'leaver', 'admin');
@@ -782,7 +843,9 @@ describe('removal revokes before it deletes', () => {
     assert.equal(world.auth.has('leaver'), false);
   });
 
-  it('leaves the membership revoked when the account delete fails', async () => {
+  it('changes nothing when the account delete fails', async () => {
+    // The account goes first, so its failure is the "nothing applied" case:
+    // the member keeps everything, in both systems, and the operator retries.
     const world = createWorld();
     await invite(world, 'stuck', 'admin');
 
@@ -802,20 +865,43 @@ describe('removal revokes before it deletes', () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.failure.code, 'MEMBERSHIP_REVOCATION_FAILED');
-    // The authority is gone even though the account is not: a half-completed
-    // removal must not be a member who kept their access.
-    assert.equal(world.db.liveMarqRows('stuck').length, 0, 'the membership stays revoked');
+    assert.equal(world.auth.has('stuck'), true);
+    assert.equal(world.db.liveMarqRows('stuck').length, 1);
   });
 
-  it('does not delete the account when the membership could not be revoked', async () => {
+  it('leaves NO authority behind when the membership revoke fails', async () => {
+    // The half-completed removal, in the order that makes it safe. The account
+    // is gone, so nothing can authenticate as this person — not the AI path and
+    // not the console, whose `verifyTeamToken` and `authorizeTeamAdmin` read
+    // the `app_metadata` that went with it.
+    //
+    // The previous order revoked the membership first and left the account
+    // standing with `marq_team: true` and `team_role: 'admin'`. That is H-A's
+    // shape applied to a removal: somebody just removed could still invite,
+    // re-role and delete their former colleagues.
     const world = createWorld();
-    await invite(world, 'protected', 'admin');
-    world.db.failNextRevoke = 'protected';
+    await invite(world, 'halfway-out', 'admin');
+    world.db.failNextRevoke = 'halfway-out';
 
-    const result = await revokeTeamAccount(world.deps, { userId: 'protected' });
+    const result = await revokeTeamAccount(world.deps, { userId: 'halfway-out' });
+
     assert.equal(result.ok, false);
-    assert.equal(world.auth.has('protected'), true, 'the account survives a failed revocation');
-    assert.equal(world.db.liveMarqRows('protected').length, 1);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_INCONSISTENT');
+    assert.equal(world.auth.has('halfway-out'), false, 'the account is gone');
+
+    // The stale row is genuinely still there — so this is the floor and the
+    // deleted account doing the work, not a tidy-up that happened anyway.
+    assert.equal(world.db.liveMarqRows('halfway-out').length, 1);
+
+    // And nothing can be resolved from it: there is no auth record to
+    // authenticate against.
+    const resolved = await world.otherIsolate().resolveAsync('halfway-out', { privileged: true })
+      .then(() => 'resolved', () => 'refused');
+    assert.equal(resolved, 'refused', 'a deleted account must not resolve an actor');
+
+    assert.match(result.failure.message, /no longer sign in/i);
+    assert.match(result.failure.message, /No access remains/i);
   });
 
   it('removing somebody who never had a membership still succeeds', async () => {
@@ -872,9 +958,12 @@ describe('a role change that cannot complete does not half-apply', () => {
     assert.ok(!actor.capabilities.includes('ai.agent.execute'));
   });
 
-  it('keeps the revocation when a demotion cannot finish writing app_metadata', async () => {
+  it('applies nothing at all when the FIRST write of a demotion fails', async () => {
+    // The trusted team role is written first now, so a failure there leaves
+    // both systems exactly as they were. The member keeps the role they had —
+    // which is the honest outcome, and the one the message promises.
     const world = createWorld();
-    await invite(world, 'halfway', 'admin');
+    await invite(world, 'nothing-applied', 'admin');
 
     const result = await applyTeamRoleChange(
       {
@@ -886,21 +975,694 @@ describe('a role change that cannot complete does not half-apply', () => {
           removeAccount: world.deps.account.removeAccount,
         },
       },
-      { userId: 'halfway', previousRole: 'admin', nextRole: 'viewer' },
+      { userId: 'nothing-applied', previousRole: 'admin', nextRole: 'viewer' },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_SYNC_FAILED');
+    assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get('nothing-applied')), 'admin');
+    assert.deepEqual(world.db.liveMarqRows('nothing-applied').map((r) => r.role_key), ['org_admin']);
+  });
+});
+
+// ===========================================================================
+// H-A — A PARTIAL DEMOTION REVOKES
+//
+// The finding, restated: the previous fix demoted the membership first and left
+// the trusted `app_metadata` team role at `admin` when the second write failed.
+// `ROLE_CAPABILITIES.admin` grants `ai.agent.execute` without any membership at
+// all, so the account kept every capability the demotion was meant to remove —
+// and the regression test over it asserted only that the string `org_admin` was
+// absent from `actor.roles`, which it was, while `ai.agent.execute` sat in
+// `actor.capabilities` untouched.
+//
+// So every assertion in this block is about an AUTHORIZATION OUTCOME. Role
+// labels appear only as supplementary diagnostics, after the outcome has been
+// pinned, and never as the thing being proven.
+// ===========================================================================
+
+/** Everything a consistent account at `role` actually holds, for comparison. */
+async function referenceFor(role: TeamRole): Promise<Resolved> {
+  const reference = createWorld();
+  await invite(reference, `reference-${role}`, role);
+  return reference.resolveAsync(`reference-${role}`);
+}
+
+/**
+ * Drive `admin`/`owner` down to `nextRole` with the MEMBERSHIP write failing,
+ * and return the state that leaves behind.
+ */
+async function partialDemotion(previousRole: TeamRole, nextRole: TeamRole) {
+  const world = createWorld();
+  const userId = `partial-${previousRole}-${nextRole}`;
+  const invited = await invite(world, userId, previousRole);
+  assert.equal(invited.ok, true, 'precondition: the account provisions cleanly');
+
+  const before = await world.resolveAsync(userId, undefined, { privileged: true });
+  assert.ok(
+    before.capabilities.includes('ai.agent.execute'),
+    `precondition: a ${previousRole} can execute agents`,
+  );
+
+  world.db.failNextSync = userId;
+  const result = await applyTeamRoleChange(world.deps, { userId, previousRole, nextRole });
+
+  return {
+    world,
+    userId,
+    result,
+    before,
+    after: await world.resolveAsync(userId, undefined, { privileged: true }),
+  };
+}
+
+describe('H-A: a demotion whose membership write fails still revokes', () => {
+  it('admin -> viewer: no console authority, no ai.agent.execute, nothing above a viewer', async () => {
+    const { world, userId, result, after } = await partialDemotion('admin', 'viewer');
+
+    // 1. The change reports failure. It does NOT answer success.
+    assert.equal(result.ok, false, 'a half-applied change must not report success');
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_INCONSISTENT');
+
+    // 2. THE AUTHORIZATION OUTCOME. This is the assertion the old test was
+    //    missing, and it is first because it is the finding.
+    assert.equal(
+      after.capabilities.includes('ai.agent.execute'),
+      false,
+      'ai.agent.execute must be absent after a partial demotion',
+    );
+
+    // 3. Not one capability above the floor survived — named or not.
+    const viewer = await referenceFor('viewer');
+    assert.deepEqual(
+      [...after.capabilities].sort(),
+      [...viewer.capabilities].sort(),
+      'a partially demoted admin must hold exactly what a viewer holds',
+    );
+    for (const capability of PRIVILEGED_CAPABILITIES) {
+      assert.equal(
+        after.capabilities.includes(capability),
+        false,
+        `${capability} must not survive a partial demotion`,
+      );
+    }
+
+    // 4. CONSOLE AUTHORITY. The half of the platform the AI capability list
+    //    says nothing about: `authorizeTeamAdmin` is what guards invite,
+    //    re-role and remove, and it must now refuse this account.
+    const authority = resolveTeamAuthority(world.auth.get(userId));
+    const consoleCheck = authorizeTeamAdmin(userId, authority);
+    assert.equal(consoleCheck.ok, false, 'console team administration must be refused');
+    if (!consoleCheck.ok) assert.equal(consoleCheck.failure.code, 'FORBIDDEN');
+
+    // 5. AI ADMINISTRATION. Neither the platform tier nor anything above the
+    //    read-only one.
+    const adminSubject = await adminSubjectFor(world, userId);
+    const adminRole = resolveAdminRole(adminSubject);
+    assert.notEqual(adminRole, 'super_admin');
+    assert.notEqual(adminRole, 'organization_admin');
+
+    // 6. The inconsistency is described accurately: what took effect, what did
+    //    not, and that no elevated access remains.
+    assert.match(result.failure.message, /organization membership row/i);
+    assert.match(result.failure.message, /no elevated access remains/i);
+    assert.match(result.failure.diagnostics, /stage=membership/);
+    assert.match(result.failure.diagnostics, /effective=viewer/);
+
+    // 7. Diagnostics, SUPPLEMENTARY. The stale row really is still there — the
+    //    revocation is not an artifact of the row having been cleaned up.
+    assert.deepEqual(
+      world.db.liveMarqRows(userId).map((r) => r.role_key),
+      ['org_admin'],
+      'the membership row is genuinely stale; the floor is what revoked',
+    );
+    assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get(userId)), 'viewer');
+    assert.ok(after.roles.includes('org_admin'), 'the stale role is still reported for the audit record');
+  });
+
+  it('admin -> analyst: holds an analyst, and nothing an admin held on top', async () => {
+    const { world, userId, result, after } = await partialDemotion('admin', 'analyst');
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_INCONSISTENT');
+
+    // An analyst legitimately executes agents, so the outcome under test is
+    // not "ai.agent.execute is gone" — it is "nothing an ADMIN held survives".
+    const analyst = await referenceFor('analyst');
+    assert.deepEqual(
+      [...after.capabilities].sort(),
+      [...analyst.capabilities].sort(),
+      'a partially demoted admin holds exactly what an analyst holds',
+    );
+    for (const capability of ['ai.block.assist', 'ai.copilot.plan', 'ai.section.copilot'] as const) {
+      assert.equal(
+        after.capabilities.includes(capability),
+        false,
+        `${capability} was an admin capability and must not survive`,
+      );
+    }
+
+    const consoleCheck = authorizeTeamAdmin(userId, resolveTeamAuthority(world.auth.get(userId)));
+    assert.equal(consoleCheck.ok, false, 'an analyst may not administer the team');
+
+    assert.notEqual(resolveAdminRole(await adminSubjectFor(world, userId)), 'super_admin');
+    assert.match(result.failure.diagnostics, /effective=analyst/);
+  });
+
+  it('owner -> viewer: the platform tier and every capability fall together', async () => {
+    const { world, userId, result, after } = await partialDemotion('owner', 'viewer');
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_INCONSISTENT');
+
+    assert.equal(after.capabilities.includes('ai.agent.execute'), false);
+    const viewer = await referenceFor('viewer');
+    assert.deepEqual([...after.capabilities].sort(), [...viewer.capabilities].sort());
+
+    const consoleCheck = authorizeTeamAdmin(userId, resolveTeamAuthority(world.auth.get(userId)));
+    assert.equal(consoleCheck.ok, false, 'a demoted owner may not administer the team');
+
+    // M-B's other half: this account was an owner a moment ago, and even THEN
+    // it was not the AI platform operator. Now it is not an administrator of
+    // anything.
+    const adminSubject = await adminSubjectFor(world, userId);
+    assert.equal(resolveAdminRole(adminSubject), undefined);
+    assert.throws(
+      () => resolveAdminActor(adminSubject),
+      (error: unknown) => {
+        assert.equal((error as AIError).code, 'FORBIDDEN');
+        return true;
+      },
+      'a demoted owner is refused the AI administration surface outright',
+    );
+  });
+
+  it('the failure never restores the higher role as compensation', async () => {
+    // Compensation on a demotion would undo the revocation an administrator
+    // just asked for. The trusted role stays DOWN whatever else failed.
+    for (const [from, to] of [['admin', 'viewer'], ['owner', 'analyst'], ['admin', 'reviewer']] as const) {
+      const { world, userId } = await partialDemotion(from, to);
+      assert.equal(
+        resolveTeamRoleFromAuthRecord(world.auth.get(userId)),
+        to,
+        `${from} -> ${to}: the trusted role must not be put back`,
+      );
+    }
+  });
+});
+
+// ===========================================================================
+// M-A — THE CROSS-ISOLATE REVOCATION WINDOW
+//
+// The finding: the membership cache is per-isolate and the invalidation signal
+// cannot leave the process that fired it. Isolate A caches `org_admin`, isolate
+// B performs the demotion, and A keeps serving the cached membership until its
+// TTL expires — up to sixty seconds of privileged authorization that has
+// already been revoked.
+//
+// The clock does NOT move in any test below. Every one of them would pass
+// trivially if it did, and none of them is about the TTL.
+//
+// Two properties close it, and both are exercised here:
+//
+//   1. `app_metadata` is never cached. `getUser` verifies the token against the
+//      auth service on every request in every isolate, so the trusted team role
+//      is current everywhere the instant it is written — and the authority
+//      floor grants no more than that role.
+//
+//   2. A PRIVILEGED capability resolves memberships from the database rather
+//      than from the snapshot, in whichever isolate is asked. One resolver, one
+//      query; the privileged path simply declines to skip it.
+// ===========================================================================
+
+describe('M-A: a revocation in one isolate binds every other isolate', () => {
+  it('isolate A cached org_admin, isolate B demoted: ai.agent.execute is gone at once', async () => {
+    const world = createWorld();          // isolate B — it runs the lifecycle
+    const isolateA = world.otherIsolate();
+
+    await invite(world, 'two-isolates', 'admin');
+
+    // Isolate A warms its own cache with the org_admin membership.
+    const cached = await isolateA.resolveAsync('two-isolates', { privileged: true });
+    assert.ok(cached.roles.includes('org_admin'));
+    assert.ok(
+      cached.capabilities.includes('ai.agent.execute'),
+      'precondition: isolate A has org_admin cached and can execute agents',
+    );
+
+    // Isolate B demotes. Its signal reaches its own cache and nothing else —
+    // isolate A is not subscribed, exactly as two edge isolates are not.
+    const change = await applyTeamRoleChange(world.deps, {
+      userId: 'two-isolates',
+      previousRole: 'admin',
+      nextRole: 'viewer',
+    });
+    assert.equal(change.ok, true);
+
+    // The clock has not moved. Not by a millisecond.
+    assert.equal(world.clockMs.value, 1_000);
+
+    const next = await isolateA.resolveAsync('two-isolates', { privileged: true });
+    assert.equal(
+      next.capabilities.includes('ai.agent.execute'),
+      false,
+      'the old org_admin capability must not survive in the isolate that cached it',
+    );
+    const viewer = await referenceFor('viewer');
+    assert.deepEqual([...next.capabilities].sort(), [...viewer.capabilities].sort());
+  });
+
+  it('holds when only the membership is revoked and app_metadata is untouched', async () => {
+    // The harder half. A membership revoked directly in the database — the
+    // account removal path, a support script, a manual SQL edit — leaves the
+    // trusted team role saying `admin`, so property 1 above does nothing and
+    // property 2 has to carry it alone.
+    const world = createWorld();
+    const isolateA = world.otherIsolate();
+    await invite(world, 'db-revoked', 'admin');
+
+    const cached = await isolateA.resolveAsync('db-revoked', { privileged: true });
+    assert.ok(cached.capabilities.includes('ai.agent.execute'));
+
+    await world.db.port.revoke('db-revoked');
+    assert.equal(world.clockMs.value, 1_000);
+    assert.equal(
+      resolveTeamRoleFromAuthRecord(world.auth.get('db-revoked')),
+      'admin',
+      'the trusted role is deliberately left alone: the membership read is what must catch this',
+    );
+
+    await assert.rejects(
+      () => isolateA.resolveAsync('db-revoked', { privileged: true }),
+      (error: unknown) => {
+        assert.equal((error as AIError).code, 'ORGANIZATION_REQUIRED');
+        return true;
+      },
+      'a privileged request must fail closed the moment the membership is gone',
+    );
+  });
+
+  it('re-roling to a LOWER membership binds the other isolate immediately', async () => {
+    const world = createWorld();
+    const isolateA = world.otherIsolate();
+    await invite(world, 'db-reroled', 'admin');
+
+    const cached = await isolateA.resolveAsync('db-reroled', { privileged: true });
+    assert.ok(cached.capabilities.includes('ai.agent.execute'));
+
+    // Only the row moves — the mirror of the previous test, one step milder.
+    await world.db.port.sync('db-reroled', 'viewer');
+    assert.equal(world.clockMs.value, 1_000);
+
+    const next = await isolateA.resolveAsync('db-reroled', { privileged: true });
+    assert.equal(
+      next.capabilities.includes('ai.agent.execute'),
+      false,
+      'a stale admin team role must not out-vote a demoted membership row',
+    );
+    assert.ok(next.roles.includes('admin'), 'the trusted role really is still admin');
+    assert.ok(next.roles.includes('team_viewer'));
+  });
+
+  it('an ordinary read may still be served from the snapshot, and grants nothing privileged', async () => {
+    // The other side of the trade: a capability every team member already holds
+    // is not worth a round trip, because there is nothing there to revoke. The
+    // snapshot may be stale and the answer is still correct — no member of
+    // PRIVILEGED_CAPABILITIES can come out of it.
+    const world = createWorld();
+    const isolateA = world.otherIsolate();
+    await invite(world, 'ordinary', 'admin');
+
+    await isolateA.resolveAsync('ordinary', { privileged: false });
+    await world.db.port.sync('ordinary', 'viewer');
+    assert.equal(world.clockMs.value, 1_000);
+
+    const ordinary = await isolateA.resolveAsync('ordinary', { privileged: false });
+    for (const capability of PRIVILEGED_CAPABILITIES) {
+      assert.equal(
+        ordinary.capabilities.includes(capability),
+        false,
+        `${capability} is privileged and must never come out of a stale snapshot`,
+      );
+    }
+  });
+
+  it('the privileged read refreshes the snapshot it declined to use', async () => {
+    const world = createWorld();
+    const isolateA = world.otherIsolate();
+    await invite(world, 'refresher', 'admin');
+
+    await isolateA.resolveAsync('refresher', { privileged: false });   // warm
+    await world.db.port.sync('refresher', 'viewer');
+    await isolateA.resolveAsync('refresher', { privileged: true });    // read through
+
+    // Now even an ordinary request sees the new membership, without the clock
+    // having moved: the privileged read wrote what it found back.
+    assert.equal(world.clockMs.value, 1_000);
+    const ordinary = await isolateA.resolveAsync('refresher', { privileged: false });
+    assert.ok(ordinary.roles.includes('team_viewer'));
+    assert.equal(ordinary.roles.includes('org_admin'), false);
+  });
+});
+
+// ===========================================================================
+// The floor reaches every surface that unions the two sources
+//
+// `resolveActor` is not the only place the trusted team role and the membership
+// row were added together. The agent runtime and the workflow runtime keep
+// their own capability tables, keyed by team role, and both built their actor
+// from `[...globalRoles, ...membership.roles]`. A demoted membership left the
+// stale team role granting `agent.approval.decide` and `workflow.run.create`
+// through those tables, which `resolveActor`'s floor never sees.
+// ===========================================================================
+
+describe('the authority floor covers the agent and workflow runtimes', () => {
+  async function subjectFor(world: World, userId: string) {
+    const record = world.auth.get(userId);
+    assert.ok(record);
+    return {
+      subjectId: userId,
+      email: record.email,
+      actorType: 'team_user' as const,
+      globalRoles: resolveTrustedGlobalRoles(record),
+      memberships: await listVerifiedMemberships(world.db.queryClient(), userId),
+    };
+  }
+
+  it('a demoted membership row revokes agent and workflow authority too', async () => {
+    const world = createWorld();
+    await invite(world, 'runtime-user', 'admin');
+
+    const before = await subjectFor(world, 'runtime-user');
+    const agentBefore = resolveAgentActor(before, undefined, TENANCY_OPTIONS);
+    const workflowBefore = resolveWorkflowActor(before, undefined, TENANCY_OPTIONS, agentBefore.capabilities);
+    assert.ok(agentBefore.capabilities.includes('agent.run.create'));
+    assert.ok(agentBefore.capabilities.includes('agent.approval.decide'));
+    assert.ok(workflowBefore.capabilities.includes('workflow.run.create'));
+
+    // Only the ROW moves — the trusted role is deliberately left saying `admin`,
+    // which is the direction `resolveActor`'s floor and this one both have to
+    // catch from the membership side.
+    await world.db.port.sync('runtime-user', 'viewer');
+    assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get('runtime-user')), 'admin');
+
+    const after = await subjectFor(world, 'runtime-user');
+    assert.throws(
+      () => resolveAgentActor(after, undefined, TENANCY_OPTIONS),
+      (error: unknown) => {
+        assert.equal((error as AIError).code, 'FORBIDDEN');
+        return true;
+      },
+      'a viewer-floored actor holds no agent capability at all',
+    );
+    assert.throws(
+      () => resolveWorkflowActor(after, undefined, TENANCY_OPTIONS, []),
+      (error: unknown) => {
+        assert.equal((error as AIError).code, 'FORBIDDEN');
+        return true;
+      },
+    );
+  });
+
+  it('a stale org_admin row grants no agent or workflow authority either', async () => {
+    // The other direction: `app_metadata` already lowered, row still high.
+    const world = createWorld();
+    await invite(world, 'runtime-demoted', 'admin');
+    world.db.failNextSync = 'runtime-demoted';
+    await applyTeamRoleChange(world.deps, {
+      userId: 'runtime-demoted',
+      previousRole: 'admin',
+      nextRole: 'viewer',
+    });
+
+    const subject = await subjectFor(world, 'runtime-demoted');
+    assert.deepEqual(subject.memberships[0]?.roles, ['org_admin'], 'the row is genuinely stale');
+
+    assert.throws(() => resolveAgentActor(subject, undefined, TENANCY_OPTIONS));
+    assert.throws(() => resolveWorkflowActor(subject, undefined, TENANCY_OPTIONS, []));
+  });
+
+  it('leaves a consistent account exactly as it was', async () => {
+    // The floor must be a no-op in agreement, on these tables as on the others.
+    for (const role of TEAM_ROLES) {
+      const world = createWorld();
+      await invite(world, `consistent-${role}`, role);
+      const subject = await subjectFor(world, `consistent-${role}`);
+
+      const unfloored = [
+        ...new Set([...subject.globalRoles, ...(subject.memberships[0]?.roles ?? [])]),
+      ].sort();
+
+      let floored: readonly string[] = [];
+      try {
+        floored = resolveAgentActor(subject, undefined, TENANCY_OPTIONS).roles;
+      } catch {
+        // `viewer` holds no agent capability and is refused outright, before
+        // and after. Its role list is not observable, and that is the same
+        // answer either way.
+        assert.equal(role, 'viewer');
+        continue;
+      }
+      assert.deepEqual(
+        [...floored].sort(),
+        unfloored,
+        `${role}: the floor changed a consistent account's roles`,
+      );
+    }
+  });
+});
+
+// ===========================================================================
+// Promotion is the mirror image, and must also fail closed
+// ===========================================================================
+
+describe('a half-applied promotion grants nothing', () => {
+  it('viewer -> admin with the membership write failing stays a viewer', async () => {
+    const world = createWorld();
+    await invite(world, 'half-promoted', 'viewer');
+    world.db.failNextSync = 'half-promoted';
+
+    const result = await applyTeamRoleChange(world.deps, {
+      userId: 'half-promoted',
+      previousRole: 'viewer',
+      nextRole: 'admin',
+    });
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'MEMBERSHIP_SYNC_FAILED');
+
+    // The compensating revert ran: the trusted role is back at `viewer`.
+    assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get('half-promoted')), 'viewer');
+    const actor = await world.resolveAsync('half-promoted', undefined, { privileged: true });
+    assert.equal(actor.capabilities.includes('ai.agent.execute'), false);
+  });
+
+  it('grants nothing even when the compensating revert ALSO fails', async () => {
+    // The state the revert exists to prevent, reached anyway: `app_metadata`
+    // says `admin`, the membership row still says `team_viewer`. The floor is
+    // what makes this safe rather than the revert — the promotion does not take
+    // effect until BOTH systems carry it.
+    const world = createWorld();
+    await invite(world, 'stuck-promotion', 'viewer');
+
+    let writes = 0;
+    const result = await applyTeamRoleChange(
+      {
+        ...world.deps,
+        membership: {
+          sync: async () => {
+            throw new Error('simulated membership failure');
+          },
+          revoke: world.deps.membership.revoke,
+        },
+        account: {
+          async writeTeamRole(userId, role) {
+            writes += 1;
+            if (writes > 1) throw new Error('simulated revert failure');
+            await world.deps.account.writeTeamRole(userId, role);
+          },
+          removeAccount: world.deps.account.removeAccount,
+        },
+      },
+      { userId: 'stuck-promotion', previousRole: 'viewer', nextRole: 'admin' },
     );
 
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.failure.code, 'MEMBERSHIP_INCONSISTENT');
-    // The membership is already down. A half-completed demotion must revoke,
-    // never restore — putting `org_admin` back would undo the revocation an
-    // administrator just asked for.
-    assert.deepEqual(world.db.liveMarqRows('halfway').map((r) => r.role_key), ['team_viewer']);
+    assert.equal(
+      resolveTeamRoleFromAuthRecord(world.auth.get('stuck-promotion')),
+      'admin',
+      'precondition: the revert really did fail and left the higher role standing',
+    );
+    assert.deepEqual(world.db.liveMarqRows('stuck-promotion').map((r) => r.role_key), ['team_viewer']);
 
-    const actor = await world.resolveAsync('halfway');
-    assert.ok(
-      !actor.roles.includes('org_admin'),
-      'the organization capability is gone even though the change reported failure',
+    const actor = await world.resolveAsync('stuck-promotion', undefined, { privileged: true });
+    assert.equal(
+      actor.capabilities.includes('ai.agent.execute'),
+      false,
+      'a promotion that did not reach the membership grants nothing',
+    );
+    const viewer = await referenceFor('viewer');
+    assert.deepEqual([...actor.capabilities].sort(), [...viewer.capabilities].sort());
+  });
+});
+
+// ===========================================================================
+// M-B — A MARQ TEAM OWNER IS NOT THE AI PLATFORM OPERATOR
+//
+// The finding: `team_role = 'owner'` was routed through the AI admin RBAC's
+// `SUPER_ADMIN_ROLES` into the platform operator tier — the emergency kill
+// switch, the provider configuration every tenant executes through, the global
+// daily ceilings and the reset of MARQ's lifetime funded spend. Owning a
+// console team is an organization fact. Operating the platform is not.
+//
+// The separation uses the authority that already existed:
+// `app_metadata.platform_role = 'admin'`, which `cortex.is_platform_admin()`
+// has governed the database's RLS with since the tenancy migration. No new RBAC
+// system, and nothing a console route can write.
+// ===========================================================================
+
+const PLATFORM_CAPABILITIES = [
+  'ai.admin.provider.write',
+  'ai.admin.settings.write',
+  'ai.admin.budget.write',
+  'ai.admin.budget.reset',
+  'ai.admin.killswitch',
+] as const;
+
+describe('M-B: platform administration is explicit', () => {
+  it('a team owner keeps organization authority and gets no platform capability', async () => {
+    const world = createWorld();
+    await invite(world, 'team-owner', 'owner');
+
+    // Still the top of the team: full console administration.
+    const consoleCheck = authorizeTeamAdmin('team-owner', resolveTeamAuthority(world.auth.get('team-owner')));
+    assert.equal(consoleCheck.ok, true, 'an owner still administers the team');
+
+    // Still every AI execution capability an owner is for.
+    const actor = await world.resolveAsync('team-owner', undefined, { privileged: true });
+    assert.ok(actor.capabilities.includes('ai.agent.execute'));
+    assert.ok(actor.roles.includes('org_admin'), 'still an organization administrator');
+
+    // And NOT the platform operator.
+    const admin = resolveAdminActor(await adminSubjectFor(world, 'team-owner'));
+    assert.equal(admin.role, 'organization_admin', 'an owner administers their organization, not the platform');
+    for (const capability of PLATFORM_CAPABILITIES) {
+      assert.equal(
+        admin.capabilities.includes(capability),
+        false,
+        `a team owner must not hold ${capability}`,
+      );
+    }
+    assert.deepEqual(
+      [...admin.capabilities].sort(),
+      ['ai.admin.audit.read', 'ai.admin.view'],
+      'the organization tier is read-only',
+    );
+  });
+
+  it('an explicit trusted platform admin receives the platform capabilities', async () => {
+    const world = createWorld();
+    await invite(world, 'platform-op', 'viewer');
+    // The service role writing the field `cortex.is_platform_admin()` reads.
+    // Note the team role is the LEAST privileged one: platform authority does
+    // not ride on the team ladder in either direction.
+    world.auth.writeAppMetadata('platform-op', { platform_role: 'admin' });
+
+    const admin = resolveAdminActor(await adminSubjectFor(world, 'platform-op'));
+    assert.equal(admin.role, 'super_admin');
+    for (const capability of PLATFORM_CAPABILITIES) {
+      assert.ok(admin.capabilities.includes(capability), `the platform operator holds ${capability}`);
+    }
+    assert.deepEqual(admin.organizationScope, [], 'the platform operator sees every organization');
+  });
+
+  it('a forged user_metadata platform_role receives neither', async () => {
+    const world = createWorld();
+    await invite(world, 'forger', 'viewer');
+    // Everything a signed-in account can write for itself through GoTrue's
+    // `PUT /auth/v1/user`, thrown at both surfaces at once.
+    world.auth.selfWriteUserMetadata('forger', {
+      platform_role: 'admin',
+      role: 'team',
+      teamRole: 'owner',
+      marq_team: true,
+      team_role: 'owner',
+    });
+
+    const subject = await adminSubjectFor(world, 'forger');
+    assert.deepEqual(subject.globalRoles, ['viewer'], 'user_metadata reaches no trusted role');
+    assert.equal(resolveAdminRole(subject), undefined);
+    assert.throws(() => resolveAdminActor(subject), (error: unknown) => {
+      assert.equal((error as AIError).code, 'FORBIDDEN');
+      return true;
+    });
+
+    const consoleCheck = authorizeTeamAdmin('forger', resolveTeamAuthority(world.auth.get('forger')));
+    assert.equal(consoleCheck.ok, false, 'and no console authority either');
+
+    const actor = await world.resolveAsync('forger', undefined, { privileged: true });
+    assert.equal(actor.capabilities.includes('ai.agent.execute'), false);
+  });
+
+  it('no team role reaches the platform tier, at any rank', async () => {
+    // The finding named `owner`. This asserts the property for the whole
+    // vocabulary, so a future addition to TEAM_ROLES cannot reintroduce it.
+    for (const role of TEAM_ROLES) {
+      const world = createWorld();
+      await invite(world, `rank-${role}`, role);
+      const resolved = resolveAdminRole(await adminSubjectFor(world, `rank-${role}`));
+      assert.notEqual(resolved, 'super_admin', `team role ${role} must not confer platform administration`);
+    }
+  });
+
+  it('a membership row cannot confer platform administration either', async () => {
+    // Belt to the braces: even a hand-written membership row naming a
+    // platform-sounding key is a statement about ONE tenant, and the platform
+    // tier is resolved from global roles alone.
+    const world = createWorld();
+    await invite(world, 'row-claim', 'viewer');
+    world.db.seedMembership('row-claim', 'platform_admin');
+    world.db.seedMembership('row-claim', 'super_admin');
+
+    const subject = await adminSubjectFor(world, 'row-claim');
+    assert.notEqual(resolveAdminRole(subject), 'super_admin');
+  });
+
+  it('the console provisioning shape carries no platform key', async () => {
+    // `teamAppMetadata` is what every server-side provisioning path sends. If
+    // it ever carried `platform_role`, an `admin` re-roling a colleague would
+    // be minting platform operators through a console route.
+    for (const role of TEAM_ROLES) {
+      assert.deepEqual(Object.keys(teamAppMetadata(role)).sort(), ['marq_team', 'team_role']);
+    }
+  });
+
+  it('a role change never disturbs an existing platform_role', async () => {
+    const world = createWorld();
+    await invite(world, 'both-hats', 'admin');
+    world.auth.writeAppMetadata('both-hats', { platform_role: 'admin' });
+
+    const change = await applyTeamRoleChange(world.deps, {
+      userId: 'both-hats',
+      previousRole: 'admin',
+      nextRole: 'viewer',
+    });
+    assert.equal(change.ok, true);
+
+    // The team demotion took effect; the separately-granted platform authority
+    // is not the console's to revoke and is still there.
+    assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get('both-hats')), 'viewer');
+    assert.equal(
+      resolveAdminRole(await adminSubjectFor(world, 'both-hats')),
+      'super_admin',
+      'platform authority is granted and revoked through platform_role, not through a team role',
     );
   });
 });

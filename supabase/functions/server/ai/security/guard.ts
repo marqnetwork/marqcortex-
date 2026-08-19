@@ -112,9 +112,18 @@ export function createAIGuard(deps: GuardDependencies): AIGuard {
       }
 
       // 4 — authentication
+      //
+      // The capability this feature demands is declared by the descriptor, so
+      // the guard — not the caller — decides whether authority may be resolved
+      // from a cached membership snapshot. A privileged feature is resolved
+      // against the database in every isolate, which is what stops a revocation
+      // performed in one isolate from being ignored by another for the length
+      // of a cache TTL (M-A).
       let subject: AuthenticatedSubject | null = null;
       if (transport.authorization) {
-        subject = await authenticator.authenticate(transport.authorization);
+        subject = await authenticator.authenticate(transport.authorization, {
+          requiredCapability: descriptor.capability,
+        });
         if (!subject) {
           throw new AIError('AUTH_INVALID', 'The supplied credential is not valid.');
         }

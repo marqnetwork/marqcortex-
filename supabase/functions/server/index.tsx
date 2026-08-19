@@ -49,6 +49,7 @@ import {
   requireTeamAccountTarget,
   resolveTeamAuthority,
   resolveTeamRoleFromAuthRecord,
+  resolveTrustedGlobalRoles,
   teamAppMetadata,
   type TeamAuthority,
   type TeamRole,
@@ -505,11 +506,18 @@ const controlPlane = initializeControlPlane({
     // job is to describe the subject. With no role and no membership, such a
     // subject holds only the team baseline and then fails closed at
     // `resolveOrganization` for want of a verified organization.
-    const teamRole = resolveTeamRoleFromAuthRecord(data.user);
+    // Platform authority is resolved alongside the team role and NEVER from it
+    // (M-B). `resolveTrustedGlobalRoles` emits `platform_admin` only for
+    // `app_metadata.platform_role = 'admin'` — the field
+    // `cortex.is_platform_admin()` already governs the database with, which no
+    // console route writes — and the team role separately. A `team_role` of
+    // `owner` is an organization fact and stops being an accidental grant of
+    // the AI kill switch, the provider configuration and the global budget
+    // reset.
     return {
       id: data.user.id,
       email: data.user.email ?? undefined,
-      roles: teamRole ? [teamRole] : [],
+      roles: resolveTrustedGlobalRoles(data.user),
     };
   },
   listMemberships: async (userId: string) => {
@@ -3372,10 +3380,13 @@ app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
       return c.json({ error: removal.failure.message, code: removal.failure.code }, removal.failure.status);
     }
 
-    // Membership first, then the account. If the account delete then fails the
-    // person has already lost their organization authority — the reverse order
-    // can leave a live membership behind, and `organization_memberships`
-    // cascades only on a HARD `auth.users` delete.
+    // The account first, then the membership. Removal is the maximal demotion,
+    // so the highest authority falls first — the same rule H-A imposed on a
+    // role change. Revoking the membership first took the organization
+    // capability away and left `app_metadata.marq_team` and `team_role` on a
+    // live account, which is exactly what `verifyTeamToken` and
+    // `authorizeTeamAdmin` read: a half-completed removal left somebody who had
+    // just been removed still able to manage the team.
     const revocation = await revokeTeamAccount(teamLifecycle, { userId: memberId });
     if (!revocation.ok) {
       console.log(`Removal failed for ${memberId}: ${revocation.failure.diagnostics}`);

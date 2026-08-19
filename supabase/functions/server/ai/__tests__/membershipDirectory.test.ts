@@ -259,10 +259,20 @@ describe('the membership lookup', () => {
 // End to end: rows in, authorization decision out.
 // ---------------------------------------------------------------------------
 
-async function subjectFromRows(rows: unknown) {
+/**
+ * Resolve a subject from a set of membership rows and a TRUSTED TEAM ROLE.
+ *
+ * The team role used to be hard-coded to `viewer` while the rows said
+ * `org_admin`, and the assertions below expected the row to win. That is the
+ * H-A escalation written down as an expectation: `authorityFloor` now grants no
+ * more than the lower of the two, so a test that wants to see what a membership
+ * row grants has to pair it with a team role that agrees — which is the only
+ * state a working system is ever in.
+ */
+async function subjectFromRows(rows: unknown, teamRole = 'admin') {
   const fake = fakeClient({ data: rows, error: null });
   const authenticator = createSupabaseAuthenticator({
-    getUser: () => Promise.resolve({ id: 'user-1', email: 'operator@marq.test', roles: ['viewer'] }),
+    getUser: () => Promise.resolve({ id: 'user-1', email: 'operator@marq.test', roles: [teamRole] }),
     listMemberships: (userId) => listVerifiedMemberships(fake.client, userId),
     clock: createTestClock(),
   });
@@ -290,14 +300,37 @@ describe('a membership row reaches the authorization decision', () => {
     // The defect restated as behaviour rather than as a returned shape: with
     // `roles: []` — and, until the role keys were added to ROLE_CAPABILITIES,
     // with the join in place too — these two resolved identically.
-    const adminSubject = await subjectFromRows([liveRow()]);
-    const viewerSubject = await subjectFromRows([liveRow({ roles: { key: 'team_viewer' } })]);
+    //
+    // Both subjects carry the SAME trusted team role. The only difference is
+    // the row, so the difference in the outcome is the row's doing.
+    const adminSubject = await subjectFromRows([liveRow()], 'admin');
+    const viewerSubject = await subjectFromRows([liveRow({ roles: { key: 'team_viewer' } })], 'admin');
 
     const admin = resolveActor(adminSubject, ORG, { allowAnonymous: false });
     const viewer = resolveActor(viewerSubject, ORG, { allowAnonymous: false });
 
     assert.notDeepEqual(admin.capabilities, viewer.capabilities);
     assert.equal(viewer.capabilities.includes('ai.agent.execute'), false);
+  });
+
+  it('a stale org_admin row grants nothing to an account demoted to viewer', async () => {
+    // H-A, at the resolution layer. The row still says `org_admin` because the
+    // second half of a demotion has not landed (or failed); the trusted team
+    // role already says `viewer`. The lower of the two is what the actor holds.
+    const subject = await subjectFromRows([liveRow()], 'viewer');
+    const actor = resolveActor(subject, ORG, { allowAnonymous: false });
+
+    assert.ok(actor.roles.includes('org_admin'), 'the row is still reported, for the audit record');
+    assert.equal(
+      actor.capabilities.includes('ai.agent.execute'),
+      false,
+      'a stale org_admin row must not grant what the trusted team role no longer does',
+    );
+    assert.deepEqual(
+      [...actor.capabilities].sort(),
+      ['ai.chat.converse', 'ai.narrative.generate'],
+      'the actor holds exactly the viewer floor',
+    );
   });
 
   it('a suspended row fails the request closed', async () => {

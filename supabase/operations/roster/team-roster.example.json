@@ -1,9 +1,10 @@
 {
   "artifact": "marq-internal-roster-2026-08-19",
   "expectedCount": 3,
+  "_roles": "viewer, reviewer, analyst, consultant, admin, owner. Nothing else is accepted. 'owner' is the top of the MARQ TEAM and grants no AI platform administration — that is app_metadata.platform_role, granted separately by ops and never by a roster.",
   "roster": [
     { "user_id": "00000000-0000-0000-0000-000000000000", "team_role": "owner",      "note": "replace with a real auth.users id from Supabase Dashboard -> Authentication -> Users" },
     { "user_id": "00000000-0000-0000-0000-000000000001", "team_role": "admin",      "note": "one entry per reviewed internal account" },
-    { "user_id": "00000000-0000-0000-0000-000000000002", "team_role": "consultant", "note": "valid roles: viewer, reviewer, analyst, consultant, admin, owner" }
+    { "user_id": "00000000-0000-0000-0000-000000000002", "team_role": "consultant", "note": "the stamp writes marq_team and team_role only, merged into whatever the account already carries" }
   ]
 }

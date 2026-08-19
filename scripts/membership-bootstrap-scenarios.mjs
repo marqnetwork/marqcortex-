@@ -65,6 +65,10 @@ const MIGRATIONS = join(ROOT, 'supabase', 'migrations');
 const BOOTSTRAP = join(MIGRATIONS, '20260818120000_marq_team_membership_bootstrap.sql');
 const ROLLBACK = join(MIGRATIONS, 'rollbacks', '20260818120000_rollback_membership_bootstrap.sql');
 const LIFECYCLE = join(MIGRATIONS, '20260818130000_marq_membership_lifecycle.sql');
+const RECOVERY = join(MIGRATIONS, '20260819120000_marq_authority_recovery.sql');
+const RECOVERY_ROLLBACK = join(
+  MIGRATIONS, 'rollbacks', '20260819120000_rollback_authority_recovery.sql',
+);
 
 const STEPS = [
   ['platform stub', join(HARNESS, '00_platform_stub.sql')],
@@ -113,6 +117,10 @@ const LIFECYCLE_STEPS = [
   ['membership lifecycle migration', LIFECYCLE],
   ['assert lifecycle (HIGH-1, MED-1)', join(HARNESS, '70_assert_lifecycle.sql')],
   ['assert roster stamping (HIGH-3)', join(HARNESS, '75_assert_roster_stamping.sql')],
+  ['authority recovery migration', RECOVERY],
+  ['assert authority recovery (L1, L2, L3, L4)', join(HARNESS, '85_assert_authority_recovery.sql')],
+  ['authority recovery rollback', RECOVERY_ROLLBACK],
+  ['assert recovery rollback', join(HARNESS, '86_assert_recovery_rollback.sql')],
 ];
 
 /**

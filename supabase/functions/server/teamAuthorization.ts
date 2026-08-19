@@ -210,9 +210,88 @@ export function resolveTeamRoleFromAuthRecord(
 /**
  * The `app_metadata` patch every server-side provisioning call must send.
  * Held here so the three call sites cannot drift into three shapes.
+ *
+ * Two keys, and only two. `platform_role` is conspicuously absent and must
+ * stay absent: this patch is applied by console routes that an `admin` or an
+ * `owner` can reach, and a console route that could write `platform_role` would
+ * be a console route that mints platform operators. See
+ * `resolvePlatformAuthority` and finding M-B.
  */
 export function teamAppMetadata(role: TeamRole): { marq_team: true; team_role: TeamRole } {
   return { marq_team: true, team_role: role };
+}
+
+// ---------------------------------------------------------------------------
+// PLATFORM AUTHORITY — A SEPARATE QUESTION, WITH A SEPARATE ANSWER (M-B)
+// ---------------------------------------------------------------------------
+
+/**
+ * The global role a trusted platform administrator carries.
+ *
+ * Emitted for `app_metadata.platform_role = 'admin'` and nothing else, and kept
+ * deliberately distinct from every member of `TEAM_ROLES` so the two can never
+ * be confused by a set membership test somewhere downstream.
+ */
+export const PLATFORM_ADMIN_ROLE = 'platform_admin' as const;
+export type PlatformRole = typeof PLATFORM_ADMIN_ROLE;
+
+/**
+ * The value `app_metadata.platform_role` must hold. Matches
+ * `cortex.is_platform_admin()` in `20260711050001_cortex_tenancy_rls_and_seed.sql`
+ * exactly — one predicate, read by the database's RLS policies and by this
+ * server, so a change has to be made in both places on purpose.
+ */
+export const PLATFORM_ADMIN_METADATA_VALUE = 'admin';
+
+/**
+ * Is this auth record an explicit, trusted platform administrator?
+ *
+ * WHY THIS EXISTS RATHER THAN A ROLE IN `TEAM_ROLES`.
+ *
+ * Finding M-B: `team_role = 'owner'` was being mapped through the AI admin
+ * RBAC's `SUPER_ADMIN_ROLES` into the AI platform operator tier — the kill
+ * switch, the provider configuration, the global budget reset. Owning a MARQ
+ * team is an organization-level fact; operating the AI platform is a
+ * platform-level one, and the second must be granted deliberately.
+ *
+ * It is not a new RBAC system. `app_metadata.platform_role` predates all of
+ * this: `cortex.is_platform_admin()` reads it, and every RLS policy in the
+ * tenancy migration is written against that function. This is the SAME field,
+ * surfaced to the server so the AI administration surface trusts the authority
+ * the database already trusts, instead of inferring one from a team role.
+ *
+ * Three properties make it safe to be the strongest thing here:
+ *
+ *   1. It lives in `app_metadata`, which GoTrue refuses to write for a
+ *      user-scoped call. `user_metadata.platform_role` is read by nothing.
+ *   2. No console route writes it. `teamAppMetadata` — the single shape every
+ *      provisioning path sends — carries `marq_team` and `team_role` only.
+ *   3. `cortex.stamp_team_roster` validates its roles against
+ *      `cortex.team_roles()` and MERGES its two keys into the existing bag, so
+ *      a roster can neither name a platform role nor produce one by accident.
+ */
+export function isPlatformAdminAccount(record: AuthRecordMetadata | null | undefined): boolean {
+  const asserted = record?.app_metadata?.platform_role;
+  return typeof asserted === 'string' &&
+    asserted.trim().toLowerCase() === PLATFORM_ADMIN_METADATA_VALUE;
+}
+
+/**
+ * The trusted global roles an auth record carries, for the AI control plane.
+ *
+ * Ordered platform-first so a reader sees the strongest claim first; the
+ * consumers are set-membership tests, so order carries no authority of its own.
+ * An account that is neither a platform admin nor a provisioned team account
+ * returns an EMPTY array — never a default role.
+ */
+export function resolveTrustedGlobalRoles(
+  record: AuthRecordMetadata | null | undefined,
+): readonly string[] {
+  const roles: string[] = [];
+  if (isPlatformAdminAccount(record)) roles.push(PLATFORM_ADMIN_ROLE);
+  const teamRole = resolveTeamAuthority(record).role;
+  if (teamRole) roles.push(teamRole);
+  return roles;
 }
 
 export interface TeamAuthorizationFailure {

@@ -30,6 +30,7 @@
  */
 
 import type { AuthenticatedSubject } from '../../security/actor.ts';
+import { flooredRolesFor } from '../../security/actor.ts';
 import type { AIOrganization } from '../../contracts/request.ts';
 import type { OrganizationResolutionOptions } from '../../security/tenancy.ts';
 import type { WorkflowAgentActor } from '../engine/agentNodePort.ts';
@@ -155,7 +156,12 @@ export function resolveWorkflowActor(
   const membership = subject.memberships.find(
     (entry) => entry.organizationId === organization.organizationId,
   );
-  const roles = [...new Set(lower([...subject.globalRoles, ...(membership?.roles ?? [])]))].sort();
+  // FLOORED, not unioned (H-A). The trusted `app_metadata` team role and the
+  // membership row can disagree while a role change is half-applied, and the
+  // union grants whichever half is still stale — here that is the difference
+  // between holding `workflow.approval.decide` and not. `flooredRolesFor` grants
+  // no more than the lower of the two, and is a no-op whenever they agree.
+  const roles = [...new Set(lower([...flooredRolesFor(subject, membership)]))].sort();
 
   const granted = new Set<WorkflowRuntimeCapability>();
   for (const role of roles) {

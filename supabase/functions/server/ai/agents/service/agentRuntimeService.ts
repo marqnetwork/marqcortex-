@@ -451,8 +451,10 @@ export function createAgentRuntimeService(
 
   return {
     async authorize(meta) {
+      // Authoritative: an agent run is `ai.agent.execute`, the capability a
+      // demotion most needs to be able to take away at once (M-A).
       const subject = meta.authorization
-        ? await deps.authenticator.authenticate(meta.authorization)
+        ? await deps.authenticator.authenticate(meta.authorization, { privileged: true })
         : null;
       return resolveAgentActor(subject, meta.organizationHint, deps.organizationOptions);
     },

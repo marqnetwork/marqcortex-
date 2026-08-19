@@ -152,7 +152,7 @@ describe('the membership lifecycle is on every write path', () => {
     );
   });
 
-  it('the removal revokes the membership before deleting the account', () => {
+  it('the removal goes through the lifecycle, which owns the ordering', () => {
     const body = routeBody('delete', '/team/members/:id');
     assert.match(body, /revokeTeamAccount\(teamLifecycle,\s*\{\s*userId:\s*memberId\s*\}\)/);
     assert.ok(
@@ -211,3 +211,61 @@ describe('the console list cannot be joined by writing your own metadata', () =>
     assert.match(body, /teamRole:\s*authority\.role/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// M-B — the trusted roles the AI plane is handed
+//
+// The AI administration surface resolves the platform operator tier from
+// `subject.globalRoles`, and that array is built in exactly one place: the
+// `getUser` port this entry point passes to the control plane. If it ever put
+// a team role where a platform role belongs — or resolved either from
+// `user_metadata` — the separation M-B asks for would be undone at the wiring,
+// with every unit test still green.
+// ---------------------------------------------------------------------------
+
+describe('the AI subject carries platform authority separately from team role (M-B)', () => {
+  const getUserPort = (() => {
+    const start = code.indexOf('getUser: async (accessToken: string)');
+    assert.ok(start > 0, 'the getUser port must exist');
+    const end = code.indexOf('listMemberships:', start);
+    assert.ok(end > start, 'the getUser port must be followed by listMemberships');
+    return code.slice(start, end);
+  })();
+
+  it('builds the trusted global roles through the one resolver', () => {
+    assert.match(getUserPort, /roles:\s*resolveTrustedGlobalRoles\(data\.user\)/);
+  });
+
+  it('does not hand the AI plane a hand-assembled role array', () => {
+    // `roles: teamRole ? [teamRole] : []` was the previous shape. It carried
+    // the team role and nothing else, so `platform_role` never reached the AI
+    // administration surface — which is why `owner` had been pressed into
+    // service as the platform role instead.
+    assert.equal(/roles:\s*teamRole\s*\?/.test(getUserPort), false);
+    assert.equal(/roles:\s*\[/.test(getUserPort), false);
+  });
+
+  it('reads no user metadata when building the subject', () => {
+    assert.equal(/user_metadata/.test(getUserPort), false);
+  });
+
+  it('no route writes platform_role', () => {
+    // Console provisioning sends `teamAppMetadata(role)` and nothing else. A
+    // literal `platform_role` written anywhere in this entry point would be a
+    // console route minting platform operators.
+    assert.equal(/platform_role/.test(code), false);
+  });
+
+  it('every app_metadata write goes through the one shape', () => {
+    const writes = [...code.matchAll(/app_metadata:\s*([^,\n]+)/g)].map((m) => m[1].trim());
+    assert.ok(writes.length > 0, 'the entry point must write app_metadata somewhere');
+    for (const write of writes) {
+      assert.match(
+        write,
+        /^teamAppMetadata\(/,
+        `app_metadata is written as \`${write}\`; every write must go through teamAppMetadata`,
+      );
+    }
+  });
+});
+

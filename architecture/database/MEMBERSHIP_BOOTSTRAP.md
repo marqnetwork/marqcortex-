@@ -2,8 +2,9 @@
 
 **Sprint:** MCV2-S4-IMPLEMENT-001
 **Automated by:** AI-01 Batch 4A —
-`supabase/migrations/20260818120000_marq_team_membership_bootstrap.sql` and
-`supabase/migrations/20260818130000_marq_membership_lifecycle.sql`
+`supabase/migrations/20260818120000_marq_team_membership_bootstrap.sql`,
+`supabase/migrations/20260818130000_marq_membership_lifecycle.sql` and
+`supabase/migrations/20260819120000_marq_authority_recovery.sql`
 **Status:** Automated end to end. The bootstrap admits the team that exists when
 it runs; the lifecycle keeps every later invite, role change and removal in step.
 A one-time, operator-reviewed **stamping** step is a **prerequisite** for
@@ -148,11 +149,40 @@ added, joining `roles(key)` into the membership query changed what the query
 returned and nothing about what any actor could do — an unmapped key grants
 nothing, so an `org_admin` and a `team_viewer` still resolved identically.
 
-Roles are additive (team role ∪ membership role), and each key is granted at the
-level the team role it maps from already had: `org_admin` = the `admin` grant,
-`team_member` = the `reviewer` grant (the least of the three roles that map to
-it), `team_viewer` = nothing. A test asserts no key grants a capability its
-source team role does not.
+Each key is granted at the level the team role it maps from already had:
+`org_admin` = the `admin` grant, `team_member` = the `reviewer` grant (the least
+of the three roles that map to it), `team_viewer` = nothing. A test asserts no
+key grants a capability its source team role does not.
+
+#### The two sources are FLOORED, not unioned (H-A)
+
+Roles used to be additive — team role ∪ membership role. That is safe only while
+the two agree, and they cannot be written atomically, so there is always a
+window in which they disagree. The union hands the account whichever half is
+still stale:
+
+| Written first | Second write fails | Union grants | Floor grants |
+|---|---|---|---|
+| membership | `app_metadata` still `admin` | `ai.agent.execute` (from `admin`) | the new role only |
+| `app_metadata` | membership row still `org_admin` | `ai.agent.execute` (from `org_admin`) | the new role only |
+
+`authorityFloor` in `ai/security/actor.ts` grants **the lower of the two**. An
+actor holds `min(trusted team role, what the membership row can stand for)`,
+where a membership key stands for the most privileged team role that maps to it
+(`org_admin` → `owner`, `team_member` → `consultant`, `team_viewer` → `viewer`).
+
+This changes **nothing in a consistent state**, by construction: every team role
+maps to an organization role whose grant is a subset of its own, so in agreement
+the floor is the team role — which is what the union already produced. It bites
+only while the two disagree, which is what it is for.
+
+A membership row with **no trusted team role behind it** grants nothing at all,
+in either vocabulary. `app_metadata` is the authority (HIGH-2); a row on its own
+is not one.
+
+The same floor is applied to the AI administration tier in `ai/admin/rbac.ts`
+(`flooredRoleNames`), so a stale `org_admin` row cannot confer organization-wide
+read access to usage, cost and the audit trail either.
 
 ## Applying it
 
@@ -299,38 +329,89 @@ parameter through which to name one. Granted to `service_role` only.
 |---|---|---|
 | invite / create | written by `createUser` | **created**, `active`, at the mapped role |
 | role change | rewritten | `role_id` **moved** to the mapped role |
-| removal | account deleted | **soft-deleted** first |
+| removal | account **deleted first** | soft-deleted second |
 
 ### Ordering, and what a partial failure leaves behind
 
 Two systems cannot be written atomically, so the order is chosen to make the
 only reachable partial state the safe one:
 
-- **Demotion** (the new role ranks lower) — **membership first**. If the second
-  write fails, the account has already lost the organization capability. The
-  route returns `MEMBERSHIP_INCONSISTENT`; it does **not** restore the higher
-  membership, because that would undo the revocation an administrator just asked
-  for.
+- **Demotion** (the new role ranks lower) — **the trusted `app_metadata` team
+  role first**, then the authority caches, then the membership. `app_metadata`
+  is the account's highest authority and it is re-read from the auth service on
+  every request in every isolate with no cache in front of it, so lowering it
+  first takes effect everywhere at once. If the membership write then fails the
+  route returns `MEMBERSHIP_INCONSISTENT` and the row is left stale — the floor
+  above means it grants nothing. The higher team role is **never** restored as
+  compensation: that would undo the revocation an administrator just asked for.
+
+  > This was the other way round in the first remediation, and that was finding
+  > **H-A**. Membership went first on the reasoning that the account would
+  > "still hold the old team role, which is strictly less than it had". It was
+  > not less — `ROLE_CAPABILITIES.admin` grants `ai.agent.execute` with no
+  > membership at all — so a partial demotion revoked nothing. Reversing the
+  > order alone would not have fixed it either; the floor is what makes a
+  > partial demotion revoke, and the order is what makes it revoke immediately.
 - **Promotion or lateral** — `app_metadata` first, membership second. A failed
   membership write **reverts** the account record and the route returns
   `MEMBERSHIP_SYNC_FAILED`; the member keeps their previous role.
 - **Invite** — a failed membership write **deletes the account just created**
   and the route returns `MEMBERSHIP_PROVISIONING_FAILED`. Half a hire is worse
   than none: an operator retrying an invite gets a whole one.
-- **Removal** — membership first, account second. A failed account delete leaves
-  the membership revoked and returns `MEMBERSHIP_REVOCATION_FAILED`; a failed
-  revocation leaves the account alone and removes nothing.
+- **Removal** — **account first**, membership second, for the same reason the
+  demotion lowers `app_metadata` first: removal is the maximal demotion. A
+  failed account delete changes nothing and returns
+  `MEMBERSHIP_REVOCATION_FAILED`; a failed revocation leaves a membership row
+  for an account that no longer exists and returns `MEMBERSHIP_INCONSISTENT`.
+
+  > This was membership-first, on the H-A reasoning: "revoke first, so a failed
+  > second write has already revoked". It had the H-A flaw. Revoking the
+  > membership leaves `marq_team` and `team_role` standing on a live account,
+  > and those are what `verifyTeamToken` and `authorizeTeamAdmin` read — so
+  > somebody just removed could still invite, re-role and delete their former
+  > colleagues through the console. Deleting the account first cannot leave
+  > authority anywhere, because every path requires the caller to authenticate.
 
 In every case the route returns a failure. A role change that did not fully
 apply must not answer `200`.
 
-### Revocation is immediate
+### Revocation is immediate, in every isolate (M-A)
 
-The AI authenticator caches memberships for 60 seconds. Every lifecycle write
-publishes on a `MembershipInvalidationSignal` that drops the user's cache entry
-at once, so a demotion takes effect on the **next request** rather than up to a
-minute later. The TTL remains the backstop for changes made outside the isolate
-— another isolate, the SQL editor, a migration — which the signal cannot see.
+The AI authenticator caches memberships for 60 seconds, per isolate. A signal
+cannot leave the process that fired it, so an invalidation published by the
+isolate that performed a demotion reached that isolate and **no other** — every
+other one kept serving a cached `org_admin` until its own TTL expired. That is a
+stale privileged authorization window, and no length of it is acceptable.
+
+Two properties close it, and neither is a cache:
+
+1. **The trusted role is never cached.** `getUser` verifies the bearer token
+   against the auth service on every request, so `app_metadata` — and the team
+   role the floor reads from it — is current in every isolate the instant it is
+   written. Lowering it first (above) is therefore a platform-wide revocation.
+
+2. **A privileged capability is resolved authoritatively.** The AI Guard reads
+   the capability the feature declares and asks the authenticator for an
+   authoritative resolution when it is one of `PRIVILEGED_CAPABILITIES` —
+   `ai.analysis.run`, `ai.block.assist`, `ai.copilot.plan`, `ai.section.copilot`
+   and `ai.agent.execute`. Those requests read `organization_memberships`
+   through the **same** `listMemberships` port, in whichever isolate is serving,
+   and simply decline to skip it. The AI administration surface, the agent
+   runtime and the workflow runtime pass `privileged: true` unconditionally.
+
+   There is no second resolver, no second query and no second answer — the
+   privileged path is the ordinary path without the shortcut.
+
+A subject answered **from** the snapshot is marked `membershipsFromCache`, and
+`resolveActor` withholds every privileged capability from it. So forgetting to
+mark a call privileged produces a denial, not a stale grant.
+
+An ordinary request — one whose feature needs only `ai.narrative.generate` or
+`ai.chat.converse`, the two capabilities every authenticated team member already
+holds — is still served from the snapshot. There is nothing there for a
+revocation to take away, so a round trip would buy latency and no security.
+
+The TTL remains as the backstop for the ordinary path.
 
 ### Suspension
 
@@ -376,11 +457,45 @@ edit — that would be an invite without an invite's checks.
 -- app_metadata.platform_role = 'admin' enables cortex.is_platform_admin()
 ```
 
-Unchanged, and deliberately outside everything above. No arm of the role mapping
-can emit `platform_admin`, the sync function refuses it explicitly, the roster
-artifact rejects it as a team role and never writes `platform_role`, and the
-bootstrap rollback carries a guard that makes it unable to revoke one. Platform
+Deliberately outside everything above. No arm of the role mapping can emit
+`platform_admin`, the sync function refuses it explicitly, the roster artifact
+rejects it as a team role and never writes `platform_role`, and the bootstrap
+rollback carries a guard that makes it unable to revoke one. Platform
 administration is granted by a person, and by no automation in this repository.
+
+### A team owner is not the AI platform operator (M-B)
+
+`team_role = 'owner'` used to be routed through `SUPER_ADMIN_ROLES` in
+`ai/admin/rbac.ts` into the AI **platform operator** tier: the emergency kill
+switch, the provider configuration every tenant executes through, the global
+daily ceilings, and the reset of MARQ's lifetime funded spend. Every one of
+those switches is platform-wide, and `owner` is a role any existing owner can
+assign through `PATCH /team/members/:id` and any reviewed roster can stamp.
+
+Two vocabularies had been conflated, and the second one already had a mechanism.
+
+| Question | Answered by | Written by |
+|---|---|---|
+| What may they do in their organization / team? | `app_metadata.team_role`, and the mapped membership row | the console's team routes, the roster artifact |
+| May they administer the AI **platform**? | `app_metadata.platform_role = 'admin'` | the service role, by a person, with ops approval |
+
+`resolvePlatformAuthority` / `resolveTrustedGlobalRoles` in
+`teamAuthorization.ts` emit `platform_admin` for `platform_role = 'admin'` and
+for nothing else, and `index.tsx` hands the AI plane both facts separately.
+`SUPER_ADMIN_ROLES` now contains only `platform_admin` and `super_admin`, which
+no team role can ever be: `normalizeTeamRole` cannot return a string outside
+`TEAM_ROLES`, and neither name is in it.
+
+**What a MARQ team owner keeps:** full console team administration, every AI
+execution capability, `org_admin` on their membership, and the AI
+administration surface at the `organization_admin` tier — full read visibility
+across their organizations, with no platform mutation. What they no longer get,
+by accident, is the ability to turn AI off for every other tenant.
+
+The platform tier is resolved from **global roles only**. A membership row is a
+statement about one tenant, and no statement about one tenant may make somebody
+the operator of the platform every tenant shares — so a hand-written membership
+row naming `platform_admin` confers nothing.
 
 ## Re-admitting somebody who was removed
 
@@ -454,6 +569,100 @@ before it, because step 3 removes the function step 1 depends on:
 The rollback file **refuses to run** while any stamping artifact is still live,
 naming the count — dropping `cortex.unstamp_team_roster` with unreversed stamps
 on the table would strand them with no supported reversal.
+
+### When step 1 will not complete: a drifted stamp (L1)
+
+`cortex.unstamp_team_roster` compares each account's live `raw_app_meta_data`
+against what the artifact wrote and **skips anything that differs**. That is
+correct — resetting a bag somebody else edited destroys their edit — but it left
+no way forward at all, and an ordinary console role change is enough to trigger
+it: `PATCH /team/members/:id` rewrites `team_role`. The artifact then could
+never be fully reversed, and the only remaining cure was hand-written SQL
+against `auth.users` that no runbook described.
+
+`cortex.release_team_stamp` is the documented way forward
+(`20260819120000_marq_authority_recovery.sql`).
+
+```sql
+-- 1. What drifted, and how.
+SELECT * FROM cortex.team_stamp_drift('<artifact>');
+
+-- 2. Plan the release for ONE account. Dry run is the default.
+SELECT cortex.release_team_stamp('<artifact>', '<user id>', 'why, in a sentence');
+
+-- 3. Apply it.
+SELECT cortex.release_team_stamp('<artifact>', '<user id>', 'why, in a sentence', false);
+
+-- 4. Then the clean reversal for everything that did not drift.
+SELECT cortex.unstamp_team_roster('<artifact>', false);
+```
+
+What it does, and the limits that make it safe to document:
+
+- **Removes** `marq_team` and `team_role` from what the account *currently*
+  carries. It does not restore the recorded previous bag over a later edit —
+  that is what would destroy `platform_role` and anything else added since.
+- **Only ever reduces authority.** There is no argument list that makes it grant
+  something. The account stops being a provisioned team account and every
+  console route refuses it.
+- **One account at a time**, named by id. A bulk release is the hand-written
+  `UPDATE` this whole mechanism replaced.
+- **A reason is required** (eight characters or more) and is recorded
+  permanently in `cortex.team_roster_stamp_log.released_reason`, alongside the
+  metadata as it actually was in `released_app_metadata`.
+- **Refuses an account that has not drifted**, naming `unstamp_team_roster`
+  instead — the clean reversal restores the previous bag and is strictly better.
+- **Does not touch memberships.** Revocation is
+  `public.marq_revoke_team_membership`, in the order above.
+
+Rolling back `20260819120000` itself
+(`rollbacks/20260819120000_rollback_authority_recovery.sql`) drops the three
+functions and **keeps** `released_reason` / `released_app_metadata`: those record
+why an operator force-removed somebody's team status, and dropping them to undo
+a DDL change would destroy the audit trail the migration exists to create.
+
+### Orphaned team accounts (L2)
+
+`POST /team/invite` creates the auth account, then the membership. The route
+compensates when the membership write *fails* — it deletes the account it just
+created — but it cannot compensate for not running at all, and an edge isolate
+that dies between the two calls leaves a stamped account with no membership.
+Two systems cannot be written in one transaction, so the answer is deterministic
+detection plus a bounded, documented recovery.
+
+```sql
+SELECT * FROM cortex.orphaned_team_accounts();
+```
+
+Stamped, live auth accounts with no `active`, undeleted membership in the live
+MARQ organization, oldest first, with `age_minutes` and a `banned` flag. An
+account minutes old may simply be an invite in flight; one that is hours old is
+not.
+
+Recovery is a **decision**, which is why it is not automatic:
+
+| Intent | Action |
+|---|---|
+| They were meant to join | `SELECT public.marq_sync_team_membership('<user id>', '<team role>');` — adopts the account at the role its `app_metadata` already carries |
+| They were not | Delete the account through the Supabase Admin API, or release the stamp as above |
+
+An automatic adopt would grant a membership nobody approved; an automatic delete
+would remove an account somebody may be part-way through creating.
+
+### Banned accounts (L3)
+
+Confirmed fail-closed where the semantics already live, and not extended:
+
+- **GoTrue refuses a banned account's token**, so `supabaseAdmin.auth.getUser`
+  returns no user, the AI authenticator returns no subject, and every console
+  route refuses. The ban is enforced before any of this code runs.
+- **The bootstrap's eligibility predicate excludes `banned_until > now()`**, so a
+  banned account is not admitted; an account whose ban has *expired* is, which
+  is what makes it a ban check rather than a "was ever banned" check.
+- **`cortex.orphaned_team_accounts()` reports the ban rather than acting on it.**
+
+No suspension or ban product feature was added. `organization_memberships.status
+= 'suspended'` continues to mean exactly what it meant.
 
 ## Runtime membership resolution
 
