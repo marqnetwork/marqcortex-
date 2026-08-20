@@ -69,6 +69,10 @@ const RECOVERY = join(MIGRATIONS, '20260819120000_marq_authority_recovery.sql');
 const RECOVERY_ROLLBACK = join(
   MIGRATIONS, 'rollbacks', '20260819120000_rollback_authority_recovery.sql',
 );
+const PROVENANCE = join(MIGRATIONS, '20260820120000_marq_authority_provenance.sql');
+const PROVENANCE_ROLLBACK = join(
+  MIGRATIONS, 'rollbacks', '20260820120000_rollback_authority_provenance.sql',
+);
 
 const STEPS = [
   ['platform stub', join(HARNESS, '00_platform_stub.sql')],
@@ -121,6 +125,31 @@ const LIFECYCLE_STEPS = [
   ['assert authority recovery (L1, L2, L3, L4)', join(HARNESS, '85_assert_authority_recovery.sql')],
   ['authority recovery rollback', RECOVERY_ROLLBACK],
   ['assert recovery rollback', join(HARNESS, '86_assert_recovery_rollback.sql')],
+];
+
+/**
+ * The authority provenance phase (AI-01 Batch 4A, round 3), on its own database.
+ *
+ * It runs on top of the full migration sequence rather than after the recovery
+ * ROLLBACK above, because provenance replaces the membership write the recovery
+ * migration last defined: applying it after that rollback would be testing it
+ * against a body no deployment runs.
+ *
+ * The half-applied promotion is planted BEFORE the migration, so what the
+ * backfill did with it is a fact about the real backfill and not about a row
+ * written afterwards.
+ */
+const PROVENANCE_STEPS = [
+  ...BASE_STEPS,
+  ['fixture', join(HARNESS, '10_membership_fixture.sql')],
+  ['bootstrap', BOOTSTRAP],
+  ['membership lifecycle migration', LIFECYCLE],
+  ['authority recovery migration', RECOVERY],
+  ['plant a half-applied promotion', join(HARNESS, '89_provenance_drift_fixture.sql')],
+  ['authority provenance migration', PROVENANCE],
+  ['assert authority provenance (HIGH-1, roster drift)', join(HARNESS, '90_assert_authority_provenance.sql')],
+  ['authority provenance rollback', PROVENANCE_ROLLBACK],
+  ['assert provenance rollback', join(HARNESS, '91_assert_provenance_rollback.sql')],
 ];
 
 /**
@@ -183,7 +212,7 @@ if (probe.status !== 0) {
   process.exit(2);
 }
 
-for (const [, file] of [...STEPS, ...CONCURRENCY_STEPS, ...LIFECYCLE_STEPS]) {
+for (const [, file] of [...STEPS, ...CONCURRENCY_STEPS, ...LIFECYCLE_STEPS, ...PROVENANCE_STEPS]) {
   if (!existsSync(file)) fail(`missing SQL file: ${file}`);
 }
 for (const phase of FAILURE_PHASES) {
@@ -291,6 +320,33 @@ for (const [label, file] of LIFECYCLE_STEPS) {
   if (notices) console.log(notices);
 }
 psql(['-c', `DROP DATABASE IF EXISTS ${LIFECYCLE_DB} WITH (FORCE)`]);
+
+// ---------------------------------------------------------------------------
+// AUTHORITY PROVENANCE — HIGH-1 and the roster drift, against the real
+// functions and the real backfill.
+// ---------------------------------------------------------------------------
+const PROVENANCE_DB = `${SCRATCH_DB}_provenance`;
+console.log(`\nauthority provenance — scratch database "${PROVENANCE_DB}"`);
+
+psql(['-c', `DROP DATABASE IF EXISTS ${PROVENANCE_DB} WITH (FORCE)`]);
+const createProvenance = psql(['-c', `CREATE DATABASE ${PROVENANCE_DB}`]);
+if (createProvenance.status !== 0) fail(`could not create the provenance database:\n${createProvenance.stderr}`);
+
+for (const [label, file] of PROVENANCE_STEPS) {
+  const run = psql(['-f', file], { database: PROVENANCE_DB });
+  const notices = (run.stderr ?? '')
+    .split('\n')
+    .filter((line) => /PASSED/i.test(line))
+    .map((line) => `      ${line.trim()}`)
+    .join('\n');
+  if (run.status !== 0) {
+    psql(['-c', `DROP DATABASE IF EXISTS ${PROVENANCE_DB} WITH (FORCE)`]);
+    fail(`${label}\n${(run.stderr ?? '').trim()}`);
+  }
+  console.log(`  ✓ ${label}`);
+  if (notices) console.log(notices);
+}
+psql(['-c', `DROP DATABASE IF EXISTS ${PROVENANCE_DB} WITH (FORCE)`]);
 
 // ---------------------------------------------------------------------------
 // MED-2 — the bootstrap must FAIL rather than admit fewer people than it should.

@@ -143,6 +143,15 @@ interface MembershipRow {
   organization_id: string;
   user_id: string;
   role_key: string;
+  /**
+   * `organization_memberships.team_role` — the row's own provenance, written by
+   * the membership sync and by nothing else (migration 20260820120000).
+   *
+   * `null` models a row written before that migration, or seeded by a fixture
+   * that never went through the sync. The authority model then reads the row's
+   * key at its WEAKEST meaning, which is the point of HIGH-1.
+   */
+  team_role: string | null;
   status: 'active' | 'invited' | 'suspended';
   deleted_at: string | null;
 }
@@ -184,12 +193,18 @@ class FakeMembershipDatabase {
     return org.id;
   }
 
-  seedMembership(userId: string, roleKey: string, organizationId = MARQ_ORG): MembershipRow {
+  seedMembership(
+    userId: string,
+    roleKey: string,
+    organizationId = MARQ_ORG,
+    teamRole: string | null = null,
+  ): MembershipRow {
     const row: MembershipRow = {
       id: `m${this.nextId++}`,
       organization_id: organizationId,
       user_id: userId,
       role_key: roleKey,
+      team_role: teamRole,
       status: 'active',
       deleted_at: null,
     };
@@ -219,13 +234,17 @@ class FakeMembershipDatabase {
       );
 
       if (!existing) {
-        const row = this.seedMembership(userId, roleKey, organizationId);
+        const row = this.seedMembership(userId, roleKey, organizationId, teamRole);
         return { organizationId, membershipId: row.id, roleKey, action: 'created' };
       }
-      if (existing.role_key === roleKey) {
+      // The row records the TEAM role it was written for, not only the key it
+      // maps to — so `reviewer -> consultant`, which does not move the key, is
+      // still a role change and is still observable. Mirrors the real function.
+      if (existing.role_key === roleKey && existing.team_role === teamRole) {
         return { organizationId, membershipId: existing.id, roleKey, action: 'unchanged' };
       }
       existing.role_key = roleKey;   // re-roled in place; never a second row
+      existing.team_role = teamRole;
       return { organizationId, membershipId: existing.id, roleKey, action: 'role_changed' };
     },
 
@@ -273,6 +292,7 @@ class FakeMembershipDatabase {
                       organizations: org && org.deleted_at === null
                         ? { slug: org.slug, deleted_at: org.deleted_at }
                         : undefined,
+                      team_role: r.team_role,
                       roles: { key: r.role_key },
                     };
                   })
@@ -293,7 +313,10 @@ class FakeMembershipDatabase {
 // ---------------------------------------------------------------------------
 
 interface Resolved {
+  /** The EFFECTIVE roles — floored, and membership names the platform can bound. */
   roles: readonly string[];
+  /** What the identity provider reported, for the audit record only. */
+  sourceRoles: readonly string[];
   capabilities: readonly string[];
   organizationId: string;
   membershipVerified: boolean;
@@ -376,7 +399,13 @@ function createWorld(): World {
       },
       listMemberships: async (userId: string) => listVerifiedMemberships(db.queryClient(), userId),
       invalidation: signal,
-      clock: { now: () => clockMs.value },
+      // The full `Clock` port, not half of it. `isoNow` is unused by the
+      // authenticator, but a partial object only type-checks by accident and
+      // `npm run typecheck:tests` reported it as an error on this branch.
+      clock: {
+        now: () => clockMs.value,
+        isoNow: () => new Date(clockMs.value).toISOString(),
+      },
     });
 
     return {
@@ -388,6 +417,7 @@ function createWorld(): World {
         const actor = resolveActor(subject, organization.organizationId, { allowAnonymous: false });
         return {
           roles: actor.roles,
+          sourceRoles: actor.sourceRoles ?? [],
           capabilities: actor.capabilities,
           organizationId: organization.organizationId,
           membershipVerified: organization.membershipVerified,
@@ -1099,7 +1129,15 @@ describe('H-A: a demotion whose membership write fails still revokes', () => {
       'the membership row is genuinely stale; the floor is what revoked',
     );
     assert.equal(resolveTeamRoleFromAuthRecord(world.auth.get(userId)), 'viewer');
-    assert.ok(after.roles.includes('org_admin'), 'the stale role is still reported for the audit record');
+    assert.ok(
+      after.sourceRoles.includes('org_admin'),
+      'the stale role is still reported for the audit record',
+    );
+    assert.equal(
+      after.roles.includes('org_admin'),
+      false,
+      'and the EFFECTIVE roles no longer carry the tier the demotion removed',
+    );
   });
 
   it('admin -> analyst: holds an analyst, and nothing an admin held on top', async () => {
@@ -1284,8 +1322,16 @@ describe('M-A: a revocation in one isolate binds every other isolate', () => {
       false,
       'a stale admin team role must not out-vote a demoted membership row',
     );
-    assert.ok(next.roles.includes('admin'), 'the trusted role really is still admin');
-    assert.ok(next.roles.includes('team_viewer'));
+    assert.ok(
+      next.sourceRoles.includes('admin'),
+      'the trusted role really is still admin — the row is what revoked',
+    );
+    assert.ok(next.sourceRoles.includes('team_viewer'));
+    assert.equal(
+      next.roles.includes('admin'),
+      false,
+      'and the EFFECTIVE roles are floored to what the demoted row supports',
+    );
   });
 
   it('an ordinary read may still be served from the snapshot, and grants nothing privileged', async () => {

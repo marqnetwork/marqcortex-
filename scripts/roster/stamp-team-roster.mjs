@@ -187,8 +187,12 @@ console.log(run.stdout.trim());
 
 if (APPLY) {
   console.log(
-    '\nNext: run the membership bootstrap so the stamped accounts receive their\n' +
-      'MARQ organization memberships:\n' +
-      '  psql "$DATABASE_URL" -f supabase/migrations/20260818120000_marq_team_membership_bootstrap.sql',
+    '\nThe stamp moved BOTH halves of each account\'s authority: the trusted\n' +
+      'app_metadata AND the MARQ organization membership row, through the one\n' +
+      'authoritative membership write (migration 20260820120000). The\n' +
+      '`memberships` array above reports what each row now stands for.\n' +
+      '\nNo bootstrap run is needed for these accounts. To confirm nothing is\n' +
+      'left disagreeing across the whole deployment:\n' +
+      '  psql "$DATABASE_URL" -c "SELECT * FROM cortex.team_authority_drift()"',
   );
 }

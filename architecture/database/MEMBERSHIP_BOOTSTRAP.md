@@ -3,8 +3,9 @@
 **Sprint:** MCV2-S4-IMPLEMENT-001
 **Automated by:** AI-01 Batch 4A —
 `supabase/migrations/20260818120000_marq_team_membership_bootstrap.sql`,
-`supabase/migrations/20260818130000_marq_membership_lifecycle.sql` and
-`supabase/migrations/20260819120000_marq_authority_recovery.sql`
+`supabase/migrations/20260818130000_marq_membership_lifecycle.sql`,
+`supabase/migrations/20260819120000_marq_authority_recovery.sql` and
+`supabase/migrations/20260820120000_marq_authority_provenance.sql`
 **Status:** Automated end to end. The bootstrap admits the team that exists when
 it runs; the lifecycle keeps every later invite, role change and removal in step.
 A one-time, operator-reviewed **stamping** step is a **prerequisite** for
@@ -17,6 +18,40 @@ accounts created before app metadata existed — see
 > console access the moment this ships**, and stamping the reviewed roster is
 > how that is closed — not a follow-up task. Do the stamping run in the same
 > maintenance window as the deploy.
+
+## Round 3: the roster stamp now moves BOTH halves
+
+Since `20260820120000`, `cortex.stamp_team_roster` writes the trusted
+`app_metadata` **and** the MARQ organization membership row, through the one
+authoritative membership write. A reviewed roster is a complete authority
+decision or it is no decision at all.
+
+Two consequences for this procedure:
+
+- **A stamping run no longer needs a bootstrap run afterwards.** The accounts it
+  stamps receive their memberships in the same transaction. The bootstrap remains
+  the right tool for admitting a team that already carries `app_metadata` and has
+  never been through a roster.
+
+- **Re-stamping at a new role can no longer create drift.** Before this, a
+  re-stamp moved `app_metadata` and left the membership row where it was, which
+  manufactured a permanently half-applied role change. The server resolves the
+  **lower** of the two halves, so such an account silently kept its old
+  authority with no failure reported anywhere.
+
+To find accounts whose two halves disagree — from a stamp that predates this, or
+from a role change whose second write failed:
+
+```sql
+SELECT * FROM cortex.team_authority_drift();
+```
+
+It is read-only, and `effective_team_role` is what the server actually resolves.
+Re-running the membership write for that account reconciles it:
+
+```sql
+SELECT public.marq_sync_team_membership('<user_id>'::uuid, '<team_role>');
+```
 
 ## What changed, and why
 

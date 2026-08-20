@@ -21,6 +21,26 @@ export interface SubjectMembership {
   readonly slug?: string;
   readonly tier?: 'internal' | 'standard' | 'enterprise';
   readonly roles: readonly string[];
+  /**
+   * The TEAM role this membership row was last written at, recorded by the
+   * membership write itself (`public.marq_sync_team_membership`, migration
+   * 20260820120000) on the row it wrote.
+   *
+   * This is the "stronger trusted provenance" of HIGH-1. The organization role
+   * KEY is ambiguous — `team_member` is what `reviewer`, `analyst` and
+   * `consultant` all map to — so the key alone can only ever be read at its
+   * WEAKEST meaning without letting a half-applied promotion widen authority.
+   * This field says which of the three the row was actually written for, and it
+   * moves only when the membership write succeeds. A promotion whose membership
+   * write failed leaves it at the OLD role, which is exactly why reading it is
+   * safe where reading the key's ceiling was not.
+   *
+   * Absent means absent, never "assume the top": `membershipAuthorityRank`
+   * falls back to the key's weakest meaning, and provenance is clamped to the
+   * key's ceiling so a row whose two halves disagree can never read higher than
+   * the key alone could.
+   */
+  readonly teamRole?: string;
 }
 
 export interface AuthenticatedSubject {
@@ -321,45 +341,180 @@ function trustedTeamRank(globalRoles: readonly string[]): number | undefined {
 }
 
 /**
- * The highest rank the membership's roles can stand for.
- *
- * Both vocabularies are read, because both reach `SubjectMembership.roles`: the
- * seeded organization role keys (`org_admin`, `team_member`, `team_viewer`) and
- * the team names a deployment may carry on the row directly. An organization
- * key resolves to its CEILING — the most privileged team role that maps to it —
- * and a team name stands for itself.
- *
- * A role the platform cannot read at all resolves to rank 0, `viewer`, which
- * grants nothing. The alternative would make an unreadable role key the widest
- * one.
- */
-function membershipRank(membership: SubjectMembership): number {
-  let highest = 0;
-  for (const role of membership.roles) {
-    const key = role.trim().toLowerCase();
-    const ceiling = MEMBERSHIP_AUTHORITY_CEILING[key];
-    const rank = ceiling !== undefined
-      ? (LADDER_RANK.get(ceiling) as number)
-      : (LADDER_RANK.get(key) ?? 0);
-    if (rank > highest) highest = rank;
-  }
-  return highest;
-}
-
-/**
  * The LOWEST team role each organization role key can stand for.
  *
- * The mirror of `MEMBERSHIP_AUTHORITY_CEILING`, and it answers the other
- * question: given an effective authority, may a membership row carrying this
- * key still mean anything? An `org_admin` row means "admin or owner", so an
- * account whose effective authority is `analyst` cannot be standing behind one
- * — the row is stale, and reading a tier off it would be reading the stale half.
+ * The mirror of `MEMBERSHIP_AUTHORITY_CEILING`, and it answers two questions.
+ *
+ * The first is the one it was written for: given an effective authority, may a
+ * membership row carrying this key still mean anything? An `org_admin` row means
+ * "admin or owner", so an account whose effective authority is `analyst` cannot
+ * be standing behind one — the row is stale, and reading a tier off it would be
+ * reading the stale half.
+ *
+ * The second is HIGH-1, and it is what this table now primarily decides: with no
+ * trusted provenance saying otherwise, THIS is what a membership row is worth.
+ * See `membershipAuthorityRank`.
  */
 const MEMBERSHIP_AUTHORITY_FLOOR: Readonly<Record<string, AuthorityRole>> = {
   org_admin: 'admin',
   team_member: 'reviewer',
   team_viewer: 'viewer',
 };
+
+// ---------------------------------------------------------------------------
+// HIGH-2 — A MEMBERSHIP ROW IS A STATEMENT ABOUT ONE TENANT, AND NOTHING MORE
+// ---------------------------------------------------------------------------
+
+/**
+ * Role names that carry PLATFORM authority, in every vocabulary that reaches
+ * this platform: the AI administration surface's `super_admin`, and the
+ * `platform_admin` that `resolveTrustedGlobalRoles` emits for
+ * `app_metadata.platform_role = 'admin'`.
+ *
+ * THESE ARE HONOURED FROM `globalRoles` AND FROM NOWHERE ELSE.
+ *
+ * `platform_admin` is a SEEDED ROW in `public.roles`
+ * (`20260711050001_cortex_tenancy_rls_and_seed.sql`), so an
+ * `organization_memberships` row can point its `role_id` at it and the
+ * membership directory will faithfully report `roles: ['platform_admin']`. Until
+ * this cut existed that row reached `AGENT_ROLE_CAPABILITIES` and
+ * `WORKFLOW_ROLE_CAPABILITIES` by name and granted `agent.run.read.platform`,
+ * `workflow.run.read.platform`, platform approvals and platform controls — to a
+ * subject whose `globalRoles` were empty.
+ *
+ * Organization membership can never create platform authority. Not by naming a
+ * platform role, and not by naming anything else the platform does not
+ * recognise — see `MEMBERSHIP_ROLE_VOCABULARY`.
+ */
+export const PLATFORM_AUTHORITY_ROLES: ReadonlySet<string> = new Set([
+  'platform_admin',
+  'super_admin',
+]);
+
+function normalizeRole(role: string): string {
+  return role.trim().toLowerCase();
+}
+
+function normalizeRoles(roles: readonly string[]): string[] {
+  return roles.map(normalizeRole).filter((role) => role !== '');
+}
+
+/**
+ * Does this subject hold explicit, trusted platform authority?
+ *
+ * Reads `globalRoles` only, which `index.tsx` fills from
+ * `resolveTrustedGlobalRoles` — `app_metadata.platform_role`, the same field
+ * `cortex.is_platform_admin()` governs the database with, writable by the
+ * service role and by no console route. Memberships are not consulted, and that
+ * is the whole point.
+ */
+export function hasPlatformAuthority(
+  subject: Pick<AuthenticatedSubject, 'globalRoles'>,
+): boolean {
+  return normalizeRoles(subject.globalRoles).some((role) => PLATFORM_AUTHORITY_ROLES.has(role));
+}
+
+/**
+ * The ONLY role names the platform will interpret when they arrive on a
+ * membership row.
+ *
+ * Two vocabularies, because both legitimately reach `SubjectMembership.roles`:
+ * the seeded organization role keys, and the team-ladder names a deployment may
+ * carry on the row directly. Everything else — `platform_admin`, `super_admin`,
+ * `service`, `organization_admin`, and any key an operator adds to
+ * `public.roles` tomorrow — is DROPPED, not passed through.
+ *
+ * Dropping rather than clamping is deliberate. Every capability table on this
+ * platform is keyed by role NAME, so a name that survives is a name that can be
+ * granted against; the safe thing to do with a name whose authority the platform
+ * cannot bound is to refuse to carry it at all. A membership row that names
+ * nothing recognisable is a membership with no role, which
+ * `membershipAuthorityRank` already scores as `viewer`.
+ */
+export const MEMBERSHIP_ROLE_VOCABULARY: ReadonlySet<string> = new Set<string>([
+  'org_admin',
+  'team_member',
+  'team_viewer',
+  ...AUTHORITY_LADDER,
+]);
+
+/** The membership's role names, minus anything the platform cannot bound. */
+export function safeMembershipRoleNames(
+  membership: SubjectMembership | undefined,
+): readonly string[] {
+  if (!membership) return [];
+  return [
+    ...new Set(
+      normalizeRoles(membership.roles).filter((role) => MEMBERSHIP_ROLE_VOCABULARY.has(role)),
+    ),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// HIGH-1 — AN AMBIGUOUS KEY IS WORTH ITS WEAKEST MEANING
+// ---------------------------------------------------------------------------
+
+/**
+ * The highest rank the membership can stand for, read SAFELY.
+ *
+ * This used to take the CEILING of an ambiguous key — `team_member` was read as
+ * `consultant`, the most privileged of the three team roles that map to it. That
+ * is finding HIGH-1, and it is a widening:
+ *
+ *   A `reviewer` is promoted to `consultant`. `applyTeamRoleChange` writes the
+ *   trusted `app_metadata` FIRST (it must; see `membershipLifecycle.ts`), then
+ *   the membership. The membership write fails, and so does the compensating
+ *   revert. The account is left with `app_metadata.team_role = 'consultant'` and
+ *   a membership row that never moved — still `team_member`, because `reviewer`
+ *   maps there too.
+ *
+ *   Read at the ceiling, both halves score `consultant` and the floor agrees at
+ *   `consultant`. THE FAILED PROMOTION HANDED OUT `ai.analysis.run`,
+ *   `ai.block.assist`, `ai.copilot.plan`, `ai.section.copilot` and
+ *   `ai.agent.execute` — five capabilities the account did not hold before an
+ *   operation that FAILED.
+ *
+ * So an ambiguous key is now worth its WEAKEST valid meaning, and the ceiling
+ * survives only as a bound on trusted provenance:
+ *
+ *   `membership.teamRole` present  the team role the membership write recorded
+ *                                  ON THE ROW, clamped to the key's ceiling. It
+ *                                  moves only when a membership write succeeds,
+ *                                  so a half-applied promotion leaves it at the
+ *                                  OLD role — which is precisely why reading it
+ *                                  is safe where reading the ceiling was not.
+ *
+ *   absent                         `MEMBERSHIP_AUTHORITY_FLOOR` — the weakest
+ *                                  team role the key can stand for. A row with
+ *                                  no provenance is not assumed to be the best
+ *                                  case.
+ *
+ * Provenance is clamped, never trusted outright: `Math.min` against the key's
+ * ceiling means a row whose two halves were written inconsistently can never
+ * read higher than the key alone would have, and a provenance BELOW the key's
+ * floor is taken at its lower word. Both directions fail low.
+ *
+ * A role the platform cannot read at all contributes nothing (see
+ * `MEMBERSHIP_ROLE_VOCABULARY`), and a membership naming only such roles scores
+ * `viewer`. The alternative would make an unreadable role key the widest one.
+ */
+export function membershipAuthorityRank(membership: SubjectMembership): number {
+  const provenance = teamRank(membership.teamRole ?? '');
+  let highest = 0;
+  for (const key of safeMembershipRoleNames(membership)) {
+    const ceiling = MEMBERSHIP_AUTHORITY_CEILING[key];
+    let rank: number;
+    if (ceiling !== undefined) {
+      const ceilingRank = LADDER_RANK.get(ceiling) as number;
+      const floorRank = LADDER_RANK.get(MEMBERSHIP_AUTHORITY_FLOOR[key]) as number;
+      rank = provenance === undefined ? floorRank : Math.min(provenance, ceilingRank);
+    } else {
+      rank = LADDER_RANK.get(key) as number;
+    }
+    if (rank > highest) highest = rank;
+  }
+  return highest;
+}
 
 /** Rank meaning "no team authority at all", below every ladder entry. */
 export const NO_AUTHORITY = -1;
@@ -371,10 +526,10 @@ export const NO_AUTHORITY = -1;
  *   `undefined`      no floor — nothing to disagree with. A `service` actor, or
  *                    a subject with no membership resolved for this request.
  *   `NO_AUTHORITY`   a membership exists and the account carries no trusted
- *                    team role at all. `app_metadata` is the authority (HIGH-2),
- *                    so a membership row standing alone is not one.
+ *                    team role at all. `app_metadata` is the authority, so a
+ *                    membership row standing alone is not one.
  *   0..5             the lower of the trusted team role and what the membership
- *                    row can stand for.
+ *                    row SAFELY stands for (`membershipAuthorityRank`).
  *
  * With `membership` named, the floor is against that one row — which is what a
  * request resolved into one organization needs. Without it, the floor is the
@@ -395,7 +550,7 @@ export function effectiveAuthorityRank(
 
   let highest = NO_AUTHORITY;
   for (const candidate of considered) {
-    const agreed = Math.min(trusted, membershipRank(candidate));
+    const agreed = Math.min(trusted, membershipAuthorityRank(candidate));
     if (agreed > highest) highest = agreed;
   }
   return highest;
@@ -406,24 +561,99 @@ export function authorityRoleForRank(rank: number): AuthorityRole | undefined {
   return rank < 0 ? undefined : AUTHORITY_LADDER[Math.min(rank, AUTHORITY_LADDER.length - 1)];
 }
 
+// ---------------------------------------------------------------------------
+// THE CANONICAL EFFECTIVE-AUTHORITY MODEL
+// ---------------------------------------------------------------------------
+
+/**
+ * What a subject may do, resolved ONCE, for every surface on this platform.
+ *
+ * Before this existed there were three entry points into overlapping logic —
+ * `authorityFloor` for the AI control plane's capabilities, `flooredRoleNames`
+ * for the administration tiers, `flooredRolesFor` for the agent and workflow
+ * runtimes — and only the first of them applied a CAPABILITY clamp. The other
+ * two handed a list of role NAMES to a capability table keyed by name, and a
+ * name the floor did not recognise passed through untouched. That is how a
+ * membership row carrying the seeded `platform_admin` role key reached
+ * `AGENT_ROLE_CAPABILITIES.platform_admin` and granted
+ * `agent.run.read.platform` (HIGH-2).
+ *
+ * So there is now one model, and the three surfaces are three readings of it:
+ *
+ *   `roles`         the canonical effective role names. Trusted global roles,
+ *                   plus membership roles filtered to
+ *                   `MEMBERSHIP_ROLE_VOCABULARY`, all clamped by the floor.
+ *                   This is the ONLY list any capability table may be keyed by.
+ *   `platform`      explicit, trusted platform authority. `globalRoles` only.
+ *   `rank`/`teamRole`  the agreed position on the team ladder.
+ *   `capabilities`  the AI capability ceiling the floor permits, or `undefined`
+ *                   when no floor applies.
+ *
+ * TWO INVARIANTS HOLD BY CONSTRUCTION, and `tests/features/authorityModel.test.ts`
+ * asserts them over the whole matrix:
+ *
+ *   effectiveCapabilities ⊆ trustedTeamCapabilities
+ *   effectiveCapabilities ⊆ safeMembershipCapabilities
+ *
+ * from which the thing HIGH-1 asked for follows: a promotion whose membership
+ * write did not land cannot add a capability, because the safe membership side
+ * did not move.
+ */
+export interface EffectiveAuthority {
+  /** The agreed ladder rank, `NO_AUTHORITY`, or `undefined` for no floor. */
+  readonly rank: number | undefined;
+  /** The team role that rank names. */
+  readonly teamRole: AuthorityRole | undefined;
+  /** Explicit, trusted platform authority. Never implied by a membership. */
+  readonly platform: boolean;
+  /** The canonical effective role names. The only list a grant table may read. */
+  readonly roles: readonly string[];
+  /** The AI capability ceiling, or `undefined` when no floor applies. */
+  readonly capabilities: ReadonlySet<AICapability> | undefined;
+}
+
+/**
+ * Resolve the canonical effective authority.
+ *
+ * `membership` names the organization a request already resolved into; omitting
+ * it asks about the subject as a whole, across every membership they hold.
+ */
+export function resolveEffectiveAuthority(
+  subject: AuthenticatedSubject,
+  membership?: SubjectMembership,
+): EffectiveAuthority {
+  const considered = membership ? [membership] : subject.memberships;
+  const rank = effectiveAuthorityRank(subject, membership);
+
+  // Global roles pass through the floor as before: `service`, `platform_admin`
+  // and anything else a deployment writes into trusted `app_metadata` is not
+  // part of the two-system disagreement, and clamping it against a ladder it is
+  // not on would revoke the platform's own actors.
+  //
+  // MEMBERSHIP roles do not get that pass. They are filtered to the vocabulary
+  // FIRST, so a name the floor cannot bound never reaches the floor's
+  // `return true` arm. This is the HIGH-2 cut, made once, for every surface.
+  const names = [
+    ...normalizeRoles(subject.globalRoles),
+    ...considered.flatMap((candidate) => safeMembershipRoleNames(candidate)),
+  ];
+
+  return {
+    rank,
+    teamRole: rank === undefined ? undefined : authorityRoleForRank(rank),
+    platform: hasPlatformAuthority(subject),
+    roles: applyFloor(rank, names),
+    capabilities: authorityCeiling(subject, membership),
+  };
+}
+
 /**
  * The role names that survive the floor — the same decision `resolveActor`
  * makes about capabilities, expressed as names for the callers that reason
  * about tiers rather than capabilities (`admin/rbac.ts`).
- *
- * A ladder role survives when the agreed authority reaches it. A membership
- * role key survives when the agreed authority reaches the weakest team role
- * that key can stand for. Anything on neither vocabulary — `service`,
- * `platform_admin`, and any role a deployment writes into trusted
- * `app_metadata` directly — passes through untouched: those are not part of the
- * two-system disagreement, and clamping them against a ladder they are not on
- * would revoke the platform's own actors.
  */
 export function flooredRoleNames(subject: AuthenticatedSubject): readonly string[] {
-  return applyFloor(
-    effectiveAuthorityRank(subject),
-    [...subject.globalRoles, ...subject.memberships.flatMap((m) => m.roles)],
-  );
+  return resolveEffectiveAuthority(subject).roles;
 }
 
 /**
@@ -433,21 +663,19 @@ export function flooredRoleNames(subject: AuthenticatedSubject): readonly string
  * scoped to the organization the request resolved into, so the floor must be
  * against that membership and not against the best of all of them. Passing
  * `undefined` for a subject that holds no membership in the resolved
- * organization leaves the global roles alone, which is where
+ * organization leaves the trusted global roles alone, which is where
  * `resolveOrganization` has already failed the request closed for a team user.
  */
 export function flooredRolesFor(
   subject: AuthenticatedSubject,
   membership: SubjectMembership | undefined,
 ): readonly string[] {
-  return applyFloor(
-    membership ? effectiveAuthorityRank(subject, membership) : undefined,
-    [...subject.globalRoles, ...(membership?.roles ?? [])],
-  );
+  if (!membership) return applyFloor(undefined, normalizeRoles(subject.globalRoles));
+  return resolveEffectiveAuthority(subject, membership).roles;
 }
 
 function applyFloor(rank: number | undefined, roles: readonly string[]): readonly string[] {
-  const all = roles.map((role) => role.trim().toLowerCase()).filter((role) => role !== '');
+  const all = normalizeRoles(roles);
   if (rank === undefined) return [...new Set(all)];
 
   return [
@@ -464,24 +692,42 @@ function applyFloor(rank: number | undefined, roles: readonly string[]): readonl
 }
 
 /**
- * The capabilities the floor permits, or `undefined` when no floor applies.
+ * The capability ceiling the two authority sources agree on, or `undefined`
+ * when no floor applies.
+ *
+ * Written as the literal INTERSECTION the invariant names rather than as the
+ * capabilities of the lower rank. Those two happen to coincide today, because
+ * `ROLE_CAPABILITIES` is monotonic along `AUTHORITY_LADDER` — but "happens to
+ * coincide" is the kind of property a future grant-table edit breaks in silence,
+ * and the invariant is what must survive the edit, not the coincidence.
+ * `tests/features/authorityModel.test.ts` asserts both halves independently.
  *
  * A floor applies only to a team user resolved against a membership — the two
  * systems that can disagree. A `service` actor holds no membership and no team
  * role, and clamping it against a ladder it is not on would revoke the
  * platform's own batch jobs.
  */
-function authorityFloor(
+function authorityCeiling(
   subject: AuthenticatedSubject,
   membership: SubjectMembership | undefined,
 ): ReadonlySet<AICapability> | undefined {
   if (!membership) return undefined;
-  const rank = effectiveAuthorityRank(subject, membership);
-  if (rank === undefined) return undefined;
-  const role = authorityRoleForRank(rank);
-  return role === undefined
-    ? new Set<AICapability>()
-    : new Set(capabilitiesForRoles([role]));
+  if (subject.actorType !== 'team_user') return undefined;
+
+  // The trusted half: what `app_metadata.team_role` alone permits. No trusted
+  // team role at all is not rank zero — it is no team authority, and it grants
+  // nothing.
+  const trusted = trustedTeamRank(subject.globalRoles);
+  if (trusted === undefined) return new Set<AICapability>();
+  const trustedCapabilities = new Set(
+    capabilitiesForRoles([AUTHORITY_LADDER[Math.min(trusted, AUTHORITY_LADDER.length - 1)]]),
+  );
+
+  // The membership half: what the row SAFELY stands for (HIGH-1).
+  const safeRole = authorityRoleForRank(membershipAuthorityRank(membership));
+  const safeCapabilities = new Set(capabilitiesForRoles(safeRole === undefined ? [] : [safeRole]));
+
+  return new Set([...trustedCapabilities].filter((capability) => safeCapabilities.has(capability)));
 }
 
 /**
@@ -510,12 +756,14 @@ export function resolveActor(
     ? subject.memberships.find((m) => m.organizationId === organizationId)
     : undefined;
 
-  const roles = [...subject.globalRoles, ...(membership?.roles ?? [])];
+  // ONE model, read here for capabilities and by `admin/rbac.ts`,
+  // `agentRbac.ts` and `workflowRbac.ts` for names. `roles` has already had
+  // membership-sourced names it cannot bound removed (HIGH-2) and the floor
+  // applied; `capabilities` is the ceiling the two authority sources agree on.
+  const authority = resolveEffectiveAuthority(subject, membership);
+  const roles = authority.roles;
 
-  // The union of both vocabularies, then the floor. The floor can only remove,
-  // and it removes exactly what the two disagreeing systems do not both support
-  // — see `authorityFloor`.
-  const floor = authorityFloor(subject, membership);
+  const floor = authority.capabilities;
   const granted = new Set<AICapability>(
     floor === undefined
       ? capabilitiesForRoles(roles)
@@ -526,6 +774,27 @@ export function resolveActor(
   // capability a revocation could have taken away. Applied after the floor and
   // before the baseline, because it only ever removes.
   if (subject.membershipsFromCache) {
+    for (const capability of PRIVILEGED_CAPABILITIES) granted.delete(capability);
+  }
+
+  // A PRIVILEGED CAPABILITY REQUIRES A VERIFIED MEMBERSHIP, ALWAYS.
+  //
+  // `AI_ALLOW_DEFAULT_ORGANIZATION` is false, and this does not depend on it
+  // staying false. When a deployment turns the single-tenant fallback on,
+  // `resolveOrganization` admits a team user who holds NO membership row at all
+  // into the configured default organization — and without this, that user's
+  // trusted `app_metadata` team role would grant them the full set on its own,
+  // with no floor to clamp it because there is no membership to floor against.
+  //
+  // "Somebody stamped a team role on this account" and "this account is a
+  // member of the tenant this request is for" are different facts, and the
+  // second is the one that scopes a privileged action. So a team user resolved
+  // into an organization they hold no verified membership in keeps the baseline
+  // and nothing above it. The switch changes which tenant an unaffiliated
+  // account lands in; it may not change what they can spend it on.
+  const unverified =
+    subject.actorType === 'team_user' && organizationId !== null && membership === undefined;
+  if (unverified) {
     for (const capability of PRIVILEGED_CAPABILITIES) granted.delete(capability);
   }
 
@@ -542,7 +811,17 @@ export function resolveActor(
     actorType: subject.actorType,
     subjectId: subject.subjectId,
     email: subject.email,
-    roles: [...new Set(roles.map((r) => r.toLowerCase()))].sort(),
+    roles: [...new Set(roles)].sort(),
+    // The audit-facing report: what the identity provider actually said, before
+    // the floor and before the membership vocabulary filter. Read by nothing
+    // that decides anything.
+    sourceRoles: [
+      ...new Set(
+        [...subject.globalRoles, ...(membership?.roles ?? [])]
+          .map((role) => role.trim().toLowerCase())
+          .filter((role) => role !== ''),
+      ),
+    ].sort(),
     capabilities: [...granted].sort(),
   };
 }

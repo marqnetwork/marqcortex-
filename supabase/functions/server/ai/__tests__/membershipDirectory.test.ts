@@ -320,7 +320,15 @@ describe('a membership row reaches the authorization decision', () => {
     const subject = await subjectFromRows([liveRow()], 'viewer');
     const actor = resolveActor(subject, ORG, { allowAnonymous: false });
 
-    assert.ok(actor.roles.includes('org_admin'), 'the row is still reported, for the audit record');
+    assert.ok(
+      actor.sourceRoles?.includes('org_admin'),
+      'the row is still reported, for the audit record',
+    );
+    assert.equal(
+      actor.roles.includes('org_admin'),
+      false,
+      'but the EFFECTIVE roles do not carry a tier the trusted team role no longer supports',
+    );
     assert.equal(
       actor.capabilities.includes('ai.agent.execute'),
       false,

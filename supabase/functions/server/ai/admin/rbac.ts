@@ -45,7 +45,7 @@
  */
 
 import type { AuthenticatedSubject } from '../security/actor.ts';
-import { flooredRoleNames } from '../security/actor.ts';
+import { flooredRoleNames, hasPlatformAuthority, PLATFORM_AUTHORITY_ROLES } from '../security/actor.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export type AIAdminRole = 'super_admin' | 'organization_admin' | 'team_admin';
@@ -147,7 +147,7 @@ export const ADMIN_ROLE_RANK: readonly AIAdminRole[] = [
  * A MARQ team owner keeps everything an owner is for. What they no longer get,
  * by accident, is the ability to turn off AI for every tenant on the platform.
  */
-const SUPER_ADMIN_ROLES: ReadonlySet<string> = new Set(['super_admin', 'platform_admin']);
+export const SUPER_ADMIN_ROLES: ReadonlySet<string> = PLATFORM_AUTHORITY_ROLES;
 
 /**
  * Roles that confer organization-level administration.
@@ -199,12 +199,16 @@ function lower(values: readonly string[]): string[] {
  * would grant access on the strength of a missing row.
  */
 export function resolveAdminRole(subject: AuthenticatedSubject): AIAdminRole | undefined {
-  const globalRoles = lower(subject.globalRoles);
   // Platform administration is GLOBAL-ONLY and explicit. A membership row is a
   // statement about one tenant, and no statement about one tenant may make
   // somebody the operator of the platform every tenant shares — so this test is
   // deliberately not applied to membership roles below.
-  if (globalRoles.some((role) => SUPER_ADMIN_ROLES.has(role))) return 'super_admin';
+  //
+  // `hasPlatformAuthority` is THE test, shared with the agent and workflow
+  // runtimes (HIGH-2). It reads `globalRoles` and nothing else, and this surface
+  // asking the same function as the other two is what stops the three drifting
+  // into three answers about the same subject.
+  if (hasPlatformAuthority(subject)) return 'super_admin';
 
   // FLOORED, not unioned. The two authority sources — the trusted team role on
   // the auth record and the organization role on the membership row — can

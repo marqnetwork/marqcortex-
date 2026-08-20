@@ -29,7 +29,7 @@
  */
 
 import type { AuthenticatedSubject } from '../../security/actor.ts';
-import { flooredRolesFor } from '../../security/actor.ts';
+import { flooredRolesFor, hasPlatformAuthority } from '../../security/actor.ts';
 import type { AIOrganization } from '../../contracts/request.ts';
 import type { OrganizationResolutionOptions } from '../../security/tenancy.ts';
 import { resolveOrganization } from '../../security/tenancy.ts';
@@ -51,6 +51,31 @@ export type AgentRuntimeCapability =
   | 'agent.run.read.platform';
 
 const READER: readonly AgentRuntimeCapability[] = ['agent.run.read', 'agent.registry.read'];
+
+/**
+ * Capabilities that reach BEYOND the actor's own organization.
+ *
+ * Held apart from the grant table because the grant table is keyed by role
+ * NAME, and a name can arrive from two places with very different standing: the
+ * trusted `app_metadata` the platform writes, and an
+ * `organization_memberships` row. `platform_admin` is a seeded row in
+ * `public.roles`, so the second is not hypothetical — a membership pointed at
+ * that role key resolved `roles: ['platform_admin']`, keyed this table by name
+ * and was handed cross-tenant read authority while its `globalRoles` were empty.
+ * That is finding HIGH-2.
+ *
+ * `security/actor.ts` now drops membership-sourced names it cannot bound, so
+ * the name no longer arrives. This is the second lock on the same door, and it
+ * is the one that does not depend on a vocabulary list staying complete: whatever
+ * a role is called and wherever it came from, cross-tenant authority is removed
+ * unless `hasPlatformAuthority` — which reads `globalRoles` and nothing else —
+ * says the subject explicitly holds it.
+ *
+ * ORGANIZATION MEMBERSHIP CAN NEVER CREATE PLATFORM AUTHORITY.
+ */
+const PLATFORM_CAPABILITIES: ReadonlySet<AgentRuntimeCapability> = new Set<AgentRuntimeCapability>([
+  'agent.run.read.platform',
+]);
 
 const OPERATOR: readonly AgentRuntimeCapability[] = [
   ...READER,
@@ -128,6 +153,13 @@ export function resolveAgentActor(
   const granted = new Set<AgentRuntimeCapability>();
   for (const role of roles) {
     for (const capability of AGENT_ROLE_CAPABILITIES[role] ?? []) granted.add(capability);
+  }
+
+  // HIGH-2. Cross-tenant authority survives only for a subject whose TRUSTED
+  // global roles carry it. A membership row — in this organization or any
+  // other — cannot put it back, whatever role name it names.
+  if (!hasPlatformAuthority(subject)) {
+    for (const capability of PLATFORM_CAPABILITIES) granted.delete(capability);
   }
 
   if (granted.size === 0) {

@@ -38,6 +38,7 @@ export interface MembershipRowShape {
   readonly deleted_at?: unknown;
   readonly organizations?: unknown;
   readonly roles?: unknown;
+  readonly team_role?: unknown;
 }
 
 /**
@@ -110,10 +111,26 @@ export function toSubjectMemberships(rows: unknown): SubjectMembership[] {
     const slug = organization.slug;
     const roleKey = normalizedString(embedded(row.roles)?.key);
 
+    // THE ROW'S OWN PROVENANCE (HIGH-1).
+    //
+    // `organization_memberships.team_role` is written by
+    // `public.marq_sync_team_membership` — and by nothing else — recording which
+    // TEAM role this row was last written for. It is what lets
+    // `membershipAuthorityRank` tell an `analyst` from a `consultant` behind the
+    // one `team_member` key without reading the key at its ceiling, which is the
+    // widening HIGH-1 named.
+    //
+    // Carried through verbatim and never defaulted. An absent or unreadable
+    // value stays absent, and the authority model then reads the key at its
+    // WEAKEST meaning — a column that has not been written is not evidence of
+    // the best case.
+    const teamRole = normalizedString(row.team_role);
+
     admitted.push({
       organizationId: row.organization_id,
       slug: typeof slug === 'string' && slug !== '' ? slug : undefined,
       roles: roleKey === '' ? [] : [roleKey],
+      ...(teamRole === '' ? {} : { teamRole }),
     });
   }
 
@@ -139,7 +156,7 @@ export interface MembershipQueryClient {
 /** The columns and embeds the query asks for, held as one string so the test
  *  and the call site cannot describe two different queries. */
 export const MEMBERSHIP_SELECT =
-  'organization_id, status, deleted_at, organizations!inner(slug, deleted_at), roles(key)';
+  'organization_id, status, deleted_at, team_role, organizations!inner(slug, deleted_at), roles(key)';
 
 export const MEMBERSHIP_TABLE = 'organization_memberships';
 

@@ -30,7 +30,7 @@
  */
 
 import type { AuthenticatedSubject } from '../../security/actor.ts';
-import { flooredRolesFor } from '../../security/actor.ts';
+import { flooredRolesFor, hasPlatformAuthority } from '../../security/actor.ts';
 import type { AIOrganization } from '../../contracts/request.ts';
 import type { OrganizationResolutionOptions } from '../../security/tenancy.ts';
 import type { WorkflowAgentActor } from '../engine/agentNodePort.ts';
@@ -82,6 +82,20 @@ const OPERATOR: readonly WorkflowRuntimeCapability[] = [
  * it they may answer.
  */
 const APPROVER: readonly WorkflowRuntimeCapability[] = ['workflow.approval.decide'];
+
+/**
+ * Capabilities that reach BEYOND the actor's own organization.
+ *
+ * The mirror of `PLATFORM_CAPABILITIES` in `agents/service/agentRbac.ts`, for
+ * the same reason and against the same finding (HIGH-2): the grant table is
+ * keyed by role NAME, `platform_admin` is a seeded row in `public.roles`, and a
+ * membership row pointed at it resolved cross-tenant workflow read authority for
+ * a subject holding no trusted global role at all.
+ *
+ * ORGANIZATION MEMBERSHIP CAN NEVER CREATE PLATFORM AUTHORITY.
+ */
+const PLATFORM_CAPABILITIES: ReadonlySet<WorkflowRuntimeCapability> =
+  new Set<WorkflowRuntimeCapability>(['workflow.run.read.platform']);
 
 /**
  * Role → capability grants.
@@ -166,6 +180,12 @@ export function resolveWorkflowActor(
   const granted = new Set<WorkflowRuntimeCapability>();
   for (const role of roles) {
     for (const capability of WORKFLOW_ROLE_CAPABILITIES[role] ?? []) granted.add(capability);
+  }
+
+  // HIGH-2. Cross-tenant authority survives only for a subject whose TRUSTED
+  // global roles carry it. A membership row cannot put it back.
+  if (!hasPlatformAuthority(subject)) {
+    for (const capability of PLATFORM_CAPABILITIES) granted.delete(capability);
   }
 
   if (granted.size === 0) {
