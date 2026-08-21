@@ -77,6 +77,44 @@ const PLATFORM_CAPABILITIES: ReadonlySet<AgentRuntimeCapability> = new Set<Agent
   'agent.run.read.platform',
 ]);
 
+/**
+ * Capabilities that an UNVERIFIED organization resolution may never carry.
+ *
+ * MED-A. `AI_ALLOW_DEFAULT_ORGANIZATION` admits a team user who holds NO
+ * membership row at all into the configured fallback organization, and marks
+ * the result `membershipVerified: false` to say so. `security/actor.ts` already
+ * withholds every `PRIVILEGED_CAPABILITIES` member in that state; this runtime
+ * did not, so a stamped staff account whose membership had been REMOVED still
+ * resolved `agent.run.create`, `agent.run.control` and `agent.approval.decide`
+ * against a tenant nobody had confirmed they belong to.
+ *
+ * "Somebody stamped a team role on this account" and "this account is a member
+ * of the tenant this request is for" are different facts, and the second is the
+ * one that scopes a privileged action — spending platform money on a run,
+ * controlling somebody else's run, deciding an approval. The switch changes
+ * which tenant an unaffiliated account lands in; it may not change what they
+ * can spend it on.
+ *
+ * READER is deliberately NOT here. It is the exact analogue of the team
+ * baseline `resolveActor` keeps in the same state: an unaffiliated account can
+ * still see the fallback organization it was placed in, and can do nothing to
+ * it. Nothing in this set is reachable without a verified membership, and
+ * nothing outside it is privileged.
+ *
+ * `agent.run.read.platform` is NOT here either, and that is not an omission:
+ * it is genuinely global authority, gated by `hasPlatformAuthority` —
+ * `globalRoles` and nothing else — immediately below. It is never received
+ * "because a default organization was resolved", so the verified-membership
+ * test is not the right gate for it. An explicit platform operator keeps it;
+ * everybody else has already lost it to the HIGH-2 cut.
+ */
+const MEMBERSHIP_SCOPED_PRIVILEGED: ReadonlySet<AgentRuntimeCapability> =
+  new Set<AgentRuntimeCapability>([
+    'agent.run.create',
+    'agent.run.control',
+    'agent.approval.decide',
+  ]);
+
 const OPERATOR: readonly AgentRuntimeCapability[] = [
   ...READER,
   'agent.run.create',
@@ -160,6 +198,17 @@ export function resolveAgentActor(
   // other — cannot put it back, whatever role name it names.
   if (!hasPlatformAuthority(subject)) {
     for (const capability of PLATFORM_CAPABILITIES) granted.delete(capability);
+  }
+
+  // MED-A. A PRIVILEGED CAPABILITY REQUIRES A VERIFIED MEMBERSHIP, ALWAYS.
+  //
+  // The same rule `resolveActor` applies to `PRIVILEGED_CAPABILITIES`, applied
+  // here to this runtime's vocabulary, and read off the ONE tenant resolver's
+  // own answer rather than re-derived from anything. `membershipVerified` is
+  // false only where `resolveOrganization` placed an account with no membership
+  // row into the `AI_ALLOW_DEFAULT_ORGANIZATION` fallback.
+  if (!organization.membershipVerified) {
+    for (const capability of MEMBERSHIP_SCOPED_PRIVILEGED) granted.delete(capability);
   }
 
   if (granted.size === 0) {

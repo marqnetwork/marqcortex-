@@ -237,6 +237,94 @@ GROUP BY r.key, m.status
 ORDER BY r.key;
 ```
 
+## Deployment procedure — authority provenance (20260820120000, 20260821120000)
+
+These two run after the lifecycle and recovery migrations, in timestamp order,
+and the second must never be applied without the first: `20260821120000`
+constrains the `team_role` column that `20260820120000` creates.
+
+**Step 1 — apply, in order.**
+
+```bash
+psql "$DATABASE_URL" -f supabase/migrations/20260820120000_marq_authority_provenance.sql
+psql "$DATABASE_URL" -f supabase/migrations/20260821120000_marq_provenance_rls_band.sql
+```
+
+**Step 2 — REQUIRED. Report which accounts the migration read down.**
+
+The backfill fills provenance from records of decisions that were reviewed and
+executed — the lifecycle log, then a non-reverted roster stamp — and from
+nothing else. An account with neither is not guessed at: its row is written at
+the **weakest** team role its organization key can stand for. That is a
+deliberate, temporary reduction in authority, and this is the step that finds
+who it affected.
+
+```sql
+SELECT * FROM cortex.team_authority_drift();
+```
+
+Every row is an account whose trusted `app_metadata` team role and whose row
+provenance disagree. `effective_team_role` is what the server actually resolves
+— always the **lower** of the two. Read it as a worklist:
+
+| what you see | what it means | what to do |
+|---|---|---|
+| `metadata_team_role` above `membership_team_role` | a legitimate analyst or consultant on a `team_member` row with no decision record | re-sync (step 3) |
+| `membership_team_role` empty | a row whose key the platform does not read (`platform_admin`), or one written before this migration | leave it; it resolves at `viewer` |
+| `metadata_team_role` empty | the account carries no trusted team stamp | this is a **revocation**, not drift — leave it |
+| `metadata_team_role` below `membership_team_role` | a demotion whose membership write has not landed | investigate before re-syncing |
+
+**Step 3 — repair, for the first row type only.**
+
+```sql
+SELECT public.marq_sync_team_membership('<user-id>'::uuid, '<team-role>', NULL);
+```
+
+This is the one authoritative membership write. It moves both halves together
+and records the provenance on the row it wrote. **It is a service-role call.**
+An account holder cannot perform it, and nothing they can write — `user_metadata`
+included — can substitute for it. Re-run `cortex.team_authority_drift()`
+afterwards; the repaired accounts drop off the list.
+
+Do not repair by `UPDATE`-ing `team_role` directly. `20260821120000` refuses a
+value that does not map to the row's own key, and a direct update moves only one
+half — which is the disagreement the whole mechanism exists to prevent.
+
+**Historical rows stay fail-closed until step 3 runs.** No account's authority is
+widened automatically, ever. A temporary reduction is the accepted cost; the
+alternative — assuming the best case for a row with no evidence behind it — is
+the defect this batch closed.
+
+### Rollback ordering
+
+**Roll the code back with, or before, the database. Never after.**
+
+The runtime at `dc035db5` and later reads `organization_memberships.team_role`.
+Roll the database back underneath a deployment still running that code and the
+column disappears; the authority model then reads every ambiguous key at its
+weakest meaning, so every `analyst` and `consultant` on a `team_member` row
+silently drops to `reviewer` authority — losing `ai.analysis.run` and
+`ai.agent.execute`. That is fail-closed and safe, and it is also an outage of
+capability nobody asked for.
+
+A database-only rollback of `20260820120000` also restores the **pre-provenance
+roster stamp**, which moves `app_metadata` and leaves the membership row alone.
+Every re-stamp after that point manufactures exactly the two-system
+disagreement the authority floor exists to survive — permanently, silently, with
+no lifecycle call to blame. If you roll back, stop using
+`scripts/roster/stamp-team-roster.mjs --apply` until you roll forward again.
+
+Rolling back `20260821120000` on its own is safe and costs only the RLS half of
+the provenance lock: the column, the vocabulary constraint, and
+`marq_sync_team_membership`'s own refusal all survive, because they belong to
+`20260820120000`.
+
+```bash
+# correct order
+psql "$DATABASE_URL" -f supabase/migrations/rollbacks/20260821120000_rollback_provenance_rls_band.sql
+psql "$DATABASE_URL" -f supabase/migrations/rollbacks/20260820120000_rollback_authority_provenance.sql
+```
+
 ## One-time stamping for accounts that predate app metadata
 
 On a database whose team accounts were all created before the provisioning

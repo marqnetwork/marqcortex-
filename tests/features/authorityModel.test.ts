@@ -45,8 +45,13 @@ import {
   type SubjectMembership,
 } from '../../supabase/functions/server/ai/security/actor.ts';
 import type { AICapability } from '../../supabase/functions/server/ai/contracts/policy.ts';
-import { resolveAdminRole } from '../../supabase/functions/server/ai/admin/rbac.ts';
 import {
+  resolveAdminActor,
+  resolveAdminRole,
+  scopeAllows,
+} from '../../supabase/functions/server/ai/admin/rbac.ts';
+import {
+  AGENT_ROLE_CAPABILITIES,
   readScopeFor,
   resolveAgentActor,
 } from '../../supabase/functions/server/ai/agents/service/agentRbac.ts';
@@ -56,6 +61,7 @@ import {
 } from '../../supabase/functions/server/ai/workflows/service/workflowRbac.ts';
 import {
   organizationRoleForTeamRole,
+  resolveTrustedGlobalRoles,
   TEAM_ROLES,
   type TeamRole,
 } from '../../supabase/functions/server/teamAuthorization.ts';
@@ -641,6 +647,244 @@ describe('a privileged capability requires a verified membership', () => {
   it('an account WITH a verified membership is unaffected', () => {
     const actor = resolveActor(consistent('owner'), ORG, { allowAnonymous: false });
     assert.ok(actor.capabilities.includes('ai.agent.execute'));
+  });
+
+  // =========================================================================
+  // MED-A — ALL FOUR SURFACES, NOT ONLY THE AI CONTROL PLANE
+  //
+  // The assertion above covered `resolveActor` and stopped there, and that is
+  // exactly how MED-A survived the previous round: the agent and workflow
+  // runtimes read the same subject, resolved the same fallback organization,
+  // and handed an account with no membership row `agent.run.create`,
+  // `agent.run.control`, `agent.approval.decide` and their workflow
+  // equivalents. The claim was "a privileged capability requires a verified
+  // membership"; the proof only ever tested one of the four places that make
+  // that decision.
+  //
+  // THE INVARIANT: unverified/default organization resolution must never grant
+  // privileged AI, agent, workflow or admin authority.
+  // =========================================================================
+  const FALLBACK_ON = { ...TENANCY_OPTIONS, allowDefaultOrganization: true };
+
+  /** Every capability that spends, controls or decides, by surface. */
+  const AGENT_PRIVILEGED = [
+    'agent.run.create',
+    'agent.run.control',
+    'agent.approval.decide',
+    'agent.run.read.platform',
+  ] as const;
+  const WORKFLOW_PRIVILEGED = [
+    'workflow.run.create',
+    'workflow.run.control',
+    'workflow.approval.decide',
+    'workflow.run.read.platform',
+  ] as const;
+
+  /** A stamped account at `role`, holding no membership row anywhere. */
+  const stampedButUnaffiliated = (role: string): AuthenticatedSubject => ({
+    subjectId: `unaffiliated-${role}`,
+    email: `${role}@marq.test`,
+    actorType: 'team_user',
+    globalRoles: [role],
+    memberships: [],
+  });
+
+  for (const role of ['owner', 'admin', 'reviewer'] as const) {
+    it(`default org + ${role} + no membership grants no privileged agent authority`, () => {
+      const actor = resolveAgentActor(stampedButUnaffiliated(role), undefined, FALLBACK_ON);
+
+      assert.equal(
+        actor.organization.membershipVerified,
+        false,
+        'the fallback must never synthesize a verified membership',
+      );
+      assert.equal(actor.organization.organizationId, DEFAULT_ORG);
+      assert.equal(actor.platformReader, false, 'no cross-tenant read from the fallback');
+
+      for (const capability of AGENT_PRIVILEGED) {
+        assert.equal(
+          actor.capabilities.includes(capability),
+          false,
+          `${role} received ${capability} from an UNVERIFIED organization`,
+        );
+      }
+
+      // The read scope may never widen past the organization the actor is in,
+      // whatever the caller asks for.
+      assert.equal(readScopeFor(actor, 'some-other-org'), DEFAULT_ORG);
+    });
+
+    it(`default org + ${role} + no membership grants no privileged workflow authority`, () => {
+      const actor = resolveWorkflowActor(stampedButUnaffiliated(role), undefined, FALLBACK_ON, []);
+
+      assert.equal(actor.organization.membershipVerified, false);
+      assert.equal(actor.platformReader, false);
+
+      for (const capability of WORKFLOW_PRIVILEGED) {
+        assert.equal(
+          actor.capabilities.includes(capability),
+          false,
+          `${role} received ${capability} from an UNVERIFIED organization`,
+        );
+      }
+
+      assert.equal(workflowReadScopeFor(actor, 'some-other-org'), DEFAULT_ORG);
+    });
+  }
+
+  it('default org + no membership leaves the admin surface with no organization scope', () => {
+    // The admin tier is allowed to keep authority that is genuinely global.
+    // What it may not keep is authority over an ORGANIZATION, and the scope is
+    // where that is decided: an empty scope reaches no tenant's records at all.
+    const actor = resolveAdminActor(stampedButUnaffiliated('owner'));
+
+    assert.deepEqual(actor.organizationScope, [], 'an unaffiliated account held an organization scope');
+    assert.equal(scopeAllows(actor, DEFAULT_ORG), false, 'the fallback organization was in scope');
+    assert.equal(scopeAllows(actor, ORG), false);
+    assert.equal(scopeAllows(actor, OTHER_ORG), false);
+  });
+
+  it('default org + forged user_metadata owner reaches nothing', () => {
+    // The forged half never becomes a global role in the first place, so the
+    // subject the runtimes see carries no team role at all — and an account
+    // with no trusted role and no membership is refused outright rather than
+    // being floored to a reader.
+    assert.deepEqual(
+      resolveTrustedGlobalRoles({
+        app_metadata: {},
+        user_metadata: { team_role: 'owner', marq_team: true, platform_role: 'admin' },
+      }),
+      [],
+      'forged user_metadata produced a trusted global role',
+    );
+
+    const forged: AuthenticatedSubject = {
+      subjectId: 'forger',
+      actorType: 'team_user',
+      globalRoles: [],
+      memberships: [],
+    };
+    assert.throws(() => resolveAgentActor(forged, undefined, FALLBACK_ON), /not permitted/i);
+    assert.throws(() => resolveWorkflowActor(forged, undefined, FALLBACK_ON, []), /not permitted/i);
+    assert.throws(() => resolveAdminActor(forged), /not permitted/i);
+  });
+
+  it('default org + a membership-sourced platform_admin that no longer exists reaches nothing', () => {
+    // The account was pointed at the seeded `platform_admin` role and then lost
+    // its membership row entirely. Neither half may survive the other.
+    const orphaned: AuthenticatedSubject = {
+      subjectId: 'orphan',
+      actorType: 'team_user',
+      globalRoles: [],
+      memberships: [],
+    };
+    assert.equal(hasPlatformAuthority(orphaned), false);
+    assert.throws(() => resolveAgentActor(orphaned, undefined, FALLBACK_ON), /not permitted/i);
+  });
+
+  it('an EXPLICIT trusted global platform admin keeps global authority, but gains no membership', () => {
+    // TASK 4. Genuinely global authority is not something the fallback
+    // conferred, so the verified-membership rule does not take it away. What it
+    // must NOT do is turn into a verified membership, or into organization
+    // authority over the tenant the account happened to land in.
+    const operator: AuthenticatedSubject = {
+      subjectId: 'operator',
+      actorType: 'team_user',
+      globalRoles: ['platform_admin'],
+      memberships: [],
+    };
+
+    const agent = resolveAgentActor(operator, undefined, FALLBACK_ON);
+    assert.equal(
+      agent.organization.membershipVerified,
+      false,
+      'platform authority must not become a verified membership',
+    );
+    assert.ok(
+      agent.capabilities.includes('agent.run.read.platform'),
+      'the explicit platform operator lost genuinely global read',
+    );
+    assert.equal(agent.platformReader, true);
+
+    // Global READ survives. Organization-scoped privilege does not.
+    for (const capability of ['agent.run.create', 'agent.run.control', 'agent.approval.decide'] as const) {
+      assert.equal(
+        agent.capabilities.includes(capability),
+        false,
+        `${capability} was granted over an organization with no verified membership`,
+      );
+    }
+
+    const workflow = resolveWorkflowActor(operator, undefined, FALLBACK_ON, []);
+    assert.ok(workflow.capabilities.includes('workflow.run.read.platform'));
+    for (const capability of [
+      'workflow.run.create',
+      'workflow.run.control',
+      'workflow.approval.decide',
+    ] as const) {
+      assert.equal(workflow.capabilities.includes(capability), false, `${capability} survived`);
+    }
+
+    // The platform scope rules still decide cross-tenant reads, and they are
+    // unchanged: an explicit operator may name another organization.
+    assert.equal(readScopeFor(agent, OTHER_ORG), OTHER_ORG);
+    assert.equal(resolveAdminRole(operator), 'super_admin');
+  });
+
+  // =========================================================================
+  // TASK 3 — POSITIVE CONTROL. The fix must not break legitimate members.
+  // =========================================================================
+  it('a VERIFIED member keeps every intended organization capability', () => {
+    const member = consistent('owner');
+
+    const agent = resolveAgentActor(member, ORG, TENANCY_OPTIONS);
+    assert.equal(agent.organization.membershipVerified, true);
+    for (const capability of [
+      'agent.run.create',
+      'agent.run.control',
+      'agent.approval.decide',
+      'agent.run.read',
+      'agent.registry.read',
+    ] as const) {
+      assert.ok(agent.capabilities.includes(capability), `a verified owner lost ${capability}`);
+    }
+
+    const workflow = resolveWorkflowActor(member, ORG, TENANCY_OPTIONS, agent.capabilities);
+    assert.equal(workflow.organization.membershipVerified, true);
+    for (const capability of [
+      'workflow.run.create',
+      'workflow.run.control',
+      'workflow.approval.decide',
+      'workflow.run.read',
+    ] as const) {
+      assert.ok(workflow.capabilities.includes(capability), `a verified owner lost ${capability}`);
+    }
+
+    // …and still no platform authority, because they are not a platform operator.
+    assert.equal(agent.platformReader, false);
+    assert.equal(workflow.platformReader, false);
+  });
+
+  it('a verified member at every team role is unchanged by the MED-A cut', () => {
+    // The cut keys off `membershipVerified`, so it must be a NO-OP for every
+    // account that holds a real membership — at every rank, not only at owner.
+    for (const role of TEAM_ROLES) {
+      const subject = consistent(role);
+      let capabilities: readonly string[] = [];
+      try {
+        capabilities = resolveAgentActor(subject, ORG, TENANCY_OPTIONS).capabilities;
+      } catch {
+        capabilities = []; // viewer holds no agent authority at all, by design
+      }
+      // The floor decides the rank; the MED-A cut must not have moved it. A
+      // verified member's set is exactly what the certified grant table says
+      // for the role their two systems agree on.
+      assert.deepEqual(
+        [...capabilities].sort(),
+        [...new Set(AGENT_ROLE_CAPABILITIES[role] ?? [])].sort(),
+        `${role} disagreed with the certified grant table after the MED-A cut`,
+      );
+    }
   });
 });
 

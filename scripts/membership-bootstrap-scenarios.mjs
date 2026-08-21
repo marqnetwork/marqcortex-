@@ -73,6 +73,10 @@ const PROVENANCE = join(MIGRATIONS, '20260820120000_marq_authority_provenance.sq
 const PROVENANCE_ROLLBACK = join(
   MIGRATIONS, 'rollbacks', '20260820120000_rollback_authority_provenance.sql',
 );
+const RLS_BAND = join(MIGRATIONS, '20260821120000_marq_provenance_rls_band.sql');
+const RLS_BAND_ROLLBACK = join(
+  MIGRATIONS, 'rollbacks', '20260821120000_rollback_provenance_rls_band.sql',
+);
 
 const STEPS = [
   ['platform stub', join(HARNESS, '00_platform_stub.sql')],
@@ -148,6 +152,12 @@ const PROVENANCE_STEPS = [
   ['plant a half-applied promotion', join(HARNESS, '89_provenance_drift_fixture.sql')],
   ['authority provenance migration', PROVENANCE],
   ['assert authority provenance (HIGH-1, roster drift)', join(HARNESS, '90_assert_authority_provenance.sql')],
+  ['provenance RLS band migration (LOW-A)', RLS_BAND],
+  ['assert provenance RLS band (LOW-A)', join(HARNESS, '92_assert_provenance_rls_band.sql')],
+  ['provenance RLS band rollback', RLS_BAND_ROLLBACK],
+  ['provenance RLS band migration (re-apply, idempotency)', RLS_BAND],
+  ['assert provenance RLS band again', join(HARNESS, '92_assert_provenance_rls_band.sql')],
+  ['provenance RLS band rollback (before the column goes)', RLS_BAND_ROLLBACK],
   ['authority provenance rollback', PROVENANCE_ROLLBACK],
   ['assert provenance rollback', join(HARNESS, '91_assert_provenance_rollback.sql')],
 ];

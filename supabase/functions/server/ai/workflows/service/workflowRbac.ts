@@ -98,6 +98,30 @@ const PLATFORM_CAPABILITIES: ReadonlySet<WorkflowRuntimeCapability> =
   new Set<WorkflowRuntimeCapability>(['workflow.run.read.platform']);
 
 /**
+ * Capabilities that an UNVERIFIED organization resolution may never carry.
+ *
+ * The mirror of `MEMBERSHIP_SCOPED_PRIVILEGED` in
+ * `agents/service/agentRbac.ts`, for the same reason and against the same
+ * finding (MED-A): with `AI_ALLOW_DEFAULT_ORGANIZATION` on, a team user holding
+ * no membership row is admitted into the fallback organization with
+ * `membershipVerified: false`, and this runtime granted them run creation, run
+ * control and approval authority over a tenant nobody had confirmed they belong
+ * to.
+ *
+ * The read capabilities are deliberately absent — an unaffiliated account may
+ * still see the organization it was placed in and change nothing about it —
+ * and `workflow.run.read.platform` stays gated by `hasPlatformAuthority`
+ * alone, because genuinely global authority is not something the fallback
+ * conferred.
+ */
+const MEMBERSHIP_SCOPED_PRIVILEGED: ReadonlySet<WorkflowRuntimeCapability> =
+  new Set<WorkflowRuntimeCapability>([
+    'workflow.run.create',
+    'workflow.run.control',
+    'workflow.approval.decide',
+  ]);
+
+/**
  * Role → capability grants.
  *
  * Deliberately the same shape as `AGENT_ROLE_CAPABILITIES`, including the
@@ -186,6 +210,13 @@ export function resolveWorkflowActor(
   // global roles carry it. A membership row cannot put it back.
   if (!hasPlatformAuthority(subject)) {
     for (const capability of PLATFORM_CAPABILITIES) granted.delete(capability);
+  }
+
+  // MED-A. A PRIVILEGED CAPABILITY REQUIRES A VERIFIED MEMBERSHIP, ALWAYS.
+  // Read off the ONE tenant resolver's own answer, exactly as the agent runtime
+  // and `resolveActor` do.
+  if (!organization.membershipVerified) {
+    for (const capability of MEMBERSHIP_SCOPED_PRIVILEGED) granted.delete(capability);
   }
 
   if (granted.size === 0) {
