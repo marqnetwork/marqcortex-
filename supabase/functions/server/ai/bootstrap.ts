@@ -13,7 +13,11 @@
  */
 
 import type { AIControlPlane, ControlPlaneOptions } from './controlPlane.ts';
-import type { MembershipLookup, UserLookup } from './adapters/supabaseAuthenticator.ts';
+import type {
+  MembershipInvalidationSignal,
+  MembershipLookup,
+  UserLookup,
+} from './adapters/supabaseAuthenticator.ts';
 import type { KvWriter } from './adapters/kvAuditStore.ts';
 import type { KvSpendReader } from './adapters/kvSpendStore.ts';
 import type { AuditStore } from './observability/audit.ts';
@@ -73,6 +77,14 @@ export interface BootstrapDependencies {
   readonly getUser?: UserLookup;
   /** Resolve the organizations a subject belongs to. */
   readonly listMemberships?: MembershipLookup;
+  /**
+   * Announcements that a subject's memberships changed, so the authenticator's
+   * membership cache can drop them at once instead of at the TTL. The console's
+   * membership lifecycle publishes on it after every write; without it a
+   * demotion would keep granting the old organization role for up to a minute
+   * (HIGH-1).
+   */
+  readonly membershipInvalidation?: MembershipInvalidationSignal;
   /** Durable key-value write, used for the audit store and the spend ledger. */
   readonly kvWrite?: KvWriter;
   /** Durable key-value read. Required for the spend ledger to be durable. */
@@ -135,6 +147,7 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     ? createSupabaseAuthenticator({
         getUser: deps.getUser,
         listMemberships: deps.listMemberships,
+        invalidation: deps.membershipInvalidation,
         clock: systemClock,
         onError: (stage, error) =>
           console.error(

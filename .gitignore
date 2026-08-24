@@ -7,3 +7,7 @@ dist/
 *.log
 playwright-report/
 test-results/
+
+# Operator-supplied staff rosters. Real auth.users ids never enter the repository;
+# see supabase/operations/roster/README.md.
+supabase/operations/roster/*.local.json

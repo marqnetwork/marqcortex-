@@ -24,7 +24,11 @@ import {
   isTeamRole,
   normalizeTeamRole,
   roleRank,
+  type TeamRole,
 } from '../../supabase/functions/server/teamAuthorization.ts';
+
+/** A caller the server has provisioned, at a given role. */
+const provisioned = (role: TeamRole) => ({ provisioned: true, role });
 
 describe('team role normalisation', () => {
   it('defaults an unknown or missing role to the LEAST privileged', () => {
@@ -64,7 +68,7 @@ describe('team admin gate', () => {
   it('rejects an authenticated non-admin with 403', () => {
     // The core finding: a valid token is not permission to administer the team.
     for (const role of ['viewer', 'reviewer', 'analyst', 'consultant'] as const) {
-      const result = authorizeTeamAdmin('user-1', role);
+      const result = authorizeTeamAdmin('user-1', provisioned(role));
       assert.equal(result.ok, false, `${role} must not administer the team`);
       if (result.ok) return;
       assert.equal(result.failure.status, 403);
@@ -73,8 +77,29 @@ describe('team admin gate', () => {
   });
 
   it('admits an admin and an owner', () => {
-    assert.equal(authorizeTeamAdmin('user-1', 'admin').ok, true);
-    assert.equal(authorizeTeamAdmin('user-1', 'owner').ok, true);
+    assert.equal(authorizeTeamAdmin('user-1', provisioned('admin')).ok, true);
+    assert.equal(authorizeTeamAdmin('user-1', provisioned('owner')).ok, true);
+  });
+
+  // HIGH-2. The gate that did not exist: an authenticated account that the
+  // server never provisioned is not a team member, whatever role it claims.
+  it('rejects an authenticated account that is not a provisioned team account', () => {
+    for (const role of TEAM_ROLES) {
+      const result = authorizeTeamAdmin('stranger-1', { provisioned: false, role });
+      assert.equal(result.ok, false, `an unprovisioned ${role} must not administer the team`);
+      if (result.ok) return;
+      assert.equal(result.failure.status, 403);
+      // Reported as its own fact. "A colleague lacks the rank" and "a stranger
+      // tried" are different events and an operator needs to tell them apart.
+      assert.equal(result.failure.code, 'NOT_A_TEAM_ACCOUNT');
+    }
+  });
+
+  it('rejects a caller with no authority at all', () => {
+    const result = authorizeTeamAdmin('stranger-1', null);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.failure.code, 'NOT_A_TEAM_ACCOUNT');
   });
 });
 

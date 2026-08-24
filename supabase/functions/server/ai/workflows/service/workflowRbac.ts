@@ -30,6 +30,7 @@
  */
 
 import type { AuthenticatedSubject } from '../../security/actor.ts';
+import { flooredRolesFor, hasPlatformAuthority } from '../../security/actor.ts';
 import type { AIOrganization } from '../../contracts/request.ts';
 import type { OrganizationResolutionOptions } from '../../security/tenancy.ts';
 import type { WorkflowAgentActor } from '../engine/agentNodePort.ts';
@@ -81,6 +82,44 @@ const OPERATOR: readonly WorkflowRuntimeCapability[] = [
  * it they may answer.
  */
 const APPROVER: readonly WorkflowRuntimeCapability[] = ['workflow.approval.decide'];
+
+/**
+ * Capabilities that reach BEYOND the actor's own organization.
+ *
+ * The mirror of `PLATFORM_CAPABILITIES` in `agents/service/agentRbac.ts`, for
+ * the same reason and against the same finding (HIGH-2): the grant table is
+ * keyed by role NAME, `platform_admin` is a seeded row in `public.roles`, and a
+ * membership row pointed at it resolved cross-tenant workflow read authority for
+ * a subject holding no trusted global role at all.
+ *
+ * ORGANIZATION MEMBERSHIP CAN NEVER CREATE PLATFORM AUTHORITY.
+ */
+const PLATFORM_CAPABILITIES: ReadonlySet<WorkflowRuntimeCapability> =
+  new Set<WorkflowRuntimeCapability>(['workflow.run.read.platform']);
+
+/**
+ * Capabilities that an UNVERIFIED organization resolution may never carry.
+ *
+ * The mirror of `MEMBERSHIP_SCOPED_PRIVILEGED` in
+ * `agents/service/agentRbac.ts`, for the same reason and against the same
+ * finding (MED-A): with `AI_ALLOW_DEFAULT_ORGANIZATION` on, a team user holding
+ * no membership row is admitted into the fallback organization with
+ * `membershipVerified: false`, and this runtime granted them run creation, run
+ * control and approval authority over a tenant nobody had confirmed they belong
+ * to.
+ *
+ * The read capabilities are deliberately absent — an unaffiliated account may
+ * still see the organization it was placed in and change nothing about it —
+ * and `workflow.run.read.platform` stays gated by `hasPlatformAuthority`
+ * alone, because genuinely global authority is not something the fallback
+ * conferred.
+ */
+const MEMBERSHIP_SCOPED_PRIVILEGED: ReadonlySet<WorkflowRuntimeCapability> =
+  new Set<WorkflowRuntimeCapability>([
+    'workflow.run.create',
+    'workflow.run.control',
+    'workflow.approval.decide',
+  ]);
 
 /**
  * Role → capability grants.
@@ -155,11 +194,29 @@ export function resolveWorkflowActor(
   const membership = subject.memberships.find(
     (entry) => entry.organizationId === organization.organizationId,
   );
-  const roles = [...new Set(lower([...subject.globalRoles, ...(membership?.roles ?? [])]))].sort();
+  // FLOORED, not unioned (H-A). The trusted `app_metadata` team role and the
+  // membership row can disagree while a role change is half-applied, and the
+  // union grants whichever half is still stale — here that is the difference
+  // between holding `workflow.approval.decide` and not. `flooredRolesFor` grants
+  // no more than the lower of the two, and is a no-op whenever they agree.
+  const roles = [...new Set(lower([...flooredRolesFor(subject, membership)]))].sort();
 
   const granted = new Set<WorkflowRuntimeCapability>();
   for (const role of roles) {
     for (const capability of WORKFLOW_ROLE_CAPABILITIES[role] ?? []) granted.add(capability);
+  }
+
+  // HIGH-2. Cross-tenant authority survives only for a subject whose TRUSTED
+  // global roles carry it. A membership row cannot put it back.
+  if (!hasPlatformAuthority(subject)) {
+    for (const capability of PLATFORM_CAPABILITIES) granted.delete(capability);
+  }
+
+  // MED-A. A PRIVILEGED CAPABILITY REQUIRES A VERIFIED MEMBERSHIP, ALWAYS.
+  // Read off the ONE tenant resolver's own answer, exactly as the agent runtime
+  // and `resolveActor` do.
+  if (!organization.membershipVerified) {
+    for (const capability of MEMBERSHIP_SCOPED_PRIVILEGED) granted.delete(capability);
   }
 
   if (granted.size === 0) {

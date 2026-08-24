@@ -23,7 +23,30 @@ export interface AIActor {
   /** Auth subject (Supabase user id) when the actor is authenticated. */
   readonly subjectId?: string;
   readonly email?: string;
+  /**
+   * The EFFECTIVE roles — trusted global roles and membership roles the platform
+   * can bound, with the authority floor applied.
+   *
+   * This is an authorization input: it reaches an approval gate as
+   * `deciderRoles`, and it keys the runtime grant tables. It is therefore the
+   * canonical list `resolveEffectiveAuthority` produces, not the union of
+   * whatever the identity provider happened to report — a role the floor
+   * removed, or one arriving on a membership row that the platform cannot bound
+   * (`platform_admin`), must not be able to satisfy a role check downstream.
+   * See `sourceRoles` for the audit-facing report.
+   */
   readonly roles: readonly string[];
+  /**
+   * What the identity provider reported, before the floor and before the
+   * membership vocabulary filter. Present for the AUDIT RECORD and for
+   * diagnostics, and read by no authorization decision anywhere.
+   *
+   * Held separately because the two answers genuinely differ while a role change
+   * is half-applied, and an operator reading a trail needs to see both: "the row
+   * still said org_admin" and "the account held a viewer's capabilities" are the
+   * same incident described from its two ends.
+   */
+  readonly sourceRoles?: readonly string[];
   /** Capability grants resolved at guard time. Enforced by the policy engine. */
   readonly capabilities: readonly string[];
 }

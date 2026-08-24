@@ -11,6 +11,12 @@
  *                         organization, may spend MARQ's money, may reset the
  *                         lifetime ceiling, may raise the cap.
  *
+ *                         GRANTED ONLY BY `app_metadata.platform_role = 'admin'`
+ *                         — the same trusted field `cortex.is_platform_admin()`
+ *                         has always read, written by the service role and by
+ *                         nothing the console exposes. No team role reaches it;
+ *                         see `SUPER_ADMIN_ROLES` and finding M-B.
+ *
  *   organization_admin    Full operational visibility across their
  *                         organizations. NO platform mutations — see the note
  *                         on the grant table below. Every switch on this
@@ -39,6 +45,7 @@
  */
 
 import type { AuthenticatedSubject } from '../security/actor.ts';
+import { flooredRoleNames, hasPlatformAuthority, PLATFORM_AUTHORITY_ROLES } from '../security/actor.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export type AIAdminRole = 'super_admin' | 'organization_admin' | 'team_admin';
@@ -113,20 +120,57 @@ export const ADMIN_ROLE_RANK: readonly AIAdminRole[] = [
 ];
 
 /**
- * Platform-global roles that confer super admin.
+ * Roles that confer AI PLATFORM administration.
  *
- * `owner` is included because the console's own role table (`teamAuthorization.ts`)
- * makes owner the top of the team hierarchy, and a platform whose owner cannot
- * administer its AI has an operational gap that somebody will close with a
- * database edit.
+ * FINDING M-B: `owner` used to be in this set. `owner` is a MARQ **team** role,
+ * carried in `app_metadata.team_role`, assignable by any existing owner through
+ * `PATCH /team/members/:id` and stampable by any reviewed roster. Being in this
+ * set meant that becoming the top of one console's team hierarchy also handed
+ * out the platform operator's capabilities: the emergency kill switch, the
+ * provider configuration every tenant executes through, the global daily
+ * ceilings, and the reset of MARQ's lifetime funded spend.
+ *
+ * Two vocabularies had been conflated. "Top of the team" and "operates the
+ * platform" are different jobs, held by different people, granted through
+ * different mechanisms — and the second one already had a mechanism.
+ * `cortex.is_platform_admin()` has read `app_metadata ->> 'platform_role'`
+ * since the tenancy migration; it is the authority every RLS policy in the
+ * database already trusts. It is service-role-only, it is not written by any
+ * console route, and `cortex.stamp_team_roster` merges rather than replaces the
+ * metadata bag precisely so it cannot mint one.
+ *
+ * So this set now contains only names that arrive from THAT field, and no team
+ * role can reach it: `resolvePlatformAuthority` in `teamAuthorization.ts` emits
+ * `platform_admin` for `platform_role = 'admin'`, and `normalizeTeamRole`
+ * cannot return any string outside `TEAM_ROLES` — of which none is here.
+ *
+ * A MARQ team owner keeps everything an owner is for. What they no longer get,
+ * by accident, is the ability to turn off AI for every tenant on the platform.
  */
-const SUPER_ADMIN_ROLES: ReadonlySet<string> = new Set(['super_admin', 'platform_admin', 'owner']);
+export const SUPER_ADMIN_ROLES: ReadonlySet<string> = PLATFORM_AUTHORITY_ROLES;
 
-/** Roles that confer organization-level administration. */
-const ORGANIZATION_ADMIN_ROLES: ReadonlySet<string> = new Set(['organization_admin', 'admin']);
+/**
+ * Roles that confer organization-level administration.
+ *
+ * `owner` and `org_admin` land here, which is where the team hierarchy's top
+ * belongs: full operational visibility across their organizations, and no
+ * platform-wide mutation. `org_admin` is the seeded organization role key that
+ * `admin` and `owner` map to, so a subject resolves to the same tier whether
+ * the role reached them on the auth record or on the membership row.
+ */
+const ORGANIZATION_ADMIN_ROLES: ReadonlySet<string> = new Set([
+  'organization_admin',
+  'admin',
+  'owner',
+  'org_admin',
+]);
 
 /** Roles that confer read-only AI operations access. */
-const TEAM_ADMIN_ROLES: ReadonlySet<string> = new Set(['team_admin', 'consultant']);
+const TEAM_ADMIN_ROLES: ReadonlySet<string> = new Set([
+  'team_admin',
+  'consultant',
+  'team_member',
+]);
 
 export interface AIAdminActor {
   readonly actorId: string;
@@ -155,20 +199,39 @@ function lower(values: readonly string[]): string[] {
  * would grant access on the strength of a missing row.
  */
 export function resolveAdminRole(subject: AuthenticatedSubject): AIAdminRole | undefined {
-  const globalRoles = lower(subject.globalRoles);
-  if (globalRoles.some((role) => SUPER_ADMIN_ROLES.has(role))) return 'super_admin';
+  // Platform administration is GLOBAL-ONLY and explicit. A membership row is a
+  // statement about one tenant, and no statement about one tenant may make
+  // somebody the operator of the platform every tenant shares — so this test is
+  // deliberately not applied to membership roles below.
+  //
+  // `hasPlatformAuthority` is THE test, shared with the agent and workflow
+  // runtimes (HIGH-2). It reads `globalRoles` and nothing else, and this surface
+  // asking the same function as the other two is what stops the three drifting
+  // into three answers about the same subject.
+  if (hasPlatformAuthority(subject)) return 'super_admin';
 
-  const membershipRoles = subject.memberships.flatMap((membership) => lower(membership.roles));
-  if (membershipRoles.some((role) => SUPER_ADMIN_ROLES.has(role))) {
-    // An owner OF ONE ORGANIZATION is not the platform operator. They get the
-    // organization tier; conflating the two would hand a tenant the ability to
-    // clear MARQ's spend ceiling.
-    return 'organization_admin';
-  }
-
-  const allRoles = [...globalRoles, ...membershipRoles];
-  if (allRoles.some((role) => ORGANIZATION_ADMIN_ROLES.has(role))) return 'organization_admin';
-  if (allRoles.some((role) => TEAM_ADMIN_ROLES.has(role))) return 'team_admin';
+  // FLOORED, not unioned. The two authority sources — the trusted team role on
+  // the auth record and the organization role on the membership row — can
+  // disagree for as long as it takes the second half of a role change to land,
+  // or forever if it failed. Reading a tier off the union means reading it off
+  // whichever half is still stale, and this surface can read another tenant's
+  // usage, cost and audit trail.
+  //
+  // The same floor `resolveActor` applies to capabilities, applied here to the
+  // names: a stale `org_admin` row on an account demoted to `viewer` grants no
+  // tier at all, and a stale `admin` team role beside a `team_viewer` row
+  // grants none either.
+  //
+  // A membership resolved from a CACHE is not admitted here at all. Every
+  // caller of this surface asks for an authoritative resolution
+  // (`privileged: true`), so this never fires in practice — which is exactly
+  // why it is cheap to make the failure mode of a future caller forgetting a
+  // refusal rather than a tier granted off a stale row.
+  const effectiveRoles = subject.membershipsFromCache
+    ? lower(subject.globalRoles)
+    : flooredRoleNames(subject);
+  if (effectiveRoles.some((role) => ORGANIZATION_ADMIN_ROLES.has(role))) return 'organization_admin';
+  if (effectiveRoles.some((role) => TEAM_ADMIN_ROLES.has(role))) return 'team_admin';
   return undefined;
 }
 

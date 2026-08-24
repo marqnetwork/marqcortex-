@@ -156,6 +156,14 @@ export const ADMIN_TOKEN = {
   otherOrganizationAdmin: 'token-other-org-admin',
   /** An owner of one organization — deliberately NOT the platform operator. */
   organizationOwner: 'token-org-owner',
+  /**
+   * A membership row with NO trusted team role behind it.
+   *
+   * The state an unstamped account with a leftover membership is in, and the
+   * state a demotion leaves for as long as the row is stale. `app_metadata` is
+   * the authority, so this subject administers nothing (H-A / HIGH-2).
+   */
+  membershipOnly: 'token-membership-only',
 } as const;
 
 const ADMIN_SUBJECTS: Readonly<Record<string, AuthenticatedSubject>> = {
@@ -198,8 +206,21 @@ const ADMIN_SUBJECTS: Readonly<Record<string, AuthenticatedSubject>> = {
     subjectId: 'user-org-owner',
     email: 'owner@acme.test',
     actorType: 'team_user',
-    globalRoles: [],
+    // The trusted team role and the membership row AGREE, which is the only
+    // state a working account is in. It used to be `globalRoles: []` with the
+    // row alone carrying `owner` — a membership standing in for authority, and
+    // the fixture is now explicit that authority comes from the trusted field.
+    // The membership-only shape is covered by `membershipOnly` below, where it
+    // grants nothing.
+    globalRoles: ['owner'],
     memberships: [{ organizationId: 'acme', tier: 'enterprise', roles: ['owner'] }],
+  },
+  [ADMIN_TOKEN.membershipOnly]: {
+    subjectId: 'user-membership-only',
+    email: 'stale@acme.test',
+    actorType: 'team_user',
+    globalRoles: [],
+    memberships: [{ organizationId: 'acme', tier: 'enterprise', roles: ['org_admin'] }],
   },
 };
 
