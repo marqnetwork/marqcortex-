@@ -21,6 +21,14 @@
  * key it stays registered but reports no credentials, so the selector skips it —
  * exactly the behaviour an operator needs to turn a provider on without a
  * deploy.
+ *
+ * AI-01 Batch 4B certifies this adapter for MARQ-funded production spending
+ * alongside OpenAI. Nothing about the execution path changed to make that true,
+ * which is the point: Anthropic reaches a model through the same guard, policy
+ * engine, spend reservation, selector, retry curve, circuit breaker, output
+ * guard and audit writer as every other provider. What 4B added is the evidence
+ * — `__tests__/anthropicGovernedPath.test.ts` drives that whole sequence — and
+ * the narrowed catalogue below.
  */
 
 import type {
@@ -41,6 +49,50 @@ export interface AnthropicProviderOptions {
 
 const API_VERSION = '2023-06-01';
 
+/**
+ * The certified Anthropic catalogue for MARQ Cortex.
+ *
+ * ONE MODEL, DELIBERATELY (AI-01 Batch 4B). Batch 1 declared Haiku 4.5 and
+ * Sonnet 4.5 together, on the reasoning that an adapter should offer what the
+ * vendor offers. Certifying a provider for MARQ-funded production spending
+ * changes that calculus in two ways, and both point the same direction:
+ *
+ *   1. THE CATALOGUE IS THE ALLOW LIST. Nothing above this file names a model;
+ *      the selector picks the cheapest model that meets a feature's declared
+ *      requirements, and an administrator may only NARROW what is declared here
+ *      (`ModelPolicy`, `registry.ts`). So the set declared here IS the set this
+ *      platform is certified to spend money on. A model nobody has certified
+ *      against this contract does not belong in it.
+ *
+ *   2. AN EXPENSIVE DECLARED MODEL RAISES EVERY REQUEST'S HOLD. The spend guard
+ *      reserves the worst case a feature can cost across the FULL declared
+ *      catalogue of every billable provider — not the permitted subset, and not
+ *      the model that will actually be selected (`spendGuard.ts`). Declaring
+ *      Sonnet 4.5 at 3,000/15,000 µUSD per 1k therefore raised the pessimistic
+ *      hold on every interactive request from ~106,000 to ~134,000 µUSD, for a
+ *      model the selector would never choose. Against the MARQ-funded lifetime
+ *      ceiling that is headroom spent on nothing.
+ *
+ * Every Cortex feature asks for at most 2,500 completion tokens
+ * (`HEAVY_LIMITS`), which Haiku 4.5 covers with headroom. Certifying a larger
+ * Anthropic model is a deliberate decision with a measurable cost — it belongs
+ * in the batch that needs it, with the reservation arithmetic re-checked, not
+ * in a catalogue that grew by default.
+ *
+ * The model id is the DATED SNAPSHOT rather than the `claude-haiku-4-5` alias.
+ * An alias may be repointed at a new model version by the vendor; a snapshot
+ * may not. An audit record that says which model produced a completion has to
+ * stay true a year later, and a certification that can be moved underneath the
+ * platform is not a certification.
+ *
+ * Rates are the published Anthropic list price, in micro-USD per 1,000 tokens:
+ * $1.00 / MTok input and $5.00 / MTok output.
+ *
+ * `maxOutputTokens` is stated conservatively. It is read as a FLOOR — the
+ * selector refuses a model whose declared ceiling is below what a feature asks
+ * for — so understating it can only remove this provider from a request it
+ * could have served, never send an oversized one.
+ */
 const MODELS: AIProviderDescriptor['models'] = [
   {
     modelId: 'claude-haiku-4-5-20251001',
@@ -55,20 +107,6 @@ const MODELS: AIProviderDescriptor['models'] = [
     },
     promptMicroUsdPer1k: 1_000,
     completionMicroUsdPer1k: 5_000,
-  },
-  {
-    modelId: 'claude-sonnet-4-5-20250929',
-    providerId: 'anthropic',
-    capabilities: {
-      textGeneration: true,
-      structuredOutput: true,
-      chatCompletions: true,
-      maxOutputTokens: 64_000,
-      maxContextTokens: 200_000,
-      zeroDataRetention: true,
-    },
-    promptMicroUsdPer1k: 3_000,
-    completionMicroUsdPer1k: 15_000,
   },
 ];
 

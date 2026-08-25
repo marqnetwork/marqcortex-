@@ -486,6 +486,30 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 Every value is bounded: a malformed setting falls back to its default rather than
 propagating `NaN` into a timeout or a negative ceiling into a rate limiter.
 
+**Certified provider catalogue.** A credential turns a provider on; it does not
+decide what that provider may run. The models each adapter declares ARE the
+certified allow list — nothing above `ai/providers/` names a model, the selector
+picks the cheapest declared model meeting a feature's requirements, and an
+administrator's `modelAllowList` may only narrow that set further.
+
+| Provider | Certified models | µUSD / 1k prompt · completion |
+|----------|------------------|-------------------------------|
+| `openai` | `gpt-4o-mini`, `gpt-4o` | 150 · 600  ·  2,500 · 10,000 |
+| `anthropic` | `claude-haiku-4-5-20251001` | 1,000 · 5,000 |
+| `mock` | `mock-standard` | 0 · 0 (never billable) |
+
+Two consequences worth stating, because both bit during certification:
+
+- **A declared model costs money even when it is never selected.** The spend
+  guard reserves the worst case across every billable provider's FULL declared
+  catalogue, so adding a dear model raises the pessimistic hold on every request
+  — including requests the other vendor serves. Anthropic is certified on
+  Haiku 4.5 alone for this reason (AI-01 Batch 4B); Sonnet 4.5 was withdrawn
+  from the catalogue rather than left in unused.
+- **Model ids are dated snapshots, not aliases.** An alias can be repointed at a
+  new model version by the vendor. An audit record that names the model behind a
+  completion has to stay true afterwards.
+
 **Operator endpoints:** `GET /ai/health` (unauthenticated probe, no tenant data) ·
 `GET /ai/metrics` · `GET /ai/audit?limit=N` · `GET /ai/catalog` (team auth).
 

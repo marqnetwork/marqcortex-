@@ -181,6 +181,12 @@ describe('OpenAI governed path — the Batch 4A production sequence', () => {
     // Cheapest capable model wins without anybody naming one: the feature
     // declares requirements, the registry prices the candidates.
     assert.equal(response.body.model, MODEL_ID);
+    // AI-01 Batch 4B. The live 4A proof read provenance from `meta`, found a
+    // provider and no model, and reported `model=null` for a request whose
+    // model was recorded correctly in the execution trace, the audit record and
+    // the log line. A completion is answered by a (provider, model) pair; both
+    // halves are reported together, and the legacy top-level field stays.
+    assert.equal(meta.model, MODEL_ID);
     assert.equal(meta.attempts, 1);
 
     assert.equal(outbound.length, 1, 'exactly one vendor call');
