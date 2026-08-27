@@ -35,18 +35,59 @@ platform's neutral invocation and one vendor's wire format. Nothing above
      (vendor errors sometimes echo the request, which may contain client data);
    - accept an injected `fetch` so it is testable without network access.
 
-2. **Set `productionReady`** honestly. `false` means the registry will report a
+2. **Declare only models you have certified.** The list in your descriptor IS
+   the allow list — nothing above `ai/providers/` names a model, and an
+   administrator's `modelAllowList` can only narrow what you declare. Two rules
+   follow, both learned during AI-01 Batch 4B:
+
+   - **Do not declare a model "because the vendor offers it".** The spend guard
+     reserves the worst case across every billable provider's FULL declared
+     catalogue, not the model that will be selected, so an expensive declared
+     model raises the pessimistic hold on every request — including requests
+     another vendor serves. Declaring one is a budget decision; make it
+     deliberately, and re-check the reservation arithmetic against the MARQ
+     ceiling when you do.
+   - **Use dated model snapshots, not aliases.** A vendor may repoint an alias
+     at a new model version. An audit record naming the model behind a
+     completion has to stay true a year later.
+
+   State capabilities conservatively. `maxOutputTokens` is read as a floor, so
+   understating it can only remove your provider from a request it could have
+   served — never send an oversized one.
+
+3. **Set `productionReady`** honestly. `false` means the registry will report a
    deployment where your provider is the only usable one.
 
-3. **Register it** in `ai/bootstrap.ts`, keyed off its credential env var so an
+4. **Register it** in `ai/bootstrap.ts`, keyed off its credential env var so an
    operator can enable it without a deploy.
 
-4. **Add it to `AI_PROVIDER_PREFERENCE`** documentation in `.env.example` and
-   ARCHITECT.md §12.1.
+5. **Add it to `AI_PROVIDER_PREFERENCE`** documentation in `.env.example` and
+   ARCHITECT.md §12.1, and add its certified models to the catalogue table
+   there.
 
-5. **Test it** in `ai/__tests__/providers.test.ts` against a stub `fetch`:
+6. **Test it** in `ai/__tests__/providers.test.ts` against a stub `fetch`:
    the request shape it produces, the completion shape it normalises back, and
    the taxonomy mapping for 401 / 429 / 5xx / transport failure.
+
+7. **If it is billable, drive it through the whole governed path** in its own
+   `ai/__tests__/<vendor>GovernedPath.test.ts`, modelled on
+   `anthropicGovernedPath.test.ts`. Adapter unit tests prove you speak the wire
+   format; they prove nothing about the sequence that spends money. That suite
+   must cover: the paid request end to end, usage normalisation, the hold taken
+   BEFORE the vendor is reached (pinned by refusal one µUSD below it AND
+   admission at exactly it), settlement, reconciliation on provider error,
+   missing credentials, the `AI_ALLOW_REAL_REQUESTS` kill switch, the emergency
+   stop, an allow list naming a model you do not serve, retry, failover, the
+   circuit breaker, timeout normalisation, audit attribution — and that
+   registering you did not change what the already-certified providers do.
+
+8. **Write a controlled production proof script**, modelled on
+   `scripts/anthropic-live-proof.ts`, and wire `verify:<vendor>` /
+   `verify:<vendor>:live` into `package.json`. It must run its full preflight
+   with no network, refuse the live call unless `--live` AND a credential AND
+   `AI_ALLOW_REAL_REQUESTS=true` are all present, never set the kill switch
+   itself, and use its own in-memory ledger so a proof run cannot consume the
+   deployment's funded headroom.
 
 ### What you do NOT implement
 
@@ -151,12 +192,19 @@ switch would be a production-reachable behaviour toggle.
 ## 5. Verifying a change
 
 ```bash
-npm run test:ai        # 259 control plane tests
-npm run test:security  # security + governance subset
-npm run test:features  # feature regression
-npm run test:system    # manifest + system map authority
-npm run typecheck      # web, api (deno check), tests
+npm run test:ai         # control plane suite
+npm run test:security   # security + governance subset
+npm run test:features   # feature regression
+npm run test:system     # manifest + system map authority + AI boundary scan
+npm run typecheck       # web, api (deno check), tests
+npm run verify:ai       # runtime assembly probe
+npm run verify:openai   # OpenAI production proof — PREFLIGHT, no network
+npm run verify:anthropic # Anthropic production proof — PREFLIGHT, no network
 ```
+
+The two `verify:*` proofs are preflight-only without `--live`. Adding `--live`
+executes exactly one paid request and requires a configured credential and
+`AI_ALLOW_REAL_REQUESTS=true`; neither script will set that switch for you.
 
 Then confirm `GET /ai/health`:
 

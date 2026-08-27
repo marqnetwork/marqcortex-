@@ -5,14 +5,25 @@
  * "update tickets to 350" trigger the deterministic recalc pipeline
  * and refresh the dashboard in real-time.
  *
- * Also provides mock GPT-4o-mini narrative generation for:
+ * Also generates the three Cortex narratives:
  *   - why_now
  *   - confidence_reasoning
  *   - strategic_decision
  *
- * When isBackendEnabled() is true, calls the real GPT-4o-mini
- * endpoint on the server. Falls back to deterministic mock narratives
- * when false (demo mode).
+ * When isBackendEnabled() is true these go to the governed narrative endpoint,
+ * which decides for itself which provider and model serve the request. When it
+ * is false — or when that call fails — this file generates a deterministic
+ * narrative locally instead.
+ *
+ * THE PANEL NEVER NAMES A VENDOR (AI-01 Batch 4B). It used to print
+ * "GPT-4o-mini (live)" under every narrative, with "live" meaning only that a
+ * backend was configured at build time. That was wrong in three independent
+ * ways at once: the server may have real provider requests turned off and be
+ * answering from the mock; the API call may have failed and left the local
+ * fallback above producing the text; and the platform serves Anthropic as well
+ * as OpenAI, so a hard-coded model name cannot be right for both. The label is
+ * now read from the response's reported provider and model, and says "local"
+ * when nothing governed answered at all.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -46,8 +57,30 @@ interface ChatMessage {
   narrative?: {
     type: 'why_now' | 'confidence_reasoning' | 'strategic_decision';
     text: string;
-    isLive?: boolean;  // true = real GPT-4o-mini, false/undefined = mock
+    /**
+     * What actually produced this text, as the control plane reported it.
+     *
+     * This replaces an `isLive` flag derived from `isBackendEnabled()`. That
+     * flag answered "is a backend configured for this build?" and was rendered
+     * as though it answered "did a real model write this?" — three different
+     * things could make it wrong at once: real requests turned off server-side
+     * (every completion synthetic), the narrative API failing and this
+     * component silently falling back to its own mock, and the model name being
+     * hard-coded to one vendor's. A governed platform that can serve OpenAI,
+     * Anthropic or a mock cannot label its output from a build flag.
+     *
+     * Absent means no governed execution answered — the local mock did.
+     */
+    provider?: string;
+    model?: string;
   };
+}
+
+/** How a narrative was produced, for the badge. */
+interface NarrativeProvenance {
+  readonly text: string;
+  readonly provider?: string;
+  readonly model?: string;
 }
 
 interface CortexChatPanelProps {
@@ -58,7 +91,7 @@ interface CortexChatPanelProps {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
-// MOCK NARRATIVE GENERATION (GPT-4o-mini stub)
+// LOCAL NARRATIVE FALLBACK (no model is called)
 // ════════════════════════════════════════════════════════════════════════════════
 
 function generateMockNarrative(
@@ -101,6 +134,12 @@ export function CortexChatPanel({
   const [showPulse, setShowPulse] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // The most recent thing the panel actually learned about the engine. Derived
+  // from the transcript rather than held in its own state, so it can never
+  // disagree with the badge printed on the message it describes.
+  const lastNarrative = [...messages].reverse().find((msg) => msg.narrative)?.narrative;
+  const engineStatus = describeEngine(lastNarrative);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -149,8 +188,13 @@ export function CortexChatPanel({
           const narrative = await generateNarrative('why_now', portfolioState, accessToken);
           addMessage({
             role: 'system',
-            content: narrative,
-            narrative: { type: 'why_now', text: narrative, isLive: isBackendEnabled() },
+            content: narrative.text,
+            narrative: {
+              type: 'why_now',
+              text: narrative.text,
+              provider: narrative.provider,
+              model: narrative.model,
+            },
           });
         } else {
           addMessage({ role: 'system', content: 'No portfolio state available. Complete a diagnostic first.' });
@@ -164,8 +208,13 @@ export function CortexChatPanel({
           const narrative = await generateNarrative('confidence_reasoning', portfolioState, accessToken);
           addMessage({
             role: 'system',
-            content: narrative,
-            narrative: { type: 'confidence_reasoning', text: narrative, isLive: isBackendEnabled() },
+            content: narrative.text,
+            narrative: {
+              type: 'confidence_reasoning',
+              text: narrative.text,
+              provider: narrative.provider,
+              model: narrative.model,
+            },
           });
         } else {
           addMessage({ role: 'system', content: 'No portfolio state available.' });
@@ -179,8 +228,13 @@ export function CortexChatPanel({
           const narrative = await generateNarrative('strategic_decision', portfolioState, accessToken);
           addMessage({
             role: 'system',
-            content: narrative,
-            narrative: { type: 'strategic_decision', text: narrative, isLive: isBackendEnabled() },
+            content: narrative.text,
+            narrative: {
+              type: 'strategic_decision',
+              text: narrative.text,
+              provider: narrative.provider,
+              model: narrative.model,
+            },
           });
         } else {
           addMessage({ role: 'system', content: 'No portfolio state available.' });
@@ -414,9 +468,17 @@ export function CortexChatPanel({
                       : 'No portfolio loaded'}
                   </p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="size-2 rounded-full bg-[#10B981] animate-pulse" />
-                  <span className="text-[10px] text-gray-500">Live</span>
+                {/*
+                  The engine status, read from what last answered rather than
+                  asserted. A permanently green "Live" dot beside a synthetic
+                  completion is the same defect as the badge below, in the one
+                  place a user looks to decide whether to trust the panel.
+                */}
+                <div className="flex items-center gap-1.5" title={engineStatus.title}>
+                  <div
+                    className={`size-2 rounded-full ${engineStatus.dotClass} ${engineStatus.pulse ? 'animate-pulse' : ''}`}
+                  />
+                  <span className="text-[10px] text-gray-500">{engineStatus.label}</span>
                 </div>
               </div>
             </div>
@@ -512,7 +574,9 @@ function ChatBubble({ message }: { message: ChatMessage }) {
             <span className="text-[9px] font-black uppercase tracking-wider text-[#06D7F6]">
               {message.narrative.type.replace(/_/g, ' ')}
             </span>
-            <span className="text-[8px] text-gray-600 ml-auto">GPT-4o-mini ({message.narrative.isLive ? 'live' : 'mock'})</span>
+            <span className="text-[8px] text-gray-600 ml-auto" title={narrativeSourceTitle(message.narrative)}>
+              {narrativeSourceLabel(message.narrative)}
+            </span>
           </div>
         )}
 
@@ -568,14 +632,116 @@ function renderContent(text: string) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// SOURCE LABELLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * What to print under a narrative, given what actually produced it.
+ *
+ * Three states, and they are genuinely three — collapsing them to live/mock is
+ * the defect this replaces:
+ *
+ *   a governed provider answered      → name it and the model it used
+ *   the mock provider answered        → say synthetic, because it is
+ *   nothing governed answered at all  → say local, because this file wrote it
+ *
+ * The provider is never hard-coded. A platform that can select OpenAI,
+ * Anthropic or the mock per request has to read the label off the response.
+ */
+function narrativeSourceLabel(narrative: { provider?: string; model?: string }): string {
+  const { provider, model } = narrative;
+  if (!provider && !model) return 'local · deterministic';
+  if (!provider) return `${model} · generated`;
+  if (provider === 'mock' || model === 'demo-mode') return `${provider} · synthetic`;
+  return `${model ?? provider} · live`;
+}
+
+interface EngineStatus {
+  readonly label: string;
+  readonly title: string;
+  readonly dotClass: string;
+  readonly pulse: boolean;
+}
+
+/**
+ * The header indicator, from evidence rather than from configuration.
+ *
+ * Before any narrative has been requested the panel genuinely does not know
+ * what will answer, and says so: whether a backend is configured is the only
+ * honest thing it can report at that point, and it is reported as "ready",
+ * not as "live".
+ */
+function describeEngine(narrative?: { provider?: string; model?: string }): EngineStatus {
+  if (!narrative) {
+    return isBackendEnabled()
+      ? {
+          label: 'Ready',
+          title: 'A governed backend is configured. Nothing has been generated yet this session.',
+          dotClass: 'bg-[#10B981]',
+          pulse: false,
+        }
+      : {
+          label: 'Demo',
+          title: 'No backend is configured. Narratives are generated in the browser.',
+          dotClass: 'bg-gray-500',
+          pulse: false,
+        };
+  }
+  const { provider, model } = narrative;
+  if (!provider && !model) {
+    return {
+      label: 'Local',
+      title: narrativeSourceTitle(narrative),
+      dotClass: 'bg-gray-500',
+      pulse: false,
+    };
+  }
+  if (provider === 'mock' || model === 'demo-mode') {
+    return {
+      label: 'Synthetic',
+      title: narrativeSourceTitle(narrative),
+      dotClass: 'bg-amber-500',
+      pulse: false,
+    };
+  }
+  return {
+    label: 'Live',
+    title: narrativeSourceTitle(narrative),
+    dotClass: 'bg-[#10B981]',
+    pulse: true,
+  };
+}
+
+/** The same fact, spelled out for a tooltip. */
+function narrativeSourceTitle(narrative: { provider?: string; model?: string }): string {
+  const { provider, model } = narrative;
+  if (!provider && !model) {
+    return 'Generated in the browser by the deterministic fallback. No model was called.';
+  }
+  if (provider === 'mock' || model === 'demo-mode') {
+    return `Served by the ${provider ?? 'demo'} provider — a deterministic synthetic completion, not a model.`;
+  }
+  return `Served by ${provider ?? 'the configured provider'} on ${model ?? 'an unreported model'}.`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // NARRATIVE GENERATION
 // ════════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Produce a narrative and say honestly where it came from.
+ *
+ * The return type is the fix. This used to return a bare string, so the caller
+ * had nothing to label it with and reached for `isBackendEnabled()` — which
+ * stayed true through the `catch` below, where a failed API call falls back to
+ * a locally generated mock. The badge then reported that mock as live output
+ * from a model that never ran.
+ */
 async function generateNarrative(
   type: 'why_now' | 'confidence_reasoning' | 'strategic_decision',
   state: PortfolioState,
   token?: string,
-): Promise<string> {
+): Promise<NarrativeProvenance> {
   if (isBackendEnabled() && token) {
     try {
       const topRec = state.outputs.recommendations[0];
@@ -610,11 +776,18 @@ async function generateNarrative(
         } : {}),
       };
       const response = await generateCortexNarrative(type, context, token);
-      return response.narrative;
+      return {
+        text: response.narrative,
+        // The server reports the provider beside the model in `meta`. The
+        // top-level `model` is the legacy field and is read as the fallback,
+        // so a response from an older server still labels itself correctly.
+        provider: response.meta?.provider,
+        model: response.meta?.model ?? response.model,
+      };
     } catch (err) {
       console.log('[CortexChatPanel] Narrative API failed, falling back to mock:', err);
-      return generateMockNarrative(type, state);
+      return { text: generateMockNarrative(type, state) };
     }
   }
-  return generateMockNarrative(type, state);
+  return { text: generateMockNarrative(type, state) };
 }

@@ -13,6 +13,12 @@
  * API change: every existing response field keeps its name, position and
  * meaning. Trace identity is added alongside, never in place of.
  *
+ * `meta` carries the provenance of the run: which provider and which model
+ * answered, how many attempts it took, what it consumed, and what governance
+ * did to it. A caller that wants to know how an answer was produced reads
+ * `meta` and nothing else — see the note on `meta.model` below for what
+ * happens when half of that story lives somewhere else.
+ *
  * `keyMissing` is preserved for the same reason. The console shows a specific
  * "AI is not configured" state off that flag; it is now derived from the
  * provider-credential error codes rather than from string-matching an exception
@@ -105,6 +111,23 @@ function successBody(result: AIExecutionResult<Record<string, unknown>>): Record
       promptVersion: result.promptVersion,
       promptHash: result.promptHash,
       provider: result.execution.providerId,
+      // The model belongs beside the provider that served it (AI-01 Batch 4B).
+      //
+      // It is ALSO at the top level, and that is not redundancy — it is the
+      // whole defect. `model` sits at the top level because the pre-Batch-1
+      // clients read it there, and Batch 1 kept every existing field where it
+      // was. But provenance moved into `meta`, and a reader who finds
+      // `meta.provider` reasonably looks for `meta.model` next. It was not
+      // there, so the Batch 4A production proof — reading both from the one
+      // place provenance lives — reported `provider=openai model=null` for a
+      // request that had in fact recorded its model correctly everywhere else:
+      // in the execution trace, in the audit record and in the log line.
+      //
+      // The completion is answered by a (provider, model) PAIR. Splitting the
+      // pair across two levels of one response is what made a correct platform
+      // look like a broken one, so both halves are reported together here and
+      // the top-level field stays exactly where its clients expect it.
+      model: result.execution.modelId,
       attempts: result.execution.attempts,
       latencyMs: result.execution.latencyMs,
       usage: result.usage,

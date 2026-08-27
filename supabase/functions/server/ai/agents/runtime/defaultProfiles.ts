@@ -32,9 +32,16 @@ export const AGENT_MODEL_PROFILE = {
 } as const;
 
 /**
- * Rates are the highest currently declared by any registered provider
+ * Rates are an UPPER BOUND on what any registered provider currently declares
  * (3,000 / 15,000 micro-USD per 1k), so a projection cannot under-estimate
  * whichever vendor the plane selects.
+ *
+ * They are stated as a constant rather than derived from the registry on
+ * purpose: a projection that tracked the registry would fall the moment a
+ * cheap model was added, and a budget projection that moves on its own is not
+ * a budget projection. The dearest model any provider declares today is
+ * OpenAI's gpt-4o at 2,500 / 10,000, so these figures over-reserve — the safe
+ * direction. Re-check them when a provider declares something dearer.
  */
 const UPPER_BOUND_PROMPT_MICRO_USD_PER_1K = 3_000;
 const UPPER_BOUND_COMPLETION_MICRO_USD_PER_1K = 15_000;

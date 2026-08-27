@@ -2458,7 +2458,7 @@ export const manifest: SystemManifest = {
       description: 'Anthropic provider adapter. Maps the same provider-neutral invocation onto the Messages API, including top-level system placement and JSON prefill.',
       dependencies: [],
       dependents: ['MQC-SVC-046'],
-      notes: 'Built in Batch 1 rather than deferred: an abstraction with one implementation is unproven. Writing it surfaced two places where the contracts were not genuinely provider-neutral, both fixed. Registered whenever ANTHROPIC_API_KEY is present.',
+      notes: 'Built in Batch 1 rather than deferred: an abstraction with one implementation is unproven. Writing it surfaced two places where the contracts were not genuinely provider-neutral, both fixed. Registered whenever ANTHROPIC_API_KEY is present. AI-01 Batch 4B certified it for MARQ-funded spending alongside OpenAI: the catalogue was narrowed to claude-haiku-4-5-20251001 (a dear declared model raises the pessimistic spend hold on every request, including OpenAI\'s), and ai/__tests__/anthropicGovernedPath.test.ts drives the whole paid sequence. No execution path changed — that is the finding.',
     },
     'MQC-SVC-043': {
       id: 'MQC-SVC-043',

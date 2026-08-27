@@ -22,6 +22,8 @@
     "verify:diagnostic": "node --experimental-strip-types scripts/diagnostic-review-verify.ts",
     "verify:openai": "node --experimental-strip-types scripts/openai-live-proof.ts",
     "verify:openai:live": "node --experimental-strip-types scripts/openai-live-proof.ts --live",
+    "verify:anthropic": "node --experimental-strip-types scripts/anthropic-live-proof.ts",
+    "verify:anthropic:live": "node --experimental-strip-types scripts/anthropic-live-proof.ts --live",
     "test:diagnostic": "node --experimental-strip-types --test supabase/functions/server/ai/__tests__/diagnosticReadiness.test.ts supabase/functions/server/ai/__tests__/diagnosticCertification.test.ts supabase/functions/server/ai/__tests__/diagnosticRemediation7d.test.ts tests/features/diagnosticReadinessAuthority.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_authority_provenance_migration.test.ts tests/database/static_provenance_rls_band_migration.test.ts tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts tests/database/static_membership_bootstrap_migration.test.ts tests/database/static_membership_lifecycle_migration.test.ts tests/database/static_authority_recovery_migration.test.ts tests/database/kv_compare_and_swap.test.ts",
     "test:database:scenarios": "node scripts/membership-bootstrap-scenarios.mjs",

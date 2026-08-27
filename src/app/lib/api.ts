@@ -1668,17 +1668,51 @@ export interface NarrativeContext {
   recommendation_count: number;
 }
 
+/**
+ * Provenance of one governed AI execution, as the control plane reports it.
+ *
+ * The server has always sent this block; the client had no type for it, so the
+ * one fact a caller most often wants — WHICH engine actually answered — was
+ * unreachable from the UI. That is how the Cortex chat panel came to advertise
+ * "GPT-4o-mini · live" over a deterministic mock completion: with no provider
+ * in the contract, the only signal available to the badge was a build-time
+ * configuration flag, which says whether a backend is configured and nothing
+ * whatsoever about what served the request.
+ *
+ * Optional because a response from demo mode is assembled on the client and has
+ * no governed execution behind it. Absent means "no provider answered this",
+ * which is a truthful thing for a badge to render and a lie for it to hide.
+ */
+export interface AIExecutionMeta {
+  /** Provider that served the request: `openai`, `anthropic`, `mock`. */
+  provider?: string;
+  /** Concrete model the provider used, as the provider reported it. */
+  model?: string;
+  featureId?: string;
+  promptId?: string;
+  promptVersion?: string;
+  attempts?: number;
+  latencyMs?: number;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
 export interface NarrativeResponse {
   success: boolean;
   type: string;
   narrative: string;
   model: string;
   generated_at: string;
+  /** Provenance of the governed execution. Absent in demo mode. */
+  meta?: AIExecutionMeta;
   error?: string;
   keyMissing?: boolean;
 }
 
-/** Generate a GPT-4o-mini narrative explanation for a portfolio state */
+/** Generate a governed narrative explanation for a portfolio state */
 export async function generateCortexNarrative(
   type: 'why_now' | 'confidence_reasoning' | 'strategic_decision',
   context: NarrativeContext,
@@ -1731,6 +1765,8 @@ export interface AIChatResponse {
   applyContent?: string;
   model: string;
   generated_at: string;
+  /** Provenance of the governed execution. Absent in demo mode. */
+  meta?: AIExecutionMeta;
   error?: string;
   keyMissing?: boolean;
 }
