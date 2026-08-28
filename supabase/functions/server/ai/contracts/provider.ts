@@ -44,6 +44,39 @@ export type AICertificationStatus =
   | 'degraded'
   | 'disabled';
 
+/**
+ * How a provider is authenticated, declared by the adapter (AI-01 Batch 4C).
+ *
+ * This is METADATA, not a switch. It exists so the administration surface and
+ * the console can be written once, generically, instead of as a chain of
+ * `if (providerId === 'openai') ... else if (providerId === 'anthropic')`.
+ * A future adapter declares its own policy and the console renders it with no
+ * edit — which is the whole test of whether Batch 4C's contract is real.
+ */
+export interface AIProviderCredentialPolicy {
+  /** True when the adapter cannot execute without secret material. */
+  readonly required: boolean;
+  /**
+   * True when a MARQ platform administrator may store a MANAGED credential for
+   * this provider through the console.
+   *
+   * False for the synthetic mock provider: it has no vendor, no account and no
+   * key, so a credential form for it would be a control that does nothing.
+   */
+  readonly manageable: boolean;
+  /**
+   * The deployment-managed environment variable this provider also accepts, for
+   * bootstrap and emergency compatibility.
+   *
+   * A NAME, never a value. Nothing reads the variable through this field except
+   * the credential resolver, and no administration response ever carries what
+   * it contains.
+   */
+  readonly environmentVariable?: string;
+  /** A hint for the console's credential form. Never an example of a real key. */
+  readonly credentialFormatHint?: string;
+}
+
 export interface AIProviderDescriptor {
   readonly providerId: string;
   readonly displayName: string;
@@ -63,6 +96,8 @@ export interface AIProviderDescriptor {
    * while `AI_ALLOW_REAL_REQUESTS` is false.
    */
   readonly billable: boolean;
+  /** How this provider is authenticated. See `AIProviderCredentialPolicy`. */
+  readonly credential: AIProviderCredentialPolicy;
 }
 
 /** Everything an adapter needs for one attempt. Nothing more. */
@@ -84,8 +119,26 @@ export interface AIProviderCompletion {
 
 export interface AIProviderAdapter {
   readonly descriptor: AIProviderDescriptor;
-  /** Whether credentials for this provider are present in the environment. */
+  /**
+   * Whether credential material is available for this provider right now.
+   *
+   * SYNCHRONOUS, and deliberately so: the registry's health read, the
+   * selector's eligibility test and the spend guard's "could this cost money?"
+   * probe all ask this, and none of them should be waiting on storage. The
+   * authoritative resolution happens inside `invoke`.
+   */
   hasCredentials(): boolean;
+  /**
+   * Non-secret facts about the credential in force (AI-01 Batch 4C).
+   *
+   * Optional, so an adapter with no credential concept — the mock — and every
+   * test double stay valid without implementing it. Returns METADATA ONLY;
+   * there is no member of the returned shape a secret could occupy.
+   */
+  credentialStatus?(): {
+    readonly source: 'managed' | 'environment' | 'none';
+    readonly fingerprint?: string;
+  };
   /** Execute exactly one attempt. Must throw `AIError` on failure. */
   invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion>;
 }
@@ -96,6 +149,17 @@ export interface AIProviderHealth {
   readonly state: AIProviderState;
   readonly certification: AICertificationStatus;
   readonly credentialsConfigured: boolean;
+  /**
+   * WHERE the credential in force came from (AI-01 Batch 4C).
+   *
+   * Reported beside `credentialsConfigured` rather than folded into it, because
+   * "configured" and "managed by Cortex" are different facts and an operator
+   * deciding whether a rotation needs a deploy has to be able to tell them
+   * apart. Never carries the credential.
+   */
+  readonly credentialSource: 'managed' | 'environment' | 'none';
+  /** Keyed digest of the credential in force, when one is managed. */
+  readonly credentialFingerprint?: string;
   readonly circuit: 'closed' | 'open' | 'half_open';
   readonly consecutiveFailures: number;
   readonly successCount: number;

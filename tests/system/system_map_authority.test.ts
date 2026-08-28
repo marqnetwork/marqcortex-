@@ -32,7 +32,10 @@ const CANONICAL_MANIFEST = 'src/system/manifest.ts';
 const CANONICAL_VALIDATOR = 'src/system/validate.ts';
 
 const CERTIFIED_ID_FORMAT = 'MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}';
-const CERTIFIED_NODE_COUNT = 309;
+// AI-01 Batch 4C registered the provider administration layer (MQC-SVC-157 →
+// 162) and the console's Providers area (MQC-COMP-091). See the note above
+// `CERTIFIED_NODE_COUNT` in manifest.test.ts for the registration granularity.
+const CERTIFIED_NODE_COUNT = 316;
 const CERTIFIED_CORE_COUNT = 36;
 
 /** Directories that are never part of the active repository surface. */

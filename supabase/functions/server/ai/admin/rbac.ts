@@ -64,7 +64,28 @@ export type AIAdminCapability =
   /** Clear settled lifetime spend, or raise the MARQ-funded ceiling. */
   | 'ai.admin.budget.reset'
   /** Engage or release the master switch and the emergency kill switch. */
-  | 'ai.admin.killswitch';
+  | 'ai.admin.killswitch'
+  // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
+  //
+  // FIVE capabilities, not one, and not folded into `ai.admin.provider.write`.
+  //
+  // `ai.admin.provider.write` already existed and governs the OPERATIONAL
+  // switches on a registered adapter: enabled, model allow list, model pin.
+  // Storing a vendor API key is a different act with a different blast radius —
+  // it is the act that lets the platform spend money at a vendor under MARQ's
+  // account — and it must be grantable and auditable on its own. Naming them
+  // apart is what allows a future role to read provider state without being
+  // able to replace the key the platform executes with.
+  /** Read provider configuration, credential METADATA, models and health. */
+  | 'ai.providers.view'
+  /** Create a provider configuration; enable or disable a provider. */
+  | 'ai.providers.manage'
+  /** Set, rotate or revoke provider credentials. The strongest of the five. */
+  | 'ai.providers.credentials.manage'
+  /** Enable or disable a certified model on a provider. */
+  | 'ai.providers.models.manage'
+  /** Read the provider administration change trail. */
+  | 'ai.providers.audit.read';
 
 const VIEWER_CAPABILITIES: readonly AIAdminCapability[] = ['ai.admin.view', 'ai.admin.audit.read'];
 
@@ -99,6 +120,36 @@ const PLATFORM_OPERATOR_CAPABILITIES: readonly AIAdminCapability[] = [
   'ai.admin.budget.write',
   'ai.admin.killswitch',
   'ai.admin.budget.reset',
+  // ── Provider administration, INCLUDING ITS READ (AI-01 Batch 4C) ──────────
+  //
+  // All five, platform operator only — and `ai.providers.view` being here
+  // rather than in `VIEWER_CAPABILITIES` was a deliberate reversal during
+  // implementation.
+  //
+  // The writes belong here by the argument this table already makes: MARQ's
+  // provider estate is one estate, and a tenant administrator replacing the key
+  // every other tenant executes through is not a scoped action.
+  //
+  // The READ belongs here for a narrower reason. The two lower tiers already
+  // see provider state, certification, health and model lists through
+  // `ai.admin.view` and `/ai/admin/providers`; nothing they had is taken away.
+  // What `ai.providers.view` adds on top is the credential surface — which
+  // credential is in force, its keyed fingerprint, its last four characters,
+  // when it was rotated, which root key sealed it — together with the
+  // platform's governed spending exposure. That is a strictly platform-level
+  // picture of MARQ's own vendor accounts, and it does not become one tenant's
+  // business by being adjacent to something that is.
+  //
+  // Granting it to the existing viewer tiers would also have silently widened
+  // every current organization and team administrator's authority the day this
+  // batch deployed, which the batch explicitly forbids. Batch 4D adds
+  // ORGANIZATION-scoped provider configuration; the organization tier gains
+  // capabilities over THAT surface — over its own rows — not over these.
+  'ai.providers.view',
+  'ai.providers.audit.read',
+  'ai.providers.manage',
+  'ai.providers.credentials.manage',
+  'ai.providers.models.manage',
 ];
 
 /**

@@ -27,6 +27,10 @@ import {
   type AIAdminRouteRegistrar,
 } from "./aiAdminRoutes.ts";
 import {
+  createSupabaseProviderAdministrationStore,
+  type ProviderStoreClient,
+} from "./aiProviderAdministrationStore.ts";
+import {
   registerAgentRuntimeRoutes,
   type AgentRouteRegistrar,
 } from "./agentRuntimeRoutes.ts";
@@ -600,6 +604,23 @@ const controlPlane = initializeControlPlane({
   // Supplying it is NOT activation: `AI_DIAGNOSTIC_REVIEW_ENABLED` is off by
   // default, and `bootstrap.ts` registers nothing without both the switch and
   // durable storage.
+  // ── Provider administration storage (AI-01 Batch 4C) ──────────────────────
+  //
+  // Service-role access to the three `cortex.ai_provider_*` tables. The
+  // credential table has RLS enabled and NO POLICY, so this client is the only
+  // context in the platform that reaches a row — and it is also the only one
+  // holding the decryption key, behind the capability check and the audit
+  // record.
+  //
+  // Supplying it does NOT create, enable or credential any provider. Nothing is
+  // seeded, no environment secret is copied, and until a platform administrator
+  // deliberately stores a credential every provider resolves exactly where it
+  // resolved before this batch: the deployment environment.
+  providerAdministrationStore: createSupabaseProviderAdministrationStore({
+    client: supabaseAdmin as unknown as ProviderStoreClient,
+    onError: (operation: string, detail: string) =>
+      console.error(`[ai] provider administration storage ${operation}: ${detail}`),
+  }),
   diagnosticDossiers: createKvSubmissionDossierSource({
     read: (key: string) => kv.get(key),
     ownerOrganizationId: resolveSubmissionOwnerOrganizationId,
@@ -612,9 +633,21 @@ const controlPlane = initializeControlPlane({
 // cadence — the structures are already capped, this keeps them small.
 setInterval(() => controlPlane.sweep(), 5 * 60_000);
 
+// The three operator-only observability routes authorise through the AI
+// administration capability model (AI-01 Batch 4C security follow-up), so the
+// service has to be resolved BEFORE the routes are registered. It is built
+// synchronously inside `initializeControlPlane` above, so it is already there;
+// resolving it here rather than trusting that keeps the dependency visible.
+const aiAdministration = getAIAdministration();
+
 registerAIRoutes(app as unknown as AIRouteRegistrar, {
   plane: controlPlane,
-  verifyTeamToken,
+  // Replaces the previous `verifyTeamToken` dependency. A team token proves
+  // somebody is staff; these routes hand back platform metrics, the governed
+  // capability surface and the execution audit trail, and the last of those
+  // used to be returned unscoped across every organization. See the note on
+  // `AIRouteDependencies.administration` in aiRoutes.ts.
+  administration: aiAdministration,
   prefix: '/make-server-324f4fbe',
 });
 
@@ -628,7 +661,6 @@ registerAIRoutes(app as unknown as AIRouteRegistrar, {
 // an administration surface that fails open is worse than one that is missing.
 // ============================================================================
 
-const aiAdministration = getAIAdministration();
 if (aiAdministration) {
   registerAIAdminRoutes(app as unknown as AIAdminRouteRegistrar, {
     administration: aiAdministration,

@@ -78,7 +78,13 @@ export function registerAIAdminRoutes(
   const run = async (
     c: AdminRouteContext,
     operation: AdminOperation,
-    extra: { body?: unknown; providerId?: string; limit?: number } = {},
+    extra: {
+      body?: unknown;
+      providerId?: string;
+      modelId?: string;
+      credentialId?: string;
+      limit?: number;
+    } = {},
   ): Promise<Response> => {
     const response = await executeAdminHttpRequest(administration, {
       operation,
@@ -120,11 +126,24 @@ export function registerAIAdminRoutes(
     path: string,
     operation: AdminOperation,
     providerIdFrom?: (c: AdminRouteContext) => string | undefined,
+    /**
+     * Extra PATH parameters, for the Batch 4C model and credential routes.
+     *
+     * Path, not body, and that is the security-relevant half: the operation
+     * name and the object it acts on both come from the route table, so a
+     * caller cannot ask for one provider's credential at another provider's
+     * endpoint, and the audit target cannot be steered by a request body.
+     */
+    extraFrom?: (c: AdminRouteContext) => { modelId?: string; credentialId?: string },
   ): void => {
     const handler = async (c: AdminRouteContext): Promise<Response> => {
       const parsed = await readBody(c);
       if (!parsed.ok) return parsed.response;
-      return run(c, operation, { body: parsed.body, providerId: providerIdFrom?.(c) });
+      return run(c, operation, {
+        body: parsed.body,
+        providerId: providerIdFrom?.(c),
+        ...(extraFrom?.(c) ?? {}),
+      });
     };
     if (method === 'post') app.post(`${prefix}${path}`, handler);
     else app.patch(`${prefix}${path}`, handler);
@@ -158,4 +177,63 @@ export function registerAIAdminRoutes(
   );
   mutation('post', '/ai/admin/budget/reset', ADMIN_OPERATION.resetBudget);
   mutation('post', '/ai/admin/budget/increase', ADMIN_OPERATION.increaseBudget);
+
+  // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
+  //
+  // Registered under `/ai/admin/provider-administration` rather than extending
+  // `/ai/admin/providers`, because the two answer different questions and a
+  // deployed console reads both: `/providers` is the Batch 2 operational view
+  // (preference order, allow lists, selection reasons) and this is the Batch 4C
+  // administration view (configuration, credential state, model governance,
+  // exposure). Overloading one path would have made the older console's
+  // response shape a constraint on the newer one's.
+  //
+  // Every path below names its object in the PATH. There is deliberately no
+  // route that reads a provider id, a model id or a credential id from a body.
+  const providerId = (c: AdminRouteContext) => c.req.param('providerId');
+
+  app.get(`${prefix}/ai/admin/provider-administration`, (c) =>
+    run(c, ADMIN_OPERATION.providerAdministration),
+  );
+  app.get(`${prefix}/ai/admin/provider-administration/:providerId`, (c) =>
+    run(c, ADMIN_OPERATION.providerDetail, { providerId: providerId(c) }),
+  );
+  /**
+   * Credential METADATA. Fingerprints, names, statuses and timestamps.
+   *
+   * THERE IS NO SIBLING ROUTE THAT RETURNS A SECRET, and there is no operation
+   * name one could be bound to. Once submitted, a provider credential is
+   * write-only material.
+   */
+  app.get(`${prefix}/ai/admin/provider-administration/:providerId/credentials`, (c) =>
+    run(c, ADMIN_OPERATION.providerCredentialList, { providerId: providerId(c) }),
+  );
+
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/:providerId/enabled',
+    ADMIN_OPERATION.providerSetEnabled,
+    providerId,
+  );
+  /** Set or rotate. One operation, because a rotation is a set with a predecessor. */
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/:providerId/credentials',
+    ADMIN_OPERATION.providerSetCredential,
+    providerId,
+  );
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/:providerId/credentials/:credentialId/revoke',
+    ADMIN_OPERATION.providerRevokeCredential,
+    providerId,
+    (c) => ({ credentialId: c.req.param('credentialId') }),
+  );
+  mutation(
+    'patch',
+    '/ai/admin/provider-administration/:providerId/models/:modelId',
+    ADMIN_OPERATION.providerSetModelEnabled,
+    providerId,
+    (c) => ({ modelId: c.req.param('modelId') }),
+  );
 }
