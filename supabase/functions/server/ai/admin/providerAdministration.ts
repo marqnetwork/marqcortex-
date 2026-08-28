@@ -429,6 +429,20 @@ export function createProviderAdministration(
     if (view.health.circuit === 'open') {
       return 'The circuit breaker is open after repeated failures. It will retry automatically.';
     }
+    // CERTIFICATION IS CHECKED BEFORE MODEL ELIGIBILITY, and the order is the
+    // whole point. An uncertified provider has no eligible models BECAUSE it is
+    // uncertified, so reporting the symptom first would tell an operator to
+    // "enable a certified model" on a provider where no model can be certified
+    // — an instruction that cannot be followed. The synthetic mock is the
+    // standing example: it works exactly as designed and is deliberately not
+    // certified, and a console that nagged about it would be a console people
+    // learn to ignore.
+    if (view.certification !== 'certified') {
+      return view.productionReady
+        ? `Not certified for governed use (${view.certification}). It will not serve traffic.`
+        : `A non-production provider, certified as "${view.certification}". ` +
+            'It serves only where a certified provider cannot.';
+    }
     if (view.modelsEnabled === 0) {
       return 'No model is currently eligible. Enable a certified model to bring it into service.';
     }

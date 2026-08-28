@@ -866,6 +866,23 @@ describe('Batch 4C — model governance', () => {
     );
   });
 
+  it('names certification, not model eligibility, when a provider is uncertified', async () => {
+    // ORDER MATTERS IN THE OPERATOR MESSAGE. An uncertified provider has no
+    // eligible models BECAUSE it is uncertified, so reporting the symptom would
+    // tell an operator to "enable a certified model" on a provider where no
+    // model can be certified — an instruction that cannot be followed.
+    const harness = buildTestAdministration();
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    harness.plane.providers.setCertification(PLATFORM_PROVIDER, 'unverified');
+
+    const view = await harness.admin.providerDetail(actor, PLATFORM_PROVIDER);
+    assert.match(view.message, /[Nn]ot certified|non-production/);
+    assert.ok(
+      !view.message.includes('Enable a certified model'),
+      'the message must name the cause, not the symptom',
+    );
+  });
+
   it('reports a disabled provider as ineligible and stops it serving', async () => {
     const harness = buildTestAdministration();
     const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
