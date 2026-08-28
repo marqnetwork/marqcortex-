@@ -241,6 +241,19 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     cipher: credentialCipher,
     scope: 'platform',
     snapshotTtlMs: config.credentials.snapshotTtlMs,
+    // THE OPERATOR DIAGNOSTIC PATH, AND THE ONLY PLACE THIS TEXT GOES.
+    //
+    // `detail` is composed by `describeForOperator`, so it carries the AIError's
+    // `diagnostics` — the actionable half — and not only its deliberately
+    // generic caller-facing `message`. For the failure this matters most on, a
+    // managed credential sealed under a root key the deployment no longer
+    // holds, that is the difference between "a stored provider credential
+    // cannot be read" and the two key identities plus the remedy.
+    //
+    // `console.error` is the edge function's server-side log stream. Nothing
+    // here is returned to a caller: `resolve` answers `undefined`, and the
+    // adapter raises its own caller-facing PROVIDER_AUTH_FAILED whose response
+    // body excludes diagnostics by construction.
     onError: (providerId, detail) =>
       console.error(`[ai] provider credential resolution failed for ${providerId}: ${detail}`),
   });

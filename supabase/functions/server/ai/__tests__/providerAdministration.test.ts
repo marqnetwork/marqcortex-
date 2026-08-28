@@ -36,7 +36,7 @@ import {
   TEST_CREDENTIAL_ROOT_KEY,
   buildTestAdministration,
 } from './harness.ts';
-import { AIError } from '../contracts/errors.ts';
+import { AIError, describeForOperator } from '../contracts/errors.ts';
 import { createTestClock } from '../runtime/clock.ts';
 import { recordEnv } from '../runtime/env.ts';
 import type { ProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
@@ -45,6 +45,8 @@ import {
   createProviderCredentialResolver,
   createEnvironmentCredentialResolver,
 } from '../providers/credentials/resolver.ts';
+import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
+import type { SealedSecret } from '../providers/credentials/secretCipher.ts';
 import {
   createSecretCipher,
   parseRootKey,
@@ -65,6 +67,17 @@ import { registerCortexFeatures } from '../features/index.ts';
 const SECRET = 'sk-test-4c-0123456789abcdefghijklmnop';
 const ROTATED_SECRET = 'sk-test-4c-zyxwvutsrqponmlkjihgfedcba';
 const REASON = 'batch 4c verification';
+
+/** A distinct fictional value, so "which source answered" is never ambiguous. */
+const ENVIRONMENT_SECRET = 'sk-test-4c-environment-000000000000';
+
+/**
+ * A second, entirely fictional root key.
+ *
+ * Used to produce the one state the root key policy is about: a stored
+ * credential sealed under a key the deployment no longer holds.
+ */
+const PREVIOUS_ROOT_KEY = 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=';
 
 const PLATFORM_PROVIDER = 'primary';
 
@@ -873,6 +886,551 @@ describe('Batch 4C — credential resolution', () => {
 });
 
 // ── Governance: certification, models, exposure ─────────────────────────────
+
+// ── The operator diagnostic, and the root key policy (Batch 4C remediation) ──
+
+/**
+ * Seal a credential under `sealingCipher`, store it, and resolve it back
+ * through a resolver holding `runtimeCipher`.
+ *
+ * Written once because every assertion below needs the same six-step setup and
+ * differs only in which cipher seals and which cipher opens. The environment
+ * variable is ALWAYS populated, so "the resolver refused" can never be confused
+ * with "there was nothing else to find".
+ */
+async function resolveUnderKeys(options: {
+  readonly sealingCipher: ReturnType<typeof createSecretCipher>;
+  readonly runtimeCipher: ReturnType<typeof createSecretCipher>;
+  readonly clock: ReturnType<typeof createTestClock>;
+  readonly secret?: string;
+}): Promise<{
+  readonly resolved: Awaited<ReturnType<ProviderCredentialResolver['resolve']>>;
+  readonly reports: { providerId: string; detail: string }[];
+  readonly sealed: SealedSecret;
+}> {
+  const store = createMemoryProviderAdministrationStore();
+  const reports: { providerId: string; detail: string }[] = [];
+  const resolver = createProviderCredentialResolver({
+    profiles: [OPENAI_CREDENTIAL_PROFILE],
+    clock: options.clock,
+    env: recordEnv({ OPENAI_API_KEY: ENVIRONMENT_SECRET }),
+    store,
+    cipher: options.runtimeCipher,
+    onError: (providerId, detail) => reports.push({ providerId, detail }),
+  });
+
+  const at = options.clock.isoNow();
+  await store.saveConfiguration({
+    configurationId: 'cfg-m3',
+    providerKey: 'openai',
+    displayName: 'OpenAI',
+    scope: 'platform',
+    enabled: true,
+    certification: 'certified',
+    configuration: {},
+    createdAt: at,
+    updatedAt: at,
+    createdBy: 'test',
+    updatedBy: 'test',
+  });
+  const sealed = await options.sealingCipher.seal(options.secret ?? SECRET, {
+    providerKey: 'openai',
+    scope: 'platform',
+    credentialId: 'cred-m3',
+  });
+  await store.putActiveCredential({
+    credentialId: 'cred-m3',
+    configurationId: 'cfg-m3',
+    providerKey: 'openai',
+    credentialName: 'primary',
+    status: 'active',
+    fingerprint: 'fp_00000000000000ff',
+    secretVersion: 1,
+    keyId: sealed.kid,
+    createdAt: at,
+    updatedAt: at,
+    createdBy: 'test',
+    sealed,
+  });
+
+  return { resolved: await resolver.resolve('openai'), reports, sealed };
+}
+
+describe('Batch 4C remediation — the operator diagnostic survives (M-3)', () => {
+  const clock = createTestClock();
+
+  it('composes the operator description from the code, the message AND the diagnostic', () => {
+    // The unit under the fix. `message` is the caller-facing half and is
+    // deliberately generic; `diagnostics` is the operator-facing half and is
+    // the only one that names a cause. A reporting site that reaches for
+    // `error.message` emits the useless half — which is precisely the defect
+    // the production gate found on the credential resolution path.
+    const detailed = new AIError('INTERNAL_ERROR', 'A stored provider credential cannot be read.', {
+      diagnostics: 'sealed under root key k_1111, deployment holds k_2222',
+    });
+    const described = describeForOperator(detailed);
+    assert.match(described, /INTERNAL_ERROR/);
+    assert.match(described, /A stored provider credential cannot be read\./);
+    assert.match(described, /sealed under root key k_1111, deployment holds k_2222/);
+
+    // An AIError with no diagnostic still describes itself, rather than
+    // producing `undefined` in a log line.
+    const bare = new AIError('PROVIDER_UNAVAILABLE', 'The AI provider is unavailable.');
+    assert.equal(describeForOperator(bare), 'PROVIDER_UNAVAILABLE: The AI provider is unavailable.');
+
+    // And a throwable that is not an AIError at all is not swallowed.
+    assert.equal(describeForOperator(new Error('socket hang up')), 'socket hang up');
+    assert.equal(describeForOperator('a string was thrown'), 'a string was thrown');
+  });
+
+  it('reports the root-key mismatch diagnostic, not just the generic message', async () => {
+    const runtimeCipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const previousCipher = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+
+    const { resolved, reports, sealed } = await resolveUnderKeys({
+      sealingCipher: previousCipher,
+      runtimeCipher,
+      clock,
+    });
+
+    // FAIL CLOSED. The environment variable is set and is NOT used: an
+    // administrator's recorded decision cannot be quietly overridden by the
+    // deployment secret it replaced.
+    assert.equal(resolved, undefined);
+
+    assert.equal(reports.length, 1);
+    const [report] = reports;
+    assert.equal(report!.providerId, 'openai');
+
+    // THE FIX. Before it, this line was the generic caller-facing sentence and
+    // nothing else, which sends an operator looking for corrupted ciphertext.
+    assert.match(report!.detail, /sealed under root key/);
+    assert.match(report!.detail, new RegExp(sealed.kid));
+    assert.match(report!.detail, /must be re-entered under the current key/);
+
+    // Both key identities are named, because "which key is this sealed under"
+    // and "which key does this deployment hold" is the whole question.
+    const currentKid = (
+      await runtimeCipher.seal('probe-value', {
+        providerKey: 'openai',
+        scope: 'platform',
+        credentialId: 'probe',
+      })
+    ).kid;
+    assert.match(report!.detail, new RegExp(currentKid));
+    assert.notEqual(sealed.kid, currentKid);
+  });
+
+  it('puts no secret material of any kind into the operator diagnostic', async () => {
+    const runtimeCipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const previousCipher = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+
+    const { reports, sealed } = await resolveUnderKeys({
+      sealingCipher: previousCipher,
+      runtimeCipher,
+      clock,
+    });
+    const detail = reports[0]!.detail;
+
+    // A diagnostic is a log line, and a log line reaches an aggregator. The
+    // diagnostic is allowed to name key IDENTITIES — `k_…` is a truncated
+    // keyed digest, designed as a non-secret identifier — and nothing else.
+    for (const forbidden of [
+      SECRET,
+      ENVIRONMENT_SECRET,
+      TEST_CREDENTIAL_ROOT_KEY,
+      PREVIOUS_ROOT_KEY,
+      sealed.ct,
+      sealed.iv,
+    ]) {
+      assert.equal(
+        detail.includes(forbidden),
+        false,
+        `the operator diagnostic must not contain ${forbidden.slice(0, 12)}…`,
+      );
+    }
+    assert.equal(/bearer/i.test(detail), false, 'no authorization header shape');
+    assert.equal(/x-api-key/i.test(detail), false, 'no vendor key header shape');
+  });
+
+  it('gives the CALLER the generic message and never the diagnostic', async () => {
+    // The other half of the M-3 requirement: the useful text must reach the
+    // server-side path and must NOT reach an ordinary client. This drives the
+    // real adapter over a resolver that refuses, and inspects the body the HTTP
+    // layer would actually serialize.
+    const store = createMemoryProviderAdministrationStore();
+    const runtimeCipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const previousCipher = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+    const reports: string[] = [];
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({}),
+      store,
+      cipher: runtimeCipher,
+      onError: (_providerId, detail) => reports.push(detail),
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-client',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+    const sealed = await previousCipher.seal(SECRET, {
+      providerKey: 'openai',
+      scope: 'platform',
+      credentialId: 'cred-client',
+    });
+    await store.putActiveCredential({
+      credentialId: 'cred-client',
+      configurationId: 'cfg-client',
+      providerKey: 'openai',
+      credentialName: 'primary',
+      status: 'active',
+      fingerprint: 'fp_00000000000000ff',
+      secretVersion: 1,
+      keyId: sealed.kid,
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      sealed,
+    });
+
+    let vendorCalls = 0;
+    const adapter = createOpenAIProvider({
+      env: recordEnv({}),
+      credentials: resolver,
+      clock,
+      fetchImpl: () => {
+        vendorCalls += 1;
+        return Promise.resolve(Response.json({}));
+      },
+    });
+
+    const failure = await adapter
+      .invoke({
+        requestId: 'req-m3',
+        correlationId: 'cor-m3',
+        modelId: 'gpt-4o-mini',
+        generation: {
+          messages: [{ role: 'user', content: 'ping' }],
+          temperature: 0,
+          maxOutputTokens: 8,
+          responseFormat: 'text',
+        },
+        attempt: 1,
+        signal: new AbortController().signal,
+      })
+      .then(() => undefined)
+      .catch((error: unknown) => error);
+
+    // FAIL CLOSED, all the way to the vendor: no request was made with any
+    // credential, managed or otherwise.
+    assert.equal(vendorCalls, 0);
+    assert.ok(failure instanceof AIError);
+    assert.equal(failure.code, 'PROVIDER_AUTH_FAILED');
+
+    const body = failure.toResponseBody('req-m3', 'cor-m3');
+    assert.equal(Object.hasOwn(body, 'diagnostics'), false);
+    const serialized = JSON.stringify(body);
+    assert.equal(/root key/i.test(serialized), false);
+    assert.equal(serialized.includes(sealed.kid), false);
+    assert.equal(serialized.includes(SECRET), false);
+
+    // The operator, meanwhile, got the fact the caller did not.
+    assert.equal(reports.length, 1);
+    assert.match(reports[0]!, /sealed under root key/);
+  });
+
+  it('keeps the storage-unreachable diagnostic distinct from the mismatch one', async () => {
+    // The two managed-path failures mean opposite things and must not be
+    // reported as one another: an unreachable store taught us NOTHING and falls
+    // back; a credential that will not open taught us something DEFINITE and
+    // refuses. Both now carry their diagnostic.
+    const reports: string[] = [];
+    const unreachable: ProviderAdministrationStore = {
+      ...createMemoryProviderAdministrationStore(),
+      findConfiguration: () =>
+        Promise.reject(
+          new AIError('INTERNAL_ERROR', 'Provider administration is unavailable.', {
+            diagnostics: 'PGRST106: the schema must be added to the exposed schemas list',
+          }),
+        ),
+    };
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({ OPENAI_API_KEY: ENVIRONMENT_SECRET }),
+      store: unreachable,
+      cipher: createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY)),
+      onError: (_providerId, detail) => reports.push(detail),
+    });
+
+    // Falls back, because nothing was learned about whether a managed
+    // credential exists — the pre-Batch-4C behaviour, deliberately preserved.
+    const resolved = await resolver.resolve('openai');
+    assert.equal(resolved?.source, 'environment');
+    assert.equal(resolved?.secret, ENVIRONMENT_SECRET);
+
+    assert.equal(reports.length, 1);
+    assert.match(reports[0]!, /storage is unreachable/);
+    assert.match(reports[0]!, /falling back to the deployment environment/);
+    // And the PostgREST code an operator would actually search for survives.
+    assert.match(reports[0]!, /PGRST106/);
+    assert.equal(reports[0]!.includes(ENVIRONMENT_SECRET), false);
+  });
+});
+
+describe('Batch 4C remediation — the root key operational invariant', () => {
+  const clock = createTestClock();
+
+  it('supports normal provider credential rotation under one unchanged root key', async () => {
+    // ROTATION OF THE PROVIDER CREDENTIAL IS AND REMAINS SUPPORTED. This is the
+    // rotation operators actually perform, and nothing in the root key policy
+    // restricts it: a new vendor key is sealed under the SAME root key, the
+    // previous credential is superseded, and the runtime resolves the new one
+    // on the next request.
+    const store = createMemoryProviderAdministrationStore();
+    const cipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({ OPENAI_API_KEY: ENVIRONMENT_SECRET }),
+      store,
+      cipher,
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-rot',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+
+    for (const [credentialId, secret] of [
+      ['cred-rot-1', SECRET],
+      ['cred-rot-2', ROTATED_SECRET],
+    ] as const) {
+      const sealed = await cipher.seal(secret, {
+        providerKey: 'openai',
+        scope: 'platform',
+        credentialId,
+      });
+      await store.putActiveCredential({
+        credentialId,
+        configurationId: 'cfg-rot',
+        providerKey: 'openai',
+        credentialName: credentialId,
+        status: 'active',
+        fingerprint: await cipher.fingerprint(secret),
+        secretVersion: 1,
+        keyId: sealed.kid,
+        createdAt: at,
+        updatedAt: at,
+        createdBy: 'test',
+        sealed,
+      });
+    }
+
+    const resolved = await resolver.resolve('openai');
+    assert.equal(resolved?.source, 'managed');
+    assert.equal(resolved?.secret, ROTATED_SECRET);
+
+    // The history survives, with exactly one active row.
+    const history = await store.listCredentials('cfg-rot');
+    assert.equal(history.length, 2);
+    assert.equal(history.filter((row) => row.status === 'active').length, 1);
+  });
+
+  it('recovers when the ORIGINAL root key is restored', async () => {
+    // RECOVERY PATH 1. The root key is infrastructure: restoring the value the
+    // credentials were sealed under makes every one of them readable again,
+    // with no re-encryption step and no data change. This is why the invariant
+    // is "do not rotate it", not "rotating it destroys data".
+    const original = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const wrong = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+
+    const broken = await resolveUnderKeys({
+      sealingCipher: original,
+      runtimeCipher: wrong,
+      clock,
+    });
+    assert.equal(broken.resolved, undefined);
+
+    const restored = await resolveUnderKeys({
+      sealingCipher: original,
+      runtimeCipher: original,
+      clock,
+    });
+    assert.equal(restored.resolved?.source, 'managed');
+    assert.equal(restored.resolved?.secret, SECRET);
+    assert.deepEqual(restored.reports, []);
+  });
+
+  it('recovers when the undecryptable credential is REVOKED', async () => {
+    // RECOVERY PATH 2, and the one that needs no root key at all.
+    //
+    // Revoking a credential is a metadata write: `status`, `revoked_at`,
+    // `revoked_by`. Nothing has to be decrypted to do it, which is what makes
+    // this path available to an operator who has lost the original root key.
+    // Once the row is no longer active the configuration has no managed
+    // credential, and the resolver falls back to the deployment environment —
+    // the pre-Batch-4C behaviour, and the reason the environment source was
+    // kept rather than migrated away.
+    const store = createMemoryProviderAdministrationStore();
+    const runtimeCipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const previousCipher = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({ OPENAI_API_KEY: ENVIRONMENT_SECRET }),
+      store,
+      cipher: runtimeCipher,
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-revoke',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+    const sealed = await previousCipher.seal(SECRET, {
+      providerKey: 'openai',
+      scope: 'platform',
+      credentialId: 'cred-revoke',
+    });
+    await store.putActiveCredential({
+      credentialId: 'cred-revoke',
+      configurationId: 'cfg-revoke',
+      providerKey: 'openai',
+      credentialName: 'primary',
+      status: 'active',
+      fingerprint: 'fp_00000000000000ff',
+      secretVersion: 1,
+      keyId: sealed.kid,
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      sealed,
+    });
+
+    // Dark, deliberately, while the unopenable credential is still in force.
+    assert.equal(await resolver.resolve('openai'), undefined);
+
+    await store.revokeCredential('cfg-revoke', 'cred-revoke', clock.isoNow(), 'usr_operator');
+
+    // Service restored, from the environment, with no root key involved.
+    const restored = await resolver.resolve('openai');
+    assert.equal(restored?.source, 'environment');
+    assert.equal(restored?.secret, ENVIRONMENT_SECRET);
+
+    // The row is still there — revocation is a state change, not a deletion, so
+    // the incident keeps its trail.
+    const history = await store.listCredentials('cfg-revoke');
+    assert.equal(history.length, 1);
+    assert.equal(history[0]!.status, 'revoked');
+  });
+
+  it('recovers when the credential is re-entered under the CURRENT root key', async () => {
+    // RECOVERY PATH 3. The operator cannot restore the old root key, so they
+    // re-enter the provider credential from the vendor console. The new record
+    // is sealed under the key the deployment holds and resolves immediately.
+    const current = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const reEntered = await resolveUnderKeys({
+      sealingCipher: current,
+      runtimeCipher: current,
+      clock,
+      secret: ROTATED_SECRET,
+    });
+    assert.equal(reEntered.resolved?.source, 'managed');
+    assert.equal(reEntered.resolved?.secret, ROTATED_SECRET);
+  });
+
+  it('confines root key loss to managed ciphertext and nothing else', async () => {
+    // BLAST RADIUS. A provider with no managed credential is untouched by a
+    // root key change: it resolves from the deployment environment exactly as
+    // it did before Batch 4C. The invariant's cost is bounded to the providers
+    // an administrator deliberately took under management.
+    const store = createMemoryProviderAdministrationStore();
+    const wrong = createSecretCipher(parseRootKey(PREVIOUS_ROOT_KEY));
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE, ANTHROPIC_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({
+        OPENAI_API_KEY: ENVIRONMENT_SECRET,
+        ANTHROPIC_API_KEY: ENVIRONMENT_SECRET,
+      }),
+      store,
+      cipher: wrong,
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-blast',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+    const sealed = await createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY)).seal(SECRET, {
+      providerKey: 'openai',
+      scope: 'platform',
+      credentialId: 'cred-blast',
+    });
+    await store.putActiveCredential({
+      credentialId: 'cred-blast',
+      configurationId: 'cfg-blast',
+      providerKey: 'openai',
+      credentialName: 'primary',
+      status: 'active',
+      fingerprint: 'fp_00000000000000ff',
+      secretVersion: 1,
+      keyId: sealed.kid,
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      sealed,
+    });
+
+    // The managed provider fails closed…
+    assert.equal(await resolver.resolve('openai'), undefined);
+    // …and the unmanaged one is entirely unaffected.
+    const anthropic = await resolver.resolve('anthropic');
+    assert.equal(anthropic?.source, 'environment');
+    assert.equal(anthropic?.secret, ENVIRONMENT_SECRET);
+  });
+});
 
 describe('Batch 4C — model governance', () => {
   it('refuses a model the provider does not declare', async () => {

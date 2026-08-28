@@ -41,6 +41,7 @@
  * the authority for that is `resolve`, which does not consult it.
  */
 
+import { describeForOperator } from '../../contracts/errors.ts';
 import type { Clock } from '../../runtime/clock.ts';
 import type { EnvSource } from '../../runtime/env.ts';
 import type {
@@ -197,10 +198,7 @@ export function createProviderCredentialResolver(
         // `resolve` reads storage directly and is unaffected. Reported rather
         // than swallowed, because "the console shows no managed credential"
         // and "there is no managed credential" must be distinguishable.
-        options.onError?.(
-          'snapshot',
-          error instanceof Error ? error.message : String(error),
-        );
+        options.onError?.('snapshot', describeForOperator(error));
         snapshotAtMs = options.clock.now();
       })
       .finally(() => {
@@ -303,7 +301,7 @@ export function createProviderCredentialResolver(
           options.onError?.(
             providerId,
             `managed credential storage is unreachable, falling back to the deployment ` +
-              `environment: ${error instanceof Error ? error.message : String(error)}`,
+              `environment: ${describeForOperator(error)}`,
           );
           configuration = undefined;
           active = undefined;
@@ -321,10 +319,26 @@ export function createProviderCredentialResolver(
           } catch (error) {
             // A credential that exists and cannot be opened. REFUSES rather
             // than falling through — see above.
-            options.onError?.(
-              providerId,
-              error instanceof Error ? error.message : String(error),
-            );
+            //
+            // AND REPORTS THE DIAGNOSTIC, NOT JUST THE MESSAGE.
+            //
+            // `error.message` on this path is always the same generic sentence
+            // — 'A stored provider credential cannot be read.' — because it is
+            // written for a caller. The fact an operator needs is in
+            // `error.diagnostics`, and this site used to drop it: a deployment
+            // whose root key had changed logged a sentence that named neither
+            // the cause nor the remedy, on the one failure where the remedy is
+            // not guessable from the symptom. An independent production gate
+            // found it.
+            //
+            // `describeForOperator` composes both halves. It goes to the
+            // deployment's server-side reporting channel and NOWHERE ELSE:
+            // `resolve` returns `undefined`, the adapter raises its own
+            // caller-facing `PROVIDER_AUTH_FAILED`, and no part of this text
+            // reaches a response body. It carries key IDS — non-secret keyed
+            // digests — and never a root key, a ciphertext, a provider secret
+            // or an authorization header.
+            options.onError?.(providerId, describeForOperator(error));
             return undefined;
           }
         }

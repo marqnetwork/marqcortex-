@@ -28,6 +28,7 @@
     "test:diagnostic": "node --experimental-strip-types --test supabase/functions/server/ai/__tests__/diagnosticReadiness.test.ts supabase/functions/server/ai/__tests__/diagnosticCertification.test.ts supabase/functions/server/ai/__tests__/diagnosticRemediation7d.test.ts tests/features/diagnosticReadinessAuthority.test.ts",
     "test:database": "node --experimental-strip-types --test tests/database/static_ai_provider_administration_migration.test.ts tests/database/static_authority_provenance_migration.test.ts tests/database/static_provenance_rls_band_migration.test.ts tests/database/static_migration.test.ts tests/database/static_diagnostic_migration.test.ts tests/database/static_membership_bootstrap_migration.test.ts tests/database/static_membership_lifecycle_migration.test.ts tests/database/static_authority_recovery_migration.test.ts tests/database/kv_compare_and_swap.test.ts",
     "test:database:scenarios": "node scripts/membership-bootstrap-scenarios.mjs",
+    "test:database:4c": "node scripts/ai-provider-administration-scenarios.mjs",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
     "test:system": "node --experimental-strip-types --test tests/system/*.test.ts",

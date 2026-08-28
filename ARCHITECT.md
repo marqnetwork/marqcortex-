@@ -784,6 +784,16 @@ collapsed them would let a key entry silently certify a vendor.
 > This stands until a controlled root-key migration mechanism is designed, built
 > and certified. Treat the value as you would a database encryption key: back it
 > up in a secret manager, and never regenerate it.
+>
+> **The invariant is tested, not merely written down.** `Batch 4C remediation —
+> the root key operational invariant` in
+> `supabase/functions/server/ai/__tests__/providerAdministration.test.ts` drives
+> the real cipher and the real resolver through provider-credential rotation
+> under one unchanged root key, and through all three recovery paths: restore
+> the original key, revoke the undecryptable credential and fall back, re-enter
+> the credential under the current key. It also pins the blast radius — a
+> provider with no managed credential is untouched by a root key change.
+>
 > See `architecture/ai/AI-01-BATCH-4C-PRODUCTION-GATE.md`.
 
 

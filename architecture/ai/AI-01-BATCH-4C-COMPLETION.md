@@ -1,10 +1,31 @@
 # AI-01 Batch 4C — Provider & API Administration
 
 **Baseline:** `79f375b` (Batch 4B merged and deployed; `origin/main` at the same SHA)
-**Branch:** `claude/provider-administration-is98an`
-**Status:** implemented, locally certified, **not deployed**
+**Branch:** `claude/provider-administration-is98an`, remediated on
+`claude/marq-cortex-4c-remediation-187a9e`
+**Status:** implemented, **certified against a real PostgreSQL after remediation**,
+**not deployed**
 **Production changes made by this batch:** none
 **Real provider requests executed:** 0
+
+---
+
+> ## ⚠️ THIS DOCUMENT WAS WRONG WHEN IT WAS FIRST WRITTEN. READ §20 FIRST.
+>
+> The version of this document written at the end of implementation certified
+> Batch 4C as ready for production deployment. It was not. A subsequent
+> independent production gate — recorded verbatim and unedited in
+> `architecture/ai/AI-01-BATCH-4C-PRODUCTION-GATE.md` — found that **the
+> migration did not apply at all**, and that once it did, **every runtime
+> operation would have failed with `permission denied`**.
+>
+> Both defects were behavioural, and the batch's only migration test read the
+> file as text. That is the root cause of the wrong verdict, and §20 records
+> what was corrected, in the file and in the process.
+>
+> Statements below that the gate falsified are struck through and corrected
+> **in place**, rather than quietly rewritten. A completion document that
+> silently becomes right is not evidence of anything.
 
 ---
 
@@ -434,7 +455,8 @@ architecture/system_map.json    node_count 316
 | `npm run test:features` | **692 pass, 0 fail** |
 | `npm run test:system` | **161 pass, 0 fail** |
 | `npm run test:security` | **397 pass, 0 fail** |
-| `npm run test:database` | **166 pass, 0 fail** |
+| `npm run test:database` | ~~**166 pass, 0 fail**~~ — green, and it proved nothing about whether the migration applies. See §20. Now **169 pass, 0 fail**. |
+| `npm run test:database:4c` | **added by the remediation** — the executable verification, against a real PostgreSQL 16. See §20. |
 | `npm run scan:boundaries` | **98 pass, 0 fail** |
 | `npm run typecheck:api:ai` | **clean** |
 | `npm run build` | **succeeds** |
@@ -491,7 +513,7 @@ fixed, and each fix carries a test that would have caught the original.
 | # | Severity | Finding | Resolution |
 |---|---|---|---|
 | H-1 | HIGH | **Every durable write would have been rejected by Postgres.** The service mints prefixed ids (`pvc_…`); the migration declared the `id` columns `UUID`. Provider administration would have been non-functional in every deployment, on every write path — invisible because the 45 green tests all ran against the in-memory store and the Supabase store had no test at all. | Columns are `TEXT` with a per-table format `CHECK` matching the id grammar the service produces. New suite `providerAdministrationStorage.test.ts` cross-checks minted ids against the migration's own constraint patterns and asserts the wire shape of every write. |
-| H-2 | HIGH | **`putActiveCredential` was two round trips.** Supersede then insert, in two transactions, contradicting the port's own documented contract. Any failure between them left a configuration with ZERO active credentials — after which the runtime silently falls back to the environment variable while the console reports a successful rotation. Two concurrent rotations from different isolates interleave the same way; the mutation lock is per-isolate. | `cortex.ai_provider_credential_activate`, a `SECURITY DEFINER` plpgsql function doing both statements in one transaction, `REVOKE`d from `PUBLIC`, `anon` and `authenticated`. The store issues exactly one call, asserted. |
+| H-2 | HIGH | **`putActiveCredential` was two round trips.** Supersede then insert, in two transactions, contradicting the port's own documented contract. Any failure between them left a configuration with ZERO active credentials — after which the runtime silently falls back to the environment variable while the console reports a successful rotation. Two concurrent rotations from different isolates interleave the same way; the mutation lock is per-isolate. | `cortex.ai_provider_credential_activate`, a `SECURITY DEFINER` plpgsql function doing both statements in one transaction, `REVOKE`d from `PUBLIC`, `anon` and `authenticated`. The store issues exactly one call, asserted. **The revoke was not paired with a `GRANT EXECUTE` to `service_role`, so the fix made every rotation fail with `permission denied for function` — see B-2 in §20.** Atomicity itself is now proved by execution in `94b_assert_4c_activation_atomicity.sql`. |
 | H-3 | HIGH | **A database blip would have become a platform-wide AI outage** — and two comments claimed the opposite. Store reads sat outside the `try` in `resolve`, so a `PGRST106` (the `cortex` schema not exposed) threw a plain `Error` out of every adapter attempt, violating the adapter contract and opening every circuit breaker, in a deployment holding a perfectly good `OPENAI_API_KEY`. Latent only because the root key is unset today; it would have bitten on the day the key was deployed. | Storage failure now reports and falls through to the environment — restoring pre-4C behaviour, which is what the comments promised. A DECRYPT failure still refuses, deliberately: there the platform learned something definite. Both paths pinned by test. |
 | M-1 | MEDIUM | **The governed exposure guard could never refuse anything.** `before` was computed from the DECLARED catalogue and `after` from a narrowing of it; a subset's maximum can never exceed its superset's, so the branch was dead. The tests exercised `judgeExposureChange` as a pure function and never through the mutation — exactly the shape of coverage that hides an inert control. The 105,920 µUSD invariant was intact regardless (it is a function of reviewed code), but the control advertised to protect it did nothing. | Both sides now use the EFFECTIVE catalogue. Two tests: one driving `setProviderModelEnabled`, one showing the same end state permitted against the declared baseline and refused against the effective one. |
 | M-2 | MEDIUM | **Revocation silently reverted to the environment credential.** Revoking a compromised managed key leaves the provider serving on `OPENAI_API_KEY` — plausibly the same vendor key — while the audit trail records a completed containment action. | The operational message now names the variable in force and states that Cortex cannot withdraw it, with the action that does take the provider out of service. |
@@ -507,9 +529,19 @@ fixed, and each fix carries a test that would have caught the original.
 
 Secret leakage (every path traced — HTTP in, service, storage, audit, logs,
 frontend); encryption construction (IV uniqueness, AAD binding, key length
-refusal, fail-closed); RLS deny-all including the `FORCE`/`BYPASSRLS`
-interaction; privilege escalation (all seven entry points checked); provider
+refusal, fail-closed); ~~RLS deny-all including the `FORCE`/`BYPASSRLS`
+interaction~~; privilege escalation (all seven entry points checked); provider
 bypass; the budget invariant; environment compatibility.
+
+> **Correction.** The `FORCE`/`BYPASSRLS` claim was **wrong**, and it was wrong
+> in the direction that matters. The review reasoned about RLS and stopped
+> there. `BYPASSRLS` exempts a role from POLICIES; it grants no TABLE PRIVILEGE,
+> and these tables are in `cortex`, which no Supabase default privilege covers.
+> The migration granted `service_role` nothing, so the deny-all was total — it
+> denied the runtime too. The production gate found it (B-2). It is now proved
+> by execution rather than by reasoning: `95_assert_4c_privileges.sql` asserts
+> the full privilege matrix and, separately, that `authenticated` still reads
+> nothing even with a `SELECT` grant temporarily in place. See §20.
 
 ### Open follow-up, not fixed here
 
@@ -643,8 +675,190 @@ exists. No secret is returned, logged, audited or displayed. OpenAI, Anthropic
 and mock governance is unchanged and re-proved by their existing suites,
 including the certified 105,920 µUSD reservation.
 
-**READY_FOR_4C_PRODUCTION_DEPLOYMENT: YES**, subject to §17 and to a human
-authorising the migration and the root key.
+~~**READY_FOR_4C_PRODUCTION_DEPLOYMENT: YES**, subject to §17 and to a human
+authorising the migration and the root key.~~
+
+> **This verdict was wrong when it was written.** At that moment the migration
+> could not be applied to any database, and had it been patched to apply, every
+> runtime operation would have failed. "Locally certified" rested on 2,600
+> passing tests, none of which executed the migration. See §20.
+
+**READY_FOR_4C_PRODUCTION_DEPLOYMENT: YES**, restated after remediation and now
+resting on execution rather than on a source scan: the real migration applies to
+a real PostgreSQL 16, `service_role` drives the complete runtime lifecycle
+against it, and `anon` and `authenticated` are denied by attempt as well as by
+catalogue. Still subject to §17 and to a human authorising the migration and the
+root key.
 
 **NEXT GATE:** authorisation to apply the migration and set
 `AI_CREDENTIAL_ENCRYPTION_KEY` in production. Batch 4D is **not started**.
+
+---
+
+## 20. Production-gate remediation
+
+**Branch:** `claude/marq-cortex-4c-remediation-187a9e`
+**Gate record:** `architecture/ai/AI-01-BATCH-4C-PRODUCTION-GATE.md` — preserved
+unedited, as the historical evidence of what was found. Nothing in this section
+softens it.
+
+An independent production-readiness gate executed the migration instead of
+reading it, against a disposable PostgreSQL 16 built from this repository's own
+Supabase role stub. It returned two blocking findings and one medium. All three
+are fixed here, each with a test that fails without the fix.
+
+### B-1 — the migration did not apply
+
+`cortex.ai_provider_model` named the constraint `ai_provider_model_id_format`
+twice: once on `id`, once on `model_id`. PostgreSQL keys table constraints by
+`(table, name)` and rejects a duplicate outright, so the file aborted at
+`CREATE TABLE` and rolled back completely. It created nothing, anywhere, ever.
+
+**Fix.** The vendor model id's check is now
+`ai_provider_model_model_id_format`. The two guards were always two different
+things — the row's own `pvm_` identifier, and a vendor string like
+`claude-sonnet-4-5-20250929` that is not a MARQ identifier at all — and they now
+say so. Nothing else in the file changed shape; the migration had never been
+applied to any database, so correcting an unapplied file is not a change to
+deployed schema, and no previously applied migration was touched.
+
+**Proof.** `93_assert_4c_schema.sql` counts the two distinctly named checks in a
+database that actually applied the file. The cheap static counterpart — a
+duplicate-name scan over the whole migration — is in
+`static_ai_provider_administration_migration.test.ts`; reintroducing the
+original name fails both.
+
+### B-2 — `service_role` could not use provider administration
+
+`service_role` bypasses ROW LEVEL SECURITY. It does not bypass TABLE
+PRIVILEGES, and the two are separate systems. These tables live in `cortex`
+rather than `public` precisely so the Supabase default privileges that blanket
+`public` do not reach them — and the migration then granted `service_role`
+nothing. `REVOKE ALL ON FUNCTION … FROM PUBLIC` additionally stripped the
+activation RPC's only `EXECUTE` grant without re-granting it.
+
+The runtime operations were read off `aiProviderAdministrationStore.ts` rather
+than assumed, and every grant traces to one:
+
+| Table | Granted | Because | NOT granted |
+|---|---|---|---|
+| `ai_provider_configuration` | `SELECT, INSERT, UPDATE` | `listConfigurations`, `findConfiguration`, `providerKeyOf`; `saveConfiguration` is an upsert, which is `INSERT … ON CONFLICT DO UPDATE` | `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` |
+| `ai_provider_credential` | `SELECT, UPDATE` | `listCredentials`, `activeCredential`; `revokeCredential` | **`INSERT`** — the only insert is inside the `SECURITY DEFINER` activation function, so the supersede and the insert cannot be issued apart — plus `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` |
+| `ai_provider_model` | `SELECT, INSERT, UPDATE` | `listModels`; `saveModel` is an upsert | `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` |
+
+Plus `GRANT EXECUTE ON FUNCTION cortex.ai_provider_credential_activate(…) TO
+service_role`, and a re-assertion of `GRANT USAGE ON SCHEMA cortex TO
+service_role` so this migration does not silently depend on a grant made five
+migrations earlier.
+
+`anon` and `authenticated` are granted nothing, and the `REVOKE` on all three
+tables was widened to include `PUBLIC`. No policy was added to any table: RLS
+enabled with no policy remains the control, and the revoke and the RLS are kept
+as two independent controls precisely so either survives a mistake in the other.
+No `ALL PRIVILEGES` anywhere — an enumeration is a decision, and `ALL` is the
+absence of one.
+
+**Proof.** `94_assert_4c_runtime_lifecycle.sql` performs, as `service_role`,
+every statement the store issues. `95_assert_4c_privileges.sql` asserts the
+complete privilege matrix — every privilege PostgreSQL defines, for all three
+roles, on all three tables — so a grant nobody intended fails as loudly as one
+that is missing, and separately attempts each denied read and write while
+`SET ROLE`d into `anon` and `authenticated`. Removing the grants fails the run.
+
+**One dependency this surfaced and the migration now states.**
+`ai_provider_credential_activate` is `SECURITY DEFINER`, so its writes run as
+the migration's OWNER, and `FORCE ROW LEVEL SECURITY` applies RLS to the owner
+too. The function therefore requires an owner holding `BYPASSRLS` — which the
+role Supabase applies migrations as does. The scenarios apply the migration as a
+**NOSUPERUSER** role rather than as the cluster superuser for exactly this
+reason: a superuser owner would sail past a check a deployment has to pass, and
+the run would prove nothing. `95_assert_4c_privileges.sql` refuses to pass if
+the objects turn out to be superuser-owned.
+
+### M-3 — the root-key diagnostic was being discarded
+
+`AIError` carries two texts and they are not interchangeable. `message` is what
+the caller may see and is deliberately generic; `diagnostics` is what an
+operator needs and is excluded from `toResponseBody` for that reason. The
+credential resolver reported `error.message` and dropped `error.diagnostics` —
+so a managed credential sealed under a root key the deployment no longer held
+logged *"A stored provider credential cannot be read"*, which sends an operator
+hunting for corrupted ciphertext, while the sentence naming both key identities
+and the remedy was thrown away.
+
+**Fix.** `describeForOperator` in `ai/contracts/errors.ts` composes code,
+message and diagnostic, and is the one place a reporting site can reach for.
+The resolver uses it on both managed-path failures. It goes to the deployment's
+server-side log stream and nowhere else.
+
+**Client exposure: none, and asserted.** `resolve` returns `undefined`, the
+adapter raises its own `PROVIDER_AUTH_FAILED`, and `toResponseBody` excludes
+`diagnostics` by construction. A test drives the real adapter over a refusing
+resolver and asserts the serialized body contains no key identity, no root key
+and no secret — while the operator channel received the diagnostic in the same
+run.
+
+**What the diagnostic may contain.** Key IDs and fingerprints only, and they are
+non-secret by construction: `kid` is a truncated keyed digest and `fp_` is a
+keyed HMAC, both designed as identifiers. A test enumerates the forbidden values
+— the provider secret, the environment secret, both root keys, the ciphertext
+and the IV — and asserts none appears, along with the `Bearer` and `x-api-key`
+header shapes.
+
+### The testing defect behind all three
+
+Batch 4C's only migration test read the file as text. A text scan proves
+ABSENCE well and BEHAVIOUR not at all, and all three findings were behaviour.
+The suite was green through both blocking defects.
+
+`scripts/ai-provider-administration-scenarios.mjs` (`npm run test:database:4c`)
+replaces that with execution, reusing the pattern
+`scripts/membership-bootstrap-scenarios.mjs` established: scratch databases the
+script creates and drops, the **real** migration and rollback files as steps,
+SQL assertion files under `tests/database/harness/`, and exit code `2` reserved
+for "no database was reachable" so BLOCKED is never read as PASSED. It proves,
+in order: the migration applies; it is transactionally valid; the tables,
+constraints and indexes exist; the activation RPC exists with the argument types
+and parameter names the store binds by; `service_role` performs the exact
+runtime lifecycle; `service_role` holds only the intended privileges;
+`authenticated` and `anon` can neither read nor mutate credential rows; neither
+may execute the activation RPC and `service_role` may; active-credential
+uniqueness holds; activation and supersession are atomic under failure;
+plaintext-shaped storage is refused in nine plausible shapes; the platform and
+organization scope constraints hold; the rollback removes 4C and nothing else;
+the migration re-applies after its own rollback; and a migration made to fail at
+its last statement leaves no partial 4C schema state.
+
+The static suite is kept as the cheap half and now says, where it could be
+mistaken, which executable assertion carries each behavioural claim.
+
+### Root key policy — documented and now tested
+
+`AI_CREDENTIAL_ENCRYPTION_KEY` is persistent infrastructure and **must not be
+rotated** once managed credentials exist, until Cortex has a controlled
+re-encryption or keyring mechanism. This remediation builds no such mechanism
+and changes no cryptography.
+
+Rotating **provider** credentials — the vendor API keys — remains fully
+supported, audited, and needs no deploy. Root key loss affects managed provider
+ciphertext and nothing else. Recovery: restore the original root key; revoke the
+affected managed credential and fall back where permitted; or re-enter the
+provider credential under the current key.
+
+Cortex does **not** silently fall back to the environment when a managed
+credential exists and will not open — that provider fails closed. Each of these
+statements is now a test in `Batch 4C remediation — the root key operational
+invariant`, driving the real cipher and the real resolver.
+
+### Production state, unchanged
+
+```
+PRODUCTION_CHANGES:                NONE
+REAL_PROVIDER_REQUESTS_EXECUTED:   0
+AI_ALLOW_REAL_REQUESTS:            untouched
+MIGRATION APPLIED TO PRODUCTION:   NO
+AI_CREDENTIAL_ENCRYPTION_KEY:      not set in production
+```
+
+The migration was applied only to disposable scratch databases this repository's
+own scripts create and drop.

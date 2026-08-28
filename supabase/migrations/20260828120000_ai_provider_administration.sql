@@ -60,21 +60,35 @@
 -- admits a value rather than reshaping a table that by then has production
 -- rows and production credentials in it.
 --
--- ROW LEVEL SECURITY: DENY, WITH ONE NARROW READ.
+-- ROW LEVEL SECURITY: DENY, ON ALL THREE, WITH NO POLICY ANYWHERE.
 --
--- All three tables enable RLS. `ai_provider_configuration` and
--- `ai_provider_model` carry a platform-admin SELECT policy, because those rows
--- are non-secret configuration and a platform operator reading them directly
--- during an incident is legitimate.
+-- All three tables enable and FORCE row level security and NONE of them carries
+-- a policy. With RLS enabled and no policy, every role that respects RLS is
+-- denied every row; the service role reaches them because it holds `BYPASSRLS`,
+-- and nothing else does.
 --
--- `ai_provider_credential` carries NO POLICY AT ALL. Not a platform-admin read,
--- not a self-read, nothing. With RLS enabled and no policy the table is denied
--- to every role that respects RLS, and only the service role — the edge
--- function, which holds the decryption key and has the audit trail wrapped
--- around it — can reach a row. A policy admitting platform admins would put
--- ciphertext within reach of a browser session token, and there is no operation
--- an administrator legitimately performs against these rows that does not go
--- through the administration API.
+-- An earlier revision gave `ai_provider_configuration` and `ai_provider_model` a
+-- platform-admin SELECT policy on the reasoning that those rows are non-secret
+-- and an operator reading them during an incident is legitimate. Those policies
+-- were DEAD — no migration grants `authenticated` a table privilege in `cortex`
+-- and this one revokes them explicitly — so they were removed rather than made
+-- live. See the block at the foot of this file.
+--
+-- `ai_provider_credential` never had one, and that absence was always the point:
+-- a policy admitting platform admins would put encrypted key material within
+-- reach of a browser session token, and there is no operation an administrator
+-- legitimately performs against these rows that does not go through the
+-- administration API.
+--
+-- PRIVILEGES ARE SEPARATE FROM RLS, AND BOTH ARE REQUIRED.
+--
+-- `BYPASSRLS` exempts the service role from POLICIES. It grants no TABLE
+-- PRIVILEGE — and these tables live in `cortex`, not `public`, so the Supabase
+-- default privileges that blanket `public` never reach them. Without the
+-- explicit grants at the foot of this file the runtime's own reads and writes
+-- fail with `permission denied for table`, which is exactly what an independent
+-- production gate found. Those grants are enumerated, minimal, and derived from
+-- the operations the runtime actually performs.
 -- ============================================================================
 
 BEGIN;
@@ -285,8 +299,21 @@ CREATE TABLE IF NOT EXISTS cortex.ai_provider_model (
                         CHECK (id ~ '^pvm_[A-Za-z0-9]{1,64}$'),
   configuration_id    TEXT NOT NULL
                         REFERENCES cortex.ai_provider_configuration(id) ON DELETE CASCADE,
+  -- CONSTRAINT NAME, NOT COLUMN NAME.
+  --
+  -- This check was originally named `ai_provider_model_id_format` — the same
+  -- name the primary key's check above already carries. PostgreSQL keys table
+  -- constraints by (table, name), so the second CREATE TABLE clause was
+  -- rejected outright with `check constraint "ai_provider_model_id_format"
+  -- already exists` and the whole migration failed at parse-apply time. It had
+  -- never been applied anywhere, so correcting it here is a correction to an
+  -- unapplied file rather than a change to deployed schema.
+  --
+  -- The two checks guard two different things and now say so: the row's own
+  -- `pvm_` identifier, and the VENDOR's model identifier — `gpt-4o`,
+  -- `claude-sonnet-4-5-20250929` — which is not a MARQ identifier at all.
   model_id            TEXT NOT NULL
-                        CONSTRAINT ai_provider_model_id_format
+                        CONSTRAINT ai_provider_model_model_id_format
                         CHECK (model_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
   display_name        TEXT NOT NULL
                         CONSTRAINT ai_provider_model_display_name_length
@@ -395,6 +422,23 @@ REVOKE ALL ON FUNCTION cortex.ai_provider_credential_activate(
   TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
 ) FROM PUBLIC, anon, authenticated;
 
+-- AND THEN THE ONE ROLE THAT MUST CALL IT GETS IT BACK.
+--
+-- `REVOKE ... FROM PUBLIC` on a function removes the DEFAULT execute privilege
+-- that every role, service_role included, held only by virtue of being part of
+-- PUBLIC. Revoking without re-granting therefore locked the edge function out of
+-- the only path that writes a credential — `putActiveCredential` — and every
+-- rotation would have failed with `permission denied for function
+-- ai_provider_credential_activate`. An independent production gate found exactly
+-- that, on a migration that had never been applied.
+--
+-- EXECUTE, to service_role, and to nothing else. `anon` and `authenticated`
+-- stay revoked above; PUBLIC stays revoked; no role acquires this function by
+-- default privilege again.
+GRANT EXECUTE ON FUNCTION cortex.ai_provider_credential_activate(
+  TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
+) TO service_role;
+
 COMMENT ON FUNCTION cortex.ai_provider_credential_activate(
   TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
 ) IS
@@ -420,9 +464,77 @@ ALTER TABLE cortex.ai_provider_model         FORCE ROW LEVEL SECURITY;
 -- No grants to the browser-facing roles. Belt and braces beside RLS: a policy
 -- added carelessly in a future migration still cannot open a table the role has
 -- no privilege on.
-REVOKE ALL ON cortex.ai_provider_configuration FROM anon, authenticated;
-REVOKE ALL ON cortex.ai_provider_credential    FROM anon, authenticated;
-REVOKE ALL ON cortex.ai_provider_model         FROM anon, authenticated;
+REVOKE ALL ON cortex.ai_provider_configuration FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON cortex.ai_provider_credential    FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON cortex.ai_provider_model         FROM PUBLIC, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Service role privileges — enumerated, and no wider than the runtime is
+-- ---------------------------------------------------------------------------
+--
+-- WHY THIS BLOCK EXISTS AT ALL.
+--
+-- `service_role` bypasses ROW LEVEL SECURITY. It does not bypass TABLE
+-- PRIVILEGES, and the two are separate systems: RLS decides which rows a
+-- statement may touch, `GRANT` decides whether the statement may run. Supabase
+-- ships default privileges that blanket the `public` schema; these tables live
+-- in `cortex` precisely so that blanket does not cover them, and the price of
+-- that choice is that every privilege here has to be written down.
+--
+-- Without this block the runtime fails on its first call — `permission denied
+-- for table ai_provider_configuration` — and provider administration is dead on
+-- arrival while the rest of the platform runs normally. An independent
+-- production gate found exactly that.
+--
+-- WHAT THE RUNTIME ACTUALLY DOES, read off `aiProviderAdministrationStore.ts`
+-- rather than assumed. Every grant below traces to a line in that file:
+--
+--   ai_provider_configuration
+--     SELECT   listConfigurations, findConfiguration, providerKeyOf
+--     INSERT   saveConfiguration (upsert, first write)
+--     UPDATE   saveConfiguration (upsert, ON CONFLICT DO UPDATE)
+--
+--   ai_provider_credential
+--     SELECT   listCredentials (metadata columns), activeCredential
+--     UPDATE   revokeCredential
+--     — and NO INSERT. The only insert is inside
+--       `ai_provider_credential_activate`, which is SECURITY DEFINER and writes
+--       as its owner. Granting service_role a direct INSERT here would create a
+--       second, non-atomic way to reach the state that function exists to make
+--       atomic, so it is deliberately withheld.
+--
+--   ai_provider_model
+--     SELECT   listModels
+--     INSERT   saveModel (upsert, first write)
+--     UPDATE   saveModel (upsert, ON CONFLICT DO UPDATE)
+--
+-- WHAT IS DELIBERATELY NOT GRANTED, on any of the three:
+--
+--   DELETE      — nothing in the runtime deletes a provider row. Configuration
+--                 is disabled, credentials are revoked, models are turned off.
+--                 A privilege for an operation that does not exist is a
+--                 privilege available only to a mistake or an attacker.
+--   TRUNCATE    — as above, and it would take the rotation history with it.
+--   REFERENCES  — nothing outside this migration points at these tables.
+--   TRIGGER     — no runtime path creates one.
+--   ALL         — an enumeration is a decision; `ALL PRIVILEGES` is the absence
+--                 of one, and it silently acquires whatever a future PostgreSQL
+--                 adds to the set.
+--
+-- NOTHING IS GRANTED TO `anon` OR `authenticated`, here or anywhere. They are
+-- revoked immediately above and denied by RLS besides. Both controls are kept:
+-- the revoke survives somebody adding a policy, and the policy-less RLS
+-- survives somebody adding a grant.
+--
+-- `USAGE ON SCHEMA cortex` was granted to service_role by
+-- 20260711050001_cortex_tenancy_rls_and_seed.sql. It is re-asserted here so
+-- this migration does not silently depend on a grant made five migrations ago;
+-- the statement is idempotent and widens nothing.
+GRANT USAGE ON SCHEMA cortex TO service_role;
+
+GRANT SELECT, INSERT, UPDATE ON cortex.ai_provider_configuration TO service_role;
+GRANT SELECT,         UPDATE ON cortex.ai_provider_credential    TO service_role;
+GRANT SELECT, INSERT, UPDATE ON cortex.ai_provider_model         TO service_role;
 
 -- NO POLICY ON ANY OF THE THREE TABLES. Service role only, for all of them.
 --
@@ -431,7 +543,7 @@ REVOKE ALL ON cortex.ai_provider_model         FROM anon, authenticated;
 -- configuration directly during an incident is legitimate. An independent
 -- review pointed out that those policies were DEAD: no migration ever granted
 -- `authenticated` table privileges in the `cortex` schema, and this file
--- revokes them explicitly below, so the policies could never be reached.
+-- revokes them explicitly above, so the policies could never be reached.
 --
 -- The dead policies were removed rather than made live. Granting `authenticated`
 -- SELECT on two more tables to enable a read the administration API already
@@ -441,13 +553,23 @@ REVOKE ALL ON cortex.ai_provider_model         FROM anon, authenticated;
 --
 -- For the credential table the absence was always deliberate and is now the
 -- rule for all three: with RLS enabled and no policy, every role that respects
--- RLS is denied every row.
---
--- RLS is enabled and no policy exists, so every role that respects RLS is
--- denied every row. The service role reaches these rows and nothing else does.
+-- RLS is denied every row. The service role reaches these rows because it holds
+-- `BYPASSRLS` and the enumerated privileges above; nothing else holds either.
 -- A reader of this file looking for the credential policy has found it: its
 -- absence IS the control, and adding one would put encrypted key material
 -- within reach of a browser session token for no operation the administration
 -- API does not already provide.
+--
+-- ONE PRIVILEGE THIS FILE DEPENDS ON AND DOES NOT GRANT.
+--
+-- `ai_provider_credential_activate` is SECURITY DEFINER, so its INSERT and
+-- UPDATE run as the migration's OWNER, and `FORCE ROW LEVEL SECURITY` above
+-- applies RLS to the owner too. The function therefore requires its owner to
+-- hold `BYPASSRLS` — which the role Supabase applies migrations as does. This
+-- is stated rather than assumed because it is the kind of dependency that is
+-- invisible until the day a deployment applies migrations as something else,
+-- and `tests/database/harness/95_assert_4c_privileges.sql` proves it by
+-- applying this file as a NOSUPERUSER role and then rotating a credential
+-- through the function.
 
 COMMIT;

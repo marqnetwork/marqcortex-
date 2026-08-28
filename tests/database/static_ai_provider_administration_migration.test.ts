@@ -9,10 +9,29 @@
  * environment secret — together with the shape of the constraints the domain
  * model depends on.
  *
- * The claims a scan CANNOT settle are named where they arise: whether the
- * partial unique index really refuses a second active credential, and whether
- * RLS-with-no-policy really denies `authenticated`, are facts about PostgreSQL
- * that only PostgreSQL can confirm.
+ * THIS FILE IS NOT THE VERIFICATION. IT IS THE CHEAP HALF OF IT.
+ *
+ * Batch 4C's production gate found two defects this suite could not have seen,
+ * because both were about what PostgreSQL DOES with the file rather than what
+ * the file contains:
+ *
+ *   B-1  two CHECK constraints shared one name, so the migration was rejected
+ *        outright and could not be applied anywhere. This suite reported it
+ *        healthy.
+ *   B-2  the migration granted `service_role` no table privilege and no EXECUTE
+ *        on its own activation function, so every runtime operation would have
+ *        failed with `permission denied`. This suite reported it healthy.
+ *
+ * The executable verification is `scripts/ai-provider-administration-scenarios.mjs`
+ * (`npm run test:database:4c`), which applies the REAL migration to a real
+ * PostgreSQL and drives the real runtime lifecycle as `service_role`. Anything
+ * here that could be mistaken for a behavioural claim says where its executable
+ * counterpart lives.
+ *
+ * What a scan is still the right tool for, and what remains here: proving
+ * ABSENCE. No plaintext column, no browser-role grant, no policy on the
+ * credential table, no seeded provider, no copy of an environment secret, no
+ * `GRANT ALL`. A database can only show you what IS there.
  */
 
 import { readFileSync } from 'node:fs';
@@ -220,6 +239,21 @@ describe('the domain invariants are enforced by the database, not only the servi
     // otherwise denies them entirely.
     assert.match(code, /REVOKE ALL ON FUNCTION cortex\.ai_provider_credential_activate/);
     assert.match(code, /FROM PUBLIC, anon, authenticated/);
+
+    // …AND GIVES IT BACK TO THE ONE ROLE THAT MUST CALL IT.
+    //
+    // Revoking from PUBLIC removes the default EXECUTE that `service_role` held
+    // only by virtue of being part of PUBLIC. Without this grant every
+    // credential rotation fails with `permission denied for function`, which is
+    // what the production gate found. Proved by execution in harness file 95.
+    assert.match(
+      code,
+      /GRANT EXECUTE ON FUNCTION cortex\.ai_provider_credential_activate\([\s\S]{0,200}?\)\s*TO service_role;/,
+    );
+    assert.ok(
+      !/GRANT EXECUTE[\s\S]{0,200}?TO\s+(?:[a-z_]+,\s*)*(?:anon|authenticated)/i.test(code),
+      'no browser role may execute the activation function',
+    );
   });
 
   it('declares identifiers the platform can actually mint', () => {
@@ -239,6 +273,36 @@ describe('the domain invariants are enforced by the database, not only the servi
         `${constraint} must bound the ${prefix}_ identifier grammar`,
       );
     }
+  });
+
+  it('names every constraint on ai_provider_model distinctly', () => {
+    // THE B-1 REGRESSION. The vendor's model id and the row's own `pvm_`
+    // identifier were both checked under the name `ai_provider_model_id_format`.
+    // PostgreSQL keys table constraints by (table, name), so the migration was
+    // rejected outright — and the static suite of the day reported it healthy,
+    // because a text scan cannot notice a collision it is not looking for.
+    //
+    // The executable proof is `93_assert_4c_schema.sql`, which counts the two
+    // constraints in a database that actually applied the file. This assertion
+    // is the cheap one that fails first.
+    const constraintNames = [...code.matchAll(/CONSTRAINT\s+([a-z0-9_]+)/g)].map((m) => m[1]!);
+    const seen = new Set<string>();
+    const duplicates = constraintNames.filter((name) => {
+      if (seen.has(name)) return true;
+      seen.add(name);
+      return false;
+    });
+    assert.deepEqual(
+      duplicates,
+      [],
+      `every constraint name must be unique within this migration; duplicated: ${duplicates.join(', ')}`,
+    );
+
+    assert.match(
+      code,
+      /CONSTRAINT ai_provider_model_model_id_format\s+CHECK \(model_id ~/,
+      'the vendor model id needs a name of its own',
+    );
   });
 
   it('indexes the lookups the runtime actually performs', () => {
@@ -296,14 +360,55 @@ describe('row level security', () => {
       'cortex.ai_provider_model',
     ]) {
       assert.ok(
-        code.includes(`REVOKE ALL ON ${table} FROM anon, authenticated`),
-        `${table} must revoke browser-role privileges`,
+        new RegExp(
+          `REVOKE ALL ON ${table.replace('.', '\\.')}\\s+FROM PUBLIC, anon, authenticated`,
+        ).test(code),
+        `${table} must revoke PUBLIC and browser-role privileges`,
       );
     }
     assert.ok(
       !/GRANT\s+(SELECT|INSERT|UPDATE|DELETE|ALL)[\s\S]{0,120}TO\s+(anon|authenticated)/i.test(code),
       'no grant to a browser role',
     );
+  });
+
+  it('grants the service role exactly the privileges the runtime uses', () => {
+    // THE B-2 REGRESSION, pinned as text so the shape of the grant is stable.
+    //
+    // What this CANNOT prove is that the privileges are sufficient or that
+    // `authenticated` is really denied — those are facts about PostgreSQL, and
+    // asserting them here is what let the original defect through. They are
+    // proved by execution in `scripts/ai-provider-administration-scenarios.mjs`
+    // (harness files 94 and 95), which drives the real runtime lifecycle as
+    // `service_role` against the real migration.
+    //
+    // What IS worth pinning here is the enumeration: an over-broad grant is a
+    // decision, and it should have to be made in this file too.
+    assert.match(
+      code,
+      /GRANT SELECT, INSERT, UPDATE ON cortex\.ai_provider_configuration TO service_role;/,
+    );
+    assert.match(
+      code,
+      /GRANT SELECT,\s+UPDATE ON cortex\.ai_provider_credential\s+TO service_role;/,
+    );
+    assert.match(
+      code,
+      /GRANT SELECT, INSERT, UPDATE ON cortex\.ai_provider_model\s+TO service_role;/,
+    );
+
+    // NO direct INSERT on the credential table. The only insert is inside the
+    // SECURITY DEFINER activation function, so the supersede and the insert
+    // cannot be issued apart.
+    assert.ok(
+      !/GRANT[^;]*INSERT[^;]*ON cortex\.ai_provider_credential[^;]*TO service_role/i.test(code),
+      'service_role must not hold a direct INSERT on the credential table',
+    );
+
+    // And nothing anywhere reaches for the blunt instrument.
+    assert.ok(!/GRANT ALL/i.test(code), 'an enumeration is a decision; ALL PRIVILEGES is not');
+    assert.ok(!/\bDELETE\b[^;]*TO service_role/i.test(code), 'nothing in the runtime deletes');
+    assert.ok(!/TRUNCATE[^;]*TO service_role/i.test(code), 'no TRUNCATE on a rotation history');
   });
 
   it('creates NO policy on ANY of the three tables', () => {
