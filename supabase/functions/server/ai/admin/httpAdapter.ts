@@ -31,6 +31,10 @@ export interface AdminHttpRequest {
   readonly body?: unknown;
   /** Path parameter for provider operations. */
   readonly providerId?: string;
+  /** Path parameter for model operations (AI-01 Batch 4C). */
+  readonly modelId?: string;
+  /** Path parameter for credential revocation (AI-01 Batch 4C). */
+  readonly credentialId?: string;
   readonly limit?: number;
   readonly correlationId?: string;
   readonly clientIp?: string;
@@ -55,6 +59,24 @@ export const ADMIN_OPERATION = {
   diagnostics: 'diagnostics.read',
   executionAudit: 'audit.execution',
   adminAudit: 'audit.administrative',
+
+  // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
+  //
+  // Domain operations, never generic CRUD. There is no `providers.write` that
+  // takes a table and a row: each name below is one decision an operator makes,
+  // and each demands its own capability inside the service. A generic write
+  // would let the least-privileged caller who can reach ANY of them reach all.
+  //
+  // NOTE WHAT IS ABSENT. There is no `credential.read`, no `credential.reveal`
+  // and no `credential.plaintext`. The operation does not exist, so no route
+  // can bind it and no body can ask for it.
+  providerAdministration: 'providers.administration',
+  providerDetail: 'providers.detail',
+  providerCredentialList: 'providers.credentials.list',
+  providerSetEnabled: 'providers.set_enabled',
+  providerSetCredential: 'providers.credentials.set',
+  providerRevokeCredential: 'providers.credentials.revoke',
+  providerSetModelEnabled: 'providers.models.set_enabled',
 } as const;
 
 export type AdminOperation = (typeof ADMIN_OPERATION)[keyof typeof ADMIN_OPERATION];
@@ -140,6 +162,30 @@ function readSettingsPatch(body: Record<string, unknown>): AIOperationalSettings
 
 function reasonOf(body: Record<string, unknown>): unknown {
   return body.reason;
+}
+
+/** A bounded identifier from a body. Never a free-form string. */
+function optionalId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed.slice(0, 160);
+}
+
+/**
+ * The provider id, or a rejection.
+ *
+ * Read from the PATH, bound by the route table, never from the body. A provider
+ * id taken from a body would let a caller ask for one provider at another
+ * provider's endpoint — which matters here because the capabilities differ per
+ * operation and the audit target is derived from this value.
+ */
+function requireProviderId(request: AdminHttpRequest): string {
+  if (!request.providerId) {
+    throw new AIError('VALIDATION_FAILED', 'A provider id is required.', {
+      fields: ['providerId'],
+    });
+  }
+  return request.providerId;
 }
 
 export async function executeAdminHttpRequest(
@@ -231,6 +277,99 @@ export async function executeAdminHttpRequest(
 
       case ADMIN_OPERATION.diagnostics:
         return ok({ diagnostics: await admin.diagnostics(actor) });
+
+      // ── Provider administration (AI-01 Batch 4C) ───────────────────────
+      case ADMIN_OPERATION.providerAdministration:
+        return ok({ providers: await admin.providerAdministration(actor) });
+
+      case ADMIN_OPERATION.providerDetail:
+        return ok({ provider: await admin.providerDetail(actor, requireProviderId(request)) });
+
+      case ADMIN_OPERATION.providerCredentialList:
+        // METADATA. The service's return type has no secret field, so this
+        // response cannot carry one however it is serialised.
+        return ok({
+          credentials: await admin.providerCredentials(actor, requireProviderId(request)),
+        });
+
+      case ADMIN_OPERATION.providerSetEnabled: {
+        const enabled = optionalBool(body.enabled);
+        if (enabled === undefined) {
+          throw new AIError('VALIDATION_FAILED', 'Field `enabled` must be true or false.', {
+            fields: ['enabled'],
+          });
+        }
+        return ok({
+          provider: await admin.setProviderEnabled(
+            actor,
+            requireProviderId(request),
+            enabled,
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerSetCredential: {
+        // `body.secret` is passed through UNREAD and UNLOGGED. It is not
+        // trimmed here, not measured here, not defaulted here and above all not
+        // echoed here: the service validates it and the only thing that ever
+        // touches its characters is the cipher. Nothing in this function's
+        // error path can quote it, because this function never holds it in a
+        // variable of its own.
+        return ok({
+          provider: await admin.setProviderCredential(
+            actor,
+            requireProviderId(request),
+            { secret: body.secret, credentialName: body.credentialName },
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerRevokeCredential: {
+        const credentialId = request.credentialId ?? optionalId(body.credentialId);
+        if (credentialId === undefined) {
+          throw new AIError('VALIDATION_FAILED', 'A credential id is required.', {
+            fields: ['credentialId'],
+          });
+        }
+        return ok({
+          provider: await admin.revokeProviderCredential(
+            actor,
+            requireProviderId(request),
+            credentialId,
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerSetModelEnabled: {
+        const modelId = request.modelId ?? optionalId(body.modelId);
+        if (modelId === undefined) {
+          throw new AIError('VALIDATION_FAILED', 'A model id is required.', {
+            fields: ['modelId'],
+          });
+        }
+        const enabled = optionalBool(body.enabled);
+        if (enabled === undefined) {
+          throw new AIError('VALIDATION_FAILED', 'Field `enabled` must be true or false.', {
+            fields: ['enabled'],
+          });
+        }
+        return ok({
+          provider: await admin.setProviderModelEnabled(
+            actor,
+            requireProviderId(request),
+            modelId,
+            enabled,
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
 
       case ADMIN_OPERATION.executionAudit:
         return ok({ records: admin.executionAudit(actor, request.limit) });

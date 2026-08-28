@@ -46,10 +46,18 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * manifest to 309 nodes. Contract declaration modules, barrel surfaces,
  * in-memory test doubles, fixtures and suites are not registered, which is the
  * granularity Batch 3A used for the agent runtime.
+ *
+ * AI-01 Batch 4C added the provider administration layer — the credential
+ * cipher, the storage port, the provider-neutral credential resolver, the
+ * governed budget exposure calculation, the provider administration service and
+ * its Supabase store (MQC-SVC-157 → 162) — and the console's Providers area
+ * (MQC-COMP-091), taking the manifest to 316 nodes. `credentials/contracts.ts`
+ * is not registered, on the same rule as every other contract declaration
+ * module.
  */
-const CERTIFIED_NODE_COUNT = 309;
+const CERTIFIED_NODE_COUNT = 316;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 156;
+const CERTIFIED_SVC_COUNT = 162;
 
 const entries = Object.entries(manifest.nodes);
 

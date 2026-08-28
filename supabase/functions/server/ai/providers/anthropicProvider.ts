@@ -38,6 +38,11 @@ import type {
   AIProviderInvocation,
 } from '../contracts/provider.ts';
 import type { EnvSource } from '../runtime/env.ts';
+import type { Clock } from '../runtime/clock.ts';
+import type { ProviderCredentialResolver } from './credentials/contracts.ts';
+import type { CredentialProviderProfile } from './credentials/resolver.ts';
+import { createEnvironmentCredentialResolver } from './credentials/resolver.ts';
+import { systemClock } from '../runtime/clock.ts';
 import { AIError } from '../contracts/errors.ts';
 import type { FetchLike } from './openaiProvider.ts';
 
@@ -45,7 +50,28 @@ export interface AnthropicProviderOptions {
   readonly env: EnvSource;
   readonly fetchImpl?: FetchLike;
   readonly apiBase?: string;
+  /**
+   * The provider-neutral credential resolver (AI-01 Batch 4C). Absent, the
+   * adapter builds an environment-only resolver over its own `env` and behaves
+   * exactly as it did before Batch 4C.
+   */
+  readonly credentials?: ProviderCredentialResolver;
+  readonly clock?: Clock;
 }
+
+/**
+ * This adapter's credential profile. See `OPENAI_CREDENTIAL_PROFILE` for why it
+ * is exported: the vendor's environment variable name stays inside the provider
+ * boundary, and the adapter and the production resolver share one definition.
+ */
+export const ANTHROPIC_CREDENTIAL_PROFILE: CredentialProviderProfile = {
+  providerId: 'anthropic',
+  required: true,
+  manageable: true,
+  environmentVariable: 'ANTHROPIC_API_KEY',
+};
+
+const CREDENTIAL_ENV_VAR = ANTHROPIC_CREDENTIAL_PROFILE.environmentVariable!;
 
 const API_VERSION = '2023-06-01';
 
@@ -122,22 +148,44 @@ export function createAnthropicProvider(options: AnthropicProviderOptions): AIPr
     productionReady: true,
     // Reaches the paid Anthropic API. Refused entirely while real requests are off.
     billable: true,
+    credential: {
+      required: true,
+      manageable: true,
+      environmentVariable: CREDENTIAL_ENV_VAR,
+      credentialFormatHint: 'Anthropic API key',
+    },
   };
+
+  const credentials =
+    options.credentials ??
+    createEnvironmentCredentialResolver(
+      ANTHROPIC_CREDENTIAL_PROFILE,
+      options.env,
+      options.clock ?? systemClock,
+    );
 
   return {
     descriptor,
 
     hasCredentials() {
-      const key = options.env.get('ANTHROPIC_API_KEY');
-      return typeof key === 'string' && key.trim() !== '';
+      return credentials.describe(descriptor.providerId).configured;
+    },
+
+    credentialStatus() {
+      const availability = credentials.describe(descriptor.providerId);
+      return { source: availability.source, fingerprint: availability.fingerprint };
     },
 
     async invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion> {
-      const apiKey = options.env.get('ANTHROPIC_API_KEY')?.trim();
+      // One resolution per attempt, through the same provider-neutral port the
+      // OpenAI adapter uses. There is deliberately no Anthropic-specific
+      // credential pipeline — that is the Batch 4C guarantee.
+      const resolved = await credentials.resolve(descriptor.providerId);
+      const apiKey = resolved?.secret.trim();
       if (!apiKey) {
         throw new AIError('PROVIDER_AUTH_FAILED', 'The AI provider is not configured.', {
           providerId: 'anthropic',
-          diagnostics: 'ANTHROPIC_API_KEY is not set',
+          diagnostics: 'no managed or environment credential resolved for anthropic',
         });
       }
 

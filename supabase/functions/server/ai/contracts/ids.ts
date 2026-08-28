@@ -61,7 +61,20 @@ export type IdKind =
   | 'hof'
   | 'wfr'
   | 'wfs'
-  | 'wfa';
+  | 'wfa'
+  /**
+   * Provider administration (AI-01 Batch 4C): a provider configuration, a
+   * provider credential and a provider model record.
+   *
+   * `pvk` is a credential's IDENTITY, not its content — it names a row and is
+   * safe in a log line, an audit record and an API response. It is a distinct
+   * kind from the others because a credential id appears in the administrative
+   * trail beside a configuration id, and a reader has to be able to tell at a
+   * glance which of the two they are holding.
+   */
+  | 'pvc'
+  | 'pvk'
+  | 'pvm';
 
 /**
  * Random identifier source. Injectable so tests can pin identifiers without

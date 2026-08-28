@@ -68,9 +68,20 @@ import type { KvAdminConditionalWriter } from './adapters/kvAdminStores.ts';
 import { createKvAdminAuditStore, createKvAdminSettingsStore } from './adapters/kvAdminStores.ts';
 import { createAIAdministration } from './admin/administration.ts';
 import { createMemorySettingsStore } from './admin/settingsStore.ts';
-import { createOpenAIProvider } from './providers/openaiProvider.ts';
-import { createAnthropicProvider } from './providers/anthropicProvider.ts';
+import { createOpenAIProvider, OPENAI_CREDENTIAL_PROFILE } from './providers/openaiProvider.ts';
+import {
+  createAnthropicProvider,
+  ANTHROPIC_CREDENTIAL_PROFILE,
+} from './providers/anthropicProvider.ts';
 import { createMockProvider } from './providers/mockProvider.ts';
+import type { ProviderAdministrationStore } from './providers/credentials/credentialStore.ts';
+import type { CredentialProviderProfile } from './providers/credentials/resolver.ts';
+import { createProviderCredentialResolver } from './providers/credentials/resolver.ts';
+import {
+  createSecretCipher,
+  parseRootKey,
+  CREDENTIAL_ROOT_KEY_ENV,
+} from './providers/credentials/secretCipher.ts';
 
 export interface BootstrapDependencies {
   /** Verify a bearer token and return the auth subject. */
@@ -123,6 +134,15 @@ export interface BootstrapDependencies {
    * something that cannot run.
    */
   readonly diagnosticDossiers?: DiagnosticDossierStore;
+  /**
+   * Durable provider administration storage (AI-01 Batch 4C).
+   *
+   * Injected, like every other platform-specific port, so nothing under `ai/`
+   * takes a Supabase dependency. Absent, provider administration is READ-ONLY
+   * and the runtime resolves credentials exactly as it did before Batch 4C —
+   * from the deployment environment — which is reported rather than assumed.
+   */
+  readonly providerAdministrationStore?: ProviderAdministrationStore;
   /** Override the environment source. Production reads the runtime. */
   readonly env?: EnvSource;
 }
@@ -174,9 +194,79 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   }
 
+  // ── Managed provider credentials (AI-01 Batch 4C) ─────────────────────────
+  //
+  // THE ROOT KEY IS A DEPLOYMENT SECRET AND STAYS ONE. It is read here, once,
+  // and handed to the cipher; nothing else in the platform can reach it, and it
+  // is never written to the database whose rows it protects.
+  //
+  // A MISSING ROOT KEY IS NOT AN OUTAGE. The unavailable cipher refuses to seal
+  // and everything else keeps working: providers resolve their credentials from
+  // the environment exactly as they did before this batch, the console shows
+  // the whole provider estate, and the one thing that fails is storing a
+  // managed credential — with a message naming this variable.
+  //
+  // A MALFORMED ROOT KEY IS DIFFERENT, and it is loud. A value that is not
+  // 32 base64 bytes means somebody intended encryption and did not get it, and
+  // running on silently is how that goes unnoticed until a credential cannot be
+  // stored during an incident.
+  let credentialCipher = createSecretCipher(undefined);
+  try {
+    credentialCipher = createSecretCipher(parseRootKey(env.get(CREDENTIAL_ROOT_KEY_ENV)));
+  } catch (error) {
+    console.error(
+      `[ai] ${CREDENTIAL_ROOT_KEY_ENV} is set but unusable — managed provider credentials ` +
+        'cannot be stored in this deployment:',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  // The profiles the resolver works from, taken from the ADAPTERS THEMSELVES.
+  //
+  // There is deliberately no table of provider ids and environment variable
+  // names in this file. A vendor's credential variable is a vendor-specific
+  // fact and belongs inside `ai/providers/` with every other one — the boundary
+  // scan enforces exactly that — so each adapter exports its own profile and
+  // this file composes them. Adding a provider is adding an adapter.
+  const credentialProfiles: readonly CredentialProviderProfile[] = [
+    OPENAI_CREDENTIAL_PROFILE,
+    ANTHROPIC_CREDENTIAL_PROFILE,
+  ];
+
+  const credentialResolver = createProviderCredentialResolver({
+    profiles: credentialProfiles,
+    clock: systemClock,
+    env,
+    store: deps.providerAdministrationStore,
+    cipher: credentialCipher,
+    scope: 'platform',
+    snapshotTtlMs: config.credentials.snapshotTtlMs,
+    onError: (providerId, detail) =>
+      console.error(`[ai] provider credential resolution failed for ${providerId}: ${detail}`),
+  });
+
+  if (deps.providerAdministrationStore === undefined) {
+    console.error(
+      '[ai] no provider administration store was injected — managed provider credentials are ' +
+        'unavailable and every provider resolves from the deployment environment. This is the ' +
+        'pre-Batch-4C behaviour and is safe; it is reported so a deployment that expected ' +
+        'managed credentials does not discover their absence from a failed rotation.',
+    );
+  }
+
   const providers: ControlPlaneOptions['providers'][number][] = [
-    { adapter: createOpenAIProvider({ env }), certification: 'certified' },
-    { adapter: createAnthropicProvider({ env }), certification: 'certified' },
+    {
+      adapter: createOpenAIProvider({ env, credentials: credentialResolver, clock: systemClock }),
+      certification: 'certified',
+    },
+    {
+      adapter: createAnthropicProvider({
+        env,
+        credentials: credentialResolver,
+        clock: systemClock,
+      }),
+      certification: 'certified',
+    },
   ];
 
   // The mock provider is registered BY DEFAULT.
@@ -274,6 +364,28 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     ids: systemIdFactory,
     logger: plane.logger,
     auditBufferSize: config.audit.bufferSize,
+    // ── Provider administration (AI-01 Batch 4C) ────────────────────────────
+    //
+    // The SAME store and the SAME cipher the runtime resolver uses. Two
+    // instances would mean the console could write a credential the runtime
+    // reads through a different snapshot — the classic "it says it's saved"
+    // failure. The resolver is passed in as well so a credential change
+    // invalidates the availability snapshot immediately rather than at the TTL.
+    providerStore: deps.providerAdministrationStore,
+    credentialCipher,
+    credentialResolver,
+  });
+
+  // Prime the non-secret credential snapshot. Asynchronous and non-blocking:
+  // until it lands, `describe` reports the environment answer, which is the
+  // pre-Batch-4C behaviour and is never wrong in the unsafe direction — a
+  // provider is reported as deployment-managed rather than as managed, and the
+  // authoritative resolution on the execution path is unaffected either way.
+  credentialResolver.refresh().catch((error: unknown) => {
+    console.error(
+      '[ai] provider credential snapshot could not be taken:',
+      error instanceof Error ? error.message : String(error),
+    );
   });
 
   // Hydration is asynchronous and bootstrap is not. Stored settings therefore

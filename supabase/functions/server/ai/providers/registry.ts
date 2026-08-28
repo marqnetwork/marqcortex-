@@ -288,11 +288,18 @@ export function createProviderRegistry(
     health(providerId) {
       const provider = require(providerId);
       const snapshot = circuit.snapshot(providerId);
+      // Asked of the adapter rather than derived here, because only the adapter
+      // holds the credential resolver. An adapter that does not implement the
+      // optional method — every test double — reports `none`, which is the
+      // pre-Batch-4C answer and is never mistaken for "managed".
+      const credential = provider.adapter.credentialStatus?.() ?? { source: 'none' as const };
       return {
         providerId,
         state: stateOf(provider),
         certification: provider.certification,
         credentialsConfigured: provider.adapter.hasCredentials(),
+        credentialSource: credential.source,
+        credentialFingerprint: credential.fingerprint,
         circuit: snapshot.state,
         consecutiveFailures: snapshot.consecutiveFailures,
         successCount: provider.successCount,

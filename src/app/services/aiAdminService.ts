@@ -41,7 +41,18 @@ export type AIAdminCapability =
   | 'ai.admin.provider.write'
   | 'ai.admin.budget.write'
   | 'ai.admin.budget.reset'
-  | 'ai.admin.killswitch';
+  | 'ai.admin.killswitch'
+  // Provider administration (AI-01 Batch 4C). Mirrors the server's grant table.
+  //
+  // The console reads these to decide what to RENDER. That is a courtesy and
+  // never a control: the server refuses the same operation whether or not the
+  // button was drawn, which is why the credential form's absence for a
+  // read-only operator is a nicety and its presence would still be safe.
+  | 'ai.providers.view'
+  | 'ai.providers.manage'
+  | 'ai.providers.credentials.manage'
+  | 'ai.providers.models.manage'
+  | 'ai.providers.audit.read';
 
 export interface AIAdminSettings {
   configurationVersion: number;
@@ -551,6 +562,249 @@ export async function increaseAISpendCap(
     { method: 'POST', body: { capMicroUsd, reason } },
   );
   return budget;
+}
+
+// ── Provider administration (AI-01 Batch 4C) ────────────────────────────────
+//
+// NOTE WHAT IS MISSING FROM EVERY TYPE BELOW, AND THAT IT IS MISSING ON PURPOSE.
+//
+// There is no `secret`, no `apiKey`, no `value` and no `plaintext` on any
+// response shape here, because there is no server operation that returns one.
+// A stored provider credential is write-only material: it goes up once, in
+// `setAIProviderCredential`, and the only things that ever come back are a
+// keyed fingerprint, at most four characters, and timestamps.
+//
+// The console therefore CANNOT display a stored key, and not because it chooses
+// not to — because it is never given one.
+
+/** How a provider's credential is managed. Never how to obtain it. */
+export type AICredentialManagement =
+  | 'cortex_managed'
+  | 'deployment_managed'
+  | 'not_required'
+  | 'unconfigured';
+
+export interface AIProviderCredentialState {
+  configured: boolean;
+  source: 'managed' | 'environment' | 'none';
+  management: AICredentialManagement;
+  credentialId?: string;
+  credentialName?: string;
+  /** Keyed, truncated digest. Identifies a key; never reveals one. */
+  fingerprint?: string;
+  lastFour?: string;
+  createdAt?: string;
+  rotatedAt?: string;
+  environmentCredentialPresent: boolean;
+  /** The variable's NAME, so an operator can find it. Not its value. */
+  environmentVariable?: string;
+  managedStorageAvailable: boolean;
+  managedStorageBlocker?: string;
+}
+
+export interface AIProviderModelState {
+  modelId: string;
+  displayName: string;
+  known: true;
+  certification: string;
+  enabled: boolean;
+  runtimeEligible: boolean;
+  isPinnedDefault: boolean;
+  promptMicroUsdPer1k: number;
+  completionMicroUsdPer1k: number;
+  capabilities: {
+    textGeneration: boolean;
+    structuredOutput: boolean;
+    chatCompletions: boolean;
+    maxOutputTokens: number;
+    maxContextTokens: number;
+    zeroDataRetention: boolean;
+  };
+}
+
+export interface AIProviderAdministration {
+  providerId: string;
+  displayName: string;
+  priority: number;
+  productionReady: boolean;
+  billable: boolean;
+  /**
+   * The adapter's own declaration of how it authenticates.
+   *
+   * THIS is what makes the provider list generic. The console renders a
+   * credential form when `manageable` is true and omits it when it is false —
+   * there is no `providerId === 'openai'` anywhere in the UI, so a provider
+   * added in Batch 4E renders correctly with no frontend change.
+   */
+  credentialPolicy: {
+    required: boolean;
+    manageable: boolean;
+    environmentVariable?: string;
+    credentialFormatHint?: string;
+  };
+  enabled: boolean;
+  certification: string;
+  health: {
+    state: string;
+    circuit: 'closed' | 'open' | 'half_open';
+    consecutiveFailures: number;
+    successCount: number;
+    failureCount: number;
+    lastLatencyMs?: number;
+    lastError?: string;
+    lastFailureAt?: string;
+    lastRecoveryAt?: string;
+    checkedAt: string;
+  };
+  eligible: boolean;
+  selectionReason: string;
+  credential: AIProviderCredentialState;
+  models: AIProviderModelState[];
+  modelsAvailable: number;
+  modelsEnabled: number;
+  configurationPersisted: boolean;
+  lastConfigurationChangeAt?: string;
+  lastConfigurationChangeBy?: string;
+  message: string;
+}
+
+export interface AIProviderAdministrationSummary {
+  providers: AIProviderAdministration[];
+  exposure: {
+    maxReservationMicroUsd: number;
+    maxFeatureId?: string;
+    maxProviderId?: string;
+    maxModelId?: string;
+    ceilingMicroUsd: number;
+    withinCeiling: boolean;
+  };
+  managedCredentials: {
+    available: boolean;
+    durable: boolean;
+    keyId?: string;
+    blocker?: string;
+  };
+  generatedAt: string;
+}
+
+/** Credential history. Metadata only — see the note at the top of this section. */
+export interface AIProviderCredentialRecord {
+  credentialId: string;
+  configurationId: string;
+  providerKey: string;
+  credentialName: string;
+  status: 'active' | 'superseded' | 'revoked';
+  fingerprint: string;
+  lastFour?: string;
+  secretVersion: number;
+  keyId: string;
+  createdAt: string;
+  updatedAt: string;
+  rotatedAt?: string;
+  revokedAt?: string;
+  createdBy: string;
+  revokedBy?: string;
+}
+
+const PROVIDER_ADMIN_BASE = '/ai/admin/provider-administration';
+
+export async function fetchAIProviderAdministration(
+  accessToken: string,
+): Promise<AIProviderAdministrationSummary> {
+  const { providers } = await call<{ providers: AIProviderAdministrationSummary }>(
+    PROVIDER_ADMIN_BASE,
+    accessToken,
+  );
+  return providers;
+}
+
+export async function fetchAIProviderCredentials(
+  accessToken: string,
+  providerId: string,
+): Promise<AIProviderCredentialRecord[]> {
+  const { credentials } = await call<{ credentials: AIProviderCredentialRecord[] }>(
+    `${PROVIDER_ADMIN_BASE}/${encodeURIComponent(providerId)}/credentials`,
+    accessToken,
+  );
+  return credentials;
+}
+
+export async function setAIProviderEnabled(
+  accessToken: string,
+  providerId: string,
+  enabled: boolean,
+  reason: string,
+): Promise<AIProviderAdministration> {
+  const { provider } = await call<{ provider: AIProviderAdministration }>(
+    `${PROVIDER_ADMIN_BASE}/${encodeURIComponent(providerId)}/enabled`,
+    accessToken,
+    { method: 'POST', body: { enabled, reason } },
+  );
+  return provider;
+}
+
+/**
+ * Store or rotate a provider credential.
+ *
+ * ONE function for both, because the server has one operation for both: a
+ * rotation is a set that had a predecessor. A caller does not have to know
+ * which case they are in, which means a rotation cannot fail because the
+ * console guessed wrong.
+ *
+ * `secret` is passed straight through and is not retained anywhere in this
+ * module — no default, no local, no closure. The caller is expected to clear
+ * its own field on success; see the console's credential form.
+ */
+export async function setAIProviderCredential(
+  accessToken: string,
+  providerId: string,
+  input: { secret: string; credentialName?: string },
+  reason: string,
+): Promise<AIProviderAdministration> {
+  const { provider } = await call<{ provider: AIProviderAdministration }>(
+    `${PROVIDER_ADMIN_BASE}/${encodeURIComponent(providerId)}/credentials`,
+    accessToken,
+    {
+      method: 'POST',
+      body: {
+        secret: input.secret,
+        ...(input.credentialName ? { credentialName: input.credentialName } : {}),
+        reason,
+      },
+    },
+  );
+  return provider;
+}
+
+export async function revokeAIProviderCredential(
+  accessToken: string,
+  providerId: string,
+  credentialId: string,
+  reason: string,
+): Promise<AIProviderAdministration> {
+  const { provider } = await call<{ provider: AIProviderAdministration }>(
+    `${PROVIDER_ADMIN_BASE}/${encodeURIComponent(providerId)}/credentials/` +
+      `${encodeURIComponent(credentialId)}/revoke`,
+    accessToken,
+    { method: 'POST', body: { reason } },
+  );
+  return provider;
+}
+
+export async function setAIProviderModelEnabled(
+  accessToken: string,
+  providerId: string,
+  modelId: string,
+  enabled: boolean,
+  reason: string,
+): Promise<AIProviderAdministration> {
+  const { provider } = await call<{ provider: AIProviderAdministration }>(
+    `${PROVIDER_ADMIN_BASE}/${encodeURIComponent(providerId)}/models/` +
+      `${encodeURIComponent(modelId)}`,
+    accessToken,
+    { method: 'PATCH', body: { enabled, reason } },
+  );
+  return provider;
 }
 
 // ── Formatting helpers ──────────────────────────────────────────────────────

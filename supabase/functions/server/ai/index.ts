@@ -108,10 +108,65 @@ export {
   resolveAdminActor,
   resolveAdminRole,
   hasCapability,
+  // Re-exported under an unambiguous name for the AI observability routes,
+  // which authorise against the administration capability model (AI-01 Batch
+  // 4C security follow-up). `hasCapability` alone reads as a generic in a route
+  // file that also handles workflow and agent authority.
+  hasCapability as hasAIAdminCapability,
   type AIAdminActor,
   type AIAdminCapability,
   type AIAdminRole,
 } from './admin/rbac.ts';
+// ── Provider administration (AI-01 Batch 4C) ────────────────────────────────
+//
+// The read models only. `createProviderAdministration` is deliberately NOT
+// exported: the service is assembled inside `createAIAdministration`, over the
+// same audited-mutation runner and the same trail, and a second construction
+// site would be a second place for those to be forgotten.
+export type {
+  CredentialManagement,
+  ProviderAdministrationSummary,
+  ProviderAdministrationView,
+  ProviderCredentialView,
+  ProviderModelView,
+} from './admin/providerAdministration.ts';
+export {
+  createMemoryProviderAdministrationStore,
+  type AIProviderConfigurationRecord,
+  type AIProviderModelRecord,
+  type AIProviderScope,
+  type ProviderAdministrationStore,
+  type ProviderCredentialMetadata,
+  type StoredProviderCredential,
+} from './providers/credentials/credentialStore.ts';
+export {
+  createSecretCipher,
+  parseRootKey,
+  safeLastFour,
+  unavailableSecretCipher,
+  CREDENTIAL_ROOT_KEY_ENV,
+  type SealedSecret,
+  type SecretCipher,
+} from './providers/credentials/secretCipher.ts';
+export {
+  createProviderCredentialResolver,
+  createEnvironmentCredentialResolver,
+  DEFAULT_CREDENTIAL_SNAPSHOT_TTL_MS,
+  type CredentialProviderProfile,
+} from './providers/credentials/resolver.ts';
+export type {
+  AICredentialSource,
+  ProviderCredentialAvailability,
+  ProviderCredentialResolver,
+} from './providers/credentials/contracts.ts';
+export {
+  exposureReport,
+  featureExposure,
+  judgeExposureChange,
+  type ExposureCatalogueEntry,
+  type ExposureReport,
+  type ExposureVerdict,
+} from './policy/exposure.ts';
 export {
   ADMIN_OPERATION,
   executeAdminHttpRequest,

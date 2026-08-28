@@ -18,6 +18,11 @@ import type {
   AIProviderInvocation,
 } from '../contracts/provider.ts';
 import type { EnvSource } from '../runtime/env.ts';
+import type { Clock } from '../runtime/clock.ts';
+import type { ProviderCredentialResolver } from './credentials/contracts.ts';
+import type { CredentialProviderProfile } from './credentials/resolver.ts';
+import { createEnvironmentCredentialResolver } from './credentials/resolver.ts';
+import { systemClock } from '../runtime/clock.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -26,7 +31,40 @@ export interface OpenAIProviderOptions {
   readonly env: EnvSource;
   readonly fetchImpl?: FetchLike;
   readonly apiBase?: string;
+  /**
+   * The provider-neutral credential resolver (AI-01 Batch 4C).
+   *
+   * OPTIONAL, and the default is the point: with none supplied the adapter
+   * builds an environment-only resolver over the same `env` it was already
+   * given, so its behaviour is byte-for-byte what it was before Batch 4C.
+   * Production injects the layered resolver; every existing test keeps working
+   * unchanged.
+   */
+  readonly credentials?: ProviderCredentialResolver;
+  readonly clock?: Clock;
 }
+
+/**
+ * This adapter's credential profile — the single place its environment
+ * contract is written down (AI-01 Batch 4C).
+ *
+ * EXPORTED, and exported for a boundary reason rather than a convenience one.
+ * The credential resolver production assembles needs a profile per provider,
+ * and the bootstrap that assembles it lives OUTSIDE `ai/providers/` — where the
+ * boundary scan forbids a provider credential variable from appearing. Naming
+ * it here and importing the profile there keeps the vendor's variable name
+ * inside the provider boundary, where every other vendor-specific fact lives,
+ * and gives the adapter and the resolver ONE definition rather than two that
+ * can drift.
+ */
+export const OPENAI_CREDENTIAL_PROFILE: CredentialProviderProfile = {
+  providerId: 'openai',
+  required: true,
+  manageable: true,
+  environmentVariable: 'OPENAI_API_KEY',
+};
+
+const CREDENTIAL_ENV_VAR = OPENAI_CREDENTIAL_PROFILE.environmentVariable!;
 
 /**
  * Declared models with published pricing in micro-USD per 1,000 tokens.
@@ -76,22 +114,44 @@ export function createOpenAIProvider(options: OpenAIProviderOptions): AIProvider
     productionReady: true,
     // Reaches the paid OpenAI API. Refused entirely while real requests are off.
     billable: true,
+    credential: {
+      required: true,
+      manageable: true,
+      environmentVariable: CREDENTIAL_ENV_VAR,
+      credentialFormatHint: 'OpenAI secret API key',
+    },
   };
+
+  const credentials =
+    options.credentials ??
+    createEnvironmentCredentialResolver(
+      OPENAI_CREDENTIAL_PROFILE,
+      options.env,
+      options.clock ?? systemClock,
+    );
 
   return {
     descriptor,
 
     hasCredentials() {
-      const key = options.env.get('OPENAI_API_KEY');
-      return typeof key === 'string' && key.trim() !== '';
+      return credentials.describe(descriptor.providerId).configured;
+    },
+
+    credentialStatus() {
+      const availability = credentials.describe(descriptor.providerId);
+      return { source: availability.source, fingerprint: availability.fingerprint };
     },
 
     async invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion> {
-      const apiKey = options.env.get('OPENAI_API_KEY')?.trim();
+      // Resolved HERE, once, per attempt. The adapter does not know whether the
+      // secret came from a managed record or from the deployment environment,
+      // and it never holds one for longer than this call.
+      const resolved = await credentials.resolve(descriptor.providerId);
+      const apiKey = resolved?.secret.trim();
       if (!apiKey) {
         throw new AIError('PROVIDER_AUTH_FAILED', 'The AI provider is not configured.', {
           providerId: 'openai',
-          diagnostics: 'OPENAI_API_KEY is not set',
+          diagnostics: 'no managed or environment credential resolved for openai',
         });
       }
 

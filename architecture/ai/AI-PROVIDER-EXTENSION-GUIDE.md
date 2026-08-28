@@ -1,6 +1,7 @@
 # Extending the MARQ Cortex AI Control Plane
 
 **Applies to:** AI-01 Batch 1 onward · **Supersedes:** `MCV2-intelligence-gateway-provider-extension-guide.md`
+**Provider administration:** AI-01 Batch 4C — see §1a below and `AI-01-BATCH-4C-COMPLETION.md`
 
 Three things get added to this platform over time: providers, AI features and
 prompts. Each has exactly one way in. If a change you are making does not fit one
@@ -24,11 +25,16 @@ platform's neutral invocation and one vendor's wire format. Nothing above
    export function createVendorProvider(options: {
      env: EnvSource;
      fetchImpl?: FetchLike;
+     credentials?: ProviderCredentialResolver;  // Batch 4C
+     clock?: Clock;
    }): AIProviderAdapter
    ```
 
    Your adapter must:
    - declare its models, capabilities and **rate card** in the descriptor;
+   - declare its **credential policy** in the descriptor (Batch 4C) — see §1a;
+   - resolve its secret through the injected `ProviderCredentialResolver`
+     inside `invoke`, never by reading an environment variable directly;
    - perform **exactly one attempt** — no retry loop, no timeout, no telemetry;
    - throw `AIError` with the right taxonomy code on failure;
    - keep the vendor's error body in `diagnostics`, never in `message`
@@ -58,8 +64,15 @@ platform's neutral invocation and one vendor's wire format. Nothing above
 3. **Set `productionReady`** honestly. `false` means the registry will report a
    deployment where your provider is the only usable one.
 
-4. **Register it** in `ai/bootstrap.ts`, keyed off its credential env var so an
-   operator can enable it without a deploy.
+4. **Export a `CredentialProviderProfile`** from your adapter module —
+   `<VENDOR>_CREDENTIAL_PROFILE` — and **register it** in `ai/bootstrap.ts` by
+   adding both the adapter and its profile.
+
+   The profile, not `bootstrap.ts`, is where your vendor's environment variable
+   name is written down. That is a boundary rule, not a preference: the AI
+   boundary scan forbids a provider credential variable from appearing outside
+   `ai/providers/`, and `bootstrap.ts` is outside it. One definition, inside the
+   provider boundary, used by the adapter and by the production resolver.
 
 5. **Add it to `AI_PROVIDER_PREFERENCE`** documentation in `.env.example` and
    ARCHITECT.md §12.1, and add its certified models to the catalogue table
@@ -88,6 +101,106 @@ platform's neutral invocation and one vendor's wire format. Nothing above
    `AI_ALLOW_REAL_REQUESTS=true` are all present, never set the kill switch
    itself, and use its own in-memory ledger so a proof run cannot consume the
    deployment's funded headroom.
+
+---
+
+## 1a. Provider administration (AI-01 Batch 4C)
+
+A MARQ platform administrator manages providers, credentials and models from the
+console — Team Dashboard → Settings → AI Administration → Providers. Your
+adapter participates in that surface by DECLARING things, never by implementing
+them. There is no administration code in an adapter.
+
+### The credential policy you declare
+
+```ts
+credential: {
+  required: true,                          // can you execute without a secret?
+  manageable: true,                        // may an operator store one for you?
+  environmentVariable: 'VENDOR_API_KEY',   // a NAME, never a value
+  credentialFormatHint: 'Vendor API key',  // console copy, never an example key
+}
+```
+
+The console is written once, generically, against this policy. It contains no
+provider name in any branch — `manageable: false` is what makes the synthetic
+mock provider render without a credential form, and a provider you add renders
+correctly with no frontend change. `tests/features/providerAdministrationSurface.test.ts`
+holds that property.
+
+### Credential precedence, and what it means for you
+
+```
+Provider Adapter
+      │
+      ▼
+ProviderCredentialResolver
+      ├── 1. an ACTIVE managed Cortex credential   (encrypted, rotatable, audited)
+      ├── 2. the deployment environment variable   (bootstrap / emergency compat)
+      └── 3. none — the provider is unavailable and says so
+```
+
+Your adapter sees none of this. It calls `credentials.resolve(providerId)` once
+per attempt and gets a secret or nothing.
+
+Three consequences worth knowing:
+
+- **The environment stays supported.** It is a compatibility and emergency
+  source, not a deprecated one: a deployment whose database is unreachable can
+  still serve, and an operator locked out of the console can still restore
+  service through a deploy. What it stops being is the *only* mechanism.
+- **A managed credential that cannot be decrypted does NOT fall through to the
+  environment.** Falling through would mean an operator who rotated a key kept
+  executing on the old one. The provider goes unavailable and the failure is
+  reported.
+- **Plaintext is never cached.** `describe()` — the synchronous probe the
+  registry, selector and spend guard use — reads a non-secret snapshot bounded
+  by `AI_CREDENTIAL_SNAPSHOT_TTL_MS` (default 30s). `resolve()` reads storage
+  and decrypts every time, which is why a revoked credential stops working on
+  the next request rather than at the end of a window.
+
+### Secret handling rules an adapter must not break
+
+- Never log, echo, or put a credential in an `AIError` — not in `message`, not
+  in `diagnostics`.
+- Never return it from anything. There is no API, route, service method or
+  database view in this platform that returns a stored provider credential, and
+  adding one is out of scope for every future batch.
+- Never read `options.env` for your credential once you take a resolver. Two
+  credential paths for one provider is two things to get wrong.
+
+### Models, certification and the budget
+
+Batch 4C keeps four ideas apart, and an adapter only supplies the first:
+
+| Idea | Who decides | Where it lives |
+|---|---|---|
+| Which models exist | the adapter | your descriptor's `models` |
+| Which are certified | MARQ governance | derived from the declared catalogue + provider certification |
+| Which are enabled | an administrator | the operational settings overlay's `modelAllowList` |
+| Which are runtime-eligible | the selector | enabled ∧ certified ∧ provider enabled ∧ capable |
+
+An administrator **cannot type a model name and make it eligible**: a model the
+adapter does not declare is rejected at the administration boundary.
+
+Enabling a model can raise the platform's worst-case single-request spend
+reservation. `ai/policy/exposure.ts` computes that figure, the console shows it,
+and a change that would push it past the governed ceiling is refused with the
+number named. The Batch 4B certified figure — **105,920 µUSD** for
+`cortex.chat`, driven by OpenAI's `gpt-4o` — is pinned by
+`providerAdministration.test.ts`. **If your provider's rate card moves it, that
+is a governance change and the pin must be updated deliberately, with the MARQ
+ceiling re-checked.**
+
+### What administration does NOT let anyone do
+
+- Register a provider by naming it. The registry is the authority; a provider
+  exists because an adapter was written and reviewed.
+- Point a provider at an arbitrary endpoint. Self-hosted providers are Batch 4E,
+  and they arrive as adapters.
+- Manage another organization's credentials. Batch 4C administers the
+  `platform` scope only; the schema carries an `organization` scope for Batch 4D
+  and every 4C write path refuses it.
 
 ### What you do NOT implement
 
