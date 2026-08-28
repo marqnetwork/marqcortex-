@@ -380,7 +380,7 @@ src/app/components/ProviderAdministrationPanel.tsx
 
 **New — tests**
 ```
-ai/__tests__/providerAdministration.test.ts                       41 assertions
+ai/__tests__/providerAdministration.test.ts                       44 assertions
 tests/features/aiObservabilityAuthority.test.ts                   13
 tests/features/providerAdministrationSurface.test.ts              16
 tests/database/static_ai_provider_administration_migration.test.ts 28
@@ -432,7 +432,7 @@ architecture/system_map.json    node_count 316
 | `npm run verify:ai` | **16/16** |
 | `npm run verify:openai` | **11/12 — LIVE CALL blocked (no credential, by design)** |
 | `npm run verify:anthropic` | **12/13 — LIVE CALL blocked (no credential, by design)** |
-| `npm run verify:4c` | **98 pass, 0 fail** |
+| `npm run verify:4c` | **101 pass, 0 fail** |
 
 `npm run typecheck:web` reports **34 errors, identical to the baseline** — all
 pre-existing, none in any file this batch touched. Verified by stashing the

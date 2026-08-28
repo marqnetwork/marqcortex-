@@ -590,6 +590,172 @@ describe('Batch 4C — credential resolution', () => {
     assert.deepEqual(failures, ['openai']);
   });
 
+  it('carries a managed credential all the way to the vendor request', async () => {
+    // THE END-TO-END CLAIM, and the one the other resolution assertions cannot
+    // make on their own. They prove the resolver returns the right secret; this
+    // proves the ADAPTER asks it and puts the answer on the wire — which is the
+    // only version of "managed credentials work" that matters.
+    const store = createMemoryProviderAdministrationStore();
+    const cipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      // NO environment credential. If the adapter reached for one it would find
+      // nothing, so a passing assertion cannot be the environment path in
+      // disguise.
+      env: recordEnv({}),
+      store,
+      cipher,
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-wire',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+    const sealed = await cipher.seal(SECRET, {
+      providerKey: 'openai',
+      scope: 'platform',
+      credentialId: 'cred-wire',
+    });
+    await store.putActiveCredential({
+      credentialId: 'cred-wire',
+      configurationId: 'cfg-wire',
+      providerKey: 'openai',
+      credentialName: 'primary',
+      status: 'active',
+      fingerprint: await cipher.fingerprint(SECRET),
+      secretVersion: 1,
+      keyId: sealed.kid,
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      sealed,
+    });
+
+    const headers: Record<string, string>[] = [];
+    const adapter = createOpenAIProvider({
+      env: recordEnv({}),
+      credentials: resolver,
+      clock,
+      fetchImpl: (_url, init) => {
+        headers.push(init.headers as Record<string, string>);
+        return Promise.resolve(
+          Response.json({
+            model: 'gpt-4o-mini',
+            choices: [{ message: { content: 'OK' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+        );
+      },
+    });
+
+    await resolver.refresh();
+    assert.equal(adapter.hasCredentials(), true);
+    assert.equal(adapter.credentialStatus?.().source, 'managed');
+
+    await adapter.invoke({
+      requestId: 'req-wire',
+      correlationId: 'cor-wire',
+      modelId: 'gpt-4o-mini',
+      generation: {
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        maxOutputTokens: 8,
+        responseFormat: 'text',
+      },
+      attempt: 1,
+      signal: new AbortController().signal,
+    });
+
+    assert.equal(headers.length, 1, 'exactly one attempt');
+    assert.equal(headers[0]!.Authorization, `Bearer ${SECRET}`);
+  });
+
+  it('carries an environment credential to the vendor request unchanged', async () => {
+    // The compatibility path, end to end. This is the behaviour production has
+    // today, and Batch 4C must not alter it: no managed store, no cipher, the
+    // adapter reads its deployment variable and puts it on the wire.
+    const headers: Record<string, string>[] = [];
+    const adapter = createOpenAIProvider({
+      env: recordEnv({ OPENAI_API_KEY: SECRET }),
+      clock,
+      fetchImpl: (_url, init) => {
+        headers.push(init.headers as Record<string, string>);
+        return Promise.resolve(
+          Response.json({
+            model: 'gpt-4o-mini',
+            choices: [{ message: { content: 'OK' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+        );
+      },
+    });
+
+    assert.equal(adapter.credentialStatus?.().source, 'environment');
+
+    await adapter.invoke({
+      requestId: 'req-env',
+      correlationId: 'cor-env',
+      modelId: 'gpt-4o-mini',
+      generation: {
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        maxOutputTokens: 8,
+        responseFormat: 'text',
+      },
+      attempt: 1,
+      signal: new AbortController().signal,
+    });
+
+    assert.equal(headers[0]!.Authorization, `Bearer ${SECRET}`);
+  });
+
+  it('reaches no vendor at all when nothing is configured', async () => {
+    let called = 0;
+    const adapter = createAnthropicProvider({
+      env: recordEnv({}),
+      clock,
+      fetchImpl: () => {
+        called += 1;
+        return Promise.resolve(Response.json({}));
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        adapter.invoke({
+          requestId: 'req-none',
+          correlationId: 'cor-none',
+          modelId: 'claude-haiku-4-5-20251001',
+          generation: {
+            messages: [{ role: 'user', content: 'ping' }],
+            temperature: 0,
+            maxOutputTokens: 8,
+            responseFormat: 'text',
+          },
+          attempt: 1,
+          signal: new AbortController().signal,
+        }),
+      (error: unknown) => {
+        assert.equal((error as AIError).code, 'PROVIDER_AUTH_FAILED');
+        // The diagnostic names the SHAPE of the problem, never a value.
+        assert.ok(!(error as AIError).diagnostics?.includes(SECRET));
+        return true;
+      },
+    );
+    assert.equal(called, 0, 'no vendor call was attempted');
+  });
+
   it('reports a provider that needs no credential as configured, not as missing', () => {
     const mock = createMockProvider({ providerId: 'mock' });
     assert.equal(mock.descriptor.credential.required, false);
