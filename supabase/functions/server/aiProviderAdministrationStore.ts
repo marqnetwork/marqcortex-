@@ -71,6 +71,10 @@ import type { SealedSecret } from './ai/index.ts';
 export interface ProviderStoreClient {
   schema(name: string): {
     from(table: string): ProviderStoreTable;
+    rpc(
+      name: string,
+      params: Record<string, unknown>,
+    ): Promise<{ error: { message: string } | null }>;
   };
 }
 
@@ -310,36 +314,35 @@ export function createSupabaseProviderAdministrationStore(
     },
 
     async putActiveCredential(record) {
-      // Supersede first, insert second. The partial unique index
-      // `ai_provider_credential_one_active` REFUSES a second active row, so
-      // doing it the other way round would fail the insert rather than produce
-      // two active credentials — the database is the arbiter here, and this
-      // order is what makes the ordinary path succeed rather than what makes
-      // the invariant hold.
-      const supersede = await table(CREDENTIAL_TABLE)
-        .update({ status: 'superseded', updated_at: record.createdAt })
-        .eq('configuration_id', record.configurationId)
-        .eq('status', 'active');
-      if (supersede.error) fail('putActiveCredential.supersede', supersede.error.message);
-
-      const { error } = await table(CREDENTIAL_TABLE).insert({
-        id: record.credentialId,
-        configuration_id: record.configurationId,
-        credential_name: record.credentialName,
-        encrypted_secret: record.sealed,
-        key_id: record.keyId,
-        fingerprint: record.fingerprint,
-        last_four: record.lastFour ?? null,
-        secret_version: record.secretVersion,
-        status: 'active',
-        created_at: record.createdAt,
-        updated_at: record.updatedAt,
-        rotated_at: record.rotatedAt ?? null,
-        created_by: record.createdBy,
-      });
+      // ONE TRANSACTION, THROUGH ONE FUNCTION CALL.
+      //
+      // Supersede-then-insert as two PostgREST calls is two transactions, and
+      // anything failing between them leaves the configuration with ZERO active
+      // credentials — after which the runtime silently resolves the deployment
+      // environment variable instead, while the console reports a successful
+      // rotation. `cortex.ai_provider_credential_activate` does both statements
+      // in one plpgsql body so a failure rolls the supersede back with it.
+      //
+      // The partial unique index still guarantees at most one active row. What
+      // this supplies is atomicity in reaching that state.
+      const { error } = await options.client
+        .schema(SCHEMA)
+        .rpc('ai_provider_credential_activate', {
+          p_credential_id: record.credentialId,
+          p_configuration_id: record.configurationId,
+          p_credential_name: record.credentialName,
+          p_encrypted_secret: record.sealed,
+          p_key_id: record.keyId,
+          p_fingerprint: record.fingerprint,
+          p_last_four: record.lastFour ?? null,
+          p_secret_version: record.secretVersion,
+          p_created_at: record.createdAt,
+          p_rotated_at: record.rotatedAt ?? null,
+          p_created_by: record.createdBy,
+        });
       // The message is the database's, which names constraints and columns and
       // never row values. The sealed record is not in it and is not added.
-      if (error) fail('putActiveCredential.insert', error.message);
+      if (error) fail('putActiveCredential', error.message);
     },
 
     async revokeCredential(configurationId, credentialId, at, by) {

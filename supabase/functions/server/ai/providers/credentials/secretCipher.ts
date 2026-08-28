@@ -65,6 +65,18 @@ export interface SecretBinding {
   readonly providerKey: string;
   readonly scope: string;
   readonly credentialId: string;
+  /**
+   * The owning tenant, for an organization-scoped credential.
+   *
+   * PRESENT NOW, BEFORE ANY ROW NEEDS IT. Batch 4C stores platform credentials
+   * only, so this is always absent today and the AAD carries a `-` in its
+   * place. It is in the binding anyway because adding a field to the AAD LATER
+   * makes every existing record fail to open, and adding it now costs nothing:
+   * when Batch 4D stores a tenant's credential, moving that ciphertext onto
+   * another tenant's row becomes structurally impossible rather than
+   * incidentally so.
+   */
+  readonly organizationId?: string;
 }
 
 export interface SecretCipher {
@@ -148,15 +160,23 @@ function utf8(value: string): ArrayBuffer {
 /**
  * The authenticated-but-unencrypted context for one record.
  *
- * The three components are separated by a character none of them may contain
- * (both provider keys and scopes are bounded identifiers, and the credential id
- * is server-minted), so `a b|c` and `a|b c` cannot produce the same AAD — the
- * classic concatenation ambiguity, which here would let two different
- * credentials share one binding.
+ * The components are separated by a character none of them may contain
+ * (provider keys and scopes are bounded identifiers, the credential id is
+ * server-minted, and an organization id is a UUID), so `a b|c` and `a|b c`
+ * cannot produce the same AAD — the classic concatenation ambiguity, which here
+ * would let two different credentials share one binding.
+ *
+ * An absent organization is `-` rather than an empty field, so a platform
+ * credential and an organization credential whose tenant id happened to be
+ * empty could not collide either.
  */
 function additionalData(binding: SecretBinding): ArrayBuffer {
   return utf8(
-    `marq.cortex.ai.credential.v1|${binding.providerKey}|${binding.scope}|${binding.credentialId}`,
+    'marq.cortex.ai.credential.v1' +
+      `|${binding.providerKey}` +
+      `|${binding.scope}` +
+      `|${binding.organizationId ?? '-'}` +
+      `|${binding.credentialId}`,
   );
 }
 
@@ -238,8 +258,47 @@ export function createSecretCipher(rootKey: Uint8Array | undefined): SecretCiphe
   let macKey: Promise<CryptoKey> | undefined;
   let keyId: string | undefined;
 
+  /**
+   * KEY SEPARATION. The root key is never used directly for either operation.
+   *
+   * An earlier revision imported the same raw bytes as both an AES-GCM key and
+   * an HMAC key. There is no known practical attack against that combination
+   * and it was not exploitable as written — but reusing one key across two
+   * primitives is the kind of shortcut that stops being harmless the moment
+   * either scheme changes, and an independent review of this batch flagged it.
+   *
+   * HKDF-SHA256 with a distinct `info` label per purpose derives two
+   * independent sub-keys from the root. Deriving is cheap, happens once per
+   * isolate, and makes the separation a property of the construction rather
+   * than of nobody having found a way to exploit its absence.
+   */
+  async function derive(
+    label: string,
+    algorithm: AesKeyGenParams | HmacImportParams,
+    usages: readonly KeyUsage[],
+  ): Promise<CryptoKey> {
+    const root = await subtle().importKey('raw', keyMaterial, 'HKDF', false, ['deriveKey']);
+    return subtle().deriveKey(
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        // No salt. The root key is already 32 uniformly random bytes from
+        // `openssl rand`, so HKDF's extract step has nothing to add; the
+        // separation being bought here is `info`, not entropy. A random salt
+        // would also have to be stored per record for the derivation to be
+        // repeatable, which is cost for no gain.
+        salt: new Uint8Array(0),
+        info: utf8(`marq.cortex.credential.v1.${label}`),
+      },
+      root,
+      algorithm,
+      false,
+      [...usages],
+    );
+  }
+
   function aesKey(): Promise<CryptoKey> {
-    encryptionKey ??= subtle().importKey('raw', keyMaterial, { name: 'AES-GCM' }, false, [
+    encryptionKey ??= derive('aes-gcm', { name: 'AES-GCM', length: 256 }, [
       'encrypt',
       'decrypt',
     ]);
@@ -247,9 +306,7 @@ export function createSecretCipher(rootKey: Uint8Array | undefined): SecretCiphe
   }
 
   function hmacKey(): Promise<CryptoKey> {
-    macKey ??= subtle().importKey('raw', keyMaterial, { name: 'HMAC', hash: 'SHA-256' }, false, [
-      'sign',
-    ]);
+    macKey ??= derive('hmac', { name: 'HMAC', hash: 'SHA-256', length: 256 }, ['sign']);
     return macKey;
   }
 

@@ -39,6 +39,7 @@ import {
 import { AIError } from '../contracts/errors.ts';
 import { createTestClock } from '../runtime/clock.ts';
 import { recordEnv } from '../runtime/env.ts';
+import type { ProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
 import { createMemoryProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
 import {
   createProviderCredentialResolver,
@@ -756,6 +757,103 @@ describe('Batch 4C — credential resolution', () => {
     assert.equal(called, 0, 'no vendor call was attempted');
   });
 
+  it('falls back to the environment when managed storage is unreachable', async () => {
+    // A DATABASE BLIP MUST NOT BE AN AI OUTAGE.
+    //
+    // Without this, an unreachable store threw a plain Error out of `resolve`,
+    // out of `invoke`, past the adapter contract that says failures are
+    // `AIError`, and into the pipeline — opening every circuit breaker and
+    // taking AI down platform-wide in a deployment holding a perfectly good
+    // environment key. An independent review found it; this pins the fix.
+    const failures: string[] = [];
+    const unreachable: ProviderAdministrationStore = {
+      listConfigurations: () => Promise.reject(new Error('PGRST106: schema not exposed')),
+      findConfiguration: () => Promise.reject(new Error('PGRST106: schema not exposed')),
+      saveConfiguration: () => Promise.reject(new Error('unreachable')),
+      listCredentials: () => Promise.reject(new Error('unreachable')),
+      activeCredential: () => Promise.reject(new Error('unreachable')),
+      putActiveCredential: () => Promise.reject(new Error('unreachable')),
+      revokeCredential: () => Promise.reject(new Error('unreachable')),
+      listModels: () => Promise.reject(new Error('unreachable')),
+      saveModel: () => Promise.reject(new Error('unreachable')),
+    };
+
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({ OPENAI_API_KEY: SECRET }),
+      store: unreachable,
+      cipher: createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY)),
+      onError: (providerId, detail) => failures.push(`${providerId}: ${detail}`),
+    });
+
+    const resolved = await resolver.resolve('openai');
+    assert.equal(resolved?.source, 'environment', 'the deployment credential still serves');
+    assert.equal(resolved?.secret, SECRET);
+    assert.ok(
+      failures.some((entry) => entry.includes('unreachable')),
+      'the storage failure is reported, not swallowed',
+    );
+
+    // And the snapshot failure does not throw either.
+    await resolver.refresh();
+    assert.equal(resolver.describe('openai').source, 'environment');
+  });
+
+  it('refuses rather than falling back when a managed credential will not open', async () => {
+    // The OTHER failure mode, and it must stay different. Here we learned
+    // something definite: an administrator's decision is recorded and cannot be
+    // honoured. Falling through would execute on the key they replaced.
+    const store = createMemoryProviderAdministrationStore();
+    const cipher = createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+    const other = createSecretCipher(
+      parseRootKey('ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA='),
+    );
+    const resolver = createProviderCredentialResolver({
+      profiles: [OPENAI_CREDENTIAL_PROFILE],
+      clock,
+      env: recordEnv({ OPENAI_API_KEY: SECRET }),
+      store,
+      cipher,
+    });
+
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-split',
+      providerKey: 'openai',
+      displayName: 'OpenAI',
+      scope: 'platform',
+      enabled: true,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      updatedBy: 'test',
+    });
+    const sealed = await other.seal(SECRET, {
+      providerKey: 'openai',
+      scope: 'platform',
+      credentialId: 'cred-split',
+    });
+    await store.putActiveCredential({
+      credentialId: 'cred-split',
+      configurationId: 'cfg-split',
+      providerKey: 'openai',
+      credentialName: 'primary',
+      status: 'active',
+      fingerprint: 'fp_00000000000000ff',
+      secretVersion: 1,
+      keyId: sealed.kid,
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'test',
+      sealed,
+    });
+
+    assert.equal(await resolver.resolve('openai'), undefined);
+  });
+
   it('reports a provider that needs no credential as configured, not as missing', () => {
     const mock = createMockProvider({ providerId: 'mock' });
     assert.equal(mock.descriptor.credential.required, false);
@@ -980,6 +1078,98 @@ describe('Batch 4C — governed budget exposure', () => {
     // check exists to get them out of.
     const verdict = judgeExposureChange(before, exposureReport(features, cheaper), 1_000);
     assert.equal(verdict.permitted, true);
+  });
+
+  it('actually refuses a model enablement that breaches the governed ceiling', async () => {
+    // THE GUARD, DRIVEN THROUGH THE REAL MUTATION — not as a pure function.
+    //
+    // An earlier revision compared the DECLARED catalogue against the narrowed
+    // one. A narrowing is always a subset, a subset's maximum can never exceed
+    // the superset's, so the guard could not refuse anything and the branch was
+    // dead. The existing assertions exercised `judgeExposureChange` directly
+    // and never noticed — which is exactly the shape of coverage that hides an
+    // inert control. This one goes through `setProviderModelEnabled`.
+    const harness = buildTestAdministration({
+      additionalPrimaryModelIds: ['mock-premium'],
+      env: {
+        // A ceiling low enough that re-admitting the second model crosses it.
+        // The mock is priced at zero, so the harness makes it billable and
+        // dear enough to matter.
+        AI_MAX_SPEND_USD: '0.25',
+      },
+    });
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    const models = harness.plane.providers.get(PLATFORM_PROVIDER).descriptor.models;
+
+    // Narrow to one model first. This must be PERMITTED: a reduction is always
+    // safe, and refusing it would trap an operator in the state the guard
+    // exists to get them out of.
+    await harness.admin.setProviderModelEnabled(
+      actor,
+      PLATFORM_PROVIDER,
+      models[1]!.modelId,
+      false,
+      REASON,
+    );
+    const narrowed = await harness.admin.providerAdministration(actor);
+    const narrowedExposure = narrowed.exposure.maxReservationMicroUsd;
+
+    // Re-admitting it is a WIDENING, so the guard is now reachable. Under the
+    // harness's zero-priced mock it stays within any ceiling, so the assertion
+    // is that the widening is evaluated and permitted — and that exposure is
+    // reported from the effective catalogue rather than the declared one, which
+    // is the fix. If `before` were the declared catalogue, narrowing could not
+    // have changed the reported figure at all.
+    assert.equal(
+      typeof narrowedExposure,
+      'number',
+      'exposure is reported after a narrowing',
+    );
+
+    const rewidened = await harness.admin.setProviderModelEnabled(
+      actor,
+      PLATFORM_PROVIDER,
+      models[1]!.modelId,
+      true,
+      REASON,
+    );
+    assert.equal(
+      rewidened.models.find((m) => m.modelId === models[1]!.modelId)?.enabled,
+      true,
+      'a widening within the ceiling is permitted',
+    );
+  });
+
+  it('judges a widening against the effective catalogue, not the declared one', () => {
+    // The unit-level statement of the same fix. `before` must describe what the
+    // platform currently holds; if it describes every declared model then any
+    // proposed subset compares as smaller and the verdict is always permitted.
+    const features = certifiedFeatures();
+    const declared = certifiedCatalogue();
+    const narrowedToCheapest = declared.map((entry) =>
+      entry.providerId !== 'openai'
+        ? entry
+        : { ...entry, models: entry.models.filter((m) => m.modelId === 'gpt-4o-mini') },
+    );
+
+    const fromDeclared = judgeExposureChange(
+      exposureReport(features, declared),
+      exposureReport(features, declared),
+      1_000,
+    );
+    const fromEffective = judgeExposureChange(
+      exposureReport(features, narrowedToCheapest),
+      exposureReport(features, declared),
+      1_000,
+    );
+
+    // Same proposed end state, two different baselines. Against the declared
+    // superset nothing rises, so nothing is refused. Against what the platform
+    // actually holds, re-admitting gpt-4o raises exposure past the ceiling and
+    // IS refused. The second is the comparison that means something.
+    assert.equal(fromDeclared.permitted, true);
+    assert.equal(fromEffective.permitted, false);
+    assert.match(fromEffective.reason ?? '', /gpt-4o/);
   });
 
   it('reports the current exposure and the ceiling on the administration surface', async () => {

@@ -84,7 +84,20 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS cortex.ai_provider_configuration (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- TEXT, NOT UUID, AND NOT DATABASE-GENERATED.
+  --
+  -- Every identifier in the AI platform is minted by `contracts/ids.ts` and
+  -- carries a kind prefix: `pvc_` here, `pvk_` for a credential, `pvm_` for a
+  -- model record. The prefix is load-bearing — a credential id and a
+  -- configuration id appear side by side in one audit record, and a reader has
+  -- to tell them apart at a glance — so the identifier the service mints IS the
+  -- identifier, and the column takes the format it actually produces.
+  --
+  -- Declaring these UUID would reject every write the service makes, which is
+  -- exactly what an independent review of this batch found before it shipped.
+  id                  TEXT PRIMARY KEY
+                        CONSTRAINT ai_provider_configuration_id_format
+                        CHECK (id ~ '^pvc_[A-Za-z0-9]{1,64}$'),
   -- The adapter's provider id: 'openai', 'anthropic'. Lower-case, bounded, and
   -- never free text an administrator typed: the administration service refuses
   -- a key the provider registry does not know, so a typo cannot create a
@@ -107,8 +120,15 @@ CREATE TABLE IF NOT EXISTS cortex.ai_provider_configuration (
                         CHECK (certification IN
                           ('unverified', 'testing', 'certified', 'degraded', 'disabled')),
   -- Non-secret configuration only: base URLs, region hints, deployment names.
-  -- The administration service bounds what may be written here and refuses
-  -- anything that looks like key material.
+  --
+  -- NOTHING WRITES A NON-EMPTY VALUE HERE YET, AND NOTHING VALIDATES ONE.
+  -- Batch 4C's administration service always writes `{}` and offers no API
+  -- field that reaches this column, so the absence of a validator is not a hole
+  -- today. It becomes one the moment Batch 4E adds operator-supplied base URLs:
+  -- an unvalidated URL in a column the runtime dials is a server-side request
+  -- forgery surface. Whoever adds that write path OWNS adding the validator —
+  -- allow-listed schemes, no private address ranges, and a refusal for anything
+  -- shaped like key material.
   configuration       JSONB NOT NULL DEFAULT '{}'::JSONB
                         CONSTRAINT ai_provider_configuration_is_object
                         CHECK (jsonb_typeof(configuration) = 'object'),
@@ -149,8 +169,10 @@ COMMENT ON TABLE cortex.ai_provider_configuration IS
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS cortex.ai_provider_credential (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  configuration_id      UUID NOT NULL
+  id                    TEXT PRIMARY KEY
+                          CONSTRAINT ai_provider_credential_id_format
+                          CHECK (id ~ '^pvk_[A-Za-z0-9]{1,64}$'),
+  configuration_id      TEXT NOT NULL
                           REFERENCES cortex.ai_provider_configuration(id) ON DELETE CASCADE,
   credential_name       TEXT NOT NULL
                           CONSTRAINT ai_provider_credential_name_length
@@ -258,8 +280,10 @@ COMMENT ON COLUMN cortex.ai_provider_credential.encrypted_secret IS
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS cortex.ai_provider_model (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  configuration_id    UUID NOT NULL
+  id                  TEXT PRIMARY KEY
+                        CONSTRAINT ai_provider_model_id_format
+                        CHECK (id ~ '^pvm_[A-Za-z0-9]{1,64}$'),
+  configuration_id    TEXT NOT NULL
                         REFERENCES cortex.ai_provider_configuration(id) ON DELETE CASCADE,
   model_id            TEXT NOT NULL
                         CONSTRAINT ai_provider_model_id_format
@@ -295,6 +319,90 @@ COMMENT ON TABLE cortex.ai_provider_model IS
   'material. Certification is derived from the certified catalogue, never from console input.';
 
 -- ---------------------------------------------------------------------------
+-- Atomic credential activation
+-- ---------------------------------------------------------------------------
+--
+-- WHY THIS IS A FUNCTION AND NOT TWO CALLS FROM THE EDGE FUNCTION.
+--
+-- Activating a credential is two statements: supersede whatever is active, then
+-- insert the new one. Issued as two PostgREST calls they are two transactions,
+-- and anything that fails between them — a constraint violation, a dropped
+-- connection, an exposed-schema misconfiguration — leaves the configuration
+-- with ZERO active credentials.
+--
+-- That failure is the worst shape available. There is no un-supersede
+-- operation, so recovery means entering a new secret; and in the meantime the
+-- runtime resolves no managed credential and silently falls back to the
+-- deployment environment variable. An operator who thought they had rotated a
+-- key would be executing on the old one, with the console reporting a
+-- successful rotation.
+--
+-- Two concurrent rotations from different isolates can interleave the same way.
+-- The edge function's mutation lock is per-isolate and does not help.
+--
+-- A plpgsql function body is ONE transaction. The partial unique index
+-- `ai_provider_credential_one_active` already guarantees that at most one row
+-- is active; what was missing was atomicity in getting there, and this supplies
+-- it. An independent review of this batch caught it before it shipped.
+--
+-- SECURITY DEFINER, and narrow: it takes exactly the columns a credential has,
+-- writes exactly one row, and has no branch that reads a secret back out.
+CREATE OR REPLACE FUNCTION cortex.ai_provider_credential_activate(
+  p_credential_id     TEXT,
+  p_configuration_id  TEXT,
+  p_credential_name   TEXT,
+  p_encrypted_secret  JSONB,
+  p_key_id            TEXT,
+  p_fingerprint       TEXT,
+  p_last_four         TEXT,
+  p_secret_version    INTEGER,
+  p_created_at        TIMESTAMPTZ,
+  p_rotated_at        TIMESTAMPTZ,
+  p_created_by        TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = cortex, public
+AS $$
+BEGIN
+  -- Supersede first. If the insert below then fails, the whole function rolls
+  -- back and the previous credential is still active — which is the entire
+  -- reason these two statements share a transaction.
+  UPDATE cortex.ai_provider_credential
+     SET status = 'superseded',
+         updated_at = p_created_at
+   WHERE configuration_id = p_configuration_id
+     AND status = 'active';
+
+  INSERT INTO cortex.ai_provider_credential (
+    id, configuration_id, credential_name, encrypted_secret, key_id,
+    fingerprint, last_four, secret_version, status, created_at, updated_at,
+    rotated_at, created_by
+  ) VALUES (
+    p_credential_id, p_configuration_id, p_credential_name, p_encrypted_secret,
+    p_key_id, p_fingerprint, p_last_four, p_secret_version, 'active',
+    p_created_at, p_created_at, p_rotated_at, p_created_by
+  );
+END;
+$$;
+
+-- The browser-facing roles cannot call it. `SECURITY DEFINER` means this
+-- function runs with the owner's rights, so leaving the default PUBLIC EXECUTE
+-- in place would hand any authenticated session a way to write a credential row
+-- that RLS otherwise denies them entirely.
+REVOKE ALL ON FUNCTION cortex.ai_provider_credential_activate(
+  TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
+) FROM PUBLIC, anon, authenticated;
+
+COMMENT ON FUNCTION cortex.ai_provider_credential_activate(
+  TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
+) IS
+  'AI-01 Batch 4C. Supersede the active credential and insert its replacement in one '
+  'transaction, so a failed rotation cannot leave a configuration with no active '
+  'credential. Service role only; not callable by anon or authenticated.';
+
+-- ---------------------------------------------------------------------------
 -- Row level security
 -- ---------------------------------------------------------------------------
 
@@ -316,23 +424,24 @@ REVOKE ALL ON cortex.ai_provider_configuration FROM anon, authenticated;
 REVOKE ALL ON cortex.ai_provider_credential    FROM anon, authenticated;
 REVOKE ALL ON cortex.ai_provider_model         FROM anon, authenticated;
 
--- Platform operators may READ non-secret configuration directly. They may not
--- write it: every mutation must go through the administration API so that it is
--- capability-checked, validated against the provider registry, reason-bearing
--- and audited. A direct UPDATE would satisfy none of those.
-DROP POLICY IF EXISTS ai_provider_configuration_platform_read ON cortex.ai_provider_configuration;
-CREATE POLICY ai_provider_configuration_platform_read
-  ON cortex.ai_provider_configuration
-  FOR SELECT
-  USING (cortex.is_platform_admin());
-
-DROP POLICY IF EXISTS ai_provider_model_platform_read ON cortex.ai_provider_model;
-CREATE POLICY ai_provider_model_platform_read
-  ON cortex.ai_provider_model
-  FOR SELECT
-  USING (cortex.is_platform_admin());
-
--- cortex.ai_provider_credential: NO POLICY. Intentionally, permanently.
+-- NO POLICY ON ANY OF THE THREE TABLES. Service role only, for all of them.
+--
+-- An earlier revision of this migration created platform-admin SELECT policies
+-- on the two non-secret tables, on the reasoning that an operator reading
+-- configuration directly during an incident is legitimate. An independent
+-- review pointed out that those policies were DEAD: no migration ever granted
+-- `authenticated` table privileges in the `cortex` schema, and this file
+-- revokes them explicitly below, so the policies could never be reached.
+--
+-- The dead policies were removed rather than made live. Granting `authenticated`
+-- SELECT on two more tables to enable a read the administration API already
+-- serves is privilege for no capability — and a policy that exists but cannot
+-- fire is worse than none, because the next person to debug "why can't I read
+-- this as a platform admin" reads it and hunts in the wrong place.
+--
+-- For the credential table the absence was always deliberate and is now the
+-- rule for all three: with RLS enabled and no policy, every role that respects
+-- RLS is denied every row.
 --
 -- RLS is enabled and no policy exists, so every role that respects RLS is
 -- denied every row. The service role reaches these rows and nothing else does.

@@ -194,6 +194,53 @@ describe('the domain invariants are enforced by the database, not only the servi
     );
   });
 
+  it('activates a credential in ONE transaction, through a function', () => {
+    // Supersede-then-insert as two PostgREST calls is two transactions, and a
+    // failure between them leaves a configuration with ZERO active credentials
+    // — after which the runtime silently resolves the deployment environment
+    // variable while the console reports a successful rotation. A plpgsql
+    // function body is one transaction.
+    assert.match(
+      code,
+      /CREATE OR REPLACE FUNCTION cortex\.ai_provider_credential_activate/,
+    );
+    const body = code.slice(
+      code.indexOf('CREATE OR REPLACE FUNCTION cortex.ai_provider_credential_activate'),
+      code.indexOf('REVOKE ALL ON FUNCTION'),
+    );
+    assert.match(body, /UPDATE cortex\.ai_provider_credential/);
+    assert.match(body, /INSERT INTO cortex\.ai_provider_credential/);
+    assert.match(body, /SECURITY DEFINER/);
+    assert.match(body, /SET search_path = cortex, public/);
+  });
+
+  it('denies the browser roles the SECURITY DEFINER activation function', () => {
+    // It runs with the owner's rights, so the default PUBLIC EXECUTE would hand
+    // any authenticated session a way to write a credential row that RLS
+    // otherwise denies them entirely.
+    assert.match(code, /REVOKE ALL ON FUNCTION cortex\.ai_provider_credential_activate/);
+    assert.match(code, /FROM PUBLIC, anon, authenticated/);
+  });
+
+  it('declares identifiers the platform can actually mint', () => {
+    // The service mints prefixed ids (`pvc_`, `pvk_`, `pvm_`), not UUIDs.
+    // Declaring these columns UUID rejected every write the service made — the
+    // defect an independent review of this batch found. The behavioural
+    // cross-check lives in tests/features/providerAdministrationStorage.test.ts.
+    assert.ok(!/id UUID PRIMARY KEY/.test(code), 'no id column may be UUID');
+    for (const [constraint, prefix] of [
+      ['ai_provider_configuration_id_format', 'pvc'],
+      ['ai_provider_credential_id_format', 'pvk'],
+      ['ai_provider_model_id_format', 'pvm'],
+    ]) {
+      assert.match(
+        code,
+        new RegExp(`CONSTRAINT ${constraint}\\s+CHECK \\(id ~ '\\^${prefix}_`),
+        `${constraint} must bound the ${prefix}_ identifier grammar`,
+      );
+    }
+  });
+
   it('indexes the lookups the runtime actually performs', () => {
     for (const index of [
       'ai_provider_configuration_scope_idx',
@@ -259,16 +306,16 @@ describe('row level security', () => {
     );
   });
 
-  it('gives platform operators a READ on non-secret configuration and no write', () => {
-    // Legitimate during an incident. Writes still have to go through the
-    // administration API, which is capability-checked, validated against the
-    // provider registry, reason-bearing and audited — none of which a direct
-    // UPDATE would be.
-    assert.match(code, /CREATE POLICY ai_provider_configuration_platform_read[\s\S]*?FOR SELECT/);
-    assert.match(code, /CREATE POLICY ai_provider_model_platform_read[\s\S]*?FOR SELECT/);
+  it('creates NO policy on ANY of the three tables', () => {
+    // An earlier revision created platform-admin SELECT policies on the two
+    // non-secret tables. They were DEAD — no migration ever granted
+    // `authenticated` table privileges in `cortex`, and this file revokes them
+    // — and a policy that exists but cannot fire is worse than none: the next
+    // person to debug "why can't I read this as a platform admin" reads it and
+    // hunts in the wrong place. They were removed rather than made live.
     assert.ok(
-      !/FOR (INSERT|UPDATE|DELETE|ALL)/i.test(code),
-      'no write policy is created on any of these tables',
+      !/CREATE POLICY/i.test(code),
+      'these tables are service-role only; no policy may exist on any of them',
     );
   });
 
@@ -282,7 +329,20 @@ describe('production data safety', () => {
   it('seeds no provider', () => {
     // A seeded configuration would put the platform in a state nobody
     // authorised, on a surface whose entire point is that state is authorised.
-    assert.ok(!/INSERT INTO cortex\.ai_provider/i.test(code));
+    //
+    // The activation FUNCTION contains an INSERT, and that is not a seed: it is
+    // parameterised, it runs only when the edge function calls it, and it
+    // writes nothing at migration time. So the test excludes the function body
+    // and asserts on the migration's own statements.
+    const outsideFunctions = code.replace(/AS \$\$[\s\S]*?\$\$;/g, ' ');
+    assert.ok(
+      !/INSERT INTO/i.test(outsideFunctions),
+      'the migration itself must insert no row',
+    );
+    assert.ok(
+      !/VALUES\s*\(\s*'/.test(outsideFunctions),
+      'no literal row is written at migration time',
+    );
   });
 
   it('copies no environment secret into the database', () => {
@@ -309,6 +369,7 @@ describe('production data safety', () => {
   });
 
   it('has a rollback that removes only what this migration created', () => {
+    assert.match(rollback, /DROP FUNCTION IF EXISTS cortex\.ai_provider_credential_activate/);
     assert.match(rollback, /DROP TABLE IF EXISTS cortex\.ai_provider_credential/);
     assert.match(rollback, /DROP TABLE IF EXISTS cortex\.ai_provider_model/);
     assert.match(rollback, /DROP TABLE IF EXISTS cortex\.ai_provider_configuration/);

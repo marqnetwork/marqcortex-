@@ -164,8 +164,15 @@ function reasonOf(body: Record<string, unknown>): unknown {
   return body.reason;
 }
 
-/** A bounded identifier from a body. Never a free-form string. */
-function optionalId(value: unknown): string | undefined {
+/**
+ * A bounded identifier from a PATH parameter.
+ *
+ * Bounded even though it comes from the route table, because a path segment is
+ * still caller-controlled: it reaches the administrative audit record's
+ * `target`, which — unlike `reason` — has no length cap of its own. An
+ * oversized segment would inflate an audit record rather than be refused.
+ */
+function boundedId(value: string | undefined): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed === '' ? undefined : trimmed.slice(0, 160);
@@ -180,12 +187,13 @@ function optionalId(value: unknown): string | undefined {
  * operation and the audit target is derived from this value.
  */
 function requireProviderId(request: AdminHttpRequest): string {
-  if (!request.providerId) {
+  const providerId = boundedId(request.providerId);
+  if (providerId === undefined) {
     throw new AIError('VALIDATION_FAILED', 'A provider id is required.', {
       fields: ['providerId'],
     });
   }
-  return request.providerId;
+  return providerId;
 }
 
 export async function executeAdminHttpRequest(
@@ -329,7 +337,13 @@ export async function executeAdminHttpRequest(
       }
 
       case ADMIN_OPERATION.providerRevokeCredential: {
-        const credentialId = request.credentialId ?? optionalId(body.credentialId);
+        // PATH ONLY. There was a `?? optionalId(body.credentialId)` fallback
+        // here; the route table always supplies the path value so it was
+        // unreachable, but its existence contradicted this surface's own
+        // guarantee that the audit target cannot be steered by a request body —
+        // and it would have quietly re-enabled body-steering for any future
+        // route registered without a path extractor.
+        const credentialId = boundedId(request.credentialId);
         if (credentialId === undefined) {
           throw new AIError('VALIDATION_FAILED', 'A credential id is required.', {
             fields: ['credentialId'],
@@ -347,7 +361,8 @@ export async function executeAdminHttpRequest(
       }
 
       case ADMIN_OPERATION.providerSetModelEnabled: {
-        const modelId = request.modelId ?? optionalId(body.modelId);
+        // PATH ONLY — see the note on credential revocation above.
+        const modelId = boundedId(request.modelId);
         if (modelId === undefined) {
           throw new AIError('VALIDATION_FAILED', 'A model id is required.', {
             fields: ['modelId'],

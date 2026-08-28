@@ -381,12 +381,45 @@ export function createProviderAdministration(
     return registered;
   }
 
+  /**
+   * Every model every registered provider DECLARES.
+   *
+   * This is the catalogue the spend guard reserves against — deliberately, and
+   * documented in `spendGuard.ts`: a disabled provider can be enabled between
+   * the estimate and the call, so an estimate that assumed otherwise would
+   * under-reserve exactly when configuration is in flux. It is therefore the
+   * right catalogue for REPORTING the platform's exposure.
+   */
   function currentCatalogue(): readonly ExposureCatalogueEntry[] {
     return plane.providers.list().map((provider) => ({
       providerId: provider.descriptor.providerId,
       billable: provider.descriptor.billable,
       models: provider.descriptor.models,
     }));
+  }
+
+  /**
+   * Every model an administrator has actually left enabled.
+   *
+   * This is the right catalogue for JUDGING A CHANGE, and the distinction is
+   * not academic: comparing a proposed narrowing against the declared catalogue
+   * compares a subset to its superset, which can never be larger, which made
+   * the exposure guard incapable of refusing anything.
+   */
+  function effectiveCatalogue(): readonly ExposureCatalogueEntry[] {
+    const settings = options.liveSettings();
+    return plane.providers.list().map((provider) => {
+      const { providerId } = provider.descriptor;
+      const allowList = settings.providers[providerId]?.modelAllowList ?? [];
+      return {
+        providerId,
+        billable: provider.descriptor.billable,
+        models:
+          allowList.length === 0
+            ? provider.descriptor.models
+            : provider.descriptor.models.filter((model) => allowList.includes(model.modelId)),
+      };
+    });
   }
 
   function currentExposure(): ExposureReport {
@@ -448,7 +481,19 @@ export function createProviderAdministration(
     }
     if (!view.eligible) return `Not currently eligible: ${view.selectionReason}.`;
     if (view.credential.source === 'environment') {
-      return 'In service on a deployment-managed credential. Rotating it requires a deploy.';
+      // NAMED, and named for a specific failure. An operator who has just
+      // REVOKED a managed credential is still being served — by the deployment
+      // variable the runtime falls back to. That is correct behaviour and a
+      // dangerous thing to leave implied: revocation reads as containment, and
+      // if the environment holds the same vendor key it has contained nothing.
+      // So the message says which variable is in force and that Cortex cannot
+      // withdraw it.
+      const variable = view.credential.environmentVariable ?? 'a deployment variable';
+      return (
+        `In service on the deployment-managed credential ${variable}. ` +
+        'Cortex cannot rotate or revoke it — that requires a deploy. ' +
+        'To take this provider out of service now, disable the provider.'
+      );
     }
     return 'In service.';
   }
@@ -838,6 +883,10 @@ export function createProviderAdministration(
             providerKey: configuration.providerKey,
             scope: configuration.scope,
             credentialId,
+            // Absent for a platform configuration, which is every configuration
+            // Batch 4C creates. Passed anyway so the sealing and opening sides
+            // are written against the same binding from the start.
+            organizationId: configuration.organizationId,
           });
           const fingerprint = await options.cipher.fingerprint(secret);
           const lastFour = safeLastFour(secret);
@@ -1021,8 +1070,20 @@ export function createProviderAdministration(
           // takes against the MARQ ceiling. A change that raises it PAST what
           // the deployment governs is refused, with the number named, rather
           // than accepted into a state nobody chose.
-          const before = currentExposure();
-          const hypothetical = currentCatalogue().map((entry) =>
+          //
+          // BOTH SIDES ARE EFFECTIVE CATALOGUES. An earlier revision compared
+          // the DECLARED catalogue (every model of every provider) against the
+          // narrowed one, which made the guard inert: a narrowing is always a
+          // subset, a subset's maximum can never exceed the superset's, so
+          // `raises` was false on every path and nothing could ever be refused.
+          // An independent review of this batch found the dead branch; the
+          // tests had only ever exercised `judgeExposureChange` as a pure
+          // function, which is exactly the shape of coverage that hides it.
+          //
+          // Comparing two REACHABLE states — what the platform will hold before
+          // this change and after it — is what makes the verdict mean something.
+          const before = exposureReport(plane.catalog.list(), effectiveCatalogue());
+          const hypothetical = effectiveCatalogue().map((entry) =>
             entry.providerId !== providerId
               ? entry
               : {

@@ -94,8 +94,16 @@ export interface ProviderCredentialResolver {
    * end of a cache window.
    */
   resolve(providerId: string): Promise<ResolvedProviderCredential | undefined>;
-  /** Re-take the non-secret snapshot. Called after an administrative change. */
-  refresh(): Promise<void>;
+  /**
+   * Re-take the non-secret snapshot.
+   *
+   * `coalesce: true` may join an in-flight refresh and is what the TTL-driven
+   * background path uses. The default takes a FRESH read, because a caller that
+   * awaits this after writing a credential needs a snapshot that saw the write
+   * — joining one that started before it would report the previous state and
+   * then stamp it as current.
+   */
+  refresh(options?: { coalesce?: boolean }): Promise<void>;
   /** Every provider this resolver currently has a snapshot for. */
   snapshot(): readonly ProviderCredentialAvailability[];
 }

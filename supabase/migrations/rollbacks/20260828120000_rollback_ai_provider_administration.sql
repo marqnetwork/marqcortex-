@@ -18,8 +18,11 @@
 
 BEGIN;
 
-DROP POLICY IF EXISTS ai_provider_model_platform_read ON cortex.ai_provider_model;
-DROP POLICY IF EXISTS ai_provider_configuration_platform_read ON cortex.ai_provider_configuration;
+-- The function first: it references the credential table, and dropping the
+-- table under it would leave a broken definition behind.
+DROP FUNCTION IF EXISTS cortex.ai_provider_credential_activate(
+  TEXT, TEXT, TEXT, JSONB, TEXT, TEXT, TEXT, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, TEXT
+);
 
 -- Credentials first: they reference the configuration, and dropping the parent
 -- with CASCADE would take them with it silently. Naming the table here makes

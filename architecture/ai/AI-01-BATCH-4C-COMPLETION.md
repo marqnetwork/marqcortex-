@@ -373,6 +373,10 @@ supabase/migrations/20260828120000_ai_provider_administration.sql
 supabase/migrations/rollbacks/20260828120000_rollback_ai_provider_administration.sql
 ```
 
+The migration also defines `cortex.ai_provider_credential_activate`, a
+`SECURITY DEFINER` function that supersedes and inserts a credential in one
+transaction (review finding H-2).
+
 **New — console**
 ```
 src/app/components/ProviderAdministrationPanel.tsx
@@ -380,11 +384,16 @@ src/app/components/ProviderAdministrationPanel.tsx
 
 **New — tests**
 ```
-ai/__tests__/providerAdministration.test.ts                       45 assertions
+ai/__tests__/providerAdministration.test.ts                       49 assertions
 tests/features/aiObservabilityAuthority.test.ts                   13
 tests/features/providerAdministrationSurface.test.ts              16
-tests/database/static_ai_provider_administration_migration.test.ts 28
+tests/features/providerAdministrationStorage.test.ts               11
+tests/database/static_ai_provider_administration_migration.test.ts 31
 ```
+
+`providerAdministrationStorage.test.ts` exists because of review finding H-1:
+every other suite runs against the in-memory store and is structurally
+incapable of noticing that the durable one speaks to the database incorrectly.
 
 **Modified**
 ```
@@ -421,18 +430,18 @@ architecture/system_map.json    node_count 316
 
 | Suite | Result |
 |---|---|
-| `npm run test:ai` | **1721 pass, 0 fail** |
-| `npm run test:features` | **681 pass, 0 fail** |
+| `npm run test:ai` | **1729 pass, 0 fail** |
+| `npm run test:features` | **692 pass, 0 fail** |
 | `npm run test:system` | **161 pass, 0 fail** |
-| `npm run test:security` | **378 pass, 0 fail** |
-| `npm run test:database` | **163 pass, 0 fail** |
+| `npm run test:security` | **397 pass, 0 fail** |
+| `npm run test:database` | **166 pass, 0 fail** |
 | `npm run scan:boundaries` | **98 pass, 0 fail** |
 | `npm run typecheck:api:ai` | **clean** |
 | `npm run build` | **succeeds** |
 | `npm run verify:ai` | **16/16** |
 | `npm run verify:openai` | **11/12 — LIVE CALL blocked (no credential, by design)** |
 | `npm run verify:anthropic` | **12/13 — LIVE CALL blocked (no credential, by design)** |
-| `npm run verify:4c` | **102 pass, 0 fail** |
+| `npm run verify:4c` | **120 pass, 0 fail** |
 
 `npm run typecheck:web` reports **34 errors, identical to the baseline** — all
 pre-existing, none in any file this batch touched. Verified by stashing the
@@ -454,41 +463,91 @@ change set and re-running.
 
 ## 14. Security findings
 
-**Found and fixed in this batch:** the `/ai/metrics`, `/ai/audit`, `/ai/catalog`
-authority mismatch (§7) — a confirmed cross-tenant read on `/ai/audit`
-reachable by any provisioned team account.
+### Found by this batch's own investigation
 
-**Found and corrected during implementation:** an initial grant of
-`ai.providers.view` to the organization and team tiers, which would have widened
-existing administrators' authority on deploy (§8).
+**The `/ai/metrics`, `/ai/audit`, `/ai/catalog` authority mismatch** (§7) — a
+confirmed cross-tenant read on `/ai/audit` reachable by any provisioned team
+account. Fixed.
 
-**Found and corrected during implementation:** the console's model `enabled` flag
-initially read the stored administration row, which could disagree with the
-runtime allow list after a Batch 2 provider update (§11).
+### Self-caught during implementation
 
-**Found and corrected during implementation:** the operator message reported
-"no model is currently eligible" for an uncertified provider — the symptom
-rather than the cause, and an instruction ("enable a certified model") that
-cannot be followed on a provider where no model can be certified. The synthetic
-mock hit it every time. Certification is now reported before model eligibility.
+Labelled honestly as self-caught rather than presented as review findings.
 
-**No other findings.** Specifically checked and clean: plaintext in responses,
-logs, audit records and errors; base64-as-encryption; IV reuse; ciphertext
-transplantation between rows; a secret-read endpoint; privilege escalation into
-credential management; a second execution path to a vendor; budget bypass;
-environment compatibility regression.
+- An initial grant of `ai.providers.view` to the organization and team tiers,
+  which would have widened existing administrators' authority on deploy (§8).
+  Reversed; caught by the existing exhaustive capability pins.
+- The console's model `enabled` flag initially read the stored administration
+  row, which could disagree with the runtime allow list (§11). Now derived from
+  the runtime.
+- The operator message reported "no model is currently eligible" for an
+  uncertified provider — the symptom rather than the cause, with an instruction
+  that cannot be followed. Certification is now reported first.
+
+### Found by the independent review, and fixed
+
+The review is described in §15. Every finding was reproduced before it was
+fixed, and each fix carries a test that would have caught the original.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| H-1 | HIGH | **Every durable write would have been rejected by Postgres.** The service mints prefixed ids (`pvc_…`); the migration declared the `id` columns `UUID`. Provider administration would have been non-functional in every deployment, on every write path — invisible because the 45 green tests all ran against the in-memory store and the Supabase store had no test at all. | Columns are `TEXT` with a per-table format `CHECK` matching the id grammar the service produces. New suite `providerAdministrationStorage.test.ts` cross-checks minted ids against the migration's own constraint patterns and asserts the wire shape of every write. |
+| H-2 | HIGH | **`putActiveCredential` was two round trips.** Supersede then insert, in two transactions, contradicting the port's own documented contract. Any failure between them left a configuration with ZERO active credentials — after which the runtime silently falls back to the environment variable while the console reports a successful rotation. Two concurrent rotations from different isolates interleave the same way; the mutation lock is per-isolate. | `cortex.ai_provider_credential_activate`, a `SECURITY DEFINER` plpgsql function doing both statements in one transaction, `REVOKE`d from `PUBLIC`, `anon` and `authenticated`. The store issues exactly one call, asserted. |
+| H-3 | HIGH | **A database blip would have become a platform-wide AI outage** — and two comments claimed the opposite. Store reads sat outside the `try` in `resolve`, so a `PGRST106` (the `cortex` schema not exposed) threw a plain `Error` out of every adapter attempt, violating the adapter contract and opening every circuit breaker, in a deployment holding a perfectly good `OPENAI_API_KEY`. Latent only because the root key is unset today; it would have bitten on the day the key was deployed. | Storage failure now reports and falls through to the environment — restoring pre-4C behaviour, which is what the comments promised. A DECRYPT failure still refuses, deliberately: there the platform learned something definite. Both paths pinned by test. |
+| M-1 | MEDIUM | **The governed exposure guard could never refuse anything.** `before` was computed from the DECLARED catalogue and `after` from a narrowing of it; a subset's maximum can never exceed its superset's, so the branch was dead. The tests exercised `judgeExposureChange` as a pure function and never through the mutation — exactly the shape of coverage that hides an inert control. The 105,920 µUSD invariant was intact regardless (it is a function of reviewed code), but the control advertised to protect it did nothing. | Both sides now use the EFFECTIVE catalogue. Two tests: one driving `setProviderModelEnabled`, one showing the same end state permitted against the declared baseline and refused against the effective one. |
+| M-2 | MEDIUM | **Revocation silently reverted to the environment credential.** Revoking a compromised managed key leaves the provider serving on `OPENAI_API_KEY` — plausibly the same vendor key — while the audit trail records a completed containment action. | The operational message now names the variable in force and states that Cortex cannot withdraw it, with the action that does take the provider out of service. |
+| M-3 | MEDIUM | **An explicit refresh could be satisfied by a pre-write snapshot.** `refresh()` coalesced onto any in-flight read, so the refresh awaited after storing a credential could return a promise for the snapshot taken before it — then stamp it as current. For a full TTL the console reported `deployment_managed` beside the new credential's own fingerprint. | Coalescing is now opt-in and used only by the TTL-driven background path. An explicit refresh always takes a fresh read. |
+| M-4 | MEDIUM | `/ai/metrics` and `/ai/catalog` remain reachable by `team_member` and `consultant`, because those roles resolve to the `team_admin` tier which holds `ai.admin.view`. | **Recorded, not changed** — see the follow-up below. |
+| L-1 | LOW | AES-GCM and HMAC shared one raw key with no domain separation. Not exploitable as written. | HKDF-SHA256 with a distinct `info` label derives two independent sub-keys. |
+| L-2 | LOW | `credentialId`/`modelId` had unreachable `?? body.…` fallbacks, contradicting the surface's own "path, never body" guarantee and re-enabling body-steering for any future route registered without a path extractor. | Removed. Path only. |
+| L-3 | LOW | The two platform-admin SELECT policies were DEAD — no migration grants `authenticated` table privileges in `cortex`, and this one revokes them. | Removed rather than made live. All three tables are service-role only, which is the smaller surface and the simpler true statement. |
+| L-4 | LOW | The audit `target` was unbounded on the path routes. | Path ids bounded at the HTTP boundary. |
+| L-5 | LOW | The `configuration` JSONB column claimed a validator that does not exist — harmless today, and precisely the column Batch 4E needs for self-hosted base URLs. | Comment corrected to say plainly that no validator exists and that whoever adds the 4E write path owns adding one. Recorded as an SSRF prerequisite in §18. |
+
+### Confirmed sound by the review
+
+Secret leakage (every path traced — HTTP in, service, storage, audit, logs,
+frontend); encryption construction (IV uniqueness, AAD binding, key length
+refusal, fail-closed); RLS deny-all including the `FORCE`/`BYPASSRLS`
+interaction; privilege escalation (all seven entry points checked); provider
+bypass; the budget invariant; environment compatibility.
+
+### Open follow-up, not fixed here
+
+**M-4 — who holds `ai.admin.view`.** `TEAM_ADMIN_ROLES` includes `team_member`
+and `consultant`, so a rank-and-file team account reads platform-wide AI usage
+volumes and the governed capability surface. The review confirmed that
+`MetricsSnapshot` carries no organization or actor labels, so there is no
+cross-tenant attribution leak — only aggregate platform volumes.
+
+This is a **Batch 2 authority-model question**, not one Batch 4C introduced, and
+narrowing it would change access to the entire `/ai/admin/*` console rather than
+to these three routes. The batch's instruction was to fix the endpoints' use of
+a weaker authority than the AI capability model requires; they now use that
+model exactly. Changing who the model grants `ai.admin.view` to is a separate,
+reviewable decision. **Recommended owner:** a dedicated authority batch.
+
+**One residual with no code fix.** `reason` is operator-typed free text stored
+verbatim on the audit trail. An operator who pastes a key into the reason field
+stores it. Not a defect; worth a console hint.
 
 ---
 
 ## 15. Independent review
 
-An independent review was run in a **separate reviewer context** with no
-knowledge of the implementation reasoning, against the diff and the running
-tests. Its findings are recorded in §14 and in the follow-up notes below.
+An independent review was performed in a **genuinely separate reviewer context**
+— no knowledge of the implementation reasoning, working from the diff, the
+migration and the running tests. It ran the suites itself.
+
+It returned **three HIGH findings, four MEDIUM and five LOW**, all reproduced
+and all but one fixed here (§14). One of the HIGH findings — H-1 — meant the
+feature could not have worked in production at all, and no test in this batch
+could have detected it, because every test ran against the in-memory store.
+That is the single most valuable thing this review produced, and it is the
+reason the batch now carries `providerAdministrationStorage.test.ts`.
 
 The implementing context does **not** claim to be an independent reviewer of its
-own work; the corrections listed in §14 as "found during implementation" were
-self-caught and are labelled as such rather than presented as review findings.
+own work. Findings are attributed accordingly: self-caught corrections are
+labelled as such in §14 and are not presented as review results.
 
 ---
 

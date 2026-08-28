@@ -141,6 +141,9 @@ export function createProviderCredentialResolver(
     }
     const at = options.clock.isoNow();
     const next = new Map<string, ProviderCredentialAvailability>();
+    // Any failure here propagates to `refresh`, which catches it, reports it
+    // and leaves the previous snapshot in place. A snapshot failure degrades
+    // the CONSOLE's view and never execution — `resolve` does not read it.
     const configurations = await options.store.listConfigurations(scope);
     for (const configuration of configurations) {
       const profile = profiles.get(configuration.providerKey);
@@ -165,10 +168,30 @@ export function createProviderCredentialResolver(
     snapshotAtMs = options.clock.now();
   }
 
-  function refresh(): Promise<void> {
-    // One refresh at a time. Ten concurrent requests observing a stale
-    // snapshot should produce one storage read, not ten.
-    refreshInFlight ??= takeSnapshot()
+  /**
+   * Re-take the snapshot.
+   *
+   * `coalesce` is what the TTL-driven background path asks for: ten concurrent
+   * requests observing a stale snapshot should produce one storage read, not
+   * ten.
+   *
+   * An EXPLICIT refresh — the one the administration service awaits after
+   * storing a credential — must not be coalesced onto an in-flight read that
+   * STARTED BEFORE THE WRITE. Doing so returned a promise for the pre-write
+   * snapshot and then stamped it as current, so for a full TTL the console
+   * reported `deployment_managed` and "rotating it requires a deploy" beside
+   * the new credential's own fingerprint, read from durable storage in the same
+   * response. A self-contradicting panel immediately after the most
+   * security-sensitive action on the surface is the worst moment to have one.
+   */
+  function refresh(options?: { coalesce?: boolean }): Promise<void> {
+    if (options?.coalesce !== true) return startRefresh();
+    refreshInFlight ??= startRefresh();
+    return refreshInFlight;
+  }
+
+  function startRefresh(): Promise<void> {
+    const inFlight = takeSnapshot()
       .catch((error: unknown) => {
         // A snapshot failure degrades the CONSOLE's view, never execution:
         // `resolve` reads storage directly and is unaffected. Reported rather
@@ -181,9 +204,12 @@ export function createProviderCredentialResolver(
         snapshotAtMs = options.clock.now();
       })
       .finally(() => {
-        refreshInFlight = undefined;
+        // Only clear the shared slot if it is still this refresh's. An explicit
+        // refresh that overtook a background one must not release the other's.
+        if (refreshInFlight === inFlight) refreshInFlight = undefined;
       });
-    return refreshInFlight;
+    refreshInFlight = inFlight;
+    return inFlight;
   }
 
   function describe(providerId: string): ProviderCredentialAvailability {
@@ -206,10 +232,11 @@ export function createProviderCredentialResolver(
     }
 
     if (managedAvailable && options.clock.now() - snapshotAtMs > ttlMs) {
-      // Deliberately not awaited. `describe` is synchronous by contract, and a
-      // synchronous caller — the selector, the spend guard — must not be made
-      // to wait on storage. The refreshed answer arrives for the next call.
-      void refresh();
+      // Deliberately not awaited, and deliberately COALESCED. `describe` is
+      // synchronous by contract, and a synchronous caller — the selector, the
+      // spend guard — must not be made to wait on storage. The refreshed answer
+      // arrives for the next call.
+      void refresh({ coalesce: true });
     }
 
     const environmentPresent = environmentSecret(options.env, profile) !== undefined;
@@ -244,30 +271,61 @@ export function createProviderCredentialResolver(
       //
       // Read at execution time rather than from the snapshot, so a credential
       // revoked one second ago is not used one second later.
+      //
+      // TWO FAILURE MODES HERE, AND THEY MUST NOT BE TREATED THE SAME.
+      //
+      //   STORAGE IS UNREACHABLE — the database is down, or the `cortex` schema
+      //   is not exposed to the API. We learned NOTHING about whether a managed
+      //   credential exists, so falling through to the deployment environment
+      //   restores exactly the pre-Batch-4C behaviour. That is what makes "a
+      //   deployment whose database is unreachable can still serve" true rather
+      //   than aspirational: without this catch, a `cortex` schema
+      //   misconfiguration would throw out of every adapter attempt, open every
+      //   circuit breaker, and take AI down platform-wide in a deployment
+      //   holding a perfectly good environment key.
+      //
+      //   A CREDENTIAL EXISTS AND WILL NOT OPEN — we learned something
+      //   definite: an administrator's decision is recorded and we cannot honour
+      //   it. Falling through here would mean an operator who rotated a key kept
+      //   executing on the old one because the new one failed to decrypt, with
+      //   the platform reporting success. So this one refuses.
       if (managedAvailable && options.store && options.cipher) {
-        const configuration = await options.store.findConfiguration(scope, providerId);
-        if (configuration && profile.manageable) {
-          const active = await options.store.activeCredential(configuration.configurationId);
-          if (active) {
-            try {
-              const secret = await options.cipher.open(active.sealed, {
-                providerKey: configuration.providerKey,
-                scope: configuration.scope,
-                credentialId: active.credentialId,
-              });
-              return { secret, source: 'managed', credentialId: active.credentialId };
-            } catch (error) {
-              // A managed credential that exists and cannot be opened does NOT
-              // fall through to the environment. Falling through would mean an
-              // operator who rotated a key kept executing on the old one
-              // because the new one failed to decrypt — the platform would
-              // report success while ignoring the administrator's decision.
-              options.onError?.(
-                providerId,
-                error instanceof Error ? error.message : String(error),
-              );
-              return undefined;
-            }
+        let active: Awaited<ReturnType<ProviderAdministrationStore['activeCredential']>>;
+        let configuration: Awaited<ReturnType<ProviderAdministrationStore['findConfiguration']>>;
+        try {
+          configuration = await options.store.findConfiguration(scope, providerId);
+          active =
+            configuration && profile.manageable
+              ? await options.store.activeCredential(configuration.configurationId)
+              : undefined;
+        } catch (error) {
+          // Storage said nothing. Report it and fall through — see above.
+          options.onError?.(
+            providerId,
+            `managed credential storage is unreachable, falling back to the deployment ` +
+              `environment: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          configuration = undefined;
+          active = undefined;
+        }
+
+        if (configuration && active) {
+          try {
+            const secret = await options.cipher.open(active.sealed, {
+              providerKey: configuration.providerKey,
+              scope: configuration.scope,
+              credentialId: active.credentialId,
+              organizationId: configuration.organizationId,
+            });
+            return { secret, source: 'managed', credentialId: active.credentialId };
+          } catch (error) {
+            // A credential that exists and cannot be opened. REFUSES rather
+            // than falling through — see above.
+            options.onError?.(
+              providerId,
+              error instanceof Error ? error.message : String(error),
+            );
+            return undefined;
           }
         }
       }
