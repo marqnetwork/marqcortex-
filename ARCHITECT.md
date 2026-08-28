@@ -856,7 +856,14 @@ too. Never a raw credential, an authorization header or a secret value.
 Migration `20260828120000_ai_provider_administration.sql` creates
 `cortex.ai_provider_configuration`, `cortex.ai_provider_credential` and
 `cortex.ai_provider_model`. It seeds nothing, copies no environment secret, and
-touches no existing table. Scope is `platform` | `organization`; Batch 4C
+touches no existing table.
+
+**Deployment prerequisite:** the `cortex` schema must be in the project's
+exposed API schemas (`supabase/config.toml` declares it; the hosted project's
+Settings → API must agree). These tables are in `cortex` rather than `public`
+because `public` is browser-reachable. If the setting is missing, provider
+administration is unavailable — loudly — and the credential resolver falls back
+to the deployment environment, which is the pre-4C behaviour. Scope is `platform` | `organization`; Batch 4C
 administers `platform` and refuses everything else, so Batch 4D admits a value
 rather than reshaping a table that by then holds production credentials.
 

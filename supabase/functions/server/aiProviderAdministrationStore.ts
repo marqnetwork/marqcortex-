@@ -30,6 +30,25 @@
  *   It never offers a query by credential id that returns key material. The
  *   port's only sealed-material method is `activeCredential`, keyed by
  *   configuration — see the port's own comment.
+ *
+ * ── DEPLOYMENT PREREQUISITE: THE `cortex` SCHEMA MUST BE EXPOSED ───────────
+ *
+ * These tables live in `cortex`, not `public`, deliberately: `public` is the
+ * browser-reachable schema and credential ciphertext has no business being one
+ * misconfigured policy away from it.
+ *
+ * The cost is that PostgREST only serves schemas it has been told to serve.
+ * `supabase/config.toml` already declares `schemas = ["public", "cortex"]`,
+ * which covers local and CLI-driven environments; the HOSTED project's
+ * Settings → API → Exposed schemas must match, or every call here fails with
+ * PostgREST's `PGRST106` and provider administration is unavailable while the
+ * rest of the platform runs normally.
+ *
+ * That failure is loud rather than silent — the message propagates through
+ * `fail()` and reaches the console — and it cannot cause a credential to be
+ * resolved incorrectly: the resolver treats an unreachable store as "no managed
+ * credential" and falls back to the deployment environment, which is exactly
+ * the pre-Batch-4C behaviour.
  */
 
 import type {
