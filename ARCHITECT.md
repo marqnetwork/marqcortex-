@@ -757,6 +757,36 @@ collapsed them would let a key entry silently certify a vendor.
 
 #### Credential security
 
+> ### ⛔ OPERATIONAL INVARIANT — `AI_CREDENTIAL_ENCRYPTION_KEY` IS NEVER ROTATED
+>
+> The root key is **persistent infrastructure**, not a rotatable credential.
+> It must not be rotated, regenerated or replaced — not as routine hygiene, not
+> during an environment migration, not while recreating an edge-function secret
+> set.
+>
+> **Changing it breaks every managed provider credential that exists at that
+> moment, and Cortex cannot re-seal them.** There is no keyring, no re-encryption
+> path, and old and new root keys cannot coexist: each record names the key that
+> sealed it, and a record sealed under a retired key is refused. Worse than
+> stranding — the resolver deliberately does **not** fall back to the environment
+> variable for a managed credential that will not open, so affected providers go
+> **dark** even where a valid `OPENAI_API_KEY` is present.
+>
+> Recovery is operator action: revoke the undecryptable credential (which needs
+> no root key, and restores service via the environment fallback), re-enter the
+> credential under the new key, or restore the original key — which decrypts the
+> original rows exactly.
+>
+> **Rotating provider credentials — the vendor API keys themselves — is fully
+> supported, audited and requires no deploy.** That is a different operation and
+> is unaffected. Only the root key carries this prohibition.
+>
+> This stands until a controlled root-key migration mechanism is designed, built
+> and certified. Treat the value as you would a database encryption key: back it
+> up in a secret manager, and never regenerate it.
+> See `architecture/ai/AI-01-BATCH-4C-PRODUCTION-GATE.md`.
+
+
 - **AES-256-GCM** through the platform's Web Crypto implementation. No homemade
   cryptography, no base64-as-encryption.
 - **The root key is a deployment secret** (`AI_CREDENTIAL_ENCRYPTION_KEY`), held
