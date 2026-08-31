@@ -1386,6 +1386,19 @@ export const manifest: SystemManifest = {
       notes: 'Reads server-supplied capabilities to decide what to render. Hiding a control is a courtesy, never a control — every action is refused server-side whether or not the button was drawn. Every mutation prompts for the reason that becomes the audit record, because the server rejects a change without one.',
     },
 
+    'MQC-COMP-091': {
+      id: 'MQC-COMP-091',
+      name: 'ProviderAdministrationPanel',
+      type: 'COMP',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'src/app/components/ProviderAdministrationPanel.tsx',
+      description: 'The Providers area of the AI Administration console (AI-01 Batch 4C): provider estate, credential state and lifecycle, model governance, runtime health, certification and governed spending exposure.',
+      dependencies: ['MQC-SVC-055'],
+      dependents: ['MQC-COMP-090'],
+      notes: 'Contains no provider name in any executable branch — it renders from provider metadata, so a provider added later appears with no change here. It cannot display a stored credential because no response type it reads has a field one could occupy, and the entry field is cleared whether the submission succeeds or fails.',
+    },
+
     // ══════════════════════════════════════════════════════════════════════════
     // CORE ENGINE MODULES — /src/app/core  (MQC-CORE-001 → MQC-CORE-036)
     // These are pure deterministic functions. No React. No side effects.
@@ -4038,6 +4051,93 @@ export const manifest: SystemManifest = {
       dependencies: ['MQC-SVC-153'],
       dependents: ['MQC-COMP-090'],
       notes: 'Like the other two console clients it has no demo-mode fallback, and it decides nothing — server-supplied capabilities decide what is rendered, and the server refuses the same operation whether or not a button was drawn.',
+    },
+
+
+    // ── Provider Administration (AI-01 Batch 4C) ─────────────────────────────
+    //
+    // The platform administration layer over provider connections, credentials
+    // and models. It CONFIGURES the control plane; it never executes a provider,
+    // and every runtime consequence of a change reaches execution through the
+    // operational settings overlay and the credential resolver — the two
+    // mechanisms that already existed — and through no third one.
+
+    'MQC-SVC-157': {
+      id: 'MQC-SVC-157',
+      name: 'providerSecretCipher',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/providers/credentials/secretCipher.ts',
+      description: 'AES-256-GCM sealing and opening of managed provider credentials, through the platform Web Crypto implementation, against a root key held in the deployment environment.',
+      dependencies: [],
+      dependents: ['MQC-SVC-159', 'MQC-SVC-161'],
+      notes: 'Contributes key management and record framing, no primitive. Fails CLOSED: with no root key it refuses to seal rather than storing a secret weakly, and it never falls back to base64. The credential identity is authenticated as AAD, so a ciphertext moved to another row will not open.',
+    },
+
+    'MQC-SVC-158': {
+      id: 'MQC-SVC-158',
+      name: 'providerAdministrationStore (port)',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/providers/credentials/credentialStore.ts',
+      description: 'The storage port for provider configuration, credentials and models, and the in-memory implementation with the same one-active-credential semantics the durable one enforces.',
+      dependencies: ['MQC-SVC-157'],
+      dependents: ['MQC-SVC-159', 'MQC-SVC-161', 'MQC-SVC-162'],
+      notes: 'The only method returning sealed material is keyed by CONFIGURATION, not by credential id, so no call means "show me that secret". Every other method returns metadata whose type structurally has no field a secret could occupy.',
+    },
+
+    'MQC-SVC-159': {
+      id: 'MQC-SVC-159',
+      name: 'providerCredentialResolver',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/providers/credentials/resolver.ts',
+      description: 'The provider-neutral credential resolver: an active managed Cortex credential, else the deployment environment variable, else nothing.',
+      dependencies: ['MQC-SVC-157', 'MQC-SVC-158'],
+      dependents: ['MQC-SVC-025', 'MQC-SVC-026'],
+      notes: 'One resolver, every provider — there is no per-vendor credential pipeline. Plaintext is never cached: the synchronous availability probe reads a non-secret snapshot, and resolution decrypts on every attempt, which is why a revoked credential stops working on the next request.',
+    },
+
+    'MQC-SVC-160': {
+      id: 'MQC-SVC-160',
+      name: 'budgetExposure',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/policy/exposure.ts',
+      description: 'The platform worst-case single-request spend reservation across the governed feature catalogue, and the ceiling check a configuration change is judged against.',
+      dependencies: [],
+      dependents: ['MQC-SVC-161'],
+      notes: 'A calculation and a comparison, not Batch 4F economics. It refuses only a change that BOTH raises exposure and puts it past the ceiling, so a reduction is never trapped by an already-unsafe state. The Batch 4B certified figure of 105,920 microUSD for cortex.chat is pinned by regression test.',
+    },
+
+    'MQC-SVC-161': {
+      id: 'MQC-SVC-161',
+      name: 'providerAdministration',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/admin/providerAdministration.ts',
+      description: 'The canonical provider administration service: provider estate and health, credential lifecycle, model enablement, certification presentation and governed exposure.',
+      dependencies: ['MQC-SVC-050', 'MQC-SVC-157', 'MQC-SVC-158', 'MQC-SVC-159', 'MQC-SVC-160'],
+      dependents: ['MQC-SVC-050'],
+      notes: 'Borrows the administration service\'s audited-mutation runner rather than reimplementing it, so capability check, mandatory reason, mutation lock and before/after audit are one implementation. There is no operation on it that returns a stored credential.',
+    },
+
+    'MQC-SVC-162': {
+      id: 'MQC-SVC-162',
+      name: 'supabaseProviderAdministrationStore',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/aiProviderAdministrationStore.ts',
+      description: 'The Supabase-backed implementation of the provider administration store, over the three cortex.ai_provider_* tables.',
+      dependencies: ['MQC-SVC-158'],
+      dependents: ['MQC-SVC-009'],
+      notes: 'Service role only — the credential table has RLS enabled and no policy, so nothing else reaches a row. It never decrypts, never logs a row, and its metadata read names its columns explicitly so a sealed record cannot travel with a metadata result.',
     },
 
     'MQC-TYPE-009': {

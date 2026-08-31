@@ -217,6 +217,14 @@ spending money at a vendor. Those are different reviews.
 and add the refusal to the admin change trail. **Nothing in this batch changed
 their behaviour.**
 
+> **CLOSED BY AI-01 BATCH 4C.** The finding was confirmed, and it was worse than
+> recorded here: `/ai/audit` returned `plane.recentAudit(limit)`, the execution
+> trail for every organization, unfiltered. All three routes now resolve an
+> administrative actor and demand a capability, and the audit read is served
+> through the tenant-scoped `administration.executionAudit`. See
+> `AI-01-BATCH-4C-COMPLETION.md` §7 and
+> `tests/features/aiObservabilityAuthority.test.ts`.
+
 ---
 
 ## 6. Files changed

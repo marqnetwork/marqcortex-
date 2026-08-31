@@ -482,6 +482,8 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `AI_DEFAULT_ORGANIZATION_ID` | `marq-cortex` | Org for a subject with no membership |
 | `AI_ORGANIZATION_ALLOW_LIST` | — | When set, only these orgs may call AI features |
 | `AI_ENABLE_MOCK_PROVIDER` | `false` | Register the deterministic mock provider |
+| `AI_CREDENTIAL_ENCRYPTION_KEY` | — | **Batch 4C.** Base64 32-byte AES-256-GCM root key for managed provider credentials. Absent → managed credentials cannot be STORED (the platform still runs, on environment credentials). Never in the database |
+| `AI_CREDENTIAL_SNAPSHOT_TTL_MS` | `30000` | How long an isolate serves a cached NON-SECRET credential availability snapshot. Bounds the console's view only — execution decrypts on every attempt |
 
 Every value is bounded: a malformed setting falls back to its default rather than
 propagating `NaN` into a timeout or a negative ceiling into a rate limiter.
@@ -511,7 +513,15 @@ Two consequences worth stating, because both bit during certification:
   completion has to stay true afterwards.
 
 **Operator endpoints:** `GET /ai/health` (unauthenticated probe, no tenant data) ·
-`GET /ai/metrics` · `GET /ai/audit?limit=N` · `GET /ai/catalog` (team auth).
+`GET /ai/metrics` (`ai.admin.view`) · `GET /ai/audit?limit=N` (`ai.admin.audit.read`,
+**tenant-scoped**) · `GET /ai/catalog` (`ai.admin.view`).
+
+These three used to require only a valid team token, which answers "is this a
+provisioned MARQ team account?" rather than "may this account read this". The
+audit route in particular returned the execution trail for every organization,
+unfiltered. AI-01 Batch 4C confirmed the finding and moved all three onto the
+administration capability model, with the audit read served through the
+tenant-scoped `executionAudit`. See §12.5.
 
 Base path: `/make-server-324f4fbe`
 
@@ -700,6 +710,209 @@ and certification checks could be skipped.
 Console: the **Workflows** tab of `src/app/components/AIAdministrationConsole.tsx`
 — start a review, run and approval visibility, the approve/reject decision,
 advance, cancel, and the final committed-or-escalated outcome.
+
+### 12.5 Provider Administration (AI-01 Batch 4C)
+
+MARQ platform administrators manage provider connections, credentials, models,
+availability and certification from Cortex itself. Provider management no longer
+requires editing source, editing `.env`, or redeploying because a key changed.
+
+```
+                    MARQ ADMIN
+                        │
+                        ▼
+             PROVIDER ADMINISTRATION          configures
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+     Providers      Credentials      Models
+          │             │             │
+          └─────────────┼─────────────┘
+                        ▼
+                 AI CONTROL PLANE               executes
+                        │
+           ┌────────────┼────────────┐
+           ▼            ▼            ▼
+        OpenAI      Anthropic      Future
+```
+
+**Administration configures; it never executes.** Every runtime consequence of a
+change reaches execution through the two mechanisms that already existed — the
+operational settings overlay and the provider credential resolver — and through
+no third one.
+
+#### Six concepts, kept apart
+
+| Concept | Meaning | Decided by |
+|---|---|---|
+| Provider definition | how Cortex talks to a vendor | the adapter (reviewed code) |
+| Credential | secret material authorising that conversation | a platform administrator |
+| Model | a model offered through the provider | the adapter declares; an administrator enables |
+| Certification | whether MARQ permits a provider/model for governed use | MARQ governance |
+| Configuration | whether it is switched on and eligible | a platform administrator |
+| Runtime health | whether it can execute right now | observed traffic |
+
+"Somebody added an API key" is only the second of these. A console that
+collapsed them would let a key entry silently certify a vendor.
+
+#### Credential security
+
+> ### ⛔ OPERATIONAL INVARIANT — `AI_CREDENTIAL_ENCRYPTION_KEY` IS NEVER ROTATED
+>
+> The root key is **persistent infrastructure**, not a rotatable credential.
+> It must not be rotated, regenerated or replaced — not as routine hygiene, not
+> during an environment migration, not while recreating an edge-function secret
+> set.
+>
+> **Changing it breaks every managed provider credential that exists at that
+> moment, and Cortex cannot re-seal them.** There is no keyring, no re-encryption
+> path, and old and new root keys cannot coexist: each record names the key that
+> sealed it, and a record sealed under a retired key is refused. Worse than
+> stranding — the resolver deliberately does **not** fall back to the environment
+> variable for a managed credential that will not open, so affected providers go
+> **dark** even where a valid `OPENAI_API_KEY` is present.
+>
+> Recovery is operator action: revoke the undecryptable credential (which needs
+> no root key, and restores service via the environment fallback), re-enter the
+> credential under the new key, or restore the original key — which decrypts the
+> original rows exactly.
+>
+> **Rotating provider credentials — the vendor API keys themselves — is fully
+> supported, audited and requires no deploy.** That is a different operation and
+> is unaffected. Only the root key carries this prohibition.
+>
+> This stands until a controlled root-key migration mechanism is designed, built
+> and certified. Treat the value as you would a database encryption key: back it
+> up in a secret manager, and never regenerate it.
+>
+> **The invariant is tested, not merely written down.** `Batch 4C remediation —
+> the root key operational invariant` in
+> `supabase/functions/server/ai/__tests__/providerAdministration.test.ts` drives
+> the real cipher and the real resolver through provider-credential rotation
+> under one unchanged root key, and through all three recovery paths: restore
+> the original key, revoke the undecryptable credential and fall back, re-enter
+> the credential under the current key. It also pins the blast radius — a
+> provider with no managed credential is untouched by a root key change.
+>
+> See `architecture/ai/AI-01-BATCH-4C-PRODUCTION-GATE.md`.
+
+
+- **AES-256-GCM** through the platform's Web Crypto implementation. No homemade
+  cryptography, no base64-as-encryption.
+- **The root key is a deployment secret** (`AI_CREDENTIAL_ENCRYPTION_KEY`), held
+  in the edge environment and never in the database. Database read access alone
+  yields ciphertext.
+- **Per-record IV; the credential's identity is authenticated (AAD).** A
+  ciphertext moved to another row fails to open, so an attacker with `UPDATE`
+  cannot make one provider execute with another's key.
+- **Fail closed.** No root key → credentials cannot be stored, with a message
+  naming the variable. Nothing is stored weakly instead.
+- **Write-only.** Once submitted, a credential is never returned by any API,
+  route, service method or database view. Reads expose metadata only: a keyed
+  fingerprint, at most four characters, status, versions and timestamps.
+- **`cortex.ai_provider_credential` has RLS enabled and NO POLICY** — service
+  role only. Its absence is the control.
+
+#### Credential precedence
+
+```
+1. an ACTIVE managed Cortex credential   encrypted, rotatable without a deploy
+2. the deployment environment variable   bootstrap / migration / emergency compat
+3. none                                  the provider is unavailable and says so
+```
+
+This order cannot change current production behaviour: production holds no
+managed credentials, so every provider resolves from the environment exactly as
+it did before Batch 4C. Environment credentials remain supported permanently as
+a compatibility and emergency source; what they stop being is the only
+mechanism. The console never reads, displays or overwrites their values — it
+reports `Credential source: Environment · Management: deployment-managed`.
+
+A managed credential that exists and cannot be decrypted does **not** fall
+through to the environment: that would mean an operator who rotated a key kept
+executing on the old one.
+
+#### Cache and invalidation
+
+`describe()` — the synchronous availability probe the registry, selector and
+spend guard use — reads a NON-SECRET snapshot bounded by
+`AI_CREDENTIAL_SNAPSHOT_TTL_MS` and refreshed immediately after every credential
+change. `resolve()` reads storage and decrypts on every attempt, so **plaintext
+is never cached** and a revoked credential stops working on the next request.
+
+#### Model governance and the budget invariant
+
+An administrator cannot type a model name and make it eligible: a model the
+adapter does not declare is rejected at the administration boundary, and a model
+cannot be enabled while its provider is uncertified. `ai/policy/exposure.ts`
+computes the platform's worst-case single-request spend reservation; a change
+that would raise it past the governed ceiling is refused with the number named.
+The Batch 4B certified figure — **105,920 µUSD** for `cortex.chat` on OpenAI's
+`gpt-4o` — is pinned by regression test.
+
+#### Capabilities
+
+| Capability | Grant |
+|---|---|
+| `ai.providers.view` | Super Admin only |
+| `ai.providers.manage` | Super Admin only |
+| `ai.providers.credentials.manage` | Super Admin only |
+| `ai.providers.models.manage` | Super Admin only |
+| `ai.providers.audit.read` | Super Admin only |
+
+All five are the platform operator's. MARQ's provider estate is one estate: a
+tenant administrator replacing the key every other tenant executes through is not
+a scoped action, and the credential surface — which key is in force, its
+fingerprint, its rotation history — is a platform-level picture of MARQ's own
+vendor accounts. Organization and Team Admins keep everything they had
+(`ai.admin.view`, `ai.admin.audit.read`) and gain nothing new.
+
+#### Endpoints
+
+| Endpoint | Method | Capability |
+|---|---|---|
+| `/ai/admin/provider-administration` | GET | `ai.providers.view` |
+| `/ai/admin/provider-administration/:providerId` | GET | `ai.providers.view` |
+| `/ai/admin/provider-administration/:providerId/credentials` | GET | `ai.providers.view` (metadata only) |
+| `/ai/admin/provider-administration/:providerId/enabled` | POST | `ai.providers.manage` |
+| `/ai/admin/provider-administration/:providerId/credentials` | POST | `ai.providers.credentials.manage` (set **or** rotate) |
+| `/ai/admin/provider-administration/:providerId/credentials/:credentialId/revoke` | POST | `ai.providers.credentials.manage` |
+| `/ai/admin/provider-administration/:providerId/models/:modelId` | PATCH | `ai.providers.models.manage` |
+
+**There is no endpoint that returns a credential.** Not for a super admin, not
+for the service role, not for a support flow.
+
+#### Audit
+
+`provider.enabled` · `provider.disabled` · `provider.credential.created` ·
+`provider.credential.rotated` · `provider.credential.revoked` ·
+`provider.model.enabled` · `provider.model.disabled` — each with actor,
+authority, provider, configuration id, credential id, keyed **fingerprint**,
+reason, correlation id, timestamp and outcome. Refused attempts are recorded
+too. Never a raw credential, an authorization header or a secret value.
+
+#### Persistence
+
+Migration `20260828120000_ai_provider_administration.sql` creates
+`cortex.ai_provider_configuration`, `cortex.ai_provider_credential` and
+`cortex.ai_provider_model`. It seeds nothing, copies no environment secret, and
+touches no existing table.
+
+**Deployment prerequisite:** the `cortex` schema must be in the project's
+exposed API schemas (`supabase/config.toml` declares it; the hosted project's
+Settings → API must agree). These tables are in `cortex` rather than `public`
+because `public` is browser-reachable. If the setting is missing, provider
+administration is unavailable — loudly — and the credential resolver falls back
+to the deployment environment, which is the pre-4C behaviour. Scope is `platform` | `organization`; Batch 4C
+administers `platform` and refuses everything else, so Batch 4D admits a value
+rather than reshaping a table that by then holds production credentials.
+
+Console: the **Providers** area of `AIAdministrationConsole.tsx`
+(`ProviderAdministrationPanel.tsx`), which contains no provider name in any
+branch — it renders from provider metadata, so a Batch 4E provider appears with
+no frontend change.
+
+---
 
 ## 13. Contexts & hooks
 

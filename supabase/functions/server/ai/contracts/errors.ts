@@ -273,6 +273,47 @@ export function isAIError(value: unknown): value is AIError {
   return value instanceof AIError;
 }
 
+/**
+ * The SERVER-SIDE description of a failure, for a log line and nothing else.
+ *
+ * `AIError` carries two texts and they are not interchangeable. `message` is
+ * what the CALLER may see — deliberately generic, because a caller-visible
+ * string is an information-disclosure surface. `diagnostics` is what an
+ * OPERATOR needs — the specific, actionable fact — and it is excluded from
+ * `toResponseBody` for exactly that reason.
+ *
+ * Code that reports a failure to a log or console and reaches for
+ * `error.message` therefore emits the deliberately-uninformative half and drops
+ * the informative one. That is not a cosmetic loss. A managed credential sealed
+ * under a root key the deployment no longer holds throws with
+ * `message = 'A stored provider credential cannot be read.'` and
+ * `diagnostics = 'sealed under root key k_ab12, deployment holds k_cd34…'`.
+ * The message sends an operator hunting for corrupted ciphertext; the
+ * diagnostic names the actual cause and the actual remedy. An independent
+ * production gate found that exact text being discarded on the credential
+ * resolution path.
+ *
+ * This helper is the one place that composes the two, so a reporting site
+ * cannot pick the wrong half by accident. It is NEVER used to build a caller
+ * response: `toResponseBody` remains the only caller-facing serializer, and it
+ * still excludes `diagnostics`.
+ *
+ * Key IDS are safe to appear here and DO. They are non-secret identifiers by
+ * construction — `kid` is a truncated keyed digest, not key material — and
+ * naming them is the entire diagnostic value. Root keys, ciphertext, provider
+ * secrets and authorization headers are not in `diagnostics` at any throw site
+ * in this codebase, and `secretCipher.open` in particular is careful to report
+ * only the two key identities and never the record it failed on.
+ */
+export function describeForOperator(error: unknown): string {
+  if (isAIError(error)) {
+    return error.diagnostics === undefined || error.diagnostics === ''
+      ? `${error.code}: ${error.message}`
+      : `${error.code}: ${error.message} (${error.diagnostics})`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** HTTP status for a code, without constructing an error. */
 export function statusForCode(code: AIErrorCode): number {
   return (TRAITS[code] ?? TRAITS.INTERNAL_ERROR).status;

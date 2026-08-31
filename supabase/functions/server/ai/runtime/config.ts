@@ -105,6 +105,28 @@ export interface AIControlPlaneConfig {
     readonly reservationTtlMs: number;
   };
 
+  /**
+   * Managed provider credentials (AI-01 Batch 4C).
+   *
+   * NOTHING HERE IS A SECRET, AND NOTHING HERE CAN WIDEN ANYTHING. The root key
+   * is read once at bootstrap and handed straight to the cipher; it is
+   * deliberately not a field on this configuration object, because this object
+   * is passed to the settings store, reported by the diagnostics endpoint and
+   * spread into log context in half a dozen places.
+   */
+  readonly credentials: {
+    /**
+     * How long an isolate may serve a cached NON-SECRET credential
+     * availability snapshot before re-reading it.
+     *
+     * Bounds only the console's view of "is this provider configured, and by
+     * what?". It bounds nothing about execution: the authoritative resolution
+     * reads storage and decrypts on every attempt, so a revoked credential
+     * stops working on the next request regardless of this value.
+     */
+    readonly snapshotTtlMs: number;
+  };
+
   readonly audit: {
     /** Persist audit records to durable storage as well as the buffer. */
     readonly durable: boolean;
@@ -346,6 +368,13 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
         DEFAULT_RESERVATION_TTL_MS,
         { min: 60_000, max: 3_600_000 },
       ),
+    },
+
+    credentials: {
+      snapshotTtlMs: readInt(env, 'AI_CREDENTIAL_SNAPSHOT_TTL_MS', 30_000, {
+        min: 0,
+        max: 300_000,
+      }),
     },
 
     audit: {

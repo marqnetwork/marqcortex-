@@ -25,9 +25,11 @@
 import type {
   AIProviderAdapter,
   AIProviderCompletion,
+  AIProviderCredentialPolicy,
   AIProviderDescriptor,
   AIProviderInvocation,
 } from '../contracts/provider.ts';
+import type { ProviderCredentialResolver } from './credentials/contracts.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export type MockScenario =
@@ -86,6 +88,39 @@ export interface MockProviderOptions {
   readonly pricing?: { promptMicroUsdPer1k: number; completionMicroUsdPer1k: number };
   /** Declare the mock production-ready, for health and selection tests. */
   readonly productionReady?: boolean;
+  /**
+   * Declare a credential policy, so the Batch 4C administration surface can be
+   * exercised without a vendor account.
+   *
+   * Defaults to "needs nothing, manages nothing", which is what the mock
+   * genuinely is. A suite that needs to model a credentialed provider declares
+   * one here and supplies `credentialResolver` — and it then goes through the
+   * SAME resolver the real adapters use, so the administration path a test
+   * exercises is the production path.
+   */
+  readonly credentialPolicy?: AIProviderCredentialPolicy;
+  /**
+   * The provider-neutral credential resolver, as the real adapters take it.
+   * Supplied, `hasCredentials` and `credentialStatus` are answered by it rather
+   * than by the `credentials` boolean above.
+   */
+  readonly credentialResolver?: ProviderCredentialResolver;
+  /**
+   * Additional model ids this mock declares, beyond `mock-standard`.
+   *
+   * A test affordance, like `pricing` and `billable` above. A provider that
+   * offers ONE model cannot exercise a model allow list at all — narrowing to
+   * nothing is refused, so the only reachable state is the one the provider is
+   * already in. The Batch 4C administration suites need a provider with a
+   * choice to make, and inventing a second mock adapter to get one would be a
+   * second thing to keep in step with this one.
+   *
+   * Each extra model is a copy of the standard declaration, so it is capable of
+   * everything the standard one is and differs only in its id — a narrowing
+   * test should fail because narrowing is broken, never because the model it
+   * picked could not serve the feature anyway.
+   */
+  readonly additionalModelIds?: readonly string[];
 }
 
 export interface MockProviderHandle extends AIProviderAdapter {
@@ -105,7 +140,10 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     providerId,
     displayName: `Mock Provider (${providerId})`,
     priority: options.priority ?? 900,
-    models: MODELS.map((model) => ({
+    models: [
+      ...MODELS,
+      ...(options.additionalModelIds ?? []).map((modelId) => ({ ...MODELS[0]!, modelId })),
+    ].map((model) => ({
       ...model,
       providerId,
       promptMicroUsdPer1k: options.pricing?.promptMicroUsdPer1k ?? model.promptMicroUsdPer1k,
@@ -116,6 +154,13 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     // Synthetic completions, no vendor call, no cost. Safe under the kill
     // switch unless a test explicitly asks for a billable mock.
     billable: options.billable ?? false,
+    // NO CREDENTIAL, AND NONE MANAGEABLE, BY DEFAULT (AI-01 Batch 4C).
+    //
+    // The mock has no vendor, no account and no key. Declaring `manageable:
+    // false` is what makes the console omit credential controls for it WITHOUT
+    // a `providerId === 'mock'` test anywhere in the frontend — the generic
+    // contract doing the work it exists to do.
+    credential: options.credentialPolicy ?? { required: false, manageable: false },
   };
 
   return {
@@ -128,7 +173,21 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
     },
 
     hasCredentials() {
+      if (options.credentialResolver) {
+        return options.credentialResolver.describe(providerId).configured;
+      }
       return options.credentials ?? true;
+    },
+
+    credentialStatus() {
+      if (options.credentialResolver) {
+        const availability = options.credentialResolver.describe(providerId);
+        return { source: availability.source, fingerprint: availability.fingerprint };
+      }
+      // `none` is the truthful answer for a provider that needs no secret. It
+      // is NOT the same as "missing": `hasCredentials` is true, and the
+      // console renders "no credential required" from the pair.
+      return { source: 'none' as const };
     },
 
     async invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion> {

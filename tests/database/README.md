@@ -153,3 +153,89 @@ psql "$DATABASE_URL" -f supabase/migrations/rollbacks/20260711050000_rollback_te
 ```
 
 KV store is unaffected by rollback.
+
+## AI provider administration (AI-01 Batch 4C)
+
+Migration `20260828120000_ai_provider_administration.sql` creates the three
+tables and the one function the platform's AI provider administration layer
+runs on. It holds encrypted credential material, so who may touch it is not a
+detail — and both of the things that decide that (table privileges, and row
+level security) are properties of a running PostgreSQL, not of a file.
+
+### Executable verification (needs a real PostgreSQL 15+)
+
+```bash
+npm run test:database:4c
+# or: DATABASE_URL=postgresql://... node scripts/ai-provider-administration-scenarios.mjs
+```
+
+**This is the verification.** Batch 4C originally shipped with a text-scanning
+test and nothing else, and that test reported the migration healthy while it
+contained two CHECK constraints with one name — which PostgreSQL rejects, so the
+migration could not be applied anywhere — and while it granted `service_role`
+nothing at all, so every runtime operation would have failed with `permission
+denied`. Both defects were found by an independent production gate, not by the
+suite. A text scan proves absence well and behaviour not at all.
+
+The runner builds its own scratch databases and applies the **real** migration
+and rollback files. It applies them as a NOSUPERUSER role holding `BYPASSRLS` —
+the shape of the role Supabase applies migrations as — because
+`ai_provider_credential_activate` is `SECURITY DEFINER` writing through `FORCE
+ROW LEVEL SECURITY`, and a superuser owner would sail past a check a deployment
+has to pass.
+
+Three phases:
+
+**Apply and verify.**
+
+- the migration applies at all, and in one transaction
+- the three tables, every named constraint, every index — including the two
+  partial unique indexes and the one-active-credential index
+- the activation function exists, `SECURITY DEFINER`, with the exact argument
+  types AND parameter names PostgREST binds by
+- `service_role` drives the FULL runtime lifecycle, statement for statement as
+  `aiProviderAdministrationStore.ts` issues it: the configuration upsert, the
+  `IS NULL` platform lookup, the activation RPC, the sealed-record read, the
+  metadata-only projection, rotation, revocation, and the model upsert
+- activation ATOMICITY, asked at psql's statement level rather than inside a
+  plpgsql exception handler — a handler's savepoint would undo the supersede
+  whether or not the function is atomic, and the failing rotation has to be its
+  own transaction to mean anything
+- exactly one active credential per configuration, with the rotation history
+  intact
+- plaintext-shaped storage refused: nine sealed-record shapes somebody could
+  plausibly write, a raw key in the key-identity column, an over-long
+  `last_four`
+- the platform/organization scope constraints, both partial unique indexes, and
+  the malformed-provider-key refusal
+- the FULL privilege matrix — every privilege PostgreSQL defines, for
+  `service_role`, `authenticated` and `anon`, on all three tables — so a
+  privilege nobody intended fails as loudly as one that is missing
+- `anon` and `authenticated` denied read AND mutate, by catalogue and by
+  attempt, on all three tables; neither may execute the activation function;
+  `service_role` may
+- RLS still denies `authenticated` even with a `SELECT` grant temporarily in
+  place, which is the redundancy the design claims
+
+**Roll back and re-apply.** The real rollback removes every 4C object and
+nothing else — the tenancy foundation, the seeded roles and the schema grants
+are all still there — and the migration then applies again cleanly.
+
+**A failed migration leaves no partial state.** An obstacle is planted so the
+migration fails at its LAST statement, after all three tables have been created
+inside its transaction. Nothing survives. This one matters more than it looks:
+the migration uses `CREATE TABLE IF NOT EXISTS`, so a half-applied 4C would be
+silently re-appliable and the second run would produce a schema nobody reviewed.
+
+Exit code `2` means no database was reachable, and is reported as **BLOCKED**.
+It is distinct from `1` so "not run" is never read as "passed".
+
+### Static coverage (no database)
+
+`tests/database/static_ai_provider_administration_migration.test.ts`, under
+`npm run test:database`. It proves what the migration must never contain: a
+plaintext column, a grant to a browser role, a policy on the credential table, a
+seeded provider, a copy of an environment secret, a `GRANT ALL`, a `DELETE` or
+`TRUNCATE` for `service_role`, or two constraints sharing a name. Every
+behavioural claim is the runner's above, and the file says so where it could be
+mistaken.

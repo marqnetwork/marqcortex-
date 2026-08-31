@@ -79,6 +79,15 @@ import {
 } from './adminAudit.ts';
 import { requireCapability, resolveAdminActor, scopeRecords } from './rbac.ts';
 import { buildUsageReport } from './usage.ts';
+import {
+  createProviderAdministration,
+  type ProviderAdministrationSummary,
+  type ProviderAdministrationView,
+} from './providerAdministration.ts';
+import type { ProviderAdministrationStore, ProviderCredentialMetadata } from '../providers/credentials/credentialStore.ts';
+import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
+import type { SecretCipher } from '../providers/credentials/secretCipher.ts';
+import { unavailableSecretCipher } from '../providers/credentials/secretCipher.ts';
 
 /**
  * The absolute ceiling an administrator may raise the MARQ spend cap to.
@@ -243,6 +252,31 @@ export interface AdministrationDependencies {
   readonly logger: Logger;
   /** In-memory administrative trail size. */
   readonly auditBufferSize?: number;
+  /**
+   * Durable provider administration storage (AI-01 Batch 4C).
+   *
+   * Absent, provider administration is READ-ONLY: providers, credential
+   * metadata, models and health are all readable, and every write refuses with
+   * a stated reason. Silently accepting a credential into isolate-local memory
+   * would be worse than refusing it — an operator would believe the platform
+   * was configured until the next isolate recycled.
+   */
+  readonly providerStore?: ProviderAdministrationStore;
+  /**
+   * The cipher that seals managed credentials. Defaults to the UNAVAILABLE
+   * cipher, which refuses every seal with a precise message. There is no
+   * default that stores a secret weakly.
+   */
+  readonly credentialCipher?: SecretCipher;
+  /** The live credential resolver, refreshed after every credential change. */
+  readonly credentialResolver?: ProviderCredentialResolver;
+  /**
+   * Governed worst-case single-request reservation, in micro-USD.
+   *
+   * Defaults to the deployment's MARQ spend ceiling: a single request must
+   * never be able to hold the entire lifetime allowance. See `policy/exposure.ts`.
+   */
+  readonly reservationCeilingMicroUsd?: number;
 }
 
 export interface AIAdministration {
@@ -298,6 +332,55 @@ export interface AIAdministration {
     reason: unknown,
     meta?: AdminRequestMeta,
   ): Promise<AdminBudgetView>;
+
+  // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
+  //
+  // Delegated to `providerAdministration.ts` rather than implemented here.
+  // These operations carry their own capabilities and their own domain rules;
+  // what they share with the rest of this service is the audited-mutation
+  // runner, and sharing that is the point.
+  //
+  // NOTE THE ABSENCE. There is no `revealCredential`, no `credentialSecret`,
+  // no operation on this interface that returns provider key material. Once
+  // submitted, a credential is write-only.
+  /** Provider estate, credential metadata, models, health and exposure. */
+  providerAdministration(actor: AIAdminActor): Promise<ProviderAdministrationSummary>;
+  providerDetail(actor: AIAdminActor, providerId: string): Promise<ProviderAdministrationView>;
+  /** Credential METADATA only. Fingerprints and timestamps, never a secret. */
+  providerCredentials(
+    actor: AIAdminActor,
+    providerId: string,
+  ): Promise<readonly ProviderCredentialMetadata[]>;
+  setProviderEnabled(
+    actor: AIAdminActor,
+    providerId: string,
+    enabled: boolean,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
+  /** Store or rotate a credential. The plaintext is sealed and forgotten. */
+  setProviderCredential(
+    actor: AIAdminActor,
+    providerId: string,
+    input: { secret: unknown; credentialName?: unknown },
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
+  revokeProviderCredential(
+    actor: AIAdminActor,
+    providerId: string,
+    credentialId: string,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
+  setProviderModelEnabled(
+    actor: AIAdminActor,
+    providerId: string,
+    modelId: string,
+    enabled: boolean,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
 
   usage(actor: AIAdminActor): Promise<UsageReport>;
   diagnostics(actor: AIAdminActor): Promise<AdminDiagnostics>;
@@ -714,6 +797,32 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     };
   }
 
+  /**
+   * The Batch 4C provider administration surface.
+   *
+   * Assembled HERE, over the same `mutate`, the same trail, the same actor and
+   * the same plane. A separately-constructed provider administration service
+   * would have its own audit writer and its own capability check — a second
+   * implementation of two guarantees, which is zero implementations of them.
+   */
+  const providers = createProviderAdministration({
+    plane,
+    mutate,
+    commitSettings: commit,
+    liveSettings: live,
+    store: deps.providerStore,
+    // The unavailable cipher is the default, and it REFUSES rather than
+    // degrades. A deployment with no root key can read the whole provider
+    // surface and cannot store a credential.
+    cipher: deps.credentialCipher ?? unavailableSecretCipher(),
+    credentials: deps.credentialResolver,
+    reservationCeilingMicroUsd:
+      deps.reservationCeilingMicroUsd ?? plane.config.spend.maxPlatformMicroUsd,
+    clock,
+    ids,
+    logger,
+  });
+
   return {
     trail,
 
@@ -893,6 +1002,24 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       await plane.refreshSettings();
       return providerViews();
     },
+
+    // ── Provider administration (AI-01 Batch 4C) ────────────────────────────
+    //
+    // Thin delegation, deliberately. Every rule these operations enforce lives
+    // in `providerAdministration.ts`; putting a second capability check or a
+    // second validation here would create the drift this file's own comment
+    // warns about.
+    providerAdministration: (actor) => providers.list(actor),
+    providerDetail: (actor, providerId) => providers.get(actor, providerId),
+    providerCredentials: (actor, providerId) => providers.credentials(actor, providerId),
+    setProviderEnabled: (actor, providerId, enabled, reason, meta) =>
+      providers.setProviderEnabled(actor, providerId, enabled, reason, meta),
+    setProviderCredential: (actor, providerId, input, reason, meta) =>
+      providers.setCredential(actor, providerId, input, reason, meta),
+    revokeProviderCredential: (actor, providerId, credentialId, reason, meta) =>
+      providers.revokeCredential(actor, providerId, credentialId, reason, meta),
+    setProviderModelEnabled: (actor, providerId, modelId, enabled, reason, meta) =>
+      providers.setModelEnabled(actor, providerId, modelId, enabled, reason, meta),
 
     updateProvider(actor, providerId, patch, reason, meta) {
       return mutate(actor, {

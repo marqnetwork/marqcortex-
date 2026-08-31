@@ -47,6 +47,24 @@ export const ADMIN_ACTION = {
   spendReset: 'ai.admin.spend.reset',
   spendCapRaised: 'ai.admin.spend.cap_raised',
   accessDenied: 'ai.admin.access.denied',
+
+  // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
+  //
+  // A DISTINCT action per lifecycle event, not one `credential.changed`.
+  // "A key was stored", "a key was replaced" and "a key was withdrawn" are the
+  // three questions an incident review actually asks, and a single action name
+  // would make each of them a search through change maps.
+  //
+  // None of these records ever carries the secret. See `toChangeMap` and the
+  // provider administration service: the recorded facts are the credential id,
+  // the keyed fingerprint, the last four characters where safe, the source and
+  // the timestamps.
+  providerConfigured: 'ai.admin.provider.configured',
+  credentialCreated: 'ai.admin.provider.credential.created',
+  credentialRotated: 'ai.admin.provider.credential.rotated',
+  credentialRevoked: 'ai.admin.provider.credential.revoked',
+  modelEnabled: 'ai.admin.provider.model.enabled',
+  modelDisabled: 'ai.admin.provider.model.disabled',
 } as const;
 
 export type AdminAction = (typeof ADMIN_ACTION)[keyof typeof ADMIN_ACTION];

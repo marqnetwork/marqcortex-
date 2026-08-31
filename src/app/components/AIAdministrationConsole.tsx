@@ -49,6 +49,7 @@ import {
   type AIAdminOverview,
   type AIExecutionAuditRecord,
 } from '@/app/services/aiAdminService';
+import { ProviderAdministrationPanel } from './ProviderAdministrationPanel';
 import {
   AgentRuntimeError,
   decideAgentApproval,
@@ -724,25 +725,47 @@ export function AIAdministrationConsole({ accessToken }: Props) {
                 round trip rather than two — and the eligibility reason shown
                 here is by construction the same one the health endpoint
                 reports. */}
-            <ProviderList
-              providers={overview.health.providers}
-              selection={overview.health.selection}
-              settings={settings}
-              canWrite={canWriteProviders}
+            {/* ── Provider administration (AI-01 Batch 4C) ────────────────
+                The canonical provider surface: configuration, credentials,
+                models, certification, health and governed exposure. It reads
+                its own endpoint and enforces its own capabilities, so it is
+                rendered unconditionally and reports a refusal in place — an
+                operator who may see operational state but not administer
+                providers still gets the selection view below it. */}
+            <ProviderAdministrationPanel
+              accessToken={accessToken}
+              capabilities={capabilities}
+              withReason={withReason}
+              notify={notify}
               busy={busy}
-              onToggle={(providerId, enabled) =>
-                void withReason(
-                  `${enabled ? 'Enable' : 'Disable'} the ${providerId} provider. This changes which vendor serves every AI request platform-wide.`,
-                  (reason) => updateAIProvider(accessToken, providerId, { enabled }, reason),
-                )
-              }
-              onSetDefault={(providerId) =>
-                void withReason(
-                  `Make ${providerId} the default provider, tried ahead of the configured preference order.`,
-                  (reason) => updateAISettings(accessToken, { defaultProviderId: providerId }, reason),
-                )
-              }
             />
+
+            {/* The Batch 2 operational view, kept. It answers a different
+                question — selection order, allow lists, why the selector would
+                skip a provider — and an operator diagnosing a routing problem
+                reads this one. Removing it to avoid two provider lists would
+                have removed the half that explains selection. */}
+            <Section title="Selection and preference">
+              <ProviderList
+                providers={overview.health.providers}
+                selection={overview.health.selection}
+                settings={settings}
+                canWrite={canWriteProviders}
+                busy={busy}
+                onToggle={(providerId, enabled) =>
+                  void withReason(
+                    `${enabled ? 'Enable' : 'Disable'} the ${providerId} provider. This changes which vendor serves every AI request platform-wide.`,
+                    (reason) => updateAIProvider(accessToken, providerId, { enabled }, reason),
+                  )
+                }
+                onSetDefault={(providerId) =>
+                  void withReason(
+                    `Make ${providerId} the default provider, tried ahead of the configured preference order.`,
+                    (reason) => updateAISettings(accessToken, { defaultProviderId: providerId }, reason),
+                  )
+                }
+              />
+            </Section>
           </div>
         )}
 

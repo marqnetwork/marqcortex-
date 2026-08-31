@@ -31,6 +31,16 @@ import { createMemorySink } from '../observability/logger.ts';
 import { createMockProvider } from '../providers/mockProvider.ts';
 import { createAIAdministration } from '../admin/administration.ts';
 import { createMemorySettingsStore } from '../admin/settingsStore.ts';
+import type { AIProviderCredentialPolicy } from '../contracts/provider.ts';
+import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
+import { createProviderCredentialResolver } from '../providers/credentials/resolver.ts';
+import type { SecretCipher } from '../providers/credentials/secretCipher.ts';
+import {
+  createSecretCipher,
+  parseRootKey,
+  unavailableSecretCipher,
+} from '../providers/credentials/secretCipher.ts';
+import { createMemoryProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
 
 export interface StubSubjectOptions {
   readonly subjectId?: string;
@@ -77,6 +87,24 @@ export const TEST_TOKEN = 'valid-team-token';
 export interface TestPlaneOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly authenticator?: AIAuthenticator;
+  /**
+   * Declare the two mock providers as CREDENTIALED (AI-01 Batch 4C).
+   *
+   * Off by default, so every suite written before Batch 4C sees exactly the
+   * plane it always saw. On, the mocks declare a credential policy and answer
+   * `hasCredentials` through the injected resolver — the same port the real
+   * adapters use — which is what lets the provider administration suites drive
+   * the production credential path without a vendor account.
+   */
+  readonly credentialedProviders?: {
+    readonly resolver: ProviderCredentialResolver;
+    readonly policy: AIProviderCredentialPolicy;
+  };
+  /**
+   * Extra model ids the primary mock declares, so a suite can exercise a model
+   * allow list. Default: none, which is the plane every pre-4C suite sees.
+   */
+  readonly additionalPrimaryModelIds?: readonly string[];
   /** Provider registration order. Defaults to primary then backup. */
   readonly providersEnabled?: boolean;
   /**
@@ -101,8 +129,24 @@ export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
     }),
   );
 
-  const provider = createMockProvider({ providerId: 'primary', priority: 1 });
-  const backup = createMockProvider({ providerId: 'backup', priority: 2 });
+  const credentialed = options.credentialedProviders;
+  const provider = createMockProvider({
+    providerId: 'primary',
+    priority: 1,
+    ...(options.additionalPrimaryModelIds
+      ? { additionalModelIds: options.additionalPrimaryModelIds }
+      : {}),
+    ...(credentialed
+      ? { credentialPolicy: credentialed.policy, credentialResolver: credentialed.resolver }
+      : {}),
+  });
+  const backup = createMockProvider({
+    providerId: 'backup',
+    priority: 2,
+    ...(credentialed
+      ? { credentialPolicy: credentialed.policy, credentialResolver: credentialed.resolver }
+      : {}),
+  });
 
   const plane = createControlPlane({
     config,
@@ -239,13 +283,54 @@ export function adminAuthenticator(): AIAuthenticator {
 export interface TestAdministration extends TestPlane {
   readonly admin: AIAdministration;
   readonly settingsStore: AdminSettingsStore & { readonly saves: number };
+  /**
+   * Provider administration storage (AI-01 Batch 4C), exposed so a suite can
+   * assert on what STORAGE holds rather than only on what the API returns.
+   *
+   * That distinction is the whole point of exposing it: "the response carries
+   * no plaintext" and "no plaintext was persisted" are different claims, and a
+   * test that only reads the API can make the first one.
+   */
+  readonly providerStore: ReturnType<typeof createMemoryProviderAdministrationStore>;
+  readonly credentialCipher: SecretCipher;
   /** Authorize by role token. Rejects exactly as production would. */
   actor(token: string): ReturnType<AIAdministration['authorize']>;
 }
 
 export interface TestAdministrationOptions extends TestPlaneOptions {
   readonly settingsStore?: AdminSettingsStore & { readonly saves: number };
+  /**
+   * Withhold managed credential storage, to model a deployment that has not
+   * configured it. Every read still works; every credential write refuses.
+   */
+  readonly withoutProviderStore?: boolean;
+  /**
+   * Withhold the encryption root key, to model a deployment with no
+   * `AI_CREDENTIAL_ENCRYPTION_KEY`. The cipher then REFUSES rather than
+   * degrading, which is the behaviour under test.
+   */
+  readonly withoutCredentialCipher?: boolean;
+  /**
+   * Leave the mock providers keyless, as they are outside Batch 4C.
+   *
+   * The administration harness declares them credentialed by DEFAULT, because
+   * that is the state the provider administration surface exists to manage. A
+   * suite asserting what happens to a provider that accepts no credential turns
+   * it off.
+   */
+  readonly keylessProviders?: boolean;
 }
+
+/**
+ * A deterministic 32-byte root key for tests.
+ *
+ * A FIXED value, and only ever in this file. It is a test constant, not a
+ * secret: the suites that use it assert that a sealed record is unreadable
+ * WITHOUT it, which is a claim you cannot make against a key you do not know.
+ * Production reads its key from the deployment environment and shares nothing
+ * with this.
+ */
+export const TEST_CREDENTIAL_ROOT_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 
 /**
  * Build a real control plane with a real administration service over it.
@@ -259,6 +344,42 @@ export function buildTestAdministration(
   options: TestAdministrationOptions = {},
 ): TestAdministration {
   const settingsStore = options.settingsStore ?? createMemorySettingsStore();
+
+  // Provider administration storage and cipher (AI-01 Batch 4C). Built BEFORE
+  // the plane, because the credential resolver the adapters take reads them and
+  // the adapters are constructed with the plane.
+  const providerStore = createMemoryProviderAdministrationStore();
+  const credentialCipher = options.withoutCredentialCipher
+    ? unavailableSecretCipher()
+    : createSecretCipher(parseRootKey(TEST_CREDENTIAL_ROOT_KEY));
+
+  /**
+   * The credential policy the harness's mock providers declare.
+   *
+   * `MOCK_PROVIDER_KEY` is a fictional variable name — it is not any vendor's
+   * contract, and the boundary scan's list of real credential variables does
+   * not contain it. Naming one at all matters: it makes the ENVIRONMENT
+   * compatibility source reachable in tests, so the precedence rule (managed
+   * beats environment, environment beats nothing) is exercised rather than
+   * asserted.
+   */
+  const credentialPolicy: AIProviderCredentialPolicy = {
+    required: true,
+    manageable: true,
+    environmentVariable: 'MOCK_PROVIDER_KEY',
+  };
+  const credentialResolver = createProviderCredentialResolver({
+    profiles: ['primary', 'backup'].map((providerId) => ({
+      providerId,
+      required: true,
+      manageable: true,
+      environmentVariable: credentialPolicy.environmentVariable,
+    })),
+    clock: createTestClock(),
+    env: recordEnv({ MOCK_PROVIDER_KEY: 'harness-environment-credential' }),
+    store: options.withoutProviderStore ? undefined : providerStore,
+    cipher: credentialCipher,
+  });
   // ONE authenticator instance, shared by the plane and the administration
   // service. Production shares it for a reason — two credential paths for one
   // platform is two things to get wrong — and the harness must not accidentally
@@ -267,7 +388,14 @@ export function buildTestAdministration(
   // The plane re-reads settings from the same store the administration service
   // writes to. Production wires exactly this, for exactly this reason: an
   // administrator's change has to reach isolates that did not serve the change.
-  const base = buildTestPlane({ ...options, authenticator, settingsSource: settingsStore });
+  const base = buildTestPlane({
+    ...options,
+    authenticator,
+    settingsSource: settingsStore,
+    ...(options.keylessProviders
+      ? {}
+      : { credentialedProviders: { resolver: credentialResolver, policy: credentialPolicy } }),
+  });
 
   const admin = createAIAdministration({
     plane: base.plane,
@@ -276,12 +404,21 @@ export function buildTestAdministration(
     clock: base.clock,
     ids: createSequentialIdFactory('adm'),
     logger: base.plane.logger,
+    providerStore: options.withoutProviderStore ? undefined : providerStore,
+    credentialCipher,
+    // THE SAME resolver the adapters hold. Production wires exactly this, so a
+    // credential stored through the console is visible to the runtime without
+    // waiting for a snapshot to expire — and a harness that built two would
+    // make a test pass that production would fail.
+    credentialResolver,
   });
 
   return {
     ...base,
     admin,
     settingsStore,
+    providerStore,
+    credentialCipher,
     actor: (token) => admin.authorize(`Bearer ${token}`),
   };
 }
