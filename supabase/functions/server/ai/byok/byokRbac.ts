@@ -214,9 +214,17 @@ export function resolveByokActor(
   // A platform operator who is ALSO a genuine administrator of this
   // organization keeps exactly what their MEMBERSHIP row gives them, and
   // nothing their platform role does. The converse rule — that a membership row
-  // cannot make somebody the operator of the platform — is enforced in
-  // `admin/rbac.ts` by `hasPlatformAuthority`, which this module imports so the
-  // two surfaces cannot answer differently about the same subject.
+  // cannot make somebody the operator of the platform — is enforced separately,
+  // in `admin/rbac.ts` by `hasPlatformAuthority`.
+  //
+  // THIS MODULE DELIBERATELY IMPORTS NOTHING FROM THAT ONE. An independent
+  // certification gate found this comment claiming the opposite, and the claim
+  // was worth correcting rather than making true: the two surfaces do not need
+  // to agree about a subject, because neither consults the other's authority.
+  // Platform authority arrives only on `globalRoles`, which nothing here reads
+  // for a grant; tenant authority arrives only on a membership row, which
+  // nothing there reads for one. An import between them would be the first
+  // thread by which widening one could widen the other.
   if (granted.size === 0) {
     throw new AIError(
       'FORBIDDEN',

@@ -414,6 +414,28 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   // is copied, and until a customer administrator deliberately stores a
   // credential every tenant resolves exactly where it resolved before this
   // batch: the platform managed credential, then the deployment environment.
+  //
+  // `runtimeSelectable` IS THE HONESTY FIELD, and it is derived from the same
+  // two facts the SELECTOR rejects on, read from the live registry on every
+  // call (an independent certification gate found the customer console
+  // asserting "in service on your organization's own credential" in a
+  // deployment where every request returned `NO_PROVIDER_AVAILABLE`):
+  //
+  //   THE KILL SWITCH. `AI_ALLOW_REAL_REQUESTS` defaults to FALSE, and while it
+  //   is false the selector rejects every billable provider before it looks at
+  //   a credential at all. That is the default deployment, so this was not an
+  //   exotic state — it was the ordinary one.
+  //
+  //   THE PLATFORM'S OWN CREDENTIAL. `hasCredentials()` is the adapter's
+  //   synchronous, TENANT-BLIND probe, and it is what `reject()` calls. A
+  //   customer credential does not satisfy it, so a provider MARQ holds no key
+  //   for is not selectable however many customers bring their own. Making
+  //   eligibility tenant-aware is Batch 4F's; telling the truth about it is
+  //   this batch's, and costs one boolean.
+  //
+  // It carries no detail. A customer learns that the platform cannot serve the
+  // provider, never which of the two states is the reason, and nothing about
+  // MARQ's credential, its source or its identity.
   const byokCatalogue = (): readonly ByokProviderCatalogueEntry[] =>
     plane!.providers.list().map((provider) => ({
       providerId: provider.descriptor.providerId,
@@ -421,6 +443,9 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
       billable: provider.descriptor.billable,
       certification: provider.certification,
       enabled: provider.enabled,
+      runtimeSelectable:
+        (config.allowRealRequests || !provider.descriptor.billable) &&
+        provider.adapter.hasCredentials(),
       credential: {
         required: provider.descriptor.credential.required,
         manageable: provider.descriptor.credential.manageable,

@@ -437,6 +437,27 @@ function ProviderCard(props: CardProps) {
             </p>
           )}
 
+          {/* STORED IS NOT SERVING.
+              A credential can be stored, active, correctly sealed and genuinely
+              the key that would authenticate a request, while the platform
+              cannot make requests at all. Saying only the first half told
+              administrators their key was in service in a deployment where
+              every request was refused, so the second half is said here too —
+              as a platform STATE, naming nothing about MARQ's own credential. */}
+          {provider.serviceable === false && (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                {provider.credential.status === 'active'
+                  ? 'Your credential is stored and would authenticate requests, but no request is reaching this provider: '
+                  : 'This provider is not currently serving requests: '}
+                {provider.unserviceableReason ??
+                  'the MARQ platform cannot currently execute requests for this provider'}
+                . Contact MARQ support if this persists.
+              </span>
+            </p>
+          )}
+
           {/* ── The credential in force ───────────────────────────────────── */}
           {provider.credential.configured && provider.credential.credentialId && (
             <section>

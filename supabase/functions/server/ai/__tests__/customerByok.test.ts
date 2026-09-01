@@ -747,3 +747,108 @@ describe('Batch 4D — what a customer may configure', () => {
     assert.equal(revoked.credential.status, 'revoked');
   });
 });
+
+// ── Stored is not the same as serving ───────────────────────────────────────
+//
+// REGRESSION, FOUND BY AN INDEPENDENT CERTIFICATION GATE.
+//
+// Customer BYOK decides WHICH KEY a selected provider executes on. It does not
+// by itself bring a provider into service: the provider selector rejects a
+// provider whose credentials the PLATFORM cannot see, and rejects every
+// billable provider outright while `AI_ALLOW_REAL_REQUESTS` is false — the
+// DEPLOYMENT DEFAULT. The limitation itself is acceptable and its removal is
+// Batch 4F's; asserting the opposite to a customer was not.
+//
+// In that state the console said, in words, "In service on your organization's
+// own credential. Requests to OpenAI are billed to your vendor account." while
+// every request returned `NO_PROVIDER_AVAILABLE`. An administrator who believes
+// their key is live stops looking for the reason their AI does not work, and a
+// finance team waits for an invoice that never arrives.
+describe('Batch 4D — the console does not claim service the runtime cannot give', () => {
+  it('does not report an active credential as in service when the runtime cannot select the provider', async () => {
+    const harness = buildByokHarness();
+    await configureFor(harness, BYOK_TOKEN.acmeAdmin, ACME_SECRET);
+
+    // What a default deployment is: real provider requests are switched off, so
+    // the selector rejects every billable provider before it looks at a key.
+    harness.degradeCatalogue({ runtimeSelectable: false });
+
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+    const view = (await harness.byok.status(actor)).providers.find(
+      (provider) => provider.providerId === BYOK_PROVIDER,
+    );
+
+    assert.ok(view);
+    // The credential is genuinely stored, genuinely active, and genuinely the
+    // key that WOULD authenticate a request. None of that is walked back.
+    assert.equal(view.credential.status, 'active');
+    assert.equal(view.effectiveSource, 'customer_byok');
+
+    // What changes is the claim about service.
+    assert.equal(view.serviceable, false, 'the view claimed the runtime could serve the provider');
+    assert.ok(view.unserviceableReason, 'a refusal must say something an administrator can act on');
+    assert.doesNotMatch(
+      view.message,
+      /in service/i,
+      'the console asserted service the runtime cannot deliver',
+    );
+    assert.match(view.message, /stored/i);
+    assert.match(view.message, /nothing is being billed/i);
+  });
+
+  it('says a provider is not serving even before a credential is stored', async () => {
+    const harness = buildByokHarness({ catalogueOverrides: { runtimeSelectable: false } });
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+    const view = (await harness.byok.status(actor)).providers.find(
+      (provider) => provider.providerId === BYOK_PROVIDER,
+    );
+
+    assert.ok(view);
+    assert.equal(view.serviceable, false);
+    // Storing one is still permitted: the platform state is transient and an
+    // administrator preparing for it is doing the right thing.
+    assert.equal(view.available, true);
+  });
+
+  it('reports service normally when the runtime can select the provider', async () => {
+    const harness = buildByokHarness();
+    await configureFor(harness, BYOK_TOKEN.acmeAdmin, ACME_SECRET);
+
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+    const view = (await harness.byok.status(actor)).providers.find(
+      (provider) => provider.providerId === BYOK_PROVIDER,
+    );
+
+    assert.ok(view);
+    assert.equal(view.serviceable, true);
+    assert.equal(view.unserviceableReason, undefined);
+    assert.match(view.message, /In service on your organization's own credential/);
+  });
+
+  it('tells a customer nothing about MARQ’s own credential arrangement', async () => {
+    // THE DISCLOSURE BOUNDARY. The new field says the platform cannot serve the
+    // provider. It must not say WHICH of the two platform states is the reason,
+    // because "MARQ holds no key for OpenAI" and "MARQ has real requests
+    // switched off" are facts about MARQ's deployment that a customer has no
+    // operation for.
+    const harness = buildByokHarness({ catalogueOverrides: { runtimeSelectable: false } });
+    await configureFor(harness, BYOK_TOKEN.acmeAdmin, ACME_SECRET);
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+    const serialised = JSON.stringify(await harness.byok.status(actor));
+
+    for (const forbidden of [
+      'AI_ALLOW_REAL_REQUESTS',
+      'OPENAI_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'platform_managed',
+      'deployment_managed',
+      'environment',
+      'kill switch',
+    ]) {
+      assert.ok(
+        !serialised.includes(forbidden),
+        `the customer surface disclosed a MARQ deployment fact: ${forbidden}`,
+      );
+    }
+  });
+});

@@ -57,6 +57,13 @@ const FORBIDDEN_FIELDS = new Set([
   'credentialValue',
   'plaintext',
   'password',
+  // The snake_case spellings, added by an independent certification gate. The
+  // set is matched on the EXACT field name, so `apiKey` withheld and `api_key`
+  // logged in full is a difference of one underscore — and the vendor
+  // documentation a caller copies a field name from uses the second spelling.
+  'api_key',
+  'access_token',
+  'refresh_token',
 ]);
 
 const MAX_FIELD_CHARS = 512;

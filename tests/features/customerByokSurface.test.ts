@@ -275,6 +275,36 @@ describe('the customer console is generic, not a chain of vendor names', () => {
   it('shows the server-derived message rather than composing its own', () => {
     assert.match(panelCode, /\{provider\.message\}/);
   });
+
+  // REGRESSION, FOUND BY AN INDEPENDENT CERTIFICATION GATE. A stored, active,
+  // correctly sealed credential is genuinely the key that would authenticate a
+  // request — and can be accompanied by no requests at all, because customer
+  // BYOK decides which key a SELECTED provider uses and does not by itself
+  // bring a provider into service. The panel used to render only the first
+  // half, so in a deployment with real provider requests switched off (the
+  // default) it told an administrator their key was in service while every
+  // request was refused.
+  it('warns when the platform cannot serve a provider a credential is stored for', () => {
+    assert.match(panelCode, /provider\.serviceable === false/);
+    assert.match(panelCode, /provider\.unserviceableReason/);
+    // A FALLBACK SENTENCE, so a server that sends the flag without a reason
+    // still produces a warning rather than an empty banner.
+    assert.match(panelCode, /cannot currently execute requests for this provider/);
+  });
+
+  it('learns that state from the server rather than deciding it in the browser', () => {
+    // The browser has no way to know whether the runtime can select a provider:
+    // it cannot see the platform's credentials and must not be told about them.
+    // So the field is read, never derived — and the client type declares it.
+    assert.match(service, /serviceable\?: boolean/);
+    assert.match(service, /unserviceableReason\?: string/);
+    for (const forbidden of ['allowRealRequests', 'AI_ALLOW_REAL_REQUESTS', 'hasCredentials']) {
+      assert.ok(
+        !panelCode.includes(forbidden) && !serviceCode.includes(forbidden),
+        `the customer console reasons about a MARQ deployment fact: ${forbidden}`,
+      );
+    }
+  });
 });
 
 describe('the customer console is honest about what it is about to do', () => {

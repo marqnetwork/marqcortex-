@@ -1,8 +1,9 @@
 # AI-01 Batch 4D — Customer BYOK
 
 **Baseline:** `476b5c5` (Batch 4C merged, migrated, deployed and closed; `origin/main` at the same SHA)
-**Branch:** `claude/customer-byok-credentials-b0jbt6`
-**Status:** implemented and verified locally — **NOT certified, NOT deployed**
+**Implementation branch:** `claude/customer-byok-credentials-b0jbt6` at `79fa1ad`
+**Review branch:** `claude/marq-cortex-batch-4d-review-eoedal` (remediation, section 14)
+**Status:** implemented, independently reviewed, remediated, and verified locally — **NOT deployed, NOT merged**
 **Production changes made by this batch:** none
 **Real provider requests executed:** 0
 
@@ -263,6 +264,17 @@ those rows are simply never read.
    would push a storage read into the selector and the spend guard, which run
    synchronously on every request. Pinned by a test.
 
+   The *limitation* stands and its removal remains 4F's. What did **not** stand
+   was the console's account of it: an independent certification gate found the
+   customer surface reporting *"In service on your organization's own credential.
+   Requests are billed to your vendor account"* in a deployment where every
+   request returned `NO_PROVIDER_AVAILABLE` — including the default deployment,
+   where `AI_ALLOW_REAL_REQUESTS` is `false` and the selector rejects every
+   billable provider before it looks at a key. The catalogue now carries
+   `runtimeSelectable`, the view carries `serviceable` and `unserviceableReason`,
+   and the panel says so. It is a platform **state** and names nothing about
+   MARQ's own credential, its source or its identity.
+
 2. **The platform operator cannot administer a tenant's BYOK.** A platform
    operator has no tenant identity, so there is no organization whose BYOK they
    administer. MARQ acting on a customer's own vendor key is a support operation
@@ -309,3 +321,45 @@ See the batch report for counts and results. The two halves:
 
 Batch 4C's own harness assertions are **re-run after 4D is applied**, unmodified,
 and again after the 4D rollback.
+
+---
+
+## 14. Independent certification review
+
+An independent review of this batch — not the implementing author — verified the
+claims above against the repository rather than against this report, added its
+own adversarial tests, and found three defects. All three are fixed on this
+branch, each with a regression test that fails against the reviewed commit:
+
+1. **A `tenant_only` organization could be moved onto MARQ's credential by a
+   read error.** The configuration read and the credential read shared one
+   `try`, so a failure in either was answered "we learned nothing, fall through
+   to the platform". That is true of the first read and false of the second: by
+   the time the credential read runs, the tenant's own fallback policy is
+   already in hand. The reads are now separated and the policy that was read
+   decides. A tenant whose *configuration* could not be read still falls
+   through, because that failure really does leave the platform knowing nothing
+   — so no tenant who never opted into BYOK loses availability.
+
+2. **The console asserted service the runtime could not deliver.** See the
+   platform-wide eligibility limitation above.
+
+3. **Rejected audit records lost the reason the actor gave.** Extracting the
+   audited-mutation runner out of the platform administration service dropped
+   the caller's own text from the rejection path, so every refusal — on Batch
+   4C's platform surface as well as this one — recorded `(no reason supplied)`
+   whatever had been stated. Denied attempts are what a security review reads,
+   and the reason is the intent behind them. Restored, bounded, with a genuinely
+   absent reason still reading as absent.
+
+Two smaller corrections were made alongside them: the log redaction list carried
+`apiKey` but not `api_key`, `access_token` or `refresh_token` — the spellings a
+caller copies from vendor documentation — and a comment in `byokRbac.ts` claimed
+an import of `admin/rbac.ts` that does not exist and should not. The comment was
+corrected rather than the import added.
+
+The review confirmed independently: tenant isolation holds under transplanted
+ciphertext, forged organization hints, unverified memberships and no-tenant
+platform resolution; the migration, its rollback and its re-application behave
+against a real PostgreSQL; Batch 4C is not regressed; no new TypeScript error is
+introduced at any boundary; and no test reaches a real provider.

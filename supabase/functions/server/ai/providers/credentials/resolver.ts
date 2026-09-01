@@ -49,7 +49,7 @@
  * provider-neutral resolver was so this could be an argument rather than an
  * architecture.
  *
- * FOUR PROPERTIES OF THE TENANT BRANCH, EACH LOAD-BEARING.
+ * FIVE PROPERTIES OF THE TENANT BRANCH, EACH LOAD-BEARING.
  *
  *   IT IS ONLY REACHED WITH A VERIFIED TENANT. `membershipVerified: false` —
  *   the `AI_ALLOW_DEFAULT_ORGANIZATION` fallback, where a subject with no
@@ -72,6 +72,14 @@
  *   exists and will not open is REFUSED. Falling through would move that
  *   customer's traffic onto MARQ's vendor account at the exact moment their own
  *   key became unreadable — see `tenantPrecedence.ts`, which owns this rule.
+ *
+ *   AND IT HONOURS A POLICY IT HAS ALREADY READ. The configuration read and the
+ *   credential read are separate, with separate catches, because the second one
+ *   runs with the tenant's own fallback policy already in hand. A single catch
+ *   answered both with "we learned nothing, fall through", which is true of the
+ *   first and false of the second — and the difference was a `tenant_only`
+ *   customer being moved onto MARQ's key by a transient read error. See
+ *   `resolveTenant`.
  *
  * AND THE PLATFORM PATH IS UNTOUCHED. `resolve(providerId)` with no tenant
  * reads platform-scoped storage and the environment exactly as it did in Batch
@@ -285,8 +293,33 @@ export function createProviderCredentialResolver(
     store: ProviderAdministrationStore,
     cipher: SecretCipher,
   ): Promise<ResolvedProviderCredential | null | undefined> {
+    // TWO READS, TWO CATCHES, AND THE SPLIT IS THE WHOLE POINT.
+    //
+    // An independent certification gate found these merged into one `try`, and
+    // the merge quietly cost a customer the one guarantee they bought. If the
+    // CONFIGURATION read succeeded and the CREDENTIAL read then failed, a single
+    // catch discarded a policy it had already read: a `tenant_only`
+    // organization — one whose stated policy is that their traffic reaches
+    // their vendor account or none — fell through to MARQ's platform key,
+    // silently, on a transient read error. The console went on reporting
+    // `customer_byok` while the invoice moved.
+    //
+    // The two failures are not the same failure and must not share an answer:
+    //
+    //   THE CONFIGURATION READ FAILED. We learned NOTHING — not whether this
+    //   tenant has a credential, and not what their fallback policy is. There is
+    //   no policy to honour because none was read, so this keeps the Batch 4C
+    //   posture: report it and let the pre-existing resolution stand. Refusing
+    //   here would take AI down for EVERY tenant — including the overwhelming
+    //   majority who never opted into BYOK and for whom refusing buys nothing —
+    //   on a `cortex` schema misconfiguration, in a deployment holding a
+    //   perfectly good platform key.
+    //
+    //   THE CREDENTIAL READ FAILED. We DID learn the policy: the configuration
+    //   is in hand. So the tenant's own instruction decides, exactly as it does
+    //   when the credential is merely absent, and `decideTenantCredential`
+    //   answers it from the facts below rather than this catch inventing one.
     let configuration: AIProviderConfigurationRecord | undefined;
-    let active: Awaited<ReturnType<ProviderAdministrationStore['activeCredential']>>;
     try {
       // KEYED BY THE TENANT. There is no query in this function that can return
       // a row belonging to another organization.
@@ -295,23 +328,31 @@ export function createProviderCredentialResolver(
         providerId,
         tenant.organizationId,
       );
-      active = configuration
-        ? await store.activeCredential(configuration.configurationId)
-        : undefined;
     } catch (error) {
-      // STORAGE SAID NOTHING — the database is unreachable, the schema is not
-      // exposed. We learned nothing about whether this tenant has a credential,
-      // so this behaves exactly as the same failure does on the platform path:
-      // report it and let the pre-existing resolution stand. Refusing here
-      // would take AI down for every tenant on a `cortex` schema
-      // misconfiguration, in a deployment holding a perfectly good platform
-      // key — the same argument Batch 4C made, applied to the same failure.
       options.onError?.(
         providerId,
         `organization credential storage is unreachable for the authenticated tenant, ` +
           `falling back to the platform resolution: ${describeForOperator(error)}`,
       );
       return undefined;
+    }
+
+    let active: Awaited<ReturnType<ProviderAdministrationStore['activeCredential']>>;
+    // Tracks WHY there is no active credential, because a policy decision made
+    // on an unreadable table must not be recorded as "the customer had none".
+    let credentialReadFailed = false;
+    try {
+      active = configuration
+        ? await store.activeCredential(configuration.configurationId)
+        : undefined;
+    } catch (error) {
+      credentialReadFailed = true;
+      active = undefined;
+      options.onError?.(
+        providerId,
+        `the authenticated tenant's credential could not be read; their own fallback ` +
+          `policy decides what happens next: ${describeForOperator(error)}`,
+      );
     }
 
     // BELT AND BRACES. The lookup was keyed by this tenant, so a mismatch here
@@ -338,9 +379,17 @@ export function createProviderCredentialResolver(
     if (decision.action === 'platform') return undefined;
     if (decision.action === 'fail_closed') {
       // Not an error and not a fallback. The tenant asked for exactly this.
+      //
+      // The suffix distinguishes the two ways a `tenant_only` tenant reaches
+      // here: their credential is genuinely absent, or it could not be read.
+      // An operator triaging a customer's outage needs to know which, and the
+      // two are indistinguishable from the decision alone.
       options.onError?.(
         providerId,
-        `no credential resolved for the authenticated tenant: ${decision.reason}`,
+        `no credential resolved for the authenticated tenant: ${decision.reason}` +
+          (credentialReadFailed
+            ? ' (its credential could not be read, and its policy forbids the platform credential)'
+            : ''),
       );
       return null;
     }

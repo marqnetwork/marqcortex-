@@ -201,6 +201,21 @@ export interface ByokProviderView {
   readonly fallback: AIByokFallbackPolicy;
   /** What this organization's requests authenticate with right now. */
   readonly effectiveSource: ByokEffectiveSource;
+  /**
+   * Whether MARQ's runtime can execute against this provider AT ALL right now.
+   *
+   * SEPARATE FROM `effectiveSource`, AND THE SEPARATION IS THE POINT.
+   * `effectiveSource` answers "whose key would authenticate a request"; this
+   * answers "would a request happen". A stored, active, correctly sealed
+   * customer credential is genuinely the key that would be used AND can be
+   * accompanied by no requests at all — while `AI_ALLOW_REAL_REQUESTS` is off,
+   * or while the platform holds no credential of its own for this provider.
+   * Folding the two into one field would force the surface to lie about one of
+   * them.
+   */
+  readonly serviceable: boolean;
+  /** Why the runtime cannot serve it. A platform STATE, never a platform secret. */
+  readonly unserviceableReason?: string;
   /** One sentence an administrator can act on. Derived from the state above. */
   readonly message: string;
 }
@@ -282,6 +297,32 @@ export interface ByokProviderCatalogueEntry {
   readonly certification: AICertificationStatus;
   /** Whether MARQ has this provider switched on platform-wide. */
   readonly enabled: boolean;
+  /**
+   * Whether MARQ's RUNTIME can currently select this provider at all
+   * (independent certification gate, AI-01 Batch 4D).
+   *
+   * WHY A CUSTOMER SURFACE NEEDS THIS. Customer BYOK decides WHICH KEY a
+   * selected provider executes on; it does not by itself bring a provider into
+   * service. The provider selector rejects a provider whose credentials the
+   * PLATFORM cannot see, and it rejects every billable provider outright while
+   * `AI_ALLOW_REAL_REQUESTS` is false — which is the deployment default. In
+   * either state a customer could store a perfectly good credential and have
+   * the console tell them, in words, that their requests were now billed to
+   * their own vendor account, while every request in fact returned
+   * `NO_PROVIDER_AVAILABLE`.
+   *
+   * A credential console that overstates service is worse than one that
+   * understates it: an administrator who believes their key is live stops
+   * looking for the reason their AI does not work, and a finance team believes
+   * an invoice is coming that never does.
+   *
+   * IT IS A PLATFORM STATE, NEVER A PLATFORM SECRET. It is one boolean saying
+   * whether the runtime can serve this provider. It does not say why, does not
+   * distinguish "MARQ holds no key" from "real requests are switched off", and
+   * carries nothing about MARQ's own credential, its source or its identity —
+   * the same disclosure boundary `unavailableReason` already draws.
+   */
+  readonly runtimeSelectable: boolean;
   readonly credential: {
     readonly required: boolean;
     readonly manageable: boolean;
@@ -597,13 +638,45 @@ export function createByokAdministration(
     return { source: 'none', reason: decision.reason };
   }
 
+  /**
+   * Whether MARQ's runtime can serve this provider at all, and why not.
+   *
+   * A PLATFORM STATE. It says the runtime cannot serve requests; it does not
+   * say whether that is because MARQ holds no key of its own or because real
+   * provider requests are switched off, because a customer has no action for
+   * either and neither is theirs to observe.
+   */
+  function serviceability(entry: ByokProviderCatalogueEntry): {
+    serviceable: boolean;
+    reason?: string;
+  } {
+    if (entry.runtimeSelectable) return { serviceable: true };
+    return {
+      serviceable: false,
+      reason:
+        'the MARQ platform cannot currently execute requests for this provider, so no ' +
+        'request will reach your vendor account until that is resolved',
+    };
+  }
+
   function messageFor(
     entry: ByokProviderCatalogueEntry,
     available: { available: boolean; reason?: string },
     credential: ByokCredentialView,
     source: ByokEffectiveSource,
+    serviceable: { serviceable: boolean; reason?: string },
   ): string {
     if (credential.status === 'active') {
+      // STORED IS NOT THE SAME AS SERVING, and this is the one message where
+      // conflating them costs an administrator a working system. Their key IS
+      // the key that would authenticate a request; there are no requests.
+      if (!serviceable.serviceable) {
+        return (
+          `Your credential is stored and would authenticate requests to ` +
+          `${entry.displayName} — but ${serviceable.reason}. Nothing is being billed to ` +
+          `your vendor account.`
+        );
+      }
       return (
         `In service on your organization's own credential. Requests to ` +
         `${entry.displayName} are billed to your vendor account.`
@@ -643,6 +716,7 @@ export function createByokAdministration(
     const available = availability(entry);
     const credential = credentialView(configuration, history);
     const { source } = effectiveSource(configuration, credential);
+    const serviceable = serviceability(entry);
     return {
       providerId: entry.providerId,
       displayName: entry.displayName,
@@ -657,7 +731,9 @@ export function createByokAdministration(
       credential,
       fallback: fallbackPolicyOf(configuration?.credentialFallback),
       effectiveSource: source,
-      message: messageFor(entry, available, credential, source),
+      serviceable: serviceable.serviceable,
+      unserviceableReason: serviceable.reason,
+      message: messageFor(entry, available, credential, source, serviceable),
     };
   }
 

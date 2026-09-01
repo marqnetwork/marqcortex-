@@ -384,6 +384,107 @@ describe('Batch 4D — the resolver answers per tenant', () => {
     assert.equal(resolved?.category, 'environment');
     assert.ok(errors.some((line) => /unreachable for the authenticated tenant/.test(line)));
   });
+
+  // ── The policy we DID read decides, even when the credential read failed ──
+  //
+  // REGRESSION, FOUND BY AN INDEPENDENT CERTIFICATION GATE. The configuration
+  // read and the credential read shared one `try`, so a failure in EITHER was
+  // answered "we learned nothing, fall through to the platform". That is true
+  // of the first read and false of the second: by the time the credential read
+  // runs, the configuration — and with it the tenant's own fallback policy — is
+  // already in hand.
+  //
+  // The cost of conflating them fell on the customers who bought the strictest
+  // guarantee the surface offers. A `tenant_only` organization — one whose
+  // stated policy is that their traffic reaches their vendor account or none —
+  // was moved onto MARQ's key by a transient read error, silently, while their
+  // console went on reporting `customer_byok`. The refusal below is the only
+  // answer consistent with what they were told, and it costs no availability
+  // for the tenants who never opted in: a `platform` tenant still falls
+  // through, and a tenant whose CONFIGURATION could not be read still falls
+  // through, because that failure really does leave us knowing nothing.
+
+  /** A store that answers configurations and refuses credential reads. */
+  function credentialReadFails(
+    store: ReturnType<typeof createMemoryProviderAdministrationStore>,
+  ) {
+    return {
+      ...store,
+      activeCredential: () => Promise.reject(new Error('PGRST301: statement timeout')),
+    };
+  }
+
+  async function resolverOverPolicy(
+    fallback: 'platform' | 'tenant_only',
+  ): Promise<{
+    resolved: Awaited<ReturnType<ReturnType<typeof createProviderCredentialResolver>['resolve']>>;
+    errors: readonly string[];
+  }> {
+    const clock = createTestClock();
+    const store = createMemoryProviderAdministrationStore();
+    const at = clock.isoNow();
+    await store.saveConfiguration({
+      configurationId: 'cfg-acme',
+      providerKey: BYOK_PROVIDER,
+      displayName: 'OpenAI',
+      scope: 'organization',
+      organizationId: ORG.acme,
+      enabled: true,
+      credentialFallback: fallback,
+      certification: 'certified',
+      configuration: {},
+      createdAt: at,
+      updatedAt: at,
+      createdBy: 'user-acme-admin',
+      updatedBy: 'user-acme-admin',
+    });
+
+    const errors: string[] = [];
+    const resolver = createProviderCredentialResolver({
+      profiles: [{
+        providerId: BYOK_PROVIDER,
+        required: true,
+        manageable: true,
+        environmentVariable: 'MOCK_PROVIDER_KEY',
+      }],
+      clock,
+      env: recordEnv({ MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET }),
+      store: credentialReadFails(store),
+      cipher: createSecretCipher(parseRootKey(BYOK_ROOT_KEY)),
+      onError: (providerId, detail) => errors.push(`${providerId}: ${detail}`),
+    });
+
+    return { resolved: await resolver.resolve(BYOK_PROVIDER, verified(ORG.acme)), errors };
+  }
+
+  it('refuses rather than billing MARQ when a tenant_only credential cannot be read', async () => {
+    const { resolved, errors } = await resolverOverPolicy('tenant_only');
+
+    assert.equal(
+      resolved,
+      undefined,
+      'a tenant_only organization was moved onto MARQ’s credential by a read error',
+    );
+    assert.ok(
+      errors.some((line) => /credential could not be read/.test(line)),
+      'the read failure must reach the operator channel',
+    );
+    assert.ok(
+      errors.some((line) => /policy forbids the platform credential/.test(line)),
+      'the refusal must say the policy — not the read — is what made it final',
+    );
+  });
+
+  it('still falls through for a platform-policy tenant whose credential cannot be read', async () => {
+    // THE OTHER HALF, AND IT MATTERS AS MUCH. This tenant's own stated policy is
+    // that MARQ's credential stands behind them, so a read failure must not
+    // take their AI down — the refusal above is a policy being honoured, not a
+    // new failure mode for everybody.
+    const { resolved } = await resolverOverPolicy('platform');
+
+    assert.equal(resolved?.secret, ENVIRONMENT_SECRET);
+    assert.equal(resolved?.category, 'environment');
+  });
 });
 
 // ── The platform estate, unchanged ──────────────────────────────────────────

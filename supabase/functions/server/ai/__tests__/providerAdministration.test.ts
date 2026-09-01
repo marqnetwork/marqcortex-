@@ -1833,6 +1833,12 @@ describe('Batch 4C — provider administration authority', () => {
     assert.ok(rejection, 'a refused credential mutation is recorded, not only refused');
     assert.equal(rejection?.actorId, 'user-org-admin');
     assert.equal(rejection?.rejectionCode, 'FORBIDDEN');
+    // AND THE REASON THE ACTOR GAVE, which an independent certification gate
+    // found had been dropped when Batch 4D extracted the audited-mutation
+    // runner out of this service: every refusal recorded "(no reason supplied)"
+    // whatever had been stated. A denied attempt is what a security review
+    // reads, and the reason is the intent behind it.
+    assert.equal(rejection?.reason, REASON);
   });
 
   it('refuses a managed credential for a provider that declares none', async () => {

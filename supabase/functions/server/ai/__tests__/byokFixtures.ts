@@ -222,6 +222,11 @@ export function byokCatalogue(
       billable: true,
       certification: 'certified',
       enabled: true,
+      // The runtime can serve it. Suites that need the opposite say so through
+      // `degradeCatalogue({ runtimeSelectable: false })`, which is the state a
+      // deployment is in by default — `AI_ALLOW_REAL_REQUESTS` is false unless
+      // an operator turns it on.
+      runtimeSelectable: true,
       credential: {
         required: true,
         manageable: true,
@@ -235,6 +240,7 @@ export function byokCatalogue(
       billable: true,
       certification: 'certified',
       enabled: true,
+      runtimeSelectable: true,
       credential: { required: true, manageable: true },
     },
     {
@@ -247,6 +253,7 @@ export function byokCatalogue(
       billable: false,
       certification: 'testing',
       enabled: true,
+      runtimeSelectable: true,
       credential: { required: false, manageable: false },
     },
   ];

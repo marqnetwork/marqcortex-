@@ -47,6 +47,7 @@ import { BYOK_OPERATION, executeByokHttpRequest } from '../byok/byokHttpAdapter.
 import { BYOK_ROLE_CAPABILITIES } from '../byok/byokRbac.ts';
 import { ADMIN_ROLE_CAPABILITIES } from '../admin/rbac.ts';
 import { createSecretCipher, parseRootKey } from '../providers/credentials/secretCipher.ts';
+import { createLogger, createMemorySink } from '../observability/logger.ts';
 
 // ── The HTTP boundary ───────────────────────────────────────────────────────
 
@@ -550,6 +551,80 @@ describe('Batch 4D — the customer estate and MARQ’s estate do not meet', () 
     // credentials" and "every change to MARQ's own" are separable by a text
     // filter on one trail rather than by knowing to look in two.
     assert.match(denied.action, /^ai\.byok\./);
+  });
+
+  // REGRESSION, FOUND BY AN INDEPENDENT CERTIFICATION GATE. Extracting the
+  // audited-mutation runner out of the platform administration service dropped
+  // the caller's own reason from the REJECTION record: every refusal, on both
+  // surfaces, recorded "(no reason supplied)" whatever the actor had stated.
+  //
+  // DENIED ATTEMPTS ARE WHAT A SECURITY REVIEW READS, and the reason is the
+  // intent. "An administrator was refused" and "an administrator was refused
+  // while stating they were rotating a key after an incident" are different
+  // events, and a trail that cannot tell them apart has lost the half a
+  // reviewer came for.
+  // The log redaction list is matched on the EXACT field name, so a name the
+  // list does not carry is logged in full. An independent certification gate
+  // found the camelCase spellings present and the snake_case ones — the
+  // spellings vendor documentation uses, and therefore the ones a caller copies
+  // — absent. Asserted here so the two halves cannot drift apart again.
+  it('withholds a credential-shaped log field under either spelling', () => {
+    const sink = createMemorySink();
+    const logger = createLogger({ sink, level: 'debug', structured: true });
+
+    logger.info('probe', {
+      apiKey: 'sk-camel-should-not-appear-0001',
+      api_key: 'sk-snake-should-not-appear-0002',
+      access_token: 'at-should-not-appear-0003',
+      refresh_token: 'rt-should-not-appear-0004',
+      secret: 'sk-secret-should-not-appear-0005',
+      providerId: 'openai',
+    });
+
+    const written = sink.lines.map((entry) => entry.line).join('\n');
+    for (const value of [
+      'sk-camel-should-not-appear-0001',
+      'sk-snake-should-not-appear-0002',
+      'at-should-not-appear-0003',
+      'rt-should-not-appear-0004',
+      'sk-secret-should-not-appear-0005',
+    ]) {
+      assert.ok(!written.includes(value), `a credential-shaped field was logged: ${value}`);
+    }
+    // The non-secret field beside them is untouched: redaction that swallowed
+    // everything would be a logger nobody could debug with.
+    assert.match(written, /"providerId":"openai"/);
+  });
+
+  it('records the reason the actor gave even when the change was refused', async () => {
+    const harness = buildByokHarness({ catalogueOverrides: { enabled: false } });
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+    const stated = 'rotating after incident 4321';
+
+    await assert.rejects(() =>
+      harness.byok.configureCredential(actor, BYOK_PROVIDER, { secret: ACME_SECRET }, stated),
+    );
+
+    const rejected = harness.trail().find((record) => record.outcome === 'rejected');
+    assert.ok(rejected, 'the refusal was not recorded at all');
+    assert.equal(rejected.reason, stated);
+  });
+
+  it('still reads a genuinely absent reason as absent', async () => {
+    // THE OTHER HALF. Restoring the caller's text must not turn an empty or
+    // non-string reason into a blank field that reads as though one was given.
+    const harness = buildByokHarness({ catalogueOverrides: { enabled: false } });
+    const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
+
+    for (const reason of ['', '   ', undefined, 42]) {
+      await assert.rejects(() =>
+        harness.byok.configureCredential(actor, BYOK_PROVIDER, { secret: ACME_SECRET }, reason),
+      );
+    }
+
+    for (const record of harness.trail().filter((entry) => entry.outcome === 'rejected')) {
+      assert.equal(record.reason, '(no reason supplied)');
+    }
   });
 
   it('writes no secret onto the trail on any refused path', async () => {

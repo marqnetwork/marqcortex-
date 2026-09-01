@@ -109,6 +109,22 @@ export interface ByokProvider {
   credential: ByokCredentialState;
   fallback: ByokFallbackPolicy;
   effectiveSource: ByokEffectiveSource;
+  /**
+   * Whether MARQ's runtime can execute against this provider AT ALL right now.
+   *
+   * DISTINCT FROM `effectiveSource`, which answers only "whose key would
+   * authenticate a request". A stored, active credential can be genuinely the
+   * key that would be used while no request happens at all, and a console that
+   * reported only the first half told administrators their key was in service
+   * in a deployment where every request was refused.
+   *
+   * Optional so a console deployed against a server that predates the field
+   * renders rather than crashing; absent is read as "serviceable", which is the
+   * reading that restores the previous behaviour exactly.
+   */
+  serviceable?: boolean;
+  /** Why the runtime cannot serve it. A platform STATE, never a platform secret. */
+  unserviceableReason?: string;
   /** One sentence, derived server-side from the state beside it. */
   message: string;
 }

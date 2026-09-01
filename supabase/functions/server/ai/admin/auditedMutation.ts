@@ -117,6 +117,38 @@ export interface AuditedMutationDependencies {
   readonly noReasonText?: string;
 }
 
+/**
+ * The longest reason recorded on the trail.
+ *
+ * Bounded HERE as well as in each surface's `requireReason`, because the
+ * rejection path records a reason that has NOT been through validation — see
+ * `statedReason` — and an unbounded caller-supplied string reaching an
+ * append-only record is a way to fill one.
+ */
+const MAX_RECORDED_REASON = 500;
+
+/**
+ * What the caller SAID, bounded, for a record written before validation ran.
+ *
+ * REGRESSION FIXED HERE, FOUND BY AN INDEPENDENT CERTIFICATION GATE. When this
+ * runner was extracted from the platform administration service, the rejection
+ * path lost its fallback to the caller's own text and recorded
+ * "(no reason supplied)" for every refusal — including refusals where a reason
+ * had been supplied, was perfectly valid, and was the only record of what the
+ * actor was trying to do.
+ *
+ * DENIED ATTEMPTS ARE WHAT A SECURITY REVIEW READS. "An administrator was
+ * refused" and "an administrator was refused while stating they were rotating
+ * a key after an incident" are different events, and the trail must be able to
+ * tell them apart. This restores the pre-extraction behaviour on both surfaces:
+ * a reason that was given is recorded even when the change it accompanied was
+ * refused, and only a genuinely absent one reads as absent.
+ */
+function statedReason(reason: unknown, fallback: string): string {
+  const trimmed = typeof reason === 'string' ? reason.trim() : '';
+  return trimmed === '' ? fallback : trimmed.slice(0, MAX_RECORDED_REASON);
+}
+
 export function createAuditedMutationRunner(
   deps: AuditedMutationDependencies,
 ): AuditedMutationRunner {
@@ -130,6 +162,10 @@ export function createAuditedMutationRunner(
     // the prior state was read records an empty `before`, which is the truth:
     // nothing was read, so nothing can be claimed about it.
     let before: Readonly<Record<string, unknown>> = {};
+
+    // Captured before anything can throw, so a refusal that happened at the
+    // authorization check still records what the actor said they were doing.
+    const stated = statedReason(options.reason, noReason);
 
     const audit = (
       outcome: 'applied' | 'rejected',
@@ -149,7 +185,7 @@ export function createAuditedMutationRunner(
         actorRole: actor.actorRole,
         organizationScope: actor.organizationScope,
         target: options.target,
-        reason: extra.reason ?? noReason,
+        reason: extra.reason ?? stated,
         before: toChangeMap(before),
         after: toChangeMap(extra.after ?? {}),
         configurationVersion: extra.configurationVersion,
