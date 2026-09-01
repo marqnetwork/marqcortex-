@@ -144,16 +144,34 @@ export function createOpenAIProvider(options: OpenAIProviderOptions): AIProvider
 
     async invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion> {
       // Resolved HERE, once, per attempt. The adapter does not know whether the
-      // secret came from a managed record or from the deployment environment,
-      // and it never holds one for longer than this call.
-      const resolved = await credentials.resolve(descriptor.providerId);
+      // secret came from a customer's own record, a managed platform record or
+      // the deployment environment, and it never holds one for longer than this
+      // call.
+      //
+      // `invocation.tenant` (AI-01 Batch 4D) is passed through UNREAD. This
+      // adapter does not inspect it, does not branch on it and above all does
+      // not send it to the vendor: it is the resolver's argument, and the
+      // resolver is the only thing in the platform that opens a credential.
+      const resolved = await credentials.resolve(descriptor.providerId, invocation.tenant);
       const apiKey = resolved?.secret.trim();
-      if (!apiKey) {
+      if (resolved === undefined || !apiKey) {
+        // ONE refusal for every unresolved case, and it names none of them.
+        //
+        // "No credential is configured", "the tenant's credential would not
+        // open" and "the tenant's policy forbids the platform credential" are
+        // three different server-side facts, already reported through the
+        // resolver's operator channel. To a CALLER they are one answer, and
+        // distinguishing them here would let an unauthorised caller probe
+        // another organization's credential state one request at a time.
         throw new AIError('PROVIDER_AUTH_FAILED', 'The AI provider is not configured.', {
           providerId: 'openai',
-          diagnostics: 'no managed or environment credential resolved for openai',
+          diagnostics: 'no credential resolved for openai on this request',
         });
       }
+      // The CATEGORY, captured beside the key and never beside its value. The
+      // secret leaves scope with this function; this outlives it, on the audit
+      // record.
+      const credentialSource = resolved.category;
 
       const body: Record<string, unknown> = {
         model: invocation.modelId,
@@ -223,6 +241,10 @@ export function createOpenAIProvider(options: OpenAIProviderOptions): AIProvider
             (payload.usage?.prompt_tokens ?? 0) + (payload.usage?.completion_tokens ?? 0),
         },
         finishReason: payload.choices?.[0]?.finish_reason,
+        // Provenance, not a locator: the CATEGORY of credential that authorised
+        // this call. Read off the resolution that actually happened rather than
+        // re-derived, so the audit record cannot disagree with the request.
+        credentialSource,
       };
     },
   };

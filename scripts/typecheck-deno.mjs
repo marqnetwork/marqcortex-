@@ -42,6 +42,10 @@ const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'ai') + sep,
   join(FUNCTIONS_ROOT, 'server', 'aiRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'aiAdminRoutes.ts'),
+  // AI-01 Batch 4D. The customer BYOK route binding is part of the same
+  // security surface as the platform administration one and takes no Deno-only
+  // import, so a type regression in it is a blocker rather than a note.
+  join(FUNCTIONS_ROOT, 'server', 'aiByokRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'agentRuntimeRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'workflowRuntimeRoutes.ts'),
   join(FUNCTIONS_ROOT, 'server', 'teamAuthorization.ts'),

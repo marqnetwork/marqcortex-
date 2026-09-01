@@ -29,6 +29,25 @@
  * schema carries the scope anyway so Batch 4D can add organization-owned
  * credentials by admitting a value, not by reshaping a table that already has
  * production rows in it.
+ *
+ * ── AI-01 BATCH 4D CASHED THAT IN ──────────────────────────────────────────
+ *
+ * Customer BYOK adds NO TABLE and NO SECOND STORE. It admits the `organization`
+ * value the scope column has always allowed, adds one non-secret policy field
+ * (`credentialFallback`) and adds ONE read method — and the shape of that
+ * method is the security decision:
+ *
+ *   `listOrganizationConfigurations(organizationId)` takes the tenant as its
+ *   ONLY argument and is the only way to enumerate organization-owned rows.
+ *   There is deliberately no `listConfigurations('organization')` that returns
+ *   every tenant's rows for a caller to filter afterwards, because a filter a
+ *   caller applies is a filter a caller can forget, and forgetting it here
+ *   would hand one customer the list of another customer's configured
+ *   providers.
+ *
+ * `listConfigurations(scope)` therefore stays what it was: the PLATFORM
+ * enumeration, used by the resolver's non-secret snapshot and by the MARQ
+ * console. It is documented and tested as refusing to enumerate tenants.
  */
 
 import type { SealedSecret } from './secretCipher.ts';
@@ -42,6 +61,29 @@ import type { SealedSecret } from './secretCipher.ts';
  * against the final shape rather than retrofitted onto it.
  */
 export type AIProviderScope = 'platform' | 'organization';
+
+/**
+ * What a tenant's execution falls back to when its own credential is absent
+ * (AI-01 Batch 4D).
+ *
+ * `platform`     The Batch 4C resolution continues behind the tenant's own: a
+ *                tenant that has not configured a credential, or has revoked
+ *                one, executes on MARQ's platform credential exactly as it did
+ *                before this batch. THE DEFAULT, because it is the only value
+ *                that changes nothing for a tenant that never opts in.
+ *
+ * `tenant_only`  The tenant's own credential or nothing. Chosen by a customer
+ *                whose policy is that their traffic must reach their vendor
+ *                account and no other — revoking their key stops their AI
+ *                rather than quietly moving the bill to MARQ.
+ *
+ * IT IS NOT A SECURITY BOUNDARY BETWEEN TENANTS and must not be read as one.
+ * No value of this admits one customer's credential to another customer's
+ * execution; that is decided by the organization id, which comes from an
+ * authenticated membership. This decides only whether MARQ's own credential
+ * stands behind a tenant that has none.
+ */
+export type AIByokFallbackPolicy = 'platform' | 'tenant_only';
 
 /** MARQ's governance decision about a provider or a model. */
 export type AIProviderCertificationState =
@@ -70,6 +112,15 @@ export interface AIProviderConfigurationRecord {
   /** Set only for `organization` scope. Null for platform-owned records. */
   readonly organizationId?: string;
   readonly enabled: boolean;
+  /**
+   * What this configuration's execution falls back to (AI-01 Batch 4D).
+   *
+   * Meaningful only for `organization` scope; a platform row is always
+   * `platform`, which the database asserts. Absent is read as `platform` by
+   * every consumer, so a Batch 4C row that predates the column behaves exactly
+   * as it always has.
+   */
+  readonly credentialFallback?: AIByokFallbackPolicy;
   readonly certification: AIProviderCertificationState;
   /** Free-form, bounded configuration that is NOT secret. Never key material. */
   readonly configuration: Readonly<Record<string, string>>;
@@ -135,7 +186,26 @@ export interface AIProviderModelRecord {
  * column the domain has an opinion about.
  */
 export interface ProviderAdministrationStore {
+  /**
+   * Every configuration in a scope.
+   *
+   * FOR THE PLATFORM SCOPE. Calling it with `organization` returns rows across
+   * EVERY tenant, which is why no tenant-facing code path calls it and why the
+   * tenant enumeration below exists instead. The Batch 4D administration
+   * service does not import this method at all.
+   */
   listConfigurations(scope: AIProviderScope): Promise<readonly AIProviderConfigurationRecord[]>;
+  /**
+   * Every configuration owned by ONE organization (AI-01 Batch 4D).
+   *
+   * The tenant is the only argument, so there is no shape of call here that
+   * means "every tenant's rows, and I will filter". A store implementation that
+   * returned a row for another organization would be returning something this
+   * signature cannot express a request for.
+   */
+  listOrganizationConfigurations(
+    organizationId: string,
+  ): Promise<readonly AIProviderConfigurationRecord[]>;
   findConfiguration(
     scope: AIProviderScope,
     providerKey: string,
@@ -214,6 +284,21 @@ export function createMemoryProviderAdministrationStore(): ProviderAdministratio
       return Promise.resolve(
         [...configurations.values()]
           .filter((record) => record.scope === scope)
+          .sort((a, b) => a.providerKey.localeCompare(b.providerKey)),
+      );
+    },
+
+    listOrganizationConfigurations(organizationId) {
+      // BOTH halves of the predicate, deliberately. Matching on the tenant
+      // alone would be correct only for as long as `organizationId` stays null
+      // on every platform row, and that is a property of a CHECK constraint in
+      // another file rather than of this function.
+      return Promise.resolve(
+        [...configurations.values()]
+          .filter(
+            (record) =>
+              record.scope === 'organization' && record.organizationId === organizationId,
+          )
           .sort((a, b) => a.providerKey.localeCompare(b.providerKey)),
       );
     },

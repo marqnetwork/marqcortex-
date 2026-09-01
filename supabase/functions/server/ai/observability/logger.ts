@@ -43,6 +43,27 @@ const FORBIDDEN_FIELDS = new Set([
   'apiKey',
   'authorization',
   'token',
+  // AI-01 Batch 4D. Customer BYOK adds a second population of callers who hold
+  // vendor key material — the customer credential service and the tenant-aware
+  // resolver — so the names a key could arrive under are withheld here as well.
+  //
+  // NOTHING CURRENTLY LOGS ANY OF THESE, and that is the point: the service
+  // logs a keyed FINGERPRINT and never a value, and its suite asserts the
+  // plaintext appears in no log line. This is belt to those braces, so the
+  // failure mode of a future caller writing `logger.info('...', { secret })` is
+  // a withheld field rather than a credential in a log aggregator.
+  'secret',
+  'credential',
+  'credentialValue',
+  'plaintext',
+  'password',
+  // The snake_case spellings, added by an independent certification gate. The
+  // set is matched on the EXACT field name, so `apiKey` withheld and `api_key`
+  // logged in full is a difference of one underscore — and the vendor
+  // documentation a caller copies a field name from uses the second spelling.
+  'api_key',
+  'access_token',
+  'refresh_token',
 ]);
 
 const MAX_FIELD_CHARS = 512;

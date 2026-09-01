@@ -261,6 +261,10 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
           failedProviders: outcome.failedProviders,
           providerId: outcome.providerId,
           modelId: outcome.modelId,
+          // AI-01 Batch 4D. WHOSE credential paid for this, as a category. Read
+          // off the pipeline's answering attempt rather than re-derived from
+          // configuration, which can have changed since.
+          credentialSource: outcome.credentialSource,
           promptId: outcome.promptId,
           promptVersion: outcome.promptVersion,
           promptHash: outcome.promptHash,
@@ -367,6 +371,12 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
 
         if (context) {
           const lastAttempt = attempts.at(-1);
+          // The credential category of the LAST attempt that got far enough to
+          // report one. A failed request still spent somebody's vendor account
+          // when it burned billable attempts, and the record has to say whose.
+          const failureCredentialSource = [...attempts]
+            .reverse()
+            .find((attempt) => attempt.credentialSource !== undefined)?.credentialSource;
           audit.record(context, {
             outcome: 'failure',
             latencyMs,
@@ -374,6 +384,7 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
             failedProviders: [...new Set(attempts.map((attempt) => attempt.providerId))],
             providerId: lastAttempt?.providerId,
             modelId: lastAttempt?.modelId,
+            credentialSource: failureCredentialSource,
             costMicroUsd: billedMicroUsd,
             policy: decision,
             errorCode: aiError.code,

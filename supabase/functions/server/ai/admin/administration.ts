@@ -78,6 +78,7 @@ import {
   toChangeMap,
 } from './adminAudit.ts';
 import { requireCapability, resolveAdminActor, scopeRecords } from './rbac.ts';
+import { createAuditedMutationRunner, createMutationChain } from './auditedMutation.ts';
 import { buildUsageReport } from './usage.ts';
 import {
   createProviderAdministration,
@@ -444,20 +445,18 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
   /**
    * Serialise mutations within this isolate.
    *
-   * Compare-and-swap already makes a lost update impossible ACROSS isolates.
-   * Within one, two administrators can still interleave between the durable
-   * read and the durable write, and the loser would simply retry — correct, but
-   * it also allowed two saves to land out of order, so a slow first write could
-   * overwrite a fast second one. One chain per isolate makes the order
-   * deterministic and removes the retry entirely for the common case.
+   * The chain itself moved to `auditedMutation.ts` in Batch 4D so the customer
+   * BYOK surface uses the same construction rather than a second copy of it.
+   * The reasoning is unchanged and lives there: compare-and-swap already makes
+   * a lost update impossible ACROSS isolates; within one, two administrators
+   * can still interleave between a durable read and a durable write, and two
+   * saves could land out of order.
+   *
+   * THIS SURFACE'S OWN CHAIN, not a shared one. A customer rotating their own
+   * vendor key has no business queueing behind a platform settings write, and
+   * the two touch disjoint rows.
    */
-  let mutationChain: Promise<unknown> = Promise.resolve();
-  function withMutationLock<T>(work: () => Promise<T>): Promise<T> {
-    const next = mutationChain.then(work, work);
-    // A failed mutation must not poison the chain for every later caller.
-    mutationChain = next.catch(() => undefined);
-    return next;
-  }
+  const withMutationLock = createMutationChain();
 
   /**
    * The durable record, or `undefined` when there is none.
@@ -567,7 +566,26 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
    * record. A failure at any step is recorded as `rejected` with the code that
    * caused it, so the trail shows attempts as well as successes.
    */
-  async function mutate<T>(
+  const runAuditedMutation = createAuditedMutationRunner({
+    trail,
+    logger,
+    lock: withMutationLock,
+    requireReason,
+  });
+
+  /**
+   * The single door every mutation goes through.
+   *
+   * Capability, then reason, then the change, then persistence, then the audit
+   * record. A failure at any step is recorded as `rejected` with the code that
+   * caused it, so the trail shows attempts as well as successes.
+   *
+   * The DISCIPLINE lives in `auditedMutation.ts` (Batch 4D) and is shared with
+   * the customer BYOK surface. What stays here is the only part that is this
+   * surface's own: which capabilities a change demands, and in whose
+   * vocabulary.
+   */
+  function mutate<T>(
     actor: AIAdminActor,
     options: {
       /**
@@ -590,80 +608,28 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       }>;
     },
   ): Promise<T> {
-    const reasonText =
-      typeof options.reason === 'string' ? options.reason.trim().slice(0, MAX_REASON_LENGTH) : '';
-    // Empty until the change is authorised. A rejection that happened before
-    // the prior state was read records an empty `before`, which is the truth:
-    // nothing was read, so nothing can be claimed about it.
-    let before: Readonly<Record<string, unknown>> = {};
-
-    const audit = (
-      outcome: 'applied' | 'rejected',
-      extra: {
-        reason?: string;
-        after?: Readonly<Record<string, unknown>>;
-        configurationVersion?: number;
-        rejectionCode?: string;
-        action?: AdminAction;
-      },
-    ): void => {
-      trail.record({
-        action: extra.action ?? options.action,
-        outcome,
+    return runAuditedMutation(
+      {
         actorId: actor.actorId,
-        actorEmail: actor.email,
+        email: actor.email,
         actorRole: actor.role,
         organizationScope: actor.organizationScope,
-        target: options.target,
-        reason: extra.reason ?? (reasonText === '' ? '(no reason supplied)' : reasonText),
-        before: toChangeMap(before),
-        after: toChangeMap(extra.after ?? {}),
-        configurationVersion: extra.configurationVersion,
-        correlationId: options.meta?.correlationId,
-        clientIp: options.meta?.clientIp,
-        rejectionCode: extra.rejectionCode,
-      });
-    };
-
-    try {
-      for (const capability of options.capabilities) requireCapability(actor, capability);
-      const reason = requireReason(options.reason);
-      // Authorisation and validation are cheap and need no ordering. Everything
-      // that reads or writes platform state runs inside the mutation chain, so
-      // two administrators on this isolate are applied in a defined order
-      // rather than racing between their read and their write.
-      const outcome = await withMutationLock(async () => {
-        before = await options.before();
-        return options.run(reason);
-      });
-      audit('applied', {
-        reason,
-        after: outcome.after,
-        configurationVersion: outcome.configurationVersion,
-        action: outcome.action,
-      });
-      logger.info('ai.admin.change_applied', {
-        action: outcome.action ?? options.action,
-        actorId: actor.actorId,
-        role: actor.role,
-        target: options.target,
-        configurationVersion: outcome.configurationVersion,
-        changed: changedKeys(toChangeMap(before), toChangeMap(outcome.after)).join(','),
-      });
-      return outcome.result;
-    } catch (error) {
-      const aiError = error instanceof AIError ? error : undefined;
-      audit('rejected', { rejectionCode: aiError?.code ?? 'INTERNAL_ERROR' });
-      logger.warn('ai.admin.change_rejected', {
+      },
+      {
         action: options.action,
-        actorId: actor.actorId,
-        role: actor.role,
+        reason: options.reason,
         target: options.target,
-        code: aiError?.code ?? 'INTERNAL_ERROR',
-        diagnostics: aiError?.diagnostics,
-      });
-      throw error;
-    }
+        meta: options.meta,
+        // THIS SURFACE'S authority, in this surface's vocabulary. The runner
+        // never sees an `AIAdminCapability` and cannot be handed one from
+        // another surface's capability set.
+        authorize: () => {
+          for (const capability of options.capabilities) requireCapability(actor, capability);
+        },
+        before: options.before,
+        run: options.run,
+      },
+    );
   }
 
   /**

@@ -179,15 +179,29 @@ export function createAnthropicProvider(options: AnthropicProviderOptions): AIPr
     async invoke(invocation: AIProviderInvocation): Promise<AIProviderCompletion> {
       // One resolution per attempt, through the same provider-neutral port the
       // OpenAI adapter uses. There is deliberately no Anthropic-specific
-      // credential pipeline — that is the Batch 4C guarantee.
-      const resolved = await credentials.resolve(descriptor.providerId);
+      // credential pipeline — that is the Batch 4C guarantee, and Batch 4D
+      // extends it by passing the authenticated tenant through the SAME port
+      // rather than by giving this vendor a BYOK path of its own.
+      const resolved = await credentials.resolve(descriptor.providerId, invocation.tenant);
       const apiKey = resolved?.secret.trim();
-      if (!apiKey) {
+      if (resolved === undefined || !apiKey) {
+        // ONE refusal for every unresolved case, and it names none of them.
+        //
+        // "No credential is configured", "the tenant's credential would not
+        // open" and "the tenant's policy forbids the platform credential" are
+        // three different server-side facts, already reported through the
+        // resolver's operator channel. To a CALLER they are one answer, and
+        // distinguishing them here would let an unauthorised caller probe
+        // another organization's credential state one request at a time.
         throw new AIError('PROVIDER_AUTH_FAILED', 'The AI provider is not configured.', {
           providerId: 'anthropic',
-          diagnostics: 'no managed or environment credential resolved for anthropic',
+          diagnostics: 'no credential resolved for anthropic on this request',
         });
       }
+      // The CATEGORY, captured beside the key and never beside its value. The
+      // secret leaves scope with this function; this outlives it, on the audit
+      // record.
+      const credentialSource = resolved.category;
 
       const system = invocation.generation.messages
         .filter((message) => message.role === 'system')
@@ -263,6 +277,10 @@ export function createAnthropicProvider(options: AnthropicProviderOptions): AIPr
       }
 
       return {
+        // Provenance, not a locator. See the OpenAI adapter's note: the
+        // category of credential that authorised this call, read off the
+        // resolution that happened.
+        credentialSource,
         // Restore the prefilled brace so the control plane's JSON parsing is
         // identical for every provider.
         content: wantsJson ? `{${text}` : text,

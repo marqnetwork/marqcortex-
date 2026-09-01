@@ -482,7 +482,7 @@ CORTEX-specific reads; avoids circular deps with `cortexDataGenerator.ts`.
 | `AI_DEFAULT_ORGANIZATION_ID` | `marq-cortex` | Org for a subject with no membership |
 | `AI_ORGANIZATION_ALLOW_LIST` | — | When set, only these orgs may call AI features |
 | `AI_ENABLE_MOCK_PROVIDER` | `false` | Register the deterministic mock provider |
-| `AI_CREDENTIAL_ENCRYPTION_KEY` | — | **Batch 4C.** Base64 32-byte AES-256-GCM root key for managed provider credentials. Absent → managed credentials cannot be STORED (the platform still runs, on environment credentials). Never in the database |
+| `AI_CREDENTIAL_ENCRYPTION_KEY` | — | **Batch 4C/4D.** Base64 32-byte AES-256-GCM root key for managed provider credentials — MARQ's own and customers' alike. Absent → no credential can be STORED (the platform still runs, on environment credentials). Never in the database. Batch 4D adds **no** environment variable |
 | `AI_CREDENTIAL_SNAPSHOT_TTL_MS` | `30000` | How long an isolate serves a cached NON-SECRET credential availability snapshot. Bounds the console's view only — execution decrypts on every attempt |
 
 Every value is bounded: a malformed setting falls back to its default rather than
@@ -911,6 +911,108 @@ Console: the **Providers** area of `AIAdministrationConsole.tsx`
 (`ProviderAdministrationPanel.tsx`), which contains no provider name in any
 branch — it renders from provider metadata, so a Batch 4E provider appears with
 no frontend change.
+
+### 12.6 Customer BYOK (AI-01 Batch 4D)
+
+An authorised administrator of a **customer organization** configures that
+organization's own AI provider credentials. Their traffic then reaches their own
+vendor account under their own key.
+
+```
+     CUSTOMER ORG ADMIN                      MARQ PLATFORM ADMIN
+             │                                        │
+             ▼                                        ▼
+   BYOK ADMINISTRATION   (4D)              PROVIDER ADMINISTRATION   (4C)
+   ai.byok.*                               ai.providers.*
+   organization scope only                 platform scope only
+             │                                        │
+             └────────────────────┬───────────────────┘
+                                  ▼
+                  ONE credential store · ONE AES-256-GCM cipher
+                                  ▼
+                  ONE PROVIDER CREDENTIAL RESOLVER  (tenant-aware)
+                                  ▼
+                       ONE AI CONTROL PLANE
+```
+
+**Two administration surfaces, one of everything below them.** No second store,
+no second cipher, no second resolver, no second execution path, no second audit
+trail. What differs is the SCOPE of the rows and WHO may touch them.
+
+#### Credential precedence, tenant-aware
+
+`resolve(providerId)` with **no tenant** is byte-for-byte the Batch 4C
+resolution and reads no organization-owned row at all — which is what keeps a
+customer's credential out of MARQ's own execution. `resolve(providerId, tenant)`
+adds one branch in front of it:
+
+```
+0. TENANT       an organization configuration that is present, ENABLED and holds
+                an ACTIVE credential  →  open it.
+                If it will not open   →  REFUSE. Never continue.
+1. PLATFORM     an ACTIVE managed Cortex credential          ┐ Batch 4C,
+2. ENVIRONMENT  the deployment's variable                    │ unchanged
+3. NONE         the provider is unavailable and says so      ┘
+```
+
+Reached only when the tenant's membership is VERIFIED — the
+`AI_ALLOW_DEFAULT_ORGANIZATION` fallback buys no access to a customer's key.
+
+A tenant credential that exists and cannot be decrypted does **not** fall
+through to MARQ's: that would move a customer's traffic onto MARQ's vendor
+account at the exact moment their own key became unreadable, while the console
+went on reporting `customer_byok`. Each organization additionally chooses
+`credential_fallback` ∈ `{platform, tenant_only}` — default `platform`, the
+value that changes nothing for a tenant that never opts in.
+
+The decision lives in ONE pure function (`tenantPrecedence.ts`) asked by both
+the resolver and the customer console, so the two cannot disagree about what a
+tenant is executing on.
+
+#### Tenant isolation
+
+Five independent layers: `resolveOrganization` (a hint is admitted only against
+a verified membership), the service (every lookup keyed by the resolved
+organization; no method takes an organization id), the store
+(`listOrganizationConfigurations(organizationId)` has no "all tenants" call
+shape), the database (partial unique index per (tenant, provider); a
+`BEFORE UPDATE` trigger makes `scope` and `organization_id` immutable, for
+`service_role` too), and the cipher (the AAD binds the organization, so a
+ciphertext moved onto another tenant's row does not open).
+
+**The organization never comes from a request body.** It comes from the
+authenticated session, optionally narrowed by an `X-MARQ-Organization` hint. No
+route takes an organization path parameter.
+
+#### Authority
+
+`ai.byok.view` and `ai.byok.manage`, held by an organization's own
+administrators. Ordinary members hold neither. **The MARQ platform operator
+holds neither**: a platform operator has no tenant identity, and MARQ acting on
+a customer's own vendor key is a support operation with a consent question
+attached — deferred rather than shipped by accident. No capability name appears
+in both grant tables.
+
+#### Persistence
+
+Migration `20260901120000_ai_customer_byok.sql` **creates no table**. It admits
+the `organization` scope the 4C schema already carried and adds one non-secret
+policy column, two constraints, one partial index and one immutability trigger.
+RLS stays enabled and forced on all three tables with no policy on any of them,
+and nothing new is granted to any role. Its rollback deletes no customer row: a
+stored credential is write-only and unrecoverable, and with 4D's code rolled
+back those rows are simply never read.
+
+#### Known limitation
+
+Whether a provider may serve at all is decided by the selector's synchronous,
+platform-scoped credential probe. Customer BYOK decides **which key** a selected
+provider executes with; it does not by itself bring a provider into service.
+
+Console: the **AI Provider Keys** tab of `SettingsPage.tsx`
+(`OrganizationProviderCredentialsPanel.tsx`) — a separate tab from AI
+Administration, containing no provider name in any branch and no field MARQ's
+own credential state could occupy.
 
 ---
 

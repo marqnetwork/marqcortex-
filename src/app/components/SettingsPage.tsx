@@ -18,7 +18,7 @@ import {
   Settings, User, Bell, Palette, Activity, Loader2,
   AlertTriangle, CheckCircle2, Save, RefreshCw, Server,
   Database, Clock, Zap, BarChart2, Users, FileText,
-  MessageSquare, CheckCheck, TrendingUp, Mail, SendHorizonal,
+  MessageSquare, CheckCheck, TrendingUp, Mail, SendHorizonal, KeyRound,
 } from 'lucide-react';
 import {
   getPlatformSettings, savePlatformSettings,
@@ -27,6 +27,7 @@ import {
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
+import { OrganizationProviderCredentialsPanel } from '@/app/components/OrganizationProviderCredentialsPanel';
 
 interface Props {
   accessToken?: string;
@@ -43,6 +44,20 @@ const TABS = [
   // client-side role guess would be a check the server does not honour and a
   // second place for the two to disagree.
   { id: 'ai',            label: 'AI Administration', icon: Zap },
+  // AI-01 Batch 4D. A SEPARATE TAB from AI Administration, deliberately.
+  //
+  // That one is MARQ's platform estate — the keys the platform executes with,
+  // the certification decisions, the governed exposure — and only the platform
+  // operator can act on it. This one is a CUSTOMER organization's own
+  // credentials, and only that organization's administrators can act on it. Two
+  // estates on one screen is how somebody eventually shows one to the other.
+  //
+  // The tab is always rendered; the panel resolves the caller's organization
+  // and role server-side and shows an explicit refusal to anyone without an
+  // administrative role there. Hiding the tab on a client-side role guess would
+  // be a check the server does not honour and a second place for the two to
+  // disagree.
+  { id: 'byok',          label: 'AI Provider Keys',  icon: KeyRound },
 ];
 
 export function SettingsPage({ accessToken }: Props) {
@@ -282,6 +297,9 @@ export function SettingsPage({ accessToken }: Props) {
             <HealthTab health={data.health} onRefresh={() => load()} />
           )}
           {activeTab === 'ai' && <AIAdministrationConsole accessToken={accessToken} />}
+          {activeTab === 'byok' && (
+            <OrganizationProviderCredentialsPanel accessToken={accessToken} />
+          )}
         </motion.div>
       </AnimatePresence>
     </div>

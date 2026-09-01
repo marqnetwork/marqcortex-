@@ -281,8 +281,24 @@ BEGIN
      --   key_id            the root key's IDENTITY — a truncated keyed digest
      --   credential_name   an operator's label for the credential
      --   provider_key      the ADAPTER's id — 'openai', 'anthropic'
+     --
+     -- AI-01 Batch 4D added one entry, through exactly the route this comment
+     -- describes: adding a column to these tables has to pass through this
+     -- allowlist, which is the point of enumerating it rather than pattern-
+     -- matching an exclusion.
+     --
+     --   credential_fallback  a two-valued policy enum — 'platform' or
+     --                        'tenant_only' — constrained by CHECK, describing
+     --                        whether MARQ's credential stands behind a customer
+     --                        who has none. Non-secret by construction: it can
+     --                        hold neither of two literal strings' alternatives.
+     --
+     -- This file is also run by the Batch 4C runner, against a database where
+     -- 4D has not been applied and the column does not exist. The entry is
+     -- simply inert there, so one allowlist serves both batches.
      AND column_name NOT IN
-         ('encrypted_secret', 'secret_version', 'key_id', 'credential_name', 'provider_key');
+         ('encrypted_secret', 'secret_version', 'key_id', 'credential_name', 'provider_key',
+          'credential_fallback');
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION '4C-S6: columns shaped to hold plaintext credentials exist: %', v_missing;
   END IF;

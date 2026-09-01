@@ -33,10 +33,85 @@
  * credential id, so there is no shape of call that means "show me that
  * secret" — the resolver can only answer "what would you execute with right
  * now", which is the only question the runtime ever has.
+ *
+ * ── AI-01 BATCH 4D: THE SAME PORT, NOW TENANT-AWARE ────────────────────────
+ *
+ * A customer organization may bring its own vendor key. That does NOT add a
+ * second resolver, a second port or a second execution path — it adds ONE
+ * OPTIONAL ARGUMENT to `resolve`, and the argument is a TENANT the caller has
+ * already authenticated:
+ *
+ *   Provider Adapter
+ *         │  resolve(providerId, tenant?)
+ *         ▼
+ *   ProviderCredentialResolver
+ *         ├── organization  the tenant's own encrypted credential  (4D)
+ *         ├── managed       MARQ's own encrypted credential        (4C)
+ *         ├── environment   the deployment's variable              (4A/4B)
+ *         └── none          the provider cannot execute
+ *
+ * THE ARGUMENT IS NOT A HINT AND CANNOT BE ONE. It carries an organization id
+ * that the AI Guard already resolved from an authenticated membership, and the
+ * resolver treats an unverified one as no tenant at all — see
+ * `CredentialTenant.membershipVerified`. Nothing a caller puts in a body or a
+ * header reaches this type without passing through `resolveOrganization`.
+ *
+ * OMITTING IT IS THE PLATFORM PATH, BYTE FOR BYTE. `resolve(providerId)` with
+ * no tenant behaves exactly as it did in Batch 4C: it reads platform-scoped
+ * storage and the deployment environment, and it never touches an
+ * organization-owned row. That is what keeps a customer's credential out of
+ * MARQ's own execution rather than merely unlikely to appear in it.
  */
 
 /** Where the secret material for a provider came from. */
 export type AICredentialSource = 'managed' | 'environment' | 'none';
+
+/**
+ * The credential source, at the granularity provenance needs (AI-01 Batch 4D).
+ *
+ * `AICredentialSource` answers "managed or not", which was the only question
+ * before customers could manage one too. This answers "managed BY WHOM", which
+ * is the question an audit record, a cost attribution and an incident review
+ * all actually ask — and it is the only credential fact any of them records.
+ *
+ * It is a CATEGORY, never a locator. There is no credential id here, no
+ * fingerprint and no organization id: those belong on the records that already
+ * carry them, and widening a provenance enum into a lookup key is how a
+ * category ends up being used as one.
+ */
+export type AICredentialSourceCategory =
+  /** The tenant's own credential. The tenant's vendor account is billed. */
+  | 'customer_byok'
+  /** MARQ's Cortex-managed credential. MARQ's vendor account is billed. */
+  | 'platform_managed'
+  /** The deployment's environment variable. */
+  | 'environment'
+  /** Nothing authenticated this call — the synthetic mock, or a refusal. */
+  | 'none';
+
+/**
+ * The tenant a resolution is FOR (AI-01 Batch 4D).
+ *
+ * Built from a resolved `AIOrganization` and from nothing else. The resolver
+ * does not accept an organization id as a bare string anywhere, so a call site
+ * cannot pass one it read off a request body without first constructing this
+ * shape — and the field that makes the shape usable is the one a request body
+ * cannot supply.
+ */
+export interface CredentialTenant {
+  readonly organizationId: string;
+  /**
+   * True when the organization came from a VERIFIED membership.
+   *
+   * FALSE MEANS NO TENANT, NOT "TRY ANYWAY". `AI_ALLOW_DEFAULT_ORGANIZATION`
+   * lets a subject with no membership row land in the deployment's default
+   * organization; that is a legitimate single-tenant convenience and it is NOT
+   * a statement that this caller belongs to that customer. Honouring a BYOK
+   * credential on the strength of it would let an account with no membership
+   * anywhere execute on a paying customer's vendor key.
+   */
+  readonly membershipVerified: boolean;
+}
 
 /**
  * Non-secret facts about a provider's credential state.
@@ -75,8 +150,22 @@ export interface ProviderCredentialAvailability {
 export interface ResolvedProviderCredential {
   readonly secret: string;
   readonly source: 'managed' | 'environment';
+  /**
+   * WHO manages it (AI-01 Batch 4D). This is the value that reaches the audit
+   * record; `source` is kept for the Batch 4C callers that already read it.
+   */
+  readonly category: AICredentialSourceCategory;
   /** Managed credentials only — carried so an audit record can name the row. */
   readonly credentialId?: string;
+  /**
+   * The owning tenant, for a customer-managed credential only.
+   *
+   * Present exactly when `category` is `customer_byok`, and equal to the
+   * organization id the caller asked for — a resolver that returned any other
+   * value would be returning another tenant's credential, so the equality is
+   * asserted at the point of resolution rather than trusted here.
+   */
+  readonly organizationId?: string;
 }
 
 export interface ProviderCredentialResolver {
@@ -92,8 +181,16 @@ export interface ProviderCredentialResolver {
    * Reads managed storage at CALL TIME. Nothing here caches plaintext, so a
    * revoked credential stops working on the next request rather than at the
    * end of a cache window.
+   *
+   * `tenant` (AI-01 Batch 4D) is the AUTHENTICATED organization this execution
+   * belongs to. Supplied, the tenant's own credential is considered first;
+   * omitted, the resolution is exactly the Batch 4C platform one and no
+   * organization-owned row is read at all.
    */
-  resolve(providerId: string): Promise<ResolvedProviderCredential | undefined>;
+  resolve(
+    providerId: string,
+    tenant?: CredentialTenant,
+  ): Promise<ResolvedProviderCredential | undefined>;
   /**
    * Re-take the non-secret snapshot.
    *
