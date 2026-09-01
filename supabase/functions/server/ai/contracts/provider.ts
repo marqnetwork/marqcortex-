@@ -12,6 +12,10 @@
  */
 
 import type { AIGenerationRequest, AITokenUsage } from './request.ts';
+import type {
+  AICredentialSourceCategory,
+  CredentialTenant,
+} from '../providers/credentials/contracts.ts';
 
 /** What a model can do. The selector matches these against feature demands. */
 export interface AIModelCapabilities {
@@ -108,6 +112,20 @@ export interface AIProviderInvocation {
   readonly generation: AIGenerationRequest;
   readonly attempt: number;
   readonly signal: AbortSignal;
+  /**
+   * The AUTHENTICATED tenant this attempt belongs to (AI-01 Batch 4D).
+   *
+   * The adapter does exactly one thing with it: hands it to the credential
+   * resolver. It is not a routing key, not a header, not a vendor parameter and
+   * not something an adapter may branch on — a customer's organization id must
+   * never reach a vendor, and nothing here sends it anywhere.
+   *
+   * OPTIONAL, AND ABSENCE IS THE PLATFORM PATH. Every existing caller and every
+   * existing test omits it and gets the Batch 4C resolution unchanged. It is
+   * populated by ONE call site — the execution pipeline — from the organization
+   * the AI Guard already resolved.
+   */
+  readonly tenant?: CredentialTenant;
 }
 
 export interface AIProviderCompletion {
@@ -115,6 +133,20 @@ export interface AIProviderCompletion {
   readonly modelId: string;
   readonly usage: AITokenUsage;
   readonly finishReason?: string;
+  /**
+   * WHICH credential authorised this attempt (AI-01 Batch 4D).
+   *
+   * Reported by the adapter because the adapter is the only thing that knows:
+   * it is the one place `resolve` is called, and the resolution depends on the
+   * tenant, on storage and on the environment all at execution time. The
+   * pipeline carries it to the audit record so provenance can say "this
+   * customer's own key paid for this" without any layer above having to guess.
+   *
+   * A CATEGORY AND NOTHING MORE. There is no credential id here, no
+   * fingerprint, no organization id and — obviously — no secret. Optional, so
+   * every existing adapter double stays valid.
+   */
+  readonly credentialSource?: AICredentialSourceCategory;
 }
 
 export interface AIProviderAdapter {

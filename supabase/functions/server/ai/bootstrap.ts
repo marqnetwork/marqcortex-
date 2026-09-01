@@ -25,6 +25,10 @@ import type { SpendStore } from './policy/spendLedger.ts';
 import type { EnvSource } from './runtime/env.ts';
 import type { AIAdministration } from './admin/administration.ts';
 import type { AdminAuditStore } from './admin/adminAudit.ts';
+import type { ByokProviderCatalogueEntry } from './byok/byokAdministration.ts';
+import type { ByokService } from './byok/byokService.ts';
+import { createByokAdministration } from './byok/byokAdministration.ts';
+import { createByokService } from './byok/byokService.ts';
 import type { AgentRuntime } from './agents/agentRuntime.ts';
 import type { AgentAuditStore } from './agents/observability/agentAudit.ts';
 import type {
@@ -149,6 +153,7 @@ export interface BootstrapDependencies {
 
 let plane: AIControlPlane | undefined;
 let administration: AIAdministration | undefined;
+let byokService: ByokService | undefined;
 let agentRuntime: AgentRuntime | undefined;
 let workflowRuntime: WorkflowRuntime | undefined;
 
@@ -387,6 +392,64 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     providerStore: deps.providerAdministrationStore,
     credentialCipher,
     credentialResolver,
+  });
+
+  // ── Customer BYOK (AI-01 Batch 4D) ────────────────────────────────────────
+  //
+  // The customer-facing credential surface, built HERE and only here, over the
+  // SAME store, the SAME cipher, the SAME resolver and the SAME administrative
+  // trail the platform surface uses. Two stores would let the console write a
+  // credential the runtime reads through a different snapshot; two ciphers
+  // would let one be sealed under a key the other does not hold; two trails
+  // would give a reviewer two places to look for one question.
+  //
+  // IT TAKES NO CONTROL PLANE. Its provider knowledge arrives as a CATALOGUE —
+  // a function returning non-secret descriptor facts, evaluated on every call
+  // so it cannot go stale. There is therefore no adapter, no registry and no
+  // plane inside the BYOK service, which is why it structurally cannot execute
+  // anything. Certification and enablement are copied from MARQ's registration;
+  // there is no request field that reaches either.
+  //
+  // SUPPLYING IT CREDENTIALS NOBODY. Nothing is seeded, no environment secret
+  // is copied, and until a customer administrator deliberately stores a
+  // credential every tenant resolves exactly where it resolved before this
+  // batch: the platform managed credential, then the deployment environment.
+  const byokCatalogue = (): readonly ByokProviderCatalogueEntry[] =>
+    plane!.providers.list().map((provider) => ({
+      providerId: provider.descriptor.providerId,
+      displayName: provider.descriptor.displayName,
+      billable: provider.descriptor.billable,
+      certification: provider.certification,
+      enabled: provider.enabled,
+      credential: {
+        required: provider.descriptor.credential.required,
+        manageable: provider.descriptor.credential.manageable,
+        credentialFormatHint: provider.descriptor.credential.credentialFormatHint,
+      },
+    }));
+
+  byokService = createByokService({
+    authenticator,
+    // The SAME tenant resolution the AI Guard, the agent runtime and the
+    // workflow runtime use. A fourth answer about which organization a request
+    // belongs to would be a fourth thing to keep consistent, and this is the
+    // surface where getting it wrong hands one customer another's vendor key.
+    organizationOptions: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowList: config.organizationAllowList,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    trail: administration.trail,
+    administration: createByokAdministration({
+      catalogue: byokCatalogue,
+      store: deps.providerAdministrationStore,
+      cipher: credentialCipher,
+      credentials: credentialResolver,
+      trail: administration.trail,
+      clock: systemClock,
+      ids: systemIdFactory,
+      logger: plane.logger,
+    }),
   });
 
   // Prime the non-secret credential snapshot. Asynchronous and non-blocking:
@@ -691,10 +754,21 @@ export function getAIAdministration(): AIAdministration | undefined {
   return administration;
 }
 
+/**
+ * The initialised customer BYOK service, or `undefined` before bootstrap.
+ *
+ * Absent, the customer credential routes are simply not mounted. A credential
+ * surface that fails open is worse than one that is missing.
+ */
+export function getByokService(): ByokService | undefined {
+  return byokService;
+}
+
 /** Drop the memoised plane. Test and local-tooling use only. */
 export function resetControlPlaneForTests(): void {
   plane = undefined;
   administration = undefined;
+  byokService = undefined;
   agentRuntime = undefined;
   workflowRuntime = undefined;
 }

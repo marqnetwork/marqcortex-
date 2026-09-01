@@ -32,6 +32,7 @@ export {
   initializeControlPlane,
   getControlPlane,
   getAIAdministration,
+  getByokService,
   getAgentRuntime,
   getWorkflowRuntime,
   resetControlPlaneForTests,
@@ -132,6 +133,7 @@ export type {
 } from './admin/providerAdministration.ts';
 export {
   createMemoryProviderAdministrationStore,
+  type AIByokFallbackPolicy,
   type AIProviderConfigurationRecord,
   type AIProviderModelRecord,
   type AIProviderScope,
@@ -156,9 +158,69 @@ export {
 } from './providers/credentials/resolver.ts';
 export type {
   AICredentialSource,
+  AICredentialSourceCategory,
+  CredentialTenant,
   ProviderCredentialAvailability,
   ProviderCredentialResolver,
+  ResolvedProviderCredential,
 } from './providers/credentials/contracts.ts';
+export {
+  decideTenantCredential,
+  fallbackPolicyOf,
+  type TenantCredentialAction,
+  type TenantCredentialDecision,
+  type TenantCredentialFacts,
+} from './providers/credentials/tenantPrecedence.ts';
+// ── Customer BYOK (AI-01 Batch 4D) ──────────────────────────────────────────
+//
+// `createByokAdministration` IS exported, unlike `createProviderAdministration`,
+// and the difference is deliberate rather than inconsistent. The platform
+// service is assembled inside `createAIAdministration` because it borrows that
+// service's audited-mutation runner and its trail; the BYOK service owns its
+// own mutation chain and takes the trail as an argument, so there is nothing
+// for a second construction site to forget. Both are still built in exactly one
+// place — `bootstrap.ts` — and the boundary scan asserts it.
+export {
+  createByokAdministration,
+  type ByokAdministration,
+  type ByokCredentialHistoryEntry,
+  type ByokCredentialStatus,
+  type ByokCredentialView,
+  type ByokEffectiveSource,
+  type ByokProviderCatalogue,
+  type ByokProviderCatalogueEntry,
+  type ByokProviderView,
+  type ByokRequestMeta,
+  type ByokSummary,
+} from './byok/byokAdministration.ts';
+export {
+  createByokService,
+  type ByokService,
+  type ByokServiceDependencies,
+} from './byok/byokService.ts';
+export {
+  hasByokCapability,
+  requireByokCapability,
+  resolveByokActor,
+  BYOK_ROLE_CAPABILITIES,
+  type AIByokCapability,
+  type ByokActor,
+} from './byok/byokRbac.ts';
+export {
+  executeByokHttpRequest,
+  BYOK_OPERATION,
+  type ByokHttpRequest,
+  type ByokHttpResponse,
+  type ByokOperation,
+} from './byok/byokHttpAdapter.ts';
+export {
+  createAuditedMutationRunner,
+  createMutationChain,
+  type AuditedMutationActor,
+  type AuditedMutationOptions,
+  type AuditedMutationRunner,
+} from './admin/auditedMutation.ts';
+
 export {
   exposureReport,
   featureExposure,

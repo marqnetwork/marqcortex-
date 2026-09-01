@@ -39,15 +39,30 @@ import type { ProviderStoreClient } from '../../supabase/functions/server/aiProv
 import { systemIdFactory } from '../../supabase/functions/server/ai/index.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const migrationSource = readFileSync(
-  join(root, 'supabase', 'migrations', '20260828120000_ai_provider_administration.sql'),
-  'utf8',
-);
 
 /**
- * The migration with SQL comments removed and whitespace collapsed.
+ * THE SCHEMA AS APPLIED, WHICH IS EVERY MIGRATION THAT TOUCHES THESE TABLES.
  *
- * Comments are stripped because this file documents heavily — the `id` column
+ * Batch 4C created them; AI-01 Batch 4D added `credential_fallback` to the
+ * configuration table. A test that read only the creating migration would say
+ * the store writes a column that does not exist — which is exactly what it said
+ * the day 4D landed, and it would say the same for every future column.
+ *
+ * Read in filename order, which is migration order, so "the schema declares
+ * this column" means what it says.
+ */
+const MIGRATIONS = [
+  '20260828120000_ai_provider_administration.sql',
+  '20260901120000_ai_customer_byok.sql',
+];
+const migrationSource = MIGRATIONS.map((file) =>
+  readFileSync(join(root, 'supabase', 'migrations', file), 'utf8'),
+).join('\n');
+
+/**
+ * The migrations with SQL comments removed and whitespace collapsed.
+ *
+ * Comments are stripped because these files document heavily — the `id` column
  * carries a paragraph explaining why it is TEXT — and a window-based scan over
  * the raw text would measure prose rather than declarations.
  */

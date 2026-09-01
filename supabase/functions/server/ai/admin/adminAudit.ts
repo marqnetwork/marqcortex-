@@ -65,6 +65,30 @@ export const ADMIN_ACTION = {
   credentialRevoked: 'ai.admin.provider.credential.revoked',
   modelEnabled: 'ai.admin.provider.model.enabled',
   modelDisabled: 'ai.admin.provider.model.disabled',
+
+  // ── Customer BYOK (AI-01 Batch 4D) ────────────────────────────────────────
+  //
+  // WRITTEN TO THE SAME TRAIL, WITH DISTINCT NAMES. One append-only
+  // administrative record, one writer, one storage port — a second trail for
+  // customer actions would be a second place for an append to be forgotten, and
+  // a reviewer asking "who touched credentials in this window" would have to
+  // know to look in two.
+  //
+  // The names are prefixed `ai.byok.` rather than `ai.admin.provider.` so the
+  // two estates are separable by a text filter: "every change to MARQ's own
+  // provider credentials" and "every change to a customer's" are the two
+  // questions an incident review asks, and one action name for both would make
+  // each of them a search through change maps.
+  //
+  // NONE of these records ever carries a secret. The recorded facts are the
+  // provider key, the organization, the credential id, the keyed fingerprint,
+  // the last four characters where safe, and the timestamps — the same set the
+  // platform actions record, minus nothing and plus nothing.
+  byokConfigured: 'ai.byok.credential.configured',
+  byokRotated: 'ai.byok.credential.rotated',
+  byokRevoked: 'ai.byok.credential.revoked',
+  byokFallbackChanged: 'ai.byok.fallback.changed',
+  byokAccessDenied: 'ai.byok.access.denied',
 } as const;
 
 export type AdminAction = (typeof ADMIN_ACTION)[keyof typeof ADMIN_ACTION];
@@ -79,8 +103,24 @@ export interface AdminAuditRecord {
   readonly outcome: 'applied' | 'rejected';
   readonly actorId: string;
   readonly actorEmail?: string;
-  readonly actorRole: AIAdminRole | 'unauthorized';
-  /** Organizations the actor could act for. Empty means platform-wide. */
+  /**
+   * The tier the actor acted at.
+   *
+   * `customer_byok_admin` (AI-01 Batch 4D) is a CUSTOMER organization
+   * administrator acting on their own tenant's credentials. It is deliberately
+   * not folded into `organization_admin`: that name means a tier on MARQ's
+   * administration surface, and a reviewer must be able to tell an action taken
+   * over MARQ's estate from one taken over a customer's without reading the
+   * action name as well.
+   */
+  readonly actorRole: AIAdminRole | 'unauthorized' | 'customer_byok_admin';
+  /**
+   * Organizations the actor could act for. Empty means platform-wide.
+   *
+   * For a BYOK record this is exactly one entry — the organization the action
+   * was scoped to — so "which customer was this?" is answerable from the record
+   * without joining anything.
+   */
   readonly organizationScope: readonly string[];
   /** What was changed — a provider id, a scope name, a setting group. */
   readonly target?: string;
@@ -192,7 +232,7 @@ export interface AdminAuditFacts {
   readonly outcome: 'applied' | 'rejected';
   readonly actorId: string;
   readonly actorEmail?: string;
-  readonly actorRole: AIAdminRole | 'unauthorized';
+  readonly actorRole: AIAdminRole | 'unauthorized' | 'customer_byok_admin';
   readonly organizationScope?: readonly string[];
   readonly target?: string;
   readonly reason: string;

@@ -23,6 +23,10 @@ import {
   type AIRouteRegistrar,
 } from "./aiRoutes.ts";
 import {
+  registerAIByokRoutes,
+  type AIByokRouteRegistrar,
+} from "./aiByokRoutes.ts";
+import {
   registerAIAdminRoutes,
   type AIAdminRouteRegistrar,
 } from "./aiAdminRoutes.ts";
@@ -40,6 +44,7 @@ import {
 } from "./workflowRuntimeRoutes.ts";
 import {
   getAIAdministration,
+  getByokService,
   getAgentRuntime,
   getWorkflowRuntime,
   initializeControlPlane,
@@ -668,6 +673,31 @@ if (aiAdministration) {
   });
 } else {
   console.error('[ai] administration service unavailable — AI admin routes are not mounted');
+}
+
+// ============================================================================
+// CUSTOMER BYOK — organization-owned provider credentials (AI-01 Batch 4D)
+//
+// The customer-facing half of provider credential administration, mounted under
+// its own prefix and behind its own capability vocabulary. It is a SEPARATE
+// surface from the `/ai/admin` tree deliberately: that one governs MARQ's own
+// estate and is the platform operator's, this one governs a single customer's
+// own rows and is that customer's administrators'. Neither can reach the
+// other's credentials.
+//
+// Mounted only once the service exists. Like every other governed surface here,
+// absent it the routes are simply not mounted: a credential surface that fails
+// open is worse than one that is missing.
+// ============================================================================
+
+const byokService = getByokService();
+if (byokService) {
+  registerAIByokRoutes(app as unknown as AIByokRouteRegistrar, {
+    byok: byokService,
+    prefix: '/make-server-324f4fbe',
+  });
+} else {
+  console.error('[ai] BYOK service unavailable — customer credential routes are not mounted');
 }
 
 // ============================================================================

@@ -239,3 +239,87 @@ seeded provider, a copy of an environment secret, a `GRANT ALL`, a `DELETE` or
 `TRUNCATE` for `service_role`, or two constraints sharing a name. Every
 behavioural claim is the runner's above, and the file says so where it could be
 mistaken.
+
+## Customer BYOK (AI-01 Batch 4D)
+
+Migration `20260901120000_ai_customer_byok.sql` admits CUSTOMER-owned provider
+credentials into the three tables Batch 4C created. **It creates no table.** The
+4C schema already carried `scope`, `organization_id`, the scope/tenancy CHECK
+and the partial unique index reserved for this batch; 4D adds one non-secret
+policy column, two constraints, one index and one trigger.
+
+### Executable verification (needs a real PostgreSQL 15+)
+
+```bash
+npm run test:database:4d
+# or: DATABASE_URL=postgresql://... node scripts/ai-customer-byok-scenarios.mjs
+```
+
+**This is the verification.** The claim Batch 4D makes is TENANT ISOLATION, and
+its interesting failures are all silent ones: a cross-tenant read returns rows
+rather than an error, a re-pointed configuration commits, two active credentials
+on one tenant look fine until the runtime has to pick. A text scan cannot see
+any of that. The runner builds its own scratch databases, applies the **real**
+migration and rollback files as a NOSUPERUSER role holding `BYPASSRLS` — the
+shape of the role Supabase applies migrations as — and asks the database.
+
+Three phases:
+
+**Apply and verify.**
+
+- the 4D migration applies onto a real 4C schema, in one transaction
+- the fallback column, its default, its NOT NULL, and both constraints under
+  DISTINCT names; the CHECK is proved by ATTEMPTING an unknown value
+- a platform-scoped row cannot carry a tenant fallback policy
+- the tenancy-immutability trigger exists, `BEFORE UPDATE FOR EACH ROW`, and its
+  function is `SECURITY INVOKER`
+- **tenant isolation, driven as `service_role`**: MARQ and two customers each
+  hold a configuration for the same provider at once; the tenant lookup returns
+  one tenant's row and never another's; the platform lookup
+  (`organization_id IS NULL`) never returns a customer's; the tenant enumeration
+  returns only the asking tenant; the activation RPC works for a customer
+  configuration and one tenant's rotation leaves the other's untouched; exactly
+  one active credential per tenant with the history intact; a revoke scoped to
+  one configuration cannot reach another's credential
+- **the two attacks the trigger exists for**: re-pointing a configuration at
+  another organization, and promoting a customer row to platform scope — the
+  second of which would put a customer's credential on MARQ's own execution
+  path with one UPDATE. Both refused, including for `service_role`, which is
+  the role a leaked service key holds
+- everything a configuration is SUPPOSED to allow still updates, so the guard
+  is not discovered as an outage
+- plaintext-shaped credential storage still refused, for a customer row
+- **the privilege matrix is UNCHANGED**: every privilege PostgreSQL defines, for
+  `service_role`, `authenticated` and `anon`, on all three tables. Batch 4D
+  grants nothing new to anybody. `anon` and `authenticated` are denied read and
+  mutate by catalogue AND by attempt, and hold no column privilege on the new
+  column
+- RLS still ENABLED and FORCED on all three tables with **no policy on any of
+  them** — the control most under pressure in this batch, because "a customer
+  needs to read their own rows" is the sentence that ends with a policy
+  admitting `authenticated` to a table holding credential ciphertext
+- the Batch 4C harness assertions (`93_`, `95_`) re-run AFTER 4D, unmodified
+
+**Roll back and re-apply.** The real rollback removes every 4D object and
+nothing else; Batch 4C is intact and its own assertions still pass. **The
+customer rows survive**, deliberately — see the rollback file's header: 4D
+created no table, so deleting organization rows would destroy secret material
+that is not recoverable, and with 4D's code rolled back those rows are simply
+never read. The migration then applies again cleanly.
+
+**Applied out of order, it fails and leaves nothing.** 4D applied with no 4C
+beneath it must refuse — naming the table it depends on — and must leave its
+trigger function behind. That matters because the function uses
+`CREATE OR REPLACE`: a half-applied 4D would be silently re-appliable.
+
+Exit code `2` means no database was reachable, and is reported as **BLOCKED**.
+
+### Static coverage (no database)
+
+`tests/database/static_ai_customer_byok_migration.test.ts`, under
+`npm run test:database`. It proves what the files must never contain: a new
+table, a plaintext column, an RLS policy, a browser-role grant, a `GRANT ALL`, a
+`DELETE`/`TRUNCATE` grant, a direct INSERT on the credential table, a seeded
+customer, a copy of an environment secret, an equality comparison where NULL
+tenancy needs `IS DISTINCT FROM`, a trigger message naming two tenants — and, in
+the rollback, any `DELETE FROM` at all. Every behavioural claim is the runner's.

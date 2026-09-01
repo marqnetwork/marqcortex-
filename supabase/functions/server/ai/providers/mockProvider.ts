@@ -249,6 +249,13 @@ export function createMockProvider(options: MockProviderOptions = {}): MockProvi
           totalTokens: estimateTokens(invocation) + Math.ceil(content.length / 4),
         },
         finishReason: 'stop',
+        // `none` is the truthful category for a synthetic provider: nothing
+        // authenticated this call because there was nothing to authenticate
+        // against. It is recorded rather than omitted so a provenance read can
+        // tell "served by the mock" from "we did not record the source", which
+        // is exactly the distinction a certification review needs while
+        // AI_ALLOW_REAL_REQUESTS is false.
+        credentialSource: 'none',
       };
     },
   };

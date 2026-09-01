@@ -781,6 +781,8 @@ describe('Batch 4C — credential resolution', () => {
     const failures: string[] = [];
     const unreachable: ProviderAdministrationStore = {
       listConfigurations: () => Promise.reject(new Error('PGRST106: schema not exposed')),
+      listOrganizationConfigurations: () =>
+        Promise.reject(new Error('PGRST106: schema not exposed')),
       findConfiguration: () => Promise.reject(new Error('PGRST106: schema not exposed')),
       saveConfiguration: () => Promise.reject(new Error('unreachable')),
       listCredentials: () => Promise.reject(new Error('unreachable')),

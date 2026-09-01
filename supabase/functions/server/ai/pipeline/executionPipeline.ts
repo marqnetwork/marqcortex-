@@ -36,6 +36,7 @@ import type {
 } from '../contracts/request.ts';
 import type { AIFeatureDescriptor } from '../contracts/policy.ts';
 import type { AIModelDescriptor } from '../contracts/provider.ts';
+import type { AICredentialSourceCategory } from '../providers/credentials/contracts.ts';
 import type { ModelRequirements } from '../providers/registry.ts';
 import type { AIEventBus } from '../contracts/events.ts';
 import type { AIFeatureDefinition } from '../policy/featureCatalog.ts';
@@ -95,6 +96,19 @@ export interface ProviderAttemptRecord {
   readonly outcome: 'success' | 'error';
   /** True when this attempt reached a provider that charges for the call. */
   readonly billable: boolean;
+  /**
+   * WHICH credential authorised this attempt (AI-01 Batch 4D).
+   *
+   * Reported by the adapter, carried here unchanged. It matters most on the
+   * attempts nobody looks at until an invoice arrives: a request that failed
+   * over from a customer's own key to MARQ's produces two attempts with two
+   * different categories, and a settlement that recorded only the last one
+   * would attribute both to whoever paid for the second.
+   *
+   * Absent on a failed attempt, where no credential was successfully resolved
+   * or the provider refused before answering.
+   */
+  readonly credentialSource?: AICredentialSourceCategory;
   readonly costMicroUsd: number;
   readonly usage?: AITokenUsage;
   readonly latencyMs: number;
@@ -147,6 +161,8 @@ export interface PipelineOutcome<TOutput> {
   readonly governanceFlags: readonly string[];
   readonly factLockRestored: readonly string[];
   readonly providerLatencyMs: number;
+  /** The credential category the ANSWERING attempt executed on (Batch 4D). */
+  readonly credentialSource: AICredentialSourceCategory;
 }
 
 export interface ExecutionPipeline {
@@ -342,6 +358,23 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
                   generation,
                   attempt,
                   signal: handle.signal,
+                  // ── THE TENANT (AI-01 Batch 4D) ────────────────────────
+                  //
+                  // THE ONE PLACE a tenant enters the credential layer, and it
+                  // is built from `context.organization` — which the AI Guard
+                  // resolved from an authenticated membership before this
+                  // pipeline was reached. There is no path from a request body
+                  // to this object: `resolveOrganization` refuses a hint the
+                  // subject does not hold, and `membershipVerified` travels
+                  // with the answer so the resolver can tell a verified tenant
+                  // from the single-tenant default fallback.
+                  //
+                  // The adapter passes it to the resolver and does nothing else
+                  // with it. It never reaches a vendor.
+                  tenant: {
+                    organizationId: context.organization.organizationId,
+                    membershipVerified: context.organization.membershipVerified,
+                  },
                 }),
             );
 
@@ -358,6 +391,7 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               attempt,
               outcome: 'success',
               billable,
+              credentialSource: completion.credentialSource,
               costMicroUsd: billable ? costMicroUsd : 0,
               usage: completion.usage,
               latencyMs: providerLatencyMs,
@@ -445,6 +479,10 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               governanceFlags: outputGuard.flags,
               factLockRestored: restored,
               providerLatencyMs,
+              // The ANSWERING attempt's category. A request that failed over
+              // reports the credential that actually produced the answer, which
+              // is the one whose vendor account was charged for it.
+              credentialSource: completion.credentialSource ?? 'none',
             };
           } catch (error) {
             const aiError = toAIError(error);

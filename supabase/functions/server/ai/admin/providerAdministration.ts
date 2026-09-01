@@ -97,9 +97,42 @@ import { normalizeProviderSetting } from '../runtime/operationalSettings.ts';
  */
 export const PLATFORM_SCOPE: AIProviderScope = 'platform';
 
-const MAX_CREDENTIAL_NAME = 80;
-const MAX_SECRET_LENGTH = 8_192;
-const MIN_SECRET_LENGTH = 8;
+export const MAX_CREDENTIAL_NAME = 80;
+export const MAX_SECRET_LENGTH = 8_192;
+export const MIN_SECRET_LENGTH = 8;
+
+/**
+ * Accept a submitted secret, or refuse it — for EVERY surface that takes one.
+ *
+ * ONE implementation, shared with the customer BYOK surface (AI-01 Batch 4D),
+ * because the rule that matters here is not the length bound. It is that THE
+ * REFUSAL NAMES THE BOUNDS AND NEVER THE VALUE: a validation error that echoes
+ * the rejected input is a validation error that logs somebody's live API key
+ * the first time they paste one with a stray character. A second copy of this
+ * check is a second chance to write `received "${secret}"` into an error.
+ *
+ * It returns the TRIMMED secret and holds nothing: no module-level variable, no
+ * closure, no cache. The only thing that ever touches its characters after this
+ * is the cipher.
+ */
+export function acceptCredentialSecret(value: unknown): string {
+  const secret = typeof value === 'string' ? value.trim() : '';
+  if (secret.length < MIN_SECRET_LENGTH || secret.length > MAX_SECRET_LENGTH) {
+    throw new AIError(
+      'VALIDATION_FAILED',
+      `A credential must be between ${MIN_SECRET_LENGTH} and ${MAX_SECRET_LENGTH} characters.`,
+      { fields: ['secret'] },
+    );
+  }
+  return secret;
+}
+
+/** A bounded, trimmed label, or `undefined`. Shared with the BYOK surface. */
+export function boundedCredentialName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed.slice(0, MAX_CREDENTIAL_NAME);
+}
 
 // ── Read models ─────────────────────────────────────────────────────────────
 
@@ -862,17 +895,10 @@ export function createProviderAdministration(
           }
 
           const store = options.store!;
-          const secret = typeof input.secret === 'string' ? input.secret.trim() : '';
-          if (secret.length < MIN_SECRET_LENGTH || secret.length > MAX_SECRET_LENGTH) {
-            // The message names the BOUNDS, never the value. A validation error
-            // that echoes the rejected input is a validation error that logs a
-            // secret the first time somebody pastes one with a typo.
-            throw new AIError(
-              'VALIDATION_FAILED',
-              `A credential must be between ${MIN_SECRET_LENGTH} and ${MAX_SECRET_LENGTH} characters.`,
-              { fields: ['secret'] },
-            );
-          }
+          // The message names the BOUNDS, never the value — see
+          // `acceptCredentialSecret`, which the customer BYOK surface shares so
+          // the two cannot drift into two answers about the same input.
+          const secret = acceptCredentialSecret(input.secret);
 
           const configuration = await ensureConfiguration(providerId, actor.actorId);
           const previous = await store.activeCredential(configuration.configurationId);

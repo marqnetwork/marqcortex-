@@ -39,6 +39,45 @@
  * administrative change, so a stale snapshot can at worst misreport
  * availability for that long, on a screen. It can never authorise an execution:
  * the authority for that is `resolve`, which does not consult it.
+ *
+ * ── AI-01 BATCH 4D — CUSTOMER BYOK, IN THIS FILE AND NOWHERE ELSE ──────────
+ *
+ * A customer organization may now bring its own vendor key. That is ONE new
+ * branch at the top of `resolve`, reached only when the caller supplies an
+ * AUTHENTICATED tenant. It is not a second resolver, not a second store and
+ * not a second execution path — the whole reason Batch 4C built one
+ * provider-neutral resolver was so this could be an argument rather than an
+ * architecture.
+ *
+ * FOUR PROPERTIES OF THE TENANT BRANCH, EACH LOAD-BEARING.
+ *
+ *   IT IS ONLY REACHED WITH A VERIFIED TENANT. `membershipVerified: false` —
+ *   the `AI_ALLOW_DEFAULT_ORGANIZATION` fallback, where a subject with no
+ *   membership row lands in the deployment's default organization — is treated
+ *   as NO TENANT. Otherwise an account belonging to nobody could execute on a
+ *   paying customer's vendor key.
+ *
+ *   IT LOOKS THE ROW UP BY THE TENANT. `findConfiguration('organization',
+ *   providerId, tenant.organizationId)` — there is no query here that returns
+ *   rows for more than one organization, so there is nothing to filter and
+ *   nothing to forget to filter.
+ *
+ *   IT VERIFIES THE ROW IT GOT BACK ANYWAY. The organization id on the record
+ *   is compared with the one asked for before anything is decrypted. A store
+ *   bug that returned the wrong row produces a refusal, not a cross-tenant
+ *   execution. And the AAD makes it structurally impossible besides: a
+ *   ciphertext sealed for one tenant does not open under another's binding.
+ *
+ *   IT NEVER FALLS THROUGH ON A FAILED DECRYPT. A tenant whose credential
+ *   exists and will not open is REFUSED. Falling through would move that
+ *   customer's traffic onto MARQ's vendor account at the exact moment their own
+ *   key became unreadable — see `tenantPrecedence.ts`, which owns this rule.
+ *
+ * AND THE PLATFORM PATH IS UNTOUCHED. `resolve(providerId)` with no tenant
+ * reads platform-scoped storage and the environment exactly as it did in Batch
+ * 4C, and reads no organization-owned row at all. A customer's credential
+ * cannot leak into MARQ's own execution because MARQ's own execution never asks
+ * a question an organization row could answer.
  */
 
 import { describeForOperator } from '../../contracts/errors.ts';
@@ -46,15 +85,18 @@ import type { Clock } from '../../runtime/clock.ts';
 import type { EnvSource } from '../../runtime/env.ts';
 import type {
   AICredentialSource,
+  CredentialTenant,
   ProviderCredentialAvailability,
   ProviderCredentialResolver,
   ResolvedProviderCredential,
 } from './contracts.ts';
 import type {
+  AIProviderConfigurationRecord,
   AIProviderScope,
   ProviderAdministrationStore,
 } from './credentialStore.ts';
 import type { SecretCipher } from './secretCipher.ts';
+import { decideTenantCredential } from './tenantPrecedence.ts';
 
 /**
  * What the resolver needs to know about a provider to resolve for it.
@@ -75,6 +117,17 @@ export interface CredentialProviderProfile {
 
 /** Default staleness bound for the non-secret availability snapshot. */
 export const DEFAULT_CREDENTIAL_SNAPSHOT_TTL_MS = 30_000;
+
+/**
+ * The scope a tenant resolution reads (AI-01 Batch 4D).
+ *
+ * A CONSTANT, not `options.scope`. The resolver's configured scope describes
+ * the PLATFORM estate it serves; a tenant branch that reused it would read
+ * platform rows the moment somebody constructed a resolver differently, and
+ * "the tenant executed on MARQ's key because a constructor argument changed"
+ * is not a failure mode worth leaving available.
+ */
+const ORGANIZATION_SCOPE: AIProviderScope = 'organization';
 
 function unavailable(providerId: string, checkedAt: string): ProviderCredentialAvailability {
   return {
@@ -210,6 +263,127 @@ export function createProviderCredentialResolver(
     return inFlight;
   }
 
+  /**
+   * Resolve for ONE authenticated tenant, or say the platform path applies.
+   *
+   * THE RETURN TYPE CARRIES THREE ANSWERS, AND CONFLATING ANY TWO IS THE BUG
+   * THIS BATCH EXISTS TO AVOID:
+   *
+   *   a credential  This tenant executes on its own key.
+   *   `null`        REFUSE. Either the tenant's policy is `tenant_only` and it
+   *                 has no usable credential, or it has one that will not open.
+   *                 Both are final; neither continues to MARQ's key.
+   *   `undefined`   The platform resolution applies. This is what a tenant that
+   *                 never opted in gets, on every request, forever.
+   *
+   * A boolean could not express the middle one, and a thrown error for it would
+   * put a tenant policy decision on the same footing as an outage.
+   */
+  async function resolveTenant(
+    providerId: string,
+    tenant: CredentialTenant,
+    store: ProviderAdministrationStore,
+    cipher: SecretCipher,
+  ): Promise<ResolvedProviderCredential | null | undefined> {
+    let configuration: AIProviderConfigurationRecord | undefined;
+    let active: Awaited<ReturnType<ProviderAdministrationStore['activeCredential']>>;
+    try {
+      // KEYED BY THE TENANT. There is no query in this function that can return
+      // a row belonging to another organization.
+      configuration = await store.findConfiguration(
+        ORGANIZATION_SCOPE,
+        providerId,
+        tenant.organizationId,
+      );
+      active = configuration
+        ? await store.activeCredential(configuration.configurationId)
+        : undefined;
+    } catch (error) {
+      // STORAGE SAID NOTHING — the database is unreachable, the schema is not
+      // exposed. We learned nothing about whether this tenant has a credential,
+      // so this behaves exactly as the same failure does on the platform path:
+      // report it and let the pre-existing resolution stand. Refusing here
+      // would take AI down for every tenant on a `cortex` schema
+      // misconfiguration, in a deployment holding a perfectly good platform
+      // key — the same argument Batch 4C made, applied to the same failure.
+      options.onError?.(
+        providerId,
+        `organization credential storage is unreachable for the authenticated tenant, ` +
+          `falling back to the platform resolution: ${describeForOperator(error)}`,
+      );
+      return undefined;
+    }
+
+    // BELT AND BRACES. The lookup was keyed by this tenant, so a mismatch here
+    // is a storage bug rather than an attack — and a storage bug that returned
+    // another customer's configuration is exactly the one that must not proceed
+    // to a decryption attempt. The AAD would refuse it anyway; this refuses it
+    // one step earlier, and says why.
+    if (configuration && configuration.organizationId !== tenant.organizationId) {
+      options.onError?.(
+        providerId,
+        'organization credential storage returned a configuration for a different tenant; ' +
+          'the resolution was refused',
+      );
+      return null;
+    }
+
+    const decision = decideTenantCredential({
+      configurationPresent: configuration !== undefined,
+      configurationEnabled: configuration?.enabled === true,
+      activeCredentialPresent: active !== undefined,
+      fallback: configuration?.credentialFallback,
+    });
+
+    if (decision.action === 'platform') return undefined;
+    if (decision.action === 'fail_closed') {
+      // Not an error and not a fallback. The tenant asked for exactly this.
+      options.onError?.(
+        providerId,
+        `no credential resolved for the authenticated tenant: ${decision.reason}`,
+      );
+      return null;
+    }
+
+    // `action === 'tenant'`, which the decision only returns when both of these
+    // are present. Narrowed rather than asserted, so a future change to the
+    // decision cannot turn a missing row into a thrown TypeError on the
+    // execution path.
+    if (!configuration || !active) return undefined;
+
+    try {
+      const secret = await cipher.open(active.sealed, {
+        providerKey: configuration.providerKey,
+        scope: configuration.scope,
+        credentialId: active.credentialId,
+        // THE TENANT IS IN THE AAD. A ciphertext copied onto another
+        // organization's row does not open, so cross-tenant credential reuse is
+        // refused by the cipher and not merely by the query above it.
+        organizationId: configuration.organizationId,
+      });
+      return {
+        secret,
+        source: 'managed',
+        category: 'customer_byok',
+        credentialId: active.credentialId,
+        organizationId: configuration.organizationId,
+      };
+    } catch (error) {
+      // FAIL CLOSED, AND NEVER ONTO MARQ'S KEY. This tenant HAS a credential
+      // and the platform cannot honour it. Continuing to the platform
+      // resolution would move their traffic onto MARQ's vendor account at the
+      // one moment their own credential became unreadable, while the console
+      // went on reporting `customer_byok` from a row that still says `active`.
+      //
+      // `describeForOperator` composes the diagnostic — key identities and the
+      // remedy — for the deployment's server-side log. It reaches no response
+      // body: this returns `null`, the adapter raises its own caller-facing
+      // PROVIDER_AUTH_FAILED, and no part of this text travels with it.
+      options.onError?.(providerId, describeForOperator(error));
+      return null;
+    }
+  }
+
   function describe(providerId: string): ProviderCredentialAvailability {
     const at = options.clock.isoNow();
     const profile = profiles.get(providerId);
@@ -261,9 +435,35 @@ export function createProviderCredentialResolver(
       return [...profiles.keys()].sort().map(describe);
     },
 
-    async resolve(providerId): Promise<ResolvedProviderCredential | undefined> {
+    async resolve(providerId, tenant): Promise<ResolvedProviderCredential | undefined> {
       const profile = profiles.get(providerId);
       if (!profile?.required) return undefined;
+
+      // ── 0. The tenant's own credential (AI-01 Batch 4D) ───────────────────
+      //
+      // Reached only for a caller that supplied an AUTHENTICATED tenant, and
+      // only when this deployment can open a managed credential at all. With no
+      // tenant this whole block is skipped and the resolution below is byte for
+      // byte the Batch 4C one.
+      if (
+        tenant !== undefined &&
+        // membershipVerified: false is the AI_ALLOW_DEFAULT_ORGANIZATION
+        // fallback — an account with no membership row placed in the
+        // deployment's default organization. It is not a statement that this
+        // caller belongs to that customer, so it buys no access to that
+        // customer's vendor key.
+        tenant.membershipVerified === true &&
+        profile.manageable &&
+        managedAvailable &&
+        options.store &&
+        options.cipher
+      ) {
+        const decision = await resolveTenant(providerId, tenant, options.store, options.cipher);
+        // `undefined` means "this tenant has no usable credential of its own,
+        // and its policy permits the platform's" — fall through. Anything else
+        // is a final answer, including the deliberate `null` refusal.
+        if (decision !== undefined) return decision ?? undefined;
+      }
 
       // ── 1. The managed credential, read fresh and decrypted here ──────────
       //
@@ -315,7 +515,12 @@ export function createProviderCredentialResolver(
               credentialId: active.credentialId,
               organizationId: configuration.organizationId,
             });
-            return { secret, source: 'managed', credentialId: active.credentialId };
+            return {
+              secret,
+              source: 'managed',
+              category: 'platform_managed',
+              credentialId: active.credentialId,
+            };
           } catch (error) {
             // A credential that exists and cannot be opened. REFUSES rather
             // than falling through — see above.
@@ -346,7 +551,9 @@ export function createProviderCredentialResolver(
 
       // ── 2. Deployment compatibility ───────────────────────────────────────
       const fromEnv = environmentSecret(options.env, profile);
-      if (fromEnv !== undefined) return { secret: fromEnv, source: 'environment' };
+      if (fromEnv !== undefined) {
+        return { secret: fromEnv, source: 'environment', category: 'environment' };
+      }
 
       // ── 3. Nothing ────────────────────────────────────────────────────────
       return undefined;

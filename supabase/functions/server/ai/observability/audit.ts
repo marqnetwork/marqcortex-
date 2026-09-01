@@ -23,6 +23,7 @@
 
 import type { AIErrorCode } from '../contracts/errors.ts';
 import type { AIRequestContext, AITokenUsage } from '../contracts/request.ts';
+import type { AICredentialSourceCategory } from '../providers/credentials/contracts.ts';
 import type { AIPolicyDecision } from '../contracts/policy.ts';
 import type { Clock } from '../runtime/clock.ts';
 
@@ -68,6 +69,27 @@ export interface AIAuditRecord {
   // Execution
   readonly providerId?: string;
   readonly modelId?: string;
+  /**
+   * WHICH credential authorised the execution (AI-01 Batch 4D).
+   *
+   * A CATEGORY — `customer_byok`, `platform_managed`, `environment`, `none` —
+   * and never anything narrower. It is here because "whose vendor account paid
+   * for this request?" is a question an invoice dispute, a data-residency
+   * review and a credential incident all ask, and re-deriving it afterwards
+   * from configuration is impossible: configuration changes, and this record
+   * is about a moment.
+   *
+   * NOTHING ABOUT THE CREDENTIAL ITSELF IS RECORDED HERE. No id, no
+   * fingerprint, no key identity, no organization id beyond the
+   * `organizationId` this record already carries — and, self-evidently, no
+   * secret. The provider administration trail already records the identity of
+   * the key in force; an execution record does not need it and would spread it
+   * across every request if it had it.
+   *
+   * Absent on records written before the request reached a provider — a guard
+   * refusal, a budget refusal — where no credential was resolved at all.
+   */
+  readonly credentialSource?: AICredentialSourceCategory;
   readonly attempts: number;
   readonly failedProviders: readonly string[];
   readonly latencyMs: number;
@@ -160,6 +182,8 @@ export interface AuditFacts {
   readonly failedProviders?: readonly string[];
   readonly providerId?: string;
   readonly modelId?: string;
+  /** The credential CATEGORY the execution ran on (AI-01 Batch 4D). */
+  readonly credentialSource?: AICredentialSourceCategory;
   readonly promptId?: string;
   readonly promptVersion?: string;
   readonly promptHash?: string;
@@ -215,6 +239,7 @@ export function createAuditWriter(deps: AuditWriterDependencies): AuditWriter {
 
         providerId: facts.providerId,
         modelId: facts.modelId,
+        credentialSource: facts.credentialSource,
         attempts: facts.attempts,
         failedProviders: facts.failedProviders ?? [],
         latencyMs: facts.latencyMs,

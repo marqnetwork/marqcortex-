@@ -52,6 +52,7 @@
  */
 
 import type {
+  AIByokFallbackPolicy,
   AIProviderConfigurationRecord,
   AIProviderModelRecord,
   AIProviderScope,
@@ -155,6 +156,14 @@ function toConfiguration(row: Record<string, unknown>): AIProviderConfigurationR
     scope: text(row.scope) === 'organization' ? 'organization' : 'platform',
     organizationId: optionalText(row.organization_id),
     enabled: row.enabled === true,
+    // AI-01 Batch 4D. Anything other than the one opt-in value reads as
+    // `platform`, which is the reading that changes nothing: a row written
+    // before this column existed, or carrying a value a future migration adds,
+    // behaves exactly as Batch 4C rows always have rather than silently taking
+    // a tenant's AI down.
+    credentialFallback: (text(row.credential_fallback) === 'tenant_only'
+      ? 'tenant_only'
+      : 'platform') satisfies AIByokFallbackPolicy,
     certification: text(row.certification) as AIProviderConfigurationRecord['certification'],
     configuration:
       typeof configuration === 'object' && configuration !== null && !Array.isArray(configuration)
@@ -236,6 +245,38 @@ export function createSupabaseProviderAdministrationStore(
       return (data ?? []).map(toConfiguration);
     },
 
+    /**
+     * Every configuration owned by ONE organization (AI-01 Batch 4D).
+     *
+     * TWO PREDICATES, AND BOTH ARE REQUIRED. `organization_id` alone would be
+     * correct only while the scope/tenancy CHECK constraint holds in the
+     * database, and a tenant read that depends on a constraint in another file
+     * for its isolation is a tenant read one migration away from returning
+     * platform rows. The scope is asserted here as well.
+     *
+     * There is no variant of this method that omits the tenant. A caller
+     * cannot ask this store for "all organizations' configurations", so there
+     * is no result set for a caller to forget to filter.
+     */
+    async listOrganizationConfigurations(organizationId) {
+      const { data, error } = await table(CONFIGURATION_TABLE)
+        .select('*')
+        .eq('scope', 'organization')
+        .eq('organization_id', organizationId)
+        .order('provider_key', { ascending: true });
+      if (error) fail('listOrganizationConfigurations', error.message);
+      // Filtered AGAIN in memory. The query is already tenant-keyed; this makes
+      // a row for another tenant unrepresentable in the return value even if
+      // the query were rewritten carelessly, which is the one defect class that
+      // would be invisible in review and catastrophic in production.
+      return (data ?? [])
+        .map(toConfiguration)
+        .filter(
+          (record) =>
+            record.scope === 'organization' && record.organizationId === organizationId,
+        );
+    },
+
     async findConfiguration(scope, providerKey, organizationId) {
       let query = table(CONFIGURATION_TABLE)
         .select('*')
@@ -263,6 +304,7 @@ export function createSupabaseProviderAdministrationStore(
           scope: record.scope,
           organization_id: record.organizationId ?? null,
           enabled: record.enabled,
+          credential_fallback: record.credentialFallback ?? 'platform',
           certification: record.certification,
           configuration: record.configuration,
           created_at: record.createdAt,

@@ -222,6 +222,147 @@ describe('AI administration boundary', () => {
 });
 
 /**
+ * AI-01 Batch 4D added a CUSTOMER-facing credential surface. It is the part of
+ * the platform where a mistake is most expensive: it takes a customer's own
+ * vendor API key, and it sits beside a surface that holds MARQ's.
+ *
+ * Three claims, and all three are claims about ABSENCE, which is exactly what a
+ * behavioural test cannot make and a source scan can.
+ *
+ *   IT CANNOT EXECUTE. No control plane, no registry, no adapter, no `invoke`.
+ *   Its provider knowledge arrives as a catalogue of non-secret descriptor
+ *   facts, so there is nothing in the tree with behaviour to reach a vendor.
+ *
+ *   IT CANNOT REACH MARQ'S ESTATE. Every storage call names a module constant,
+ *   `ORGANIZATION_SCOPE`. The string `'platform'` appears nowhere in its code.
+ *
+ *   IT CANNOT RETURN A SECRET. No operation name that could be bound to one,
+ *   and no method that returns sealed material.
+ */
+describe('customer BYOK boundary (AI-01 Batch 4D)', () => {
+  const BYOK_DIR = join(SERVER_ROOT, 'ai', 'byok') + sep;
+  const byokSources = serverSources.filter(
+    (file) => file.path.startsWith(BYOK_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty customer BYOK tree', () => {
+    assert.ok(byokSources.length >= 4, `expected the byok tree, found ${byokSources.length}`);
+  });
+
+  it('never holds the control plane, a registry or an adapter', () => {
+    const PLANE_IMPORT = /from\s+['"][^'"]*controlPlane\.ts['"]/;
+    assert.deepEqual(strippedOffenders(byokSources, PLANE_IMPORT), []);
+    const PROVIDER_IMPORT = /from\s+['"][^'"]*providers\/(openai|anthropic|mock)Provider\.ts['"]/;
+    assert.deepEqual(strippedOffenders(byokSources, PROVIDER_IMPORT), []);
+    const REGISTRY_IMPORT = /from\s+['"][^'"]*providers\/registry\.ts['"]/;
+    assert.deepEqual(strippedOffenders(byokSources, REGISTRY_IMPORT), []);
+    assert.deepEqual(strippedOffenders(byokSources, /\.\s*invoke\s*\(\s*\{/), []);
+  });
+
+  it('names no vendor and reads no vendor credential variable', () => {
+    const VENDOR = /https?:\/\/[^\s'"`]*(openai\.com|anthropic\.com|googleapis\.com|azure\.com)/i;
+    assert.deepEqual(strippedOffenders(byokSources, VENDOR), []);
+    const CREDENTIAL = /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENAI_KEY|AZURE_OPENAI_KEY)\b/;
+    assert.deepEqual(strippedOffenders(byokSources, CREDENTIAL), []);
+    // Nor the root key variable. The BYOK service takes a cipher; it never
+    // reads the deployment secret that cipher was built from.
+    assert.deepEqual(
+      strippedOffenders(byokSources, /AI_CREDENTIAL_ENCRYPTION_KEY/),
+      [],
+    );
+  });
+
+  it('never passes the platform scope to storage', () => {
+    // THE ONE-LINE VERSION OF THE ISOLATION CLAIM. Every storage call in this
+    // tree passes `ORGANIZATION_SCOPE`, a module constant.
+    //
+    // The scan targets the SHAPES that would reach MARQ's rows rather than the
+    // bare word: `'platform'` is also a legitimate value of the customer's own
+    // fallback policy and of the effective-source enum the console reads, and a
+    // scan that banned the string outright would ban the feature and teach the
+    // reader to distrust the test.
+    assert.deepEqual(strippedOffenders(byokSources, /PLATFORM_SCOPE/), []);
+    assert.deepEqual(
+      strippedOffenders(byokSources, /findConfiguration\s*\(\s*'platform'/),
+      [],
+    );
+    assert.deepEqual(
+      strippedOffenders(byokSources, /listConfigurations\s*\(\s*'platform'/),
+      [],
+    );
+    assert.deepEqual(strippedOffenders(byokSources, /scope:\s*'platform'/), []);
+    // `listConfigurations` at all: it is the PLATFORM enumeration and returns
+    // rows across every tenant when asked for the organization scope. The
+    // customer surface uses `listOrganizationConfigurations`, whose signature
+    // takes the tenant as its only argument.
+    assert.deepEqual(strippedOffenders(byokSources, /\.listConfigurations\s*\(/), []);
+    // And the constant it DOES use really is there.
+    assert.ok(
+      byokSources.some((file) => /ORGANIZATION_SCOPE/.test(stripComments(file.text))),
+      'the customer surface must name its scope through a module constant',
+    );
+  });
+
+  it('offers no operation that could return a secret', () => {
+    const REVEAL = /\b(reveal|plaintextOf|readSecret|decryptCredential|credentialValue)\b/;
+    assert.deepEqual(strippedOffenders(byokSources, REVEAL), []);
+    // And never opens a sealed record. `cipher.open` is the resolver's, on the
+    // execution path, inside an adapter — never on an administration surface.
+    assert.deepEqual(strippedOffenders(byokSources, /cipher\.open\s*\(/), []);
+    // `activeCredential` is the store's ONLY sealed-material method. Nothing
+    // here calls it, so no sealed record enters this tree at all.
+    assert.deepEqual(strippedOffenders(byokSources, /\.activeCredential\s*\(/), []);
+  });
+
+  it('re-implements no guarantee that already has an implementation', () => {
+    const DUPLICATED =
+      /createSpendLedger|createProviderSelector|createAIGuard|createPolicyEngine|createExecutionPipeline|createAIAdministration|createProviderAdministration|createSecretCipher|createProviderCredentialResolver/;
+    assert.deepEqual(strippedOffenders(byokSources, DUPLICATED), []);
+    // Including the audit trail: the BYOK service TAKES a writer, it does not
+    // build one. A second trail would be a second place for an append to be
+    // forgotten and a second place a reviewer has to know to look.
+    assert.deepEqual(strippedOffenders(byokSources, /createAdminAuditWriter|createMemoryAdminAuditStore/), []);
+  });
+
+  it('exposes no mutation of an audit record', () => {
+    const MUTATION = /\b(deleteAudit|removeAudit|updateAudit|clearAudit|purgeAudit)\b/;
+    assert.deepEqual(strippedOffenders(byokSources, MUTATION), []);
+  });
+
+  it('routes the customer surface through its adapter, not its own role checks', () => {
+    const routeFile = serverSources.find((file) => file.path.endsWith('aiByokRoutes.ts'));
+    assert.ok(routeFile, 'aiByokRoutes.ts must exist');
+    // A route file that resolves an actor or compares a role is a route file
+    // that can forget to.
+    assert.equal(/resolveByokActor|requireByokCapability/.test(routeFile.text), false);
+    assert.equal(/org_admin|super_admin|platform_admin/.test(routeFile.text), false);
+    assert.ok(routeFile.text.includes('executeByokHttpRequest'));
+    // AND NO ORGANIZATION IN ANY PATH. A tenant that appears in a URL is a
+    // tenant somebody will eventually trust because it looked like a route
+    // parameter.
+    assert.equal(
+      /:organizationId|:orgId|:tenantId/.test(routeFile.text),
+      false,
+      'the customer surface must not take an organization as a path parameter',
+    );
+  });
+
+  it('builds the customer credential service in exactly one place', () => {
+    // `createByokAdministration` and `createByokService` are exported, so the
+    // rule that keeps them honest is this one: the bootstrap is the only
+    // non-test caller. A second construction site would be a second store, a
+    // second cipher or a second trail.
+    const callers = serverSources
+      .filter((file) => !isTest(file))
+      // The defining module is not a caller of itself.
+      .filter((file) => !file.path.endsWith(join('byok', 'byokService.ts')))
+      .filter((file) => /createByokService\s*\(/.test(stripComments(file.text)))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(callers, [join('ai', 'bootstrap.ts')]);
+  });
+});
+
+/**
  * AI-01 Batch 3A added an agent runtime. It is the part of the platform most
  * likely to grow a second execution path, because an agent that "just needs to
  * call the model" is one import away from doing so — and everything the control
