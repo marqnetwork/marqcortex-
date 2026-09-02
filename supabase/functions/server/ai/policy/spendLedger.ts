@@ -299,7 +299,27 @@ export interface SpendLedger {
 
 export interface SpendLedgerOptions {
   readonly store: SpendStore;
-  readonly capMicroUsd: number;
+  /**
+   * The configured ceiling for a scope, in micro-USD.
+   *
+   * ── WHY THIS IS PER SCOPE NOW (4D remediation, HIGH-1) ────────────────────
+   *
+   * It used to be one number for every scope, and once BLOCKER B-2's fix
+   * started reserving tenant-funded executions on `SPEND_SCOPE.organization(…)`
+   * that number was `AI_MAX_SPEND_USD` — MARQ's own $9 lifetime ceiling —
+   * applied to money MARQ is not billed for. A certification found the
+   * consequence: declaring `tenant_only` capped a customer's spend on their OWN
+   * vendor account at $9 for life, invisibly, after which their AI stopped
+   * permanently.
+   *
+   * A function rather than a map, because the scopes are not enumerable: one
+   * exists per organization, created on first use.
+   *
+   * A plain number is still accepted and still means "this ceiling, everywhere"
+   * — every existing caller and every test that predates the split keeps its
+   * behaviour without an edit.
+   */
+  readonly capMicroUsd: number | ((scope: string) => number);
   readonly now: () => string;
   /** Reset events retained per scope. Bounded so a record cannot grow forever. */
   readonly maxResetHistory?: number;
@@ -465,10 +485,23 @@ export function createSpendLedger(options: SpendLedgerOptions): SpendLedger {
     return next;
   }
 
+  /**
+   * The configured ceiling for one scope.
+   *
+   * Asked per scope rather than captured once, so the platform ceiling and an
+   * organization's are independent by construction: there is no value here that
+   * both of them read.
+   */
+  function configuredCap(scope: string): number {
+    return typeof options.capMicroUsd === 'function'
+      ? options.capMicroUsd(scope)
+      : options.capMicroUsd;
+  }
+
   /** Load, defaulting a missing record and re-stamping the configured cap. */
   async function stored(scope: string): Promise<SpendRecord> {
     const loaded = await store.load(scope);
-    if (!loaded) return emptySpendRecord(scope, options.capMicroUsd, now());
+    if (!loaded) return emptySpendRecord(scope, configuredCap(scope), now());
     // The configured cap wins over a stored one unless a reset explicitly
     // raised it: an operator lowering AI_MAX_SPEND_USD must take effect on the
     // next request, not be overridden by a value persisted days ago.
@@ -476,7 +509,7 @@ export function createSpendLedger(options: SpendLedgerOptions): SpendLedger {
     const capMicroUsd =
       raisedByReset !== undefined && raisedByReset === loaded.capMicroUsd
         ? loaded.capMicroUsd
-        : options.capMicroUsd;
+        : configuredCap(scope);
     return { ...loaded, capMicroUsd };
   }
 
@@ -769,6 +802,49 @@ export const SPEND_SCOPE = {
   platform: 'spend:marq:platform:lifetime',
   organization: (organizationId: string) => `spend:org:${organizationId}:lifetime`,
 } as const;
+
+/**
+ * The organization a scope name belongs to, or `undefined` for any other scope.
+ *
+ * The inverse of `SPEND_SCOPE.organization`, kept BESIDE it so the two cannot
+ * drift: the ledger has to decide which ceiling a scope is governed by, and the
+ * administration surface has to decide whether a caller may administer it, and
+ * a second parser of this string elsewhere is how those two eventually disagree
+ * about which tenant a ledger belongs to.
+ *
+ * `SPEND_SCOPE.platform` is deliberately not matched. Its name is not of this
+ * shape and there is no organization id that could produce it, which is what
+ * makes "an organization operation can never touch the platform scope" a
+ * property of the format rather than of a check somewhere.
+ */
+export function organizationOfSpendScope(scope: string): string | undefined {
+  const match = /^spend:org:(.+):lifetime$/.exec(scope);
+  return match?.[1];
+}
+
+/**
+ * A governed ceiling that does not bind (4D remediation, HIGH-1).
+ *
+ * `Number.MAX_SAFE_INTEGER` micro-USD is nine billion dollars — beyond any
+ * spend this platform can reach — and it is chosen over `Infinity` for one
+ * reason: the record is persisted as JSON, and `JSON.stringify(Infinity)` is
+ * `null`. A ceiling that silently became `null` on the way to storage would
+ * read back as a missing cap, and every arithmetic comparison against it would
+ * be `false`. A large finite number keeps `remainingMicroUsd`, the reservation
+ * arithmetic and the stored record all working exactly as they do for a bounded
+ * scope, with no branch of their own.
+ *
+ * It is NOT "unlimited" as a state the code special-cases. It is a NUMBER, so
+ * every invariant — reserve, settle, release, reclaim, raise, reset — holds for
+ * it unchanged, and an operator who configures a real ceiling gets the same
+ * code path with a smaller number.
+ */
+export const UNBOUNDED_SPEND_CAP_MICRO_USD = Number.MAX_SAFE_INTEGER;
+
+/** Whether a ceiling is the governed unbounded one. For display, never for control flow. */
+export function isUnboundedSpendCap(capMicroUsd: number): boolean {
+  return capMicroUsd >= UNBOUNDED_SPEND_CAP_MICRO_USD;
+}
 
 /** Micro-USD from a dollar figure, without float drift in the ledger. */
 export function usdToMicroUsd(usd: number): number {

@@ -143,6 +143,17 @@ export function registerAIByokRoutes(
   app.get(`${prefix}/ai/organization/providers`, (c) => run(c, BYOK_OPERATION.status));
 
   /**
+   * This organization's own AI spend against its own lifetime ceiling (HIGH-1).
+   *
+   * NO ORGANIZATION IN THE PATH AND NONE IN A BODY, exactly like every other
+   * route in this file: the ledger is derived from the actor the header hint
+   * could only have narrowed. There is deliberately no sibling route that
+   * raises or clears it — that is `/ai/admin/budget/organizations/:id/...`,
+   * behind the platform operator's own capability.
+   */
+  app.get(`${prefix}/ai/organization/spend`, (c) => run(c, BYOK_OPERATION.spend));
+
+  /**
    * Credential METADATA for one provider: names, statuses, fingerprints and
    * timestamps for THIS organization's own rotation history.
    *

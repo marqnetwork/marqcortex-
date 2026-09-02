@@ -41,6 +41,8 @@ import type { ProviderRegistry } from '../providers/registry.ts';
 import type { SpendLedger, SpendRecord, SpendReservation } from './spendLedger.ts';
 import { AIError } from '../contracts/errors.ts';
 import { SPEND_SCOPE, isSpendDenied, remainingMicroUsd } from './spendLedger.ts';
+import type { AIExecutionFundingMode } from '../providers/credentials/executionFunding.ts';
+import { marqFundingPermitted } from '../providers/credentials/executionFunding.ts';
 import { isolationKeyFor } from '../security/tenancy.ts';
 
 /**
@@ -88,6 +90,18 @@ export interface SpendReservationHandle {
  *                      credential for such an execution, on any attempt, so
  *                      every micro-USD it spends is the customer's own.
  *
+ *   `unresolved`       ALSO the organization scope, and for the same reason
+ *                      (BLOCKER-1). An execution whose funding policy could not
+ *                      be read is refused MARQ's credential on every candidate,
+ *                      so MARQ cannot be billed for it and MARQ's ceiling must
+ *                      neither bound it nor be consumed by it. SPEND SCOPE AND
+ *                      CREDENTIAL ELIGIBILITY ARE DERIVED FROM ONE PREDICATE —
+ *                      `marqFundingPermitted` — precisely so the two cannot
+ *                      disagree; holding an unresolved execution on MARQ's
+ *                      ledger while barring MARQ's credential from serving it
+ *                      would be a transient storage fault silently billing MARQ,
+ *                      which is the rule this remediation exists to enforce.
+ *
  *   `platform_allowed` Reserved and settled on the PLATFORM scope, exactly as
  *                      before. MARQ's credential MAY serve this request, and
  *                      MARQ's ceiling is what bounds MARQ's exposure.
@@ -104,7 +118,7 @@ export interface SpendReservationHandle {
  * shape in which a request settles somewhere it did not reserve.
  */
 export interface SpendFunding {
-  readonly mode: 'platform_allowed' | 'tenant_only';
+  readonly mode: AIExecutionFundingMode;
   readonly organizationId?: string;
 }
 
@@ -115,12 +129,16 @@ export interface SpendFunding {
  * used, rather than reconstructing the rule and eventually disagreeing with it.
  */
 export function spendScopeFor(funding: SpendFunding | undefined): string {
-  // BOTH halves required. A `tenant_only` mode with no organization id is a
-  // contradiction the resolver does not produce — an unverified membership
-  // never yields `tenant_only` — but a scope built from `undefined` would read
-  // `spend:org:undefined:lifetime` and silently pool every such request into
-  // one shared bucket, which is the opposite of the isolation this exists for.
-  if (funding?.mode === 'tenant_only' && funding.organizationId) {
+  // BOTH halves required. A contained mode with no organization id is a
+  // contradiction the resolver does not produce — an unverified membership is
+  // answered `platform_allowed` before any read, so it can be neither
+  // `tenant_only` nor `unresolved` — but a scope built from `undefined` would
+  // read `spend:org:undefined:lifetime` and silently pool every such request
+  // into one shared bucket, which is the opposite of the isolation this exists
+  // for. A contained execution that somehow lacked an id therefore falls to the
+  // platform scope, which over-protects MARQ's ceiling and never under-protects
+  // it — and cannot leak one tenant's spend into another's.
+  if (funding !== undefined && !marqFundingPermitted(funding.mode) && funding.organizationId) {
     // VALIDATED, THROUGH THE ONE VALIDATOR, BEFORE IT BECOMES A KEY.
     //
     // This scope becomes a KV key (`ai:spend:<scope>`), and this remediation is

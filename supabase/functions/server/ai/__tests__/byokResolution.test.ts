@@ -41,6 +41,9 @@ import {
   configureFor,
 } from './byokFixtures.ts';
 import type { CredentialTenant } from '../providers/credentials/contracts.ts';
+import type { ExecutionFundingResolver } from '../providers/credentials/executionFunding.ts';
+import type { ProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
+import type { SpendStore } from '../policy/spendLedger.ts';
 import { decideTenantCredential, fallbackPolicyOf } from '../providers/credentials/tenantPrecedence.ts';
 import { createSecretCipher, parseRootKey } from '../providers/credentials/secretCipher.ts';
 import { createProviderCredentialResolver } from '../providers/credentials/resolver.ts';
@@ -51,7 +54,12 @@ import { createControlPlane } from '../controlPlane.ts';
 import { loadControlPlaneConfig } from '../runtime/config.ts';
 import { createSequentialIdFactory } from '../contracts/ids.ts';
 import { createMemorySink } from '../observability/logger.ts';
-import { createMemorySpendStore } from '../policy/spendLedger.ts';
+import {
+  SPEND_SCOPE,
+  createMemorySpendStore,
+  createSpendLedger,
+} from '../policy/spendLedger.ts';
+import { createExecutionFundingResolver } from '../providers/credentials/executionFunding.ts';
 import { createMemorySettingsStore } from '../admin/settingsStore.ts';
 import { createOpenAIProvider, type FetchLike } from '../providers/openaiProvider.ts';
 import { createMockProvider } from '../providers/mockProvider.ts';
@@ -611,6 +619,17 @@ const executionAuthenticator: AIAuthenticator = {
 function buildExecutionPlane(
   harness: ReturnType<typeof buildByokHarness>,
   env: Record<string, string> = {},
+  /**
+   * Whose credentials the request may reach (4D remediation, BLOCKER-1).
+   *
+   * Omitted, the plane behaves as it did before the remediation: no funding
+   * resolver, every request `platform_allowed`. Supplied, the plane resolves
+   * funding ONCE per request and carries it to the spend guard and to every
+   * provider attempt — which is the wiring the end-to-end case below exists to
+   * prove, and which cannot be proved by exercising the resolver and the
+   * credential layer separately.
+   */
+  options: { funding?: ExecutionFundingResolver; spendStore?: SpendStore } = {},
 ) {
   const outbound: { url: string; authorization: string }[] = [];
   const fetchImpl: FetchLike = (url, init) => {
@@ -655,7 +674,8 @@ function buildExecutionPlane(
       },
       { adapter: createMockProvider(), certification: 'testing' },
     ],
-    spendStore: createMemorySpendStore(),
+    spendStore: options.spendStore ?? createMemorySpendStore(),
+    funding: options.funding,
     settingsSource: createMemorySettingsStore(),
     clock: createTestClock(),
     ids: createSequentialIdFactory(),
@@ -833,5 +853,130 @@ describe('Batch 4D — execution resolves the authenticated tenant’s credentia
     const record = plane.recentAudit(1)[0];
     assert.equal(record.providerId, 'mock');
     assert.equal(record.credentialSource, 'none');
+  });
+});
+
+/**
+ * ── BLOCKER-1, END TO END, THROUGH THE WHOLE PLANE ────────────────────────
+ *
+ * Everything above about the funding latch is asserted at the credential layer
+ * or at the ledger. This block asserts it where it actually has to hold: one
+ * real HTTP request, through the real guard, the real orchestrator, the real
+ * spend guard and the real execution pipeline, with the real OpenAI adapter
+ * holding the same resolver the BYOK service wrote through.
+ *
+ * The wiring is the claim. A remediation that resolved funding correctly and
+ * failed to carry it from the orchestrator to the reservation and to every
+ * attempt would pass every other test in this repository.
+ *
+ * ZERO PROVIDER CALLS. `fetchImpl` is a stub that records the header the
+ * adapter WOULD have sent; nothing reaches a network.
+ */
+describe('BLOCKER-1 — an unreadable funding policy contains a whole request', () => {
+  /** The estate read fails; the per-provider reads still work. ONE failed read. */
+  function estateReadFails(store: ProviderAdministrationStore): ProviderAdministrationStore {
+    return {
+      ...store,
+      listOrganizationConfigurations: () =>
+        Promise.reject(new Error('PGRST301: statement timeout')),
+    } as ProviderAdministrationStore;
+  }
+
+  it('withholds MARQ’s credential and holds the request on the tenant’s own ledger', async () => {
+    // ACME has no configuration at all — the ordinary state for a provider a
+    // tenant_only organization never declared, and the exact premise of the
+    // certified defect. MARQ's environment credential is present and is what
+    // this request would have used the day before the remediation.
+    const harness = buildByokHarness({ env: { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET } });
+    const spendStore = createMemorySpendStore();
+    const { plane, outbound } = buildExecutionPlane(
+      harness,
+      { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET },
+      {
+        funding: createExecutionFundingResolver({ store: estateReadFails(harness.store) }),
+        spendStore,
+      },
+    );
+
+    const response = await executeAIHttpRequest(
+      plane,
+      chatRequest(CALLER.acme, ORG.acme, 'cor-blocker1-e2e'),
+    );
+
+    // NO VENDOR CALL WAS PREPARED WITH MARQ'S KEY, and that is the whole
+    // assertion. Before the remediation this request executed on MARQ's
+    // environment credential and returned 200.
+    assert.equal(outbound.length, 0, 'MARQ’s credential served an unreadable funding policy');
+
+    // THE CUSTOMER GETS A REFUSAL INSTEAD, and a refusal is the correct
+    // outcome: this plane has failover disabled, so once the one billable
+    // provider is refused a credential there is nothing else to try. That is
+    // the accepted cost of containment, stated by a test rather than left to be
+    // discovered — the request fails visibly and recoverably, instead of
+    // succeeding on MARQ's vendor account while the customer's console reports
+    // otherwise.
+    assert.equal(response.status, 503);
+
+    // Whatever was recorded, it was not a MARQ-funded execution.
+    const record = plane.recentAudit(1)[0];
+    assert.notEqual(record.credentialSource, 'platform_managed');
+    assert.notEqual(record.credentialSource, 'deployment_managed');
+
+    // AND THE LEDGER AGREES WITH THE CREDENTIAL DECISION. MARQ was barred from
+    // serving it, so MARQ's ceiling must not have been drawn down for it.
+    const ledger = createSpendLedger({
+      store: spendStore,
+      capMicroUsd: 1,
+      now: () => new Date().toISOString(),
+    });
+    const platform = await ledger.read(SPEND_SCOPE.platform);
+    assert.equal(platform.spentMicroUsd, 0, 'MARQ’s ledger was charged');
+    assert.equal(platform.reservedMicroUsd, 0, 'a hold was left on MARQ’s ledger');
+    assert.equal(platform.openReservations.length, 0);
+  });
+
+  it('still serves the tenant’s OWN credential while the policy is unreadable', async () => {
+    // Containment, not an outage. A customer whose ownership of a key is still
+    // provable executes on it — the estate read failing tells us nothing about
+    // whose key this is, and the configuration row, the credential row and the
+    // cipher's AAD all still bind their organization.
+    const harness = buildByokHarness({ env: { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET } });
+    await configureFor(harness, BYOK_TOKEN.acmeAdmin, ACME_SECRET);
+    const { plane, outbound } = buildExecutionPlane(
+      harness,
+      { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET },
+      { funding: createExecutionFundingResolver({ store: estateReadFails(harness.store) }) },
+    );
+
+    const response = await executeAIHttpRequest(
+      plane,
+      chatRequest(CALLER.acme, ORG.acme, 'cor-blocker1-e2e-own'),
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(outbound.length, 1, 'the tenant’s own credential was refused');
+    assert.equal(outbound[0].authorization, `Bearer ${ACME_SECRET}`);
+    assert.notEqual(outbound[0].authorization, `Bearer ${ENVIRONMENT_SECRET}`);
+    assert.equal(plane.recentAudit(1)[0].credentialSource, 'customer_byok');
+  });
+
+  it('leaves a healthy platform_allowed request exactly as it was', async () => {
+    // THE REGRESSION HALF, END TO END. A tenant whose estate READS and permits
+    // MARQ's credential keeps it, on MARQ's ledger, with no change of any kind.
+    const harness = buildByokHarness({ env: { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET } });
+    const { plane, outbound } = buildExecutionPlane(
+      harness,
+      { MOCK_PROVIDER_KEY: ENVIRONMENT_SECRET },
+      { funding: createExecutionFundingResolver({ store: harness.store }) },
+    );
+
+    const response = await executeAIHttpRequest(
+      plane,
+      chatRequest(CALLER.acme, ORG.acme, 'cor-blocker1-e2e-healthy'),
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(outbound.length, 1, 'a healthy platform-allowed request lost MARQ’s credential');
+    assert.equal(outbound[0].authorization, `Bearer ${ENVIRONMENT_SECRET}`);
   });
 });

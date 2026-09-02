@@ -74,6 +74,7 @@ import type { IdFactory } from '../contracts/ids.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { AICertificationStatus } from '../contracts/provider.ts';
 import type { AdminAuditWriter } from '../admin/adminAudit.ts';
+import type { SpendRecord } from '../policy/spendLedger.ts';
 import type {
   AIByokFallbackPolicy,
   AIProviderConfigurationRecord,
@@ -100,6 +101,7 @@ import {
   decideTenantCredential,
   fallbackPolicyOf,
 } from '../providers/credentials/tenantPrecedence.ts';
+import { isUnboundedSpendCap, remainingMicroUsd } from '../policy/spendLedger.ts';
 import { requireByokCapability } from './byokRbac.ts';
 
 /**
@@ -280,6 +282,71 @@ export interface ByokSummary {
   readonly generatedAt: string;
 }
 
+/**
+ * THIS organization's own AI spend, as its administrators may read it
+ * (AI-01 Batch 4D remediation, HIGH-1).
+ *
+ * ── WHY THE CUSTOMER SURFACE HAS THIS AT ALL ──────────────────────────────
+ *
+ * BLOCKER B-2's fix moved tenant-funded executions onto the organization's own
+ * ledger. A certification then found that ledger had no reader anywhere: an
+ * organization that declared `tenant_only` was accumulating against a lifetime
+ * ceiling nobody — not the customer, not MARQ — could see. A governed ceiling
+ * whose state is unreadable is not governance, it is a surprise waiting for a
+ * quarter end.
+ *
+ * ── WHAT IS ON IT, AND WHAT STRUCTURALLY CANNOT BE ────────────────────────
+ *
+ * Cap, spent, reserved, remaining, and the identity of a ledger the caller is
+ * authorised for. There is no provider, no credential id, no fingerprint, no
+ * key identity and no configuration field on this type — so it cannot carry
+ * credential data however it is serialised, and adding one would be an edit to
+ * a type whose comment says not to.
+ *
+ * The RESERVED figure is included because a customer investigating "why was my
+ * request refused when I am under my cap" needs it: money held for requests in
+ * flight is the difference between the two numbers, and omitting it makes the
+ * ceiling look wrong. The individual holds are not — their ids and owners are
+ * MARQ's operational forensics.
+ */
+export interface ByokSpendView {
+  /** The organization this answer is about. Resolved, never echoed from input. */
+  readonly organizationId: string;
+  /** The ledger scope, so a console never guesses the string. */
+  readonly scope: string;
+  readonly capMicroUsd: number;
+  /**
+   * Whether this organization has no lifetime ceiling.
+   *
+   * The GOVERNED DEFAULT — see `AI_ORG_MAX_SPEND_USD`. Stated as a boolean
+   * rather than inferred from the magnitude of `capMicroUsd`, so a console
+   * renders "no lifetime limit" instead of nine billion dollars.
+   */
+  readonly unbounded: boolean;
+  readonly spentMicroUsd: number;
+  readonly reservedMicroUsd: number;
+  readonly remainingMicroUsd: number;
+  /** Whether the ceiling refuses requests, or merely records spend. */
+  readonly enforced: boolean;
+  readonly generatedAt: string;
+}
+
+/**
+ * The read-only ledger port for the customer surface.
+ *
+ * DELIBERATELY NARROW: one method, keyed by an organization, returning a
+ * record. This module cannot reserve, settle, release, reset or raise — there
+ * is no method here to do it with, which is what makes "a customer cannot move
+ * their own ceiling" a property of the type rather than of a capability check
+ * that could be forgotten on a future operation.
+ */
+export interface ByokSpendSource {
+  /** ONE organization's lifetime ledger. Keyed by the tenant, never by a scope string. */
+  organizationSpendStatus(organizationId: string): Promise<SpendRecord>;
+  /** Whether the deployment refuses at the ceiling, or only records. */
+  readonly enforced: boolean;
+}
+
 // ── Dependencies ────────────────────────────────────────────────────────────
 
 /**
@@ -357,6 +424,19 @@ export interface ByokAdministrationOptions {
   readonly credentials?: ProviderCredentialResolver;
   /** The SAME append-only administrative trail. */
   readonly trail: AdminAuditWriter;
+  /**
+   * The organization's own spend ledger, READ ONLY (HIGH-1).
+   *
+   * Injected from where the control plane lives rather than acquired here,
+   * because this module has no plane and acquiring one to answer a read would
+   * give the customer surface a route to the execution path.
+   *
+   * Absent, the spend read refuses with a stated reason rather than reporting
+   * zeroes. A console that showed `$0.00 spent` for a deployment whose ledger it
+   * could not reach would be telling a customer something false about their own
+   * money, which is worse than telling them the figure is unavailable.
+   */
+  readonly spend?: ByokSpendSource;
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly logger: Logger;
@@ -370,6 +450,14 @@ export interface ByokRequestMeta {
 export interface ByokAdministration {
   /** This organization's provider/credential status. Never a secret. */
   status(actor: ByokActor): Promise<ByokSummary>;
+  /**
+   * This organization's own AI spend against its own lifetime ceiling (HIGH-1).
+   *
+   * SAFE METADATA ONLY — see `ByokSpendView`. Keyed by the actor's resolved
+   * organization and by nothing the caller supplies, so there is no argument by
+   * which this returns another tenant's ledger or MARQ's platform one.
+   */
+  spend(actor: ByokActor): Promise<ByokSpendView>;
   /**
    * This organization's credential history for one provider. METADATA ONLY.
    *
@@ -906,6 +994,36 @@ export function createByokAdministration(
         organizationId,
         providers,
         credentialStorage: { available: blocker === undefined, blocker },
+        generatedAt: clock.isoNow(),
+      };
+    },
+
+    async spend(actor) {
+      requireByokCapability(actor, 'ai.byok.spend.view');
+      // THE ACTOR'S OWN ORGANIZATION, and there is no parameter that could name
+      // another. `resolveByokActor` derived this from a verified membership, and
+      // a caller's organization hint can only have narrowed it — so a forged id
+      // cannot reach this line, and there is no line here that would use one.
+      const organizationId = actor.organization.organizationId;
+
+      if (!options.spend) {
+        throw new AIError(
+          'FEATURE_DISABLED',
+          'AI spending information is not available in this deployment.',
+          { diagnostics: `organization=${organizationId} no spend source injected` },
+        );
+      }
+
+      const record = await options.spend.organizationSpendStatus(organizationId);
+      return {
+        organizationId,
+        scope: record.scope,
+        capMicroUsd: record.capMicroUsd,
+        unbounded: isUnboundedSpendCap(record.capMicroUsd),
+        spentMicroUsd: record.spentMicroUsd,
+        reservedMicroUsd: record.reservedMicroUsd,
+        remainingMicroUsd: remainingMicroUsd(record),
+        enforced: options.spend.enforced,
         generatedAt: clock.isoNow(),
       };
     },

@@ -31,6 +31,17 @@ export interface AdminHttpRequest {
   readonly body?: unknown;
   /** Path parameter for provider operations. */
   readonly providerId?: string;
+  /**
+   * Path parameter, for the organization ledger operations. Never read from a
+   * body.
+   *
+   * IT IS A TARGET, NOT AN AUTHORITY CLAIM. The service demands
+   * `ai.admin.budget.organization` — which only the platform operator holds —
+   * and then checks the id against the actor's own scope, so naming an
+   * organization here can select a ledger the caller is already entitled to and
+   * can never grant entitlement to one they are not.
+   */
+  readonly organizationId?: string;
   /** Path parameter for model operations (AI-01 Batch 4C). */
   readonly modelId?: string;
   /** Path parameter for credential revocation (AI-01 Batch 4C). */
@@ -55,6 +66,18 @@ export const ADMIN_OPERATION = {
   getBudget: 'budget.read',
   resetBudget: 'budget.reset',
   increaseBudget: 'budget.increase',
+
+  // ── Organization spend administration (4D remediation, HIGH-1) ────────────
+  //
+  // THREE NAMES OF THEIR OWN, not the platform ones with an id attached. A
+  // route table that bound `budget.reset` to a path carrying an organization
+  // would be one typo away from a tenant operation reaching MARQ's ceiling, and
+  // one grant-table edit away from the tenant capability reaching MARQ's
+  // budget. Separate operations dispatch into separate service methods that
+  // name separate scopes.
+  getOrganizationBudget: 'budget.organization.read',
+  resetOrganizationBudget: 'budget.organization.reset',
+  increaseOrganizationBudget: 'budget.organization.increase',
   usage: 'usage.read',
   diagnostics: 'diagnostics.read',
   executionAudit: 'audit.execution',
@@ -179,6 +202,24 @@ function boundedId(value: string | undefined): string | undefined {
 }
 
 /**
+ * The organization id from the PATH, or a rejection.
+ *
+ * Bounded here and validated as a storage key segment in the service. Two
+ * checks rather than one because they answer different questions: this one
+ * bounds what reaches an audit record, and `isolationKeyFor` decides whether
+ * the value may become part of a ledger key at all.
+ */
+function requireOrganizationId(request: AdminHttpRequest): string {
+  const organizationId = boundedId(request.organizationId);
+  if (organizationId === undefined) {
+    throw new AIError('VALIDATION_FAILED', 'An organization id is required.', {
+      fields: ['organizationId'],
+    });
+  }
+  return organizationId;
+}
+
+/**
  * The provider id, or a rejection.
  *
  * Read from the PATH, bound by the route table, never from the body. A provider
@@ -278,6 +319,40 @@ export async function executeAdminHttpRequest(
           });
         }
         return ok({ budget: await admin.increaseSpendCap(actor, cap, reasonOf(body), meta) });
+      }
+
+      case ADMIN_OPERATION.getOrganizationBudget:
+        return ok({
+          budget: await admin.organizationBudget(actor, requireOrganizationId(request)),
+        });
+
+      case ADMIN_OPERATION.resetOrganizationBudget:
+        return ok({
+          budget: await admin.resetOrganizationSpend(
+            actor,
+            requireOrganizationId(request),
+            reasonOf(body),
+            { newCapMicroUsd: optionalNumber(body.newCapMicroUsd) },
+            meta,
+          ),
+        });
+
+      case ADMIN_OPERATION.increaseOrganizationBudget: {
+        const organizationCap = optionalNumber(body.capMicroUsd);
+        if (organizationCap === undefined) {
+          throw new AIError('VALIDATION_FAILED', 'Field `capMicroUsd` must be a number.', {
+            fields: ['capMicroUsd'],
+          });
+        }
+        return ok({
+          budget: await admin.increaseOrganizationSpendCap(
+            actor,
+            requireOrganizationId(request),
+            organizationCap,
+            reasonOf(body),
+            meta,
+          ),
+        });
       }
 
       case ADMIN_OPERATION.usage:

@@ -63,6 +63,27 @@ export type AIAdminCapability =
   | 'ai.admin.budget.write'
   /** Clear settled lifetime spend, or raise the MARQ-funded ceiling. */
   | 'ai.admin.budget.reset'
+  /**
+   * Read, clear or raise ONE ORGANIZATION'S own lifetime spend ledger
+   * (AI-01 Batch 4D remediation, HIGH-1).
+   *
+   * SEPARATE FROM `ai.admin.budget.reset`, WHICH IS ITS WHOLE POINT. That
+   * capability governs MARQ's own chequebook: the ceiling on money MARQ is
+   * invoiced for. This one governs a ledger recording money a CUSTOMER is
+   * invoiced for, on a key they supplied — a different estate, a different
+   * blast radius, and a grant that must be movable without moving the other.
+   *
+   * Two directions, both closed by the split:
+   *
+   *   A future customer-facing budget role must be grantable WITHOUT handing
+   *   out MARQ's platform budget administration. One capability for both would
+   *   make that impossible to express.
+   *
+   *   A platform operator administering a tenant's ceiling is a governed act
+   *   named in the trail as its own action, not something acquired implicitly
+   *   by being able to administer MARQ's.
+   */
+  | 'ai.admin.budget.organization'
   /** Engage or release the master switch and the emergency kill switch. */
   | 'ai.admin.killswitch'
   // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
@@ -120,6 +141,15 @@ const PLATFORM_OPERATOR_CAPABILITIES: readonly AIAdminCapability[] = [
   'ai.admin.budget.write',
   'ai.admin.killswitch',
   'ai.admin.budget.reset',
+  // Organization ledger administration (HIGH-1). HELD BY THE PLATFORM OPERATOR
+  // AND BY NOBODY ELSE, and it is here for the reason this table already gives
+  // rather than a new one: the operation names a tenant OTHER than the actor's
+  // own, so it is not a scoped action and cannot belong to a scoped tier. A
+  // customer administering their OWN organization's budget is a different
+  // question, asked on the customer surface in `byok/byokRbac.ts` under
+  // `ai.byok.*` — a separate vocabulary, deliberately, so widening one estate's
+  // grants can never widen the other's.
+  'ai.admin.budget.organization',
   // ── Provider administration, INCLUDING ITS READ (AI-01 Batch 4C) ──────────
   //
   // All five, platform operator only — and `ai.providers.view` being here

@@ -36,7 +36,9 @@ import type { OrganizationResolutionOptions } from '../security/tenancy.ts';
 import type { AdminAuditRecord } from '../admin/adminAudit.ts';
 import type { ByokProviderCatalogueEntry } from '../byok/byokAdministration.ts';
 import type { ByokService } from '../byok/byokService.ts';
+import type { ByokSpendSource } from '../byok/byokAdministration.ts';
 import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
+import type { ProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
 import type { SecretCipher } from '../providers/credentials/secretCipher.ts';
 
 import { createAdminAuditWriter, createMemoryAdminAuditStore } from '../admin/adminAudit.ts';
@@ -299,6 +301,29 @@ export interface ByokHarnessOptions {
   readonly env?: Record<string, string>;
   /** Seal the root key under a DIFFERENT key than the one the resolver holds. */
   readonly resolverRootKey?: string;
+  /**
+   * The store the RUNTIME reads through, when it must differ from the one the
+   * administration surface writes through (BLOCKER-1 adversarial suite).
+   *
+   * The certified defect is a STORAGE FAULT on the execution path, and proving
+   * containment against it requires arranging real state — a real `tenant_only`
+   * declaration, a real sealed credential, written by the real service — and
+   * then making the runtime's own read of that state fail. One store cannot do
+   * both: a store that refuses the write cannot hold the row the test is about.
+   *
+   * So this substitutes ONLY the read path, and only where a test asks for it.
+   * `harness.store` and the BYOK service keep the real memory store, so every
+   * fixture arrangement still goes through production code.
+   */
+  readonly resolverStore?: ProviderAdministrationStore;
+  /**
+   * The organization's own spend ledger, for the HIGH-1 customer read.
+   *
+   * Absent, the spend operation refuses with a stated reason — the behaviour a
+   * deployment without a ledger gets, and the behaviour every suite written
+   * before HIGH-1 continues to see.
+   */
+  readonly spend?: ByokSpendSource;
 }
 
 /**
@@ -332,7 +357,7 @@ export function buildByokHarness(options: ByokHarnessOptions = {}): ByokHarness 
     })),
     clock,
     env: recordEnv(options.env ?? {}),
-    store: options.withoutStore ? undefined : store,
+    store: options.withoutStore ? undefined : (options.resolverStore ?? store),
     // The resolver may hold a DIFFERENT root key than the one the service seals
     // under, which is the only way to produce a credential that exists and will
     // not open without corrupting a record by hand.
@@ -363,6 +388,7 @@ export function buildByokHarness(options: ByokHarnessOptions = {}): ByokHarness 
       cipher,
       credentials: resolver,
       trail,
+      spend: options.spend,
       clock,
       ids,
       logger,

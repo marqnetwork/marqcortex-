@@ -98,6 +98,7 @@ export {
   MAX_ADMIN_SPEND_CAP_MICRO_USD,
   type AIAdministration,
   type AdminBudgetView,
+  type AdminOrganizationBudgetView,
   type AdminDiagnostics,
   type AdminOverview,
   type AdminProviderView,
@@ -179,7 +180,11 @@ export {
 export {
   createExecutionFundingLatch,
   createExecutionFundingResolver,
+  marqFundingPermitted,
   PLATFORM_FUNDING,
+  strictestFundingMode,
+  tenantFundedExecution,
+  unresolvedFunding,
   type AIExecutionFundingMode,
   type ExecutionFunding,
   type ExecutionFundingLatch,
@@ -214,6 +219,10 @@ export {
   type ByokService,
   type ByokServiceDependencies,
 } from './byok/byokService.ts';
+// Organization spend governance (AI-01 Batch 4D remediation, HIGH-1). The view
+// and its read-only port cross this boundary because the customer console
+// renders the first and `bootstrap.ts` supplies the second.
+export type { ByokSpendSource, ByokSpendView } from './byok/byokAdministration.ts';
 export {
   hasByokCapability,
   requireByokCapability,

@@ -547,10 +547,25 @@ describe('Batch 4D — one customer cannot reach another', () => {
 // ── Authority ───────────────────────────────────────────────────────────────
 
 describe('Batch 4D — who may manage a customer credential', () => {
-  it('grants an organization administrator both capabilities and no more', async () => {
+  it('grants an organization administrator its three capabilities and no more', async () => {
     const harness = buildByokHarness();
     const actor = await harness.actor(BYOK_TOKEN.acmeAdmin);
-    assert.deepEqual([...actor.capabilities].sort(), ['ai.byok.manage', 'ai.byok.view']);
+    // EXHAUSTIVE, deliberately: a capability added to the grant table fails this
+    // assertion rather than arriving unnoticed on every customer administrator
+    // on the platform.
+    //
+    // `ai.byok.spend.view` is the HIGH-1 addition and it is a READ. There is no
+    // `ai.byok.spend.manage` in the union at all, so this list cannot grow to
+    // include one by an edit to the grant table alone — moving a governed
+    // ceiling is the platform operator's act, under `ai.admin.budget.organization`.
+    assert.deepEqual(
+      [...actor.capabilities].sort(),
+      ['ai.byok.manage', 'ai.byok.spend.view', 'ai.byok.view'],
+    );
+    assert.ok(
+      !actor.capabilities.some((capability) => /spend\.(manage|reset|increase)/.test(capability)),
+      'a customer administrator acquired a spend mutation',
+    );
   });
 
   it('refuses an ordinary member of the same organization', async () => {

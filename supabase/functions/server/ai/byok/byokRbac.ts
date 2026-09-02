@@ -87,7 +87,25 @@ export type AIByokCapability =
   /** Read this organization's provider/credential STATUS. Never a secret. */
   | 'ai.byok.view'
   /** Configure, rotate or revoke this organization's provider credential. */
-  | 'ai.byok.manage';
+  | 'ai.byok.manage'
+  /**
+   * Read THIS organization's own AI spend ledger (4D remediation, HIGH-1).
+   *
+   * A THIRD capability rather than part of `ai.byok.view`, by the same argument
+   * that split `view` from `manage`: "which vendors have we configured" and
+   * "what has our AI cost" are different questions, asked by different people —
+   * an engineer and a budget holder — and a platform that cannot grant the
+   * second without the first will end up granting both to everybody.
+   *
+   * READ ONLY, AND DELIBERATELY SO. There is no `ai.byok.spend.manage` in this
+   * union, and there is no operation on the customer surface that raises or
+   * clears a ceiling. A ledger a customer can raise for themselves is not a
+   * governed ceiling, it is a form field; and clearing settled spend is
+   * destroying MARQ's record of what a tenant consumed. Both belong to the
+   * platform operator under `ai.admin.budget.organization`, which is a
+   * different capability set in a different module that nothing here imports.
+   */
+  | 'ai.byok.spend.view';
 
 /**
  * Role → capability grants. The only place the two are connected.
@@ -107,11 +125,22 @@ export type AIByokCapability =
  * could be added here to make a platform role grant a tenant capability without
  * also changing where the roles come from.
  */
+const BYOK_ADMIN_CAPABILITIES: readonly AIByokCapability[] = [
+  'ai.byok.view',
+  'ai.byok.manage',
+  // The spend READ, granted to the same tier that administers the credentials.
+  // An organization administrator who may replace the key their traffic
+  // executes on is plainly entitled to see what that traffic has cost them, and
+  // withholding it would leave a customer unable to explain their own invoice.
+  // The MUTATIONS are absent — see `AIByokCapability`.
+  'ai.byok.spend.view',
+];
+
 export const BYOK_ROLE_CAPABILITIES: Readonly<Record<string, readonly AIByokCapability[]>> = {
-  org_admin: ['ai.byok.view', 'ai.byok.manage'],
-  organization_admin: ['ai.byok.view', 'ai.byok.manage'],
-  admin: ['ai.byok.view', 'ai.byok.manage'],
-  owner: ['ai.byok.view', 'ai.byok.manage'],
+  org_admin: BYOK_ADMIN_CAPABILITIES,
+  organization_admin: BYOK_ADMIN_CAPABILITIES,
+  admin: BYOK_ADMIN_CAPABILITIES,
+  owner: BYOK_ADMIN_CAPABILITIES,
 };
 
 /**

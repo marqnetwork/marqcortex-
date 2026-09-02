@@ -369,6 +369,14 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     settingsSource: settingsStore,
   });
 
+  // A local binding of the plane just assigned.
+  //
+  // `plane` is module-level and memoised, so TypeScript cannot keep it narrowed
+  // inside a closure — and the closures below are the point: they must capture
+  // THIS plane, not re-read a mutable module slot that a later `resetAIPlane`
+  // could empty underneath them.
+  const activePlane = plane;
+
   // ── Administration (AI-01 Batch 2) ────────────────────────────────────────
   //
   // Assembled from the SAME authenticator the guard uses. A second credential
@@ -502,6 +510,15 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
       cipher: credentialCipher,
       credentials: credentialResolver,
       trail: administration.trail,
+      // The organization's own ledger, READ ONLY (HIGH-1). The same plane the
+      // execution path reserves against, so the number a customer reads is the
+      // number their requests are actually held against — a second source would
+      // eventually report a ceiling that is not the one refusing them.
+      spend: {
+        organizationSpendStatus: (organizationId) =>
+          activePlane.organizationSpendStatus(organizationId),
+        enforced: activePlane.config.spend.enforce,
+      },
       clock: systemClock,
       ids: systemIdFactory,
       logger: plane.logger,

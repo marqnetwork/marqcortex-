@@ -343,7 +343,17 @@ describe('M-3 — credential administration is rate limited per organization', (
       (error: unknown) => {
         assert.ok(error instanceof AIError);
         assert.equal(error.code, 'RATE_LIMITED');
-        assert.ok(error.retryAfterSeconds > 0, 'no retry hint was given');
+        // `retryAfterSeconds` is optional on `AIError`, so the presence of a
+        // hint is asserted before its value rather than assumed by a non-null
+        // assertion. The two assertions say different things: a refusal with no
+        // hint at all and a refusal with a nonsensical one are different
+        // defects, and a `!` would have reported the first as the second.
+        const retryAfterSeconds = error.retryAfterSeconds;
+        assert.equal(typeof retryAfterSeconds, 'number', 'no retry hint was given');
+        assert.ok(
+          retryAfterSeconds !== undefined && retryAfterSeconds > 0,
+          'the retry hint was not a positive number of seconds',
+        );
         // Names nothing another tenant could be probed with.
         assert.doesNotMatch(error.message, /globex/i);
         return true;

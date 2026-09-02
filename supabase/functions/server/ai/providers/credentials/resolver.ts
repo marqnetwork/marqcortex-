@@ -115,6 +115,7 @@ import type {
   ProviderAdministrationStore,
 } from './credentialStore.ts';
 import type { SecretCipher } from './secretCipher.ts';
+import { marqFundingPermitted } from './executionFunding.ts';
 import { decideTenantCredential } from './tenantPrecedence.ts';
 
 /**
@@ -402,8 +403,18 @@ export function createProviderCredentialResolver(
     // funding cannot be widened by a provider whose row says `platform`, and a
     // provider with no row at all inherits the constraint instead of defaulting
     // out of it.
+    //
+    // `unresolved` CONSTRAINS EXACTLY AS `tenant_only` DOES, and a per-provider
+    // row that says `platform` does not release it (BLOCKER-1). That row is one
+    // provider's declaration; the rule this platform enforces is that ONE
+    // `tenant_only` anywhere in the estate makes the whole execution
+    // tenant-funded, and when the estate could not be read we do not know
+    // whether such a row exists. Honouring a local `platform` while blind to the
+    // estate is the reopening the certification refused.
     const effectiveFallback =
-      tenant.funding?.mode === 'tenant_only' ? 'tenant_only' : configuration?.credentialFallback;
+      tenant.funding !== undefined && !marqFundingPermitted(tenant.funding.mode)
+        ? 'tenant_only'
+        : configuration?.credentialFallback;
 
     const decision = decideTenantCredential({
       configurationPresent: configuration !== undefined,
@@ -544,9 +555,9 @@ export function createProviderCredentialResolver(
           if (decision !== undefined) return decision ?? undefined;
         }
 
-        // ── THE EXECUTION-LEVEL REFUSAL (4D remediation, BLOCKER B-1) ───────
+        // ── THE EXECUTION-LEVEL REFUSAL (4D remediation, B-1/BLOCKER-1) ────
         //
-        // Reached two ways, and it must close both:
+        // Reached three ways, and it must close all three:
         //
         //   THE TENANT BRANCH RAN AND FELL THROUGH. `decideTenantCredential`
         //   returns `platform` only when the effective policy permits it, so an
@@ -564,12 +575,27 @@ export function createProviderCredentialResolver(
         //   happen. It is refused here instead, and refused for ANY provider
         //   rather than for a named one, which is what keeps this
         //   provider-neutral.
-        if (tenant.funding?.mode === 'tenant_only') {
+        //
+        //   THE FUNDING POLICY COULD NOT BE READ AT ALL (BLOCKER-1). This is
+        //   the case the first remediation left open and the one the
+        //   certification reproduced: the estate pre-read failed, so nothing
+        //   ever tightened the latch, and a provider the tenant has no row for
+        //   — which is the ORDINARY state for the second provider of a
+        //   `tenant_only` organization — fell straight through to MARQ's
+        //   credential. `unresolved` now arrives here already strict, before any
+        //   provider was reached, so an open circuit, a skipped provider or an
+        //   unconfigured one cannot be the thing that was supposed to discover
+        //   the constraint.
+        if (tenant.funding !== undefined && !marqFundingPermitted(tenant.funding.mode)) {
           options.onError?.(
             providerId,
-            'no credential resolved for the authenticated tenant: this organization has ' +
-              'declared that its AI traffic uses its own provider credentials only, and it ' +
-              'has none in force for this provider',
+            tenant.funding.mode === 'tenant_only'
+              ? 'no credential resolved for the authenticated tenant: this organization has ' +
+                'declared that its AI traffic uses its own provider credentials only, and it ' +
+                'has none in force for this provider'
+              : 'no credential resolved for the authenticated tenant: this organization’s ' +
+                'funding policy could not be read, so the platform credential is withheld ' +
+                'and the organization has none of its own in force for this provider',
           );
           return undefined;
         }

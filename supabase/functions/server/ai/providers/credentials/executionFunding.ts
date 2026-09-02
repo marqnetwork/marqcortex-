@@ -1,5 +1,6 @@
 /**
- * Execution funding — AI-01 Batch 4D remediation (certified BLOCKER B-1/B-2).
+ * Execution funding — AI-01 Batch 4D remediation (certified BLOCKER B-1/B-2,
+ * then re-certified BLOCKER-1).
  *
  * WHOSE CHEQUEBOOK MAY THIS ONE REQUEST REACH? Asked once, at the start of the
  * request, and answered for the whole of it.
@@ -23,26 +24,61 @@
  * Both have the same root: funding was treated as a property of a provider row
  * when it is a property of an EXECUTION. This module makes it one.
  *
- * ── TWO MECHANISMS, AND THE SECOND IS NOT REDUNDANT ───────────────────────
+ * ── AND THE DEFECT THE SECOND CERTIFICATION FOUND (BLOCKER-1) ─────────────
  *
- *   THE PRE-READ.  `ExecutionFundingResolver` reads the organization's whole
- *   estate once per request, before the spend reservation and before the
- *   provider loop, and reduces it to one mode. This is the primary mechanism
- *   and it is what the spend scope is chosen from — a scope has to be picked
- *   before execution, because a reservation that is taken after the money is
- *   spent guards nothing.
+ * The first remediation answered the question with TWO values and degraded an
+ * unreadable policy to `platform_allowed`. That made the guarantee depend on a
+ * read succeeding. The certification reproduced the residual three ways and it
+ * is not narrow: an organization declaring `tenant_only` on OpenAI has NO
+ * Anthropic row — the ordinary state, and the original defect's own premise —
+ * so a single failed estate read plus an open OpenAI circuit is enough for the
+ * pipeline to reach Anthropic first, find nothing to tighten the latch with,
+ * and execute that customer on MARQ's credential and MARQ's ledger.
  *
- *   THE LATCH.  The pre-read can be unavailable: storage may be unreachable, or
- *   a caller may not supply a resolver at all. So the mode is carried as a
- *   LATCH rather than a constant, and the credential resolver flips it the
- *   moment it observes a `tenant_only` configuration on any provider. A request
- *   whose pre-read failed still refuses MARQ's credential on every candidate
- *   AFTER the one that revealed the policy — which is exactly the B-1 sequence,
- *   closed without depending on the read that failed.
+ * ONE FAILED READ MUST NOT REOPEN MARQ-FUNDED EXECUTION. So the answer now has
+ * THREE values, and the third one is the fix:
  *
- * The latch only ever tightens. There is no operation on it that returns an
- * execution to `platform_allowed`, so no ordering of providers, retries or
+ *   `platform_allowed`  We READ the organization's estate and it permits MARQ's
+ *                       credential. Also what a deployment with no BYOK storage
+ *                       and every non-tenant caller gets — the Batch 4C
+ *                       behaviour, unchanged, including failover.
+ *
+ *   `tenant_only`       We READ the estate and this organization declared that
+ *                       its AI traffic uses its own provider credentials only.
+ *
+ *   `unresolved`        WE DO NOT KNOW. The estate could not be read. This is
+ *                       not `platform_allowed` and must never be represented as
+ *                       one: an unknowable funding policy fails CLOSED with
+ *                       respect to MARQ-funded credentials.
+ *
+ * `unresolved` is deliberately NOT "refuse the request". A customer whose own
+ * credential can still be proven theirs — an organization-scoped configuration
+ * row, an organization-scoped credential, a ciphertext whose AAD binds their
+ * organization id — may still execute on it. What may not happen is MARQ's
+ * platform or deployment-environment credential serving traffic whose funding
+ * intent nobody could read, and MARQ's ledger being charged for it.
+ *
+ * ── STRICTNESS IS ORDERED, AND THE LATCH ONLY EVER MOVES UP IT ────────────
+ *
+ *     platform_allowed  <  unresolved  <  tenant_only
+ *
+ * The mode is carried on the invocation as a LATCH rather than a constant, and
+ * every operation on it takes the STRICTER of what it holds and what it is
+ * told. There is no operation that returns an execution to a weaker state, so
+ * no ordering of providers, retries, model fallbacks or cross-provider
  * failovers can loosen a constraint once it has been established.
+ *
+ * THE STRICT STATE IS ESTABLISHED BEFORE THE PROVIDER LOOP, WHICH IS WHY IT
+ * SURVIVES EVERYTHING. The certified residual existed because containment was
+ * DISCOVERED mid-flight, by a per-provider read, and therefore depended on
+ * reaching a provider that had something to discover. It no longer is: a failed
+ * pre-read yields `unresolved` at the top of the request, so an open circuit, a
+ * skipped provider, an unconfigured provider, a provider whose own read fails,
+ * a retry, a model fallback and a cross-provider failover all inherit the
+ * constraint rather than being the thing that was supposed to find it.
+ *
+ * The per-provider tightening is kept as well, for the case the pre-read cannot
+ * cover: a policy row written between the estate read and the provider read.
  *
  * ── WHAT THIS MODULE IS NOT ───────────────────────────────────────────────
  *
@@ -77,8 +113,65 @@ import { strictestFundingPolicy } from './tenantPrecedence.ts';
  *                       candidate provider may resolve a platform-managed or
  *                       deployment-environment credential for it, on any
  *                       attempt, after any failover.
+ *
+ *   `unresolved`        The organization's funding policy could not be read.
+ *                       MARQ-funded credentials are refused exactly as under
+ *                       `tenant_only`; the organization's own credential may
+ *                       still execute where its ownership is provable. This is
+ *                       a CONTAINMENT state, not a declaration, and the two are
+ *                       kept apart so an operator triaging a customer's outage
+ *                       can tell "they asked for this" from "we could not read
+ *                       whether they asked for this".
  */
-export type AIExecutionFundingMode = 'platform_allowed' | 'tenant_only';
+export type AIExecutionFundingMode = 'platform_allowed' | 'unresolved' | 'tenant_only';
+
+/**
+ * Strictness order. Higher is stricter, and the latch only ever moves up it.
+ *
+ * Numbers rather than a comparison chain so adding a state is one line here
+ * and a compile error everywhere a decision must account for it.
+ */
+const FUNDING_STRICTNESS: Readonly<Record<AIExecutionFundingMode, number>> = {
+  platform_allowed: 0,
+  unresolved: 1,
+  tenant_only: 2,
+};
+
+/** The stricter of two modes. Never returns something weaker than either. */
+export function strictestFundingMode(
+  left: AIExecutionFundingMode,
+  right: AIExecutionFundingMode,
+): AIExecutionFundingMode {
+  return FUNDING_STRICTNESS[right] > FUNDING_STRICTNESS[left] ? right : left;
+}
+
+/**
+ * May a MARQ-funded credential — platform-managed or deployment-environment —
+ * serve this execution?
+ *
+ * ONE PREDICATE, ASKED BY BOTH DECISIONS. The credential resolver asks it to
+ * decide what a provider may open, and the spend guard asks it to decide which
+ * ledger the hold is taken against. Two copies of this rule would eventually
+ * disagree, and the shape of that disagreement is a customer's traffic billed
+ * to MARQ while their console reports otherwise.
+ *
+ * `platform_allowed` is the ONLY mode that answers yes. `unresolved` answering
+ * no is the whole of the BLOCKER-1 remediation.
+ */
+export function marqFundingPermitted(mode: AIExecutionFundingMode): boolean {
+  return mode === 'platform_allowed';
+}
+
+/**
+ * Is this execution contained to the tenant's own funding?
+ *
+ * The exact complement of `marqFundingPermitted`, named separately because the
+ * two read as opposite questions at their call sites and a reader should not
+ * have to negate one to recognise the other.
+ */
+export function tenantFundedExecution(mode: AIExecutionFundingMode): boolean {
+  return !marqFundingPermitted(mode);
+}
 
 /**
  * The funding decision for one request.
@@ -103,33 +196,67 @@ export const PLATFORM_FUNDING: ExecutionFunding = {
 };
 
 /**
+ * The containment state for an organization whose funding policy could not be
+ * read.
+ *
+ * Built with the organization id because the spend scope is derived from the
+ * same answer: an execution whose MARQ funding is refused must be held on that
+ * organization's own ledger, or the two halves of the decision disagree — MARQ
+ * would be barred from serving the request and charged for it anyway.
+ */
+export function unresolvedFunding(organizationId: string): ExecutionFunding {
+  return {
+    mode: 'unresolved',
+    organizationId,
+    reason:
+      'this organization’s AI funding policy could not be read, so the platform ' +
+      'credential is withheld until it can be',
+  };
+}
+
+/**
  * The mode in force for one execution, and the one-way door that tightens it.
  *
  * Carried on the invocation rather than recomputed per attempt, so retries,
  * same-provider retries, cross-provider failover, model fallback and provider
  * selection all read the same object. There is deliberately no setter that
- * widens it.
+ * widens it, and `observe` takes the stricter of the two rather than the newer.
  */
 export interface ExecutionFundingLatch {
   readonly mode: AIExecutionFundingMode;
   readonly organizationId?: string;
   /**
+   * Record something learned about this execution's funding.
+   *
+   * Applies the STRICTER of the mode held and the mode observed, so it is safe
+   * to call in any order, any number of times, from any attempt. It is
+   * irreversible for the remainder of the execution: there is no argument that
+   * loosens the latch, because `strictestFundingMode` cannot return a weaker
+   * value than the one already held.
+   */
+  observe(mode: AIExecutionFundingMode): void;
+  /**
    * Record that a `tenant_only` configuration was observed for this tenant.
-   * Irreversible for the remainder of the execution.
+   *
+   * The strictest observation there is, kept as a named method because it is
+   * the one the credential resolver makes and naming it keeps that call site
+   * readable. Equivalent to `observe('tenant_only')`.
    */
   observeTenantOnly(): void;
 }
 
 export function createExecutionFundingLatch(funding: ExecutionFunding): ExecutionFundingLatch {
   let mode = funding.mode;
+  const observe = (next: AIExecutionFundingMode): void => {
+    mode = strictestFundingMode(mode, next);
+  };
   return {
     get mode() {
       return mode;
     },
     organizationId: funding.organizationId,
-    observeTenantOnly() {
-      mode = 'tenant_only';
-    },
+    observe,
+    observeTenantOnly: () => observe('tenant_only'),
   };
 }
 
@@ -137,8 +264,8 @@ export interface ExecutionFundingResolver {
   /**
    * The funding mode for one request, from the organization's whole estate.
    *
-   * Never throws. A storage failure degrades to `platform_allowed` and is
-   * reported — see `createExecutionFundingResolver`.
+   * Never throws. A storage failure resolves to `unresolved` — NOT to
+   * `platform_allowed` — and is reported; see `createExecutionFundingResolver`.
    */
   resolve(organization: {
     readonly organizationId: string;
@@ -155,25 +282,53 @@ export interface ExecutionFundingResolverOptions {
 /**
  * Build the pre-read resolver.
  *
- * ── WHY A STORAGE FAILURE DEGRADES TO `platform_allowed` ──────────────────
+ * ── WHY A STORAGE FAILURE IS `unresolved` AND NOT `platform_allowed` ──────
  *
- * Because the alternative is a platform-wide outage for a fault that tells us
- * nothing. If this read fails we have not learned that an organization is
- * `tenant_only`; we have learned that the table is unreadable — and it is the
- * same table, read the same way, that the Batch 4C platform resolution already
- * treats as "we learned nothing, let the pre-existing resolution stand".
- * Refusing here would take AI down for every tenant on the platform, including
- * the overwhelming majority who never opted into BYOK and for whom refusing
- * buys precisely nothing.
+ * The first remediation degraded here, and argued that refusing would take AI
+ * down for every tenant including the majority who never opted into BYOK. That
+ * argument was answered by an independent certification and the answer is that
+ * the degradation is not a smaller failure than the outage — it is a DIFFERENT
+ * failure, and a worse one:
  *
- * THE LATCH IS WHY THAT IS SAFE RATHER THAN MERELY PRAGMATIC. Degrading here
- * does not concede the guarantee: the credential resolver performs its own
- * per-provider read, and the first one that succeeds and reveals `tenant_only`
- * flips the latch for every candidate after it. The residual — this read fails
- * AND the first provider's own read fails AND a later provider then resolves a
- * platform credential — is a state in which the policy was genuinely
- * unknowable from storage, and it is strictly narrower than the certified
- * defect it replaces.
+ *   The outage is visible, bounded, and ends when storage returns. It spends
+ *   nobody's money and moves nobody's traffic.
+ *
+ *   The degradation is silent. It moves a paying customer's traffic onto MARQ's
+ *   vendor account and MARQ's lifetime ceiling while their console goes on
+ *   reporting `customer_byok` from a row that still says `active`. Nothing in
+ *   the request tells either party it happened, and the invoice arrives later.
+ *
+ * "A transient storage failure must not silently bill MARQ" is the rule, and
+ * `unresolved` is what enforces it.
+ *
+ * ── WHAT IT COSTS, STATED PLAINLY ─────────────────────────────────────────
+ *
+ * While this read is failing in a deployment that HAS customer BYOK storage,
+ * every verified tenant's request is contained: their own credential still
+ * executes, and a tenant with no credential of their own gets no AI rather than
+ * MARQ's. That is a real availability cost and it is the accepted one — it is
+ * recoverable the moment storage returns, and it is the direction the
+ * certification directed the platform to prefer.
+ *
+ * TWO POPULATIONS DO NOT PAY IT, AND THAT IS DELIBERATE:
+ *
+ *   A deployment with NO provider administration store injects no resolver at
+ *   all, so nothing here runs and every request is `platform_allowed`. That is
+ *   every deployment that predates BYOK, unchanged.
+ *
+ *   A caller with no VERIFIED membership is answered without a read. The
+ *   `AI_ALLOW_DEFAULT_ORGANIZATION` fallback places an account with no
+ *   membership row in the deployment's default organization; that is not a
+ *   statement that they belong to that customer, so no customer's funding
+ *   policy applies to them, there is nothing to be unable to read, and their
+ *   requests keep MARQ's credential and MARQ's ledger exactly as before.
+ *
+ * ── AND `platform_allowed` STILL MEANS PLATFORM_ALLOWED ───────────────────
+ *
+ * A request whose policy was READ and permits MARQ's credential keeps every bit
+ * of its resilience: failover, model fallback, the environment credential, all
+ * of it. Containment is applied to executions whose funding is tenant-owned or
+ * unknown, and to no others.
  */
 export function createExecutionFundingResolver(
   options: ExecutionFundingResolverOptions,
@@ -182,7 +337,9 @@ export function createExecutionFundingResolver(
     async resolve(organization) {
       // An unverified membership is not a tenant. It gets neither the
       // organization's credential nor its spend scope, so there is nothing to
-      // read and nothing to narrow.
+      // read and nothing to narrow — and, crucially, nothing that could fail to
+      // be read. This branch is answered BEFORE any storage call, so a storage
+      // outage cannot turn a non-tenant caller into an `unresolved` one.
       if (!organization.membershipVerified) return PLATFORM_FUNDING;
 
       let configurations: Awaited<
@@ -196,11 +353,11 @@ export function createExecutionFundingResolver(
         );
       } catch (error) {
         options.onError?.(
-          `the organization's credential funding policy could not be read; the platform ` +
-            `resolution stands and the per-provider policy still applies: ` +
-            `${describeForOperator(error)}`,
+          `the organization's credential funding policy could not be read; MARQ-funded ` +
+            `execution is withheld for this request and the organization's own ` +
+            `credentials still apply: ${describeForOperator(error)}`,
         );
-        return PLATFORM_FUNDING;
+        return unresolvedFunding(organization.organizationId);
       }
 
       const policy = strictestFundingPolicy(configurations, organization.organizationId);

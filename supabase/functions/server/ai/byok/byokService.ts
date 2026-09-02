@@ -174,6 +174,10 @@ export function createByokService(deps: ByokServiceDependencies): ByokService {
 
     // Reads are not limited — see `ByokRateLimit`.
     status: (actor) => administration.status(actor),
+    // The organization's own spend ledger (HIGH-1). A read, so unlimited for
+    // the same reason: a budget holder watching a ceiling during an incident
+    // must not be locked out of watching it.
+    spend: (actor) => administration.spend(actor),
     credentials: (actor, providerId) => administration.credentials(actor, providerId),
 
     // `async`, so a refusal is a REJECTED PROMISE rather than a synchronous

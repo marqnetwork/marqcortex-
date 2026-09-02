@@ -58,7 +58,8 @@ import type { UsageReport } from './usage.ts';
 
 import { AIError } from '../contracts/errors.ts';
 import { CONTRACT_VERSION, PLATFORM_VERSION } from '../contracts/versions.ts';
-import { SPEND_SCOPE, remainingMicroUsd } from '../policy/spendLedger.ts';
+import { SPEND_SCOPE, isUnboundedSpendCap, remainingMicroUsd } from '../policy/spendLedger.ts';
+import { isolationKeyFor } from '../security/tenancy.ts';
 import {
   aiExecutionPermitted,
   effectivePreference,
@@ -77,7 +78,7 @@ import {
   createMemoryAdminAuditStore,
   toChangeMap,
 } from './adminAudit.ts';
-import { requireCapability, resolveAdminActor, scopeRecords } from './rbac.ts';
+import { requireCapability, resolveAdminActor, scopeAllows, scopeRecords } from './rbac.ts';
 import { createAuditedMutationRunner, createMutationChain } from './auditedMutation.ts';
 import { buildUsageReport } from './usage.ts';
 import {
@@ -133,6 +134,57 @@ export interface AdminProviderView {
     readonly completionMicroUsdPer1k: number;
     readonly capabilities: AIModelDescriptor['capabilities'];
   }[];
+}
+
+/**
+ * ONE ORGANIZATION'S own lifetime ledger (AI-01 Batch 4D remediation, HIGH-1).
+ *
+ * ── WHY THIS IS A DIFFERENT TYPE FROM `AdminBudgetView` ───────────────────
+ *
+ * `AdminBudgetView` is MARQ's operational picture: the platform ceiling, every
+ * open hold with its id and owner, the rolling daily allowances, the whole reset
+ * history. That is the right answer for the estate MARQ operates and the wrong
+ * one for a tenant ledger, because most of it is not about the tenant.
+ *
+ * WHAT THIS CARRIES IS EXACTLY WHAT THE FINDING PERMITS: cap, spent, reserved,
+ * remaining, and the scope identity of a ledger the caller is authorised for.
+ * There is deliberately no provider, no credential, no fingerprint, no key
+ * identity and no configuration — the type structurally has no field one could
+ * occupy, so this cannot carry credential data however it is serialised
+ * downstream or however the surface below it changes.
+ *
+ * `openReservationCount` is a COUNT rather than the holds themselves: the
+ * number is what tells an administrator whether a ceiling is being consumed
+ * right now, and the ids and owners are MARQ's operational forensics rather
+ * than a customer's business.
+ */
+export interface AdminOrganizationBudgetView {
+  /** The organization this answer is about. Resolved and authorised, never echoed. */
+  readonly organizationId: string;
+  /** The ledger scope, so a dashboard never guesses the string. */
+  readonly scope: string;
+  readonly capMicroUsd: number;
+  /**
+   * Whether the ceiling is the governed UNBOUNDED one.
+   *
+   * Stated rather than left to be inferred from a nine-billion-dollar number,
+   * because "this customer has no lifetime ceiling" is a governance fact an
+   * operator must be able to read at a glance — and inferring it from a
+   * magnitude is how a console eventually renders `$9,007,199,254.74`.
+   */
+  readonly unbounded: boolean;
+  readonly spentMicroUsd: number;
+  readonly reservedMicroUsd: number;
+  readonly remainingMicroUsd: number;
+  /** Settled spend across every reset — what this organization has ever spent. */
+  readonly lifetimeSpentMicroUsd: number;
+  readonly attemptCount: number;
+  readonly openReservationCount: number;
+  readonly updatedAt: string;
+  /** Whether the ceiling actually refuses, or merely records. */
+  readonly enforced: boolean;
+  /** Authorised cap changes and resets on THIS ledger. Never another's. */
+  readonly changes: SpendRecord['resets'];
 }
 
 export interface AdminBudgetView {
@@ -333,6 +385,46 @@ export interface AIAdministration {
     reason: unknown,
     meta?: AdminRequestMeta,
   ): Promise<AdminBudgetView>;
+
+  // ── Organization spend administration (4D remediation, HIGH-1) ────────────
+  //
+  // THREE OPERATIONS THAT NAME A TENANT, AND NONE OF THEM CAN REACH THE
+  // PLATFORM SCOPE. Each derives its ledger from `SPEND_SCOPE.organization(id)`
+  // after validating the id as a storage key segment, and that format cannot
+  // produce `SPEND_SCOPE.platform` — so "an organization operation never alters
+  // MARQ's ceiling" is a property of the scope builder rather than of a check
+  // somebody remembered.
+  //
+  // The three above stay hardcoded to the platform scope for the mirror reason:
+  // there is no argument by which `resetSpend` can be pointed at a tenant.
+  //
+  // AUTHORIZATION IS `ai.admin.budget.organization`, WHICH ONLY THE PLATFORM
+  // OPERATOR HOLDS. The organization id is a TARGET, not an authority claim:
+  // the capability decides whether the actor may administer tenant ledgers at
+  // all, and `scopeAllows` then decides whether they may administer THIS one —
+  // so a future non-platform holder of the capability is bounded by their own
+  // memberships and a forged id buys nothing.
+  /** ONE organization's own lifetime ledger. Safe metadata only. */
+  organizationBudget(
+    actor: AIAdminActor,
+    organizationId: string,
+  ): Promise<AdminOrganizationBudgetView>;
+  /** Clear ONE organization's settled spend and open holds. Never the cap. */
+  resetOrganizationSpend(
+    actor: AIAdminActor,
+    organizationId: string,
+    reason: unknown,
+    options?: { newCapMicroUsd?: number },
+    meta?: AdminRequestMeta,
+  ): Promise<AdminOrganizationBudgetView>;
+  /** Raise ONE organization's ceiling, preserving its settled spend and holds. */
+  increaseOrganizationSpendCap(
+    actor: AIAdminActor,
+    organizationId: string,
+    capMicroUsd: number,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<AdminOrganizationBudgetView>;
 
   // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
   //
@@ -764,6 +856,84 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
   }
 
   /**
+   * The organization this operation may act on, or a refusal.
+   *
+   * TWO GATES, IN THIS ORDER, AND BOTH ARE NECESSARY.
+   *
+   *   THE CAPABILITY decides whether this actor administers tenant ledgers at
+   *   all. Only the platform operator holds `ai.admin.budget.organization`, and
+   *   holding it is not implied by holding MARQ's own budget grant — the two
+   *   are separate entries in the grant table precisely so neither widens into
+   *   the other.
+   *
+   *   THE SCOPE decides WHICH tenant. A super admin's `organizationScope` is
+   *   deliberately empty, meaning unrestricted; `scopeAllows` returns true only
+   *   for them. Anyone else — a future holder of this capability at a narrower
+   *   tier — is bounded by the organizations they actually hold a membership
+   *   in, so a forged or guessed id buys nothing.
+   *
+   * The id is then validated as a storage key segment BEFORE it becomes one.
+   * `isolationKeyFor` throws on an id carrying the `:` the scope format joins
+   * on, which is the correct direction: an id that cannot be safely addressed
+   * must be refused rather than quietly addressing somewhere else.
+   */
+  function organizationTarget(actor: AIAdminActor, organizationId: unknown): string {
+    requireCapability(actor, 'ai.admin.budget.organization');
+    const id = typeof organizationId === 'string' ? organizationId.trim() : '';
+    if (id === '') {
+      throw new AIError('VALIDATION_FAILED', 'An organization id is required.', {
+        fields: ['organizationId'],
+      });
+    }
+    // Format first, so a malformed id is a validation error rather than a
+    // FORBIDDEN that would tell a caller their id was well-formed but not
+    // theirs.
+    isolationKeyFor(id);
+    if (!scopeAllows(actor, id)) {
+      throw new AIError(
+        'FORBIDDEN',
+        'Your administrative role does not permit this action for that organization.',
+        { diagnostics: `actor=${actor.actorId} role=${actor.role} organization=${id}` },
+      );
+    }
+    return id;
+  }
+
+  /**
+   * ONE organization's ledger, as this surface is allowed to report it.
+   *
+   * Built from the record and NOTHING else — no provider lookup, no credential
+   * resolver, no configuration read — so there is no path by which credential
+   * material could reach this view even if a future field were added to the
+   * record.
+   */
+  function organizationBudgetView(
+    organizationId: string,
+    record: SpendRecord,
+  ): AdminOrganizationBudgetView {
+    const clearedByResets = record.resets.reduce((total, reset) => total + reset.clearedMicroUsd, 0);
+    return {
+      organizationId,
+      scope: record.scope,
+      capMicroUsd: record.capMicroUsd,
+      unbounded: isUnboundedSpendCap(record.capMicroUsd),
+      spentMicroUsd: record.spentMicroUsd,
+      reservedMicroUsd: record.reservedMicroUsd,
+      remainingMicroUsd: remainingMicroUsd(record),
+      lifetimeSpentMicroUsd: clearedByResets + record.spentMicroUsd,
+      attemptCount: record.attemptCount,
+      openReservationCount: record.openReservations.length,
+      updatedAt: record.updatedAt,
+      // The same switch that governs MARQ's ceiling governs a tenant's: a
+      // deployment recording spend without refusing does so for both, and a
+      // console that claimed otherwise would be describing enforcement that is
+      // not happening.
+      enforced: plane.config.spend.enforce,
+      changes: record.resets,
+    };
+  }
+
+  /**
    * The Batch 4C provider administration surface.
    *
    * Assembled HERE, over the same `mutate`, the same trail, the same actor and
@@ -1138,6 +1308,109 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
             newCapMicroUsd: cap,
           });
           return { after: spendFacts(after), result: budgetView(after) };
+        },
+      });
+    },
+
+    async organizationBudget(actor, organizationId) {
+      // A READ, and reads on this surface are capability-gated and not audited.
+      // The capability check lives in `organizationTarget` with the scope check,
+      // so the two can never be applied separately.
+      const id = organizationTarget(actor, organizationId);
+      return organizationBudgetView(id, await plane.organizationSpendStatus(id));
+    },
+
+    // `async`, so a refusal from `organizationTarget` is a REJECTED PROMISE
+    // rather than a synchronous throw. These methods are declared as returning
+    // a promise, and a caller that reasonably writes
+    // `admin.resetOrganizationSpend(...).catch(...)` would never see a
+    // synchronously thrown refusal — it would escape as an unhandled exception
+    // past the handler written to contain it. The customer BYOK service makes
+    // the same correction for the same reason.
+    async resetOrganizationSpend(actor, organizationId, reason, options, meta) {
+      // RESOLVED BEFORE THE MUTATION RUNNER IS ENTERED, so an unauthorised
+      // attempt is refused before it can write a record naming a tenant the
+      // caller may not administer.
+      const id = organizationTarget(actor, organizationId);
+      return await mutate(actor, {
+        // Named again here rather than left to `organizationTarget`. The
+        // runner's own `authorize` hook is what an auditor reads to see which
+        // grant a recorded change demanded, and a capability enforced only in a
+        // helper would leave that record silent about it.
+        capabilities: ['ai.admin.budget.organization'],
+        action: ADMIN_ACTION.organizationSpendReset,
+        target: SPEND_SCOPE.organization(id),
+        reason,
+        meta,
+        before: async () => spendFacts(await plane.organizationSpendStatus(id)),
+        run: async (auditReason) => {
+          // The same refusal the platform reset makes, for the same reason: a
+          // reset CLEARS SPEND and does not move the ceiling. Accepting a cap
+          // here would let one call wipe the history and raise the ledger while
+          // the trail recorded only a reset.
+          if (options?.newCapMicroUsd !== undefined) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'A reset cannot change the spending ceiling. Use the increase operation.',
+              { fields: ['newCapMicroUsd'] },
+            );
+          }
+          const after = await plane.spendLedger.reset(SPEND_SCOPE.organization(id), {
+            authorizedBy: actor.actorId,
+            reason: auditReason,
+          });
+          return { after: spendFacts(after), result: organizationBudgetView(id, after) };
+        },
+      });
+    },
+
+    async increaseOrganizationSpendCap(actor, organizationId, capMicroUsd, reason, meta) {
+      const id = organizationTarget(actor, organizationId);
+      return await mutate(actor, {
+        capabilities: ['ai.admin.budget.organization'],
+        action: ADMIN_ACTION.organizationSpendCapRaised,
+        target: SPEND_SCOPE.organization(id),
+        reason,
+        meta,
+        before: async () => spendFacts(await plane.organizationSpendStatus(id)),
+        run: async (auditReason) => {
+          const before = await plane.organizationSpendStatus(id);
+          // AN UNBOUNDED CEILING CANNOT BE RAISED, AND SAYING SO IS BETTER THAN
+          // SUCCEEDING AT NOTHING. The governed default is unbounded, so the
+          // likely caller here is an operator who believes a customer is capped
+          // and is about to walk away thinking they fixed it. Lowering is a
+          // deployment change to `AI_ORG_MAX_SPEND_USD`, exactly as it is for
+          // MARQ's own ceiling — the ledger re-stamps the configured cap on the
+          // next load — so the message names that rather than implying there is
+          // no way to bound the tenant at all.
+          if (isUnboundedSpendCap(before.capMicroUsd)) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'This organization has no lifetime AI spending ceiling, so there is nothing to ' +
+                'raise. Set AI_ORG_MAX_SPEND_USD to introduce one.',
+              { fields: ['capMicroUsd'], diagnostics: `scope=${before.scope} cap=unbounded` },
+            );
+          }
+          const cap = clampCap(capMicroUsd, before.capMicroUsd);
+          if (cap <= before.capMicroUsd) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'The new AI spending cap must be higher than the current one.',
+              {
+                fields: ['capMicroUsd'],
+                diagnostics: `requested=${cap} current=${before.capMicroUsd}`,
+              },
+            );
+          }
+          // The ledger's cap-raise: settled spend and every open hold survive.
+          // Reservation and settlement invariants are the ledger's, unchanged —
+          // this operation moves a number and touches no hold.
+          const after = await plane.spendLedger.raiseCap(SPEND_SCOPE.organization(id), {
+            authorizedBy: actor.actorId,
+            reason: auditReason,
+            newCapMicroUsd: cap,
+          });
+          return { after: spendFacts(after), result: organizationBudgetView(id, after) };
         },
       });
     },
