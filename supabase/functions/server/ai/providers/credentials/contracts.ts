@@ -63,6 +63,8 @@
  * MARQ's own execution rather than merely unlikely to appear in it.
  */
 
+import type { ExecutionFundingLatch } from './executionFunding.ts';
+
 /** Where the secret material for a provider came from. */
 export type AICredentialSource = 'managed' | 'environment' | 'none';
 
@@ -111,6 +113,28 @@ export interface CredentialTenant {
    * anywhere execute on a paying customer's vendor key.
    */
   readonly membershipVerified: boolean;
+  /**
+   * What this EXECUTION may be funded by (4D remediation, BLOCKER B-1).
+   *
+   * Resolved once per request from the organization's whole provider estate and
+   * carried here, so retries, same-provider retries, cross-provider failover,
+   * model fallback and provider selection all read one object rather than
+   * re-deriving an answer from whichever provider they happen to be on.
+   *
+   * The certified defect was exactly that re-derivation: a `tenant_only`
+   * organization had no configuration for the SECOND provider, so the absent
+   * per-provider policy read as `platform` and MARQ's credential executed their
+   * traffic. A per-provider fact cannot express a constraint that has to
+   * survive leaving that provider.
+   *
+   * It is a LATCH, not a constant. The resolver tightens it the moment it
+   * observes a `tenant_only` configuration, so the guarantee holds even when
+   * the request-level pre-read was unavailable. Nothing widens it.
+   *
+   * Absent means unconstrained, which is the Batch 4C behaviour and what every
+   * caller that never opts into BYOK gets.
+   */
+  readonly funding?: ExecutionFundingLatch;
 }
 
 /**

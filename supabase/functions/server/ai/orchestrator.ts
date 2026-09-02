@@ -31,6 +31,14 @@ import type { PolicyEngine } from './policy/policyEngine.ts';
 import type { ExecutionPipeline, ProviderAttemptRecord } from './pipeline/executionPipeline.ts';
 import type { BudgetEngine } from './policy/budget.ts';
 import type { SpendGuard } from './policy/spendGuard.ts';
+import type {
+  ExecutionFunding,
+  ExecutionFundingResolver,
+} from './providers/credentials/executionFunding.ts';
+import {
+  createExecutionFundingLatch,
+  PLATFORM_FUNDING,
+} from './providers/credentials/executionFunding.ts';
 import type { AuditWriter } from './observability/audit.ts';
 import type { Logger } from './observability/logger.ts';
 import type { Metrics } from './observability/metrics.ts';
@@ -50,6 +58,20 @@ export interface OrchestratorDependencies {
   readonly budgetPolicy: AIBudgetPolicy;
   /** The MARQ lifetime ceiling and real-request kill switch. */
   readonly spend: SpendGuard;
+  /**
+   * Whose chequebook this request may reach (AI-01 Batch 4D remediation).
+   *
+   * Resolved ONCE per request, here, because the two things that need it need
+   * it at different moments and must not derive it separately: the spend guard
+   * needs it BEFORE the reservation, and the credential resolver needs it
+   * during every attempt. A second derivation is a second answer waiting to
+   * disagree with the first, and the disagreement would be a customer's traffic
+   * billed to MARQ while their console reported otherwise.
+   *
+   * Omitted, every request is `platform_allowed` — the Batch 4C behaviour, and
+   * what a deployment with no BYOK storage injected continues to get.
+   */
+  readonly funding?: ExecutionFundingResolver;
   readonly audit: AuditWriter;
   readonly logger: Logger;
   readonly metrics: Metrics;
@@ -66,7 +88,7 @@ export interface RequestOrchestrator {
 }
 
 export function createRequestOrchestrator(deps: OrchestratorDependencies): RequestOrchestrator {
-  const { guard, policy, pipeline, budget, budgetPolicy, spend, audit, logger, metrics, events, clock, ids } =
+  const { guard, policy, pipeline, budget, budgetPolicy, spend, audit, logger, metrics, events, clock, ids, funding } =
     deps;
 
   /**
@@ -225,21 +247,57 @@ export function createRequestOrchestrator(deps: OrchestratorDependencies): Reque
           });
         }
 
+        // ── funding (AI-01 Batch 4D remediation) ─────────────────────────
+        //
+        // ONE resolution, BEFORE the reservation, from the organization the
+        // guard already resolved server-side. It answers a single question —
+        // may this execution reach MARQ's credential at all? — and both of the
+        // stages below read that one answer:
+        //
+        //   the spend guard, to pick the ledger scope the hold is taken
+        //   against, which has to be decided before a provider is reached;
+        //
+        //   the pipeline, which carries it to every attempt so the constraint
+        //   survives retries, cross-provider failover and model fallback.
+        //
+        // Never throws: an unreadable policy degrades to `platform_allowed` and
+        // is reported, and the latch below still tightens the moment a
+        // per-provider read reveals `tenant_only`.
+        const executionFunding: ExecutionFunding =
+          funding === undefined
+            ? PLATFORM_FUNDING
+            : await funding.resolve(context.organization);
+
         // ── spend ────────────────────────────────────────────────────────
-        // The MARQ lifetime ceiling, reserved BEFORE the pipeline can reach a
+        // The lifetime ceiling, reserved BEFORE the pipeline can reach a
         // provider. A request projected to cross the cap is refused here, with
         // no vendor call made and nothing to refund.
-        reservation = await spend.reserve(admitted.definition.descriptor, context.requestId);
+        //
+        // WHICH ceiling is the funding decision above: MARQ's own for an
+        // execution its credential may serve, and the organization's own for
+        // one constrained to that customer's credentials — where MARQ is not
+        // billed and MARQ's ceiling must therefore neither bound it nor be
+        // consumed by it.
+        reservation = await spend.reserve(admitted.definition.descriptor, context.requestId, {
+          mode: executionFunding.mode,
+          organizationId: executionFunding.organizationId,
+        });
         if (reservation.reserved) {
           emit('ai.spend.reserved', context, { estimateMicroUsd: reservation.estimateMicroUsd });
         }
 
         // ── pipeline ─────────────────────────────────────────────────────
+        //
+        // The latch is built HERE, once, and shared by every attempt of this
+        // request. It only ever tightens — see `executionFunding.ts` — so no
+        // ordering of providers, retries or failovers can return an execution
+        // to MARQ's chequebook once it has left it.
         const outcome = await pipeline.run(
           context,
           admitted.definition,
           admitted.input,
           (attempt) => attempts.push(attempt),
+          createExecutionFundingLatch(executionFunding),
         );
 
         // ── account ──────────────────────────────────────────────────────

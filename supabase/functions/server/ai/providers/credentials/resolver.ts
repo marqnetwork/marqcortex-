@@ -81,6 +81,17 @@
  *   customer being moved onto MARQ's key by a transient read error. See
  *   `resolveTenant`.
  *
+ *   AND THE CONSTRAINT OUTLIVES THE PROVIDER (4D remediation, B-1). A tenant's
+ *   funding policy is carried on the invocation as a latch, not re-derived per
+ *   provider — because re-deriving it was the certified defect. An organization
+ *   that declared `tenant_only` on OpenAI has NO row for Anthropic, so the
+ *   per-provider lookup there found nothing, read the absent policy as
+ *   `platform`, and MARQ's Anthropic credential executed their traffic on the
+ *   failover. The latch makes the constraint a property of the execution, so it
+ *   survives retries, failover, model fallback and selection; and the refusal
+ *   below `resolveTenant` catches the cases the tenant branch cannot even
+ *   reach — an unmanageable provider, a missing cipher, a missing store.
+ *
  * AND THE PLATFORM PATH IS UNTOUCHED. `resolve(providerId)` with no tenant
  * reads platform-scoped storage and the environment exactly as it did in Batch
  * 4C, and reads no organization-owned row at all. A customer's credential
@@ -369,11 +380,36 @@ export function createProviderCredentialResolver(
       return null;
     }
 
+    // ── THE LATCH TIGHTENS HERE (4D remediation, BLOCKER B-1) ──────────────
+    //
+    // A configuration that declares `tenant_only` is this organization stating
+    // a FUNDING policy, and funding is a property of the execution rather than
+    // of the provider the row happens to name. Observing it here binds every
+    // LATER candidate in this request — which is the whole of the certified
+    // defect: the tenant declared `tenant_only` on OpenAI, OpenAI failed, and
+    // Anthropic (where they had no row at all) read the absent policy as
+    // `platform` and executed them on MARQ's credential.
+    //
+    // Recorded on the CONFIGURATION's own value rather than on the effective
+    // one, so the latch is only ever set by something the customer actually
+    // declared.
+    if (configuration?.credentialFallback === 'tenant_only') {
+      tenant.funding?.observeTenantOnly();
+    }
+
+    // The effective policy is the STRICTER of the execution's mode and this
+    // configuration's own value. An execution already constrained to tenant
+    // funding cannot be widened by a provider whose row says `platform`, and a
+    // provider with no row at all inherits the constraint instead of defaulting
+    // out of it.
+    const effectiveFallback =
+      tenant.funding?.mode === 'tenant_only' ? 'tenant_only' : configuration?.credentialFallback;
+
     const decision = decideTenantCredential({
       configurationPresent: configuration !== undefined,
       configurationEnabled: configuration?.enabled === true,
       activeCredentialPresent: active !== undefined,
-      fallback: configuration?.credentialFallback,
+      fallback: effectiveFallback,
     });
 
     if (decision.action === 'platform') return undefined;
@@ -494,24 +530,49 @@ export function createProviderCredentialResolver(
       // only when this deployment can open a managed credential at all. With no
       // tenant this whole block is skipped and the resolution below is byte for
       // byte the Batch 4C one.
-      if (
-        tenant !== undefined &&
-        // membershipVerified: false is the AI_ALLOW_DEFAULT_ORGANIZATION
-        // fallback — an account with no membership row placed in the
-        // deployment's default organization. It is not a statement that this
-        // caller belongs to that customer, so it buys no access to that
-        // customer's vendor key.
-        tenant.membershipVerified === true &&
-        profile.manageable &&
-        managedAvailable &&
-        options.store &&
-        options.cipher
-      ) {
-        const decision = await resolveTenant(providerId, tenant, options.store, options.cipher);
-        // `undefined` means "this tenant has no usable credential of its own,
-        // and its policy permits the platform's" — fall through. Anything else
-        // is a final answer, including the deliberate `null` refusal.
-        if (decision !== undefined) return decision ?? undefined;
+      // membershipVerified: false is the AI_ALLOW_DEFAULT_ORGANIZATION
+      // fallback — an account with no membership row placed in the deployment's
+      // default organization. It is not a statement that this caller belongs to
+      // that customer, so it buys no access to that customer's vendor key and
+      // no benefit from that customer's funding policy.
+      if (tenant !== undefined && tenant.membershipVerified === true) {
+        if (profile.manageable && managedAvailable && options.store && options.cipher) {
+          const decision = await resolveTenant(providerId, tenant, options.store, options.cipher);
+          // `undefined` means "this tenant has no usable credential of its own,
+          // and its policy permits the platform's" — fall through. Anything
+          // else is a final answer, including the deliberate `null` refusal.
+          if (decision !== undefined) return decision ?? undefined;
+        }
+
+        // ── THE EXECUTION-LEVEL REFUSAL (4D remediation, BLOCKER B-1) ───────
+        //
+        // Reached two ways, and it must close both:
+        //
+        //   THE TENANT BRANCH RAN AND FELL THROUGH. `decideTenantCredential`
+        //   returns `platform` only when the effective policy permits it, so an
+        //   execution already latched to `tenant_only` cannot arrive here that
+        //   way — but this refusal is kept rather than assumed, because the
+        //   cost of being wrong is a customer's traffic on MARQ's account and
+        //   the cost of the check is one comparison.
+        //
+        //   THE TENANT BRANCH COULD NOT RUN AT ALL. This is the case the
+        //   decision function structurally cannot see: a provider the platform
+        //   does not accept a managed credential for, a deployment with no
+        //   cipher or no store. Every one of those used to fall silently into
+        //   the platform resolution below, which for a `tenant_only`
+        //   organization is precisely the outcome they declared must never
+        //   happen. It is refused here instead, and refused for ANY provider
+        //   rather than for a named one, which is what keeps this
+        //   provider-neutral.
+        if (tenant.funding?.mode === 'tenant_only') {
+          options.onError?.(
+            providerId,
+            'no credential resolved for the authenticated tenant: this organization has ' +
+              'declared that its AI traffic uses its own provider credentials only, and it ' +
+              'has none in force for this provider',
+          );
+          return undefined;
+        }
       }
 
       // ── 1. The managed credential, read fresh and decrypted here ──────────

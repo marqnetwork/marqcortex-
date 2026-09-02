@@ -63,6 +63,7 @@ import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import { createAIGuard } from './security/guard.ts';
 import { createPolicyEngine } from './policy/policyEngine.ts';
 import { budgetPolicyFrom, createBudgetEngine, createInMemoryBudgetLedger } from './policy/budget.ts';
+import type { ExecutionFundingResolver } from './providers/credentials/executionFunding.ts';
 import { createSpendGuard } from './policy/spendGuard.ts';
 import {
   SPEND_SCOPE,
@@ -94,6 +95,17 @@ export interface ControlPlaneOptions {
   }[];
   /** Durable audit stores written alongside the in-memory buffer. */
   readonly auditStores?: readonly AuditStore[];
+  /**
+   * Whose credentials a request may reach (AI-01 Batch 4D remediation).
+   *
+   * Built where the credential store lives — `bootstrap.ts` — and injected
+   * here, because the plane has no store of its own and acquiring one to answer
+   * this would give the execution path a second route to credential rows.
+   *
+   * Omitted, every request is platform-funded, which is the Batch 4C behaviour
+   * and what a deployment with no BYOK storage continues to get.
+   */
+  readonly funding?: ExecutionFundingResolver;
   /**
    * Durable backing for the MARQ spend ceiling. Omitted, the ledger is
    * isolate-local — correct for tests, NOT correct for a deployment where the
@@ -428,6 +440,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     budget,
     budgetPolicy,
     spend,
+    funding: options.funding,
     audit,
     logger,
     metrics,
