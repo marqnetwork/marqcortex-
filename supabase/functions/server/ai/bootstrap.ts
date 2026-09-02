@@ -28,7 +28,7 @@ import type { AdminAuditStore } from './admin/adminAudit.ts';
 import type { ByokProviderCatalogueEntry } from './byok/byokAdministration.ts';
 import type { ByokService } from './byok/byokService.ts';
 import { createByokAdministration } from './byok/byokAdministration.ts';
-import { createByokService } from './byok/byokService.ts';
+import { createByokService, DEFAULT_BYOK_MUTATION_RATE } from './byok/byokService.ts';
 import type { AgentRuntime } from './agents/agentRuntime.ts';
 import type { AgentAuditStore } from './agents/observability/agentAudit.ts';
 import type {
@@ -81,6 +81,8 @@ import { createMockProvider } from './providers/mockProvider.ts';
 import type { ProviderAdministrationStore } from './providers/credentials/credentialStore.ts';
 import type { CredentialProviderProfile } from './providers/credentials/resolver.ts';
 import { createProviderCredentialResolver } from './providers/credentials/resolver.ts';
+import { createExecutionFundingResolver } from './providers/credentials/executionFunding.ts';
+import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import {
   createSecretCipher,
   parseRootKey,
@@ -339,14 +341,41 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     );
   }
 
+  // ── Execution funding (AI-01 Batch 4D remediation) ────────────────────────
+  //
+  // Built over the SAME store the credential resolver reads, so "may this
+  // execution reach MARQ's credential?" and "which credential does this
+  // provider get?" are answered from one set of rows. Two sources would
+  // eventually disagree, and the shape of that disagreement is a customer's
+  // traffic billed to MARQ while their console reports otherwise.
+  //
+  // Absent when no store was injected, which leaves every request platform
+  // funded — the pre-4D behaviour, and correct for a deployment with no BYOK.
+  const executionFunding =
+    deps.providerAdministrationStore === undefined
+      ? undefined
+      : createExecutionFundingResolver({
+          store: deps.providerAdministrationStore,
+          onError: (detail) => console.error(`[ai] execution funding: ${detail}`),
+        });
+
   plane = createControlPlane({
     config,
     authenticator,
     providers,
     auditStores,
     spendStore,
+    funding: executionFunding,
     settingsSource: settingsStore,
   });
+
+  // A local binding of the plane just assigned.
+  //
+  // `plane` is module-level and memoised, so TypeScript cannot keep it narrowed
+  // inside a closure — and the closures below are the point: they must capture
+  // THIS plane, not re-read a mutable module slot that a later `resetAIPlane`
+  // could empty underneath them.
+  const activePlane = plane;
 
   // ── Administration (AI-01 Batch 2) ────────────────────────────────────────
   //
@@ -465,12 +494,31 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
       allowDefaultOrganization: config.allowDefaultOrganization,
     },
     trail: administration.trail,
+    // Abuse control for the mutating operations (finding M-3).
+    //
+    // Its own limiter instance, not the AI Guard's: sharing one would let a
+    // burst of credential administration consume an organization's EXECUTION
+    // allowance, so an administrator rotating a key would throttle their own
+    // colleagues' AI requests. Two resources, two buckets.
+    rateLimit: {
+      limiter: createSlidingWindowRateLimiter(systemClock),
+      rule: DEFAULT_BYOK_MUTATION_RATE,
+    },
     administration: createByokAdministration({
       catalogue: byokCatalogue,
       store: deps.providerAdministrationStore,
       cipher: credentialCipher,
       credentials: credentialResolver,
       trail: administration.trail,
+      // The organization's own ledger, READ ONLY (HIGH-1). The same plane the
+      // execution path reserves against, so the number a customer reads is the
+      // number their requests are actually held against — a second source would
+      // eventually report a ceiling that is not the one refusing them.
+      spend: {
+        organizationSpendStatus: (organizationId) =>
+          activePlane.organizationSpendStatus(organizationId),
+        enforced: activePlane.config.spend.enforce,
+      },
       clock: systemClock,
       ids: systemIdFactory,
       logger: plane.logger,

@@ -63,7 +63,7 @@
  * of this decision.
  */
 
-import type { AIByokFallbackPolicy } from './credentialStore.ts';
+import type { AIByokFallbackPolicy, AIProviderConfigurationRecord } from './credentialStore.ts';
 
 /** What the caller should do for this tenant, on this provider, right now. */
 export type TenantCredentialAction =
@@ -150,4 +150,70 @@ export function decideTenantCredential(
     };
   }
   return { action: 'platform', reason: `${because}; the platform credential applies` };
+}
+
+/**
+ * The organization's funding policy, across its WHOLE provider estate.
+ *
+ * ── WHY THIS EXISTS, AND WHAT IT FIXES ────────────────────────────────────
+ *
+ * `credential_fallback` is a column on a CONFIGURATION, so it answers "what
+ * does this organization fall back to ON THIS PROVIDER?". A certification gate
+ * proved that question is the wrong granularity for the guarantee the column
+ * was sold as providing.
+ *
+ * The pipeline does not execute one provider. When a candidate fails it moves
+ * to the next, and an organization that declared `tenant_only` on OpenAI
+ * typically has NO configuration at all for Anthropic — so the per-provider
+ * lookup there found nothing, read the absent policy as `platform`, and MARQ's
+ * Anthropic credential executed that customer's traffic. Their console went on
+ * reporting `customer_byok` from an OpenAI row that still said `active`.
+ *
+ * The customer's statement was never about a vendor. "Our AI traffic reaches
+ * our own vendor accounts or none" is a statement about FUNDING, and funding is
+ * a property of the organization's execution rather than of whichever provider
+ * the selector happened to reach.
+ *
+ * ── STRICTEST WINS, AND WHY THAT IS THE ONLY SAFE READING ─────────────────
+ *
+ * One `tenant_only` anywhere in the estate makes the whole execution
+ * tenant-funded. An organization that declared `tenant_only` on one provider
+ * and left another at the default has expressed one strict intent and one
+ * absence of intent, and resolving that mixture towards MARQ's chequebook is
+ * the exact failure this function exists to prevent.
+ *
+ * The cost is visible and bounded: an organization that deliberately wants
+ * MARQ's credential behind one provider and not another cannot express it, and
+ * gets the strict answer for both. That is a refusal, which is recoverable in
+ * one console action; the alternative is an invoice, which is not.
+ *
+ * ── A DISABLED CONFIGURATION STILL COUNTS ─────────────────────────────────
+ *
+ * `enabled` says "use my key"; `credential_fallback` says "and if you cannot,
+ * whose key may you use instead?". They are different questions, and switching
+ * a credential off is not withdrawing the funding policy attached to it — a
+ * customer who disables their key expecting their traffic to STOP must not
+ * discover it moved to MARQ's account instead. So the scan reads every
+ * organization-scoped row regardless of `enabled`.
+ */
+export function strictestFundingPolicy(
+  configurations: readonly Pick<
+    AIProviderConfigurationRecord,
+    'scope' | 'organizationId' | 'credentialFallback'
+  >[],
+  organizationId: string,
+): AIByokFallbackPolicy {
+  for (const configuration of configurations) {
+    // BOTH halves of the predicate, deliberately — the same reasoning
+    // `listOrganizationConfigurations` applies. Matching on the tenant alone
+    // would be correct only for as long as `organizationId` stays null on every
+    // platform row, and that is a property of a CHECK constraint in another
+    // file rather than of this function.
+    if (configuration.scope !== 'organization') continue;
+    if (configuration.organizationId !== organizationId) continue;
+    if (fallbackPolicyOf(configuration.credentialFallback) === 'tenant_only') {
+      return 'tenant_only';
+    }
+  }
+  return 'platform';
 }

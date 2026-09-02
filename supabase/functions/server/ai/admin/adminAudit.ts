@@ -48,6 +48,21 @@ export const ADMIN_ACTION = {
   spendCapRaised: 'ai.admin.spend.cap_raised',
   accessDenied: 'ai.admin.access.denied',
 
+  // ── Organization spend administration (AI-01 Batch 4D remediation, HIGH-1) ─
+  //
+  // DISTINCT ACTION NAMES, not the platform ones with a different target. The
+  // question an incident review asks is "did anyone touch MARQ's ceiling?" and
+  // "did anyone touch a customer's?", and answering the first must not require
+  // reading every record's target to find out which estate it was about. The
+  // organization the ledger belongs to rides in `organizationScope` and in the
+  // target, so a filter by tenant works as well as a filter by action.
+  //
+  // Neither record ever carries credential material: the recorded facts are the
+  // scope name, the cap, the settled and reserved amounts and the hold count —
+  // the same shape `spendFacts` records for the platform ledger.
+  organizationSpendReset: 'ai.admin.organization.spend.reset',
+  organizationSpendCapRaised: 'ai.admin.organization.spend.cap_raised',
+
   // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
   //
   // A DISTINCT action per lifecycle event, not one `credential.changed`.

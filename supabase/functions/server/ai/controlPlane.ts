@@ -63,12 +63,15 @@ import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import { createAIGuard } from './security/guard.ts';
 import { createPolicyEngine } from './policy/policyEngine.ts';
 import { budgetPolicyFrom, createBudgetEngine, createInMemoryBudgetLedger } from './policy/budget.ts';
+import type { ExecutionFundingResolver } from './providers/credentials/executionFunding.ts';
 import { createSpendGuard } from './policy/spendGuard.ts';
 import {
   SPEND_SCOPE,
   createMemorySpendStore,
   createSpendLedger,
+  organizationOfSpendScope,
 } from './policy/spendLedger.ts';
+import { isolationKeyFor } from './security/tenancy.ts';
 import { createExecutionPipeline } from './pipeline/executionPipeline.ts';
 import { createRequestOrchestrator } from './orchestrator.ts';
 import { buildHealthSnapshot } from './observability/health.ts';
@@ -94,6 +97,17 @@ export interface ControlPlaneOptions {
   }[];
   /** Durable audit stores written alongside the in-memory buffer. */
   readonly auditStores?: readonly AuditStore[];
+  /**
+   * Whose credentials a request may reach (AI-01 Batch 4D remediation).
+   *
+   * Built where the credential store lives — `bootstrap.ts` — and injected
+   * here, because the plane has no store of its own and acquiring one to answer
+   * this would give the execution path a second route to credential rows.
+   *
+   * Omitted, every request is platform-funded, which is the Batch 4C behaviour
+   * and what a deployment with no BYOK storage continues to get.
+   */
+  readonly funding?: ExecutionFundingResolver;
   /**
    * Durable backing for the MARQ spend ceiling. Omitted, the ledger is
    * isolate-local — correct for tests, NOT correct for a deployment where the
@@ -176,6 +190,16 @@ export interface AIControlPlane {
   recentAudit(limit?: number): readonly AIAuditRecord[];
   /** Current MARQ lifetime spend against the ceiling. */
   spendStatus(): Promise<SpendRecord>;
+  /**
+   * Current lifetime spend for ONE organization's own ledger (HIGH-1).
+   *
+   * A separate method rather than a scope parameter on `spendStatus`, so a
+   * caller cannot reach the platform record by passing a string, and so the
+   * authorization question — may this actor see this tenant? — is asked at a
+   * call site that names a tenant. The id is validated as a storage key segment
+   * before it becomes one.
+   */
+  organizationSpendStatus(organizationId: string): Promise<SpendRecord>;
   /**
    * The spend ledger, for the authorised-reset operation. Exposed rather than
    * wrapped so a reset call site must supply the authorising actor and reason
@@ -351,7 +375,23 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
   // key-value store so a recycled isolate does not rediscover a $0 balance.
   const spendLedger = createSpendLedger({
     store: options.spendStore ?? createMemorySpendStore(),
-    capMicroUsd: config.spend.maxPlatformMicroUsd,
+    // TWO CEILINGS, CHOSEN BY SCOPE (4D remediation, HIGH-1).
+    //
+    // `AI_MAX_SPEND_USD` bounds MARQ's own exposure at model vendors. It must
+    // not bound a customer's spend on their OWN vendor key, and until this
+    // split it did: BLOCKER B-2's fix began reserving tenant-funded executions
+    // on an organization scope, and that scope inherited MARQ's $9 lifetime
+    // ceiling — so declaring `tenant_only` capped a customer at $9 for life,
+    // invisibly, over money MARQ was never billed for.
+    //
+    // Every scope that is not an organization's keeps the platform ceiling,
+    // including any future one: the organization branch is entered only for a
+    // name `SPEND_SCOPE.organization` could have produced, so nothing can be
+    // mistaken for a tenant ledger by having a similar-looking key.
+    capMicroUsd: (scope) =>
+      organizationOfSpendScope(scope) === undefined
+        ? config.spend.maxPlatformMicroUsd
+        : config.spend.maxOrganizationMicroUsd,
     now: () => clock.isoNow(),
     // A hold must never expire while the request that owns it can still be
     // running, or two requests could spend the same headroom. The workflow
@@ -428,6 +468,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     budget,
     budgetPolicy,
     spend,
+    funding: options.funding,
     audit,
     logger,
     metrics,
@@ -506,6 +547,15 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     },
     recentAudit: (limit = 50) => audit.recent(limit),
     spendStatus: () => spendLedger.read(SPEND_SCOPE.platform),
+    organizationSpendStatus: (organizationId) => {
+      // THROUGH THE ONE VALIDATOR, BEFORE IT BECOMES A KEY — the same call the
+      // spend guard makes for the same reason. An id carrying the `:` this key
+      // format joins on could address another scope's ledger entirely, and
+      // `isolationKeyFor` throwing is the correct direction: a read that cannot
+      // be safely addressed must fail, not silently answer about somewhere else.
+      isolationKeyFor(organizationId);
+      return spendLedger.read(SPEND_SCOPE.organization(organizationId));
+    },
     spendLedger,
     sweep: () => {
       rateLimiter.sweep();

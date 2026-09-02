@@ -81,6 +81,7 @@ export function registerAIAdminRoutes(
     extra: {
       body?: unknown;
       providerId?: string;
+      organizationId?: string;
       modelId?: string;
       credentialId?: string;
       limit?: number;
@@ -134,7 +135,9 @@ export function registerAIAdminRoutes(
      * caller cannot ask for one provider's credential at another provider's
      * endpoint, and the audit target cannot be steered by a request body.
      */
-    extraFrom?: (c: AdminRouteContext) => { modelId?: string; credentialId?: string },
+    extraFrom?: (
+      c: AdminRouteContext,
+    ) => { modelId?: string; credentialId?: string; organizationId?: string },
   ): void => {
     const handler = async (c: AdminRouteContext): Promise<Response> => {
       const parsed = await readBody(c);
@@ -177,6 +180,39 @@ export function registerAIAdminRoutes(
   );
   mutation('post', '/ai/admin/budget/reset', ADMIN_OPERATION.resetBudget);
   mutation('post', '/ai/admin/budget/increase', ADMIN_OPERATION.increaseBudget);
+
+  // ── Organization spend administration (4D remediation, HIGH-1) ────────────
+  //
+  // A SEPARATE PATH TREE, and the separation is the same one Batch 4D made
+  // between MARQ's estate and a customer's. `/ai/admin/budget` is MARQ's own
+  // lifetime ceiling and takes no organization anywhere — not in the path, not
+  // in a body — so no request to it can be steered at a tenant. These paths
+  // name the tenant in the PATH, where the route table binds it, and dispatch
+  // into service methods whose scope is built from that id and cannot produce
+  // `SPEND_SCOPE.platform`.
+  //
+  // A caller reaching these needs `ai.admin.budget.organization`; a caller
+  // reaching the two above needs `ai.admin.budget.reset`. Neither grant is
+  // implied by the other.
+  const organizationId = (c: AdminRouteContext) => c.req.param('organizationId');
+
+  app.get(`${prefix}/ai/admin/budget/organizations/:organizationId`, (c) =>
+    run(c, ADMIN_OPERATION.getOrganizationBudget, { organizationId: organizationId(c) }),
+  );
+  mutation(
+    'post',
+    '/ai/admin/budget/organizations/:organizationId/reset',
+    ADMIN_OPERATION.resetOrganizationBudget,
+    undefined,
+    (c) => ({ organizationId: organizationId(c) }),
+  );
+  mutation(
+    'post',
+    '/ai/admin/budget/organizations/:organizationId/increase',
+    ADMIN_OPERATION.increaseOrganizationBudget,
+    undefined,
+    (c) => ({ organizationId: organizationId(c) }),
+  );
 
   // ── Provider administration (AI-01 Batch 4C) ──────────────────────────────
   //

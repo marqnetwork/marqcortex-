@@ -74,6 +74,15 @@ export interface ByokHttpResponse {
 export const BYOK_OPERATION = {
   /** This organization's provider/credential status. */
   status: 'byok.status',
+  /**
+   * This organization's own AI spend against its own ceiling (HIGH-1).
+   *
+   * A READ, and the only spend operation this surface has. There is no
+   * `byok.spend.reset` and no `byok.spend.increase` in this table, so no route
+   * can bind one and no body can ask for one — moving a governed ceiling is the
+   * platform operator's act, under a capability in a different module.
+   */
+  spend: 'byok.spend',
   /** This organization's credential history for one provider. METADATA ONLY. */
   credentialList: 'byok.credentials.list',
   /** Store or rotate. One operation, because a rotation is a store with a predecessor. */
@@ -139,6 +148,11 @@ export async function executeByokHttpRequest(
     switch (request.operation) {
       case BYOK_OPERATION.status:
         return ok({ byok: await service.status(actor) });
+
+      case BYOK_OPERATION.spend:
+        // SAFE METADATA. The service's return type has no credential field, so
+        // this response cannot carry one however it is serialised.
+        return ok({ spend: await service.spend(actor) });
 
       case BYOK_OPERATION.credentialList:
         // METADATA. The service's return type has no secret field, so this

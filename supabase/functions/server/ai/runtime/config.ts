@@ -13,7 +13,10 @@
 
 import type { EnvSource } from './env.ts';
 import { readBool, readInt, readList, readOptionalString, readString } from './env.ts';
-import { DEFAULT_RESERVATION_TTL_MS } from '../policy/spendLedger.ts';
+import {
+  DEFAULT_RESERVATION_TTL_MS,
+  UNBOUNDED_SPEND_CAP_MICRO_USD,
+} from '../policy/spendLedger.ts';
 
 export interface AIControlPlaneConfig {
   /** Ordered provider preference. First healthy, capable provider wins. */
@@ -91,6 +94,45 @@ export interface AIControlPlaneConfig {
      * requires an explicit, authorised, audited action.
      */
     readonly maxPlatformMicroUsd: number;
+    /**
+     * The lifetime ceiling for ONE organization's own spend, in micro-USD
+     * (AI-01 Batch 4D remediation, HIGH-1). Set from `AI_ORG_MAX_SPEND_USD`.
+     *
+     * ── WHY THIS IS NOT `AI_MAX_SPEND_USD`, AND WHY ITS DEFAULT IS UNBOUNDED ─
+     *
+     * The two ceilings govern two different people's money and the platform
+     * must not conflate them:
+     *
+     *   `maxPlatformMicroUsd` bounds MARQ'S OWN exposure at model vendors. It
+     *   is a spending control on a MARQ decision, and $9 is deliberately small
+     *   because MARQ is the one being invoiced.
+     *
+     *   THIS bounds a customer's spend at THEIR OWN vendor account, on a key
+     *   they supplied, under a contract MARQ is not a party to. MARQ is never
+     *   billed for it.
+     *
+     * Reusing the first number for the second is what the certification found:
+     * an organization that declared `tenant_only` — the act of taking MARQ off
+     * their invoice entirely — silently inherited MARQ's $9 lifetime ceiling
+     * and had their AI stop permanently once their own spend crossed it, with
+     * no operator surface able to see or raise it.
+     *
+     * THE DEFAULT IS THEREFORE UNBOUNDED, AND UNBOUNDED IS A GOVERNED STATE
+     * RATHER THAN AN ABSENT ONE. It is a real number on a real record; the
+     * scope is created, read, reserved against and settled exactly like any
+     * other, it appears on the administration surface with `unbounded: true`,
+     * and an operator who wants a ceiling sets one — platform-wide here, or per
+     * organization through the governed cap-raise.
+     *
+     * CONTAINMENT DOES NOT DEPEND ON THIS NUMBER. A tenant-funded execution is
+     * still bounded by the per-organization ROLLING DAILY allowance in
+     * `budget.ts` (`AI_BUDGET_ORGANIZATION_DAILY_MICRO_USD`), which applies to
+     * every organization on every request and is the instrument sized for a
+     * tenant's own consumption. What a lifetime ceiling adds on top of that is
+     * a permanent stop, and a permanent stop on money MARQ does not pay is a
+     * decision to make deliberately, per customer, rather than to inherit.
+     */
+    readonly maxOrganizationMicroUsd: number;
     /** Refuse requests at the ceiling. False records spend without refusing. */
     readonly enforce: boolean;
     /** Persist the ledger to durable storage. Off makes it isolate-local. */
@@ -312,6 +354,34 @@ function readMaxSpendMicroUsd(env: EnvSource): number {
   return Math.round(Math.min(parsed, 10_000) * 1_000_000);
 }
 
+/**
+ * Read `AI_ORG_MAX_SPEND_USD` as dollars and convert to micro-USD.
+ *
+ * UNSET MEANS UNBOUNDED, which is the opposite of how `AI_MAX_SPEND_USD` reads
+ * an absent value, and the asymmetry is the point: an absent MARQ ceiling must
+ * fall back to a small number because the risk of getting it wrong is MARQ's
+ * own invoice, and an absent customer ceiling must not invent one because the
+ * risk of getting THAT wrong is stopping a paying customer's AI on money MARQ
+ * never paid.
+ *
+ * A malformed or negative value is also unbounded rather than the MARQ default:
+ * a typo must not silently impose a $9 lifetime cap on a customer's own vendor
+ * account, which is the certified defect arriving through a different door.
+ * Zero IS honoured — an operator writing `0` is deliberately stopping
+ * tenant-funded execution, and that is a decision, not a typo.
+ */
+function readMaxOrganizationSpendMicroUsd(env: EnvSource): number {
+  const raw = env.get('AI_ORG_MAX_SPEND_USD');
+  if (raw === undefined || raw.trim() === '') return UNBOUNDED_SPEND_CAP_MICRO_USD;
+  const parsed = Number.parseFloat(raw.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return UNBOUNDED_SPEND_CAP_MICRO_USD;
+  // The same units-mistake clamp the platform ceiling applies, for the same
+  // reason — except that here the clamp is a FLOOR on nothing and a ceiling on
+  // a configured value, so a deployment wanting more than $10,000 per tenant
+  // leaves the variable unset and administers per-organization caps instead.
+  return Math.round(Math.min(parsed, 10_000) * 1_000_000);
+}
+
 export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
   return {
     providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', defaultProviderPreference(env)),
@@ -360,6 +430,7 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
 
     spend: {
       maxPlatformMicroUsd: readMaxSpendMicroUsd(env),
+      maxOrganizationMicroUsd: readMaxOrganizationSpendMicroUsd(env),
       enforce: readBool(env, 'AI_SPEND_ENFORCE', true),
       durable: readBool(env, 'AI_SPEND_DURABLE', true),
       reservationTtlMs: readInt(

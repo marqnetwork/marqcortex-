@@ -37,6 +37,7 @@ import type {
 import type { AIFeatureDescriptor } from '../contracts/policy.ts';
 import type { AIModelDescriptor } from '../contracts/provider.ts';
 import type { AICredentialSourceCategory } from '../providers/credentials/contracts.ts';
+import type { ExecutionFundingLatch } from '../providers/credentials/executionFunding.ts';
 import type { ModelRequirements } from '../providers/registry.ts';
 import type { AIEventBus } from '../contracts/events.ts';
 import type { AIFeatureDefinition } from '../policy/featureCatalog.ts';
@@ -171,6 +172,19 @@ export interface ExecutionPipeline {
     definition: AIFeatureDefinition<TInput, TOutput>,
     input: TInput,
     onAttempt?: AttemptObserver,
+    /**
+     * Whose credentials this execution may reach (AI-01 Batch 4D remediation).
+     *
+     * Passed in rather than derived here, and carried onto every attempt, so
+     * the constraint is a property of the REQUEST and not of whichever provider
+     * the loop below happens to be on. Deriving it per provider is the
+     * certified defect: an organization with `tenant_only` on one vendor has no
+     * row for the next one, so the failover read an absent policy as
+     * `platform` and reached MARQ's credential.
+     *
+     * Omitted, the execution is unconstrained — the Batch 4C behaviour.
+     */
+    funding?: ExecutionFundingLatch,
   ): Promise<PipelineOutcome<TOutput>>;
 }
 
@@ -242,6 +256,7 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
       definition: AIFeatureDefinition<TInput, TOutput>,
       input: TInput,
       onAttempt?: AttemptObserver,
+      funding?: ExecutionFundingLatch,
     ): Promise<PipelineOutcome<TOutput>> {
       const descriptor = definition.descriptor;
       const featureLabels = { feature: descriptor.featureId };
@@ -371,9 +386,16 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
                   //
                   // The adapter passes it to the resolver and does nothing else
                   // with it. It never reaches a vendor.
+                  //
+                  // `funding` is the SAME latch object on every attempt of
+                  // this request — every retry, every failover candidate,
+                  // every model fallback — which is what makes a customer's
+                  // "our own credentials only" survive leaving the provider
+                  // they declared it on.
                   tenant: {
                     organizationId: context.organization.organizationId,
                     membershipVerified: context.organization.membershipVerified,
+                    funding,
                   },
                 }),
             );

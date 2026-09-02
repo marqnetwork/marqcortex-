@@ -29,9 +29,51 @@ import type { AdminAuditWriter } from '../admin/adminAudit.ts';
 import type { ByokAdministration, ByokRequestMeta } from './byokAdministration.ts';
 import type { ByokActor } from './byokRbac.ts';
 
+import type { AIRateLimitRule } from '../contracts/policy.ts';
+import type { RateLimiter } from '../security/rateLimiter.ts';
+
 import { AIError } from '../contracts/errors.ts';
 import { ADMIN_ACTION } from '../admin/adminAudit.ts';
 import { resolveByokActor } from './byokRbac.ts';
+
+/**
+ * Abuse control for the customer credential surface (finding M-3).
+ *
+ * WHY THIS SURFACE NEEDS ONE WHEN THE PLATFORM CONSOLE DOES NOT.
+ *
+ * `/ai/admin/…` is reachable by a handful of MARQ operators. `/ai/organization/…`
+ * is reachable by every customer organization administrator on the platform —
+ * orders of magnitude more callers, none of them MARQ staff. An authenticated
+ * administrator could otherwise submit credentials or flip a funding policy in
+ * an unbounded loop, each iteration performing an AES-256-GCM seal and writing
+ * an append-only audit record; the trail is the resource that suffers first,
+ * and a trail an attacker can flood is a trail nobody can read afterwards.
+ *
+ * PER ORGANIZATION, NOT PER ACTOR. The resource being protected — the
+ * credential rows, the rotation history, the audit trail — is the
+ * organization's, so an organization with three administrators gets one
+ * allowance between them rather than three. Keyed by the RESOLVED organization,
+ * which means the key cannot be steered by anything a caller supplies.
+ *
+ * MUTATIONS ONLY. Reads are cheap, idempotent, and are what an administrator
+ * refreshes while an incident is in progress; rate-limiting them would take the
+ * console away at the moment it is most needed, to bound a cost that is not
+ * there.
+ */
+export interface ByokRateLimit {
+  readonly limiter: RateLimiter;
+  readonly rule: AIRateLimitRule;
+}
+
+/**
+ * The default allowance: twenty credential mutations per organization per
+ * minute.
+ *
+ * Comfortably above anything a human doing real work produces — configuring a
+ * provider, rotating a key, revoking one, changing a policy are each a single
+ * deliberate click behind a typed reason — and far below what a loop produces.
+ */
+export const DEFAULT_BYOK_MUTATION_RATE: AIRateLimitRule = { limit: 20, windowMs: 60_000 };
 
 export interface ByokServiceDependencies {
   readonly authenticator: AIAuthenticator;
@@ -40,6 +82,14 @@ export interface ByokServiceDependencies {
   readonly administration: ByokAdministration;
   /** The SAME append-only administrative trail. */
   readonly trail: AdminAuditWriter;
+  /**
+   * Abuse control for the mutating operations (finding M-3).
+   *
+   * Omitted, mutations are unlimited — the Batch 4D behaviour, which every
+   * existing test and every caller that predates this argument continues to
+   * get. A deployment gets the limiter by injecting one.
+   */
+  readonly rateLimit?: ByokRateLimit;
 }
 
 export interface ByokService extends ByokAdministration {
@@ -59,6 +109,37 @@ export interface ByokService extends ByokAdministration {
 
 export function createByokService(deps: ByokServiceDependencies): ByokService {
   const { administration } = deps;
+
+  /**
+   * Spend one unit of this organization's mutation allowance, or refuse.
+   *
+   * Keyed by the RESOLVED organization — the one `resolveByokActor` derived
+   * from an authenticated membership — so the bucket a caller consumes cannot
+   * be steered by anything they supply, and one organization can never exhaust
+   * another's.
+   *
+   * The refusal carries `retryAfterSeconds` and names no other tenant, no
+   * credential and no count that would let a caller probe another
+   * organization's activity.
+   */
+  function admitMutation(actor: ByokActor, operation: string): void {
+    if (!deps.rateLimit) return;
+    const decision = deps.rateLimit.limiter.consume(
+      `byok:org:${actor.organization.organizationId}`,
+      deps.rateLimit.rule,
+    );
+    if (decision.allowed) return;
+    throw new AIError(
+      'RATE_LIMITED',
+      'Your organization has reached its credential administration limit. Try again shortly.',
+      {
+        retryAfterSeconds: decision.retryAfterSeconds,
+        diagnostics:
+          `operation=${operation} organization=${actor.organization.organizationId} ` +
+          `limit=${decision.limit} window=${deps.rateLimit.rule.windowMs}ms`,
+      },
+    );
+  }
 
   return {
     async authorize(authorization, organizationHint, meta) {
@@ -91,13 +172,33 @@ export function createByokService(deps: ByokServiceDependencies): ByokService {
       }
     },
 
+    // Reads are not limited — see `ByokRateLimit`.
     status: (actor) => administration.status(actor),
+    // The organization's own spend ledger (HIGH-1). A read, so unlimited for
+    // the same reason: a budget holder watching a ceiling during an incident
+    // must not be locked out of watching it.
+    spend: (actor) => administration.spend(actor),
     credentials: (actor, providerId) => administration.credentials(actor, providerId),
-    configureCredential: (actor, providerId, input, reason, meta) =>
-      administration.configureCredential(actor, providerId, input, reason, meta),
-    revokeCredential: (actor, providerId, credentialId, reason, meta) =>
-      administration.revokeCredential(actor, providerId, credentialId, reason, meta),
-    setFallbackPolicy: (actor, providerId, fallback, reason, meta) =>
-      administration.setFallbackPolicy(actor, providerId, fallback, reason, meta),
+
+    // `async`, so a refusal is a REJECTED PROMISE rather than a synchronous
+    // throw. These methods are declared as returning a promise, and a caller
+    // that reasonably writes `service.configureCredential(...).catch(...)`
+    // would never see a synchronously thrown refusal — it would escape as an
+    // unhandled exception past the handler written to contain it.
+    async configureCredential(actor, providerId, input, reason, meta) {
+      admitMutation(actor, 'configure');
+      return await administration.configureCredential(actor, providerId, input, reason, meta);
+    },
+    async revokeCredential(actor, providerId, credentialId, reason, meta) {
+      // Revocation is limited like every other mutation, and the allowance is
+      // deliberately generous enough that a real containment action — one click,
+      // once, per credential — can never be the request that exhausts it.
+      admitMutation(actor, 'revoke');
+      return await administration.revokeCredential(actor, providerId, credentialId, reason, meta);
+    },
+    async setFallbackPolicy(actor, providerId, fallback, reason, meta) {
+      admitMutation(actor, 'fallback');
+      return await administration.setFallbackPolicy(actor, providerId, fallback, reason, meta);
+    },
   };
 }

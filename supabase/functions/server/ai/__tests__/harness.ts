@@ -33,6 +33,8 @@ import { createAIAdministration } from '../admin/administration.ts';
 import { createMemorySettingsStore } from '../admin/settingsStore.ts';
 import type { AIProviderCredentialPolicy } from '../contracts/provider.ts';
 import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
+import type { ExecutionFundingResolver } from '../providers/credentials/executionFunding.ts';
+import type { SpendStore } from '../policy/spendLedger.ts';
 import { createProviderCredentialResolver } from '../providers/credentials/resolver.ts';
 import type { SecretCipher } from '../providers/credentials/secretCipher.ts';
 import {
@@ -112,6 +114,22 @@ export interface TestPlaneOptions {
    * isolate picking up a change it did not make.
    */
   readonly settingsSource?: { load(): Promise<AIOperationalSettings | undefined> };
+  /**
+   * Whose credentials a request may reach (AI-01 Batch 4D remediation).
+   *
+   * Off by default, so every suite written before 4D sees exactly the plane it
+   * always saw: no resolver, every request `platform_allowed`. On, the plane
+   * resolves funding once per request and carries it to the spend guard and to
+   * every provider attempt — which is the wiring the BLOCKER-1 end-to-end case
+   * exists to prove, and which cannot be proved by calling the resolver and the
+   * credential layer separately.
+   */
+  readonly funding?: ExecutionFundingResolver;
+  /**
+   * Durable spend storage, so a suite can read the ledger the plane actually
+   * reserved against rather than infer it.
+   */
+  readonly spendStore?: SpendStore;
 }
 
 export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
@@ -159,6 +177,8 @@ export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
     ids: createSequentialIdFactory(),
     logSink: sink,
     settingsSource: options.settingsSource,
+    funding: options.funding,
+    spendStore: options.spendStore,
     // Backoff is asserted directly in the retry unit tests; here it only needs
     // to not spend real time.
     sleep: () => Promise.resolve(),
