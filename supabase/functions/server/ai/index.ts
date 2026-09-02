@@ -167,10 +167,24 @@ export type {
 export {
   decideTenantCredential,
   fallbackPolicyOf,
+  strictestFundingPolicy,
   type TenantCredentialAction,
   type TenantCredentialDecision,
   type TenantCredentialFacts,
 } from './providers/credentials/tenantPrecedence.ts';
+// The execution-level funding decision (AI-01 Batch 4D remediation, B-1/B-2).
+// Exported because two surfaces outside this boundary consume it: the spend
+// guard, which picks a ledger scope from it, and the tests that prove a
+// tenant-funded execution can never reach MARQ's chequebook.
+export {
+  createExecutionFundingLatch,
+  createExecutionFundingResolver,
+  PLATFORM_FUNDING,
+  type AIExecutionFundingMode,
+  type ExecutionFunding,
+  type ExecutionFundingLatch,
+  type ExecutionFundingResolver,
+} from './providers/credentials/executionFunding.ts';
 // ── Customer BYOK (AI-01 Batch 4D) ──────────────────────────────────────────
 //
 // `createByokAdministration` IS exported, unlike `createProviderAdministration`,
@@ -195,6 +209,8 @@ export {
 } from './byok/byokAdministration.ts';
 export {
   createByokService,
+  DEFAULT_BYOK_MUTATION_RATE,
+  type ByokRateLimit,
   type ByokService,
   type ByokServiceDependencies,
 } from './byok/byokService.ts';

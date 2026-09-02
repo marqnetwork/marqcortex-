@@ -23,6 +23,12 @@
  *      burned tokens and then errored is money spent, and a ledger that only
  *      charges successes under-counts precisely when spend is running away.
  *
+ * AI-01 BATCH 4D REMEDIATION: the ledger SCOPE is now a parameter rather than
+ * the constant `SPEND_SCOPE.platform`. An execution constrained to a customer's
+ * own credentials is held and settled against that organization's scope, so a
+ * BYOK customer can neither consume MARQ's ceiling nor be refused by it. See
+ * `SpendFunding` for the rule and why it is decidable before execution.
+ *
  * The estimate is deliberately pessimistic: prompt tokens are approximated from
  * the feature's declared input ceiling and completion tokens from its output
  * ceiling, priced at the most expensive eligible model. Over-reserving costs a
@@ -35,6 +41,7 @@ import type { ProviderRegistry } from '../providers/registry.ts';
 import type { SpendLedger, SpendRecord, SpendReservation } from './spendLedger.ts';
 import { AIError } from '../contracts/errors.ts';
 import { SPEND_SCOPE, isSpendDenied, remainingMicroUsd } from './spendLedger.ts';
+import { isolationKeyFor } from '../security/tenancy.ts';
 
 /**
  * Bytes of input per prompt token. Four is the conventional English-text ratio
@@ -54,12 +61,103 @@ export interface SpendReservationHandle {
   release(): Promise<void>;
 }
 
+/**
+ * The scope one request's spend is held and settled against.
+ *
+ * ── WHY THIS IS A PARAMETER NOW (4D remediation, BLOCKER B-2) ─────────────
+ *
+ * It used to be the constant `SPEND_SCOPE.platform`, for every request, taken
+ * before any credential was resolved. A certification proved what that costs
+ * once customers bring their own keys: an organization running entirely on its
+ * own vendor account still drew down MARQ's lifetime ceiling, and could exhaust
+ * it — denying AI to every other tenant and to MARQ's own features — over spend
+ * MARQ was never billed for. The mirror case was equally wrong: that customer
+ * was refused once MARQ's ceiling filled, for money they were paying
+ * themselves.
+ *
+ * ── THE RULE, AND WHY IT IS DECIDABLE BEFORE EXECUTION ────────────────────
+ *
+ * A reservation must be taken BEFORE a provider is reached, or it guards
+ * nothing — so the scope has to be chosen from something knowable in advance.
+ * "Which credential will actually answer?" is not knowable then. "Is this
+ * execution permitted to reach MARQ's credential at all?" is.
+ *
+ *   `tenant_only`      Reserved and settled on the ORGANIZATION scope. Safe
+ *                      because B-1's fix makes it provable: no candidate
+ *                      provider can resolve a platform or environment
+ *                      credential for such an execution, on any attempt, so
+ *                      every micro-USD it spends is the customer's own.
+ *
+ *   `platform_allowed` Reserved and settled on the PLATFORM scope, exactly as
+ *                      before. MARQ's credential MAY serve this request, and
+ *                      MARQ's ceiling is what bounds MARQ's exposure.
+ *
+ * The residual is deliberate and conservative: an organization that holds its
+ * own credential but leaves the default `platform` policy in place still
+ * reserves against MARQ's ceiling, because MARQ's credential genuinely might
+ * serve it. That over-protects MARQ's ceiling and never under-protects it, and
+ * the customer's remedy is one console action — declare `tenant_only`.
+ *
+ * RESERVATION AND SETTLEMENT CANNOT DIVERGE. The scope is resolved once, here,
+ * and the `SpendReservation` the ledger returns carries it; `settle` and
+ * `release` take that reservation rather than a scope, so there is no call
+ * shape in which a request settles somewhere it did not reserve.
+ */
+export interface SpendFunding {
+  readonly mode: 'platform_allowed' | 'tenant_only';
+  readonly organizationId?: string;
+}
+
+/**
+ * Resolve the ledger scope for one request's funding.
+ *
+ * Exported so the audit surface and the tests name the same scope the guard
+ * used, rather than reconstructing the rule and eventually disagreeing with it.
+ */
+export function spendScopeFor(funding: SpendFunding | undefined): string {
+  // BOTH halves required. A `tenant_only` mode with no organization id is a
+  // contradiction the resolver does not produce — an unverified membership
+  // never yields `tenant_only` — but a scope built from `undefined` would read
+  // `spend:org:undefined:lifetime` and silently pool every such request into
+  // one shared bucket, which is the opposite of the isolation this exists for.
+  if (funding?.mode === 'tenant_only' && funding.organizationId) {
+    // VALIDATED, THROUGH THE ONE VALIDATOR, BEFORE IT BECOMES A KEY.
+    //
+    // This scope becomes a KV key (`ai:spend:<scope>`), and this remediation is
+    // what makes an organization id reach one for the first time. Two of the
+    // three paths in `resolveOrganization` already check the id against
+    // `ORGANIZATION_ID`; the sole-membership path does not, because it takes the
+    // value straight off a membership row. That row holds a UUID today, so
+    // nothing unsafe can arrive — but "nothing unsafe can arrive" is a property
+    // of a column type in another schema, and an id carrying the `:` this key
+    // format joins on could address another scope's ledger entirely.
+    //
+    // `isolationKeyFor` is the platform's single answer to "is this id safe to
+    // embed in a storage key". Asking it rather than re-implementing the rule
+    // here is what stops the two drifting; it THROWS on a bad id, which is the
+    // correct direction — quietly falling back to the platform scope would put
+    // a customer's spend on MARQ's ledger, which is the exact defect this
+    // function exists to prevent.
+    isolationKeyFor(funding.organizationId);
+    return SPEND_SCOPE.organization(funding.organizationId);
+  }
+  return SPEND_SCOPE.platform;
+}
+
 export interface SpendGuard {
   /**
    * Reserve headroom for one request. Throws `BUDGET_EXCEEDED` when the cap is
    * reached or when the projected cost would cross it.
+   *
+   * `funding` decides WHICH ledger scope the hold is taken against. Omitted, it
+   * is the MARQ platform scope — the Batch 4C behaviour, and what every caller
+   * that knows nothing about tenant funding continues to get.
    */
-  reserve(descriptor: AIFeatureDescriptor, reservationId: string): Promise<SpendReservationHandle>;
+  reserve(
+    descriptor: AIFeatureDescriptor,
+    reservationId: string,
+    funding?: SpendFunding,
+  ): Promise<SpendReservationHandle>;
   /** Current ceiling state, for the health endpoint and metrics. */
   status(): Promise<SpendRecord>;
   /** Worst-case micro-USD this feature can cost on the priciest eligible model. */
@@ -140,14 +238,21 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
 
     status: () => ledger.read(SPEND_SCOPE.platform),
 
-    async reserve(descriptor, reservationId) {
+    async reserve(descriptor, reservationId, funding) {
       if (!billableCandidateExists(descriptor)) return FREE_HANDLE;
+
+      // Resolved ONCE, before the hold. Everything downstream — the denial
+      // message, the diagnostic, the settlement — reads this one value, and the
+      // reservation the ledger hands back carries it, so nothing can settle
+      // against a scope it did not reserve against.
+      const scope = spendScopeFor(funding);
+      const tenantFunded = scope !== SPEND_SCOPE.platform;
 
       const estimate = estimateFor(descriptor);
       // The feature id rides along as the hold's owner: after an isolate
       // restart the durable record has to say what took the money, not just how
       // much was taken.
-      const decision = await ledger.reserve(SPEND_SCOPE.platform, estimate, reservationId, {
+      const decision = await ledger.reserve(scope, estimate, reservationId, {
         owner: descriptor.featureId,
       });
 
@@ -156,12 +261,21 @@ export function createSpendGuard(options: SpendGuardOptions): SpendGuard {
         const remaining = remainingMicroUsd(decision.record);
         throw new AIError(
           'BUDGET_EXCEEDED',
-          decision.reason === 'cap_reached'
-            ? 'The platform AI spending cap has been reached. AI features are paused until it is raised.'
-            : 'This AI request would exceed the remaining platform AI spending allowance.',
+          // The message names WHOSE allowance was reached, because the remedy
+          // differs entirely. A tenant-funded refusal is that organization's own
+          // governed ceiling and is raised for that organization alone; it must
+          // not read as "MARQ has run out", which would send an administrator to
+          // the wrong console and imply an outage that is not happening.
+          tenantFunded
+            ? decision.reason === 'cap_reached'
+              ? 'Your organization’s AI spending allowance has been reached. AI features are paused for your organization until it is raised.'
+              : 'This AI request would exceed your organization’s remaining AI spending allowance.'
+            : decision.reason === 'cap_reached'
+              ? 'The platform AI spending cap has been reached. AI features are paused until it is raised.'
+              : 'This AI request would exceed the remaining platform AI spending allowance.',
           {
             diagnostics:
-              `scope=${SPEND_SCOPE.platform} reason=${decision.reason} ` +
+              `scope=${scope} reason=${decision.reason} ` +
               `estimate=${estimate} spent=${decision.record.spentMicroUsd} ` +
               `reserved=${decision.record.reservedMicroUsd} cap=${decision.record.capMicroUsd} ` +
               `remaining=${remaining}`,
