@@ -100,6 +100,16 @@ export const ADMIN_OPERATION = {
   providerSetCredential: 'providers.credentials.set',
   providerRevokeCredential: 'providers.credentials.revoke',
   providerSetModelEnabled: 'providers.models.set_enabled',
+
+  // ── Self-hosted providers (AI-01 Batch 4E) ────────────────────────────────
+  //
+  // ITS OWN OPERATION, and the only one on this surface whose body decides a
+  // HOST the runtime will dial. The provider id arrives in the BODY here rather
+  // than in the path, and that is not an exception to the rule above: every
+  // other provider route addresses an EXISTING object, so its id belongs in the
+  // path; this one CREATES the object, and there is nothing yet to address.
+  // The audit target is taken from the same validated id the service stores.
+  providerDefineSelfHosted: 'providers.self_hosted.define',
 } as const;
 
 export type AdminOperation = (typeof ADMIN_OPERATION)[keyof typeof ADMIN_OPERATION];
@@ -429,6 +439,31 @@ export async function executeAdminHttpRequest(
             actor,
             requireProviderId(request),
             credentialId,
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerDefineSelfHosted: {
+        // EVERY FIELD PASSED THROUGH UNREAD. The service is the validator: it
+        // owns the endpoint policy, the key-material scan, the model grammar
+        // and the exposure guard, and a second partial validation here would be
+        // a second thing to keep in step. Nothing in this branch holds, trims,
+        // measures or echoes a submitted value.
+        return ok({
+          provider: await admin.defineSelfHostedProvider(
+            actor,
+            {
+              providerId: body.providerId,
+              displayName: body.displayName,
+              runtime: body.runtime,
+              baseUrl: body.baseUrl,
+              credentialRequired: body.credentialRequired,
+              priority: body.priority,
+              deploymentId: body.deploymentId,
+              models: body.models,
+            },
             reasonOf(body),
             meta,
           ),

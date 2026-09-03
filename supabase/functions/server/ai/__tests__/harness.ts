@@ -43,6 +43,8 @@ import {
   unavailableSecretCipher,
 } from '../providers/credentials/secretCipher.ts';
 import { createMemoryProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
+import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
+import { createSelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
 
 export interface StubSubjectOptions {
   readonly subjectId?: string;
@@ -313,6 +315,13 @@ export interface TestAdministration extends TestPlane {
    */
   readonly providerStore: ReturnType<typeof createMemoryProviderAdministrationStore>;
   readonly credentialCipher: SecretCipher;
+  /**
+   * The self-hosted provider registrar (AI-01 Batch 4E), when the suite asked
+   * for one. Exposed so a test can assert on hydration outcomes directly.
+   */
+  readonly selfHostedProviders?: SelfHostedRegistrar;
+  /** Endpoints the injected transport saw. Empty unless a suite drove one. */
+  readonly selfHostedOutbound: string[];
   /** Authorize by role token. Rejects exactly as production would. */
   actor(token: string): ReturnType<AIAdministration['authorize']>;
 }
@@ -339,6 +348,18 @@ export interface TestAdministrationOptions extends TestPlaneOptions {
    * it off.
    */
   readonly keylessProviders?: boolean;
+  /**
+   * Enable self-hosted provider administration (AI-01 Batch 4E).
+   *
+   * OFF BY DEFAULT, exactly as the deployment switch is, so every existing
+   * suite keeps the estate it had. On, the harness builds the real registrar
+   * over the same provider store the administration service writes to — which
+   * is what production wires — and injects a transport that records the URL and
+   * never reaches a network.
+   */
+  readonly selfHostedProviders?: boolean;
+  /** Pass the local-development endpoint exception through to the policy. */
+  readonly allowPrivateEndpoints?: boolean;
 }
 
 /**
@@ -417,6 +438,32 @@ export function buildTestAdministration(
       : { credentialedProviders: { resolver: credentialResolver, policy: credentialPolicy } }),
   });
 
+  // ── Self-hosted provider registrar (AI-01 Batch 4E) ───────────────────────
+  //
+  // The SAME store the administration service writes to and the SAME resolver
+  // the adapters hold — which is what `bootstrap.ts` wires. Its transport
+  // records and never dials.
+  const selfHostedOutbound: string[] = [];
+  const selfHostedProviders = options.selfHostedProviders
+    ? createSelfHostedRegistrar({
+        registry: () => base.plane.providers,
+        credentials: () => credentialResolver,
+        store: options.withoutProviderStore ? undefined : providerStore,
+        enabled: true,
+        allowPrivateEndpoints: options.allowPrivateEndpoints,
+        fetchImpl: (url) => {
+          selfHostedOutbound.push(String(url));
+          return Promise.resolve(
+            Response.json({
+              choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            }),
+          );
+        },
+        now: () => base.clock.isoNow(),
+      })
+    : undefined;
+
   const admin = createAIAdministration({
     plane: base.plane,
     authenticator,
@@ -426,6 +473,8 @@ export function buildTestAdministration(
     logger: base.plane.logger,
     providerStore: options.withoutProviderStore ? undefined : providerStore,
     credentialCipher,
+    selfHostedProviders,
+    allowPrivateEndpoints: options.allowPrivateEndpoints,
     // THE SAME resolver the adapters hold. Production wires exactly this, so a
     // credential stored through the console is visible to the runtime without
     // waiting for a snapshot to expire — and a harness that built two would
@@ -439,6 +488,8 @@ export function buildTestAdministration(
     settingsStore,
     providerStore,
     credentialCipher,
+    selfHostedProviders,
+    selfHostedOutbound,
     actor: (token) => admin.authorize(`Bearer ${token}`),
   };
 }

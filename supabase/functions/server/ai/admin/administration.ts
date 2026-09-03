@@ -85,7 +85,9 @@ import {
   createProviderAdministration,
   type ProviderAdministrationSummary,
   type ProviderAdministrationView,
+  type SelfHostedProviderInput,
 } from './providerAdministration.ts';
+import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
 import type { ProviderAdministrationStore, ProviderCredentialMetadata } from '../providers/credentials/credentialStore.ts';
 import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
 import type { SecretCipher } from '../providers/credentials/secretCipher.ts';
@@ -330,6 +332,19 @@ export interface AdministrationDependencies {
    * never be able to hold the entire lifetime allowance. See `policy/exposure.ts`.
    */
   readonly reservationCeilingMicroUsd?: number;
+  /**
+   * The self-hosted provider registrar (AI-01 Batch 4E).
+   *
+   * The SAME registrar the runtime hydrates from. Absent,
+   * `defineSelfHostedProvider` refuses — see its own comment: a stored
+   * definition nothing will register is worse than a plain refusal.
+   */
+  readonly selfHostedProviders?: SelfHostedRegistrar;
+  /**
+   * The deployment's local-development endpoint exception, passed through to
+   * the endpoint policy. Never a request field.
+   */
+  readonly allowPrivateEndpoints?: boolean;
 }
 
 export interface AIAdministration {
@@ -471,6 +486,19 @@ export interface AIAdministration {
     providerId: string,
     modelId: string,
     enabled: boolean,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
+  /**
+   * Define a self-hosted, OpenAI-compatible provider (AI-01 Batch 4E).
+   *
+   * The only governed way an endpoint the runtime dials comes into existence.
+   * It takes no secret; a credential for the new provider is stored afterwards
+   * through `setProviderCredential`.
+   */
+  defineSelfHostedProvider(
+    actor: AIAdminActor,
+    input: SelfHostedProviderInput,
     reason: unknown,
     meta?: AdminRequestMeta,
   ): Promise<ProviderAdministrationView>;
@@ -954,6 +982,10 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     credentials: deps.credentialResolver,
     reservationCeilingMicroUsd:
       deps.reservationCeilingMicroUsd ?? plane.config.spend.maxPlatformMicroUsd,
+    // AI-01 Batch 4E. Absent, the self-hosted definition operation refuses; it
+    // never degrades into "stored but never registered".
+    selfHosted: deps.selfHostedProviders,
+    allowPrivateEndpoints: deps.allowPrivateEndpoints,
     clock,
     ids,
     logger,
@@ -1156,6 +1188,8 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       providers.revokeCredential(actor, providerId, credentialId, reason, meta),
     setProviderModelEnabled: (actor, providerId, modelId, enabled, reason, meta) =>
       providers.setModelEnabled(actor, providerId, modelId, enabled, reason, meta),
+    defineSelfHostedProvider: (actor, input, reason, meta) =>
+      providers.defineSelfHostedProvider(actor, input, reason, meta),
 
     updateProvider(actor, providerId, patch, reason, meta) {
       return mutate(actor, {

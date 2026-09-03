@@ -86,6 +86,12 @@ import { requireCapability } from './rbac.ts';
 import { exposureReport, judgeExposureChange } from '../policy/exposure.ts';
 import { safeLastFour } from '../providers/credentials/secretCipher.ts';
 import { normalizeProviderSetting } from '../runtime/operationalSettings.ts';
+import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
+import {
+  MAX_SELF_HOSTED_MODELS,
+  RESERVED_PROVIDER_IDS,
+  validateSelfHostedDefinition,
+} from '../providers/selfHosted/definition.ts';
 
 /**
  * Batch 4C administers the PLATFORM estate and refuses every other scope.
@@ -317,9 +323,51 @@ export interface ProviderAdministrationOptions {
   readonly credentials?: ProviderCredentialResolver;
   /** Governed worst-case single-request reservation, in micro-USD. */
   readonly reservationCeilingMicroUsd: number;
+  /**
+   * The self-hosted provider registrar (AI-01 Batch 4E).
+   *
+   * Absent, `defineSelfHostedProvider` REFUSES rather than degrading: storing a
+   * definition nothing will ever register would leave an operator believing
+   * they had configured a provider that cannot execute, which is the failure
+   * this whole surface is built to avoid.
+   *
+   * It is the SAME registrar the runtime hydrates from, so a definition stored
+   * here is registered by the same validated path a definition loaded at
+   * bootstrap takes. There is no second construction of a descriptor.
+   */
+  readonly selfHosted?: SelfHostedRegistrar;
+  /**
+   * The narrowly-scoped local-development exception, passed through to the
+   * endpoint policy. A DEPLOYMENT value, never a request field.
+   */
+  readonly allowPrivateEndpoints?: boolean;
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly logger: Logger;
+}
+
+/**
+ * What an administrator supplies to define a self-hosted provider
+ * (AI-01 Batch 4E).
+ *
+ * EVERY FIELD IS `unknown`, deliberately. The service is the validator: a
+ * typed input would push a cast to the HTTP boundary, which is exactly where a
+ * check quietly becomes `String(body.baseUrl)`.
+ *
+ * NOTE WHAT IS ABSENT AND CANNOT BE ADDED: there is no `certification`, no
+ * `billable`, no `productionReady` and no `secret`. Certification is a separate
+ * governed decision; billable is not configurable at all; and a credential is
+ * stored through `setCredential`, which is the one path that touches a secret.
+ */
+export interface SelfHostedProviderInput {
+  readonly providerId: unknown;
+  readonly displayName: unknown;
+  readonly runtime: unknown;
+  readonly baseUrl: unknown;
+  readonly credentialRequired: unknown;
+  readonly priority?: unknown;
+  readonly deploymentId?: unknown;
+  readonly models?: unknown;
 }
 
 export interface ProviderAdministration {
@@ -365,6 +413,29 @@ export interface ProviderAdministration {
     providerId: string,
     modelId: string,
     enabled: boolean,
+    reason: unknown,
+    meta?: { correlationId?: string; clientIp?: string },
+  ): Promise<ProviderAdministrationView>;
+  /**
+   * Define a self-hosted, OpenAI-compatible provider (AI-01 Batch 4E).
+   *
+   * THE ONE GOVERNED WRITE PATH TO AN ENDPOINT THE RUNTIME WILL DIAL, and it
+   * is deliberately narrow:
+   *
+   *   it takes `ai.providers.manage`, which is a platform-admin capability;
+   *   it writes an audit record naming the actor, the provider and the HOST;
+   *   the configuration it stores is validated by the SAME validator hydration
+   *   uses, so a row that would be refused at boot is refused at write;
+   *   the provider is registered UNCERTIFIED and DISABLED, whatever the
+   *   request said, because connection is not certification.
+   *
+   * It does NOT accept a secret. A credential for the new provider is stored
+   * afterwards through `setCredential`, which is the only operation on this
+   * service that ever holds one.
+   */
+  defineSelfHostedProvider(
+    actor: AIAdminActor,
+    input: SelfHostedProviderInput,
     reason: unknown,
     meta?: { correlationId?: string; clientIp?: string },
   ): Promise<ProviderAdministrationView>;
@@ -1173,5 +1244,221 @@ export function createProviderAdministration(
         },
       });
     },
+
+    // ── Self-hosted provider definition (AI-01 Batch 4E) ──────────────────
+    //
+    // THE ONE GOVERNED WRITE PATH TO AN ENDPOINT THE RUNTIME WILL DIAL.
+    //
+    // Read the order of operations below, because it is the security design:
+    // the definition is VALIDATED BEFORE IT IS STORED, by the same validator
+    // hydration uses, so the `configuration` column can never come to hold a
+    // value the runtime would refuse — the 4C migration's open item, closed
+    // here. Nothing is persisted until the endpoint policy has accepted the
+    // URL and the exposure guard has accepted the catalogue.
+    defineSelfHostedProvider(actor, input, reason, meta) {
+      const providerId = bounded(input.providerId, 64) ?? '';
+      return options.mutate(actor, {
+        capabilities: ['ai.providers.manage'],
+        action: ADMIN_ACTION.selfHostedProviderDefined,
+        target: providerId,
+        reason,
+        meta,
+        before: () => providerFacts(providerId),
+        run: async (auditReason) => {
+          const registrar = options.selfHosted;
+          if (!registrar) {
+            // REFUSES rather than degrading. Storing a definition nothing will
+            // register would leave an operator believing they configured a
+            // provider that cannot execute.
+            throw new AIError(
+              'INTERNAL_ERROR',
+              'Self-hosted providers are not enabled in this deployment.',
+              {
+                diagnostics: 'no self-hosted provider registrar was injected at bootstrap',
+                retryable: false,
+              },
+            );
+          }
+          const store = options.store;
+          if (!store) {
+            throw new AIError(
+              'INTERNAL_ERROR',
+              'Provider administration storage is not configured in this deployment.',
+              {
+                diagnostics: 'no ProviderAdministrationStore was injected at bootstrap',
+                retryable: false,
+              },
+            );
+          }
+
+          // A provider id the registry already holds is not a definition, it is
+          // an attempt to replace one — including, at the top of the list, a
+          // reviewed adapter. Refused before anything is read or written.
+          if (RESERVED_PROVIDER_IDS.includes(providerId)) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'That provider id belongs to a built-in adapter.',
+              { fields: ['providerId'], retryable: false },
+            );
+          }
+          if (plane.providers.find(providerId) !== undefined) {
+            throw new AIError('CONFLICT', 'A provider with that id is already registered.', {
+              diagnostics: `providerId=${providerId}`,
+              retryable: false,
+            });
+          }
+
+          const at = clock.isoNow();
+          const record: AIProviderConfigurationRecord = {
+            configurationId: ids.next('pvc'),
+            providerKey: providerId,
+            displayName: bounded(input.displayName, 120) ?? '',
+            scope: PLATFORM_SCOPE,
+            // NOT NEGOTIABLE, AND NOT READ FROM THE REQUEST. A newly defined
+            // provider is uncertified and disabled. Certification is a separate
+            // governed decision and enablement is a separate administrative
+            // one; a definition that arrived live would make both decorative.
+            enabled: false,
+            certification: 'unverified',
+            configuration: selfHostedConfigurationFrom(input),
+            createdAt: at,
+            updatedAt: at,
+            createdBy: actor.actorId,
+            updatedBy: actor.actorId,
+          };
+
+          // VALIDATED BEFORE STORED, with the deployment's own endpoint policy.
+          const validation = validateSelfHostedDefinition(record, {
+            allowPrivateEndpoints: options.allowPrivateEndpoints,
+          });
+          if (validation.ok !== true) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'That self-hosted provider definition is not valid.',
+              {
+                fields: ['baseUrl', 'models'],
+                // The reasons name FIELDS and BOUNDS. The definition validator
+                // never echoes a value it judged secret-shaped, so nothing a
+                // caller pasted can travel back out through here.
+                diagnostics: validation.reasons.join('; '),
+                retryable: false,
+              },
+            );
+          }
+
+          // The governed exposure guard, applied to a provider that does not
+          // exist yet — so the hypothetical catalogue is built from the
+          // VALIDATED model list rather than from the registry.
+          const beforeExposure = exposureReport(plane.catalog.list(), effectiveCatalogue());
+          const afterExposure = exposureReport(plane.catalog.list(), [
+            ...effectiveCatalogue(),
+            { providerId, billable: true, models: validation.definition.models },
+          ]);
+          const verdict = judgeExposureChange(
+            beforeExposure,
+            afterExposure,
+            options.reservationCeilingMicroUsd,
+          );
+          if (!verdict.permitted) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'This provider would raise the platform’s worst-case AI spending exposure past the governed ceiling.',
+              { fields: ['models'], diagnostics: verdict.reason, retryable: false },
+            );
+          }
+
+          await store.saveConfiguration(record);
+          // Model ROWS are administration state — enablement and certification
+          // for models the definition already declares. They create no runtime
+          // capability; the descriptor's catalogue comes from the definition.
+          for (const model of validation.definition.models) {
+            await store.saveModel({
+              modelRecordId: ids.next('pvm'),
+              configurationId: record.configurationId,
+              providerKey: providerId,
+              modelId: model.modelId,
+              displayName: model.modelId,
+              enabled: true,
+              certification: 'unverified',
+              createdAt: at,
+              updatedAt: at,
+              updatedBy: actor.actorId,
+            });
+          }
+
+          // Registered through the SAME path bootstrap hydration takes. There
+          // is no second construction of a descriptor anywhere.
+          await registrar.hydrate();
+          // The credential snapshot has to learn the new provider exists before
+          // the view below reports its credential state, or the console would
+          // render "unconfigured" for a provider it just created.
+          await options.credentials?.refresh();
+
+          logger.info('ai.admin.provider.self_hosted.defined', {
+            providerId,
+            // The HOST, never the whole URL and never a query — there is no
+            // query, the policy refuses one, and a host is what an incident
+            // review needs.
+            endpointHost: validation.definition.endpoint.host,
+            runtime: validation.definition.runtime,
+            models: validation.definition.models.length,
+            reason: auditReason,
+          });
+
+          return {
+            after: await providerFacts(providerId),
+            result: await buildView(providerId),
+          };
+        },
+      });
+    },
   };
+}
+
+/**
+ * Flatten an administrator's submission into the stored configuration map.
+ *
+ * The console works in objects and the column is a flat map of strings, and
+ * this is the ONE place that translation happens. It VALIDATES NOTHING — every
+ * value goes through `validateSelfHostedDefinition` immediately afterwards, and
+ * a second, partial validation here would be a second thing to keep in step.
+ *
+ * A value that is not a string is stringified rather than dropped, so a caller
+ * who sends `credentialRequired: true` as a JSON boolean gets a definition that
+ * validates rather than a confusing "must be explicitly true or false" for a
+ * field they plainly set. Anything genuinely unusable still fails validation.
+ */
+function selfHostedConfigurationFrom(
+  input: SelfHostedProviderInput,
+): Readonly<Record<string, string>> {
+  const configuration: Record<string, string> = {};
+  const put = (key: string, value: unknown): void => {
+    if (value === undefined || value === null) return;
+    configuration[key] = typeof value === 'string' ? value.trim() : String(value);
+  };
+
+  put('runtime', input.runtime);
+  put('baseUrl', input.baseUrl);
+  put('credentialRequired', input.credentialRequired);
+  put('priority', input.priority);
+  put('deploymentId', input.deploymentId);
+
+  const models = Array.isArray(input.models) ? input.models : [];
+  // Bounded HERE as well as in the validator, so a caller cannot make this
+  // function build a 10,000-key object before anything gets to refuse it.
+  for (const [index, model] of models.slice(0, MAX_SELF_HOSTED_MODELS + 1).entries()) {
+    if (model === null || typeof model !== 'object') {
+      // Recorded as an unusable model entry rather than skipped, so the
+      // validator refuses the definition instead of silently shortening it.
+      configuration[`model.${index}.id`] = String(model);
+      continue;
+    }
+    // Bounded per model too. The validator's total-key ceiling would refuse an
+    // oversized submission anyway, but only after this function had built the
+    // object — so the bound is applied where the object is built.
+    for (const [field, value] of Object.entries(model as Record<string, unknown>).slice(0, 24)) {
+      put(`model.${index}.${field}`, value);
+    }
+  }
+  return configuration;
 }

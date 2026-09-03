@@ -171,6 +171,24 @@ function environmentSecret(
 export interface CredentialResolverOptions {
   /** Provider profiles, keyed by provider id. Derived from descriptors. */
   readonly profiles: readonly CredentialProviderProfile[];
+  /**
+   * Profiles for providers registered AFTER this resolver was built
+   * (AI-01 Batch 4E).
+   *
+   * A FUNCTION, read on every call, because self-hosted providers arrive from
+   * asynchronous hydration and bootstrap is synchronous: the resolver is
+   * assembled before those definitions have been loaded, and rebuilding it
+   * afterwards would leave the adapters already registered holding a resolver
+   * nobody updates.
+   *
+   * IT CANNOT SHADOW A REVIEWED ADAPTER. `profiles` above wins on every
+   * conflict, so no dynamically-registered definition can change how OpenAI or
+   * Anthropic resolve — a stored row that claimed `openai` would be refused by
+   * the registrar first and would be ignored here even if it were not.
+   *
+   * Absent, this resolver is byte for byte the Batch 4C/4D one.
+   */
+  readonly additionalProfiles?: () => readonly CredentialProviderProfile[];
   readonly clock: Clock;
   /** The deployment environment, for the compatibility source. */
   readonly env?: EnvSource;
@@ -198,6 +216,26 @@ export function createProviderCredentialResolver(
   options: CredentialResolverOptions,
 ): ProviderCredentialResolver {
   const profiles = new Map(options.profiles.map((profile) => [profile.providerId, profile]));
+
+  /**
+   * The profile in force for a provider.
+   *
+   * STATIC PROFILES WIN. A dynamic profile is only consulted for a provider id
+   * no reviewed adapter claims, which is what makes "hydration cannot widen a
+   * built-in provider's credential policy" structural rather than a convention.
+   */
+  function profileOf(providerId: string): CredentialProviderProfile | undefined {
+    const declared = profiles.get(providerId);
+    if (declared) return declared;
+    return options.additionalProfiles?.().find((profile) => profile.providerId === providerId);
+  }
+
+  /** Every provider id this resolver can answer for, static first. */
+  function knownProviderIds(): readonly string[] {
+    const ids = new Set(profiles.keys());
+    for (const profile of options.additionalProfiles?.() ?? []) ids.add(profile.providerId);
+    return [...ids];
+  }
   const scope: AIProviderScope = options.scope ?? 'platform';
   const ttlMs = options.snapshotTtlMs ?? DEFAULT_CREDENTIAL_SNAPSHOT_TTL_MS;
   const managedAvailable = options.store !== undefined && options.cipher?.available === true;
@@ -220,7 +258,7 @@ export function createProviderCredentialResolver(
     // the CONSOLE's view and never execution — `resolve` does not read it.
     const configurations = await options.store.listConfigurations(scope);
     for (const configuration of configurations) {
-      const profile = profiles.get(configuration.providerKey);
+      const profile = profileOf(configuration.providerKey);
       if (!profile?.manageable) continue;
       const active = await options.store.activeCredential(configuration.configurationId);
       if (!active) continue;
@@ -482,7 +520,7 @@ export function createProviderCredentialResolver(
 
   function describe(providerId: string): ProviderCredentialAvailability {
     const at = options.clock.isoNow();
-    const profile = profiles.get(providerId);
+    const profile = profileOf(providerId);
     if (!profile) return unavailable(providerId, at);
 
     // A provider that needs no credential is CONFIGURED, by definition. The
@@ -528,11 +566,11 @@ export function createProviderCredentialResolver(
     refresh,
 
     snapshot() {
-      return [...profiles.keys()].sort().map(describe);
+      return [...knownProviderIds()].sort().map(describe);
     },
 
     async resolve(providerId, tenant): Promise<ResolvedProviderCredential | undefined> {
-      const profile = profiles.get(providerId);
+      const profile = profileOf(providerId);
       if (!profile?.required) return undefined;
 
       // ── 0. The tenant's own credential (AI-01 Batch 4D) ───────────────────

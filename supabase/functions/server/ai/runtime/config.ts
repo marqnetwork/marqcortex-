@@ -169,6 +169,36 @@ export interface AIControlPlaneConfig {
     readonly snapshotTtlMs: number;
   };
 
+  /**
+   * Self-hosted / OpenAI-compatible providers (AI-01 Batch 4E).
+   *
+   * Both switches are DEPLOYMENT-level and neither is reachable from a request
+   * body, a configuration row or the administration surface. A control an
+   * administrator can flip is a control an attacker who reaches the
+   * administration surface can flip, and these two decide whether the runtime
+   * will dial an operator-supplied URL at all.
+   */
+  readonly selfHosted: {
+    /**
+     * Whether persisted self-hosted provider definitions are hydrated.
+     *
+     * OFF BY DEFAULT. With it off the registry holds exactly what it held
+     * before this batch, no stored endpoint is read and none can be dialled —
+     * which makes it the emergency stop for the whole capability as well as its
+     * opt-in.
+     */
+    readonly enabled: boolean;
+    /**
+     * The narrowly-scoped local-development exception: admits `http` and
+     * private/loopback endpoints so a developer can point Cortex at an Ollama
+     * or LM Studio server on their own machine.
+     *
+     * OFF BY DEFAULT, reported loudly by bootstrap when it is on, and it never
+     * admits a cloud metadata address. See `providers/selfHosted/endpointPolicy.ts`.
+     */
+    readonly allowPrivateEndpoints: boolean;
+  };
+
   readonly audit: {
     /** Persist audit records to durable storage as well as the buffer. */
     readonly durable: boolean;
@@ -446,6 +476,11 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
         min: 0,
         max: 300_000,
       }),
+    },
+
+    selfHosted: {
+      enabled: readBool(env, 'AI_SELF_HOSTED_PROVIDERS_ENABLED', false),
+      allowPrivateEndpoints: readBool(env, 'AI_SELF_HOSTED_ALLOW_PRIVATE_ENDPOINTS', false),
     },
 
     audit: {
