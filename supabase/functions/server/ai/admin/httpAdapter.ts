@@ -79,6 +79,8 @@ export const ADMIN_OPERATION = {
   resetOrganizationBudget: 'budget.organization.reset',
   increaseOrganizationBudget: 'budget.organization.increase',
   usage: 'usage.read',
+  /** Routing decisions and their economics (AI-01 Batch 4F). Read-only. */
+  routing: 'routing.read',
   diagnostics: 'diagnostics.read',
   executionAudit: 'audit.execution',
   adminAudit: 'audit.administrative',
@@ -160,6 +162,7 @@ function readSettingsPatch(body: Record<string, unknown>): AIOperationalSettings
   const retry = record(body.retry);
   const timeout = record(body.timeout);
   const budget = record(body.budget);
+  const routing = record(body.routing);
 
   const patch: Record<string, unknown> = {
     aiEnabled: optionalBool(body.aiEnabled),
@@ -187,6 +190,16 @@ function readSettingsPatch(body: Record<string, unknown>): AIOperationalSettings
   }
   if ('timeout' in body) {
     patch.timeout = { workflowDeadlineMs: optionalNumber(timeout.workflowDeadlineMs) };
+  }
+  if ('routing' in body) {
+    patch.routing = {
+      // The strategy is read as a bare string and validated by the normaliser
+      // against the declared list — there is no free-text routing field that
+      // reaches a decision, and an unrecognised value keeps the current
+      // strategy rather than resetting it.
+      strategy: typeof routing.strategy === 'string' ? routing.strategy : undefined,
+      maxProviders: optionalNumber(routing.maxProviders),
+    };
   }
   if ('budget' in body) {
     patch.budget = {
@@ -379,6 +392,9 @@ export async function executeAdminHttpRequest(
 
       case ADMIN_OPERATION.usage:
         return ok({ usage: await admin.usage(actor) });
+
+      case ADMIN_OPERATION.routing:
+        return ok({ routing: admin.routing(actor, request.limit) });
 
       case ADMIN_OPERATION.diagnostics:
         return ok({ diagnostics: await admin.diagnostics(actor) });

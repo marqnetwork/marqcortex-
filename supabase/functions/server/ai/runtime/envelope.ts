@@ -56,6 +56,15 @@ export interface DeploymentEnvelope {
   readonly actorDailyMicroUsd: number;
   /** The longest whole-workflow deadline an administrator may set. */
   readonly workflowDeadlineMs: number;
+  /**
+   * The widest failover breadth an administrator may set (AI-01 Batch 4F).
+   *
+   * A spend and latency bound rather than a tuning knob: every additional
+   * provider one request may be routed across is another vendor that can be
+   * dialled before the request gives up. The deployment states the ceiling and
+   * an administrator moves below it.
+   */
+  readonly routingMaxProviders: number;
 }
 
 export function envelopeFrom(config: AIControlPlaneConfig): DeploymentEnvelope {
@@ -68,6 +77,7 @@ export function envelopeFrom(config: AIControlPlaneConfig): DeploymentEnvelope {
     organizationDailyMicroUsd: config.budget.organizationDailyMicroUsd,
     actorDailyMicroUsd: config.budget.actorDailyMicroUsd,
     workflowDeadlineMs: config.workflowDeadlineMs,
+    routingMaxProviders: config.routing.maxProviders,
   };
 }
 
@@ -102,6 +112,15 @@ export function applyEnvelope(
     // deployment imposed — and turning one on never turns another on.
     requireCertifiedAgents: settings.requireCertifiedAgents || envelope.requireCertifiedAgents,
     requireCertifiedTools: settings.requireCertifiedTools || envelope.requireCertifiedTools,
+    routing: {
+      // The strategy is NOT clamped. It cannot admit a provider, cannot spend
+      // money the deployment withheld and cannot lift a certification
+      // requirement — it only orders what is already eligible, so it is a
+      // tuning decision the administrator owns outright. The breadth IS
+      // clamped, because it bounds how many vendors one request may reach.
+      ...settings.routing,
+      maxProviders: Math.min(settings.routing.maxProviders, envelope.routingMaxProviders),
+    },
     timeout: {
       workflowDeadlineMs: Math.min(
         settings.timeout.workflowDeadlineMs,
@@ -161,6 +180,11 @@ export function envelopeAdjustments(
   }
   if (requested.budget.actorDailyMicroUsd !== applied.budget.actorDailyMicroUsd) {
     notes.push(`actor daily allowance capped at ${applied.budget.actorDailyMicroUsd} micro-USD`);
+  }
+  if (requested.routing.maxProviders !== applied.routing.maxProviders) {
+    notes.push(
+      `failover breadth capped at ${applied.routing.maxProviders} provider(s) by this deployment`,
+    );
   }
   if (requested.timeout.workflowDeadlineMs !== applied.timeout.workflowDeadlineMs) {
     notes.push(`workflow deadline capped at ${applied.timeout.workflowDeadlineMs} ms`);

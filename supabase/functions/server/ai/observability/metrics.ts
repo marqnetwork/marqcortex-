@@ -197,5 +197,8 @@ export const METRIC = {
   governanceFlagsTotal: 'ai_governance_flags_total',
   redactionsTotal: 'ai_redactions_total',
   factLockRestoresTotal: 'ai_fact_lock_restores_total',
+  routingDecisionsTotal: 'ai_routing_decisions_total',
+  routingPremiumMicroUsdTotal: 'ai_routing_premium_micro_usd_total',
+  routingBudgetExhaustedTotal: 'ai_routing_budget_exhausted_total',
   rateLimitScopes: 'ai_rate_limit_scopes',
 } as const;

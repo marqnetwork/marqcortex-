@@ -79,6 +79,8 @@ import {
   toChangeMap,
 } from './adminAudit.ts';
 import { requireCapability, resolveAdminActor, scopeAllows, scopeRecords } from './rbac.ts';
+import type { RoutingOutcome, RoutingStrategy } from '../routing/contracts/routing.ts';
+import type { RoutingSummary } from '../routing/routingLedger.ts';
 import { createAuditedMutationRunner, createMutationChain } from './auditedMutation.ts';
 import { buildUsageReport } from './usage.ts';
 import {
@@ -347,6 +349,25 @@ export interface AdministrationDependencies {
   readonly allowPrivateEndpoints?: boolean;
 }
 
+/**
+ * The routing view an operator reads (AI-01 Batch 4F).
+ *
+ * The strategy currently in force, the breadth one request may span, the
+ * economics recorded since this isolate started, and the recent decisions
+ * behind them. Nothing here is an authority: the numbers are reconciled from
+ * the same attempts the spend ledger settled, and reading them changes no
+ * execution decision.
+ */
+export interface AdminRoutingView {
+  readonly strategy: RoutingStrategy;
+  readonly maxProviders: number;
+  readonly failoverEnabled: boolean;
+  /** The deployment's own ceiling on the breadth, for the console to show. */
+  readonly deploymentMaxProviders: number;
+  readonly summary: RoutingSummary;
+  readonly recent: readonly RoutingOutcome[];
+}
+
 export interface AIAdministration {
   /** Resolve and authorize the caller. Throws `AUTH_REQUIRED` or `FORBIDDEN`. */
   authorize(authorization: string | null, meta?: AdminRequestMeta): Promise<AIAdminActor>;
@@ -530,6 +551,8 @@ export interface AIAdministration {
   ): Promise<ProviderAdministrationView>;
 
   usage(actor: AIAdminActor): Promise<UsageReport>;
+  /** Routing, its economics and the recent decisions behind them (Batch 4F). */
+  routing(actor: AIAdminActor, limit?: number): AdminRoutingView;
   diagnostics(actor: AIAdminActor): Promise<AdminDiagnostics>;
   executionAudit(actor: AIAdminActor, limit?: number): readonly AIAuditRecord[];
   adminAudit(actor: AIAdminActor, limit?: number): readonly AdminAuditRecord[];
@@ -816,6 +839,24 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
     ) {
       required.add('ai.admin.settings.write');
     }
+    // ── ROUTING SPLITS ACROSS TWO GRANTS (AI-01 Batch 4F) ──────────────────
+    //
+    // The two fields are different decisions and demand different authority.
+    //
+    //   `strategy` decides WHICH provider serves — the same class of decision
+    //   as the preference order and the pinned default beside it, so it demands
+    //   the provider grant.
+    //
+    //   `maxProviders` bounds how far one request may fail over, which is a
+    //   spend and latency bound of exactly the kind `failoverEnabled` is, so it
+    //   demands the settings grant.
+    //
+    // A caller who sends both needs both. Deriving the requirement from the
+    // fields rather than from the group is the rule this function already
+    // follows, and it is what keeps a routing patch from becoming a way to
+    // steer providers with only the settings grant.
+    if (patch.routing?.strategy !== undefined) required.add('ai.admin.provider.write');
+    if (patch.routing?.maxProviders !== undefined) required.add('ai.admin.settings.write');
     // An empty patch still demands a grant. Without this, a caller with no
     // write capability at all could reach the mutation path, be audited as
     // "applied", and bump the configuration version with nothing in it.
@@ -1540,6 +1581,30 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       };
     },
 
+    routing(actor, limit = 50) {
+      read(actor, 'ai.admin.view');
+      const settings = live();
+      const bounded = Math.min(Math.max(Math.trunc(limit) || 50, 1), 200);
+      // Read wide, scope, then truncate — the same order `executionAudit` uses,
+      // so a narrow-scoped administrator does not silently get fewer records
+      // than they asked for whenever another tenant is busy.
+      const records = plane.routing.recent(200);
+      return {
+        strategy: settings.routing.strategy,
+        maxProviders: settings.routing.maxProviders,
+        failoverEnabled: settings.failoverEnabled,
+        deploymentMaxProviders: plane.config.routing.maxProviders,
+        // The SUMMARY IS PLATFORM-WIDE AND STAYS THAT WAY. It carries no
+        // organization id, so there is nothing to scope it by, and a
+        // per-tenant re-aggregation would be a second set of numbers that
+        // could disagree with the spend ledger. Only the platform operator
+        // reaches it — `ai.admin.view` above, and the grant table gives the
+        // organization tier viewer capabilities scoped to its own records.
+        summary: plane.routing.summary(),
+        recent: scopeRecords(actor, records, (record) => record.organizationId).slice(0, bounded),
+      };
+    },
+
     executionAudit(actor, limit = 50) {
       read(actor, 'ai.admin.audit.read');
       const bounded = Math.min(Math.max(Math.trunc(limit) || 50, 1), 200);
@@ -1578,6 +1643,8 @@ function settingsFacts(settings: AIOperationalSettings): Readonly<Record<string,
     providerPreference: settings.providerPreference,
     fallbackProviderId: settings.fallbackProviderId ?? '(none)',
     failoverEnabled: settings.failoverEnabled,
+    routingStrategy: settings.routing.strategy,
+    routingMaxProviders: settings.routing.maxProviders,
     requireCertifiedProviders: settings.requireCertifiedProviders,
     requireCertifiedAgents: settings.requireCertifiedAgents,
     requireCertifiedTools: settings.requireCertifiedTools,

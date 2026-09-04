@@ -40,6 +40,9 @@
  * the change that produced it.
  */
 
+import type { RoutingStrategy } from '../routing/contracts/routing.ts';
+import { isRoutingStrategy } from '../routing/contracts/routing.ts';
+import { ROUTING_BOUNDS, clampMaxProviders } from '../routing/engine/routingPolicy.ts';
 import type { AIControlPlaneConfig } from './config.ts';
 import type { DeploymentEnvelope } from './envelope.ts';
 import { applyEnvelope } from './envelope.ts';
@@ -61,6 +64,26 @@ export interface AIBudgetSettings {
   readonly actorDailyMicroUsd: number;
   readonly alertThresholdPercent: number;
   readonly enforce: boolean;
+}
+
+/**
+ * Provider routing, as an administrator may move it (AI-01 Batch 4F).
+ *
+ * Both fields steer or bound execution among providers the platform has
+ * ALREADY found eligible. Neither can admit one: an administrator who wants a
+ * provider to serve still has to enable it, certify it and credential it, and
+ * the deployment still has to permit real requests.
+ */
+export interface AIRoutingSettings {
+  readonly strategy: RoutingStrategy;
+  /**
+   * Providers ONE request may be routed across, at most.
+   *
+   * Narrowed by the deployment's own `AI_ROUTING_MAX_PROVIDERS`: this is a
+   * spend and latency bound, so an administrator may tighten it freely and may
+   * never raise it past what the deployment authorised.
+   */
+  readonly maxProviders: number;
 }
 
 export interface AIProviderSetting {
@@ -98,6 +121,8 @@ export interface AIOperationalSettings {
   readonly providerPreference: readonly string[];
   readonly fallbackProviderId?: string;
   readonly failoverEnabled: boolean;
+  /** How eligible providers are ordered, and how far one request may fail over. */
+  readonly routing: AIRoutingSettings;
   readonly requireCertifiedProviders: boolean;
   /**
    * Certification requirements for the agent runtime (AI-01 Batch 3A).
@@ -130,6 +155,7 @@ export interface AIOperationalSettingsPatch {
   readonly providerPreference?: readonly string[];
   readonly fallbackProviderId?: string | null;
   readonly failoverEnabled?: boolean;
+  readonly routing?: Partial<AIRoutingSettings>;
   readonly requireCertifiedProviders?: boolean;
   readonly requireCertifiedAgents?: boolean;
   readonly requireCertifiedTools?: boolean;
@@ -156,6 +182,8 @@ export const SETTINGS_BOUNDS = {
   /** Providers an administrator may list in a preference order. */
   maxPreferenceEntries: 12,
   maxModelAllowList: 24,
+  /** Providers one request may be routed across. Batch 4F. */
+  routingMaxProviders: ROUTING_BOUNDS.maxProviders,
   /** Identifier shape accepted for a provider or model id. */
   identifier: /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,79}$/,
 } as const;
@@ -212,6 +240,7 @@ export function baselineSettings(
     providerPreference: [...config.providerPreference],
     fallbackProviderId: config.fallbackProviderId,
     failoverEnabled: config.failoverEnabled,
+    routing: { ...config.routing },
     requireCertifiedProviders: config.requireCertifiedProviders,
     requireCertifiedAgents: config.requireCertifiedAgents,
     requireCertifiedTools: config.requireCertifiedTools,
@@ -239,6 +268,7 @@ export function normalizeOperationalSettings(
   patch: AIOperationalSettingsPatch,
 ): AIOperationalSettings {
   const retry = patch.retry ?? {};
+  const routing = patch.routing ?? {};
   const timeout = patch.timeout ?? {};
   const budget = patch.budget ?? {};
 
@@ -260,6 +290,13 @@ export function normalizeOperationalSettings(
       current.providerPreference,
     fallbackProviderId: nullableId(patch.fallbackProviderId, current.fallbackProviderId),
     failoverEnabled: asBool(patch.failoverEnabled, current.failoverEnabled),
+    routing: {
+      // An unrecognised strategy keeps the current one rather than falling back
+      // to a default: a typo in a console field must not silently re-steer a
+      // platform that had deliberately been put on another strategy.
+      strategy: isRoutingStrategy(routing.strategy) ? routing.strategy : current.routing.strategy,
+      maxProviders: clampMaxProviders(routing.maxProviders, current.routing.maxProviders),
+    },
     requireCertifiedAgents: asBool(patch.requireCertifiedAgents, current.requireCertifiedAgents),
     requireCertifiedTools: asBool(patch.requireCertifiedTools, current.requireCertifiedTools),
     requireCertifiedProviders: asBool(

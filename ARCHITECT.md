@@ -1016,6 +1016,60 @@ own credential state could occupy.
 
 ---
 
+### 12.7 Provider Routing (AI-01 Batch 4F)
+
+`supabase/functions/server/ai/routing/` — how the platform chooses BETWEEN
+providers it has already decided it may use, how far one request may fail over,
+and what that choice costs.
+
+| Module | Holds |
+|---|---|
+| `contracts/routing.ts` | Strategies, signals, the decision, the reconciled outcome |
+| `engine/routingPolicy.ts` | The deterministic ordering, its four invariants, the breadth truncation |
+| `engine/economics.ts` | Per-attempt projection, request projection, plan ceiling, signed variance |
+| `routingLedger.ts` | Bounded operational view of decisions and outcomes |
+
+**Routing orders; it does not admit.** Eligibility keeps its one owner — the
+registry decides operational state and `providers/selector.ts` applies the kill
+switch, certification, credentials, the circuit and capability matching, in the
+same function and the same order as before this batch. The routed order is
+asserted to be a subset of what routing was offered, in the policy and again in
+the selector.
+
+**Four invariants sit ahead of every strategy's own key.** The configured
+fallback stays last; a provider that charges nothing is never promoted above
+paid capacity (the mock costs zero, and a naive cost ranking would answer every
+request on a deployment that authorised real spending with a synthetic
+completion); a half-open circuit is unproven rather than healthy; and the
+default `preference` strategy returns the selector's order untouched, so
+adopting this batch and configuring nothing changes no routing.
+
+**The billable attempt budget.** The spend guard reserves
+`worst-case model x maxAttempts` per REQUEST; the pipeline used to grant a fresh
+allowance of `maxAttempts` to every failover candidate, so two paid providers
+meant four paid attempts against a hold covering two. The budget is now per
+request and is spent by billable attempts only — a non-billable provider costs
+nothing and remains the last resort a total vendor outage degrades to. The
+certified 105,920 uUSD `cortex.chat` hold did not move; the execution path now
+matches it.
+
+| Setting | Grant | Bound |
+|---|---|---|
+| `routing.strategy` | `ai.admin.provider.write` | Validated against the declared set; an unrecognised value keeps the current strategy. Not envelope-clamped — it cannot admit a provider or spend anything the deployment withheld |
+| `routing.maxProviders` | `ai.admin.settings.write` | 1-6 absolute, then `AI_ROUTING_MAX_PROVIDERS` (default 3) as the deployment ceiling |
+
+Both are fields of the SETTINGS patch. `/ai/admin/routing` is a GET and there is
+no routing write path, so every change passes through the same authorisation,
+normalisation, envelope, versioning and audit trail as every other setting.
+
+Console: the **Routing** tab of `AIAdministrationConsole.tsx`
+(`RoutingPanel.tsx`) — no provider name in any executable branch, no free-text
+strategy field, and no contract a secret, prompt or completion could occupy.
+
+Report: `architecture/ai/AI-01-BATCH-4F-COMPLETION.md`
+
+---
+
 ## 13. Contexts & hooks
 
 | File | ID | Holds |

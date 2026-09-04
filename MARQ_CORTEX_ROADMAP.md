@@ -72,6 +72,12 @@ Status Legend
 | AI-01 Batch 2 | AI Administration & Operations | ✅ |
 | AI-01 Batch 3A | Agent Runtime & Orchestrator Core | ✅ |
 | AI-01 Batch 3B | Agent Workflows & Business Agents | ✅ |
+| AI-01 Batch 4A | Live Provider Certification (OpenAI) | ✅ |
+| AI-01 Batch 4B | Live Provider Certification (Anthropic) | ✅ |
+| AI-01 Batch 4C | Provider Administration | ✅ |
+| AI-01 Batch 4D | Customer BYOK | ✅ |
+| AI-01 Batch 4E | Self-Hosted / OpenAI-Compatible Providers | ✅ |
+| AI-01 Batch 4F | Routing, Failover & Economics | ✅ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -189,6 +195,32 @@ source. A deployment that turns nothing on runs an empty workflow registry, and
 the operator surface refuses to start the review rather than quietly starting
 it.
 
+AI-01 Batch 4F completed 2026-09-04. Report:
+`architecture/ai/AI-01-BATCH-4F-COMPLETION.md`
+
+Delivered: the Routing Authority (`supabase/functions/server/ai/routing/`) — a
+deterministic, governed policy that ORDERS providers the selector has already
+found eligible and can never admit one. Four strategies (preference, cost,
+latency, resilience) with four invariants ahead of every strategy's own key: the
+configured fallback stays last, a provider that charges nothing is never
+promoted above paid capacity, a half-open circuit is unproven rather than
+healthy, and the default `preference` strategy returns the selector's order
+untouched. Eligibility is unchanged and keeps its one owner.
+
+A governed failover breadth (`AI_ROUTING_MAX_PROVIDERS`, deployment-capped,
+administrator-narrowable) bounds a walk that was previously unbounded. A
+per-request BILLABLE ATTEMPT BUDGET closes the certified defect that the spend
+guard reserved `maxAttempts` per request while the pipeline granted
+`maxAttempts` to every failover candidate — the certified 105,920 uUSD
+`cortex.chat` hold did not move; the execution path now matches it.
+
+Economics on one arithmetic: projected cost, cheapest paid alternative, routing
+premium, realized spend and signed variance, reconciled per request into a
+bounded operational ledger holding no prompt, completion, actor or credential.
+Metrics, events and a Routing tab in the AI Administration console. No schema
+change, no migration, no new secret, and no routing write path — the strategy
+and the breadth are settings fields, audited like every other.
+
 ---
 
 # Current Sprint
@@ -240,6 +272,12 @@ AI Business Capability Authority: one certified capability —
 only where `AI_DIAGNOSTIC_REVIEW_ENABLED` is on AND durable storage and a
 submission source exist; off by default. Readiness scores, ranking and
 dependencies remain the deterministic engines'.
+
+AI Routing Authority: the Routing Authority
+(`supabase/functions/server/ai/routing/`) — orders providers the selector has
+already found eligible, and admits none. Deterministic and replayable; the
+routed order is asserted to be a subset of what routing was offered. One
+request's billable attempts are bounded by what the spend guard reserved for it.
 
 AI Operational Authority: AI Administration (`supabase/functions/server/ai/admin/`)
 — settings overlay persisted at `ai:admin:settings`, versioned by
