@@ -225,6 +225,150 @@ neutral contract is wrong — fix the contract, do not leak the vendor upward.
 
 ---
 
+## 1b. Self-hosted / OpenAI-compatible providers (AI-01 Batch 4E)
+
+**Do not write an adapter for one.** Ollama, vLLM, LM Studio, LocalAI and every
+other server exposing an OpenAI-compatible `/chat/completions` endpoint are one
+RUNTIME CATEGORY, not five vendors. `ai/providers/selfHostedProvider.ts` serves
+all of them, and the deployment is CONFIGURATION.
+
+Section 1 above still applies to a genuinely new vendor wire format. This
+section is for pointing Cortex at a model server that already speaks a format it
+knows.
+
+### How one comes into existence
+
+```
+MARQ platform admin  ──▶  POST /ai/admin/provider-administration/self-hosted
+                                    │  ai.providers.manage, audited, reasoned
+                                    ▼
+                          endpoint policy + definition validator
+                                    │  refuses, or produces a ValidatedEndpoint
+                                    ▼
+                    cortex.ai_provider_configuration  (flat, non-secret)
+                                    │
+                                    ▼
+                          SelfHostedRegistrar.hydrate()
+                                    │  the SAME path bootstrap takes
+                                    ▼
+                          ProviderRegistry  (uncertified, disabled)
+```
+
+It is **validated before it is stored**, so the column cannot come to hold a
+value the runtime would refuse, and validated **again on every hydration**, so a
+row that reached storage some other way still cannot become callable.
+
+### The three things a stored row may NOT decide
+
+| Fact | Where it comes from | Why not the row |
+|---|---|---|
+| `billable` | always `true` | A self-hosted endpoint performs a real outbound request, and "self-hosted" is a topology, not a promise nobody is charging. `AI_ALLOW_REAL_REQUESTS` is built on this flag; a configurable one would be a documented way around the kill switch. Zero COST stays expressible — declare `0` micro-USD. |
+| `productionReady` | `certification === 'certified'` | The registry promotes an `unverified` provider on its first success when the descriptor says production ready. A self-declared value would mean one successful call to an operator's own endpoint silently certifies it. |
+| runtime capability | the validated definition only | An `ai_provider_model` row administers ENABLEMENT for a model the definition already declares. Typing a model id into storage produces an administered row for something the runtime does not serve. |
+
+**Enabled requires certified.** The row's `enabled` column is the operator's
+switch and its `certification` column is MARQ's governance decision; a
+self-hosted provider serves only when both say yes. It is registered either way,
+because the console is where it gets certified.
+
+### The lifecycle, and why it has four steps
+
+```
+define      POST   /provider-administration/self-hosted           uncertified, disabled
+certify     POST   /provider-administration/:id/certification      MARQ's governance decision
+enable      POST   /provider-administration/:id/enabled            the operational switch
+credential  POST   /provider-administration/:id/credentials        only if required
+```
+
+**Enabling before certifying is refused**, and certifying enables nothing. The
+registry carries the rule durably — a self-hosted descriptor sets
+`certificationGatesEnablement`, so `setEnabled(true)` is clamped and `stateOf`
+reports `disabled` however the persisted overlay is spelled. Built-in adapters
+do not declare it and are unaffected.
+
+**Any definition write withdraws certification.** What MARQ certified was a
+specific endpoint serving a specific catalogue; carrying the decision across a
+write would let an operator certify a benign host and then repoint it, and
+deciding which edits are "material enough" would put that question on a diffing
+heuristic. Administrative enablement survives the write — the gate keeps it
+inert until certification is granted again.
+
+### The endpoint policy is the SSRF boundary
+
+`ai/providers/selfHosted/endpointPolicy.ts` is the only producer of a
+`ValidatedEndpoint`, and `selfHostedDescriptor` cannot be reached without one —
+so "an invalid stored endpoint is never callable" is a property of the types.
+
+It refuses, each for its own reason: a non-`https` scheme; embedded credentials;
+any query string or fragment; key-shaped text anywhere in the URL; loopback
+(`localhost`, `127/8`, `::1`, and the integer and octal spellings the URL parser
+normalises); RFC1918, CGNAT and IPv6 ULA; link-local (`169.254/16`, `fe80::/10`);
+cloud metadata addresses by name and by literal, including IPv4-mapped IPv6
+forms; malformed hosts; dot segments and encoded separators, checked on the RAW
+string because the URL parser resolves them.
+
+**Redirects are refused, not followed.** The adapter sets `redirect: 'error'`.
+An independent certification gate proved what the default costs: a validated
+HTTPS endpoint answered `307` with `Location: http://127.0.0.1/...`, and the
+adapter dialled it, forwarded the tenant prompt and returned the internal
+service's body as the completion. Following a redirect safely would mean
+re-running the whole policy against every `Location` with a hop limit and
+getting the scheme-downgrade rules right — a networking design, not a provider
+adapter. An OpenAI-compatible endpoint has no reason to redirect, so the safe
+answer and the simple one coincide.
+
+**It cannot catch DNS rebinding**, and this is a real remaining limitation
+rather than a theoretical one. The hostname is validated syntactically; DNS
+resolution happens later, inside `fetch`, and the edge runtime offers no socket
+hook or resolver control. A hostname an operator configures that resolves to a
+private or metadata address is not caught here — no rebinding race is even
+needed. What limits it in practice is the **https-only rule**: a plaintext
+metadata service cannot complete a TLS handshake for that name, so the classic
+`169.254.169.254` chain does not complete. Internal services holding a valid
+certificate for the configured name remain reachable. The real control for a
+deployment that needs one is **network-level egress policy**, which is outside
+this platform. Certification being a human decision reduces the chance of a
+hostile endpoint being configured; it is not a technical mitigation and must not
+be described as one.
+
+`AI_SELF_HOSTED_ALLOW_PRIVATE_ENDPOINTS` waives `http`, loopback and private
+addresses for local development. It never waives a metadata address, it is a
+DEPLOYMENT switch rather than a console one, and bootstrap logs an error while
+it is set.
+
+### Credentials
+
+The credential is **optional per definition** (`credentialRequired`), resolved
+through the same `ProviderCredentialResolver` every adapter uses, and the
+`Authorization` header is sent only when one actually resolves — never as an
+empty or `Bearer undefined` header.
+
+There is **no environment variable** for a self-hosted provider. Fabricating one
+(`SELFHOSTED_<ID>_API_KEY`) would invent a credential source nobody audited and
+put its name in a console response. Managed storage is the only path.
+
+A credential-optional provider is not a way around a customer's funding policy:
+`ai/providers/selfHosted/credentialAccess.ts` refuses a `tenant_only` or
+`unresolved` execution that would otherwise run on platform-funded
+infrastructure with no credential of the tenant's. That check exists because
+`resolve()` returns `undefined` for a non-required profile before reaching its
+own funding refusal.
+
+### Adding a second runtime category
+
+Add a value to `SELF_HOSTED_RUNTIMES` and handle it. The union is a union, not a
+string, so every site that must branch becomes a type error. Do NOT add a value
+per product — `ollama`, `vllm` and `lmstudio` are the same wire format, and a
+branch per product rebuilds exactly the sprawl this file exists to prevent.
+
+### Verifying
+
+`npm run verify:4e` runs the endpoint policy, the definition validator, the
+adapter, hydration and the administration write path. No network, no vendor
+account, no spend.
+
+---
+
 ## 2. Adding an AI feature
 
 A feature is **data plus four small functions**. There is no route handler to

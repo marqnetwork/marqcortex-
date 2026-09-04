@@ -102,6 +102,31 @@ export interface AIProviderDescriptor {
   readonly billable: boolean;
   /** How this provider is authenticated. See `AIProviderCredentialPolicy`. */
   readonly credential: AIProviderCredentialPolicy;
+  /**
+   * True when this provider may not be ENABLED until MARQ has CERTIFIED it
+   * (AI-01 Batch 4E remediation, M-1).
+   *
+   * A DURABLE GATE, not a starting value. Registration already chose an initial
+   * enabled state, but `applySettings()` re-derives every provider's enabled
+   * flag from the persisted operational overlay on each settings adoption — so
+   * a gate applied only at registration is overwritten by the first stored
+   * setting that says `enabled: true`. An independent certification gate proved
+   * exactly that: a self-hosted provider registered `enabled: false,
+   * certification: unverified` came back `enabled: true` with its certification
+   * untouched.
+   *
+   * The distinction it preserves is the one this platform is built on:
+   * ENABLED is an operational switch an administrator flips; CERTIFIED is a
+   * governance decision somebody made about whether this provider may serve at
+   * all. Neither implies the other, and an operator turning a switch must not
+   * be able to substitute for the decision.
+   *
+   * OPTIONAL, AND ABSENCE IS THE EXISTING BEHAVIOUR. OpenAI, Anthropic and the
+   * mock omit it and are governed exactly as they were: their certification is
+   * chosen at registration by reviewed bootstrap code, not by a stored row.
+   * Only providers whose DEFINITION arrives from storage set it.
+   */
+  readonly certificationGatesEnablement?: boolean;
 }
 
 /** Everything an adapter needs for one attempt. Nothing more. */

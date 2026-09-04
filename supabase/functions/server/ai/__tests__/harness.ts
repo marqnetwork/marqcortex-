@@ -43,6 +43,9 @@ import {
   unavailableSecretCipher,
 } from '../providers/credentials/secretCipher.ts';
 import { createMemoryProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
+import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
+import { createSelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
+import { exposureReport, judgeExposureChange } from '../policy/exposure.ts';
 
 export interface StubSubjectOptions {
   readonly subjectId?: string;
@@ -313,6 +316,13 @@ export interface TestAdministration extends TestPlane {
    */
   readonly providerStore: ReturnType<typeof createMemoryProviderAdministrationStore>;
   readonly credentialCipher: SecretCipher;
+  /**
+   * The self-hosted provider registrar (AI-01 Batch 4E), when the suite asked
+   * for one. Exposed so a test can assert on hydration outcomes directly.
+   */
+  readonly selfHostedProviders?: SelfHostedRegistrar;
+  /** Endpoints the injected transport saw. Empty unless a suite drove one. */
+  readonly selfHostedOutbound: string[];
   /** Authorize by role token. Rejects exactly as production would. */
   actor(token: string): ReturnType<AIAdministration['authorize']>;
 }
@@ -339,6 +349,18 @@ export interface TestAdministrationOptions extends TestPlaneOptions {
    * it off.
    */
   readonly keylessProviders?: boolean;
+  /**
+   * Enable self-hosted provider administration (AI-01 Batch 4E).
+   *
+   * OFF BY DEFAULT, exactly as the deployment switch is, so every existing
+   * suite keeps the estate it had. On, the harness builds the real registrar
+   * over the same provider store the administration service writes to — which
+   * is what production wires — and injects a transport that records the URL and
+   * never reaches a network.
+   */
+  readonly selfHostedProviders?: boolean;
+  /** Pass the local-development endpoint exception through to the policy. */
+  readonly allowPrivateEndpoints?: boolean;
 }
 
 /**
@@ -388,6 +410,19 @@ export function buildTestAdministration(
     manageable: true,
     environmentVariable: 'MOCK_PROVIDER_KEY',
   };
+  /**
+   * Declared BEFORE the resolver and assigned after, so the resolver can read
+   * the registrar's profiles lazily (AI-01 Batch 4E remediation).
+   *
+   * This is the same cycle `bootstrap.ts` breaks, for the same reason: the
+   * resolver needs the registrar's profiles and the registrar needs a plane
+   * that needs the resolver. Production resolves it with a getter; so does
+   * this. An independent review found the harness omitted the wiring
+   * altogether, which made a credential-optional self-hosted provider report
+   * `configured: false` here and `true` in production — the sort of gap that
+   * lets a suite pass on behaviour the deployment does not have.
+   */
+  let selfHostedProviders: SelfHostedRegistrar | undefined;
   const credentialResolver = createProviderCredentialResolver({
     profiles: ['primary', 'backup'].map((providerId) => ({
       providerId,
@@ -399,6 +434,11 @@ export function buildTestAdministration(
     env: recordEnv({ MOCK_PROVIDER_KEY: 'harness-environment-credential' }),
     store: options.withoutProviderStore ? undefined : providerStore,
     cipher: credentialCipher,
+    // EXACTLY `bootstrap.ts`. Profiles for providers registered after this
+    // resolver was built, read on every call, and beaten by the static
+    // profiles above on any conflict — so no stored definition can change how
+    // a reviewed adapter resolves.
+    additionalProfiles: () => selfHostedProviders?.profiles() ?? [],
   });
   // ONE authenticator instance, shared by the plane and the administration
   // service. Production shares it for a reason — two credential paths for one
@@ -417,6 +457,52 @@ export function buildTestAdministration(
       : { credentialedProviders: { resolver: credentialResolver, policy: credentialPolicy } }),
   });
 
+  // ── Self-hosted provider registrar (AI-01 Batch 4E) ───────────────────────
+  //
+  // The SAME store the administration service writes to and the SAME resolver
+  // the adapters hold — which is what `bootstrap.ts` wires. Its transport
+  // records and never dials.
+  const selfHostedOutbound: string[] = [];
+  selfHostedProviders = options.selfHostedProviders
+    ? createSelfHostedRegistrar({
+        registry: () => base.plane.providers,
+        credentials: () => credentialResolver,
+        store: options.withoutProviderStore ? undefined : providerStore,
+        enabled: true,
+        allowPrivateEndpoints: options.allowPrivateEndpoints,
+        fetchImpl: (url) => {
+          selfHostedOutbound.push(String(url));
+          return Promise.resolve(
+            Response.json({
+              choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            }),
+          );
+        },
+        now: () => base.clock.isoNow(),
+        // The SAME exposure decision `bootstrap.ts` wires. A harness that
+        // omitted it would let a suite pass on a path production refuses.
+        admissionGuard: (candidate) => {
+          const catalogue = base.plane.providers.list().map((provider) => ({
+            providerId: provider.descriptor.providerId,
+            billable: provider.descriptor.billable,
+            models: provider.descriptor.models,
+          }));
+          const verdict = judgeExposureChange(
+            exposureReport(base.plane.catalog.list(), catalogue),
+            exposureReport(base.plane.catalog.list(), [
+              ...catalogue.filter((entry) => entry.providerId !== candidate.providerId),
+              { providerId: candidate.providerId, billable: true, models: candidate.models },
+            ]),
+            base.plane.config.spend.maxPlatformMicroUsd,
+          );
+          return verdict.permitted
+            ? undefined
+            : `governed spending exposure would exceed the platform ceiling: ${verdict.reason}`;
+        },
+      })
+    : undefined;
+
   const admin = createAIAdministration({
     plane: base.plane,
     authenticator,
@@ -426,6 +512,8 @@ export function buildTestAdministration(
     logger: base.plane.logger,
     providerStore: options.withoutProviderStore ? undefined : providerStore,
     credentialCipher,
+    selfHostedProviders,
+    allowPrivateEndpoints: options.allowPrivateEndpoints,
     // THE SAME resolver the adapters hold. Production wires exactly this, so a
     // credential stored through the console is visible to the runtime without
     // waiting for a snapshot to expire — and a harness that built two would
@@ -439,6 +527,8 @@ export function buildTestAdministration(
     settingsStore,
     providerStore,
     credentialCipher,
+    selfHostedProviders,
+    selfHostedOutbound,
     actor: (token) => admin.authorize(`Bearer ${token}`),
   };
 }

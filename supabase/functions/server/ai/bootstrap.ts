@@ -81,6 +81,9 @@ import { createMockProvider } from './providers/mockProvider.ts';
 import type { ProviderAdministrationStore } from './providers/credentials/credentialStore.ts';
 import type { CredentialProviderProfile } from './providers/credentials/resolver.ts';
 import { createProviderCredentialResolver } from './providers/credentials/resolver.ts';
+import type { SelfHostedRegistrar } from './providers/selfHosted/registrar.ts';
+import { createSelfHostedRegistrar } from './providers/selfHosted/registrar.ts';
+import { exposureReport, judgeExposureChange } from './policy/exposure.ts';
 import { createExecutionFundingResolver } from './providers/credentials/executionFunding.ts';
 import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import {
@@ -158,6 +161,7 @@ let administration: AIAdministration | undefined;
 let byokService: ByokService | undefined;
 let agentRuntime: AgentRuntime | undefined;
 let workflowRuntime: WorkflowRuntime | undefined;
+let selfHostedProviders: SelfHostedRegistrar | undefined;
 
 /**
  * Build the production control plane. Idempotent per isolate: repeated calls
@@ -240,8 +244,79 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     ANTHROPIC_CREDENTIAL_PROFILE,
   ];
 
+  // ── Self-hosted / OpenAI-compatible providers (AI-01 Batch 4E) ────────────
+  //
+  // BUILT BEFORE THE RESOLVER, AND WIRED WITH GETTERS, because the dependency
+  // runs both ways: the resolver has to be able to answer for a provider this
+  // registrar registers, and the registrar's adapters have to be handed that
+  // same resolver. A getter breaks the cycle without a second mutable module
+  // slot, and without either half holding a stale copy of the other.
+  //
+  // IT REGISTERS NOTHING AT THIS POINT. `hydrate()` is started after the plane
+  // exists and is deliberately not awaited — see the call site below.
+  const selfHostedRegistrar = createSelfHostedRegistrar({
+    registry: () => plane?.providers,
+    credentials: () => credentialResolver,
+    store: deps.providerAdministrationStore,
+    enabled: config.selfHosted.enabled,
+    allowPrivateEndpoints: config.selfHosted.allowPrivateEndpoints,
+    now: () => systemClock.isoNow(),
+    // ── THE GOVERNED EXPOSURE CEILING, ON THE HYDRATION PATH TOO ──────────
+    //
+    // (AI-01 Batch 4E remediation, M-2.) The administration write path refused
+    // an over-ceiling definition and hydration did not, so a row written before
+    // the ceiling was lowered — or by anything else holding the service role —
+    // registered a catalogue that raises the spend guard's pessimistic hold on
+    // EVERY request the platform serves, including the ones another provider
+    // answers. It fails closed, so the symptom is refusal rather than
+    // overspend; that is still a platform-wide outage from one stored row.
+    //
+    // Injected rather than computed inside the registrar, because the answer
+    // needs the feature catalogue, the live estate and this deployment's
+    // ceiling — and a registrar that acquired those would be a second place the
+    // exposure question is answered.
+    admissionGuard: (candidate) => {
+      const active = plane;
+      if (!active) return undefined;
+      const catalogue = active.providers.list().map((provider) => ({
+        providerId: provider.descriptor.providerId,
+        billable: provider.descriptor.billable,
+        models: provider.descriptor.models,
+      }));
+      const verdict = judgeExposureChange(
+        exposureReport(active.catalog.list(), catalogue),
+        exposureReport(active.catalog.list(), [
+          ...catalogue.filter((entry) => entry.providerId !== candidate.providerId),
+          { providerId: candidate.providerId, billable: true, models: candidate.models },
+        ]),
+        config.spend.maxPlatformMicroUsd,
+      );
+      return verdict.permitted
+        ? undefined
+        : `governed spending exposure would exceed the platform ceiling: ${verdict.reason}`;
+    },
+    onError: (providerId, detail) =>
+      console.error(`[ai] self-hosted provider ${providerId}: ${detail}`),
+    onRegistered: (providerId, detail) =>
+      console.log(`[ai] self-hosted provider ${providerId}: ${detail}`),
+  });
+  selfHostedProviders = selfHostedRegistrar;
+
+  if (config.selfHosted.allowPrivateEndpoints) {
+    console.error(
+      '[ai] AI_SELF_HOSTED_ALLOW_PRIVATE_ENDPOINTS is ON. Self-hosted provider endpoints may ' +
+        'use http and may address loopback and private ranges. This is the local-development ' +
+        'exception and must never be set in a deployment reachable from the internet.',
+    );
+  }
+
   const credentialResolver = createProviderCredentialResolver({
     profiles: credentialProfiles,
+    // Self-hosted definitions arrive from asynchronous hydration, after this
+    // resolver exists. Read live so a provider registered later can resolve a
+    // managed credential; the static profiles above win on every conflict, so
+    // nothing here can change how OpenAI or Anthropic resolve.
+    additionalProfiles: () => selfHostedRegistrar.profiles(),
     clock: systemClock,
     env,
     store: deps.providerAdministrationStore,
@@ -421,6 +496,19 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     providerStore: deps.providerAdministrationStore,
     credentialCipher,
     credentialResolver,
+    // ── Self-hosted providers (AI-01 Batch 4E) ─────────────────────────────
+    //
+    // The SAME registrar bootstrap hydrates from, so a definition an
+    // administrator stores is registered by the same validated path a
+    // definition loaded at boot takes. Two registrars would mean two ways for a
+    // descriptor to come into existence, and only one of them would have been
+    // reviewed.
+    //
+    // The endpoint exception is passed from the DEPLOYMENT configuration, never
+    // from a request: a control an administrator can flip is a control an
+    // attacker who reaches this surface can flip.
+    selfHostedProviders: selfHostedRegistrar,
+    allowPrivateEndpoints: config.selfHosted.allowPrivateEndpoints,
   });
 
   // ── Customer BYOK (AI-01 Batch 4D) ────────────────────────────────────────
@@ -545,6 +633,21 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
   administration.hydrate().catch((error: unknown) => {
     console.error(
       '[ai] AI administration settings hydration failed:',
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+
+  // ── Self-hosted provider hydration (AI-01 Batch 4E) ───────────────────────
+  //
+  // ASYNCHRONOUS AND NOT AWAITED, for the same reason the two hydrations above
+  // are not: `initializeControlPlane` is synchronous and converting it would be
+  // a breaking change to every edge entry point. The window is safe by
+  // construction — until this lands the registry holds the built-in providers
+  // and nothing else, which is exactly the pre-4E estate. A failure leaves that
+  // estate in place and is loud.
+  selfHostedRegistrar.hydrate().catch((error: unknown) => {
+    console.error(
+      '[ai] self-hosted provider hydration failed; only built-in providers are registered:',
       error instanceof Error ? error.message : String(error),
     );
   });
@@ -837,6 +940,19 @@ export function getByokService(): ByokService | undefined {
   return byokService;
 }
 
+/**
+ * The self-hosted provider registrar, or `undefined` before bootstrap
+ * (AI-01 Batch 4E).
+ *
+ * Exposed so an operations read can report what hydration actually did —
+ * which definitions registered and which were refused, and why. It returns
+ * non-secret facts only; there is no member of the report a credential could
+ * occupy.
+ */
+export function getSelfHostedProviders(): SelfHostedRegistrar | undefined {
+  return selfHostedProviders;
+}
+
 /** Drop the memoised plane. Test and local-tooling use only. */
 export function resetControlPlaneForTests(): void {
   plane = undefined;
@@ -844,4 +960,5 @@ export function resetControlPlaneForTests(): void {
   byokService = undefined;
   agentRuntime = undefined;
   workflowRuntime = undefined;
+  selfHostedProviders = undefined;
 }

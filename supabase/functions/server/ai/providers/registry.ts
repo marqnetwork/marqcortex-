@@ -92,9 +92,58 @@ export interface ProviderRegistry {
     adapter: AIProviderAdapter,
     options?: { enabled?: boolean; certification?: AICertificationStatus },
   ): void;
+  /**
+   * Swap the adapter and descriptor of a provider that is ALREADY registered
+   * (AI-01 Batch 4E remediation, M-4).
+   *
+   * Exists because a self-hosted provider's definition lives in storage and can
+   * be administered. Without it the only way to apply an edited endpoint was an
+   * isolate restart, so the console reported one target while the runtime
+   * dialled another until something recycled.
+   *
+   * IT IS NOT `register` WITH THE DUPLICATE CHECK REMOVED. It refuses a
+   * provider that is not already present — so it can never bring one into
+   * existence — and it resets the health counters, because success and failure
+   * counts describe the endpoint that produced them and carrying them across a
+   * change of target would report a new endpoint as proven.
+   */
+  replace(
+    adapter: AIProviderAdapter,
+    options?: { enabled?: boolean; certification?: AICertificationStatus },
+  ): void;
   get(providerId: string): RegisteredProvider;
   find(providerId: string): RegisteredProvider | undefined;
   list(): readonly RegisteredProvider[];
+  /**
+   * The AUTHORITATIVE operational state of a registered provider
+   * (AI-01 Batch 4E remediation, N-1).
+   *
+   * ONE ANSWER, so the health read and the eligibility decision cannot
+   * disagree. `health()` already returns this value, inside a snapshot that
+   * also takes a circuit reading and a credential description; the selector
+   * asks per provider per request and must not pay for those to learn one
+   * word, so the state is published on its own.
+   *
+   * It exists because the selector used to re-derive eligibility from
+   * `enabled` and `certification` directly. That duplicated the registry's own
+   * rule and then drifted from it: a self-hosted provider whose certification
+   * had been withdrawn to `testing` while its enable switch was still open was
+   * reported `disabled` by `health()` and served traffic anyway.
+   */
+  state(providerId: string): AIProviderState;
+  /**
+   * Whether `setEnabled(providerId, true)` would be HONOURED
+   * (AI-01 Batch 4E remediation, N-1/N-2).
+   *
+   * Published so the administration surface can refuse an enable for the same
+   * reason the registry would clamp it, without restating the rule. Two copies
+   * of a governance decision is one copy too many, and the one that drifts is
+   * the one nobody tests.
+   *
+   * It answers for the certification a re-enable would RESTORE, not for the
+   * `disabled` placeholder a disable wrote — see `certificationOnEnable`.
+   */
+  mayEnable(providerId: string): boolean;
   setEnabled(providerId: string, enabled: boolean): void;
   setCertification(providerId: string, status: AICertificationStatus): void;
   recordSuccess(providerId: string, latencyMs: number): void;
@@ -153,7 +202,56 @@ export function createProviderRegistry(
     return provider.descriptor.models.filter((model) => allowed.includes(model.modelId));
   }
 
+  /**
+   * True when this provider's certification gate is CLOSED — it declares that
+   * enablement requires certification, and it is not certified
+   * (AI-01 Batch 4E remediation, M-1).
+   *
+   * Consulted in TWO places on purpose. `setEnabled` refuses to open the
+   * switch, which is what makes the gate durable against the settings overlay;
+   * `stateOf` reports the provider disabled regardless, which is the backstop
+   * for an `enabled` flag that reached the record some other way. A control
+   * applied at one of the two would be a control the other path walks around.
+   */
+  function certificationGateClosed(provider: RegisteredProvider): boolean {
+    return gateClosedFor(provider, provider.certification);
+  }
+
+  /** The gate, judged against a NAMED certification rather than the live one. */
+  function gateClosedFor(
+    provider: RegisteredProvider,
+    certification: AICertificationStatus,
+  ): boolean {
+    return provider.descriptor.certificationGatesEnablement === true && certification !== 'certified';
+  }
+
+  /**
+   * The certification an ENABLE would put back in force
+   * (AI-01 Batch 4E remediation, N-2).
+   *
+   * Disabling parks the established decision in `certificationBeforeDisable`
+   * and writes `disabled` over `certification` as a placeholder. The gate must
+   * therefore be judged against what an enable would RESTORE, not against that
+   * placeholder — judging it against the placeholder made the restore branch in
+   * `setEnabled` unreachable, so a certified self-hosted provider that an
+   * operator disabled for containment could never be turned back on. A gate
+   * that prevents recovery is a gate that discourages containment.
+   *
+   * `unverified` is the fallback for a provider disabled before anything was
+   * established, which correctly keeps the gate shut.
+   */
+  function certificationOnEnable(provider: RegisteredProvider): AICertificationStatus {
+    if (provider.certification !== 'disabled') return provider.certification;
+    return provider.certificationBeforeDisable ?? 'unverified';
+  }
+
+  /** Whether an enable would be honoured. The ONE rule, read by two callers. */
+  function enablementPermitted(provider: RegisteredProvider): boolean {
+    return !gateClosedFor(provider, certificationOnEnable(provider));
+  }
+
   function stateOf(provider: RegisteredProvider): AIProviderState {
+    if (certificationGateClosed(provider)) return 'disabled';
     if (!provider.enabled || provider.certification === 'disabled') return 'disabled';
     if (!provider.adapter.hasCredentials()) return 'unavailable';
     const circuitState = circuit.stateOf(provider.descriptor.providerId);
@@ -186,8 +284,34 @@ export function createProviderRegistry(
       });
     },
 
+    replace(adapter, options = {}) {
+      const { providerId } = adapter.descriptor;
+      const existing = providers.get(providerId);
+      if (!existing) {
+        throw new AIError('PROVIDER_NOT_FOUND', 'The configured AI provider is not available.', {
+          diagnostics: `replace called for an unregistered provider: ${providerId}`,
+        });
+      }
+      if (adapter.descriptor.models.length === 0) {
+        throw new AIError('INTERNAL_ERROR', 'AI provider declares no models.', {
+          diagnostics: `provider ${providerId} replaced with an empty model list`,
+        });
+      }
+      providers.set(providerId, {
+        adapter,
+        descriptor: adapter.descriptor,
+        enabled: options.enabled ?? false,
+        certification: options.certification ?? 'unverified',
+        successCount: 0,
+        failureCount: 0,
+        lastCheckedAtMs: clock.now(),
+      });
+    },
+
     get: require,
     find: (providerId) => providers.get(providerId),
+    state: (providerId) => stateOf(require(providerId)),
+    mayEnable: (providerId) => enablementPermitted(require(providerId)),
 
     list() {
       return [...providers.values()].sort(
@@ -197,6 +321,24 @@ export function createProviderRegistry(
 
     setEnabled(providerId, enabled) {
       const provider = require(providerId);
+      // ── THE DURABLE CERTIFICATION GATE (4E remediation, M-1) ──────────────
+      //
+      // CLAMPS RATHER THAN THROWS. `applySettings()` walks every registered
+      // provider on each settings adoption; a throw here would abort that loop
+      // and leave the rest of the estate holding stale enablement — turning a
+      // governance refusal into an outage for providers that had nothing to do
+      // with it. The stored intent is simply not honoured, and `stateOf`
+      // reports the provider disabled either way.
+      //
+      // Disabling is never gated. A gate that could stop an operator turning
+      // something OFF would be a gate that prevents containment.
+      //
+      // JUDGED ON THE CERTIFICATION AN ENABLE WOULD RESTORE (N-2), not on the
+      // live one. While a provider is disabled its `certification` reads
+      // `disabled` — a placeholder this method itself wrote — so testing the
+      // live value shut the gate on every previously-certified provider and
+      // made the restore branch below unreachable.
+      if (enabled && !enablementPermitted(provider)) return;
       if (provider.enabled === enabled) return;
       if (!enabled) {
         // Remember what was established, so turning the provider back on does
@@ -330,6 +472,15 @@ export function createProviderRegistry(
         issues.push('no production-ready AI provider is usable — only test providers are available');
       }
       for (const provider of providers.values()) {
+        if (certificationGateClosed(provider)) {
+          // Said out loud rather than left implicit. An operator who enabled a
+          // provider and finds it serving nothing needs the reason on the
+          // health read, not in a code comment.
+          issues.push(
+            `${provider.descriptor.providerId} is not certified and its definition requires ` +
+              'certification before it may be enabled — it will not serve traffic',
+          );
+        }
         if (provider.certification === 'certified' && !provider.enabled) {
           issues.push(`${provider.descriptor.providerId} is certified but disabled`);
         }

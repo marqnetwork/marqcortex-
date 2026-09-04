@@ -81,6 +81,41 @@ export const ADMIN_ACTION = {
   modelEnabled: 'ai.admin.provider.model.enabled',
   modelDisabled: 'ai.admin.provider.model.disabled',
 
+  // ── Self-hosted providers (AI-01 Batch 4E) ────────────────────────────────
+  //
+  // ITS OWN ACTION, not `providerConfigured`. Defining a self-hosted provider
+  // is the one administrative act that decides WHICH HOST the runtime dials,
+  // and "who pointed Cortex at an endpoint, and at which one" is a question an
+  // incident review has to be able to answer with a filter rather than by
+  // reading every provider change ever made.
+  //
+  // The recorded facts are the provider key, the runtime category, the endpoint
+  // HOST, the model count and the credential requirement. Never a credential,
+  // and never a configuration value that failed the key-material scan.
+  selfHostedProviderDefined: 'ai.admin.provider.self_hosted.defined',
+  /**
+   * The stored definition of an existing self-hosted provider was replaced
+   * (AI-01 Batch 4E remediation, M-4). Distinct from `defined` because "who
+   * created this provider" and "who later repointed it" are different questions
+   * an incident review asks, and the second is the one that moves a host.
+   */
+  selfHostedProviderUpdated: 'ai.admin.provider.self_hosted.updated',
+
+  // ── Provider certification (AI-01 Batch 4E remediation, H-1) ──────────────
+  //
+  // ITS OWN PAIR OF ACTIONS, and deliberately not folded into
+  // `providerUpdated`. Certification is the governance decision that a provider
+  // may serve MARQ's production traffic at all; "who certified this, when, and
+  // on what stated reason" has to be answerable by filtering the trail, not by
+  // reading every provider change ever made looking for a field that moved.
+  //
+  // GRANT AND WITHDRAWAL ARE SEPARATE NAMES for the same reason the credential
+  // lifecycle uses three: an incident review asks "what was certified in this
+  // window" and "what was withdrawn", and one action name for both makes each
+  // of them a search through change maps.
+  providerCertified: 'ai.admin.provider.certified',
+  providerCertificationWithdrawn: 'ai.admin.provider.certification.withdrawn',
+
   // ── Customer BYOK (AI-01 Batch 4D) ────────────────────────────────────────
   //
   // WRITTEN TO THE SAME TRAIL, WITH DISTINCT NAMES. One append-only

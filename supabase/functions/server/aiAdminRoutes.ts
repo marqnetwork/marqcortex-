@@ -272,4 +272,43 @@ export function registerAIAdminRoutes(
     providerId,
     (c) => ({ modelId: c.req.param('modelId') }),
   );
+
+  /**
+   * Define a self-hosted, OpenAI-compatible provider (AI-01 Batch 4E).
+   *
+   * The one route on this surface whose body names a HOST the runtime will
+   * dial. It has no path parameter because it CREATES the object the other
+   * routes address — and, like every route in this file, it contributes only
+   * the operation name: the capability, the endpoint policy, the exposure
+   * guard and the audit record all live behind the adapter.
+   *
+   * It takes no secret. A credential for the new provider is stored afterwards
+   * through the credential route above.
+   */
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/self-hosted',
+    ADMIN_OPERATION.providerDefineSelfHosted,
+  );
+  /** Replace an existing self-hosted definition (4E remediation, M-4). */
+  mutation(
+    'patch',
+    '/ai/admin/provider-administration/self-hosted/:providerId',
+    ADMIN_OPERATION.providerUpdateSelfHosted,
+    providerId,
+  );
+  /**
+   * MARQ's certification decision (4E remediation, H-1).
+   *
+   * Its own route, so certification cannot ride on a definition or an
+   * enable/disable body. Like every route here it contributes only the
+   * operation name: the capability, the permitted states, the exposure
+   * re-check and the audit record all live behind the adapter.
+   */
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/:providerId/certification',
+    ADMIN_OPERATION.providerSetCertification,
+    providerId,
+  );
 }
