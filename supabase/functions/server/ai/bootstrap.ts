@@ -83,6 +83,7 @@ import type { CredentialProviderProfile } from './providers/credentials/resolver
 import { createProviderCredentialResolver } from './providers/credentials/resolver.ts';
 import type { SelfHostedRegistrar } from './providers/selfHosted/registrar.ts';
 import { createSelfHostedRegistrar } from './providers/selfHosted/registrar.ts';
+import { exposureReport, judgeExposureChange } from './policy/exposure.ts';
 import { createExecutionFundingResolver } from './providers/credentials/executionFunding.ts';
 import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import {
@@ -260,6 +261,40 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     enabled: config.selfHosted.enabled,
     allowPrivateEndpoints: config.selfHosted.allowPrivateEndpoints,
     now: () => systemClock.isoNow(),
+    // ── THE GOVERNED EXPOSURE CEILING, ON THE HYDRATION PATH TOO ──────────
+    //
+    // (AI-01 Batch 4E remediation, M-2.) The administration write path refused
+    // an over-ceiling definition and hydration did not, so a row written before
+    // the ceiling was lowered — or by anything else holding the service role —
+    // registered a catalogue that raises the spend guard's pessimistic hold on
+    // EVERY request the platform serves, including the ones another provider
+    // answers. It fails closed, so the symptom is refusal rather than
+    // overspend; that is still a platform-wide outage from one stored row.
+    //
+    // Injected rather than computed inside the registrar, because the answer
+    // needs the feature catalogue, the live estate and this deployment's
+    // ceiling — and a registrar that acquired those would be a second place the
+    // exposure question is answered.
+    admissionGuard: (candidate) => {
+      const active = plane;
+      if (!active) return undefined;
+      const catalogue = active.providers.list().map((provider) => ({
+        providerId: provider.descriptor.providerId,
+        billable: provider.descriptor.billable,
+        models: provider.descriptor.models,
+      }));
+      const verdict = judgeExposureChange(
+        exposureReport(active.catalog.list(), catalogue),
+        exposureReport(active.catalog.list(), [
+          ...catalogue.filter((entry) => entry.providerId !== candidate.providerId),
+          { providerId: candidate.providerId, billable: true, models: candidate.models },
+        ]),
+        config.spend.maxPlatformMicroUsd,
+      );
+      return verdict.permitted
+        ? undefined
+        : `governed spending exposure would exceed the platform ceiling: ${verdict.reason}`;
+    },
     onError: (providerId, detail) =>
       console.error(`[ai] self-hosted provider ${providerId}: ${detail}`),
     onRegistered: (providerId, detail) =>

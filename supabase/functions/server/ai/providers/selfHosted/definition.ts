@@ -509,7 +509,40 @@ export function selfHostedDescriptor(
         ? 'API key accepted by this OpenAI-compatible endpoint'
         : undefined,
     },
+    // ── THE DURABLE GATE (4E remediation, M-1) ────────────────────────────
+    //
+    // `selfHostedRegistration` below chooses the INITIAL enabled state, and a
+    // starting value is not a control: `applySettings()` re-derives enablement
+    // from the persisted overlay on every settings adoption and overwrote it.
+    // This travels with the descriptor, so the registry refuses to open the
+    // switch and reports the provider disabled however the stored setting is
+    // spelled. Built-in adapters do not set it and are unaffected.
+    certificationGatesEnablement: true,
   };
+}
+
+/**
+ * The CANONICAL configuration a validated definition should be stored as
+ * (AI-01 Batch 4E remediation, L-1).
+ *
+ * Storage used to hold the raw string an administrator submitted while the
+ * runtime dialled the parser's normalized form of it. The two agreed in almost
+ * every case and disagreed in exactly the ones worth reading carefully — a
+ * backslash, a doubled separator, an uppercase host — so the audit record and
+ * the dialled URL described the same endpoint in different words. Writing the
+ * validated form back means storage, audit, console and runtime quote one
+ * string.
+ *
+ * It rewrites ONLY `baseUrl`, and only to the value the policy produced. Every
+ * other key is passed through untouched: this is a normalization, not a second
+ * validation, and a function that quietly edited other fields would be a place
+ * for a stored value to change without an audit record saying so.
+ */
+export function canonicalSelfHostedConfiguration(
+  configuration: Readonly<Record<string, string>>,
+  definition: SelfHostedProviderDefinition,
+): Readonly<Record<string, string>> {
+  return { ...configuration, baseUrl: definition.endpoint.baseUrl };
 }
 
 /** The credential profile the shared resolver works from for this provider. */

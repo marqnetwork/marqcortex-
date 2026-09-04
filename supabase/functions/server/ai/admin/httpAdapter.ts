@@ -110,6 +110,18 @@ export const ADMIN_OPERATION = {
   // path; this one CREATES the object, and there is nothing yet to address.
   // The audit target is taken from the same validated id the service stores.
   providerDefineSelfHosted: 'providers.self_hosted.define',
+  /** Replace an existing self-hosted definition (4E remediation, M-4). */
+  providerUpdateSelfHosted: 'providers.self_hosted.update',
+  /**
+   * MARQ's certification decision (4E remediation, H-1).
+   *
+   * A DISTINCT OPERATION, not a field on the definition or the enable call.
+   * Binding it separately is what makes "a definition cannot self-certify" and
+   * "certification does not enable" true of the surface rather than only of the
+   * service behind it — there is no body shape at any other operation that
+   * reaches a certification.
+   */
+  providerSetCertification: 'providers.set_certification',
 } as const;
 
 export type AdminOperation = (typeof ADMIN_OPERATION)[keyof typeof ADMIN_OPERATION];
@@ -464,6 +476,44 @@ export async function executeAdminHttpRequest(
               deploymentId: body.deploymentId,
               models: body.models,
             },
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerUpdateSelfHosted: {
+        // PATH ONLY for the provider id — the same rule every other provider
+        // route follows. The body carries the definition and nothing else.
+        return ok({
+          provider: await admin.updateSelfHostedProvider(
+            actor,
+            requireProviderId(request),
+            {
+              providerId: requireProviderId(request),
+              displayName: body.displayName,
+              runtime: body.runtime,
+              baseUrl: body.baseUrl,
+              credentialRequired: body.credentialRequired,
+              priority: body.priority,
+              deploymentId: body.deploymentId,
+              models: body.models,
+            },
+            reasonOf(body),
+            meta,
+          ),
+        });
+      }
+
+      case ADMIN_OPERATION.providerSetCertification: {
+        // `body.certification` is passed through UNREAD. The service owns the
+        // permitted set and the refusal; a check here would be a second one to
+        // keep in step, and the one that drifts is the one nobody tests.
+        return ok({
+          provider: await admin.setProviderCertification(
+            actor,
+            requireProviderId(request),
+            body.certification,
             reasonOf(body),
             meta,
           ),

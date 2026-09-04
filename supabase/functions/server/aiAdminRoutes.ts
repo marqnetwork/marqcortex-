@@ -290,4 +290,25 @@ export function registerAIAdminRoutes(
     '/ai/admin/provider-administration/self-hosted',
     ADMIN_OPERATION.providerDefineSelfHosted,
   );
+  /** Replace an existing self-hosted definition (4E remediation, M-4). */
+  mutation(
+    'patch',
+    '/ai/admin/provider-administration/self-hosted/:providerId',
+    ADMIN_OPERATION.providerUpdateSelfHosted,
+    providerId,
+  );
+  /**
+   * MARQ's certification decision (4E remediation, H-1).
+   *
+   * Its own route, so certification cannot ride on a definition or an
+   * enable/disable body. Like every route here it contributes only the
+   * operation name: the capability, the permitted states, the exposure
+   * re-check and the audit record all live behind the adapter.
+   */
+  mutation(
+    'post',
+    '/ai/admin/provider-administration/:providerId/certification',
+    ADMIN_OPERATION.providerSetCertification,
+    providerId,
+  );
 }

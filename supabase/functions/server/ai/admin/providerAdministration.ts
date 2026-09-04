@@ -88,6 +88,7 @@ import { safeLastFour } from '../providers/credentials/secretCipher.ts';
 import { normalizeProviderSetting } from '../runtime/operationalSettings.ts';
 import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
 import {
+  canonicalSelfHostedConfiguration,
   MAX_SELF_HOSTED_MODELS,
   RESERVED_PROVIDER_IDS,
   validateSelfHostedDefinition,
@@ -435,6 +436,64 @@ export interface ProviderAdministration {
    */
   defineSelfHostedProvider(
     actor: AIAdminActor,
+    input: SelfHostedProviderInput,
+    reason: unknown,
+    meta?: { correlationId?: string; clientIp?: string },
+  ): Promise<ProviderAdministrationView>;
+  /**
+   * Grant or withdraw MARQ's certification of a provider
+   * (AI-01 Batch 4E remediation, H-1).
+   *
+   * THE GOVERNANCE DECISION, AND ONLY THAT. Before this existed there was no
+   * production call path to `certified` at all — `registry.setCertification`
+   * had zero call sites — so a self-hosted provider could never leave
+   * `unverified`, and the only way to make one serve was to switch off
+   * `AI_REQUIRE_CERTIFIED_PROVIDERS` for the entire platform. Forcing an
+   * operator to disable a global control in order to use a feature is how a
+   * control stops being believed.
+   *
+   * WHAT IT DOES NOT DO, and each is deliberate:
+   *
+   *   IT DOES NOT ENABLE ANYTHING. Certification and enablement are separate
+   *   decisions, made by different people about different questions. A
+   *   certified provider still serves nothing until an administrator enables it
+   *   through `setProviderEnabled`.
+   *
+   *   IT DOES NOT BYPASS EXPOSURE GOVERNANCE. Certifying a provider makes it
+   *   eligible; the spend guard's reservation and the governed ceiling apply to
+   *   it exactly as before, and the exposure decision is re-checked here so a
+   *   provider cannot be certified into breaching it.
+   *
+   *   IT TAKES NO DEFINITION. There is no field on this call that touches an
+   *   endpoint, a model or a credential, so certification cannot be smuggled
+   *   into a definition payload and a definition cannot be smuggled into a
+   *   certification.
+   */
+  setProviderCertification(
+    actor: AIAdminActor,
+    providerId: string,
+    certification: unknown,
+    reason: unknown,
+    meta?: { correlationId?: string; clientIp?: string },
+  ): Promise<ProviderAdministrationView>;
+  /**
+   * Replace the stored definition of an existing self-hosted provider
+   * (AI-01 Batch 4E remediation, M-4).
+   *
+   * The same validator, the same exposure guard and the same reconciliation the
+   * definition path uses. Its reason for existing is that an edited endpoint
+   * previously took effect only on an isolate restart, so the console described
+   * one target while the runtime dialled another.
+   *
+   * CERTIFICATION IS WITHDRAWN BY ANY DEFINITION WRITE. What MARQ certified was
+   * a specific endpoint serving a specific catalogue; carrying that decision
+   * across a write would let an operator certify a benign endpoint and then
+   * repoint it, and deciding which edits are "material enough" would put that
+   * question on a diffing heuristic. Re-certification is one more explicit act.
+   */
+  updateSelfHostedProvider(
+    actor: AIAdminActor,
+    providerId: string,
     input: SelfHostedProviderInput,
     reason: unknown,
     meta?: { correlationId?: string; clientIp?: string },
@@ -897,7 +956,40 @@ export function createProviderAdministration(
         meta,
         before: () => providerFacts(providerId),
         run: async (auditReason) => {
-          requireRegistered(providerId);
+          const registered = requireRegistered(providerId);
+
+          // ── THE GATE IS REPORTED, NOT SILENTLY APPLIED (4E remediation) ──
+          //
+          // The registry refuses to enable a provider whose definition requires
+          // certification first (M-1), and that refusal is a CLAMP — it has to
+          // be, because `applySettings()` walks every provider and a throw there
+          // would strand the rest of the estate. But an ADMINISTRATOR calling
+          // "enable" and getting a success response for something that did not
+          // happen is the console lying about the state of the platform, and
+          // the durable row would then record an intent the runtime never
+          // honours.
+          //
+          // So the same rule is stated as a refusal here, at the one place a
+          // person is asking for it, and it names the operation that unblocks
+          // them. Built-in providers do not declare the gate and are unaffected.
+          if (
+            enabled &&
+            registered.descriptor.certificationGatesEnablement === true &&
+            registered.certification !== 'certified'
+          ) {
+            throw new AIError(
+              'VALIDATION_FAILED',
+              'This provider must be certified before it can be enabled.',
+              {
+                fields: ['enabled'],
+                diagnostics:
+                  `providerId=${providerId} certification=${registered.certification}; ` +
+                  'certify it first through the provider certification operation',
+                retryable: false,
+              },
+            );
+          }
+
           const applied = await commitProviderState(
             providerId,
             { enabled },
@@ -1245,16 +1337,16 @@ export function createProviderAdministration(
       });
     },
 
-    // ── Self-hosted provider definition (AI-01 Batch 4E) ──────────────────
+    // ── Self-hosted provider definition and update (AI-01 Batch 4E) ───────
     //
     // THE ONE GOVERNED WRITE PATH TO AN ENDPOINT THE RUNTIME WILL DIAL.
     //
-    // Read the order of operations below, because it is the security design:
-    // the definition is VALIDATED BEFORE IT IS STORED, by the same validator
-    // hydration uses, so the `configuration` column can never come to hold a
-    // value the runtime would refuse — the 4C migration's open item, closed
-    // here. Nothing is persisted until the endpoint policy has accepted the
-    // URL and the exposure guard has accepted the catalogue.
+    // Read the order of operations in `commitSelfHostedDefinition`, because it
+    // is the security design: the definition is VALIDATED BEFORE IT IS STORED,
+    // by the same validator hydration uses, so the `configuration` column can
+    // never come to hold a value the runtime would refuse — the 4C migration's
+    // open item, closed here. Nothing is persisted until the endpoint policy
+    // has accepted the URL and the exposure guard has accepted the catalogue.
     defineSelfHostedProvider(actor, input, reason, meta) {
       const providerId = bounded(input.providerId, 64) ?? '';
       return options.mutate(actor, {
@@ -1264,156 +1356,403 @@ export function createProviderAdministration(
         reason,
         meta,
         before: () => providerFacts(providerId),
+        run: (auditReason) =>
+          commitSelfHostedDefinition({
+            actor,
+            providerId,
+            input,
+            auditReason,
+            mode: 'define',
+          }),
+      });
+    },
+
+    updateSelfHostedProvider(actor, providerId, input, reason, meta) {
+      const target = bounded(providerId, 64) ?? '';
+      return options.mutate(actor, {
+        capabilities: ['ai.providers.manage'],
+        action: ADMIN_ACTION.selfHostedProviderUpdated,
+        target,
+        reason,
+        meta,
+        before: () => providerFacts(target),
+        run: (auditReason) =>
+          commitSelfHostedDefinition({
+            actor,
+            // The provider id comes from the PATH, never from the body. A
+            // caller cannot update one provider by naming another in a payload.
+            providerId: target,
+            input: { ...input, providerId: target },
+            auditReason,
+            mode: 'update',
+          }),
+      });
+    },
+
+    // ── Provider certification (AI-01 Batch 4E remediation, H-1) ──────────
+    //
+    // MARQ's governance decision about whether a provider may serve, and the
+    // first production call path to `registry.setCertification` — before this,
+    // the method existed with no caller, so `certified` was unreachable and the
+    // only route to a serving self-hosted provider was to switch off
+    // `AI_REQUIRE_CERTIFIED_PROVIDERS` platform-wide.
+    setProviderCertification(actor, providerId, certification, reason, meta) {
+      const target = bounded(providerId, 64) ?? '';
+      const next = certificationOf(certification);
+      return options.mutate(actor, {
+        capabilities: ['ai.providers.manage'],
+        action:
+          next === 'certified'
+            ? ADMIN_ACTION.providerCertified
+            : ADMIN_ACTION.providerCertificationWithdrawn,
+        target,
+        reason,
+        meta,
+        before: () => providerFacts(target),
         run: async (auditReason) => {
-          const registrar = options.selfHosted;
-          if (!registrar) {
-            // REFUSES rather than degrading. Storing a definition nothing will
-            // register would leave an operator believing they configured a
-            // provider that cannot execute.
+          // THE REGISTRY IS THE AUTHORITY on which providers exist. An
+          // administrator cannot certify one into being by naming it.
+          const registered = requireRegistered(target);
+
+          if (next === undefined) {
             throw new AIError(
-              'INTERNAL_ERROR',
-              'Self-hosted providers are not enabled in this deployment.',
+              'VALIDATION_FAILED',
+              'That is not a certification state this platform recognises.',
               {
-                diagnostics: 'no self-hosted provider registrar was injected at bootstrap',
+                fields: ['certification'],
+                diagnostics: `permitted: ${ADMINISTERED_CERTIFICATIONS.join(', ')}`,
                 retryable: false,
               },
             );
           }
-          const store = options.store;
-          if (!store) {
-            throw new AIError(
-              'INTERNAL_ERROR',
-              'Provider administration storage is not configured in this deployment.',
-              {
-                diagnostics: 'no ProviderAdministrationStore was injected at bootstrap',
-                retryable: false,
-              },
-            );
-          }
-
-          // A provider id the registry already holds is not a definition, it is
-          // an attempt to replace one — including, at the top of the list, a
-          // reviewed adapter. Refused before anything is read or written.
-          if (RESERVED_PROVIDER_IDS.includes(providerId)) {
+          if (next === 'disabled') {
+            // `disabled` is what `setEnabled(false)` produces, so accepting it
+            // here would give one state two owners and let a certification call
+            // take a provider out of service without the enablement trail
+            // recording it. Withdrawal is `unverified`; taking a provider out
+            // of service is `setProviderEnabled`.
             throw new AIError(
               'VALIDATION_FAILED',
-              'That provider id belongs to a built-in adapter.',
-              { fields: ['providerId'], retryable: false },
-            );
-          }
-          if (plane.providers.find(providerId) !== undefined) {
-            throw new AIError('CONFLICT', 'A provider with that id is already registered.', {
-              diagnostics: `providerId=${providerId}`,
-              retryable: false,
-            });
-          }
-
-          const at = clock.isoNow();
-          const record: AIProviderConfigurationRecord = {
-            configurationId: ids.next('pvc'),
-            providerKey: providerId,
-            displayName: bounded(input.displayName, 120) ?? '',
-            scope: PLATFORM_SCOPE,
-            // NOT NEGOTIABLE, AND NOT READ FROM THE REQUEST. A newly defined
-            // provider is uncertified and disabled. Certification is a separate
-            // governed decision and enablement is a separate administrative
-            // one; a definition that arrived live would make both decorative.
-            enabled: false,
-            certification: 'unverified',
-            configuration: selfHostedConfigurationFrom(input),
-            createdAt: at,
-            updatedAt: at,
-            createdBy: actor.actorId,
-            updatedBy: actor.actorId,
-          };
-
-          // VALIDATED BEFORE STORED, with the deployment's own endpoint policy.
-          const validation = validateSelfHostedDefinition(record, {
-            allowPrivateEndpoints: options.allowPrivateEndpoints,
-          });
-          if (validation.ok !== true) {
-            throw new AIError(
-              'VALIDATION_FAILED',
-              'That self-hosted provider definition is not valid.',
-              {
-                fields: ['baseUrl', 'models'],
-                // The reasons name FIELDS and BOUNDS. The definition validator
-                // never echoes a value it judged secret-shaped, so nothing a
-                // caller pasted can travel back out through here.
-                diagnostics: validation.reasons.join('; '),
-                retryable: false,
-              },
+              'Use the enable/disable operation to take a provider out of service.',
+              { fields: ['certification'], retryable: false },
             );
           }
 
-          // The governed exposure guard, applied to a provider that does not
-          // exist yet — so the hypothetical catalogue is built from the
-          // VALIDATED model list rather than from the registry.
-          const beforeExposure = exposureReport(plane.catalog.list(), effectiveCatalogue());
-          const afterExposure = exposureReport(plane.catalog.list(), [
-            ...effectiveCatalogue(),
-            { providerId, billable: true, models: validation.definition.models },
-          ]);
-          const verdict = judgeExposureChange(
-            beforeExposure,
-            afterExposure,
-            options.reservationCeilingMicroUsd,
-          );
-          if (!verdict.permitted) {
-            throw new AIError(
-              'VALIDATION_FAILED',
-              'This provider would raise the platform’s worst-case AI spending exposure past the governed ceiling.',
-              { fields: ['models'], diagnostics: verdict.reason, retryable: false },
+          // CERTIFYING DOES NOT ESCAPE EXPOSURE GOVERNANCE. Certification is
+          // what makes a self-hosted provider's catalogue reachable, so the
+          // same ceiling the definition path applies is re-checked here against
+          // the estate as it stands now — the ceiling may have moved since the
+          // provider was defined.
+          if (next === 'certified') {
+            const verdict = judgeExposureChange(
+              exposureReport(plane.catalog.list(), effectiveCatalogue()),
+              exposureReport(plane.catalog.list(), [
+                ...effectiveCatalogue().filter((entry) => entry.providerId !== target),
+                {
+                  providerId: target,
+                  billable: registered.descriptor.billable,
+                  models: registered.descriptor.models,
+                },
+              ]),
+              options.reservationCeilingMicroUsd,
             );
+            if (!verdict.permitted) {
+              throw new AIError(
+                'VALIDATION_FAILED',
+                'Certifying this provider would raise the platform’s worst-case AI spending ' +
+                  'exposure past the governed ceiling.',
+                { fields: ['certification'], diagnostics: verdict.reason, retryable: false },
+              );
+            }
           }
 
-          await store.saveConfiguration(record);
-          // Model ROWS are administration state — enablement and certification
-          // for models the definition already declares. They create no runtime
-          // capability; the descriptor's catalogue comes from the definition.
-          for (const model of validation.definition.models) {
-            await store.saveModel({
-              modelRecordId: ids.next('pvm'),
-              configurationId: record.configurationId,
-              providerKey: providerId,
-              modelId: model.modelId,
-              displayName: model.modelId,
-              enabled: true,
-              certification: 'unverified',
-              createdAt: at,
-              updatedAt: at,
+          // THROUGH THE EXISTING REGISTRY API. No second mechanism, and no
+          // direct mutation of a `RegisteredProvider`.
+          plane.providers.setCertification(target, next);
+
+          // The durable record follows. A row that disagreed with the runtime
+          // would be a console that lies about a governance decision, and this
+          // is the one decision a reviewer will come back to.
+          if (options.store) {
+            const configuration = await ensureConfiguration(target, actor.actorId);
+            await options.store.saveConfiguration({
+              ...configuration,
+              certification: next,
+              updatedAt: clock.isoNow(),
               updatedBy: actor.actorId,
             });
           }
 
-          // Registered through the SAME path bootstrap hydration takes. There
-          // is no second construction of a descriptor anywhere.
-          await registrar.hydrate();
-          // The credential snapshot has to learn the new provider exists before
-          // the view below reports its credential state, or the console would
-          // render "unconfigured" for a provider it just created.
-          await options.credentials?.refresh();
-
-          logger.info('ai.admin.provider.self_hosted.defined', {
-            providerId,
-            // The HOST, never the whole URL and never a query — there is no
-            // query, the policy refuses one, and a host is what an incident
-            // review needs.
-            endpointHost: validation.definition.endpoint.host,
-            runtime: validation.definition.runtime,
-            models: validation.definition.models.length,
+          // CERTIFICATION DOES NOT ENABLE. Said out loud in the log because it
+          // is the thing an operator will assume happened.
+          logger.info('ai.admin.provider.certification.changed', {
+            providerId: target,
+            certification: next,
+            enabled: plane.providers.get(target).enabled,
             reason: auditReason,
           });
 
           return {
-            after: await providerFacts(providerId),
-            result: await buildView(providerId),
+            after: await providerFacts(target),
+            result: await buildView(target),
           };
         },
       });
     },
   };
+
+  /**
+   * Validate, persist and reconcile one self-hosted definition.
+   *
+   * SHARED BY `define` AND `update`, because they are the same operation with
+   * different preconditions and a different audit action. Two copies would be
+   * two places for the validate-before-persist ordering to drift.
+   *
+   * ── H-2: THE OPERATION OBSERVES ITS OWN WRITE ──────────────────────────
+   *
+   * It calls `registrar.refresh()`, not `hydrate()`. `hydrate()` coalesces onto
+   * an in-flight run that may have read storage BEFORE this write — bootstrap
+   * fires one, unawaited, at isolate start — and an independent certification
+   * gate proved the consequence: the rows committed, the provider was not
+   * registered, and the administrator was told `PROVIDER_NOT_FOUND` for
+   * something that had in fact been persisted. A retry then minted a second
+   * configuration id for a `provider_key` the database holds a unique index on,
+   * leaving the operator wedged.
+   *
+   * ── H-2: AND IT IS IDEMPOTENT ──────────────────────────────────────────
+   *
+   * The configuration id is REUSED when a row already exists for this provider
+   * key, so a retry updates the row it wrote rather than minting a second one.
+   * That is what makes the failure recoverable even if admission fails again.
+   */
+  async function commitSelfHostedDefinition(operation: {
+    readonly actor: AIAdminActor;
+    readonly providerId: string;
+    readonly input: SelfHostedProviderInput;
+    readonly auditReason: string;
+    readonly mode: 'define' | 'update';
+  }): Promise<{
+    after: Readonly<Record<string, unknown>>;
+    result: ProviderAdministrationView;
+  }> {
+    const { actor, providerId, input, mode } = operation;
+    const registrar = options.selfHosted;
+    if (!registrar) {
+      // REFUSES rather than degrading. Storing a definition nothing will
+      // register would leave an operator believing they configured a provider
+      // that cannot execute.
+      throw new AIError(
+        'INTERNAL_ERROR',
+        'Self-hosted providers are not enabled in this deployment.',
+        {
+          diagnostics: 'no self-hosted provider registrar was injected at bootstrap',
+          retryable: false,
+        },
+      );
+    }
+    const store = options.store;
+    if (!store) {
+      throw new AIError(
+        'INTERNAL_ERROR',
+        'Provider administration storage is not configured in this deployment.',
+        {
+          diagnostics: 'no ProviderAdministrationStore was injected at bootstrap',
+          retryable: false,
+        },
+      );
+    }
+
+    // A reviewed adapter's id is never claimable, in either mode.
+    if (RESERVED_PROVIDER_IDS.includes(providerId)) {
+      throw new AIError('VALIDATION_FAILED', 'That provider id belongs to a built-in adapter.', {
+        fields: ['providerId'],
+        retryable: false,
+      });
+    }
+
+    const existingRow = await store.findConfiguration(PLATFORM_SCOPE, providerId);
+    const registeredNow = plane.providers.find(providerId);
+
+    if (mode === 'update') {
+      // An update addresses something that must already be a self-hosted
+      // definition. A registered provider with no stored definition is a
+      // built-in, and this operation must not be a way to rewrite one.
+      if (!existingRow || !registrar.definitions().some((d) => d.providerId === providerId)) {
+        throw new AIError('PROVIDER_NOT_FOUND', 'That self-hosted provider is not defined.', {
+          diagnostics: `providerId=${providerId}`,
+          retryable: false,
+        });
+      }
+    } else if (registeredNow !== undefined && existingRow === undefined) {
+      // A registered provider with no stored row is a built-in registered under
+      // an id the reserved list does not cover. Refused rather than shadowed.
+      throw new AIError('CONFLICT', 'A provider with that id is already registered.', {
+        diagnostics: `providerId=${providerId}`,
+        retryable: false,
+      });
+    }
+
+    const at = clock.isoNow();
+    // ── WHAT A DEFINITION MAY NOT DECIDE ─────────────────────────────────
+    //
+    // A NEW provider is uncertified and disabled, whatever the request said.
+    //
+    // AN UPDATED ONE IS RE-SET TO `unverified` ON EVERY DEFINITION WRITE, not
+    // only when the endpoint changes. MARQ certified a specific endpoint
+    // serving a specific catalogue, and deciding case by case which edits are
+    // "material enough" to invalidate that would put the security question on a
+    // diffing heuristic. Writing a definition is an explicit act; re-certifying
+    // afterwards is one more, and it is cheap. The alternative — carrying the
+    // decision across a write — is what lets an operator certify a benign host
+    // and then repoint it.
+    //
+    // Administrative ENABLEMENT is preserved across an update, because the
+    // certification gate makes it inert until certification is granted again.
+    // Clearing both would silently forget an operator's intent for no gain.
+    const previousCertification = existingRow?.certification ?? 'unverified';
+    const record: AIProviderConfigurationRecord = {
+      configurationId: existingRow?.configurationId ?? ids.next('pvc'),
+      providerKey: providerId,
+      displayName: bounded(input.displayName, 120) ?? '',
+      scope: PLATFORM_SCOPE,
+      enabled: mode === 'define' ? false : existingRow?.enabled === true,
+      certification: 'unverified',
+      configuration: selfHostedConfigurationFrom(input),
+      createdAt: existingRow?.createdAt ?? at,
+      updatedAt: at,
+      createdBy: existingRow?.createdBy ?? actor.actorId,
+      updatedBy: actor.actorId,
+    };
+
+    // VALIDATED BEFORE STORED, with the deployment's own endpoint policy.
+    const validation = validateSelfHostedDefinition(record, {
+      allowPrivateEndpoints: options.allowPrivateEndpoints,
+    });
+    if (validation.ok !== true) {
+      throw new AIError(
+        'VALIDATION_FAILED',
+        'That self-hosted provider definition is not valid.',
+        {
+          fields: ['baseUrl', 'models'],
+          // The reasons name FIELDS and BOUNDS. The definition validator never
+          // echoes a value it judged secret-shaped, so nothing a caller pasted
+          // can travel back out through here.
+          diagnostics: validation.reasons.join('; '),
+          retryable: false,
+        },
+      );
+    }
+
+    // The governed exposure guard. The candidate replaces any entry this
+    // provider already contributes, so an UPDATE is judged on its new
+    // catalogue rather than on the sum of both.
+    const verdict = judgeExposureChange(
+      exposureReport(plane.catalog.list(), effectiveCatalogue()),
+      exposureReport(plane.catalog.list(), [
+        ...effectiveCatalogue().filter((entry) => entry.providerId !== providerId),
+        { providerId, billable: true, models: validation.definition.models },
+      ]),
+      options.reservationCeilingMicroUsd,
+    );
+    if (!verdict.permitted) {
+      throw new AIError(
+        'VALIDATION_FAILED',
+        'This provider would raise the platform’s worst-case AI spending exposure past the governed ceiling.',
+        { fields: ['models'], diagnostics: verdict.reason, retryable: false },
+      );
+    }
+
+    // L-1: the CANONICAL endpoint is stored, so storage, the audit trail, the
+    // console and the runtime all quote the same string.
+    const persisted: AIProviderConfigurationRecord = {
+      ...record,
+      configuration: canonicalSelfHostedConfiguration(record.configuration, validation.definition),
+    };
+    await store.saveConfiguration(persisted);
+
+    // Model ROWS are administration state — enablement and certification for
+    // models the definition already declares. They create no runtime
+    // capability; the descriptor's catalogue comes from the definition.
+    const existingModels = await store.listModels(persisted.configurationId);
+    for (const model of validation.definition.models) {
+      const priorRow = existingModels.find((row) => row.modelId === model.modelId);
+      await store.saveModel({
+        modelRecordId: priorRow?.modelRecordId ?? ids.next('pvm'),
+        configurationId: persisted.configurationId,
+        providerKey: providerId,
+        modelId: model.modelId,
+        displayName: priorRow?.displayName ?? model.modelId,
+        enabled: true,
+        certification: 'unverified',
+        createdAt: priorRow?.createdAt ?? at,
+        updatedAt: at,
+        updatedBy: actor.actorId,
+      });
+    }
+
+    // H-2: a refresh guaranteed to observe the write above, not a coalesced
+    // hydration that may predate it.
+    const report = await registrar.refresh();
+
+    if (plane.providers.find(providerId) === undefined) {
+      // ADMISSION FAILED AFTER PERSISTENCE. The row is not a phantom: the
+      // configuration id is reused on the next attempt, so a corrected
+      // definition updates this row rather than colliding with it. The refusal
+      // names why admission failed rather than reporting a bare "not found".
+      const refusal = report.refused.find((outcome) => outcome.providerId === providerId);
+      throw new AIError(
+        'INTERNAL_ERROR',
+        'The provider definition was saved but could not be brought into service.',
+        {
+          diagnostics:
+            `providerId=${providerId} configurationId=${persisted.configurationId} ` +
+            `refusal=${(refusal?.reasons ?? ['admission produced no outcome']).join('; ')}`,
+          retryable: false,
+        },
+      );
+    }
+
+    // The credential snapshot has to learn the provider exists before the view
+    // below reports its credential state, or the console would render
+    // "unconfigured" for a provider it just created.
+    await options.credentials?.refresh();
+
+    logger.info(
+      mode === 'define'
+        ? 'ai.admin.provider.self_hosted.defined'
+        : 'ai.admin.provider.self_hosted.updated',
+      {
+        providerId,
+        // The HOST, never the whole URL and never a query — there is no query,
+        // the policy refuses one, and a host is what an incident review needs.
+        endpointHost: validation.definition.endpoint.host,
+        runtime: validation.definition.runtime,
+        models: validation.definition.models.length,
+        certificationWithdrawn: previousCertification === 'certified',
+        reason: operation.auditReason,
+      },
+    );
+
+    return {
+      after: await providerFacts(providerId),
+      result: await buildView(providerId),
+    };
+  }
 }
+
+/** The certification states an administrator may set. Never `disabled`. */
+const ADMINISTERED_CERTIFICATIONS: readonly AICertificationStatus[] = [
+  'unverified',
+  'testing',
+  'certified',
+  'degraded',
+];
+
+function certificationOf(value: unknown): AICertificationStatus | 'disabled' | undefined {
+  if (value === 'disabled') return 'disabled';
+  return ADMINISTERED_CERTIFICATIONS.find((candidate) => candidate === value);
+}
+
 
 /**
  * Flatten an administrator's submission into the stored configuration map.

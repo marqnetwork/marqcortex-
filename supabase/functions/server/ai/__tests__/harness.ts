@@ -45,6 +45,7 @@ import {
 import { createMemoryProviderAdministrationStore } from '../providers/credentials/credentialStore.ts';
 import type { SelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
 import { createSelfHostedRegistrar } from '../providers/selfHosted/registrar.ts';
+import { exposureReport, judgeExposureChange } from '../policy/exposure.ts';
 
 export interface StubSubjectOptions {
   readonly subjectId?: string;
@@ -461,6 +462,26 @@ export function buildTestAdministration(
           );
         },
         now: () => base.clock.isoNow(),
+        // The SAME exposure decision `bootstrap.ts` wires. A harness that
+        // omitted it would let a suite pass on a path production refuses.
+        admissionGuard: (candidate) => {
+          const catalogue = base.plane.providers.list().map((provider) => ({
+            providerId: provider.descriptor.providerId,
+            billable: provider.descriptor.billable,
+            models: provider.descriptor.models,
+          }));
+          const verdict = judgeExposureChange(
+            exposureReport(base.plane.catalog.list(), catalogue),
+            exposureReport(base.plane.catalog.list(), [
+              ...catalogue.filter((entry) => entry.providerId !== candidate.providerId),
+              { providerId: candidate.providerId, billable: true, models: candidate.models },
+            ]),
+            base.plane.config.spend.maxPlatformMicroUsd,
+          );
+          return verdict.permitted
+            ? undefined
+            : `governed spending exposure would exceed the platform ceiling: ${verdict.reason}`;
+        },
       })
     : undefined;
 

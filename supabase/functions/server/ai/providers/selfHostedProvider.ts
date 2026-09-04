@@ -138,11 +138,34 @@ export function createSelfHostedProvider(options: SelfHostedProviderOptions): AI
           headers,
           body: JSON.stringify(body),
           signal: invocation.signal,
+          // ── THE REDIRECT REFUSAL (AI-01 Batch 4E remediation, BLOCKER B-1) ──
+          //
+          // WITHOUT THIS LINE THE ENDPOINT POLICY GOVERNS ONLY THE FIRST URL.
+          // `fetch` defaults to `follow`, and an independent certification gate
+          // proved what that costs: a validated public HTTPS endpoint answered
+          // 307 with `Location: http://127.0.0.1:.../latest/meta-data/`, and
+          // the adapter dialled it — a target `validateEndpoint` refuses
+          // outright. The tenant's prompt was forwarded to it verbatim and its
+          // response body came back as the completion. A validator the transport
+          // can be talked out of in one header is not a validator.
+          //
+          // `error` rather than `manual`, deliberately. Following a redirect
+          // safely would mean re-running the whole policy against every
+          // `Location`, with a hop limit, and getting the scheme-downgrade and
+          // cross-origin header rules right as well — a networking design, not a
+          // remediation. An OpenAI-compatible `/chat/completions` endpoint has
+          // no legitimate reason to redirect, so the safe answer and the simple
+          // answer are the same one: refuse, and let the operator fix the
+          // endpoint they configured.
+          //
+          // The transport raises before any second request is issued; the catch
+          // below turns that into the governed taxonomy.
+          redirect: 'error',
         });
       } catch (error) {
         throw new AIError('PROVIDER_UNAVAILABLE', 'The AI provider could not be reached.', {
           providerId: definition.providerId,
-          diagnostics: error instanceof Error ? error.message : String(error),
+          diagnostics: describeTransportFailure(error),
           cause: error,
         });
       }
@@ -198,6 +221,33 @@ export function createSelfHostedProvider(options: SelfHostedProviderOptions): AI
   };
 }
 
+/**
+ * Describe a transport failure for the OPERATOR log, without echoing a target.
+ *
+ * `redirect: 'error'` surfaces as a bare `TypeError: fetch failed` whose cause
+ * says `unexpected redirect`, which tells an operator nothing about what they
+ * have to fix. The cause chain is walked so the one failure this adapter
+ * deliberately induces is named, and every other transport failure keeps the
+ * message it already had.
+ */
+function describeTransportFailure(error: unknown): string {
+  const messages: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current !== undefined && current !== null; depth += 1) {
+    messages.push(current instanceof Error ? current.message : String(current));
+    current = current instanceof Error ? (current as { cause?: unknown }).cause : undefined;
+  }
+  const chain = messages.join(': ');
+  if (/redirect/i.test(chain)) {
+    return (
+      `${chain} — the endpoint answered with a redirect and this adapter refuses to follow ` +
+      'one. Only the configured, validated URL is ever dialled; no redirect target was ' +
+      'contacted. Point the configuration at the endpoint that serves /chat/completions.'
+    );
+  }
+  return chain;
+}
+
 interface OpenAICompatibleChatResponse {
   model?: string;
   choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
@@ -220,6 +270,30 @@ async function translateHttpFailure(providerId: string, response: Response): Pro
     detail = '(response body unavailable)';
   }
   const diagnostics = `HTTP ${response.status}: ${detail}`;
+
+  if (response.status >= 300 && response.status < 400) {
+    // BELT AND BRACES BESIDE `redirect: 'error'` (BLOCKER B-1).
+    //
+    // The transport already refuses to follow, so production never reaches
+    // here. This branch exists because a transport is INJECTABLE: a double, a
+    // future proxy, or a runtime whose `redirect` support differs could hand a
+    // 3xx straight to this function. Without it, a redirect would fall through
+    // to the final `INVALID_MODEL_OUTPUT` and be reported as "the provider
+    // rejected the request" — which would send an operator looking at their
+    // prompt instead of at the redirect their endpoint is serving.
+    //
+    // The `Location` value is NOT echoed. It is attacker-influenced text and
+    // this diagnostic reaches the operator log; the status and the fact of the
+    // refusal are what an operator needs.
+    return new AIError('PROVIDER_UNAVAILABLE', 'The AI provider could not be reached.', {
+      providerId,
+      diagnostics:
+        `HTTP ${response.status}: the endpoint answered with a redirect, which is refused. ` +
+        'A self-hosted endpoint must serve /chat/completions directly; only the configured, ' +
+        'validated URL is ever dialled.',
+      retryable: false,
+    });
+  }
 
   if (response.status === 401 || response.status === 403) {
     return new AIError(

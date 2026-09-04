@@ -502,6 +502,32 @@ export interface AIAdministration {
     reason: unknown,
     meta?: AdminRequestMeta,
   ): Promise<ProviderAdministrationView>;
+  /**
+   * Replace an existing self-hosted provider's stored definition
+   * (AI-01 Batch 4E remediation, M-4). Re-validated, re-judged against the
+   * exposure ceiling, and reconciled into the runtime without a restart.
+   */
+  updateSelfHostedProvider(
+    actor: AIAdminActor,
+    providerId: string,
+    input: SelfHostedProviderInput,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
+  /**
+   * Grant or withdraw MARQ's certification of a provider
+   * (AI-01 Batch 4E remediation, H-1).
+   *
+   * The governance decision, and only that: it enables nothing, takes no
+   * definition and touches no credential.
+   */
+  setProviderCertification(
+    actor: AIAdminActor,
+    providerId: string,
+    certification: unknown,
+    reason: unknown,
+    meta?: AdminRequestMeta,
+  ): Promise<ProviderAdministrationView>;
 
   usage(actor: AIAdminActor): Promise<UsageReport>;
   diagnostics(actor: AIAdminActor): Promise<AdminDiagnostics>;
@@ -1190,6 +1216,10 @@ export function createAIAdministration(deps: AdministrationDependencies): AIAdmi
       providers.setModelEnabled(actor, providerId, modelId, enabled, reason, meta),
     defineSelfHostedProvider: (actor, input, reason, meta) =>
       providers.defineSelfHostedProvider(actor, input, reason, meta),
+    updateSelfHostedProvider: (actor, providerId, input, reason, meta) =>
+      providers.updateSelfHostedProvider(actor, providerId, input, reason, meta),
+    setProviderCertification: (actor, providerId, certification, reason, meta) =>
+      providers.setProviderCertification(actor, providerId, certification, reason, meta),
 
     updateProvider(actor, providerId, patch, reason, meta) {
       return mutate(actor, {

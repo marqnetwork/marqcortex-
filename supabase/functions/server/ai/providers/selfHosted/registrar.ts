@@ -50,7 +50,7 @@
  * before this code ran.
  */
 
-import type { AIProviderAdapter } from '../../contracts/provider.ts';
+import type { AIModelDescriptor, AIProviderAdapter } from '../../contracts/provider.ts';
 import type { ProviderRegistry } from '../registry.ts';
 import type { ProviderCredentialResolver } from '../credentials/contracts.ts';
 import type {
@@ -71,7 +71,7 @@ import { createSelfHostedProvider } from '../selfHostedProvider.ts';
 
 export interface SelfHostedHydrationOutcome {
   readonly providerId: string;
-  readonly status: 'registered' | 'refused' | 'already_registered';
+  readonly status: 'registered' | 'reconciled' | 'refused' | 'already_registered';
   /** Never carries a stored value — only the reasons validation produced. */
   readonly reasons?: readonly string[];
 }
@@ -79,6 +79,8 @@ export interface SelfHostedHydrationOutcome {
 export interface SelfHostedHydrationReport {
   readonly attempted: number;
   readonly registered: readonly string[];
+  /** Providers whose stored definition changed and were rebuilt (M-4). */
+  readonly reconciled: readonly string[];
   readonly refused: readonly SelfHostedHydrationOutcome[];
   readonly ranAt: string;
 }
@@ -100,6 +102,26 @@ export interface SelfHostedRegistrarOptions {
   readonly allowPrivateEndpoints?: boolean;
   readonly fetchImpl?: FetchLike;
   readonly now: () => string;
+  /**
+   * The governed spending-exposure decision, applied to a candidate before it
+   * is admitted (AI-01 Batch 4E remediation, M-2).
+   *
+   * Returns a refusal reason, or `undefined` to admit. INJECTED rather than
+   * computed here: the answer needs the feature catalogue, the live provider
+   * estate and the deployment's reservation ceiling, and a registrar that
+   * acquired those would be a second place the exposure question is answered.
+   *
+   * It exists because the administration write path refused an over-ceiling
+   * definition and HYDRATION did not — so a row written before the ceiling was
+   * lowered, or by anything else holding the service role, registered a
+   * catalogue that raises the pessimistic hold on every request the platform
+   * serves. Absent, no exposure decision is made, which is the pre-remediation
+   * behaviour and is correct only for a caller that has no plane.
+   */
+  readonly admissionGuard?: (candidate: {
+    readonly providerId: string;
+    readonly models: readonly AIModelDescriptor[];
+  }) => string | undefined;
   /** Operator channel. Never carries a stored value or a credential. */
   readonly onError?: (providerId: string, detail: string) => void;
   readonly onRegistered?: (providerId: string, detail: string) => void;
@@ -115,6 +137,24 @@ export interface SelfHostedRegistrar {
    * an administration write can produce the registry's duplicate error.
    */
   hydrate(): Promise<SelfHostedHydrationReport>;
+  /**
+   * Load, validate and register persisted definitions, GUARANTEEING that the
+   * storage read begins after this call (AI-01 Batch 4E remediation, H-2).
+   *
+   * THE DIFFERENCE FROM `hydrate()` IS THE WHOLE POINT, and it is the Batch 4C
+   * M-3 lesson applied to a second component. `hydrate()` coalesces: ten
+   * concurrent observers of a cold registry should produce one storage read,
+   * not ten. But a caller that has just WRITTEN a row and needs to see it must
+   * not be handed a promise for a read that started before the write — an
+   * independent certification gate proved that exact interleaving, and the cost
+   * was a committed configuration row, an unregistered provider, and a
+   * `PROVIDER_NOT_FOUND` reported to the administrator who had just created it.
+   *
+   * So this waits for any in-flight run to settle and then starts a fresh one.
+   * Every caller that has just persisted something uses it; the TTL-free
+   * bootstrap path keeps `hydrate()`.
+   */
+  refresh(): Promise<SelfHostedHydrationReport>;
   /**
    * Credential profiles for every registered self-hosted provider.
    *
@@ -137,15 +177,63 @@ export function createSelfHostedRegistrar(
   let report: SelfHostedHydrationReport | undefined;
 
   function emptyReport(): SelfHostedHydrationReport {
-    return { attempted: 0, registered: [], refused: [], ranAt: options.now() };
+    return { attempted: 0, registered: [], reconciled: [], refused: [], ranAt: options.now() };
   }
 
   /**
-   * Register ONE validated definition, or explain why it was not.
+   * A stable digest of what a definition MEANS to the runtime.
    *
-   * The profile is published BEFORE `registry.register`, so there is no instant
-   * at which an adapter is selectable while the resolver does not yet know how
-   * to answer for it.
+   * Compared across hydrations to decide whether a registered provider has to
+   * be rebuilt (M-4). It covers exactly the facts that change behaviour — the
+   * dialled URL, the credential requirement, priority, the model catalogue and
+   * its prices, and the two governed states — and nothing that does not, so a
+   * touched `updated_at` does not churn the registry mid-flight.
+   */
+  function shapeOf(definition: SelfHostedProviderDefinition): string {
+    return JSON.stringify([
+      definition.endpoint.chatCompletionsUrl,
+      definition.credentialRequired,
+      definition.priority,
+      definition.displayName,
+      definition.deploymentId ?? null,
+      definition.certification,
+      definition.administrativelyEnabled,
+      definition.models.map((model) => [
+        model.modelId,
+        model.promptMicroUsdPer1k,
+        model.completionMicroUsdPer1k,
+        model.capabilities.textGeneration,
+        model.capabilities.structuredOutput,
+        model.capabilities.chatCompletions,
+        model.capabilities.zeroDataRetention,
+        model.capabilities.maxOutputTokens,
+        model.capabilities.maxContextTokens,
+      ]),
+    ]);
+  }
+
+  /**
+   * Register or RECONCILE one validated definition, or explain why not.
+   *
+   * ── ORDER OF OPERATIONS, WHICH IS THE DESIGN ────────────────────────────
+   *
+   *   reserved id       refused before anything is read. A stored row must
+   *                     never be able to repoint a reviewed adapter.
+   *   validation        the endpoint policy runs BEFORE anything is admitted,
+   *                     on every hydration — not only on the write path — so a
+   *                     row that reached storage by any other route still
+   *                     cannot become a callable endpoint.
+   *   exposure          the governed ceiling, applied to the SAME candidate the
+   *                     administration surface applies it to (M-2).
+   *   admit or replace  a new provider is registered; one whose meaning has
+   *                     changed is REBUILT (M-4); one that is unchanged is left
+   *                     strictly alone.
+   *
+   * NOTHING IS WIDENED TRANSIENTLY. A replacement is a single synchronous swap
+   * carrying the new definition's own enablement and certification, so there is
+   * no instant at which the old adapter is gone and nothing has taken its
+   * place, and none at which a provider is enabled beyond what its definition
+   * permits.
    */
   function admit(
     record: AIProviderConfigurationRecord,
@@ -160,7 +248,12 @@ export function createSelfHostedRegistrar(
         reasons: [`${providerId} is a built-in adapter and cannot be defined by a stored row`],
       };
     }
-    if (registered.has(providerId) || registry.find(providerId) !== undefined) {
+
+    const known = registered.get(providerId);
+    // A provider this registrar does not own but the registry already holds is
+    // somebody else's — a built-in registered under a name not on the reserved
+    // list, say. Left untouched rather than replaced.
+    if (known === undefined && registry.find(providerId) !== undefined) {
       return { providerId, status: 'already_registered' };
     }
 
@@ -168,11 +261,30 @@ export function createSelfHostedRegistrar(
       allowPrivateEndpoints: options.allowPrivateEndpoints,
     });
     if (validation.ok !== true) {
+      // FAILS CLOSED IN BOTH DIRECTIONS. A new definition is not admitted; an
+      // EXISTING one keeps the last shape that passed, because tearing a
+      // working provider down over an edit that does not validate would turn a
+      // typo into an outage. The refusal is reported either way.
       return { providerId, status: 'refused', reasons: validation.reasons };
     }
 
     const definition = validation.definition;
-    // Published first. `profiles()` is read live by the resolver.
+
+    const exposureRefusal = options.admissionGuard?.({
+      providerId,
+      models: definition.models,
+    });
+    if (exposureRefusal !== undefined) {
+      return { providerId, status: 'refused', reasons: [exposureRefusal] };
+    }
+
+    if (known !== undefined && shapeOf(known) === shapeOf(definition)) {
+      return { providerId, status: 'already_registered' };
+    }
+
+    const previous = known;
+    // Published BEFORE the registry write, so there is no instant at which an
+    // adapter is selectable while the resolver cannot answer for it.
     registered.set(providerId, definition);
 
     let adapter: AIProviderAdapter;
@@ -182,13 +294,16 @@ export function createSelfHostedRegistrar(
         credentials: options.credentials(),
         fetchImpl: options.fetchImpl,
       });
-      registry.register(adapter, selfHostedRegistration(definition));
+      const registration = selfHostedRegistration(definition);
+      if (previous === undefined) registry.register(adapter, registration);
+      else registry.replace(adapter, registration);
     } catch (error) {
-      // Roll the profile back. A profile for a provider that is not registered
-      // would make the resolver's snapshot claim a provider the registry does
-      // not have, and the console would render a credential form for something
-      // that cannot execute.
-      registered.delete(providerId);
+      // Roll back to exactly the previous state. A profile for a provider the
+      // registry does not have would make the resolver's snapshot claim one,
+      // and the console would render a credential form for something that
+      // cannot execute.
+      if (previous === undefined) registered.delete(providerId);
+      else registered.set(providerId, previous);
       return {
         providerId,
         status: 'refused',
@@ -196,7 +311,7 @@ export function createSelfHostedRegistrar(
       };
     }
 
-    return { providerId, status: 'registered' };
+    return { providerId, status: previous === undefined ? 'registered' : 'reconciled' };
   }
 
   async function run(): Promise<SelfHostedHydrationReport> {
@@ -234,6 +349,9 @@ export function createSelfHostedRegistrar(
       registered: outcomes
         .filter((outcome) => outcome.status === 'registered')
         .map((outcome) => outcome.providerId),
+      reconciled: outcomes
+        .filter((outcome) => outcome.status === 'reconciled')
+        .map((outcome) => outcome.providerId),
       refused: outcomes.filter((outcome) => outcome.status === 'refused'),
       ranAt: options.now(),
     };
@@ -244,7 +362,7 @@ export function createSelfHostedRegistrar(
         `self-hosted provider definition refused: ${(outcome.reasons ?? []).join('; ')}`,
       );
     }
-    for (const providerId of next.registered) {
+    for (const providerId of [...next.registered, ...next.reconciled]) {
       const definition = registered.get(providerId)!;
       const registration = selfHostedRegistration(definition);
       options.onRegistered?.(
@@ -259,16 +377,46 @@ export function createSelfHostedRegistrar(
     return next;
   }
 
+  /** Start a run and hold it in the shared slot until it settles. */
+  function start(): Promise<SelfHostedHydrationReport> {
+    const attempt = run().finally(() => {
+      // Only release the slot if it is still this run's. A refresh that
+      // overtook a coalesced hydration must not release the other's.
+      if (inFlight === attempt) inFlight = undefined;
+    });
+    inFlight = attempt;
+    return attempt;
+  }
+
   return {
     hydrate() {
       // Single-flight only while a hydration is actually running. Once it has
       // settled the slot is released, so a later call re-reads storage — which
       // is what makes a provider defined after bootstrap reachable without a
       // restart — and `admit` keeps that second pass idempotent.
-      inFlight ??= run().finally(() => {
-        inFlight = undefined;
-      });
+      inFlight ??= start();
       return inFlight;
+    },
+
+    async refresh() {
+      // ── THE NON-COALESCING READ (4E remediation, H-2) ───────────────────
+      //
+      // A caller that has just written a row must observe its own write. The
+      // in-flight run may have read storage BEFORE that write, so joining it
+      // would return a snapshot that cannot contain the new definition — and
+      // the caller would then report failure for something it had successfully
+      // persisted. That is Batch 4C's M-3 defect, and this is the same remedy
+      // the credential resolver adopted for it.
+      //
+      // AWAIT, THEN START. The in-flight run is not cancelled: it may be
+      // bootstrap's own and other callers are waiting on it. We let it settle —
+      // its outcome is irrelevant here, hence the swallow — and then take a
+      // fresh read that is guaranteed to begin after this call did.
+      const pending = inFlight;
+      if (pending !== undefined) {
+        await pending.catch(() => undefined);
+      }
+      return start();
     },
 
     profiles() {

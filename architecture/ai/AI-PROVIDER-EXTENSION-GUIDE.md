@@ -271,6 +271,28 @@ switch and its `certification` column is MARQ's governance decision; a
 self-hosted provider serves only when both say yes. It is registered either way,
 because the console is where it gets certified.
 
+### The lifecycle, and why it has four steps
+
+```
+define      POST   /provider-administration/self-hosted           uncertified, disabled
+certify     POST   /provider-administration/:id/certification      MARQ's governance decision
+enable      POST   /provider-administration/:id/enabled            the operational switch
+credential  POST   /provider-administration/:id/credentials        only if required
+```
+
+**Enabling before certifying is refused**, and certifying enables nothing. The
+registry carries the rule durably — a self-hosted descriptor sets
+`certificationGatesEnablement`, so `setEnabled(true)` is clamped and `stateOf`
+reports `disabled` however the persisted overlay is spelled. Built-in adapters
+do not declare it and are unaffected.
+
+**Any definition write withdraws certification.** What MARQ certified was a
+specific endpoint serving a specific catalogue; carrying the decision across a
+write would let an operator certify a benign host and then repoint it, and
+deciding which edits are "material enough" would put that question on a diffing
+heuristic. Administrative enablement survives the write — the gate keeps it
+inert until certification is granted again.
+
 ### The endpoint policy is the SSRF boundary
 
 `ai/providers/selfHosted/endpointPolicy.ts` is the only producer of a
@@ -285,9 +307,29 @@ cloud metadata addresses by name and by literal, including IPv4-mapped IPv6
 forms; malformed hosts; dot segments and encoded separators, checked on the RAW
 string because the URL parser resolves them.
 
-It **cannot** catch DNS rebinding — a hostname that resolves to a private
-address at dial time. The edge runtime offers no socket hook. The mitigation is
-that certification is a separate, human decision.
+**Redirects are refused, not followed.** The adapter sets `redirect: 'error'`.
+An independent certification gate proved what the default costs: a validated
+HTTPS endpoint answered `307` with `Location: http://127.0.0.1/...`, and the
+adapter dialled it, forwarded the tenant prompt and returned the internal
+service's body as the completion. Following a redirect safely would mean
+re-running the whole policy against every `Location` with a hop limit and
+getting the scheme-downgrade rules right — a networking design, not a provider
+adapter. An OpenAI-compatible endpoint has no reason to redirect, so the safe
+answer and the simple one coincide.
+
+**It cannot catch DNS rebinding**, and this is a real remaining limitation
+rather than a theoretical one. The hostname is validated syntactically; DNS
+resolution happens later, inside `fetch`, and the edge runtime offers no socket
+hook or resolver control. A hostname an operator configures that resolves to a
+private or metadata address is not caught here — no rebinding race is even
+needed. What limits it in practice is the **https-only rule**: a plaintext
+metadata service cannot complete a TLS handshake for that name, so the classic
+`169.254.169.254` chain does not complete. Internal services holding a valid
+certificate for the configured name remain reachable. The real control for a
+deployment that needs one is **network-level egress policy**, which is outside
+this platform. Certification being a human decision reduces the chance of a
+hostile endpoint being configured; it is not a technical mitigation and must not
+be described as one.
 
 `AI_SELF_HOSTED_ALLOW_PRIVATE_ENDPOINTS` waives `http`, loopback and private
 addresses for local development. It never waives a metadata address, it is a
