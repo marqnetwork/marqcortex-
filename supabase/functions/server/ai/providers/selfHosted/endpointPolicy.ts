@@ -47,12 +47,42 @@
  *                     slashes — the shapes that turn `${base}/chat/completions`
  *                     into something else.
  *
- * WHAT IT CANNOT DO, STATED PLAINLY. This validates a URL, not a packet. A
- * hostname that resolves to a private address at dial time (DNS rebinding) is
- * not caught here and cannot be: the edge runtime gives no socket-level hook
- * and no resolver control. The mitigation is that a self-hosted provider is
- * inert until a MARQ platform administrator has certified it — a governance
- * control, recorded here so nobody reads this file as more than it is.
+ * ── WHAT IT CANNOT DO, STATED PLAINLY ──────────────────────────────────────
+ *
+ * THIS VALIDATES A URL, NOT A PACKET. Name resolution happens later, in the
+ * runtime, and this module has no hook into it: the edge runtime offers no
+ * socket-level callback and no resolver control. So a hostname that passes
+ * every check here and RESOLVES to an internal address at dial time — DNS
+ * rebinding, a split-horizon zone, an internal record on a public domain — is
+ * not prevented at this layer, and cannot be.
+ *
+ * What the platform actually does about that, in order:
+ *
+ *   THIS FILE reduces the surface. Literal internal addresses, metadata hosts
+ *   and malformed authorities never become dialleable at all, so an attacker
+ *   must control DNS for a name that passes the grammar rather than simply
+ *   typing an address.
+ *
+ *   HTTPS narrows it further. Outside the local-development exception the
+ *   scheme must be `https` and the certificate is validated by the runtime, so
+ *   the responder has to hold a valid certificate for the configured name.
+ *
+ *   THE ADAPTER'S REDIRECT REFUSAL closes the escape that made the rest
+ *   negotiable. `selfHostedProvider.ts` sets `redirect: 'error'`, so a
+ *   validated endpoint cannot hand the transport a second, unvalidated
+ *   destination — and the one URL this module composes is the only one ever
+ *   dialled, always by POST to `<base>/chat/completions`.
+ *
+ *   DEPLOYMENT-LEVEL EGRESS POLICY IS THE AUTHORITATIVE MITIGATION for
+ *   internal network reachability. Whether the runtime can open a connection
+ *   to an internal address at all is a property of the deployment's network,
+ *   not of this validator, and it is where the control belongs.
+ *
+ * CERTIFICATION IS NOT A REBINDING CONTROL, and this comment used to imply it
+ * was. Requiring a MARQ platform administrator to certify a provider governs
+ * WHO may put an endpoint into service and leaves an audited reason for it; it
+ * decides nothing about what a name resolves to afterwards. It is a governance
+ * control, and reading it as a network one is how a gap gets left open.
  */
 
 /** A brand no caller can forge. The only producer is `validateEndpoint`. */

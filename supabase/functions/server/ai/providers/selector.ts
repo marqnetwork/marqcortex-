@@ -81,8 +81,26 @@ export function createProviderSelector(
   function reject(providerId: string, requirements: ModelRequirements): string | null {
     const provider = registry.find(providerId);
     if (!provider) return 'not registered';
-    if (!provider.enabled) return 'disabled';
-    if (provider.certification === 'disabled') return 'certification disabled';
+    // ── ELIGIBILITY ASKS THE REGISTRY, IT DOES NOT RE-DERIVE IT ─────────────
+    //
+    // (AI-01 Batch 4E remediation, N-1.) `registry.state()` is the ONE place a
+    // provider's operational state is decided, and it is where the
+    // certification gate lives. This used to read `provider.enabled` and
+    // `provider.certification` directly, which duplicated that rule and then
+    // drifted from it: a self-hosted provider whose certification had been
+    // withdrawn to `testing` or `degraded` while its enable switch was still
+    // open was reported `disabled` by `health()` and selected anyway. A
+    // control plane that says one thing on the health read and does another on
+    // the execution path is worse than no control at all.
+    //
+    // The DECISION below is the registry's. The reason is presentation only —
+    // it names which input an operator has to act on, and no edit to it can
+    // change whether a provider is eligible.
+    if (registry.state(providerId) === 'disabled') {
+      if (!provider.enabled) return 'disabled';
+      if (provider.certification === 'disabled') return 'certification disabled';
+      return 'certification required before this provider may serve';
+    }
     // The kill switch, applied before credentials: a deployment with real keys
     // configured but real requests turned off must report the switch as the
     // reason, not imply the keys are the problem.

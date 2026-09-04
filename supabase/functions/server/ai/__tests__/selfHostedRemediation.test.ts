@@ -46,6 +46,7 @@ import type {
 import type { ProviderCredentialResolver } from '../providers/credentials/contracts.ts';
 import type { SelfHostedProviderInput } from '../admin/providerAdministration.ts';
 import type { FetchLike } from '../providers/openaiProvider.ts';
+import { createExecutionFundingLatch } from '../providers/credentials/executionFunding.ts';
 
 const PROVIDER_ID = 'marq_inference';
 const MODEL_ID = 'm1';
@@ -918,6 +919,306 @@ describe('L-1 — storage, audit and runtime quote one canonical endpoint', () =
       harness.selfHostedProviders!.definitions()[0].endpoint.chatCompletionsUrl,
       'https://inference.marq.example.com/v1/chat/completions',
       'the stored value and the dialled value must describe one endpoint',
+    );
+  });
+});
+
+// ── N-1 — the certification gate must govern SELECTION ──────────────────────
+
+/**
+ * The second independent certification gate's blocking correctness finding.
+ *
+ * M-1 above put the gate in `stateOf` and in `setEnabled`. It was not in the
+ * selector, which re-derived eligibility from `enabled` and `certification` of
+ * its own — so the two answers drifted, and the review reproduced the drift:
+ *
+ *   certified → enabled → certification moved to `testing`
+ *   registry.health() = disabled
+ *   selector.explain() = eligible          ← and the provider kept serving
+ *
+ * `testing` and `degraded` are both states the governed certification
+ * operation offers, so this was reachable through the supported surface rather
+ * than by writing a row. Every case below fails against the pre-fix selector.
+ */
+describe('N-1 — eligibility consumes the registry state rather than re-deriving it', () => {
+  function planeOf(certification: 'unverified' | 'testing' | 'certified') {
+    const clock = createTestClock();
+    const circuit = createCircuitBreaker(clock, CIRCUIT);
+    const registry = createProviderRegistry(clock, circuit);
+    const definition = definitionOf(configuration(), certification);
+    registry.register(
+      createSelfHostedProvider({ definition, credentials: OPEN_RESOLVER }),
+      selfHostedRegistration(definition),
+    );
+    return { registry, circuit };
+  }
+
+  function selectorOver(
+    registry: ReturnType<typeof createProviderRegistry>,
+    circuit: ReturnType<typeof createCircuitBreaker>,
+    requireCertification = true,
+  ) {
+    return createProviderSelector(registry, circuit, {
+      preference: [],
+      failoverEnabled: true,
+      realRequestsEnabled: true,
+      requireCertification,
+    });
+  }
+
+  it('a certified, enabled provider is eligible — the baseline this must not break', () => {
+    const { registry, circuit } = planeOf('certified');
+    registry.setEnabled(PROVIDER_ID, true);
+    assert.equal(registry.state(PROVIDER_ID), 'active');
+    assert.equal(selectorOver(registry, circuit).explain(REQUIREMENTS)[PROVIDER_ID], 'eligible');
+    assert.equal(selectorOver(registry, circuit).select(REQUIREMENTS).length, 1);
+  });
+
+  for (const withdrawn of ['testing', 'degraded', 'unverified'] as const) {
+    it(`a certified, enabled provider withdrawn to \`${withdrawn}\` is IMMEDIATELY ineligible`, () => {
+      const { registry, circuit } = planeOf('certified');
+      registry.setEnabled(PROVIDER_ID, true);
+      assert.equal(selectorOver(registry, circuit).explain(REQUIREMENTS)[PROVIDER_ID], 'eligible');
+
+      // The governed certification operation, which permits all three.
+      registry.setCertification(PROVIDER_ID, withdrawn);
+
+      assert.equal(registry.state(PROVIDER_ID), 'disabled');
+      assert.equal(registry.health(PROVIDER_ID).state, 'disabled');
+      assert.equal(
+        selectorOver(registry, circuit).explain(REQUIREMENTS)[PROVIDER_ID],
+        'certification required before this provider may serve',
+      );
+      assert.throws(
+        () => selectorOver(registry, circuit).select(REQUIREMENTS),
+        (error: unknown) => error instanceof AIError && error.code === 'NO_PROVIDER_AVAILABLE',
+      );
+    });
+
+    it(`\`${withdrawn}\` stays ineligible with requireCertifiedProviders OFF`, () => {
+      // THE SETTING CANNOT REOPEN THIS GATE. `requireCertification` is the
+      // platform-wide control an operator may legitimately relax; the gate a
+      // provider's own definition declares is not theirs to relax, and before
+      // the fix relaxing the first walked around the second.
+      const { registry, circuit } = planeOf('certified');
+      registry.setEnabled(PROVIDER_ID, true);
+      registry.setCertification(PROVIDER_ID, withdrawn);
+      assert.equal(
+        selectorOver(registry, circuit, false).explain(REQUIREMENTS)[PROVIDER_ID],
+        'certification required before this provider may serve',
+      );
+    });
+  }
+
+  it('health state and selector state agree for every certification', () => {
+    for (const certification of ['unverified', 'testing', 'certified'] as const) {
+      const { registry, circuit } = planeOf(certification);
+      registry.setEnabled(PROVIDER_ID, true);
+      for (const next of ['unverified', 'testing', 'degraded', 'certified'] as const) {
+        registry.setCertification(PROVIDER_ID, next);
+        const disabled = registry.health(PROVIDER_ID).state === 'disabled';
+        const rejected =
+          selectorOver(registry, circuit).explain(REQUIREMENTS)[PROVIDER_ID] !== 'eligible';
+        assert.equal(
+          disabled,
+          rejected,
+          `health and selector disagree at ${certification} → ${next}`,
+        );
+      }
+    }
+  });
+
+  it('leaves built-in eligibility semantics untouched', async () => {
+    // The mock providers do not declare the gate. Their enablement and
+    // certification behave exactly as they did: enabled and certified is
+    // eligible, and an unverified one is refused by the PLATFORM control
+    // rather than by a per-provider gate.
+    const harness = buildTestAdministration();
+    for (const provider of harness.plane.providers.list()) {
+      assert.notEqual(provider.descriptor.certificationGatesEnablement, true);
+      assert.equal(harness.plane.providers.mayEnable(provider.descriptor.providerId), true);
+      harness.plane.providers.setEnabled(provider.descriptor.providerId, true);
+      assert.equal(harness.plane.providers.get(provider.descriptor.providerId).enabled, true);
+      harness.plane.providers.setCertification(provider.descriptor.providerId, 'unverified');
+      assert.equal(
+        harness.plane.providers.state(provider.descriptor.providerId) !== 'disabled',
+        true,
+        `${provider.descriptor.providerId} must not be gated by certification`,
+      );
+    }
+  });
+});
+
+// ── N-2 — disable must not lock a certified provider out ────────────────────
+
+describe('N-2 — disabling then re-enabling restores the established certification', () => {
+  function registryWith(certification: 'unverified' | 'testing' | 'certified') {
+    const clock = createTestClock();
+    const circuit = createCircuitBreaker(clock, CIRCUIT);
+    const registry = createProviderRegistry(clock, circuit);
+    const definition = definitionOf(configuration(), certification);
+    registry.register(
+      createSelfHostedProvider({ definition, credentials: OPEN_RESOLVER }),
+      selfHostedRegistration(definition),
+    );
+    return { registry, circuit };
+  }
+
+  it('certified → enable → disable → re-enable returns the provider to service', () => {
+    const { registry, circuit } = registryWith('certified');
+    registry.setEnabled(PROVIDER_ID, true);
+
+    registry.setEnabled(PROVIDER_ID, false);
+    assert.equal(registry.get(PROVIDER_ID).enabled, false);
+    assert.equal(registry.get(PROVIDER_ID).certification, 'disabled');
+    assert.equal(registry.state(PROVIDER_ID), 'disabled');
+
+    // THE DEFECT: the gate was judged against the `disabled` placeholder this
+    // method itself wrote, so the restore branch below was unreachable and a
+    // certified provider taken out of service could never come back.
+    registry.setEnabled(PROVIDER_ID, true);
+    assert.equal(registry.get(PROVIDER_ID).enabled, true);
+    assert.equal(registry.get(PROVIDER_ID).certification, 'certified');
+    assert.equal(registry.state(PROVIDER_ID), 'active');
+    assert.equal(
+      createProviderSelector(registry, circuit, {
+        preference: [],
+        failoverEnabled: true,
+        realRequestsEnabled: true,
+        requireCertification: true,
+      }).explain(REQUIREMENTS)[PROVIDER_ID],
+      'eligible',
+    );
+  });
+
+  for (const certification of ['unverified', 'testing'] as const) {
+    it(`does NOT permit re-enable when the pre-disable certification was \`${certification}\``, () => {
+      // Recovery is not a loophole. A provider that was never certified was
+      // never eligible, and disabling it must not become the route to
+      // enabling it.
+      const { registry } = registryWith(certification);
+      // It was never enabled — the gate refused — but disable and re-enable
+      // must still leave it out of service.
+      registry.setEnabled(PROVIDER_ID, false);
+      assert.equal(registry.mayEnable(PROVIDER_ID), false);
+      registry.setEnabled(PROVIDER_ID, true);
+      assert.equal(registry.get(PROVIDER_ID).enabled, false);
+      assert.equal(registry.state(PROVIDER_ID), 'disabled');
+    });
+  }
+
+  it('the administration surface refuses and recovers on the same rule', async () => {
+    const harness = buildTestAdministration({ selfHostedProviders: true });
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.defineSelfHostedProvider(actor, definitionInput(), REASON);
+
+    // Uncertified: refused, and the refusal names the certification operation.
+    await expectAIError(
+      () => harness.admin.setProviderEnabled(actor, PROVIDER_ID, true, REASON),
+      'VALIDATION_FAILED',
+    );
+
+    await harness.admin.setProviderCertification(actor, PROVIDER_ID, 'certified', REASON);
+    await harness.admin.setProviderEnabled(actor, PROVIDER_ID, true, REASON);
+    assert.equal(harness.plane.providers.get(PROVIDER_ID).enabled, true);
+
+    // Containment, then recovery — both through the governed surface, with no
+    // second certification required for a decision never withdrawn.
+    await harness.admin.setProviderEnabled(actor, PROVIDER_ID, false, REASON);
+    assert.equal(harness.plane.providers.state(PROVIDER_ID), 'disabled');
+
+    await harness.admin.setProviderEnabled(actor, PROVIDER_ID, true, REASON);
+    assert.equal(harness.plane.providers.get(PROVIDER_ID).enabled, true);
+    assert.equal(harness.plane.providers.get(PROVIDER_ID).certification, 'certified');
+    assert.notEqual(harness.plane.providers.state(PROVIDER_ID), 'disabled');
+  });
+
+  it('a withdrawal after enablement still requires re-certification', async () => {
+    // The recovery path restores what DISABLING parked. It must not restore
+    // what CERTIFICATION WITHDRAWAL removed.
+    const harness = buildTestAdministration({ selfHostedProviders: true });
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.defineSelfHostedProvider(actor, definitionInput(), REASON);
+    await harness.admin.setProviderCertification(actor, PROVIDER_ID, 'certified', REASON);
+    await harness.admin.setProviderEnabled(actor, PROVIDER_ID, true, REASON);
+
+    await harness.admin.setProviderCertification(actor, PROVIDER_ID, 'unverified', REASON);
+    assert.equal(harness.plane.providers.state(PROVIDER_ID), 'disabled');
+    assert.equal(harness.plane.providers.mayEnable(PROVIDER_ID), false);
+
+    await harness.admin.setProviderEnabled(actor, PROVIDER_ID, false, REASON);
+    await expectAIError(
+      () => harness.admin.setProviderEnabled(actor, PROVIDER_ID, true, REASON),
+      'VALIDATION_FAILED',
+    );
+    assert.equal(harness.plane.providers.state(PROVIDER_ID), 'disabled');
+  });
+});
+
+// ── Harness alignment — the review's third item ─────────────────────────────
+
+describe('the test harness resolves self-hosted credentials as production does', () => {
+  it('a credential-optional self-hosted provider reports CONFIGURED', async () => {
+    // `bootstrap.ts` wires `additionalProfiles` into the shared resolver; the
+    // harness did not, so a keyless self-hosted provider reported
+    // `configured: false` in tests and `true` in production. That difference
+    // is what hid N-1 from this suite: the selector rejected on a missing
+    // credential before the certification gate was ever reached.
+    const harness = buildTestAdministration({ selfHostedProviders: true });
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.defineSelfHostedProvider(actor, definitionInput(), REASON);
+
+    const registered = harness.plane.providers.get(PROVIDER_ID);
+    assert.equal(registered.adapter.hasCredentials(), true);
+    assert.equal(registered.adapter.credentialStatus?.().source, 'none');
+  });
+
+  it('and the alignment widens no credential or funding containment', async () => {
+    // A dynamic profile is consulted ONLY for a provider id no reviewed
+    // adapter claims. The static profiles still win, so nothing about how the
+    // built-in providers resolve has changed.
+    const harness = buildTestAdministration({ selfHostedProviders: true });
+    const actor = await harness.actor(ADMIN_TOKEN.superAdmin);
+    await harness.admin.defineSelfHostedProvider(actor, definitionInput(), REASON);
+
+    const snapshot = harness.plane.providers
+      .list()
+      .map((provider) => [provider.descriptor.providerId, provider.adapter.hasCredentials()]);
+    assert.deepEqual(
+      snapshot.filter(([id]) => id === 'primary' || id === 'backup'),
+      [
+        ['primary', true],
+        ['backup', true],
+      ],
+      'built-in credential resolution is unchanged',
+    );
+
+    // And the 4D funding latch still refuses a keyless self-hosted execution
+    // for a tenant that has taken MARQ off its funding.
+    const definition = definitionOf(configuration({ credentialRequired: 'false' }));
+    const adapter = createSelfHostedProvider({
+      definition,
+      credentials: OPEN_RESOLVER,
+      fetchImpl: (() => {
+        throw new Error('nothing may be dialled');
+      }) as unknown as FetchLike,
+    });
+    await expectAIError(
+      () =>
+        adapter.invoke(
+          invocation({
+            tenant: {
+              organizationId: 'acme',
+              membershipVerified: true,
+              funding: createExecutionFundingLatch({
+                mode: 'tenant_only',
+                organizationId: 'acme',
+                reason: 'this organization funds its own AI traffic',
+              }),
+            },
+          }),
+        ),
+      'PROVIDER_AUTH_FAILED',
     );
   });
 });

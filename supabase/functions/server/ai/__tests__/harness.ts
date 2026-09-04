@@ -410,6 +410,19 @@ export function buildTestAdministration(
     manageable: true,
     environmentVariable: 'MOCK_PROVIDER_KEY',
   };
+  /**
+   * Declared BEFORE the resolver and assigned after, so the resolver can read
+   * the registrar's profiles lazily (AI-01 Batch 4E remediation).
+   *
+   * This is the same cycle `bootstrap.ts` breaks, for the same reason: the
+   * resolver needs the registrar's profiles and the registrar needs a plane
+   * that needs the resolver. Production resolves it with a getter; so does
+   * this. An independent review found the harness omitted the wiring
+   * altogether, which made a credential-optional self-hosted provider report
+   * `configured: false` here and `true` in production — the sort of gap that
+   * lets a suite pass on behaviour the deployment does not have.
+   */
+  let selfHostedProviders: SelfHostedRegistrar | undefined;
   const credentialResolver = createProviderCredentialResolver({
     profiles: ['primary', 'backup'].map((providerId) => ({
       providerId,
@@ -421,6 +434,11 @@ export function buildTestAdministration(
     env: recordEnv({ MOCK_PROVIDER_KEY: 'harness-environment-credential' }),
     store: options.withoutProviderStore ? undefined : providerStore,
     cipher: credentialCipher,
+    // EXACTLY `bootstrap.ts`. Profiles for providers registered after this
+    // resolver was built, read on every call, and beaten by the static
+    // profiles above on any conflict — so no stored definition can change how
+    // a reviewed adapter resolves.
+    additionalProfiles: () => selfHostedProviders?.profiles() ?? [],
   });
   // ONE authenticator instance, shared by the plane and the administration
   // service. Production shares it for a reason — two credential paths for one
@@ -445,7 +463,7 @@ export function buildTestAdministration(
   // the adapters hold — which is what `bootstrap.ts` wires. Its transport
   // records and never dials.
   const selfHostedOutbound: string[] = [];
-  const selfHostedProviders = options.selfHostedProviders
+  selfHostedProviders = options.selfHostedProviders
     ? createSelfHostedRegistrar({
         registry: () => base.plane.providers,
         credentials: () => credentialResolver,

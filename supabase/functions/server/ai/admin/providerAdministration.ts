@@ -969,21 +969,28 @@ export function createProviderAdministration(
           // the durable row would then record an intent the runtime never
           // honours.
           //
-          // So the same rule is stated as a refusal here, at the one place a
-          // person is asking for it, and it names the operation that unblocks
-          // them. Built-in providers do not declare the gate and are unaffected.
-          if (
-            enabled &&
-            registered.descriptor.certificationGatesEnablement === true &&
-            registered.certification !== 'certified'
-          ) {
+          // So the same rule is REPORTED here, at the one place a person is
+          // asking for it, and it names the operation that unblocks them.
+          // Built-in providers do not declare the gate and are unaffected.
+          //
+          // ASKED OF THE REGISTRY, NOT RESTATED (4E remediation, N-1/N-2). This
+          // used to re-derive the gate from the descriptor and the live
+          // certification, which is the second copy of a governance rule — and
+          // it drifted: a disabled provider's certification reads `disabled`,
+          // so re-enabling a previously certified one was refused here for a
+          // decision that had never been withdrawn.
+          if (enabled && !plane.providers.mayEnable(providerId)) {
             throw new AIError(
               'VALIDATION_FAILED',
               'This provider must be certified before it can be enabled.',
               {
                 fields: ['enabled'],
+                // BOTH facts, because one of them alone misleads. A disabled
+                // provider's live certification reads `disabled`; what decides
+                // the refusal is the certification an enable would restore.
                 diagnostics:
-                  `providerId=${providerId} certification=${registered.certification}; ` +
+                  `providerId=${providerId} certification=${registered.certification} ` +
+                  `certificationBeforeDisable=${registered.certificationBeforeDisable ?? 'none'}; ` +
                   'certify it first through the provider certification operation',
                 retryable: false,
               },
