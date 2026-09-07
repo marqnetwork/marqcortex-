@@ -126,7 +126,7 @@ deployment, and it is therefore Sprint 1.
 
 | Area | Status | Finding |
 |---|---|---|
-| Mobile sidebar | PARTIAL | Collapse exists; no breakpoint-driven drawer. Ch. 21.10 wants one model across modes. Sprint 4. |
+| Mobile sidebar | DONE (Sprint 4) | The shell had **zero** breakpoints: a fixed 280px sidebar beside the content left 95px on a 375px phone. Below 1024px the same `<nav>` is now an overlay drawer. Verified in Chromium at 1440/820/375. |
 
 ## 17. Design system
 
@@ -161,7 +161,11 @@ rolls up as healthy.
 
 **Sprint 3 — Dashboard as priorities. DONE.** Ch. 21.2.
 
-**Sprint 4 — Empty / onboarding / responsive.** Ch. 9. NEXT.
+**Sprint 4 — Responsive shell. DONE.** Ch. 21.10.
+
+**Sprint 5 — Empty states and onboarding.** Ch. 9. NEXT. The remaining
+`PARTIAL`/`GAP` rows above: inconsistent empty states across panels, and no
+first-run experience.
 
 Deferred and explicitly out of scope for all sprints: the ClientPortal auth
 cluster, MCV2-S7.5, production backfills, G1/G2 and S8.1–S8.3 deployment

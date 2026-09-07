@@ -312,7 +312,13 @@ describe('the collapsed sidebar is still labelled', () => {
     // Collapsed to 80px only the icon renders. Without these the sidebar is
     // unreadable to a screen reader and unlabelled on hover.
     assert.ok(/aria-label=\{destination\.label\}/.test(layout));
-    assert.ok(/title=\{sidebarCollapsed \? destination\.label : undefined\}/.test(layout));
+    // Sprint 4 narrowed the tooltip to the DESKTOP collapsed rail: at compact
+    // width the same nav is a drawer showing real labels, so a tooltip there
+    // would be redundant. The guarantee is unchanged — an icon-only control is
+    // always labelled — only the condition for "icon-only" got more precise.
+    assert.ok(
+      /title=\{sidebarCollapsed && !isCompact \? destination\.label : undefined\}/.test(layout),
+    );
   });
 
   it('marks the active destination for assistive technology', () => {

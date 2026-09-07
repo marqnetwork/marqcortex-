@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  PanelLeft,
   Search as SearchIcon,
 } from 'lucide-react';
 import { useDashboard } from '@/app/contexts/DashboardContext';
@@ -23,6 +24,7 @@ import {
   type DestinationId,
 } from '@/app/core/navigationModel';
 import { useKeyboardShortcuts, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { useMediaQuery } from '@/app/hooks/usePerformance';
 import { CommandPalette, useCommandPaletteCommands } from '@/app/components/CommandPalette';
 import { KeyboardShortcutsHelp } from '@/app/components/KeyboardShortcutsHelp';
 import { NotificationCenter } from '@/app/components/NotificationCenter';
@@ -115,6 +117,32 @@ function DashboardLayoutInner({
 
   const sidebarCollapsed = state.viewPreferences.sidebarCollapsed;
 
+  /**
+   * Below this width the sidebar stops being a column and becomes a drawer.
+   *
+   * The shell had NO breakpoint at all: a fixed 280px sidebar sat beside the
+   * content as a flex sibling under `h-screen overflow-hidden`, so on a 375px
+   * phone the entire product ran in the remaining 95px. Ch. 21.10 asks for one
+   * mental model across interaction modes — the same destinations, the same
+   * grouping, the same order — and only the interaction changing. That is what
+   * this is: the identical <nav>, presented as an overlay.
+   */
+  const isCompact = useMediaQuery('(max-width: 1023px)');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Leaving compact width must not strand an open overlay over the desktop
+  // layout, where there is no scrim to dismiss it.
+  useEffect(() => {
+    if (!isCompact) setDrawerOpen(false);
+  }, [isCompact]);
+
+  // A drawer that stays open behind the page it just navigated to is a drawer
+  // covering the thing the operator asked for.
+  const navigateAndClose = (page: string) => {
+    setDrawerOpen(false);
+    onNavigate?.(page);
+  };
+
   const handleFocusSearch = () => {
     searchInputRef.current?.focus();
     onFocusSearch?.();
@@ -155,7 +183,22 @@ function DashboardLayoutInner({
         meta: isMac(),
         ctrl: !isMac(),
         description: 'Toggle sidebar',
-        action: () => setSidebarCollapsed(!sidebarCollapsed),
+        // At compact width there is no rail to collapse — the same intent
+        // ("show me navigation") is the drawer. Ch. 21.10: one model, and only
+        // the interaction changes.
+        action: () =>
+          isCompact ? setDrawerOpen(!drawerOpen) : setSidebarCollapsed(!sidebarCollapsed),
+      },
+      {
+        key: 'Escape',
+        description: 'Close navigation',
+        // Registered only while the drawer is actually open, and it never
+        // calls preventDefault: Escape belongs to whatever modal is on top
+        // (the command palette, the shortcuts sheet), and this must not take
+        // it from them.
+        enabled: drawerOpen,
+        preventDefault: false,
+        action: () => setDrawerOpen(false),
       },
       // Ch. 21.4 — the accelerators are the third path to the same
       // destinations, so they are derived from the model rather than restated.
@@ -171,16 +214,51 @@ function DashboardLayoutInner({
 
   return (
     <div className="flex h-screen bg-[#0A0A0F] text-white overflow-hidden">
+      {/* ── Scrim ───────────────────────────────────────────────────────
+          Only at compact width, and only while the drawer is open. It is what
+          makes "tap outside to dismiss" true. */}
+      {isCompact && drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <motion.aside
         initial={false}
-        animate={{ width: sidebarCollapsed ? 80 : 280 }}
-        className="bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col"
+        animate={
+          isCompact
+            // As a drawer it is always full-width-for-a-drawer; collapsing it
+            // to an icon rail would be a second, worse navigation on the screen
+            // that can least afford one.
+            //
+            // `visibility` matters as much as `x`: off-screen is not the same
+            // as absent, and a drawer left visible-but-translated keeps every
+            // one of its controls in the tab order, where a keyboard user can
+            // reach things they cannot see. Motion applies a discrete value
+            // like this at the END of the outgoing animation and at the START
+            // of the incoming one, so the slide still plays both ways.
+            ? {
+                width: 280,
+                x: drawerOpen ? 0 : -280,
+                visibility: drawerOpen ? 'visible' : 'hidden',
+              }
+            : { width: sidebarCollapsed ? 80 : 280, x: 0, visibility: 'visible' }
+        }
+        transition={{ type: 'tween', duration: 0.2 }}
+        aria-hidden={isCompact && !drawerOpen ? true : undefined}
+        className={
+          isCompact
+            ? 'fixed inset-y-0 left-0 z-50 bg-black/90 backdrop-blur-xl border-r border-white/10 flex flex-col'
+            : 'bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col'
+        }
       >
         {/* Logo */}
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
+            {(!sidebarCollapsed || isCompact) && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -195,11 +273,23 @@ function DashboardLayoutInner({
                 </div>
               </motion.div>
             )}
+            {/* At compact width this closes the drawer; at desktop width it
+                collapses the rail, exactly as it always did. */}
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={() =>
+                isCompact ? setDrawerOpen(false) : setSidebarCollapsed(!sidebarCollapsed)
+              }
+              aria-label={
+                isCompact
+                  ? 'Close navigation'
+                  : sidebarCollapsed
+                    ? 'Expand sidebar'
+                    : 'Collapse sidebar'
+              }
+              aria-expanded={isCompact ? drawerOpen : !sidebarCollapsed}
               className="p-2 hover:bg-white/5 rounded-lg transition-colors"
             >
-              {sidebarCollapsed ? (
+              {!isCompact && sidebarCollapsed ? (
                 <Menu className="size-5 text-gray-400" />
               ) : (
                 <X className="size-5 text-gray-400" />
@@ -216,7 +306,7 @@ function DashboardLayoutInner({
               {/* The group heading is the operator's intent. Collapsed, the
                   heading would not fit, so the grouping is carried by the
                   separator alone and the labels move onto each button. */}
-              {!sidebarCollapsed ? (
+              {!sidebarCollapsed || isCompact ? (
                 <p className="px-4 pt-1 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                   {group.label}
                 </p>
@@ -230,12 +320,12 @@ function DashboardLayoutInner({
                 return (
                   <button
                     key={destination.id}
-                    onClick={() => onNavigate?.(destination.id)}
+                    onClick={() => navigateAndClose(destination.id)}
                     aria-current={isActive ? 'page' : undefined}
                     /* Collapsed, only the icon renders. Without these the
                        collapsed sidebar is unreadable to a screen reader and
                        unlabelled on hover. */
-                    title={sidebarCollapsed ? destination.label : undefined}
+                    title={sidebarCollapsed && !isCompact ? destination.label : undefined}
                     aria-label={destination.label}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
                       isActive
@@ -244,7 +334,7 @@ function DashboardLayoutInner({
                     }`}
                   >
                     <Icon className="size-5 flex-shrink-0" />
-                    {!sidebarCollapsed && (
+                    {(!sidebarCollapsed || isCompact) && (
                       <span className="flex-1 text-left font-medium">{destination.label}</span>
                     )}
                   </button>
@@ -256,7 +346,7 @@ function DashboardLayoutInner({
 
         {/* User section */}
         <div className="p-4 border-t border-white/10">
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || isCompact) && (
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center font-bold">
                 TU
@@ -272,7 +362,7 @@ function DashboardLayoutInner({
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all"
           >
             <LogOut className="size-5 flex-shrink-0" />
-            {!sidebarCollapsed && <span className="font-medium">Logout</span>}
+            {(!sidebarCollapsed || isCompact) && <span className="font-medium">Logout</span>}
           </button>
         </div>
       </motion.aside>
@@ -280,18 +370,30 @@ function DashboardLayoutInner({
       {/* ── Main content ────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-black/40 backdrop-blur-xl border-b border-white/10 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <nav className="flex items-center gap-2 text-sm">
+        <header className="bg-black/40 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <nav className="flex items-center gap-2 text-sm min-w-0" aria-label="Breadcrumb">
+              {/* The only way to open the drawer. Without it, compact width has
+                  no navigation at all — which is what the shell shipped with. */}
+              {isCompact && (
+                <button
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label="Open navigation"
+                  aria-expanded={drawerOpen}
+                  className="-ml-1 mr-1 p-2 hover:bg-white/5 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <PanelLeft className="size-5 text-gray-400" />
+                </button>
+              )}
               <button
                 onClick={() => onNavigate?.('dashboard')}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
               >
                 Dashboard
               </button>
               {breadcrumbs.map((crumb, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <ChevronRight className="size-4 text-gray-500" />
+                  <ChevronRight className="size-4 text-gray-500 flex-shrink-0" />
                   {crumb.onClick ? (
                     <button
                       onClick={crumb.onClick}
@@ -300,14 +402,15 @@ function DashboardLayoutInner({
                       {crumb.label}
                     </button>
                   ) : (
-                    <span className="text-white font-medium">{crumb.label}</span>
+                    <span className="text-white font-medium truncate">{crumb.label}</span>
                   )}
                 </div>
               ))}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
               <button
+                aria-label="Search"
                 className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                 onClick={handleFocusSearch}
               >
