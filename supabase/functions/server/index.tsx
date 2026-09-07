@@ -56,6 +56,10 @@ import {
   outcomeShadowReader,
 } from "./storage/outcomeShadowRead.ts";
 import {
+  observeSubmissionRead,
+  submissionShadowReadEnabled,
+} from "./storage/submissionShadowRead.ts";
+import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
@@ -1535,7 +1539,17 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
       return c.json({ error: "Submission not found" }, 404);
     }
 
-    return c.json({ success: true, submission: safeJsonParse(raw) });
+    const submission = safeJsonParse(raw);
+
+    // ── SHADOW READ (MCV2-S7.7) ──────────────────────────────────────────
+    //
+    // AFTER the response body is decided, over the record the caller is being
+    // served. It returns nothing, never throws, and is bounded by its own
+    // deadline; off by default behind `MCV2_SHADOW_READ_SUBMISSIONS`. KV
+    // remains authoritative — this route serves exactly what it always did.
+    await observeSubmissionRead(id, submission);
+
+    return c.json({ success: true, submission });
   } catch (err) {
     console.log('Get submission error:', err);
     return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
@@ -4127,7 +4141,10 @@ app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
     return c.json({
       success: true,
       shadowRead: outcomeShadowReader.report(limit),
-      switches: { outcomes: outcomeShadowReadEnabled() },
+      switches: {
+        outcomes: outcomeShadowReadEnabled(),
+        submissions: submissionShadowReadEnabled(),
+      },
     });
   } catch (err) {
     console.log('Shadow read report error:', err);

@@ -27,5 +27,14 @@ export {
   projectSqlOutcome,
   submissionIdFromLegacyKey,
 } from './outcomeProjection.ts';
+export {
+  SUBMISSION_FIELDS,
+  SUBMISSION_KV_PREFIX,
+  canonicalSubmissionPriority,
+  canonicalSubmissionStatus,
+  projectKvSubmission,
+  projectSqlSubmission,
+  submissionKvKey,
+} from './submissionProjection.ts';
 export { createShadowReader } from './shadowReader.ts';
 export type { ShadowObservation, ShadowReader, ShadowReaderOptions } from './shadowReader.ts';

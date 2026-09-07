@@ -48,8 +48,8 @@ Status Legend
 | S7.3 | Gateway Validation | ✅ |
 | S7.4 | Outcome Shadow Read | ✅ |
 | S7.5 | Outcome Validation | ⏳ |
-| S7.6 | Lead Shadow Read | ⏳ |
-| S7.7 | Submission Shadow Read | ⏳ |
+| S7.6 | Lead Shadow Read | ❌ |
+| S7.7 | Submission Shadow Read | ✅ |
 | S7.8 | Full Runtime Validation | ⏳ |
 
 ---
@@ -245,6 +245,26 @@ number the backfill will be judged by.
 KV REMAINS AUTHORITATIVE. `index.tsx` imports no repository, and nothing the
 storage module exports hands a relational row to a route.
 
+MCV2-S7.6 / S7.7 completed 2026-09-07. Report:
+`architecture/database/MCV2-S7.6-S7.7-SHADOW-READ-COMPLETION.md`
+
+S7.6 — Lead Shadow Read is CANCELLED, as a finding rather than a blocker. A
+shadow read observes a runtime read, and the lead domain has none: leads are
+written by two capture routes and no route serves one. A shadow read wired to a
+write would be write verification, which is not the evidence Phase 3 needs, and
+bulk KV-to-SQL comparison for that domain already exists as
+`npm run migration:reconcile`. If a lead read route is ever added, the
+instrument extends to it the way the submission one did.
+
+S7.7 — Submission Shadow Read delivered: the S7.4 instrument aimed at the core
+entity, sharing one reader, one deadline and one report, behind its own switch
+`MCV2_SHADOW_READ_SUBMISSIONS` (off by default). Status is canonicalised to the
+relational vocabulary on both sides through a declared table — `approved` is the
+console's word for `won`, and a hyphen-to-underscore rule would quarantine every
+converted deal. Presentation fields, the answer map (which migrates to rows, not
+a column) and the capture route's written placeholders are deliberately not
+compared.
+
 ---
 
 # Current Sprint
@@ -259,9 +279,11 @@ That is a human decision.
 
 # Next Sprint
 
-Outcome backfill (Phase 2 for the outcome domain), which S6.2 deferred and
-which S7.4's instrument exists to measure. It is dependency-safe and does not
-wait on S7.5.
+Submission backfill (Phase 2 for the submission domain), which S6.2 deferred.
+It gates the outcome backfill — `outcomes.submission_id` is NOT NULL and
+references `submissions`, so no outcome row can exist before its submission
+does — and the roadmap flags it for human review on legacy-ID mapping and email
+uniqueness.
 
 ---
 

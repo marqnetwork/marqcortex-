@@ -71,6 +71,7 @@ const STORAGE_FILES = [
   join(FUNCTIONS_ROOT, 'server', 'storage', 'contracts.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'compare.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'outcomeProjection.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'submissionProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
 ];

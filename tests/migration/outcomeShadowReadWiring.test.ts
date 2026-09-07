@@ -144,6 +144,52 @@ describe('S7.4 wiring — off by default, and bounded when on', () => {
   });
 });
 
+describe('S7.7 wiring — the submission route serves KV and observes after', () => {
+  function submissionGetRoute(): string {
+    const start = indexCode.indexOf('app.get("/make-server-324f4fbe/submissions/:id"');
+    assert.ok(start >= 0, 'the submission read route was not found');
+    return indexCode.slice(start, indexCode.indexOf('app.patch(', start));
+  }
+
+  it('serves the KV record and observes afterwards', () => {
+    const route = submissionGetRoute();
+    const kvRead = route.indexOf('kv.get(`sub:');
+    const observe = route.indexOf('observeSubmissionRead(');
+    const respond = route.indexOf('c.json({ success: true, submission })');
+    assert.ok(kvRead >= 0, 'the route no longer reads KV');
+    assert.ok(observe > kvRead, 'the shadow read runs before the KV answer exists');
+    assert.ok(respond > observe, 'the response is returned after the observation');
+  });
+
+  it('hands the reader the record the caller was actually served', () => {
+    assert.match(submissionGetRoute(), /observeSubmissionRead\(id,\s*submission\)/);
+  });
+
+  it('carries its own switch, so an operator can aim the instrument', () => {
+    const wiring = code(
+      readFileSync(join(serverDir, 'storage', 'submissionShadowRead.ts'), 'utf8'),
+    );
+    assert.match(wiring, /MCV2_SHADOW_READ_SUBMISSIONS/);
+    // One reader, so there is one report and one deadline. Two would be two
+    // bounded ledgers to consult and two places for the bound to drift apart.
+    assert.match(wiring, /import \{ outcomeShadowReader \}/);
+    assert.ok(
+      !/createShadowReader\(/.test(wiring),
+      'the submission domain built a second reader instead of sharing one',
+    );
+  });
+
+  it('does not reach the relational store while its switch is off', () => {
+    const wiring = code(
+      readFileSync(join(serverDir, 'storage', 'submissionShadowRead.ts'), 'utf8'),
+    );
+    assert.match(
+      wiring,
+      /if \(!submissionShadowReadEnabled\(\)\) return Promise\.resolve\(\);/,
+    );
+  });
+});
+
 describe('S7.4 wiring — the report is authorised and honest', () => {
   it('requires a verified team caller', () => {
     const start = indexCode.indexOf('app.get("/make-server-324f4fbe/cortex/shadow-read"');
@@ -157,6 +203,7 @@ describe('S7.4 wiring — the report is authorised and honest', () => {
     const start = indexCode.indexOf('app.get("/make-server-324f4fbe/cortex/shadow-read"');
     const route = indexCode.slice(start, indexCode.indexOf('app.get(', start + 10));
     assert.match(route, /outcomeShadowReadEnabled\(\)/);
+    assert.match(route, /submissionShadowReadEnabled\(\)/);
   });
 
   it('is a read — there is no route that writes shadow state', () => {

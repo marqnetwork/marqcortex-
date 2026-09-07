@@ -37,7 +37,7 @@
  */
 
 /** Domains a shadow read can be taken for. One per KV prefix under migration. */
-export type ShadowDomain = 'outcome';
+export type ShadowDomain = 'outcome' | 'submission';
 
 /**
  * How two sides of one field disagree.
