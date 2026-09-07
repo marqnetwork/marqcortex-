@@ -14,7 +14,7 @@
  * EXPECTED IMPACT: Time to call 24h → 4h (-83%)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
 import { createBooking } from '@/app/services/dataService';
@@ -336,7 +336,10 @@ function PriorityBenefit({
 function CountdownTimer({ minutes }: { minutes: number }) {
   const [timeLeft, setTimeLeft] = useState(minutes * 60);
 
-  useState(() => {
+  // useEffect, not useState: this schedules an interval and returns a cleanup.
+  // As a useState initialiser it started the timer during render and stored the
+  // cleanup as state, so the interval was never cleared.
+  useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
