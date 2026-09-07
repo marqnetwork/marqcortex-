@@ -35,7 +35,7 @@ const CERTIFIED_ID_FORMAT = 'MQC-{PAGE|COMP|CORE|SVC|HOOK|TYPE}-{NNN}';
 // AI-01 Batch 4C registered the provider administration layer (MQC-SVC-157 →
 // 162) and the console's Providers area (MQC-COMP-091). See the note above
 // `CERTIFIED_NODE_COUNT` in manifest.test.ts for the registration granularity.
-const CERTIFIED_NODE_COUNT = 316;
+const CERTIFIED_NODE_COUNT = 327;
 const CERTIFIED_CORE_COUNT = 36;
 
 /** Directories that are never part of the active repository surface. */
