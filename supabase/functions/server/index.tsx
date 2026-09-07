@@ -60,6 +60,15 @@ import {
   submissionShadowReadEnabled,
 } from "./storage/submissionShadowRead.ts";
 import {
+  aiControlPlaneSource,
+  aiGovernanceSource,
+  buildEnterpriseHealth,
+  governanceFrameSource,
+  productProgressionSource,
+  shadowReadSource,
+  storageSource,
+} from "./health/index.ts";
+import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
@@ -946,6 +955,85 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
+
+// ============================================================================
+// ENTERPRISE HEALTH — the Operational Health Framework (blueprint IV-51)
+//
+// Rolls the signals this platform ALREADY publishes up to the four approved
+// dimensions: organizational, product, platform, AI. It adds no probe, no
+// threshold, no SLO and no alert — IV-51 defers monitoring instrumentation and
+// IV-48 puts numeric targets out of scope for this phase.
+//
+// TEAM AUTH, not anonymous. `/health` above is the uptime probe's endpoint and
+// stays cheap; this one reads the submission estate to report progression, so
+// it must not be reachable by anything that polls.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/health/enterprise", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const settings = controlPlane.settings.current();
+
+    const health = await buildEnterpriseHealth(
+      [
+        aiControlPlaneSource(() => {
+          const snapshot = controlPlane.health();
+          return { status: snapshot.status, issues: snapshot.issues };
+        }),
+        aiGovernanceSource(() => ({
+          aiEnabled: settings.aiEnabled,
+          emergencyStopEngaged: settings.emergencyStop.engaged,
+          configurationVersion: settings.configurationVersion,
+        })),
+        storageSource(async () => {
+          const probeKey = 'health_check_enterprise';
+          await kv.set(probeKey, 'ok');
+          const value = await kv.get(probeKey);
+          await kv.del(probeKey);
+          return value === 'ok';
+        }),
+        shadowReadSource(() => {
+          const report = outcomeShadowReader.report(1);
+          return {
+            // The reader is one reader for both domains, so "enabled" is true
+            // when EITHER switch is on — with both off nothing is compared and
+            // the signal must say so rather than claim agreement.
+            enabled: outcomeShadowReadEnabled() || submissionShadowReadEnabled(),
+            domains: report.domains.map((domain) => ({
+              domain: domain.domain,
+              diverged: domain.diverged,
+              mismatchRatePercent: domain.mismatchRatePercent,
+            })),
+          };
+        }),
+        productProgressionSource(async () => {
+          const [submissions, analyses, outcomes] = await Promise.all([
+            kv.getByPrefix('sub:'),
+            kv.getByPrefix('cortex:'),
+            kv.getByPrefix('outcome:'),
+          ]);
+          return {
+            submissions: submissions.length,
+            analysed: analyses.length,
+            outcomes: outcomes.length,
+          };
+        }),
+        governanceFrameSource(() => ({
+          configurationVersion: settings.configurationVersion,
+          updatedBy: settings.updatedBy,
+        })),
+      ],
+      () => new Date().toISOString(),
+    );
+
+    return c.json({ success: true, health });
+  } catch (err) {
+    console.log('Enterprise health error:', err);
+    return c.json({ error: `Failed to build the enterprise health view: ${err}` }, 500);
+  }
+});
 
 app.get("/make-server-324f4fbe/health", async (c) => {
   try {

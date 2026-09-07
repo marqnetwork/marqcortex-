@@ -77,8 +77,13 @@ const REGISTRY_FREE_FILES = [
   join(FUNCTIONS_ROOT, 'server', 'storage', 'submissionProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
-  // Migration normalizers (MCV2-S6.2 / S7.8) — pure, and the place every
-  // mapping judgement lives.
+  // The operational health framework (blueprint IV-51) — a roll-up over ports,
+  // so it imports nothing a registry has to resolve.
+  join(FUNCTIONS_ROOT, 'server', 'health', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'rollup.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'sources.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'index.ts'),
+  // Migration normalizers — pure, and the place every mapping judgement lives.
   join(FUNCTIONS_ROOT, 'server', 'migration', 'parseJson.ts'),
   join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),
 ];
