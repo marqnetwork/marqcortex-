@@ -103,7 +103,7 @@ rather than four.
 ```
 npm run test:migration        96 pass   (17 new for S7.7, 43 from S7.4)
 npm run test:features        726 pass
-npm run typecheck:api:storage clean
+npm run typecheck:api:pure    clean
 npm run typecheck:tests       29 errors — identical to the pre-sprint baseline
 ```
 

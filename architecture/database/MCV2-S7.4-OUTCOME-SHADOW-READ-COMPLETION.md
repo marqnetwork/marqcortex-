@@ -122,11 +122,11 @@ The report therefore:
 npm run test:migration        79 pass   (43 new)
 npm run test:features        726 pass
 npm run test:system          170 pass
-npm run typecheck:api:storage clean     new deno boundary, registry-free
+npm run typecheck:api:pure    clean     registry-free deno boundary (added here)
 npm run typecheck:tests       29 errors — identical to the pre-sprint baseline
 ```
 
-A new `storage` type-check boundary was added for the pure modules: they take no
+A new registry-free type-check boundary was added for the pure modules: they take no
 `jsr:` or Deno-only import, so they check cleanly without a module registry and a
 regression in them is a blocker rather than a note lost inside the `server`
 boundary, which this environment cannot reach at all (jsr.io is not routable

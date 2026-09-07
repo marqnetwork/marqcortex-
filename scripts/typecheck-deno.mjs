@@ -57,23 +57,30 @@ const AI_PREFIXES = [
 ];
 
 /**
- * The runtime storage shadow-read modules that take NO Deno-only and no `jsr:`
- * import (MCV2-S7.4).
+ * Files that take NO Deno-only and no `jsr:` / `npm:` import.
  *
- * Their own boundary for the same reason `teamAuthorization.ts` sits in the AI
- * one: they check cleanly without a module registry, so a type regression in
- * them is a BLOCKER rather than a note lost inside a boundary that this
- * environment cannot reach at all. `outcomeShadowRead.ts` is deliberately NOT
- * here — it reaches the repositories and `Deno.env`, so it belongs with the
- * rest of the server surface.
+ * Their own boundary because they check cleanly WITHOUT a module registry, so a
+ * type regression in them is a blocker rather than a note lost inside the
+ * `server` boundary — which cannot be checked at all where jsr.io is
+ * unreachable. Adding a file here is a claim that it imports nothing a registry
+ * has to resolve; the check itself is what verifies the claim.
+ *
+ * `outcomeShadowRead.ts` and `submissionShadowRead.ts` are deliberately absent:
+ * they reach the repositories and `Deno.env`, so they belong with the rest of
+ * the server surface.
  */
-const STORAGE_FILES = [
+const REGISTRY_FREE_FILES = [
+  // Runtime storage shadow read (MCV2-S7.4 / S7.7).
   join(FUNCTIONS_ROOT, 'server', 'storage', 'contracts.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'compare.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'outcomeProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'submissionProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
+  // Migration normalizers (MCV2-S6.2 / S7.8) — pure, and the place every
+  // mapping judgement lives.
+  join(FUNCTIONS_ROOT, 'server', 'migration', 'parseJson.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),
 ];
 
 function collectSources(dir) {
@@ -87,7 +94,7 @@ function collectSources(dir) {
 }
 
 const isAiFile = (file) => AI_PREFIXES.some((prefix) => file.startsWith(prefix));
-const isStorageFile = (file) => STORAGE_FILES.includes(file);
+const isRegistryFreeFile = (file) => REGISTRY_FREE_FILES.includes(file);
 
 const probe = spawnSync('deno', ['--version'], { stdio: 'ignore' });
 if (probe.error || probe.status !== 0) {
@@ -126,14 +133,14 @@ const all = collectSources(FUNCTIONS_ROOT);
 const boundaries =
   requested === 'ai'
     ? [{ name: 'ai', files: all.filter(isAiFile) }]
-    : requested === 'storage'
-      ? [{ name: 'storage', files: all.filter(isStorageFile) }]
+    : requested === 'registry-free'
+      ? [{ name: 'registry-free', files: all.filter(isRegistryFreeFile) }]
       : [
           { name: 'ai', files: all.filter(isAiFile) },
-          { name: 'storage', files: all.filter(isStorageFile) },
+          { name: 'registry-free', files: all.filter(isRegistryFreeFile) },
           {
             name: 'server',
-            files: all.filter((file) => !isAiFile(file) && !isStorageFile(file)),
+            files: all.filter((file) => !isAiFile(file) && !isRegistryFreeFile(file)),
           },
         ];
 
