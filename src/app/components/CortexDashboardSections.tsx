@@ -956,13 +956,13 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         sectionLabel="AI Recommendation"
         sectionContent={
           v2
-            ? `Problem: ${v2.core_problem.problem_title}. Reasoning: ${v2.core_problem.why_first ?? ''}. Service: ${rec.primaryServiceLabel ?? ''}.`
+            ? `Problem: ${v2.core_problem.problem_title}. Reasoning: ${v2.strategic_decision.why_first ?? ''}. Service: ${rec.primaryServiceLabel ?? ''}.`
             : `Recommended: ${rec.primaryServiceLabel}. Reasoning: ${rec.reasoning ?? ''}.`
         }
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: data.lead?.companySize ?? '',
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
           recommendedService: rec.primaryServiceLabel ?? '',
         }}
@@ -2032,7 +2032,7 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
           leadContext={{
             companyName: data.lead?.companyName ?? '',
             industry: data.lead?.industry ?? '',
-            companySize: String(data.lead?.employeeEstimate ?? ''),
+            companySize: data.lead?.companySize ?? '',
             primaryPainSignal: data.lead?.primaryPainSignal ?? '',
             roiSummary,
           }}
@@ -2856,7 +2856,7 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: data.lead?.companySize ?? '',
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
         }}
         actions={[

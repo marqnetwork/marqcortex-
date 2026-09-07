@@ -2329,41 +2329,12 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                   {currentQuestion.question}
                 </h2>
 
-                {/* Select Options */}
-                {currentQuestion.type === 'select' && (
-                  <div className="space-y-3">
-                    {currentQuestion.options?.map((option, index) => (
-                      <motion.button
-                        key={option}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 + index * 0.05 }}
-                        whileHover={{ scale: 1.02, x: 8 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleAnswer(option)}
-                        className={`w-full p-6 rounded-2xl text-left font-medium text-lg transition-all ${
-                          answers[currentQuestion.id] === option
-                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white border-transparent shadow-xl shadow-[#8B5CF6]/30'
-                            : 'bg-[#1a1a1a]/80 backdrop-blur-sm text-[#F5F5FF] border border-[#242424] hover:border-[#8B5CF6]'
-                        }`}
-                        style={{ fontFamily: 'Inter' }}
-                      >
-                        <div className="flex items-center justify-between">
-                          {option}
-                          {answers[currentQuestion.id] === option && (
-                            <motion.div
-                              initial={{ scale: 0, rotate: -180 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              transition={{ type: "spring" }}
-                            >
-                              <CheckCircle2 size={28} />
-                            </motion.div>
-                          )}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                )}
+                {/* The canonical diagnostic is a free-text instrument: QuestionDef
+                    declares no `options`, and all 98 questions across all seven
+                    industry banks are `type: 'textarea'`. A select branch here was
+                    unreachable and read a field the canon does not define. If
+                    choice questions are ever introduced, they belong in
+                    questionRegistry's QuestionDef first. */}
 
                 {/* Textarea */}
                 {currentQuestion.type === 'textarea' && (

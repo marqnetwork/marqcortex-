@@ -866,7 +866,14 @@ export function EditableBlockCard({
               block.content_format === 'rich_text' ? (
                 <RichTextEditor
                   initialText={currentText}
-                  onSave={handleSave}
+                  /* RichTextEditor yields the raw TEXT; handleSave forwards its
+                     first argument to onEdit as the block's whole CONTENT record.
+                     Passing handleSave directly replaced `{ text: '...' }` with a
+                     bare string, so `block.content.text` went undefined and the
+                     block rendered "Empty" after every rich-text edit. Re-wrap
+                     the text into the content record, keeping sibling keys. */
+                  onSave={(text, diffSummary) =>
+                    handleSave({ ...editorInitialContent, text }, diffSummary)}
                   onCancel={() => { setEditing(false); setEditInitial(null); }}
                 />
               ) : (

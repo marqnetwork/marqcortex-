@@ -284,13 +284,16 @@ export default function DiagnosticQuestion() {
         </div>
       </div>
 
-      {/* Progress Modal */}
-      {showModal && (
-        <ProgressModal
-          milestone={modalMilestone}
-          onClose={() => setShowModal(false)}
-        />
-      )}
+      {/* Progress Modal — ProgressModal gates its entire body on `isOpen` and
+          drives enter/exit through AnimatePresence, so it must stay mounted and
+          be told whether it is open. Mounting it conditionally without passing
+          `isOpen` left the flag undefined, and the milestone modal never
+          rendered at 25%, 50% or 75%. */}
+      <ProgressModal
+        isOpen={showModal}
+        milestone={modalMilestone}
+        onClose={() => setShowModal(false)}
+      />
     </div>
   );
 }
