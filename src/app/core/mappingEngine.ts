@@ -508,6 +508,11 @@ export function runMappingPipeline(
     proposal_snapshot_id: snapshot.proposal_snapshot_id,
     proposal_id:          snapshot.proposal_id,
     version_number:       snapshot.version_number,
+    // Mirrors executionEngine's own creation default. Omitted, this left
+    // execution_version undefined on every mapped project: the QBR report
+    // rendered "vundefined", and scopeEngine's `execution_version + 1` on an
+    // approved change order produced NaN.
+    execution_version:    1,
     status:               'active',
     created_at:           shell.created_at,
     created_by:           userId,

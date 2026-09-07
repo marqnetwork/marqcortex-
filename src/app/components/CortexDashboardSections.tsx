@@ -962,7 +962,7 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: String(data.lead?.companySize ?? ''),
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
           recommendedService: rec.primaryServiceLabel ?? '',
         }}
@@ -2032,7 +2032,7 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
           leadContext={{
             companyName: data.lead?.companyName ?? '',
             industry: data.lead?.industry ?? '',
-            companySize: String(data.lead?.employeeEstimate ?? ''),
+            companySize: String(data.lead?.companySize ?? ''),
             primaryPainSignal: data.lead?.primaryPainSignal ?? '',
             roiSummary,
           }}
@@ -2856,7 +2856,7 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: String(data.lead?.companySize ?? ''),
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
         }}
         actions={[
