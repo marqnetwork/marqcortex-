@@ -89,23 +89,23 @@ export function SettingsPage({ accessToken }: Props) {
             name: 'Demo User',
             teamRole: 'admin',
           },
+          // Mirrors the server's own `GET /settings` default block. The previous
+          // fixture described a different settings product entirely
+          // (companyEmail / reportFrom* / emailNotifications), none of which
+          // this page reads — so demo mode rendered the notification panel with
+          // no preferences at all.
           platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
+            brandingName:    'CORTEX Intelligence',
+            defaultAssignee: 'auto',
+            autoAssign:      true,
+            notificationPrefs: {
+              newSubmission:    true,
+              reportReady:      true,
+              teamActivity:     false,
+              weeklyDigest:     true,
+              proposalViewed:   true,
               proposalAccepted: true,
-              messageReceived: true,
+              messageReceived:  true,
             },
           },
           health: {
@@ -136,23 +136,23 @@ export function SettingsPage({ accessToken }: Props) {
             name: 'Demo User',
             teamRole: 'admin',
           },
+          // Mirrors the server's own `GET /settings` default block. The previous
+          // fixture described a different settings product entirely
+          // (companyEmail / reportFrom* / emailNotifications), none of which
+          // this page reads — so demo mode rendered the notification panel with
+          // no preferences at all.
           platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
+            brandingName:    'CORTEX Intelligence',
+            defaultAssignee: 'auto',
+            autoAssign:      true,
+            notificationPrefs: {
+              newSubmission:    true,
+              reportReady:      true,
+              teamActivity:     false,
+              weeklyDigest:     true,
+              proposalViewed:   true,
               proposalAccepted: true,
-              messageReceived: true,
+              messageReceived:  true,
             },
           },
           health: {

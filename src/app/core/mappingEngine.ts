@@ -508,6 +508,11 @@ export function runMappingPipeline(
     proposal_snapshot_id: snapshot.proposal_snapshot_id,
     proposal_id:          snapshot.proposal_id,
     version_number:       snapshot.version_number,
+    // scope-engine-logic.md Step 7 — a freshly mapped execution is at v1; the
+    // scope engine increments from here on every approved change order. Omitted
+    // here, it reached ExecutionDashboard and the QBR delivery section as
+    // `undefined`, which both render verbatim as "vundefined".
+    execution_version:    1,
     status:               'active',
     created_at:           shell.created_at,
     created_by:           userId,

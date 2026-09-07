@@ -377,7 +377,12 @@ function WorkstreamCard({
   const pct = getWorkstreamProgress(ws.workstream_id, tasks);
 
   const wsTasks     = tasks.filter(t => t.workstream_id === ws.workstream_id);
-  const wsMilestones = milestones.filter(m => m.workstream_id === ws.workstream_id);
+  // A Milestone is phase-scoped and carries no workstream_id — the ExecutionTask
+  // is the only edge between the two (it holds both ids). Filtering milestones on
+  // a field they do not have matched nothing, so every workstream card rendered
+  // an empty milestone list AND, through it, an empty gate list.
+  const wsMilestoneIds = new Set(wsTasks.map(t => t.milestone_id));
+  const wsMilestones = milestones.filter(m => wsMilestoneIds.has(m.milestone_id));
   const wsGates     = gates.filter(g => wsMilestones.some(m => m.milestone_id === g.milestone_id));
 
   return (
