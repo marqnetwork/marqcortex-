@@ -295,12 +295,59 @@ action and awaits human authorisation.
 
 ---
 
+# Gap Register Status
+
+Progress status only. The gap register itself
+(`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5) is LOCKED canon; the rows below
+record what the repository now shows against it, and amending §VI-5 is a
+governance action for a human.
+
+| Gap | §VI-5 says | Repository now shows |
+|---|---|---|
+| G3 — intelligence breadth | PARTIAL, "gateway is live single-provider" | **CLOSED.** Stale since Batch 4A. AI-01 Batches 1–4F delivered the AI Control Plane, agent and workflow runtimes, certified OpenAI and Anthropic providers, provider administration, customer BYOK, self-hosted/OpenAI-compatible providers, and the routing authority. The gateway has not been single-provider for a long time. |
+| G4 — AI Workforce runtime | NOT IMPLEMENTED | **INTENTIONALLY DEFERRED**, not an oversight. §IV-24 and §IV-25 both defer the implementation to later Phase 4.x. See below. |
+| G5 — enterprise performance instrumentation | NOT IMPLEMENTED | **PARTIAL — closed for every section the canon makes buildable now.** §IV-51 operational health framework and §IV-48 enterprise KPIs are built (`supabase/functions/server/health/`, `supabase/functions/server/kpi/`). §IV-49 AI performance framework and §IV-50 department performance principles defer their own implementation in the canon text ("evaluation *implementation* is deferred and excluded from this phase"; "deferred to later Phase 4.x"). §IV-52/§IV-53 are organisational frameworks, not runtime capabilities. |
+
+## G4 — intentionally deferred
+
+Blueprint §IV-24 fixes twelve worker categories and §IV-25 eight lifecycle
+stages, and both state plainly that the implementation is deferred to later
+Phase 4.x — individual workers in §IV-24, and provisioning, identity and
+registry in §IV-25.
+
+The buildable shape would be a workforce registry and lifecycle state machine
+starting empty, exactly as Batch 3A did for agents. But that is a SECOND
+registry beside the agent runtime, and whether Cortex realizes the workforce
+layer now — and as its own registry rather than as a facet of the agent one — is
+a sequencing and architecture decision the canon explicitly reserves for a
+human. Building it autonomously would be making that decision, not executing it.
+
+G4 does not block Phase 6 and did not block the Batch 4F milestone.
+
+---
+
 # Next Sprint
 
-Reconciliation for the cortex and outcome domains, then the documented gap
-register (`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5). G3 — intelligence
-breadth — is closed by AI-01 Batches 1 through 4F. The next open backend gap is
-G5, enterprise performance instrumentation.
+The AI-01 batch series is documented complete through Batch 4F, and no Batch 5
+is defined in this roadmap or in the blueprint. Everything documented,
+dependency-safe and not canon-deferred has been built.
+
+What remains is gated rather than unbuilt, and the gates are named here rather
+than guessed at:
+
+- **G4, §IV-49, §IV-50** — deferred by the canon itself. Human sequencing decision.
+- **G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
+  third-party credentials and accounts.
+- **G1/G2 — data authority and enforced tenancy**, and **S8.1–S8.3**. The
+  instrument, the backfills and the reconciliation all exist and are verified
+  against a real PostgreSQL; running them against real data and cutting over is
+  a deployment action.
+- **MCV2-S7.5** — the exit condition is a mismatch rate measured over real
+  traffic, which needs `MCV2_SHADOW_READ_OUTCOMES` switched on in a deployment.
+
+The one piece of undone work that needs no gate is **engineering debt**: 34
+`typecheck:web` and 27 `typecheck:tests` errors, all pre-existing and all in
+files unrelated to recent work. Worth clearing before the UI/UX stage.
 
 ---
 

@@ -15,221 +15,218 @@ Companion authorities, unchanged by this file:
 
 ## CURRENT ROADMAP STAGE
 
-Phase 6 — AI Platform: AI-01 Batch 4 complete through 4F.
+Phase 6 — AI Platform: **AI-01 Batch 4F is MERGED to `main`.** The AI-01 batch
+series is documented complete through 4F; no Batch 5 is defined in the roadmap
+or the blueprint.
+
 Phase 4 — Runtime Storage Gateway: shadow read delivered for both domains that
 have runtime reads; Phase 2 backfill and reconciliation delivered for every KV
-namespace that holds stored data.
-Gap register G5 — enterprise performance instrumentation: closed for the two
-sections the blueprint makes buildable.
+namespace that holds stored data. Merged.
+
+Gap register: G3 closed. G5 closed for every section the canon makes buildable
+now. G4 intentionally deferred.
+
+## AI-01 BATCH 4F = MERGED
+
+| | |
+|---|---|
+| PR | [#45](https://github.com/marqnetwork/marqcortex-/pull/45) — AI-01 Batch 4F — Routing, Failover & Economics |
+| Merged from | `claude/marq-cortex-batch-4f-c1hmm0` @ `79b1674` |
+| Base reviewed against | `b13d3a3` (post-4E baseline, PR #44) |
+| Merge SHA | `04bdfba` |
+| `origin/main` after merge | `04bdfbabcb74f9d332cee8b3b3c096cf7ae66a73` |
+| Method | merge commit — all 20 commits preserved in `main` ancestry |
+
+Verified after merge: the reviewed tip `79b1674` is an ancestor of `main`, all
+20 branch commits are present, and `b13d3a3` (certified 4E history) is intact
+and unmodified.
 
 ## CURRENT BATCH
 
-None in flight. Six units completed this session, all committed and pushed, all
-unmerged.
+None in flight.
 
-## COMPLETED THIS SESSION
+## MERGE-READINESS FINDINGS
 
-**AI-01 Batch 4F — Routing, Failover and Economics.**
-`supabase/functions/server/ai/routing/`. A deterministic governed policy that
-ORDERS providers the selector already found eligible and can never admit one;
-four strategies under four invariants; a governed failover breadth; and a
-per-request BILLABLE ATTEMPT BUDGET that closes the certified defect where the
-spend guard reserved `maxAttempts` per request while the pipeline granted
-`maxAttempts` to every failover candidate. The certified 105,920 µUSD
-`cortex.chat` hold did not move — the execution path now matches it. Economics,
-metrics, events, an admin read model and a Routing console tab.
-Report: `architecture/ai/AI-01-BATCH-4F-COMPLETION.md`, `ARCHITECT.md` §12.7.
+The merge was gated on a lightweight readiness check, not a recertification.
+No merge-blocking defect was found. What was checked:
 
-**MCV2-S7.4 — Outcome Shadow Read.** `supabase/functions/server/storage/`. The
-instrument Phase 3 needs before anything reads SQL first: it serves the KV
-answer, reads the relational row alongside it under a deadline, records whether
-they agree, and returns nothing. Never changes what is served, never fails a
-request, never runs unbounded, never records a customer value. Off by default.
+- Branch descended cleanly from the post-4E baseline `b13d3a3`, 20 ahead / 0
+  behind, no divergence, no conflict, `mergeable_state: clean`.
+- **No secrets or credentials** in the diff — no key material, no tokens, no
+  `.env`/`.pem`/credential files, no live endpoints.
+- **No real provider or live-test code enabled.** Every
+  `AI_ALLOW_REAL_REQUESTS: 'true'` in the diff is an in-memory test-harness env
+  override, the established pattern. No test reaches a vendor.
+- **`AI_ALLOW_REAL_REQUESTS` behaviour and default unchanged** — still
+  `readBool(env, 'AI_ALLOW_REAL_REQUESTS', false)` in `runtime/config.ts`, and
+  the admin overlay still cannot overturn `false` from a console.
+- **The billable attempt budget is intact and is a narrowing.**
+  `billableAttemptBudget = max(1, trunc(workload.maxAttempts))` —
+  the spend guard's own reservation basis. Enforced twice: before a billable
+  candidate is dialled, and before each attempt against it. A budget-skipped
+  candidate is recorded as skipped, never as failed. Non-billable attempts do
+  not spend the budget, so the mock last resort survives a total vendor outage.
+  The certified `cortex.chat` hold did not move.
+- **Failover breadth is deployment-capped.** `runtime/envelope.ts` clamps
+  `maxProviders` to the deployment ceiling and reports the clamp; the strategy
+  is deliberately not clamped because it cannot admit a provider, spend withheld
+  money, or lift a certification requirement.
+- **No test weakened, skipped or deleted.** `test:security` gained two suites.
 
-**MCV2-S7.6 (cancelled, as a finding) and S7.7 — Submission Shadow Read.** The
-lead domain has no runtime read to shadow — leads are written by two capture
-routes and no route serves one — and bulk comparison for that domain already
-exists as `migration:reconcile`. S7.7 aimed the same instrument at the core
-entity, sharing one reader, one deadline and one report.
-Report: `architecture/database/MCV2-S7.6-S7.7-SHADOW-READ-COMPLETION.md`.
+## TEST RESULTS — INDEPENDENTLY RE-RUN
 
-**MCV2 Phase 2 — the diagnostic-domain backfills.** Submissions, cortex
-analyses and outcomes: normalizers carrying every mapping judgement, domain
-processors and writers, and an orchestrator refactor that runs any domain
-through one loop. Reconciliation for all four domains, comparing FIELDS through
-the same comparator the shadow read uses. Verified against a real PostgreSQL 16
-in dependency order (`npm run test:database:diagnostic`).
-Report: `architecture/database/MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`.
-
-**Gap-register G5 — enterprise performance instrumentation.** Two blueprint
-sections closed. §IV-51 the operational health framework
-(`supabase/functions/server/health/`, `GET /health/enterprise`): rolls signals
-the platform already publishes up to the four approved dimensions, with no SLO,
-threshold, alert or dashboard, and with the discipline that an unreadable signal
-is `unknown` and `unknown` never rolls up as healthy. §IV-48 enterprise KPIs
-(`supabase/functions/server/kpi/`, `GET /kpis`): eight named indicators per
-approved category, with the anti-metric exclusion enforced at registration —
-an indicator that names no constitutional success dimension cannot be
-registered — and no target, threshold or grade anywhere.
-Report: `architecture/ENTERPRISE-PERFORMANCE-INSTRUMENTATION.md`.
-
-**Manifest registration.** Eleven new SVC nodes for this session's subsystems,
-as Article 14 requires, with the certified counts moved to match.
-
-Two findings recorded rather than worked around: **the report domain has no KV
-source** (the client report is built on every read from `sub:` and `cortex:`, so
-"generate version 1 on first backfill" is a product decision about storing
-report history, not a data migration), and **the certified lead reconciliation
-reported a field-level pass it never made** (`sampleMismatchCount` was the
-literal zero) — that one is fixed, with tests.
-
-## COMMITS CREATED
-
-On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
-
-1. `feat(ai): a routing policy that orders what it is given and admits nothing`
-2. `feat(ai): a request may not spend more paid attempts than were reserved for it`
-3. `feat(storage): measure whether the other store agrees, without letting it answer`
-4. `feat(storage): aim the shadow read at the core entity, and say why one domain cannot have one`
-5. `feat(migration): decide the submission mapping in one pure function, and name every guess`
-6. `feat(migration): one migration loop, two domains, and a backfill that converges`
-7. `test(migration): prove the submission backfill against a real PostgreSQL`
-8. `docs: checkpoint the autonomous build after 4F, the shadow reads and the submission backfill`
-9. `feat(migration): a reconciliation that compares fields, not only counts`
-10. `fix(migration): the lead reconciliation reported a field check it never ran`
-11. `feat(migration): the cortex analysis domain, which enriches and never overwrites`
-12. `feat(migration): the outcome domain, which refuses to guess a verdict`
-13. `docs(roadmap): Phase 2 is code complete for every KV namespace with stored data`
-14. `feat(migration): reconcile every domain, through one comparator`
-15. `docs: checkpoint after the diagnostic-domain backfills and reconciliation`
-16. `feat(health): roll the signals up to the four dimensions, and refuse to grade them`
-17. `feat(kpi): name the indicators, and refuse the ones that measure activity`
-18. `docs(manifest): register this session's subsystems, as Article 14 requires`
-
-## TEST RESULTS
+Re-run on the merge head `79b1674` before merging, then again on merged `main`
+`04bdfba`. Identical results both times.
 
 | Suite | Result |
 |---|---|
-| `npm run test:ai` | 2,183 pass |
-| `npm run verify:4f` | 167 pass |
-| `npm run test:security` | 859 pass |
-| `npm run test:features` | 774 pass |
-| `npm run test:system` | 170 pass |
-| `npm run test:migration` | 210 pass |
-| `npm run verify:health` | 48 pass (health framework + KPIs) |
-| `npm run scan:boundaries` | 107 pass |
-| `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
-| `npm run test:database:diagnostic` | 8 assertions, real PostgreSQL 16 |
+| `npm run test:ai` | 2,183 pass, 0 fail |
+| `npm run test:security` | 859 pass, 0 fail |
+| `npm run test:features` | 774 pass, 0 fail |
+| `npm run test:migration` | 210 pass, 0 fail |
+| `npm run test:system` | 170 pass, 0 fail |
+| `npm run verify:4f` | 167 pass, 0 fail |
+| `npm run verify:health` | 48 pass, 0 fail |
+| `npm run scan:boundaries` | 107 pass, 0 fail |
+| `npm run test:database` (with `DATABASE_URL`) | **225 pass, 0 fail, 0 skipped** |
+| `npm run test:database:diagnostic` | all backfill assertions pass, real PostgreSQL 16 |
 | `npm run test:database:4c` / `:4d` / `:scenarios` | pass, real PostgreSQL (regression) |
-| `kv_compare_and_swap` with `DATABASE_URL` | 19 pass — had never run in this environment |
-| `npm run typecheck:api:ai` / `:pure` | clean |
-| `npm run typecheck:web` | 34 errors — identical to the pre-session baseline |
-| `npm run typecheck:tests` | 27 errors — **two below** the baseline (the `leads.ts` pair is fixed) |
+| `npm run typecheck:api:ai` | clean |
+| `npm run typecheck:api:pure` | clean |
+| `npm run typecheck:web` | 34 errors — **byte-identical to the `b13d3a3` baseline** |
 | `npm run build` | clean |
 
-No test was weakened, skipped or deleted. No test reaches a real provider.
+The `typecheck:web` comparison was made by diffing the branch output against a
+baseline run at `b13d3a3`: **zero new errors introduced.** Pre-existing
+repository-wide typecheck debt is not merge-blocking.
 
-## A DATABASE IS AVAILABLE IN THIS ENVIRONMENT
+## G4 = INTENTIONALLY DEFERRED TO LATER PHASE 4.x
 
-PostgreSQL 16 is installed but not started at session start. To use it:
-
-```
-service postgresql start
-su postgres -c "psql -c \"CREATE ROLE root SUPERUSER LOGIN PASSWORD 'harness'\""
-su postgres -c "psql -c 'CREATE DATABASE root OWNER root'"
-export DATABASE_URL="postgresql://root:harness@localhost:5432/root"
-```
-
-Every `test:database:*` harness then runs for real. Earlier sessions treated
-these as unrunnable; they are not.
-
-## KNOWN NON-BLOCKING ISSUES
-
-- 34 pre-existing `typecheck:web` and 29 pre-existing `typecheck:tests` errors,
-  all in files unrelated to this session's work (proposal viewer, snapshot
-  engine, mapping engine, mock data, migration lead domain, workflow expression
-  validation). Present at `b13d3a3`. Worth a cleanup sprint before UI/UX.
-- The `server` deno boundary cannot be type-checked here: `jsr.io` is not
-  routable from this environment (an egress restriction, pre-existing). The
-  `ai` and `registry-free` boundaries both check clean.
-- The certified lead reconciliation's dead code and hard-coded field check are
-  fixed; the `leads.ts` type errors are fixed. Nothing else is known-broken in
-  the migration engine.
-
-## CURRENT BRANCH
-
-`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 19 commits ahead of `origin/main`.
-**Not merged.** No PR has been opened; the session prompt did not authorise one.
-
-## NEXT EXACT TASK
-
-Everything dependency-safe and documented has been built. What remains needs a
-human decision, and the decisions are named below rather than guessed at.
-
-**1. A merge decision on this branch.** Nineteen commits, no PR opened — the
-session prompt did not authorise one. Nothing here is merged.
-
-**2. G4 — the AI Workforce runtime. STOP CONDITION, not an oversight.**
-§IV-24 fixes twelve worker categories and §IV-25 eight lifecycle stages, and
-both say plainly that the implementation is "deferred to later Phase 4.x" —
-individual workers in §IV-24, and provisioning, identity and registry in §IV-25.
+Not an oversight and not a gap in this milestone. Blueprint §IV-24 fixes twelve
+worker categories and §IV-25 eight lifecycle stages, and both state that the
+implementation is deferred to later Phase 4.x — individual workers in §IV-24,
+and provisioning, identity and registry in §IV-25.
 
 The buildable shape would be a workforce registry and lifecycle state machine
 starting empty, exactly as Batch 3A did for agents. But that is a SECOND
 registry beside the agent runtime, and whether Cortex realizes the workforce
 layer now — and as its own registry rather than as a facet of the agent one — is
-a sequencing and architecture decision the canon explicitly defers to a human.
-Starting it autonomously would be choosing it. Scope it deliberately with a
-person; do not begin it at the end of a session.
+a sequencing and architecture decision the canon explicitly reserves for a
+human. Building it autonomously would be making that decision, not executing it.
 
-**3. G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
-third-party credentials and accounts. Blocked.
+**Do not begin G4 without a human scoping it.** It did not block Batch 4F and
+does not block Phase 6.
 
-**4. G1/G2 — data authority and enforced tenancy.** The instrument and the
-backfills exist; running them and cutting over is a deployment action.
+## 4E PRODUCTION ROLLOUT = DEFERRED TO FINAL HARDENING / RELEASE
 
-**5. Blueprint corrections a human should confirm.** The gap register still
-describes G3 as "gateway is live single-provider"; AI-01 Batches 1 through 4F
-have not been true of that for a long time. G5 should move from NOT IMPLEMENTED
-to PARTIAL — §IV-51 and §IV-48 are built; §IV-49 remains deferred by the canon
-itself, and §IV-52/§IV-53 are organisational frameworks rather than runtime
-capabilities.
+Untouched by the 4F work and by this merge. Alongside it, still deferred:
 
-**6. A cleanup sprint** on the 34 pre-existing `typecheck:web` errors, before
-the UI/UX stage. None are in anything this session touched.
+- **Batch 4C/4D production gates** — applying the provider-administration and
+  BYOK migrations, and setting `AI_CREDENTIAL_ENCRYPTION_KEY`, need human
+  authorisation.
+- **Running any backfill against real data** — a deployment action needing
+  production credentials.
+- **MCV2-S7.5** — its exit condition is a mismatch rate over real traffic,
+  which needs `MCV2_SHADOW_READ_OUTCOMES` on in a deployment.
+- **G1/G2 and S8.1–S8.3** — cutover is a deployment action.
+
+**Batch 4F itself needs no production action.** No migration, no secret, no
+required variable. `AI_ROUTING_STRATEGY` defaults to `preference` (the pre-4F
+order exactly) and `AI_ROUTING_MAX_PROVIDERS` to 3. Both shadow-read switches
+(`MCV2_SHADOW_READ_OUTCOMES`, `MCV2_SHADOW_READ_SUBMISSIONS`) are off by
+default. The health and KPI surfaces are team-auth reads that write nothing, and
+the anonymous `/health` uptime endpoint is unchanged. The one behaviour a
+deployment inherits without configuring anything is the billable attempt budget,
+which is a narrowing of spend and a correction of a certified invariant.
+
+`AI_ALLOW_REAL_REQUESTS` was not changed by this work.
+
+## GAP REGISTER — STATUS VS. LOCKED CANON
+
+`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5 is **LOCKED canon** (Part VI is
+LOCKED, and the Master Blueprint is RELEASED v1.0). Its G3 and G5 rows are now
+factually stale, but amending them is a governance action for a human, not an
+autonomous edit. The correction is recorded as progress status in
+`MARQ_CORTEX_ROADMAP.md` instead:
+
+- **G3 — intelligence breadth.** §VI-5 says PARTIAL, "gateway is live
+  single-provider". **Stale since Batch 4A.** Closed by AI-01 Batches 1–4F.
+- **G5 — enterprise performance instrumentation.** §VI-5 says NOT IMPLEMENTED.
+  Now **PARTIAL, and closed for every section the canon makes buildable now**:
+  §IV-51 and §IV-48 are built; §IV-49 and §IV-50 defer their own implementation
+  in the canon text; §IV-52/§IV-53 are organisational frameworks.
+- **G4.** §VI-5's NOT IMPLEMENTED is accurate, but the reason is deferral by the
+  canon, not an unbuilt backlog item.
+
+## A DATABASE IS AVAILABLE IN THIS ENVIRONMENT
+
+PostgreSQL 16 is installed but not started at session start. The `postgres`
+system user cannot traverse a session scratchpad path, so the data directory
+must live somewhere it owns:
+
+```
+export PATH=/usr/lib/postgresql/16/bin:$PATH
+id -u postgres >/dev/null 2>&1 || useradd -m -d /var/lib/postgresql postgres
+mkdir -p /var/lib/postgresql && chown -R postgres /var/lib/postgresql
+su postgres -c "PATH=/usr/lib/postgresql/16/bin:\$PATH initdb -D /var/lib/postgresql/pgtest -A trust -U postgres"
+su postgres -c "PATH=/usr/lib/postgresql/16/bin:\$PATH pg_ctl -D /var/lib/postgresql/pgtest -o '-k /tmp -p 5432 -h 127.0.0.1' -l /var/lib/postgresql/pgtest/server.log -w start"
+export DATABASE_URL="postgresql://postgres@127.0.0.1:5432/postgres"
+```
+
+Every `test:database:*` harness then runs for real, and `test:database` reports
+225 pass / 0 skipped instead of 206 / 1. Sessions that treat these as unrunnable
+are leaving real coverage on the table.
+
+`deno` is not installed at session start either; `npm i -g deno` works without
+privileges and unblocks `typecheck:api:ai` and `typecheck:api:pure`.
+
+## KNOWN NON-BLOCKING ISSUES
+
+- 34 pre-existing `typecheck:web` and 27 pre-existing `typecheck:tests` errors,
+  all in files unrelated to recent work (proposal viewer, snapshot engine,
+  mapping engine, mock data, workflow expression validation). Present at
+  `b13d3a3` and unchanged by 4F. Worth a cleanup sprint before UI/UX.
+- The `server` deno boundary cannot be type-checked in this environment:
+  `jsr.io` returns **403 through the agent proxy**, so the checker cannot
+  download `@supabase/supabase-js`'s manifest. This is an egress restriction,
+  not a type error, and the tooling correctly reports BLOCKED rather than
+  falsely passing. The `ai` and `registry-free` boundaries both check clean.
+
+## NEXT EXACT TASK
+
+**Everything documented, dependency-safe and not canon-deferred has been built
+and merged.** The AI-01 batch series is complete through 4F and no Batch 5 is
+defined in the canonical roadmap or blueprint — defining one would be authoring
+scope, not executing it.
+
+The one piece of undone work needing no human gate and no new scope:
+
+**Clear the pre-existing typecheck debt before the UI/UX stage.** 34
+`typecheck:web` and 27 `typecheck:tests` errors, none in anything the recent
+batches touched. This is the documented prerequisite for the UI/UX work and is
+pure debt reduction — no architectural decision, no credentials, no deployment.
+
+Everything else is gated, and the gates are decisions rather than tasks:
+
+1. **G4 / §IV-49 / §IV-50** — deferred by the canon. Human sequencing decision.
+2. **G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
+   third-party credentials and accounts.
+3. **G1/G2 and S8.1–S8.3** — the instrument, backfills and reconciliation exist
+   and are verified against a real PostgreSQL; running and cutting over is a
+   deployment action.
+4. **MCV2-S7.5** — needs `MCV2_SHADOW_READ_OUTCOMES` on in a deployment.
+5. **Amending §VI-5** — the G3 and G5 rows are stale; the blueprint is LOCKED,
+   so a human confirms the amendment.
 
 ## BLOCKERS
 
-- **MCV2-S7.5 — Outcome Shadow Read Validation.** Its exit condition is a
-  mismatch rate measured over real traffic, which needs
-  `MCV2_SHADOW_READ_OUTCOMES` switched on in a deployment. Human decision.
-- **Running any backfill against real data.** Needs production credentials and a
-  human decision.
-- **G4 — the AI Workforce runtime.** The canon defers its implementation to a
-  later phase; realizing it is a sequencing and architecture decision for a
-  human. See NEXT EXACT TASK item 2.
-- **G6 — external integrations.** Needs third-party credentials.
-
-## PRODUCTION WORK DEFERRED
-
-- **Batch 4E production rollout** — deferred to final production hardening.
-  Untouched by this session.
-- **Batch 4C/4D production gates** — applying the provider-administration and
-  BYOK migrations and setting `AI_CREDENTIAL_ENCRYPTION_KEY` still need human
-  authorisation.
-- **Batch 4F needs no production action.** No migration, no secret, no required
-  variable. `AI_ROUTING_STRATEGY` defaults to `preference` (the pre-4F order
-  exactly) and `AI_ROUTING_MAX_PROVIDERS` to 3. The one behaviour a deployment
-  inherits without configuring anything is the billable attempt budget, which is
-  a narrowing of spend and a correction of the certified invariant.
-- **The shadow reads need no production action either.** Both switches
-  (`MCV2_SHADOW_READ_OUTCOMES`, `MCV2_SHADOW_READ_SUBMISSIONS`) are off by
-  default, and with them off the routes behave exactly as before.
-- **The health and KPI surfaces need no production action.** Both are team-auth
-  reads over signals that already exist; neither writes anything, and the
-  anonymous `/health` uptime endpoint is unchanged.
-- `AI_ALLOW_REAL_REQUESTS` was not changed by this work.
+- **MCV2-S7.5** — needs real traffic under a deployment switch. Human decision.
+- **Running any backfill against real data** — needs production credentials.
+- **G4 — the AI Workforce runtime** — canon-deferred; a human scopes it.
+- **G6 — external integrations** — needs third-party credentials.
+- **The `server` deno boundary** — `jsr.io` is 403 through this environment's
+  proxy. Environmental, not a code defect.
 
 ---
 
-_Last updated: 2026-09-07, after G5 and the manifest registration._
+_Last updated: 2026-09-07, after AI-01 Batch 4F was merged to `main` as PR #45._
