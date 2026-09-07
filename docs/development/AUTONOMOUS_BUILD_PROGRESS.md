@@ -158,7 +158,7 @@ these as unrunnable; they are not.
 
 ## CURRENT BRANCH
 
-`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 18 commits ahead of `main`.
+`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 19 commits ahead of `origin/main`.
 **Not merged.** No PR has been opened; the session prompt did not authorise one.
 
 ## NEXT EXACT TASK
@@ -166,7 +166,7 @@ these as unrunnable; they are not.
 Everything dependency-safe and documented has been built. What remains needs a
 human decision, and the decisions are named below rather than guessed at.
 
-**1. A merge decision on this branch.** Eighteen commits, no PR opened — the
+**1. A merge decision on this branch.** Nineteen commits, no PR opened — the
 session prompt did not authorise one. Nothing here is merged.
 
 **2. G4 — the AI Workforce runtime. STOP CONDITION, not an oversight.**
