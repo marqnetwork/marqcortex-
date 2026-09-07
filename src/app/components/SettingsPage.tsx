@@ -89,17 +89,18 @@ export function SettingsPage({ accessToken }: Props) {
             name: 'Demo User',
             teamRole: 'admin',
           },
+          // Shaped to PlatformSettings, which is what GET /settings returns.
+          // The previous literal modelled an older schema: it supplied eight
+          // fields nothing reads and none of the four this page does read, so
+          // the notification panel spread `{...undefined}` and rendered from an
+          // empty object. The values below reproduce the fallbacks the page
+          // already applied, so demo mode looks the same and now populates.
           platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
+            brandingName: 'CORTEX Intelligence',
+            defaultAssignee: 'auto',
+            autoAssign: true,
+            notificationPrefs: {
+              newSubmission: true,
               reportReady: true,
               teamActivity: false,
               weeklyDigest: true,
@@ -136,17 +137,18 @@ export function SettingsPage({ accessToken }: Props) {
             name: 'Demo User',
             teamRole: 'admin',
           },
+          // Shaped to PlatformSettings, which is what GET /settings returns.
+          // The previous literal modelled an older schema: it supplied eight
+          // fields nothing reads and none of the four this page does read, so
+          // the notification panel spread `{...undefined}` and rendered from an
+          // empty object. The values below reproduce the fallbacks the page
+          // already applied, so demo mode looks the same and now populates.
           platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
+            brandingName: 'CORTEX Intelligence',
+            defaultAssignee: 'auto',
+            autoAssign: true,
+            notificationPrefs: {
+              newSubmission: true,
               reportReady: true,
               teamActivity: false,
               weeklyDigest: true,

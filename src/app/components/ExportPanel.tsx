@@ -657,7 +657,12 @@ export function ExportPanel({
               <span>{new Date(exportPayload.generated_at).toLocaleTimeString()}</span>
             </div>
           </div>
-          <Lock className="size-3.5 text-gray-700 flex-shrink-0" title="Immutable snapshot" />
+          {/* The tooltip belongs on a wrapper: lucide spreads unknown props onto
+              the <svg>, and SVG has no title attribute — only a <title> child —
+              so `title` on the icon rendered no tooltip at all. */}
+          <span title="Immutable snapshot" className="flex-shrink-0 inline-flex">
+            <Lock className="size-3.5 text-gray-700" aria-label="Immutable snapshot" />
+          </span>
         </div>
       )}
 

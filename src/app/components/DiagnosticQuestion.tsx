@@ -287,6 +287,7 @@ export default function DiagnosticQuestion() {
       {/* Progress Modal */}
       {showModal && (
         <ProgressModal
+          isOpen={showModal}
           milestone={modalMilestone}
           onClose={() => setShowModal(false)}
         />
