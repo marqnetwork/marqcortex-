@@ -51,6 +51,25 @@ import {
 } from "./ai/index.ts";
 import { createKvSubmissionDossierSource } from "./diagnostic/submissionDossierSource.ts";
 import {
+  observeOutcomeRead,
+  outcomeShadowReadEnabled,
+  outcomeShadowReader,
+} from "./storage/outcomeShadowRead.ts";
+import {
+  observeSubmissionRead,
+  submissionShadowReadEnabled,
+} from "./storage/submissionShadowRead.ts";
+import { createKpiRegistry, registerCortexKpis } from "./kpi/index.ts";
+import {
+  aiControlPlaneSource,
+  aiGovernanceSource,
+  buildEnterpriseHealth,
+  governanceFrameSource,
+  productProgressionSource,
+  shadowReadSource,
+  storageSource,
+} from "./health/index.ts";
+import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
@@ -938,6 +957,153 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
 // HEALTH CHECK
 // ============================================================================
 
+// ============================================================================
+// ENTERPRISE KPIs — blueprint IV-48 (team auth required)
+//
+// Named indicators per approved category, computed from signals the platform
+// already publishes. NO TARGET, THRESHOLD OR GRADE: IV-48 puts numeric targets
+// in a later phase, and the report restates that on every read so a consumer
+// cannot quietly start treating the numbers as scored.
+//
+// Team auth for the same reason the enterprise health view has it: this reads
+// the whole submission estate, so it must not be reachable by anything that
+// polls.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/kpis", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const registry = createKpiRegistry();
+    registerCortexKpis(registry, {
+      async estate() {
+        const [submissionRaw, analyses, outcomes] = await Promise.all([
+          kv.getByPrefix('sub:'),
+          kv.getByPrefix('cortex:'),
+          kv.getByPrefix('outcome:'),
+        ]);
+        const industries = new Set<string>();
+        for (const raw of submissionRaw) {
+          try {
+            const industry = JSON.parse(raw)?.industry;
+            // 'Not specified' is what the capture route writes when it has
+            // none. Counting it as an industry would inflate the breadth
+            // indicator with the absence of an answer.
+            if (typeof industry === 'string' && industry.trim() !== '' && industry !== 'Not specified') {
+              industries.add(industry.trim().toLowerCase());
+            }
+          } catch { /* a malformed record contributes no industry */ }
+        }
+        return {
+          submissions: submissionRaw.length,
+          analyses: analyses.length,
+          outcomes: outcomes.length,
+          industries: industries.size,
+        };
+      },
+      ai() {
+        const snapshot = controlPlane.metrics();
+        const total = (name: string): number =>
+          snapshot.counters
+            .filter((counter) => counter.name === name)
+            .reduce((sum, counter) => sum + counter.value, 0);
+        return {
+          requests: total('ai_requests_total'),
+          errors: total('ai_request_errors_total'),
+          failovers: total('ai_provider_failovers_total'),
+          governanceBlocks: total('ai_governance_blocks_total'),
+          factLockRestores: total('ai_fact_lock_restores_total'),
+        };
+      },
+    });
+
+    return c.json({ success: true, kpis: await registry.read(() => new Date().toISOString()) });
+  } catch (err) {
+    console.log('KPI report error:', err);
+    return c.json({ error: `Failed to build the KPI report: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// ENTERPRISE HEALTH — the Operational Health Framework (blueprint IV-51)
+//
+// Rolls the signals this platform ALREADY publishes up to the four approved
+// dimensions: organizational, product, platform, AI. It adds no probe, no
+// threshold, no SLO and no alert — IV-51 defers monitoring instrumentation and
+// IV-48 puts numeric targets out of scope for this phase.
+//
+// TEAM AUTH, not anonymous. `/health` above is the uptime probe's endpoint and
+// stays cheap; this one reads the submission estate to report progression, so
+// it must not be reachable by anything that polls.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/health/enterprise", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const settings = controlPlane.settings.current();
+
+    const health = await buildEnterpriseHealth(
+      [
+        aiControlPlaneSource(() => {
+          const snapshot = controlPlane.health();
+          return { status: snapshot.status, issues: snapshot.issues };
+        }),
+        aiGovernanceSource(() => ({
+          aiEnabled: settings.aiEnabled,
+          emergencyStopEngaged: settings.emergencyStop.engaged,
+          configurationVersion: settings.configurationVersion,
+        })),
+        storageSource(async () => {
+          const probeKey = 'health_check_enterprise';
+          await kv.set(probeKey, 'ok');
+          const value = await kv.get(probeKey);
+          await kv.del(probeKey);
+          return value === 'ok';
+        }),
+        shadowReadSource(() => {
+          const report = outcomeShadowReader.report(1);
+          return {
+            // The reader is one reader for both domains, so "enabled" is true
+            // when EITHER switch is on — with both off nothing is compared and
+            // the signal must say so rather than claim agreement.
+            enabled: outcomeShadowReadEnabled() || submissionShadowReadEnabled(),
+            domains: report.domains.map((domain) => ({
+              domain: domain.domain,
+              diverged: domain.diverged,
+              mismatchRatePercent: domain.mismatchRatePercent,
+            })),
+          };
+        }),
+        productProgressionSource(async () => {
+          const [submissions, analyses, outcomes] = await Promise.all([
+            kv.getByPrefix('sub:'),
+            kv.getByPrefix('cortex:'),
+            kv.getByPrefix('outcome:'),
+          ]);
+          return {
+            submissions: submissions.length,
+            analysed: analyses.length,
+            outcomes: outcomes.length,
+          };
+        }),
+        governanceFrameSource(() => ({
+          configurationVersion: settings.configurationVersion,
+          updatedBy: settings.updatedBy,
+        })),
+      ],
+      () => new Date().toISOString(),
+    );
+
+    return c.json({ success: true, health });
+  } catch (err) {
+    console.log('Enterprise health error:', err);
+    return c.json({ error: `Failed to build the enterprise health view: ${err}` }, 500);
+  }
+});
+
 app.get("/make-server-324f4fbe/health", async (c) => {
   try {
     // Test KV store connectivity
@@ -1530,7 +1696,17 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
       return c.json({ error: "Submission not found" }, 404);
     }
 
-    return c.json({ success: true, submission: safeJsonParse(raw) });
+    const submission = safeJsonParse(raw);
+
+    // ── SHADOW READ (MCV2-S7.7) ──────────────────────────────────────────
+    //
+    // AFTER the response body is decided, over the record the caller is being
+    // served. It returns nothing, never throws, and is bounded by its own
+    // deadline; off by default behind `MCV2_SHADOW_READ_SUBMISSIONS`. KV
+    // remains authoritative — this route serves exactly what it always did.
+    await observeSubmissionRead(id, submission);
+
+    return c.json({ success: true, submission });
   } catch (err) {
     console.log('Get submission error:', err);
     return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
@@ -4083,10 +4259,53 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
     const outcome = raw ? JSON.parse(raw) : null;
+
+    // ── SHADOW READ (MCV2-S7.4) ──────────────────────────────────────────
+    //
+    // AFTER the response body is decided, and it cannot change it. The reader
+    // is handed the record the caller is actually being served, reads the
+    // relational row alongside it under a deadline, records whether the two
+    // stores agree, and returns nothing. Off by default; it never throws, so
+    // this route behaves identically whether it is on or off.
+    //
+    // Awaited rather than detached: an edge isolate may be torn down the moment
+    // a response is returned, and an instrument that silently does not run is
+    // worse than none — the empty report would read as agreement.
+    await observeOutcomeRead(submissionId, outcome);
+
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
     return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// SHADOW READ REPORT — MCV2-S7.4 (team auth required)
+//
+// What the relational store and KV disagree about, as counts by field and by
+// kind. It carries no value from either store: field names, divergence kinds,
+// KV keys and integers. `enabled: false` on the report is what keeps an empty
+// one from being read as agreement.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+    const limitParam = Number.parseInt(c.req.query('limit') ?? '50', 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 50;
+    return c.json({
+      success: true,
+      shadowRead: outcomeShadowReader.report(limit),
+      switches: {
+        outcomes: outcomeShadowReadEnabled(),
+        submissions: submissionShadowReadEnabled(),
+      },
+    });
+  } catch (err) {
+    console.log('Shadow read report error:', err);
+    return c.json({ error: `Failed to read the shadow report: ${err}` }, 500);
   }
 });
 

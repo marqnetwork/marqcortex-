@@ -160,6 +160,14 @@ export function registerAIAdminRoutes(
   app.get(`${prefix}/ai/admin/providers`, (c) => run(c, ADMIN_OPERATION.listProviders));
   app.get(`${prefix}/ai/admin/budget`, (c) => run(c, ADMIN_OPERATION.getBudget));
   app.get(`${prefix}/ai/admin/usage`, (c) => run(c, ADMIN_OPERATION.usage));
+  // Routing and its economics (AI-01 Batch 4F). A READ, bound to a GET: there
+  // is no route on this surface that writes routing directly — the strategy and
+  // the failover breadth are fields of the settings patch, so they pass through
+  // the same authorisation, normalisation, envelope and audit every other
+  // setting does.
+  app.get(`${prefix}/ai/admin/routing`, (c) =>
+    run(c, ADMIN_OPERATION.routing, { limit: limitOf(c) }),
+  );
   app.get(`${prefix}/ai/admin/diagnostics`, (c) => run(c, ADMIN_OPERATION.diagnostics));
 
   /** The AI execution trail, tenant-scoped to what this administrator may see. */

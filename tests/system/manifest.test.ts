@@ -55,9 +55,9 @@ const CERTIFIED_ID_PATTERN = /^MQC-(PAGE|COMP|CORE|SVC|HOOK|TYPE)-\d{3}$/;
  * is not registered, on the same rule as every other contract declaration
  * module.
  */
-const CERTIFIED_NODE_COUNT = 316;
+const CERTIFIED_NODE_COUNT = 327;
 const CERTIFIED_CORE_COUNT = 36;
-const CERTIFIED_SVC_COUNT = 162;
+const CERTIFIED_SVC_COUNT = 173;
 
 const entries = Object.entries(manifest.nodes);
 
@@ -342,9 +342,16 @@ describe('DomainType alignment', () => {
   });
 
   it('every DATA node belongs to the persistence layer', () => {
+    // `storage/` joined the layer with the runtime shadow read (MCV2-S7.4): it
+    // exists to compare the two stores during the KV-to-SQL migration, which is
+    // persistence work by any reading. The rule is about WHERE a DATA node
+    // lives, not about which directories happened to exist when it was written.
     const offLayer = entries
       .filter(([, n]) => n.domain === 'DATA')
-      .filter(([, n]) => !/\/(repositories|migration)\//.test(n.filePath) && !/types/i.test(n.filePath))
+      .filter(
+        ([, n]) =>
+          !/\/(repositories|migration|storage)\//.test(n.filePath) && !/types/i.test(n.filePath),
+      )
       .map(([, n]) => `${n.id} ${n.filePath}`);
 
     assert.deepEqual(offLayer, [], `DATA nodes outside the persistence layer: ${offLayer.join(', ')}`);

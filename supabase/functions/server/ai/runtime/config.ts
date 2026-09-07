@@ -11,6 +11,9 @@
  * be a second path by definition.
  */
 
+import type { RoutingStrategy } from '../routing/contracts/routing.ts';
+import { isRoutingStrategy } from '../routing/contracts/routing.ts';
+import { ROUTING_BOUNDS } from '../routing/engine/routingPolicy.ts';
 import type { EnvSource } from './env.ts';
 import { readBool, readInt, readList, readOptionalString, readString } from './env.ts';
 import {
@@ -167,6 +170,29 @@ export interface AIControlPlaneConfig {
      * stops working on the next request regardless of this value.
      */
     readonly snapshotTtlMs: number;
+  };
+
+  /**
+   * Provider routing and failover breadth (AI-01 Batch 4F).
+   *
+   * ── NEITHER FIELD CAN ADMIT A PROVIDER ────────────────────────────────────
+   *
+   * `strategy` decides the ORDER of candidates the selector has already found
+   * eligible, and `maxProviders` decides how many of them one request may be
+   * routed across. Eligibility — the kill switch, certification, credentials,
+   * the circuit and capability matching — is untouched by both, which is why a
+   * routing strategy is a tuning decision and not a permission.
+   *
+   * `maxProviders` IS a spend bound, and it is a NARROWING of what the platform
+   * did before this batch: failover walked every eligible candidate, so a
+   * request could be routed across as many providers as happened to be
+   * registered. The deployment's value is the ceiling an administrator may not
+   * raise past — see `runtime/envelope.ts`.
+   */
+  readonly routing: {
+    readonly strategy: RoutingStrategy;
+    /** Providers ONE request may be routed across, at most. */
+    readonly maxProviders: number;
   };
 
   /**
@@ -412,6 +438,28 @@ function readMaxOrganizationSpendMicroUsd(env: EnvSource): number {
   return Math.round(Math.min(parsed, 10_000) * 1_000_000);
 }
 
+/**
+ * The default failover breadth.
+ *
+ * Three, which is the number of providers a certified MARQ deployment
+ * registers (OpenAI, Anthropic and the mock last resort) — so the default
+ * bounds a previously unbounded walk without narrowing the estate that exists.
+ * A deployment registering more providers raises it deliberately.
+ */
+export const DEFAULT_ROUTING_MAX_PROVIDERS = 3;
+
+/**
+ * Read `AI_ROUTING_STRATEGY`, falling back to `preference`.
+ *
+ * An unrecognised value falls back rather than failing the load, and the
+ * fallback is the strategy that reproduces the pre-4F order exactly: a typo in
+ * a routing knob must not silently start steering traffic somewhere else.
+ */
+function readRoutingStrategy(env: EnvSource): RoutingStrategy {
+  const raw = readString(env, 'AI_ROUTING_STRATEGY', 'preference').trim().toLowerCase();
+  return isRoutingStrategy(raw) ? raw : 'preference';
+}
+
 export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
   return {
     providerPreference: readList(env, 'AI_PROVIDER_PREFERENCE', defaultProviderPreference(env)),
@@ -475,6 +523,14 @@ export function loadControlPlaneConfig(env: EnvSource): AIControlPlaneConfig {
       snapshotTtlMs: readInt(env, 'AI_CREDENTIAL_SNAPSHOT_TTL_MS', 30_000, {
         min: 0,
         max: 300_000,
+      }),
+    },
+
+    routing: {
+      strategy: readRoutingStrategy(env),
+      maxProviders: readInt(env, 'AI_ROUTING_MAX_PROVIDERS', DEFAULT_ROUTING_MAX_PROVIDERS, {
+        min: ROUTING_BOUNDS.maxProviders.min,
+        max: ROUTING_BOUNDS.maxProviders.max,
       }),
     },
 

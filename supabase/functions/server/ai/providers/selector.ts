@@ -23,6 +23,13 @@
 import type { AIModelDescriptor } from '../contracts/provider.ts';
 import type { ModelRequirements, ProviderRegistry } from './registry.ts';
 import type { CircuitBreaker } from './circuitBreaker.ts';
+import type {
+  RoutingDecision,
+  RoutingSignal,
+  RoutingStrategy,
+  RoutingWorkload,
+} from '../routing/contracts/routing.ts';
+import { routeCandidates } from '../routing/engine/routingPolicy.ts';
 import { AIError } from '../contracts/errors.ts';
 
 export interface ProviderCandidate {
@@ -47,11 +54,38 @@ export interface SelectorOptions {
    * contract, and production traffic is not the place to find out.
    */
   readonly requireCertification: boolean;
+  /**
+   * How eligible candidates are ORDERED, and how far one request may fail over
+   * (AI-01 Batch 4F).
+   *
+   * Optional, and its absence is the pre-4F behaviour exactly: the preference
+   * order the block comment above describes, with no breadth bound. Every
+   * consumer that does not care about routing — the health endpoint, the
+   * administration surface, the existing suites — keeps working unchanged, and
+   * a routing policy cannot become load-bearing by accident.
+   */
+  readonly routing?: {
+    readonly strategy: RoutingStrategy;
+    readonly maxProviders: number;
+  };
 }
 
 export interface ProviderSelector {
   /** Ordered candidates. Throws NO_PROVIDER_AVAILABLE when none qualify. */
-  select(requirements: ModelRequirements): readonly ProviderCandidate[];
+  select(requirements: ModelRequirements, workload?: RoutingWorkload): readonly ProviderCandidate[];
+  /**
+   * The same candidates, with the routing decision that produced them
+   * (AI-01 Batch 4F).
+   *
+   * ELIGIBILITY IS DECIDED FIRST AND SEPARATELY, by exactly the code `select`
+   * has always used. The decision this returns is an ORDERING of that answer
+   * plus the economics that justified it — it cannot contain a provider
+   * `reject()` refused, and `routeCandidates` asserts as much.
+   */
+  route(
+    requirements: ModelRequirements,
+    workload: RoutingWorkload,
+  ): { readonly decision: RoutingDecision; readonly candidates: readonly ProviderCandidate[] };
   /** Why each provider was skipped. Powers the operational health endpoint. */
   explain(requirements: ModelRequirements): Readonly<Record<string, string>>;
 }
@@ -116,35 +150,135 @@ export function createProviderSelector(
     return null;
   }
 
-  return {
-    select(requirements) {
-      const candidates: ProviderCandidate[] = [];
-      for (const providerId of orderedProviderIds()) {
-        if (reject(providerId, requirements) !== null) continue;
-        const model = registry.selectModel(providerId, requirements);
-        if (!model) continue;
-        candidates.push({ providerId, model });
-        if (!options.failoverEnabled) break;
-      }
+  /**
+   * THE ELIGIBILITY PASS. Unchanged by Batch 4F and deliberately kept whole:
+   * this is the code that applies the kill switch, the certification gate, the
+   * credential check, the circuit and the capability match, and routing is
+   * layered on top of its answer rather than mixed into it.
+   *
+   * `failoverEnabled` still stops the walk at the first eligible provider, so a
+   * deployment with failover off never even builds a second candidate.
+   */
+  function eligible(requirements: ModelRequirements): readonly ProviderCandidate[] {
+    const candidates: ProviderCandidate[] = [];
+    for (const providerId of orderedProviderIds()) {
+      if (reject(providerId, requirements) !== null) continue;
+      const model = registry.selectModel(providerId, requirements);
+      if (!model) continue;
+      candidates.push({ providerId, model });
+      if (!options.failoverEnabled) break;
+    }
+    return candidates;
+  }
 
-      if (candidates.length === 0) {
-        const reasons = Object.entries(this.explain(requirements))
-          .map(([providerId, reason]) => `${providerId}: ${reason}`)
-          .join('; ');
-        throw new AIError('NO_PROVIDER_AVAILABLE', 'No AI provider is currently able to serve this request.', {
-          diagnostics: reasons || 'no providers registered',
-        });
-      }
-      return candidates;
+  function unavailable(requirements: ModelRequirements): AIError {
+    const reasons = Object.entries(explanation(requirements))
+      .map(([providerId, reason]) => `${providerId}: ${reason}`)
+      .join('; ');
+    return new AIError(
+      'NO_PROVIDER_AVAILABLE',
+      'No AI provider is currently able to serve this request.',
+      { diagnostics: reasons || 'no providers registered' },
+    );
+  }
+
+  function explanation(requirements: ModelRequirements): Readonly<Record<string, string>> {
+    const explained: Record<string, string> = {};
+    for (const provider of registry.list()) {
+      const providerId = provider.descriptor.providerId;
+      explained[providerId] = reject(providerId, requirements) ?? 'eligible';
+    }
+    return explained;
+  }
+
+  /**
+   * The operational facts routing is allowed to see, for one eligible candidate.
+   *
+   * Read from the registry record and the breaker rather than from
+   * `registry.health()`, which additionally asks the adapter for a credential
+   * description — a per-provider, per-request cost for a snapshot routing has
+   * no use for. Nothing here is a secret, a credential or a fingerprint.
+   */
+  function signalFor(
+    candidate: ProviderCandidate,
+    index: number,
+  ): RoutingSignal {
+    const provider = registry.get(candidate.providerId);
+    return {
+      providerId: candidate.providerId,
+      modelId: candidate.model.modelId,
+      promptMicroUsdPer1k: candidate.model.promptMicroUsdPer1k,
+      completionMicroUsdPer1k: candidate.model.completionMicroUsdPer1k,
+      billable: provider.descriptor.billable,
+      isFallback: options.fallbackProviderId === candidate.providerId,
+      preferenceIndex: index,
+      circuit: circuit.stateOf(candidate.providerId),
+      consecutiveFailures: circuit.snapshot(candidate.providerId).consecutiveFailures,
+      successCount: provider.successCount,
+      failureCount: provider.failureCount,
+      observedLatencyMs: provider.lastLatencyMs,
+    };
+  }
+
+  /**
+   * The workload a bare `select()` routes against.
+   *
+   * Callers that do not supply one are not asking an economic question — the
+   * health endpoint and the administration surface want the order, not the
+   * price — so the projection is built from what `ModelRequirements` actually
+   * carries. It never reaches a ledger.
+   */
+  function impliedWorkload(requirements: ModelRequirements): RoutingWorkload {
+    return {
+      featureId: '(unspecified)',
+      promptTokens: 0,
+      completionTokens: requirements.minOutputTokens,
+      maxAttempts: 1,
+    };
+  }
+
+  function decide(
+    requirements: ModelRequirements,
+    workload: RoutingWorkload,
+  ): { decision: RoutingDecision; candidates: readonly ProviderCandidate[] } {
+    const candidates = eligible(requirements);
+    if (candidates.length === 0) throw unavailable(requirements);
+
+    const decision = routeCandidates(
+      candidates.map((candidate, index) => signalFor(candidate, index)),
+      workload,
+      {
+        strategy: options.routing?.strategy ?? 'preference',
+        // Absent routing configuration means the pre-4F walk: every eligible
+        // candidate, in preference order.
+        maxProviders: options.routing?.maxProviders ?? candidates.length,
+        failoverEnabled: options.failoverEnabled,
+      },
+    );
+
+    const byProvider = new Map(candidates.map((candidate) => [candidate.providerId, candidate]));
+    const routed: ProviderCandidate[] = [];
+    for (const entry of decision.order) {
+      const candidate = byProvider.get(entry.providerId);
+      // Unreachable while `routeCandidates` holds its subset assertion. Kept
+      // because the cost of the assumption being wrong is a paid call to a
+      // provider the eligibility pass refused.
+      if (candidate) routed.push(candidate);
+    }
+    return { decision, candidates: routed };
+  }
+
+  return {
+    select(requirements, workload) {
+      return decide(requirements, workload ?? impliedWorkload(requirements)).candidates;
+    },
+
+    route(requirements, workload) {
+      return decide(requirements, workload);
     },
 
     explain(requirements) {
-      const explanation: Record<string, string> = {};
-      for (const provider of registry.list()) {
-        const providerId = provider.descriptor.providerId;
-        explanation[providerId] = reject(providerId, requirements) ?? 'eligible';
-      }
-      return explanation;
+      return explanation(requirements);
     },
   };
 }

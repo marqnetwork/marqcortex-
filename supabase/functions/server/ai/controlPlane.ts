@@ -58,6 +58,8 @@ import { registerCortexPrompts } from './prompts/catalog.ts';
 import { createCircuitBreaker } from './providers/circuitBreaker.ts';
 import { createProviderRegistry } from './providers/registry.ts';
 import { createProviderSelector } from './providers/selector.ts';
+import { createRoutingLedger } from './routing/routingLedger.ts';
+import type { RoutingLedger } from './routing/routingLedger.ts';
 import { createRetryScheduler } from './providers/retry.ts';
 import { createSlidingWindowRateLimiter } from './security/rateLimiter.ts';
 import { createAIGuard } from './security/guard.ts';
@@ -187,6 +189,14 @@ export interface AIControlPlane {
   budgetPolicy(): AIBudgetPolicy;
   health(): ControlPlaneHealth;
   metrics(): MetricsSnapshot;
+  /**
+   * Routing decisions and their reconciled economics (AI-01 Batch 4F).
+   *
+   * Exposed for the administration surface to read and scope. It is an
+   * OPERATIONAL VIEW: nothing here is an authority for spend, and writing to it
+   * changes no execution decision.
+   */
+  readonly routing: RoutingLedger;
   recentAudit(limit?: number): readonly AIAuditRecord[];
   /** Current MARQ lifetime spend against the ceiling. */
   spendStatus(): Promise<SpendRecord>;
@@ -316,7 +326,18 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     get requireCertification() {
       return live().requireCertifiedProviders;
     },
+    // A getter over the overlay, like every other option here: an administrator
+    // changing the routing strategy or the failover breadth takes effect on the
+    // next request rather than the next deploy.
+    get routing() {
+      return live().routing;
+    },
   });
+
+  // The operational view of where traffic went and what it cost. Bounded and in
+  // memory: every micro-USD it discusses is already durable in the spend ledger,
+  // the audit trail and the financial event ledger.
+  const routingLedger = createRoutingLedger({ strategy: () => live().routing.strategy });
 
   const retry = createRetryScheduler(options.sleep, options.random);
 
@@ -459,6 +480,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
     events,
     ids,
     config: effectiveConfig,
+    routing: routingLedger,
   });
 
   const orchestrator = createRequestOrchestrator({
@@ -545,6 +567,7 @@ export function createControlPlane(options: ControlPlaneOptions): AIControlPlane
       metrics.gauge(METRIC.rateLimitScopes, rateLimiter.size());
       return metrics.snapshot();
     },
+    routing: routingLedger,
     recentAudit: (limit = 50) => audit.recent(limit),
     spendStatus: () => spendLedger.read(SPEND_SCOPE.platform),
     organizationSpendStatus: (organizationId) => {

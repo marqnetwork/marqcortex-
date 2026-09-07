@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Bot, CheckCircle2, ChevronRight, CircleSlash,
   Clock, Cpu, DollarSign, FileClock, Gauge, Loader2, Lock, PlayCircle, Power, RefreshCw,
-  Server, ShieldAlert, ShieldCheck, Wallet, Workflow, Zap,
+  GitBranch, Server, ShieldAlert, ShieldCheck, Wallet, Workflow, Zap,
 } from 'lucide-react';
 import {
   AIAdminError,
@@ -50,6 +50,7 @@ import {
   type AIExecutionAuditRecord,
 } from '@/app/services/aiAdminService';
 import { ProviderAdministrationPanel } from './ProviderAdministrationPanel';
+import { RoutingPanel } from './RoutingPanel';
 import {
   AgentRuntimeError,
   decideAgentApproval,
@@ -90,6 +91,7 @@ interface Props {
 type TabId =
   | 'overview'
   | 'providers'
+  | 'routing'
   | 'agents'
   | 'workflows'
   | 'budget'
@@ -101,6 +103,7 @@ type TabId =
 const TABS: { id: TabId; label: string; icon: typeof Activity }[] = [
   { id: 'overview',    label: 'Overview',    icon: Activity },
   { id: 'providers',   label: 'Providers',   icon: Server },
+  { id: 'routing',     label: 'Routing',     icon: GitBranch },
   { id: 'agents',      label: 'Agents',      icon: Bot },
   { id: 'workflows',   label: 'Workflows',   icon: Workflow },
   { id: 'budget',      label: 'Budget',      icon: Wallet },
@@ -770,6 +773,20 @@ export function AIAdministrationConsole({ accessToken }: Props) {
         )}
 
         {/* ── Budget ─────────────────────────────────────────────────────── */}
+        {/* ── Routing (AI-01 Batch 4F) ───────────────────────────────────
+            Its own tab rather than a card on Providers, because it answers a
+            different question. Providers is "what may serve"; this is "what
+            does serve, in what order, and what is that costing". */}
+        {tab === 'routing' && (
+          <RoutingPanel
+            accessToken={accessToken}
+            capabilities={capabilities}
+            withReason={withReason}
+            notify={notify}
+            busy={busy}
+          />
+        )}
+
         {tab === 'budget' && (
           <div className="space-y-6">
             <Section title="MARQ-funded ceiling">

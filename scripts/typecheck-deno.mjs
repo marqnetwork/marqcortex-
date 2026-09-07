@@ -56,6 +56,43 @@ const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'membershipLifecycle.ts'),
 ];
 
+/**
+ * Files that take NO Deno-only and no `jsr:` / `npm:` import.
+ *
+ * Their own boundary because they check cleanly WITHOUT a module registry, so a
+ * type regression in them is a blocker rather than a note lost inside the
+ * `server` boundary — which cannot be checked at all where jsr.io is
+ * unreachable. Adding a file here is a claim that it imports nothing a registry
+ * has to resolve; the check itself is what verifies the claim.
+ *
+ * `outcomeShadowRead.ts` and `submissionShadowRead.ts` are deliberately absent:
+ * they reach the repositories and `Deno.env`, so they belong with the rest of
+ * the server surface.
+ */
+const REGISTRY_FREE_FILES = [
+  // Runtime storage shadow read (MCV2-S7.4 / S7.7).
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'compare.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'outcomeProjection.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'submissionProjection.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
+  // The operational health framework (blueprint IV-51) — a roll-up over ports,
+  // so it imports nothing a registry has to resolve.
+  join(FUNCTIONS_ROOT, 'server', 'health', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'rollup.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'sources.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'health', 'index.ts'),
+  // Enterprise KPIs (blueprint IV-48) — definitions and a registry over ports.
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'registry.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'catalog.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'index.ts'),
+  // Migration normalizers — pure, and the place every mapping judgement lives.
+  join(FUNCTIONS_ROOT, 'server', 'migration', 'parseJson.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),
+];
+
 function collectSources(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -67,6 +104,7 @@ function collectSources(dir) {
 }
 
 const isAiFile = (file) => AI_PREFIXES.some((prefix) => file.startsWith(prefix));
+const isRegistryFreeFile = (file) => REGISTRY_FREE_FILES.includes(file);
 
 const probe = spawnSync('deno', ['--version'], { stdio: 'ignore' });
 if (probe.error || probe.status !== 0) {
@@ -105,10 +143,16 @@ const all = collectSources(FUNCTIONS_ROOT);
 const boundaries =
   requested === 'ai'
     ? [{ name: 'ai', files: all.filter(isAiFile) }]
-    : [
-        { name: 'ai', files: all.filter(isAiFile) },
-        { name: 'server', files: all.filter((file) => !isAiFile(file)) },
-      ];
+    : requested === 'registry-free'
+      ? [{ name: 'registry-free', files: all.filter(isRegistryFreeFile) }]
+      : [
+          { name: 'ai', files: all.filter(isAiFile) },
+          { name: 'registry-free', files: all.filter(isRegistryFreeFile) },
+          {
+            name: 'server',
+            files: all.filter((file) => !isAiFile(file) && !isRegistryFreeFile(file)),
+          },
+        ];
 
 /**
  * A registry that cannot be reached is an environment problem, not a type

@@ -4140,6 +4140,157 @@ export const manifest: SystemManifest = {
       notes: 'Service role only — the credential table has RLS enabled and no policy, so nothing else reaches a row. It never decrypts, never logs a row, and its metadata read names its columns explicitly so a sealed record cannot travel with a metadata result.',
     },
 
+    // ── AI-01 Batch 4F — routing, failover and economics ──────────────────
+
+    'MQC-SVC-163': {
+      id: 'MQC-SVC-163',
+      name: 'routingPolicy',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/routing/engine/routingPolicy.ts',
+      description: 'The Routing Authority: a deterministic policy that ORDERS providers the selector has already found eligible, under four invariants no strategy can express away.',
+      dependencies: ['MQC-SVC-164'],
+      dependents: ['MQC-SVC-024'],
+      notes: 'Routing orders; it does not admit. The routed order is asserted to be a subset of what routing was offered, here and again in the selector. The default `preference` strategy is the identity, so adopting the batch and configuring nothing changes no routing.',
+    },
+
+    'MQC-SVC-164': {
+      id: 'MQC-SVC-164',
+      name: 'routingEconomics',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/routing/engine/economics.ts',
+      description: 'Projected cost, cheapest paid alternative, routing premium and signed variance, on the same integer arithmetic the spend guard reserves with.',
+      dependencies: [],
+      dependents: ['MQC-SVC-163', 'MQC-SVC-165'],
+      notes: 'One arithmetic, not a second price table: every rate comes from the model descriptor the adapter declared. The suite pins the certified 105,920 uUSD cortex.chat figure through this projection so the three cannot drift apart.',
+    },
+
+    'MQC-SVC-165': {
+      id: 'MQC-SVC-165',
+      name: 'routingLedger',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'AI',
+      filePath: 'supabase/functions/server/ai/routing/routingLedger.ts',
+      description: 'Bounded, in-memory record of routing decisions and their reconciled outcomes, and the aggregates an operator reads off them.',
+      dependencies: ['MQC-SVC-164'],
+      dependents: ['MQC-SVC-024'],
+      notes: 'In memory on purpose: every micro-USD it discusses is already durable in the spend ledger, the audit trail and the financial event ledger. It holds provider ids, model ids, feature ids, an organization id and integers — no prompt, completion, actor or credential.',
+    },
+
+    // ── MCV2-S7.4 / S7.7 — the runtime storage shadow read ────────────────
+
+    'MQC-SVC-166': {
+      id: 'MQC-SVC-166',
+      name: 'shadowReader',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/storage/shadowReader.ts',
+      description: 'Reads the relational row alongside the KV answer a caller was served, under a deadline, and records whether the two stores agree. Returns nothing.',
+      dependencies: ['MQC-SVC-167'],
+      dependents: [],
+      notes: 'Four invariants: it never changes what is served, never fails a request, never runs unbounded, and never records a customer value. Off by default. KV remains authoritative — index.tsx imports no repository.',
+    },
+
+    'MQC-SVC-167': {
+      id: 'MQC-SVC-167',
+      name: 'storeComparator',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/storage/compare.ts',
+      description: 'The one comparator for KV-versus-SQL agreement: a declared rule per field, so an encoding difference is not reported as drift.',
+      dependencies: [],
+      dependents: ['MQC-SVC-166', 'MQC-SVC-169', 'MQC-SVC-170'],
+      notes: 'Used by the runtime shadow read AND by every domain reconciliation, so a divergence means the same thing wherever it is reported. A timestamptz that lost its milliseconds and a numeric that arrived as a string are not divergences.',
+    },
+
+    // ── MCV2 Phase 2 — the diagnostic-domain backfills ────────────────────
+
+    'MQC-SVC-168': {
+      id: 'MQC-SVC-168',
+      name: 'submissionNormalizer',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/migration/submissionNormalizer.ts',
+      description: 'Every mapping judgement for `sub:` to submissions + diagnostic_answers + diagnostic_scores, as one pure function.',
+      dependencies: [],
+      dependents: ['MQC-SVC-169'],
+      notes: 'Quarantines only where writing would be wrong; everything else is migrated with the guess named on the record. The status vocabulary is imported from the shadow read projection rather than restated, so the backfill and the instrument that checks it cannot disagree.',
+    },
+
+    'MQC-SVC-169': {
+      id: 'MQC-SVC-169',
+      name: 'domainReconciliation',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/migration/domainReconciliation.ts',
+      description: 'KV-versus-SQL reconciliation for any domain whose relational row carries legacy_kv_key: what is missing, what is orphaned, and whether a deterministic sample agrees field by field.',
+      dependencies: ['MQC-SVC-167', 'MQC-SVC-168'],
+      dependents: [],
+      notes: 'Compares FIELDS, not only counts: a backfill that wrote a row for every record and got a field wrong on all of them passes a count check. The sample is deterministic so a re-run after a fix inspects the same records.',
+    },
+
+    'MQC-SVC-170': {
+      id: 'MQC-SVC-170',
+      name: 'cortexReconciliation',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'DATA',
+      filePath: 'supabase/functions/server/migration/cortexReconciliation.ts',
+      description: 'Reconciliation for the cortex analysis domain, whose target rows are addressed through a submission rather than by legacy_kv_key.',
+      dependencies: ['MQC-SVC-167'],
+      dependents: [],
+      notes: 'Its own reconciler because one analysis becomes up to four rows, so "is it migrated?" is a question about a SET. A row-presence check would call a partially written analysis three successes, and would report unscaled pillars as healthy.',
+    },
+
+    // ── Gap-register G5 — enterprise performance instrumentation ──────────
+
+    'MQC-SVC-171': {
+      id: 'MQC-SVC-171',
+      name: 'operationalHealthRollup',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'SYSTEM',
+      filePath: 'supabase/functions/server/health/rollup.ts',
+      description: 'Blueprint IV-51: rolls health signals the platform already publishes up to the four approved dimensions. No SLO, threshold, alert or dashboard.',
+      dependencies: [],
+      dependents: [],
+      notes: 'An unreadable signal is `unknown`, and `unknown` never rolls up as healthy — the failure mode of every health page is reporting green because a probe was never wired. Organizational health reports unknown even when it reads cleanly, because it is a governance judgement made in review.',
+    },
+
+    'MQC-SVC-172': {
+      id: 'MQC-SVC-172',
+      name: 'kpiRegistry',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'SYSTEM',
+      filePath: 'supabase/functions/server/kpi/registry.ts',
+      description: 'Blueprint IV-48: named indicators per approved category, with the anti-metric exclusion enforced at registration rather than written down.',
+      dependencies: [],
+      dependents: ['MQC-SVC-173'],
+      notes: 'An indicator that names no constitutional success dimension cannot be registered, and one named for an explicit non-success is refused. What that cannot catch — a dishonest claim — is said plainly in the module and left to review, where DNA Ch 33.3 puts it. No target, threshold or grade.',
+    },
+
+    'MQC-SVC-173': {
+      id: 'MQC-SVC-173',
+      name: 'kpiCatalog',
+      type: 'SVC',
+      status: 'LIVE',
+      domain: 'SYSTEM',
+      filePath: 'supabase/functions/server/kpi/catalog.ts',
+      description: 'The eight indicators MARQ Cortex measures, each computed from a signal the platform already publishes.',
+      dependencies: ['MQC-SVC-172'],
+      dependents: [],
+      notes: '`quality.deterministic_corrections` is the one that measures the principle rather than the plumbing: how often the deterministic engines had to restore an authoritative number the model moved. No judgement is attached to it — that grading is deferred.',
+    },
+
     'MQC-TYPE-009': {
       id: 'MQC-TYPE-009',
       name: 'diagnostic.database.types',

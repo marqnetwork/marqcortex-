@@ -172,6 +172,11 @@ export function parseStoredSettings(
     fallbackProviderId:
       typeof stored.fallbackProviderId === 'string' ? stored.fallbackProviderId : null,
     failoverEnabled: typeof stored.failoverEnabled === 'boolean' ? stored.failoverEnabled : undefined,
+    // Absent in a record written before AI-01 Batch 4F. `undefined` keeps the
+    // current value, which for a hydrating isolate is the deployment baseline
+    // — the `preference` strategy and the deployment's own breadth, which is
+    // exactly how the platform behaved before the field existed.
+    routing: record(stored.routing) as Partial<AIOperationalSettings['routing']> | undefined,
     requireCertifiedProviders:
       typeof stored.requireCertifiedProviders === 'boolean'
         ? stored.requireCertifiedProviders

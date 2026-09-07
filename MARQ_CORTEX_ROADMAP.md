@@ -46,10 +46,10 @@ Status Legend
 | S7.1 | Runtime Gateway Planning | ✅ |
 | S7.2 | Runtime Gateway Implementation | ✅ |
 | S7.3 | Gateway Validation | ✅ |
-| S7.4 | Outcome Shadow Read | 🔄 |
+| S7.4 | Outcome Shadow Read | ✅ |
 | S7.5 | Outcome Validation | ⏳ |
-| S7.6 | Lead Shadow Read | ⏳ |
-| S7.7 | Submission Shadow Read | ⏳ |
+| S7.6 | Lead Shadow Read | ❌ |
+| S7.7 | Submission Shadow Read | ✅ |
 | S7.8 | Full Runtime Validation | ⏳ |
 
 ---
@@ -72,6 +72,12 @@ Status Legend
 | AI-01 Batch 2 | AI Administration & Operations | ✅ |
 | AI-01 Batch 3A | Agent Runtime & Orchestrator Core | ✅ |
 | AI-01 Batch 3B | Agent Workflows & Business Agents | ✅ |
+| AI-01 Batch 4A | Live Provider Certification (OpenAI) | ✅ |
+| AI-01 Batch 4B | Live Provider Certification (Anthropic) | ✅ |
+| AI-01 Batch 4C | Provider Administration | ✅ |
+| AI-01 Batch 4D | Customer BYOK | ✅ |
+| AI-01 Batch 4E | Self-Hosted / OpenAI-Compatible Providers | ✅ |
+| AI-01 Batch 4F | Routing, Failover & Economics | ✅ |
 
 AI-01 Batch 1 completed 2026-07-31. Report:
 `architecture/ai/AI-01-BATCH-1-COMPLETION.md`
@@ -189,19 +195,112 @@ source. A deployment that turns nothing on runs an empty workflow registry, and
 the operator surface refuses to start the review rather than quietly starting
 it.
 
+AI-01 Batch 4F completed 2026-09-04. Report:
+`architecture/ai/AI-01-BATCH-4F-COMPLETION.md`
+
+Delivered: the Routing Authority (`supabase/functions/server/ai/routing/`) — a
+deterministic, governed policy that ORDERS providers the selector has already
+found eligible and can never admit one. Four strategies (preference, cost,
+latency, resilience) with four invariants ahead of every strategy's own key: the
+configured fallback stays last, a provider that charges nothing is never
+promoted above paid capacity, a half-open circuit is unproven rather than
+healthy, and the default `preference` strategy returns the selector's order
+untouched. Eligibility is unchanged and keeps its one owner.
+
+A governed failover breadth (`AI_ROUTING_MAX_PROVIDERS`, deployment-capped,
+administrator-narrowable) bounds a walk that was previously unbounded. A
+per-request BILLABLE ATTEMPT BUDGET closes the certified defect that the spend
+guard reserved `maxAttempts` per request while the pipeline granted
+`maxAttempts` to every failover candidate — the certified 105,920 uUSD
+`cortex.chat` hold did not move; the execution path now matches it.
+
+Economics on one arithmetic: projected cost, cheapest paid alternative, routing
+premium, realized spend and signed variance, reconciled per request into a
+bounded operational ledger holding no prompt, completion, actor or credential.
+Metrics, events and a Routing tab in the AI Administration console. No schema
+change, no migration, no new secret, and no routing write path — the strategy
+and the breadth are settings fields, audited like every other.
+
+---
+
+MCV2-S7.4 completed 2026-09-07. Report:
+`architecture/database/MCV2-S7.4-OUTCOME-SHADOW-READ-COMPLETION.md`
+
+Delivered: the runtime storage shadow read
+(`supabase/functions/server/storage/`) — the instrument Phase 3 needs before
+anything reads SQL first. It serves the KV answer, reads the relational row
+alongside it under a deadline, records whether the two stores agree, and
+returns nothing. Four invariants: it never changes what is served, never fails
+a request, never runs unbounded, and never records a customer value. Off by
+default (`MCV2_SHADOW_READ_OUTCOMES`).
+
+The comparator declares a rule per field so that a timestamptz that lost its
+milliseconds, a numeric that arrived as a string and a NULL where KV wrote an
+empty string are not reported as drift — a comparator nobody trusts gets
+switched off, and then the migration proceeds with no instrument at all. An
+absent relational row is a first-class result rather than a fault: the outcome
+backfill has not been written, so that is the expected reading, and it is the
+number the backfill will be judged by.
+
+KV REMAINS AUTHORITATIVE. `index.tsx` imports no repository, and nothing the
+storage module exports hands a relational row to a route.
+
+MCV2-S7.6 / S7.7 completed 2026-09-07. Report:
+`architecture/database/MCV2-S7.6-S7.7-SHADOW-READ-COMPLETION.md`
+
+S7.6 — Lead Shadow Read is CANCELLED, as a finding rather than a blocker. A
+shadow read observes a runtime read, and the lead domain has none: leads are
+written by two capture routes and no route serves one. A shadow read wired to a
+write would be write verification, which is not the evidence Phase 3 needs, and
+bulk KV-to-SQL comparison for that domain already exists as
+`npm run migration:reconcile`. If a lead read route is ever added, the
+instrument extends to it the way the submission one did.
+
+S7.7 — Submission Shadow Read delivered: the S7.4 instrument aimed at the core
+entity, sharing one reader, one deadline and one report, behind its own switch
+`MCV2_SHADOW_READ_SUBMISSIONS` (off by default). Status is canonicalised to the
+relational vocabulary on both sides through a declared table — `approved` is the
+console's word for `won`, and a hyphen-to-underscore rule would quarantine every
+converted deal. Presentation fields, the answer map (which migrates to rows, not
+a column) and the capture route's written placeholders are deliberately not
+compared.
+
 ---
 
 # Current Sprint
 
-MCV2-S7.4 — Outcome Shadow Read
+MCV2-S7.5 — Outcome Shadow Read Validation
 
-Status: 🔄 In Progress
+Status: ⛔ Blocked — the exit condition is a mismatch rate measured over real
+traffic, which needs `MCV2_SHADOW_READ_OUTCOMES` switched on in a deployment.
+That is a human decision.
+
+---
+
+Phase 2 backfill completed 2026-09-07 for every KV namespace that holds stored
+data. Report:
+`architecture/database/MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`
+
+Delivered: the submission, cortex-analysis and outcome domains, on one
+domain-parameterised orchestrator loop rather than three copies of it; a
+reconciliation for the submission domain that compares FIELDS through the same
+comparator the shadow read uses; and a real-PostgreSQL harness
+(`npm run test:database:diagnostic`) that drives all three in dependency order.
+
+Also fixed: the certified lead reconciliation hard-coded its field-mismatch
+count to zero, so every report claimed a field-level pass it had never made.
+
+CODE COMPLETE, NOT RUN. Executing a backfill against real data is a deployment
+action and awaits human authorisation.
 
 ---
 
 # Next Sprint
 
-MCV2-S7.5 — Outcome Shadow Read Validation
+Reconciliation for the cortex and outcome domains, then the documented gap
+register (`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5). G3 — intelligence
+breadth — is closed by AI-01 Batches 1 through 4F. The next open backend gap is
+G5, enterprise performance instrumentation.
 
 ---
 
@@ -240,6 +339,12 @@ AI Business Capability Authority: one certified capability —
 only where `AI_DIAGNOSTIC_REVIEW_ENABLED` is on AND durable storage and a
 submission source exist; off by default. Readiness scores, ranking and
 dependencies remain the deterministic engines'.
+
+AI Routing Authority: the Routing Authority
+(`supabase/functions/server/ai/routing/`) — orders providers the selector has
+already found eligible, and admits none. Deterministic and replayable; the
+routed order is asserted to be a subset of what routing was offered. One
+request's billable attempts are bounded by what the spend guard reserved for it.
 
 AI Operational Authority: AI Administration (`supabase/functions/server/ai/admin/`)
 — settings overlay persisted at `ai:admin:settings`, versioned by

@@ -20,6 +20,8 @@ export type AIEventName =
   | 'ai.provider.attempt_failed'
   | 'ai.provider.circuit_opened'
   | 'ai.provider.circuit_closed'
+  | 'ai.routing.decided'
+  | 'ai.routing.budget_exhausted'
   | 'ai.governance.input_redacted'
   | 'ai.governance.output_blocked'
   | 'ai.governance.fact_lock_enforced'

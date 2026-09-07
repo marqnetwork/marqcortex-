@@ -54,6 +54,64 @@ export type AIAdminCapability =
   | 'ai.providers.models.manage'
   | 'ai.providers.audit.read';
 
+/**
+ * How eligible providers are ordered (AI-01 Batch 4F).
+ *
+ * The list mirrors the server's declared set. A console that offered a free
+ * text field here would be offering to send a value the server will reject —
+ * the strategy is validated against this same set on the way in, and an
+ * unrecognised one keeps whatever strategy is in force.
+ */
+export type AIRoutingStrategy = 'preference' | 'cost' | 'latency' | 'resilience';
+
+export interface AIRoutingOutcome {
+  featureId: string;
+  organizationId: string;
+  strategy: AIRoutingStrategy;
+  chosenProviderId: string;
+  chosenModelId: string;
+  servedProviderId?: string;
+  servedModelId?: string;
+  failedProviders: string[];
+  attempts: number;
+  billableAttempts: number;
+  projectedMicroUsd: number;
+  realizedMicroUsd: number;
+  varianceMicroUsd: number;
+  premiumMicroUsd: number;
+  outcome: 'success' | 'failure';
+  budgetExhausted: boolean;
+  occurredAt: string;
+}
+
+export interface AIRoutingView {
+  strategy: AIRoutingStrategy;
+  maxProviders: number;
+  failoverEnabled: boolean;
+  /** The deployment's own ceiling. An administrator cannot exceed it. */
+  deploymentMaxProviders: number;
+  summary: {
+    strategy: AIRoutingStrategy;
+    decisions: number;
+    executions: number;
+    failovers: number;
+    budgetExhaustions: number;
+    projectedMicroUsd: number;
+    realizedMicroUsd: number;
+    varianceMicroUsd: number;
+    premiumMicroUsd: number;
+    providers: {
+      providerId: string;
+      chosen: number;
+      served: number;
+      failed: number;
+      realizedMicroUsd: number;
+      premiumMicroUsd: number;
+    }[];
+  };
+  recent: AIRoutingOutcome[];
+}
+
 export interface AIAdminSettings {
   configurationVersion: number;
   aiEnabled: boolean;
@@ -63,6 +121,8 @@ export interface AIAdminSettings {
   providerPreference: string[];
   fallbackProviderId?: string;
   failoverEnabled: boolean;
+  /** Provider routing and failover breadth (AI-01 Batch 4F). */
+  routing: { strategy: AIRoutingStrategy; maxProviders: number };
   requireCertifiedProviders: boolean;
   /** Certification policy per population (AI-01 Batch 3A). Three, not one. */
   requireCertifiedAgents: boolean;
@@ -444,6 +504,25 @@ export async function fetchAIAdminDiagnostics(accessToken: string): Promise<AIAd
   return diagnostics;
 }
 
+/**
+ * Routing, its economics and the recent decisions behind them (Batch 4F).
+ *
+ * A READ. There is no routing mutation on this client because there is none on
+ * the server: the strategy and the failover breadth are fields of the settings
+ * patch, so they pass through the same authorisation, normalisation, deployment
+ * envelope and audit trail every other setting does.
+ */
+export async function fetchAIRouting(
+  accessToken: string,
+  limit = 50,
+): Promise<AIRoutingView> {
+  const { routing } = await call<{ routing: AIRoutingView }>(
+    `/ai/admin/routing?limit=${encodeURIComponent(String(limit))}`,
+    accessToken,
+  );
+  return routing;
+}
+
 export async function fetchAIExecutionAudit(
   accessToken: string,
   limit = 50,
@@ -479,6 +558,7 @@ export interface AIAdminSettingsPatch {
   providerPreference?: string[];
   fallbackProviderId?: string | null;
   failoverEnabled?: boolean;
+  routing?: { strategy?: AIRoutingStrategy; maxProviders?: number };
   requireCertifiedProviders?: boolean;
   requireCertifiedAgents?: boolean;
   requireCertifiedTools?: boolean;

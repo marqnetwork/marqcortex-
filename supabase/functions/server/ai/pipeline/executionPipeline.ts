@@ -51,6 +51,8 @@ import type { Logger } from '../observability/logger.ts';
 import type { Metrics } from '../observability/metrics.ts';
 import type { IdFactory } from '../contracts/ids.ts';
 import type { AIControlPlaneConfig } from '../runtime/config.ts';
+import type { RoutingDecision, RoutingOutcome } from '../routing/contracts/routing.ts';
+import { reconcileRouting } from '../routing/engine/economics.ts';
 import { AIError, toAIError } from '../contracts/errors.ts';
 import { applyInputGuard } from '../governance/inputGuard.ts';
 import { applyOutputGuard, assertRequiredFields } from '../governance/outputGuard.ts';
@@ -129,6 +131,17 @@ export type AttemptObserver = (attempt: ProviderAttemptRecord) => void;
  */
 const UNCERTAIN_OUTCOME_CODES: ReadonlySet<AIErrorCode> = new Set<AIErrorCode>(['PROVIDER_TIMEOUT']);
 
+/**
+ * Bytes of declared input per prompt token, for the routing projection.
+ *
+ * The SAME ratio `policy/spendGuard.ts` sizes a reservation with, and stated
+ * here for the same reason it is stated there: it sizes a projection and never
+ * bills anything. Billing always uses the provider's reported usage. Two
+ * different ratios would put the routing premium and the reservation on
+ * different bases and make them impossible to reconcile.
+ */
+const BYTES_PER_PROMPT_TOKEN = 4;
+
 export interface PipelineDependencies {
   readonly prompts: PromptRegistry;
   readonly providers: ProviderRegistry;
@@ -141,6 +154,21 @@ export interface PipelineDependencies {
   readonly events: AIEventBus;
   readonly ids: IdFactory;
   readonly config: AIControlPlaneConfig;
+  /**
+   * Where routing decisions and their reconciled outcomes are recorded
+   * (AI-01 Batch 4F).
+   *
+   * Optional. A pipeline without one routes identically and simply reports
+   * nothing — the recorder is an operational view, never a participant in the
+   * decision, and a control plane assembled without it must still execute.
+   */
+  readonly routing?: RoutingRecorder;
+}
+
+/** The routing ledger, as the pipeline needs it. See `routing/routingLedger.ts`. */
+export interface RoutingRecorder {
+  recordDecision(decision: RoutingDecision, organizationId: string): void;
+  recordOutcome(outcome: RoutingOutcome): void;
 }
 
 export interface PipelineOutcome<TOutput> {
@@ -164,6 +192,10 @@ export interface PipelineOutcome<TOutput> {
   readonly providerLatencyMs: number;
   /** The credential category the ANSWERING attempt executed on (Batch 4D). */
   readonly credentialSource: AICredentialSourceCategory;
+  /** The routing decision this execution was planned against (Batch 4F). */
+  readonly routing: RoutingDecision;
+  /** Attempts against a provider that charges. Bounded by the routed budget. */
+  readonly billableAttempts: number;
 }
 
 export interface ExecutionPipeline {
@@ -227,6 +259,7 @@ function assertCapabilities(
 export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPipeline {
   const { prompts, providers, selector, circuit, retry, clock, logger, metrics, events, ids, config } =
     deps;
+  const routingRecorder = deps.routing;
 
   function publish(
     name: Parameters<AIEventBus['publish']>[0]['name'],
@@ -318,19 +351,113 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
         chatCompletions: descriptor.requiredCapabilities.chatCompletions,
         minOutputTokens: descriptor.limits.maxOutputTokens,
       };
-      const candidates = selector.select(requirements);
+      // ── ROUTING (AI-01 Batch 4F) ─────────────────────────────────────────
+      //
+      // `route` runs the SAME eligibility pass `select` always did and then
+      // orders its answer. The decision it returns carries the economics that
+      // justified the order and the request's billable attempt budget, both of
+      // which are enforced below rather than merely reported.
+      const workload = {
+        featureId: descriptor.featureId,
+        promptTokens: Math.ceil(descriptor.limits.maxInputBytes / BYTES_PER_PROMPT_TOKEN),
+        completionTokens: descriptor.limits.maxOutputTokens,
+        maxAttempts: descriptor.limits.maxAttempts,
+      };
+      const { decision, candidates } = selector.route(requirements, workload);
+      routingRecorder?.recordDecision(decision, context.organization.organizationId);
+      const chosen = decision.order[0];
+      if (chosen) {
+        metrics.increment(METRIC.routingDecisionsTotal, {
+          ...featureLabels,
+          strategy: decision.strategy,
+          provider: chosen.providerId,
+        });
+        if (decision.premiumMicroUsd > 0) {
+          metrics.increment(
+            METRIC.routingPremiumMicroUsdTotal,
+            { ...featureLabels, strategy: decision.strategy },
+            decision.premiumMicroUsd,
+          );
+        }
+        publish('ai.routing.decided', context, {
+          strategy: decision.strategy,
+          provider: chosen.providerId,
+          model: chosen.modelId,
+          projectedMicroUsd: chosen.projectedMicroUsd,
+          premiumMicroUsd: decision.premiumMicroUsd,
+          plannedProviders: decision.order.length,
+          billableAttemptBudget: decision.billableAttemptBudget,
+        });
+      }
 
       // ── provider_invoke ──────────────────────────────────────────────────
       const failedProviders: string[] = [];
       let lastError: AIError | undefined;
       let totalAttempts = 0;
+      /**
+       * Attempts made against a provider that CHARGES, across the whole request.
+       *
+       * ── WHY THIS IS COUNTED PER REQUEST AND NOT PER PROVIDER ──────────────
+       *
+       * The spend guard reserves `worst-case model x maxAttempts` for one
+       * request. This loop used to grant a fresh allowance of `maxAttempts` to
+       * every failover candidate, so a request with a two-attempt allowance and
+       * three eligible providers could make six paid attempts against a hold
+       * that covered two. Nobody decided the ceiling should be crossed; it was
+       * crossed by an allowance counted in one unit and reserved in another.
+       *
+       * Non-billable attempts do not spend the budget. The mock costs nothing,
+       * is still bounded by the routed failover breadth and the workflow
+       * deadline, and remains the last resort it was designed to be — so a
+       * total vendor outage still degrades to something rather than nothing.
+       */
+      let billableAttempts = 0;
+      let budgetExhausted = false;
+      const skippedForBudget: string[] = [];
 
+      /** Report what the request actually did, against what was planned. */
+      function settleRouting(
+        outcome: 'success' | 'failure',
+        served?: { providerId: string; modelId: string },
+        realizedMicroUsd = 0,
+      ): void {
+        routingRecorder?.recordOutcome(
+          reconcileRouting(decision, {
+            organizationId: context.organization.organizationId,
+            servedProviderId: served?.providerId,
+            servedModelId: served?.modelId,
+            failedProviders,
+            attempts: totalAttempts,
+            billableAttempts,
+            realizedMicroUsd,
+            outcome,
+            budgetExhausted,
+            occurredAt: clock.isoNow(),
+          }),
+        );
+      }
+
+      try {
       for (const candidate of candidates) {
         if (!circuit.canAttempt(candidate.providerId)) {
           failedProviders.push(candidate.providerId);
           continue;
         }
         if (deadlineExceeded()) break;
+
+        const registered = providers.get(candidate.providerId);
+        const adapter = registered.adapter;
+        const billable = registered.descriptor.billable;
+
+        // THE BUDGET, APPLIED BEFORE THE PROVIDER IS EVEN ANNOUNCED. A
+        // candidate skipped here has not failed and must not be recorded as
+        // having failed — an operator reading `failedProviders` would otherwise
+        // go looking for an outage at a vendor that was never dialled.
+        if (billable && billableAttempts >= decision.billableAttemptBudget) {
+          budgetExhausted = true;
+          skippedForBudget.push(candidate.providerId);
+          continue;
+        }
 
         // Capability enforcement, asserted immediately before the network call
         // rather than trusted from selection. The selector already matched the
@@ -344,14 +471,16 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
           model: candidate.model.modelId,
         });
 
-        const registered = providers.get(candidate.providerId);
-        const adapter = registered.adapter;
-        const billable = registered.descriptor.billable;
         let providerSucceeded = false;
 
         for (let attempt = 1; attempt <= descriptor.limits.maxAttempts; attempt += 1) {
           if (deadlineExceeded()) break;
+          if (billable && billableAttempts >= decision.billableAttemptBudget) {
+            budgetExhausted = true;
+            break;
+          }
           totalAttempts += 1;
+          if (billable) billableAttempts += 1;
 
           // A provider that told us how long to wait is obeyed over our own
           // backoff curve: guessing shorter earns another 429 and guessing
@@ -482,6 +611,12 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               });
             }
 
+            settleRouting(
+              'success',
+              { providerId: candidate.providerId, modelId: completion.modelId },
+              billable ? costMicroUsd : 0,
+            );
+
             return {
               output,
               promptId: rendered.promptId,
@@ -505,6 +640,8 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
               // reports the credential that actually produced the answer, which
               // is the one whose vendor account was charged for it.
               credentialSource: completion.credentialSource ?? 'none',
+              routing: decision,
+              billableAttempts,
             };
           } catch (error) {
             const aiError = toAIError(error);
@@ -593,6 +730,32 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
         if (lastError && !shouldFailover(lastError)) throw lastError;
       }
 
+      if (budgetExhausted) {
+        // Said out loud, on both the metric and the event stream. A request
+        // that stopped failing over because it had spent its allowance looks
+        // exactly like one that ran out of providers, and an operator tuning
+        // failover breadth or a feature's attempt allowance needs to know
+        // which of the two happened.
+        metrics.increment(METRIC.routingBudgetExhaustedTotal, {
+          ...featureLabels,
+          strategy: decision.strategy,
+        });
+        publish('ai.routing.budget_exhausted', context, {
+          strategy: decision.strategy,
+          billableAttempts,
+          budget: decision.billableAttemptBudget,
+          skipped: skippedForBudget.join(',') || '(none)',
+        });
+        logger.warn('ai.routing.budget_exhausted', {
+          requestId: context.requestId,
+          correlationId: context.correlationId,
+          feature: descriptor.featureId,
+          billableAttempts,
+          budget: decision.billableAttemptBudget,
+          skipped: skippedForBudget.join(','),
+        });
+      }
+
       if (lastError) throw lastError;
       if (deadlineExceeded()) {
         throw new AIError('PROVIDER_TIMEOUT', 'The AI request exceeded its overall time budget.', {
@@ -603,9 +766,21 @@ export function createExecutionPipeline(deps: PipelineDependencies): ExecutionPi
         'NO_PROVIDER_AVAILABLE',
         'No AI provider is currently able to serve this request.',
         {
-          diagnostics: `every eligible provider was skipped: ${failedProviders.join(', ') || 'none offered'}`,
+          diagnostics:
+            `every eligible provider was skipped: ${failedProviders.join(', ') || 'none offered'}` +
+            (skippedForBudget.length > 0
+              ? `; not attempted on the request's billable allowance of ` +
+                `${decision.billableAttemptBudget}: ${skippedForBudget.join(', ')}`
+              : ''),
         },
       );
+      } catch (error) {
+        // Recorded on the way out rather than at each throw site. A routing view
+        // that only ever saw successful requests would report the strategy as
+        // free at exactly the moment failover is costing the most.
+        settleRouting('failure');
+        throw error;
+      }
     },
   };
 }

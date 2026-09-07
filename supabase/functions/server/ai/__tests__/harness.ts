@@ -133,6 +133,26 @@ export interface TestPlaneOptions {
    * reserved against rather than infer it.
    */
   readonly spendStore?: SpendStore;
+  /**
+   * Declare the two mock providers BILLABLE (AI-01 Batch 4F).
+   *
+   * Off by default, so every suite written before this batch sees the
+   * cost-free plane it always saw. On, the mocks report `billable: true` and
+   * therefore take a spend reservation, spend the request's billable attempt
+   * budget and appear in the routing economics — which is the wiring the
+   * budget and premium cases exist to prove, and which cannot be proved
+   * against a provider that charges nothing.
+   *
+   * They still reach no network. `billable` describes what the platform
+   * BELIEVES about a provider's invoice, and that belief is the whole input to
+   * the spend path.
+   */
+  readonly billableProviders?: boolean;
+  /** Per-provider rates, so a suite can make one candidate genuinely dearer. */
+  readonly pricing?: {
+    readonly primary?: { promptMicroUsdPer1k: number; completionMicroUsdPer1k: number };
+    readonly backup?: { promptMicroUsdPer1k: number; completionMicroUsdPer1k: number };
+  };
 }
 
 export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
@@ -157,6 +177,8 @@ export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
     ...(options.additionalPrimaryModelIds
       ? { additionalModelIds: options.additionalPrimaryModelIds }
       : {}),
+    ...(options.billableProviders ? { billable: true } : {}),
+    ...(options.pricing?.primary ? { pricing: options.pricing.primary } : {}),
     ...(credentialed
       ? { credentialPolicy: credentialed.policy, credentialResolver: credentialed.resolver }
       : {}),
@@ -164,6 +186,8 @@ export function buildTestPlane(options: TestPlaneOptions = {}): TestPlane {
   const backup = createMockProvider({
     providerId: 'backup',
     priority: 2,
+    ...(options.billableProviders ? { billable: true } : {}),
+    ...(options.pricing?.backup ? { pricing: options.pricing.backup } : {}),
     ...(credentialed
       ? { credentialPolicy: credentialed.policy, credentialResolver: credentialed.resolver }
       : {}),

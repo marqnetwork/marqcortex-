@@ -88,6 +88,22 @@ export function normalizeLeadRecord(
   return { ok: true, record, classification: 'migrated' };
 }
 
+/**
+ * Narrow a result to its quarantine branch.
+ *
+ * A user-defined type guard rather than an `if (!result.ok)`, because the
+ * repository's Node type-check boundary runs without `strictNullChecks` and
+ * therefore does not narrow a discriminated union by its boolean discriminant.
+ * `domains/leads.ts` carried two long-standing errors for exactly that reason;
+ * this is the one line that makes the compiler agree with code that was already
+ * correct.
+ */
+export function isLeadQuarantined(
+  result: NormalizationResult,
+): result is Extract<NormalizationResult, { ok: false }> {
+  return !result.ok;
+}
+
 export function parseLeadKvRecord(key: string, rawValue: unknown): ParsedKvRecord<LeadKvPayload> {
   return parseKvRecord<LeadKvPayload>(key, rawValue);
 }
