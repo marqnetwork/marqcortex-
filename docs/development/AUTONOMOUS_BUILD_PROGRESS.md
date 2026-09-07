@@ -180,12 +180,66 @@ are leaving real coverage on the table.
 `deno` is not installed at session start either; `npm i -g deno` works without
 privileges and unblocks `typecheck:api:ai` and `typecheck:api:pure`.
 
+## COMPLETED AFTER THE MERGE — frontend typecheck debt, partly cleared
+
+`typecheck:web` **34 -> 20**, and every error cleared turned out to be a real
+runtime defect rather than annotation noise. Eight defects repaired across four
+commits, each covered by a test:
+
+| Defect | Consequence before the fix |
+|---|---|
+| `createProposalSnapshot` read `linked_entity_type`/`linked_entity_id`; `BlockLink` declares `entity_type`/`entity_id` | The membership filter matched nothing, so **every proposal snapshot froze an empty block set** — Save Version saved no blocks and the export pulled from an empty snapshot |
+| Same function read `Block.label` and `Block.approved_by`/`approved_at` | `Block` has `title` and no approver at all; approval lives on the `BlockRevision` `current_revision_id` points at |
+| `CountdownTimer` scheduled its interval with `useState`, not `useEffect` | React treats the function as a lazy initialiser: the interval ran during render, its cleanup became state nothing called, and copies accumulated across re-mounts |
+| `DiagnosticQuestion` never passed `isOpen` to `ProgressModal` | The modal gates its whole body on that prop, so the **25/50/75 % milestone celebration never rendered** |
+| Both `SettingsPage` demo fixtures modelled a retired settings schema | They supplied none of the four fields the page reads and eight nothing reads; the notification panel spread `{...undefined}` and rendered every toggle from nothing |
+| `ExportPanel` put `title` on a lucide icon | Lucide spreads unknown props onto the `<svg>`, which has no `title` attribute, so the tooltip never appeared |
+| `mappingEngine` omitted `execution_version` | qbrEngine rendered **"vundefined"** in the QBR report and its footer; scopeEngine's `execution_version + 1` was NaN |
+| Three `CortexDashboardSections` panels read `lead.employeeEstimate` | `Lead` has `companySize`; the name belongs to the core diagnostics input, so **company size was blank in all three panels** |
+
+Test count rose 774 -> 801 in `test:features`, with no test weakened or removed.
+The snapshot repair is covered behaviourally (the engine's imports are
+type-only, so the runner can load it) and verified to fail 7/7 against the old
+code; the rest are structural, following the established Phase 1B pattern.
+
+### Deliberately NOT repaired
+
+**The ClientPortal auth cluster — 14 of the 20 remaining.**
+`tests/features/clientPortalAuthContract.test.ts` pins this exclusion on
+purpose, and the pin is correct. `getClientReport`, `trackEngagement`,
+`getClientMessages`, `postClientMessage`, `getClientProposal`,
+`getEngagementLog` and `respondToProposal` declare no positional slot for the
+auth argument, so the call sites' `clientAuth` is discarded and the request goes
+out with the anon key and no `?email=`. Repairing them changes what the browser
+sends over the wire — an authentication and telemetry change — and is owed a
+**separate, live-mode-verified task**, not a cleanup commit.
+
+This was attempted in this session and reverted when the contract test caught
+it. The test was left exactly as it was.
+
+**Six that need a product decision, not a mechanical repair:**
+
+1. `ExecutionDashboard` filters milestones by `workstream_id`, which `Milestone`
+   does not have and is not meant to — milestones are execution-level phases
+   spanning every workstream. What a workstream card should show is a UX
+   decision.
+2. `SubmissionsListPage` passes `'new' | 'approved' | 'in-review' | 'completed'`
+   into a component expecting `'new' | 'approved' | 'sent' | 'reviewing'`. Needs
+   the same canonicalisation judgement the submission shadow read made for
+   `approved` and `won`.
+3. `CortexDashboardSections` reads `why_first` off a problem shape that does not
+   declare it.
+4. `DiagnosticForm` reads `options` off a question shape that does not declare
+   it.
+5. `EditableBlockCard` passes a `Record<string, unknown>` handler where a
+   `string` one is expected.
+6. `mockCortexData` assigns a bare `string` to `ServiceType`.
+
 ## KNOWN NON-BLOCKING ISSUES
 
-- 34 pre-existing `typecheck:web` and 27 pre-existing `typecheck:tests` errors,
-  all in files unrelated to recent work (proposal viewer, snapshot engine,
-  mapping engine, mock data, workflow expression validation). Present at
-  `b13d3a3` and unchanged by 4F. Worth a cleanup sprint before UI/UX.
+- 20 remaining `typecheck:web` errors (down from 34) and 27 `typecheck:tests`
+  errors. 14 of the 20 are the deliberately-pinned auth cluster; the other 6
+  need a product decision. See the section above.
 - The `server` deno boundary cannot be type-checked in this environment:
   `jsr.io` returns **403 through the agent proxy**, so the checker cannot
   download `@supabase/supabase-js`'s manifest. This is an egress restriction,
@@ -201,10 +255,19 @@ scope, not executing it.
 
 The one piece of undone work needing no human gate and no new scope:
 
-**Clear the pre-existing typecheck debt before the UI/UX stage.** 34
-`typecheck:web` and 27 `typecheck:tests` errors, none in anything the recent
-batches touched. This is the documented prerequisite for the UI/UX work and is
-pure debt reduction — no architectural decision, no credentials, no deployment.
+**The ClientPortal auth repair, live-mode verified.** This is now the largest
+single block of remaining frontend debt (14 of 20 `typecheck:web` errors) and
+the only one with a user-visible consequence today: the client portal's report,
+messages, proposal and engagement calls all reach `api` with `auth === undefined`,
+so they go out with the anon key and no `?email=` and the server answers 401.
+
+It needs a deployment to verify against, because the repair changes what the
+browser sends — which is exactly why `clientPortalAuthContract.test.ts` excludes
+it from cleanup work. Scope it as its own task with a live backend, update that
+contract test in the same change, and confirm `requireClientAccess` authorises
+the repaired calls.
+
+After that, the six product-decision items listed above.
 
 Everything else is gated, and the gates are decisions rather than tasks:
 
@@ -229,4 +292,5 @@ Everything else is gated, and the gates are decisions rather than tasks:
 
 ---
 
-_Last updated: 2026-09-07, after AI-01 Batch 4F was merged to `main` as PR #45._
+_Last updated: 2026-09-07, after AI-01 Batch 4F was merged to `main` as PR #45 and
+the frontend typecheck debt was partly cleared (34 -> 20)._
