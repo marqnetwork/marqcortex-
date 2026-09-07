@@ -51,6 +51,11 @@ import {
 } from "./ai/index.ts";
 import { createKvSubmissionDossierSource } from "./diagnostic/submissionDossierSource.ts";
 import {
+  observeOutcomeRead,
+  outcomeShadowReadEnabled,
+  outcomeShadowReader,
+} from "./storage/outcomeShadowRead.ts";
+import {
   authorizeMemberRemoval,
   authorizeRoleAssignment,
   authorizeTeamAdmin,
@@ -4083,10 +4088,50 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
     const outcome = raw ? JSON.parse(raw) : null;
+
+    // ── SHADOW READ (MCV2-S7.4) ──────────────────────────────────────────
+    //
+    // AFTER the response body is decided, and it cannot change it. The reader
+    // is handed the record the caller is actually being served, reads the
+    // relational row alongside it under a deadline, records whether the two
+    // stores agree, and returns nothing. Off by default; it never throws, so
+    // this route behaves identically whether it is on or off.
+    //
+    // Awaited rather than detached: an edge isolate may be torn down the moment
+    // a response is returned, and an instrument that silently does not run is
+    // worse than none — the empty report would read as agreement.
+    await observeOutcomeRead(submissionId, outcome);
+
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
     return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);
+  }
+});
+
+// ============================================================================
+// SHADOW READ REPORT — MCV2-S7.4 (team auth required)
+//
+// What the relational store and KV disagree about, as counts by field and by
+// kind. It carries no value from either store: field names, divergence kinds,
+// KV keys and integers. `enabled: false` on the report is what keeps an empty
+// one from being read as agreement.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+    const limitParam = Number.parseInt(c.req.query('limit') ?? '50', 10);
+    const limit = Number.isFinite(limitParam) ? limitParam : 50;
+    return c.json({
+      success: true,
+      shadowRead: outcomeShadowReader.report(limit),
+      switches: { outcomes: outcomeShadowReadEnabled() },
+    });
+  } catch (err) {
+    console.log('Shadow read report error:', err);
+    return c.json({ error: `Failed to read the shadow report: ${err}` }, 500);
   }
 });
 

@@ -56,6 +56,25 @@ const AI_PREFIXES = [
   join(FUNCTIONS_ROOT, 'server', 'membershipLifecycle.ts'),
 ];
 
+/**
+ * The runtime storage shadow-read modules that take NO Deno-only and no `jsr:`
+ * import (MCV2-S7.4).
+ *
+ * Their own boundary for the same reason `teamAuthorization.ts` sits in the AI
+ * one: they check cleanly without a module registry, so a type regression in
+ * them is a BLOCKER rather than a note lost inside a boundary that this
+ * environment cannot reach at all. `outcomeShadowRead.ts` is deliberately NOT
+ * here — it reaches the repositories and `Deno.env`, so it belongs with the
+ * rest of the server surface.
+ */
+const STORAGE_FILES = [
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'compare.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'outcomeProjection.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
+];
+
 function collectSources(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -67,6 +86,7 @@ function collectSources(dir) {
 }
 
 const isAiFile = (file) => AI_PREFIXES.some((prefix) => file.startsWith(prefix));
+const isStorageFile = (file) => STORAGE_FILES.includes(file);
 
 const probe = spawnSync('deno', ['--version'], { stdio: 'ignore' });
 if (probe.error || probe.status !== 0) {
@@ -105,10 +125,16 @@ const all = collectSources(FUNCTIONS_ROOT);
 const boundaries =
   requested === 'ai'
     ? [{ name: 'ai', files: all.filter(isAiFile) }]
-    : [
-        { name: 'ai', files: all.filter(isAiFile) },
-        { name: 'server', files: all.filter((file) => !isAiFile(file)) },
-      ];
+    : requested === 'storage'
+      ? [{ name: 'storage', files: all.filter(isStorageFile) }]
+      : [
+          { name: 'ai', files: all.filter(isAiFile) },
+          { name: 'storage', files: all.filter(isStorageFile) },
+          {
+            name: 'server',
+            files: all.filter((file) => !isAiFile(file) && !isStorageFile(file)),
+          },
+        ];
 
 /**
  * A registry that cannot be reached is an environment problem, not a type

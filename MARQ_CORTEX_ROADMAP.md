@@ -46,7 +46,7 @@ Status Legend
 | S7.1 | Runtime Gateway Planning | ✅ |
 | S7.2 | Runtime Gateway Implementation | ✅ |
 | S7.3 | Gateway Validation | ✅ |
-| S7.4 | Outcome Shadow Read | 🔄 |
+| S7.4 | Outcome Shadow Read | ✅ |
 | S7.5 | Outcome Validation | ⏳ |
 | S7.6 | Lead Shadow Read | ⏳ |
 | S7.7 | Submission Shadow Read | ⏳ |
@@ -223,17 +223,45 @@ and the breadth are settings fields, audited like every other.
 
 ---
 
+MCV2-S7.4 completed 2026-09-07. Report:
+`architecture/database/MCV2-S7.4-OUTCOME-SHADOW-READ-COMPLETION.md`
+
+Delivered: the runtime storage shadow read
+(`supabase/functions/server/storage/`) — the instrument Phase 3 needs before
+anything reads SQL first. It serves the KV answer, reads the relational row
+alongside it under a deadline, records whether the two stores agree, and
+returns nothing. Four invariants: it never changes what is served, never fails
+a request, never runs unbounded, and never records a customer value. Off by
+default (`MCV2_SHADOW_READ_OUTCOMES`).
+
+The comparator declares a rule per field so that a timestamptz that lost its
+milliseconds, a numeric that arrived as a string and a NULL where KV wrote an
+empty string are not reported as drift — a comparator nobody trusts gets
+switched off, and then the migration proceeds with no instrument at all. An
+absent relational row is a first-class result rather than a fault: the outcome
+backfill has not been written, so that is the expected reading, and it is the
+number the backfill will be judged by.
+
+KV REMAINS AUTHORITATIVE. `index.tsx` imports no repository, and nothing the
+storage module exports hands a relational row to a route.
+
+---
+
 # Current Sprint
 
-MCV2-S7.4 — Outcome Shadow Read
+MCV2-S7.5 — Outcome Shadow Read Validation
 
-Status: 🔄 In Progress
+Status: ⛔ Blocked — the exit condition is a mismatch rate measured over real
+traffic, which needs `MCV2_SHADOW_READ_OUTCOMES` switched on in a deployment.
+That is a human decision.
 
 ---
 
 # Next Sprint
 
-MCV2-S7.5 — Outcome Shadow Read Validation
+Outcome backfill (Phase 2 for the outcome domain), which S6.2 deferred and
+which S7.4's instrument exists to measure. It is dependency-safe and does not
+wait on S7.5.
 
 ---
 

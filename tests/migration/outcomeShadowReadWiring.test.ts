@@ -1,0 +1,170 @@
+/**
+ * MCV2-S7.4 — the shadow read, as WIRED.
+ *
+ * The unit suite proves the instrument behaves. This one proves the golden rule
+ * of the whole migration still holds where it is installed:
+ *
+ *   **KV remains authoritative until per-domain Phase 5 cutover.**
+ *
+ * That is a claim about ABSENCE — that no relational row can reach a response
+ * body — and absence is what a source assertion proves well and a runtime test
+ * proves badly. A test that drove the route with an agreeing relational row
+ * would say nothing about the branch that fires when the two disagree.
+ */
+
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const serverDir = join(root, 'supabase', 'functions', 'server');
+
+const indexSource = readFileSync(join(serverDir, 'index.tsx'), 'utf8');
+const wiringSource = readFileSync(join(serverDir, 'storage', 'outcomeShadowRead.ts'), 'utf8');
+const readerSource = readFileSync(join(serverDir, 'storage', 'shadowReader.ts'), 'utf8');
+const barrelSource = readFileSync(join(serverDir, 'storage', 'index.ts'), 'utf8');
+
+/** Source with comments removed, so the explanation is never the violation. */
+function code(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+const indexCode = code(indexSource);
+const wiringCode = code(wiringSource);
+
+/** The body of the outcome GET route, as the router will run it. */
+function outcomeGetRoute(): string {
+  const start = indexCode.indexOf('app.get("/make-server-324f4fbe/submissions/:id/outcome"');
+  assert.ok(start >= 0, 'the outcome read route was not found');
+  const end = indexCode.indexOf('app.get(', start + 10);
+  return indexCode.slice(start, end === -1 ? undefined : end);
+}
+
+describe('S7.4 wiring — KV still decides what is served', () => {
+  it('serves the KV record and observes afterwards', () => {
+    const route = outcomeGetRoute();
+    const kvRead = route.indexOf('kv.get(`outcome:');
+    const observe = route.indexOf('observeOutcomeRead(');
+    const respond = route.indexOf('c.json({ success: true, outcome })');
+
+    assert.ok(kvRead >= 0, 'the route no longer reads KV');
+    assert.ok(observe > kvRead, 'the shadow read runs before the KV answer exists');
+    assert.ok(respond > observe, 'the response is returned after the observation');
+    assert.match(route, /const outcome = raw \? JSON\.parse\(raw\) : null;/);
+  });
+
+  it('never lets the response body come from the relational store', () => {
+    const route = outcomeGetRoute();
+    for (const relational in { createOutcomeRepository: 0, getOutcomeByLegacyKey: 0, from: 0 }) {
+      assert.ok(
+        !route.includes(relational),
+        `the outcome route reaches the relational store directly via ${relational}`,
+      );
+    }
+  });
+
+  it('does not import a repository into the router at all', () => {
+    // The router's only route to the relational store is the shadow reader,
+    // which returns nothing. An import here would be a path a future edit could
+    // serve from without anybody deciding to cut over.
+    assert.ok(
+      !/from\s+["'][^"']*repositories\//.test(indexCode),
+      'index.tsx imports a repository — the cutover decision must be explicit, not available',
+    );
+  });
+
+  it('hands the shadow reader the record the caller was actually served', () => {
+    assert.match(outcomeGetRoute(), /observeOutcomeRead\(submissionId,\s*outcome\)/);
+  });
+});
+
+describe('S7.4 wiring — the reader gives a route nothing to serve', () => {
+  it('returns void from the observation entry point', () => {
+    assert.match(wiringCode, /export function observeOutcomeRead\([\s\S]*?\): Promise<void>/);
+  });
+
+  it('declares observe as returning nothing', () => {
+    assert.match(code(readerSource), /observe\(observation: ShadowObservation\): Promise<void>;/);
+  });
+
+  it('exports no function that hands back a relational row', () => {
+    // The barrel is what a route can reach. Everything it exports is a
+    // projection, a comparison or the reader itself.
+    for (const forbidden of ['getOutcome', 'findRow', 'readSql', 'fetchRelational']) {
+      assert.ok(!barrelSource.includes(forbidden), `the storage barrel exports ${forbidden}`);
+    }
+  });
+});
+
+describe('S7.4 wiring — off by default, and bounded when on', () => {
+  it('requires an explicit opt-in', () => {
+    // `readBool` admits only 'true' and '1'. An absent variable is off, and so
+    // is any other value — a shadow read must not start because somebody wrote
+    // `yes`.
+    assert.match(wiringCode, /enabled: \(\) => readBool\('MCV2_SHADOW_READ_OUTCOMES'\)/);
+    assert.match(wiringCode, /raw === 'true' \|\| raw === '1'/);
+  });
+
+  it('reads the switch at the point of use rather than at module load', () => {
+    // A captured value would mean an operator turning it off waits for an
+    // isolate to recycle.
+    assert.ok(
+      !/const\s+\w+\s*=\s*readBool\(/.test(wiringCode),
+      'the switch is captured once instead of read per call',
+    );
+  });
+
+  it('bounds the deadline and falls back rather than to zero or infinity', () => {
+    assert.match(wiringCode, /DEADLINE_DEFAULT_MS = 250/);
+    assert.match(wiringCode, /Math\.min\(DEADLINE_MAX_MS, Math\.max\(DEADLINE_MIN_MS, parsed\)\)/);
+    assert.match(wiringCode, /if \(!Number\.isFinite\(parsed\)\) return DEADLINE_DEFAULT_MS;/);
+  });
+
+  it('builds the service client lazily', () => {
+    // Constructing it at module load would turn "the relational plane is not
+    // configured yet" into a startup failure for the whole edge function.
+    assert.match(wiringCode, /if \(!client\) client = createServiceClient\(\);/);
+    assert.ok(
+      !/^const client = createServiceClient\(\)/m.test(wiringCode),
+      'the client is constructed at module load',
+    );
+  });
+
+  it('logs a divergence without a value from either store', () => {
+    const logCall = wiringCode.slice(
+      wiringCode.indexOf('onDivergence:'),
+      wiringCode.indexOf('});', wiringCode.indexOf('onDivergence:')),
+    );
+    assert.match(logCall, /record\.divergences\.map/);
+    for (const leak of ['record.kv', 'observation.kv', 'JSON.stringify(record.kv']) {
+      assert.ok(!logCall.includes(leak), `the divergence log carries ${leak}`);
+    }
+  });
+});
+
+describe('S7.4 wiring — the report is authorised and honest', () => {
+  it('requires a verified team caller', () => {
+    const start = indexCode.indexOf('app.get("/make-server-324f4fbe/cortex/shadow-read"');
+    assert.ok(start >= 0, 'the shadow-read report route was not found');
+    const route = indexCode.slice(start, indexCode.indexOf('app.get(', start + 10));
+    assert.match(route, /verifyTeamToken\(c\.req\.header\('Authorization'\)\)/);
+    assert.match(route, /if \(!userId\) return c\.json\(\{ error: "Unauthorized" \}, 401\)/);
+  });
+
+  it('says whether it is switched on, so an empty report is not read as agreement', () => {
+    const start = indexCode.indexOf('app.get("/make-server-324f4fbe/cortex/shadow-read"');
+    const route = indexCode.slice(start, indexCode.indexOf('app.get(', start + 10));
+    assert.match(route, /outcomeShadowReadEnabled\(\)/);
+  });
+
+  it('is a read — there is no route that writes shadow state', () => {
+    for (const method of ['post', 'patch', 'put', 'delete']) {
+      assert.ok(
+        !new RegExp(`app\\.${method}\\("/make-server-324f4fbe/cortex/shadow-read`).test(indexCode),
+        `a ${method} on the shadow-read route would make an observation writable`,
+      );
+    }
+  });
+});
