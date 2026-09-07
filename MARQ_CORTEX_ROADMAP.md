@@ -277,13 +277,30 @@ That is a human decision.
 
 ---
 
+Phase 2 backfill completed 2026-09-07 for every KV namespace that holds stored
+data. Report:
+`architecture/database/MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`
+
+Delivered: the submission, cortex-analysis and outcome domains, on one
+domain-parameterised orchestrator loop rather than three copies of it; a
+reconciliation for the submission domain that compares FIELDS through the same
+comparator the shadow read uses; and a real-PostgreSQL harness
+(`npm run test:database:diagnostic`) that drives all three in dependency order.
+
+Also fixed: the certified lead reconciliation hard-coded its field-mismatch
+count to zero, so every report claimed a field-level pass it had never made.
+
+CODE COMPLETE, NOT RUN. Executing a backfill against real data is a deployment
+action and awaits human authorisation.
+
+---
+
 # Next Sprint
 
-Submission backfill (Phase 2 for the submission domain), which S6.2 deferred.
-It gates the outcome backfill — `outcomes.submission_id` is NOT NULL and
-references `submissions`, so no outcome row can exist before its submission
-does — and the roadmap flags it for human review on legacy-ID mapping and email
-uniqueness.
+Reconciliation for the cortex and outcome domains, then the documented gap
+register (`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5). G3 — intelligence
+breadth — is closed by AI-01 Batches 1 through 4F. The next open backend gap is
+G5, enterprise performance instrumentation.
 
 ---
 

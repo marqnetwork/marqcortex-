@@ -40,7 +40,7 @@
 | **Entry** | Phase 1 complete |
 | **Work** | Batch backfill scripts: `sub:*` → `submissions` + children; all prefixes per catalog; idempotent upsert on `legacy_kv_key` |
 | **Exit** | Reconciliation report: KV count == SQL count per entity (± documented exceptions) |
-| **Status** | **Partial** — S6.2 lead/contact infrastructure + engine delivered; submission backfill deferred S6.3 |
+| **Status** | **Code complete, not run.** S6.2 delivered the lead/contact slice and the engine. The submission, cortex-analysis and outcome domains are now implemented, tested and proved against a real PostgreSQL — see `MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`. Executing any backfill against real data is a deployment action awaiting human authorisation. The report "domain" has no KV source and is not a migration — see §10 of that report |
 | **Tests** | Checksum compare; spot-check 100 random records |
 | **Rollback** | Truncate relational tables; KV untouched |
 | **Observability** | `migration_reconciliation_log` table |
@@ -52,7 +52,7 @@
 | Item | Detail |
 |------|--------|
 | **Entry** | Phase 2 reconciliation passed |
-| **Work** | Introduce `SubmissionRepository` etc.; read SQL first, fallback KV on miss; log mismatches |
+| **Work** | Introduce `SubmissionRepository` etc.; read SQL first, fallback KV on miss; log mismatches. **The measurement half is built**: the runtime shadow read (`server/storage/`) serves the KV answer, reads the relational row alongside it and records whether they agree, for the two domains that have runtime reads. Reading SQL FIRST is the part still to come, and it waits on this instrument's evidence |
 | **Exit** | Mismatch rate < 0.1% over 7 days staging |
 | **Tests** | Integration tests per repository; mismatch alerts |
 | **Rollback** | Feature flag `DATA_SOURCE=kv` |
