@@ -42,7 +42,7 @@ deployment, and it is therefore Sprint 1.
 | Persistent sidebar + header + breadcrumbs | OK | Ch. 21.12 orientation is served. |
 | Sidebar collapse | OK | Width animates 280 ↔ 80. |
 | Collapsed-mode labelling | DONE (Sprint 1) | At 80px only the icon renders, with no `title`/`aria-label`. The collapsed sidebar is unusable to a screen reader and unlabelled on hover. |
-| Route/page duality | PARTIAL | `#/team/dashboard` holds eleven pages in `useState`, so no in-app destination is linkable, bookmarkable, or restorable by URL. Ch. 21.11 (recoverability) wants recent locations and history; today a refresh returns to `dashboard`. |
+| Route/page duality | DONE (Sprint 6) | Destinations are now `#/team/dashboard?page=<id>` — linkable, bookmarkable, restorable, with working Back/Forward. Also fixed the auth gate, which discarded the requested URL on every cold load because session restore runs in an effect. |
 
 ## 2. Navigation
 
@@ -165,11 +165,17 @@ rolls up as healthy.
 
 **Sprint 5 — Empty states. DONE.** Ch. 9.
 
-**Sprint 6 — Onboarding, design tokens, route/page duality.** NEXT. The
-remaining rows: no first-run experience (Ch. 9, Ch. 21.12); colours hard-coded
-inline across components while `designTokens.ts` exists; and eleven pages held
-in `useState` under one URL, so no in-app destination is linkable or restorable
-(Ch. 21.11 recoverability).
+**Sprint 6 — Addressable destinations. DONE.** Ch. 21.11.
+
+**Sprint 7 — Onboarding and design tokens.** NEXT. The two remaining
+non-deferred rows: no first-run experience (Ch. 9, Ch. 21.12), and colours
+hard-coded inline across components while `designTokens.ts` exists.
+
+**Recorded, not fixed:** `ClientPortalRoute` has the identical first-render
+redirect defect that Sprint 6 fixed on the team routes. It is inside the
+deferred ClientPortal auth cluster, so it must not be changed without the
+live-backend verification environment.
+`destinationAddressContract.test.ts` asserts it was left alone.
 
 Deferred and explicitly out of scope for all sprints: the ClientPortal auth
 cluster, MCV2-S7.5, production backfills, G1/G2 and S8.1–S8.3 deployment

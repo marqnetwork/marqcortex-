@@ -12,12 +12,19 @@ import { DashboardProvider } from '@/app/contexts/DashboardContext';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import { ExecutionDashboard } from '@/app/components/ExecutionDashboard';
 import { EXECUTION_STORE, MOCK_EXECUTION } from '@/app/core/executionEngine';
-
-const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+import { PAGE_PARAM } from '@/app/core/navigationModel';
+import { RouteRestoring } from '@/app/components/RouteRestoring';
 
 export function ExecutionRoute() {
   const navigate = useNavigate();
-  const { teamAccessToken, logout } = useApp();
+  const { teamAccessToken, logout, isRestoringSession } = useApp();
+
+  // Same reason as TeamDashboardRoute: on the first render the session has not
+  // been restored yet, and treating "not known" as "signed out" bounces every
+  // cold load through the login screen.
+  if (isRestoringSession) {
+    return <RouteRestoring />;
+  }
 
   if (!teamAccessToken) {
     return <Navigate to="/team/login" replace />;
@@ -36,8 +43,15 @@ export function ExecutionRoute() {
       return;
     }
 
-    sessionStorage.setItem(TEAM_DASHBOARD_PAGE_KEY, page);
-    navigate('/team/dashboard');
+    // The destination now travels in the URL, so this is an ordinary
+    // navigation. It used to be handed over through a sessionStorage key
+    // declared as a literal in two files — a side channel that existed only
+    // because in-app pages had no address of their own.
+    navigate(
+      page === 'dashboard'
+        ? '/team/dashboard'
+        : `/team/dashboard?${PAGE_PARAM}=${encodeURIComponent(page)}`,
+    );
   };
 
   const handleLogout = () => {

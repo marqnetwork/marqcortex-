@@ -15,11 +15,16 @@
  */
 
 import { useState, useRef, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
-import { DESTINATIONS, destinationLabel, type DestinationId } from '@/app/core/navigationModel';
+import {
+  DESTINATIONS,
+  destinationLabel,
+  PAGE_PARAM,
+  type DestinationId,
+} from '@/app/core/navigationModel';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
 // Each import() is its own Vite split point.
@@ -78,7 +83,7 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
 // name while the single source of truth stays in one place (Ch. 21.4).
 type PageView = DestinationId;
 
-const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+
 
 /**
  * The destinations this shell renders in place. 'execution' and 'architecture'
@@ -94,23 +99,41 @@ const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
   DESTINATIONS.map(d => d.id).filter(id => !ROUTED_AWAY.has(id)),
 );
 
-function readInitialPage(): PageView {
-  try {
-    const saved = sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY);
-    if (saved) {
-      sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
-      return saved as PageView;
-    }
-  } catch {
-    // sessionStorage unavailable — fall back to dashboard
-  }
+/**
+ * The destination named by the URL, or the dashboard.
+ *
+ * An unknown value falls back rather than being trusted: the parameter is
+ * user-editable, and a hand-typed `?page=nonsense` must land somewhere real
+ * instead of on the invalid-page error screen.
+ */
+function pageFromParam(raw: string | null): PageView {
+  if (raw && SHELL_PAGES.has(raw as DestinationId)) return raw as PageView;
   return 'dashboard';
 }
 
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state, setCortexState, resetState } = useDashboard();
-  const [currentPage, setCurrentPage] = useState<PageView>(readInitialPage);
+
+  // The URL is the source of truth for which destination is showing, so Back,
+  // Forward, a refresh and a shared link all agree with the sidebar.
+  const currentPage = pageFromParam(searchParams.get(PAGE_PARAM));
+  const setCurrentPage = (page: PageView) => {
+    setSearchParams(
+      previous => {
+        const next = new URLSearchParams(previous);
+        // The dashboard is the shell's root; it needs no parameter, and
+        // carrying one would make two URLs for one place.
+        if (page === 'dashboard') next.delete(PAGE_PARAM);
+        else next.set(PAGE_PARAM, page);
+        return next;
+      },
+      // A destination change is a navigation, so it belongs in history: Back
+      // returns to where the operator came from, which is the whole point.
+      { replace: false },
+    );
+  };
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 

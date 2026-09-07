@@ -43,6 +43,22 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+/**
+ * The query parameter that names the current destination.
+ *
+ * Every in-app page used to live in `useState` under the single URL
+ * `#/team/dashboard`, so no destination was linkable, bookmarkable or
+ * restorable — a refresh returned the operator to the dashboard from wherever
+ * they were, and browser Back left the shell entirely. Ch. 21.11 asks that
+ * exploration never carry a penalty, and losing your place on refresh is one.
+ *
+ * `#/team/dashboard?page=control-plane` is a real address. It lives here, with
+ * the rest of the navigation contract, so both the shell and the routes that
+ * hand off to it read one declaration rather than restating a literal — and so
+ * neither has to import the other's module to know the name.
+ */
+export const PAGE_PARAM = 'page';
+
 /** Every page the team dashboard can show. */
 export type DestinationId =
   | 'dashboard'
