@@ -1,5 +1,6 @@
 /**
- * KV ↔ SQL reconciliation for the submission domain.
+ * KV ↔ SQL reconciliation, through the one reconciler every domain whose
+ * relational row carries `legacy_kv_key` shares.
  *
  * The claim under test is the one a count-only reconciliation cannot make: that
  * a backfill wrote the RIGHT thing, not merely something. So most of these
@@ -15,8 +16,12 @@ import assert from 'node:assert/strict';
 import { createInMemoryKvReader } from '../../supabase/functions/server/migration/kvReader.ts';
 import {
   deterministicSample,
-  reconcileSubmissionsDomain,
-} from '../../supabase/functions/server/migration/submissionReconciliation.ts';
+  reconcileByLegacyKey,
+} from '../../supabase/functions/server/migration/domainReconciliation.ts';
+import {
+  OUTCOME_RECONCILER,
+  SUBMISSION_RECONCILER,
+} from '../../supabase/functions/server/migration/reconcilers.ts';
 import { createFakeSupabase } from './fakeSupabase.ts';
 
 const ORG = '9c96dbbd-b389-4f8b-811f-1815c4f8a9e0';
@@ -72,10 +77,10 @@ async function reconcile(
   }
   client.queue('submissions', 'select', { data: rows, error: null });
   const reader = createInMemoryKvReader(store);
-  return reconcileSubmissionsDomain(client as never, reader, ORG, 50, options.runId);
+  return reconcileByLegacyKey(client as never, reader, SUBMISSION_RECONCILER, ORG, 50, options.runId);
 }
 
-describe('submission reconciliation — counting', () => {
+describe('reconciliation (submissions) — counting', () => {
   it('agrees when every KV record has its relational row', async () => {
     const result = await reconcile(
       { 'sub:a': kv('a'), 'sub:b': kv('b') },
@@ -129,7 +134,7 @@ describe('submission reconciliation — counting', () => {
   });
 });
 
-describe('submission reconciliation — the field-level check', () => {
+describe('reconciliation (submissions) — the field-level check', () => {
   it('catches a backfill that wrote a row for everything and got a field wrong', async () => {
     // The exact failure a count-only reconciliation reports as healthy.
     const result = await reconcile({ 'sub:a': kv('a') }, [sqlRow('a', { ai_score: 12 })]);
@@ -188,7 +193,7 @@ describe('submission reconciliation — the field-level check', () => {
   });
 });
 
-describe('submission reconciliation — the sample is reproducible', () => {
+describe('reconciliation — the sample is reproducible', () => {
   it('returns everything when the estate is smaller than the sample', () => {
     assert.deepEqual(deterministicSample(['b', 'a'], 100), ['a', 'b']);
   });
@@ -215,5 +220,87 @@ describe('submission reconciliation — the sample is reproducible', () => {
   it('declares its strategy on the report', async () => {
     const result = await reconcile({ 'sub:a': kv('a') }, [sqlRow('a')]);
     assert.equal(result.details.sampleStrategy, 'deterministic-even-spacing');
+  });
+});
+
+// ── The same reconciler, a different domain ────────────────────────────────
+
+describe('reconciliation (outcomes) — the same questions, a different vocabulary', () => {
+  function kvOutcome(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      submissionId: id,
+      loggedAt: '2026-09-01T10:15:30.412Z',
+      didConvert: true,
+      conversionValue: 1500,
+      lostReason: null,
+      ...overrides,
+    };
+  }
+
+  function sqlOutcome(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      legacy_kv_key: `outcome:${id}`,
+      outcome_type: 'won',
+      status: 'closed',
+      value: { conversionValue: 1500, lostReason: null },
+      recorded_at: '2026-09-01T10:15:30+00:00',
+      ...overrides,
+    };
+  }
+
+  async function reconcileOutcome(
+    store: Record<string, unknown>,
+    rows: Array<Record<string, unknown>>,
+  ) {
+    const client = createFakeSupabase();
+    client.queue('outcomes', 'select', { data: rows, error: null });
+    return reconcileByLegacyKey(
+      client as never,
+      createInMemoryKvReader(store),
+      OUTCOME_RECONCILER,
+      ORG,
+      50,
+    );
+  }
+
+  it('agrees on a correctly migrated outcome', async () => {
+    const result = await reconcileOutcome({ 'outcome:a': kvOutcome('a') }, [sqlOutcome('a')]);
+    assert.equal(result.domain, 'outcomes');
+    assert.equal(result.sampleMismatchCount, 0);
+    assert.equal(result.thresholdPassed, true);
+  });
+
+  it('catches a verdict that was written the wrong way round', async () => {
+    // The failure that matters most in this domain: the row exists, the count
+    // matches, and a consultant is told they lost a deal they won.
+    const result = await reconcileOutcome({ 'outcome:a': kvOutcome('a') }, [
+      sqlOutcome('a', { outcome_type: 'lost' }),
+    ]);
+    assert.equal(result.missingCount, 0);
+    assert.equal(result.sampleMismatchCount, 1);
+    assert.equal((result.details.mismatchedFields as Record<string, number>).converted, 1);
+    assert.equal(result.thresholdPassed, false);
+  });
+
+  it('catches a conversion value that did not survive the write', async () => {
+    const result = await reconcileOutcome({ 'outcome:a': kvOutcome('a') }, [
+      sqlOutcome('a', { value: { conversionValue: 15 } }),
+    ]);
+    assert.equal((result.details.mismatchedFields as Record<string, number>).conversionValue, 1);
+  });
+
+  it('does not count a record with no verdict as missing', async () => {
+    // It is quarantined by the normalizer, not lost by the backfill.
+    const result = await reconcileOutcome({ 'outcome:a': { submissionId: 'a' } }, []);
+    assert.equal(result.classifications.quarantined, 1);
+    assert.equal(result.missingCount, 0);
+  });
+
+  it('reports an outcome row whose KV record is gone', async () => {
+    const result = await reconcileOutcome({ 'outcome:a': kvOutcome('a') }, [
+      sqlOutcome('a'),
+      sqlOutcome('ghost'),
+    ]);
+    assert.equal(result.orphanCount, 1);
   });
 });

@@ -8,7 +8,7 @@ import { createKvReader } from './kvReader.ts';
 import { isLeadEntityKey, parseLeadKvRecord, normalizeLeadRecord } from './normalizer.ts';
 import { LEAD_FIELDS, projectNormalizedLead, projectSqlLead } from './leadProjection.ts';
 import { compareProjections } from '../storage/compare.ts';
-import { deterministicSample } from './submissionReconciliation.ts';
+import { deterministicSample } from './domainReconciliation.ts';
 import { throwOnError } from './client.ts';
 import type {
   KvReader,

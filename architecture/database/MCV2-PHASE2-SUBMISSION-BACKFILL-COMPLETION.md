@@ -295,10 +295,36 @@ stored report history is a product decision, and a migration that invented rows
 from a function nobody had asked to persist would be making it. Recorded, not
 built.
 
-## 11. What is NOT done
+## 11. Reconciliation for every domain
 
-- **No reconciliation for the cortex or outcome domains.** The orchestrator
-  completes those backfills and says plainly that it did not reconcile.
+`--mode=reconcile --domain=<name>` works for all four.
+
+**One reconciler for three of them.** Submissions, outcomes and leads reconcile
+identically — scan the KV prefix, normalize, load the rows by `legacy_kv_key`,
+and ask what is missing, what is orphaned and whether the fields of a sample
+agree. `domainReconciliation.ts` asks those questions once; `reconcilers.ts`
+supplies each domain's vocabulary.
+
+**The cortex domain has its own**, and not because copying was easier:
+`domain_scores` has no `legacy_kv_key`. It is addressed through its submission,
+and one analysis becomes up to four rows, so "is this analysis migrated?" is a
+question about a SET. A row-presence check would call a partially written
+analysis three successes, and would report an analysis whose pillars arrived
+UNSCALED as perfectly healthy — four rows present, every one of them saying four
+percent. Both are tested.
+
+It also separates *waiting for a submission* from *the backfill lost it*. Both
+are missing rows; only one is a defect, and an operator reading `missing` needs
+to know which.
+
+The comparator is `storage/compare.ts` in every case, including the cortex one —
+the four pillars are a fixed declared set, so the comparison is a flat
+projection of four numeric fields. A divergence therefore means the same thing
+in every domain and at runtime.
+
+## 12. What is NOT done
+
 - **No report backfill**, for the reason in §10.
+- **Nothing has been run against real data.**
 - **Nothing has been run against real data.** Executing a backfill needs a human
   decision and production credentials.

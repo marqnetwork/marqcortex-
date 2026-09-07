@@ -55,12 +55,9 @@ import {
   incrementRunCounters,
   getMigrationRun,
 } from './telemetry.ts';
-import {
-  runReconciliation,
-  persistReconciliationLog,
-  reconciliationToMarkdown,
-} from './reconciliation.ts';
-import { reconcileSubmissionsDomain } from './submissionReconciliation.ts';
+import { runReconciliation, reconciliationToMarkdown } from './reconciliation.ts';
+import { reconcileOutcomes, reconcileSubmissions } from './reconcilers.ts';
+import { reconcileCortex } from './cortexReconciliation.ts';
 import type {
   CliFlags,
   InventoryReport,
@@ -166,21 +163,9 @@ export const SUBMISSION_DOMAIN: MigrationDomainDescriptor<
   buildSimulation: (ctx, discovered, runId) =>
     buildSubmissionSimulationReport(ctx, discovered, runId, []),
   simulationToMarkdown: submissionSimulationReportToMarkdown,
-  // Its own reconciliation, and one that actually compares FIELDS rather than
-  // only counting rows — see `submissionReconciliation.ts` for why the sample
-  // is deterministic and why it borrows the shadow read's comparator.
-  reconcile: async (client, organizationId, batchSize, runId, keyPrefixFilter) => {
-    const result = await reconcileSubmissionsDomain(
-      client,
-      createKvReader(client, { keyPrefixFilter }),
-      organizationId,
-      batchSize,
-      runId,
-      keyPrefixFilter,
-    );
-    if (runId) await persistReconciliationLog(client, runId, result);
-    return result;
-  },
+  // A reconciliation that compares FIELDS rather than only counting rows, and
+  // through the same comparator the runtime shadow read uses.
+  reconcile: reconcileSubmissions,
 };
 
 /**
@@ -216,8 +201,10 @@ export const CORTEX_DOMAIN: MigrationDomainDescriptor<
   buildSimulation: (ctx, discovered, runId) =>
     buildCortexSimulationReport(ctx, discovered, runId, []),
   simulationToMarkdown: cortexSimulationReportToMarkdown,
-  // No reconciler yet. The orchestrator therefore completes a cortex backfill
-  // and says so, rather than borrowing another domain's counts.
+  // Its own reconciler: `domain_scores` has no `legacy_kv_key`, so "is this
+  // analysis migrated?" is a question about a set of child rows rather than
+  // about one row's presence.
+  reconcile: reconcileCortex,
 };
 
 export const OUTCOME_DOMAIN: MigrationDomainDescriptor<
@@ -235,7 +222,7 @@ export const OUTCOME_DOMAIN: MigrationDomainDescriptor<
   buildSimulation: (ctx, discovered, runId) =>
     buildOutcomeSimulationReport(ctx, discovered, runId, []),
   simulationToMarkdown: outcomeSimulationReportToMarkdown,
-  // No reconciler yet; the orchestrator completes and says so.
+  reconcile: reconcileOutcomes,
 };
 
 /** The domains this CLI can run, by `--domain=`. */
