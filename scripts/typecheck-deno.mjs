@@ -83,6 +83,11 @@ const REGISTRY_FREE_FILES = [
   join(FUNCTIONS_ROOT, 'server', 'health', 'rollup.ts'),
   join(FUNCTIONS_ROOT, 'server', 'health', 'sources.ts'),
   join(FUNCTIONS_ROOT, 'server', 'health', 'index.ts'),
+  // Enterprise KPIs (blueprint IV-48) — definitions and a registry over ports.
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'registry.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'catalog.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'kpi', 'index.ts'),
   // Migration normalizers — pure, and the place every mapping judgement lives.
   join(FUNCTIONS_ROOT, 'server', 'migration', 'parseJson.ts'),
   join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),

@@ -37,7 +37,7 @@
     "test:database:diagnostic": "node scripts/submission-backfill-scenarios.mjs",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
-    "verify:health": "node --experimental-strip-types --test tests/features/operationalHealth.test.ts",
+    "verify:health": "node --experimental-strip-types --test tests/features/operationalHealth.test.ts tests/features/enterpriseKpis.test.ts",
     "test:system": "node --experimental-strip-types --test tests/system/*.test.ts",
     "migration:inventory": "node --experimental-strip-types scripts/migration/cli.ts --mode=inventory",
     "migration:simulate": "node --experimental-strip-types scripts/migration/cli.ts --mode=simulation",

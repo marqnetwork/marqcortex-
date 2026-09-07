@@ -1,4 +1,11 @@
-# The Operational Health Framework
+# Enterprise Performance Instrumentation
+
+Gap-register **G5**, closed for the two sections the blueprint actually makes
+buildable: §IV-51 the operational health framework, and §IV-48 enterprise KPIs.
+
+---
+
+# Part 1 — The Operational Health Framework
 
 **Blueprint:** `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §IV-51, and the gap
 register's **G5 — enterprise performance instrumentation** (§VI-5).
@@ -117,16 +124,94 @@ test, in both directions.
 
 ---
 
-## 6. What G5 still has open
+---
 
-This closes §IV-51. The rest of G5 remains:
+# Part 2 — Enterprise KPIs (§IV-48)
 
-- **§IV-48 enterprise KPIs** — the categories are approved; formal named
-  indicators per category are not built. Buildable as a registry of named
-  indicators computed from existing signals, still **carrying no targets**,
-  since §IV-48 keeps numeric targets out of scope for this phase.
+`GET /make-server-324f4fbe/kpis`, team auth. `supabase/functions/server/kpi/`.
+
+## 7. What §IV-48 asked for, and what it excluded
+
+> **Scope.** KPI **categories only**. **No numeric targets, no thresholds, no
+> formulas, no dashboards.**
+
+and the approved future state: "formal KPI definitions per category with
+(**later**) concrete targets/SLOs".
+
+So this is the definitions and the readings. **There is no target, no threshold
+and no grade**, and `KpiReport.targetsInScope` is `false` on every read — a
+consumer that renders it cannot quietly start treating the numbers as scored,
+and one that ignores it has been told.
+
+## 8. The anti-metric exclusion is structural
+
+§IV-48, binding: "No KPI category may reward feature count, novelty, interface
+spectacle, engagement-for-its-own-sake, or short-term extraction." DNA Ch 33.3
+says the same of the enterprise.
+
+A rule stated only in prose is a rule the next indicator breaks, so registration
+enforces two things:
+
+- **Every indicator must name at least one of the nine constitutional success
+  dimensions** (DNA Ch 33.2) that it serves. An indicator that cannot say which
+  dimension it serves is measuring activity for its own sake, and cannot be
+  registered.
+- **No indicator may be named for an explicit non-success.** The five in Ch 33.3
+  are refused by name.
+
+**What that cannot do, stated plainly:** a dishonest indicator can claim a
+dimension it does not serve. The registry catches the careless case, not the
+determined one — the determined one is caught in review, which is where Ch 33.3
+puts it. Claiming otherwise would be exactly the false assurance this design
+exists to prevent.
+
+Two more registration rules, for the same reason: an indicator must state **the
+question it answers, as a question** (one whose question cannot be written down
+is one nobody can state the purpose of), and its id must agree with its
+category.
+
+## 9. The eight indicators
+
+Each is computed from a signal the platform **already publishes** — an indicator
+needing new collection would be monitoring instrumentation, which §IV-51 defers.
+
+| Category | Indicator | Question | Serves |
+|---|---|---|---|
+| Strategic | Outcomes recorded | How many engagements has Cortex followed through to a recorded business outcome? | outcome delivery, durability |
+| Strategic | Industries served | Across how many industries has Cortex applied its general method? | breadth |
+| Operational | AI request success | What proportion of governed AI requests completed without an error? | integrity, trust |
+| Operational | Provider failovers | How often did a request have to be served by a provider other than the first choice? | integrity |
+| Quality | **Deterministic corrections** | How often did the deterministic engines have to restore an authoritative number the model had moved? | integrity, trust, outcome delivery |
+| Quality | Governance blocks | How often did the output guard refuse a completion before it reached anybody? | integrity, trust |
+| Customer | Diagnostics completed | How many businesses have completed a diagnostic and reached a first result? | effortless capability |
+| Customer | Analysis coverage | What proportion of completed diagnostics have received their intelligence? | effortless capability, outcome delivery |
+
+**Deterministic corrections is the one worth reading twice.** "Math decides; AI
+narrates" is a constitutional principle, and the fact-lock counts exactly how
+often the deterministic engines had to put an authoritative number back after
+the model moved it. It is the only indicator here that measures the principle
+rather than the plumbing — and no judgement is attached to it, because whether a
+rising count is the guard working or the model drifting is precisely the grading
+§IV-48 defers.
+
+## 10. `null` is not zero
+
+A measurement that could not be taken reports `null` and says why; the report
+names every unmeasured indicator rather than leaving it to be inferred. A
+measurement that throws reports `null` too — zero would be a number somebody
+acts on.
+
+A ratio with a zero denominator is `null`, not `0%`: "nothing has happened" and
+"none of what happened qualified" are different facts, and reporting both as
+zero would make an idle platform look like a failing one. It is the same
+discipline the health framework applies to `unknown`, for the same reason.
+
+## 11. What G5 still has open
+
+§IV-51 and §IV-48 are closed. The rest:
+
 - **§IV-49 AI performance evaluation** — the blueprint states plainly that
   "evaluation *implementation* is deferred and excluded from this phase". Not
   buildable without departing from the canon.
-- **§IV-52 continuous improvement** and **§IV-53 maturity model** — organisational
-  frameworks, not runtime capabilities.
+- **§IV-52 continuous improvement** and **§IV-53 maturity model** —
+  organisational frameworks, not runtime capabilities.

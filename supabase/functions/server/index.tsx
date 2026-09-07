@@ -59,6 +59,7 @@ import {
   observeSubmissionRead,
   submissionShadowReadEnabled,
 } from "./storage/submissionShadowRead.ts";
+import { createKpiRegistry, registerCortexKpis } from "./kpi/index.ts";
 import {
   aiControlPlaneSource,
   aiGovernanceSource,
@@ -955,6 +956,74 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
+
+// ============================================================================
+// ENTERPRISE KPIs — blueprint IV-48 (team auth required)
+//
+// Named indicators per approved category, computed from signals the platform
+// already publishes. NO TARGET, THRESHOLD OR GRADE: IV-48 puts numeric targets
+// in a later phase, and the report restates that on every read so a consumer
+// cannot quietly start treating the numbers as scored.
+//
+// Team auth for the same reason the enterprise health view has it: this reads
+// the whole submission estate, so it must not be reachable by anything that
+// polls.
+// ============================================================================
+
+app.get("/make-server-324f4fbe/kpis", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const registry = createKpiRegistry();
+    registerCortexKpis(registry, {
+      async estate() {
+        const [submissionRaw, analyses, outcomes] = await Promise.all([
+          kv.getByPrefix('sub:'),
+          kv.getByPrefix('cortex:'),
+          kv.getByPrefix('outcome:'),
+        ]);
+        const industries = new Set<string>();
+        for (const raw of submissionRaw) {
+          try {
+            const industry = JSON.parse(raw)?.industry;
+            // 'Not specified' is what the capture route writes when it has
+            // none. Counting it as an industry would inflate the breadth
+            // indicator with the absence of an answer.
+            if (typeof industry === 'string' && industry.trim() !== '' && industry !== 'Not specified') {
+              industries.add(industry.trim().toLowerCase());
+            }
+          } catch { /* a malformed record contributes no industry */ }
+        }
+        return {
+          submissions: submissionRaw.length,
+          analyses: analyses.length,
+          outcomes: outcomes.length,
+          industries: industries.size,
+        };
+      },
+      ai() {
+        const snapshot = controlPlane.metrics();
+        const total = (name: string): number =>
+          snapshot.counters
+            .filter((counter) => counter.name === name)
+            .reduce((sum, counter) => sum + counter.value, 0);
+        return {
+          requests: total('ai_requests_total'),
+          errors: total('ai_request_errors_total'),
+          failovers: total('ai_provider_failovers_total'),
+          governanceBlocks: total('ai_governance_blocks_total'),
+          factLockRestores: total('ai_fact_lock_restores_total'),
+        };
+      },
+    });
+
+    return c.json({ success: true, kpis: await registry.read(() => new Date().toISOString()) });
+  } catch (err) {
+    console.log('KPI report error:', err);
+    return c.json({ error: `Failed to build the KPI report: ${err}` }, 500);
+  }
+});
 
 // ============================================================================
 // ENTERPRISE HEALTH — the Operational Health Framework (blueprint IV-51)
