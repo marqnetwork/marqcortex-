@@ -48,9 +48,12 @@ Commands:
   --pipeline                Run inventory → simulation → backfill → reconcile
 
 Options:
-  --domain=leads|submissions
+  --domain=leads|submissions|cortex
                             Which KV namespace to migrate. Defaults to leads,
                             which is what every pre-existing invocation means.
+                            'cortex' depends on 'submissions': an analysis whose
+                            submission has not been migrated is quarantined with
+                            SUBMISSION_NOT_MIGRATED and picked up on a re-run.
   --dry-run                 No business row writes (simulation default for backfill preview)
   --resume                  Resume from checkpoint
   --runId=<uuid>            Target run for reconcile/rollback

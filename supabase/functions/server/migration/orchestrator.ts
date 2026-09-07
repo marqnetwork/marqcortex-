@@ -36,6 +36,13 @@ import {
   SUBMISSION_ENTITY_PREFIX,
 } from './submissionNormalizer.ts';
 import {
+  buildCortexSimulationReport,
+  createCortexDomainContext,
+  cortexSimulationReportToMarkdown,
+  processCortexBatch,
+} from './domains/cortexAnalysis.ts';
+import { CORTEX_ENTITY_PREFIX, MIGRATION_NAME_CORTEX } from './cortexNormalizer.ts';
+import {
   createMigrationRun,
   updateMigrationRun,
   incrementRunCounters,
@@ -187,10 +194,30 @@ function runnable<Ctx>(domain: MigrationDomainDescriptor<Ctx>): RunnableMigratio
   return (client, flags) => runDomainMigration(client, domain, flags);
 }
 
+export const CORTEX_DOMAIN: MigrationDomainDescriptor<
+  ReturnType<typeof createCortexDomainContext>
+> = {
+  migrationName: MIGRATION_NAME_CORTEX,
+  entityPrefix: CORTEX_ENTITY_PREFIX,
+  createContext: createCortexDomainContext,
+  processBatch: processCortexBatch,
+  counters: (ctx) => ({
+    inserted: ctx.inserted,
+    updated: ctx.updated,
+    quarantined: ctx.quarantineCount,
+  }),
+  buildSimulation: (ctx, discovered, runId) =>
+    buildCortexSimulationReport(ctx, discovered, runId, []),
+  simulationToMarkdown: cortexSimulationReportToMarkdown,
+  // No reconciler yet. The orchestrator therefore completes a cortex backfill
+  // and says so, rather than borrowing another domain's counts.
+};
+
 /** The domains this CLI can run, by `--domain=`. */
 export const MIGRATION_DOMAINS: Readonly<Record<string, RunnableMigrationDomain>> = {
   leads: runnable(LEAD_DOMAIN),
   submissions: runnable(SUBMISSION_DOMAIN),
+  cortex: runnable(CORTEX_DOMAIN),
 };
 
 export function isMigrationDomainName(value: unknown): value is string {

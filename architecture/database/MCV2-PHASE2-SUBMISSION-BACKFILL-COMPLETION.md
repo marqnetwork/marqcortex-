@@ -197,10 +197,56 @@ work does not need it — but a lead reconciliation reports a field-level pass i
 never made, and that is worth its own change. Recorded in
 `docs/development/AUTONOMOUS_BUILD_PROGRESS.md`.
 
-## 8. What is NOT done
+## 8. The `cortex:` domain
 
-- **No `cortex:` or report backfill.** `MCV2-S5-KV-RELATIONAL-MAPPING.md` maps
-  `cortex:{submissionId}` to `diagnostic_scores` + `domain_scores` and the client
-  report to `reports` + `report_versions`. Both are separate domains.
+`migration/cortexNormalizer.ts` and `migration/domains/cortexAnalysis.ts`, run
+with `--domain=cortex`. `MCV2-S5-KV-RELATIONAL-MAPPING.md` maps
+`cortex:{submissionId}` to `diagnostic_scores` + `domain_scores`.
+
+**It enriches; it never overwrites.** `sub:` and `cortex:` both carry an
+`aiScore` and a `qualityScore` and they are not always the same number — the
+submission's are what the console shows, the analysis's are what the model
+returned. KV is authoritative and `sub:` is what the console reads, so the
+submission backfill's values stand and this domain writes only what only it has:
+the pillar heatmap as domain scores, the bands, and the provenance. A cortex
+backfill that also wrote the scores would make the result depend on which domain
+ran last, which is the worst property a migration can have.
+
+**Two decisions the mapping document does not make:**
+
+*The heatmap is 0–5 and `domain_scores.score` is 0–100.* Storing 4 for "four out
+of five" is **accepted** by the constraint and read as four percent by every
+consumer — the database cannot catch it, which is exactly why the scaling has to
+happen in the normalizer. The value is scaled onto the column's own scale and
+the original is recorded in the row's `metadata`, so the transformation is
+auditable and nothing is lost. A pillar outside 0–5 is **dropped, not clamped**:
+clamping would record a measurement that was never made.
+
+*The readiness score is a band, not a number.* `readinessScore` is `Low`,
+`Medium` or `High`; `diagnostic_scores.readiness_score` is an INTEGER. This
+domain does not invent one. Mapping the bands onto 25/50/75 would put three
+numbers in the database that no model ever produced and every consumer
+downstream would treat them as measured. The band goes into
+`diagnostic_scores.metadata`, and the integer column is left alone until
+something actually measures it.
+
+**The dependency is per record, not per batch.** An analysis whose submission
+has not been migrated is quarantined with `SUBMISSION_NOT_MIGRATED` and the run
+finishes. A failed batch tells an operator the migration is broken; a quarantine
+record tells them exactly which analyses are waiting on which submissions, and a
+re-run after the submission backfill picks them up.
+
+Five more assertions in the real-PostgreSQL harness (`CB-1`–`CB-5`) cover the
+0–100 constraint in both directions, the provenance round-trip, the lower-case
+`domain_key` check and the one-row-per-pillar index, the foreign key that makes
+`SUBMISSION_NOT_MIGRATED` a necessity rather than caution, and the metadata-only
+score row that lets a band be recorded without a number.
+
+## 9. What is NOT done
+
+- **No reconciliation for the cortex domain.** The orchestrator therefore
+  completes a cortex backfill and says plainly that it did not reconcile.
+- **No report backfill.** The client report maps to `reports` +
+  `report_versions`; a separate domain.
 - **Nothing has been run against real data.** Executing a backfill needs a human
   decision and production credentials.

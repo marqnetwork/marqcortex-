@@ -66,6 +66,9 @@ const STEPS = [
   ['platform grants on public', join(HARNESS, '06_platform_public_grants.sql'), 'session'],
   ['backfill fixture', join(HARNESS, '110_submission_backfill_fixture.sql'), 'session'],
   ['ASSERT the submission backfill', join(HARNESS, '111_assert_submission_backfill.sql'), 'session'],
+  // The cortex domain hangs off the submission the previous file left behind,
+  // which is the dependency it exists to demonstrate.
+  ['ASSERT the cortex analysis backfill', join(HARNESS, '112_assert_cortex_backfill.sql'), 'session'],
 ];
 
 function withDatabase(url, database) {
@@ -154,4 +157,4 @@ for (const [label, file, role] of STEPS) {
 }
 
 dropScratch(SCRATCH_DB);
-console.log('\n✓ the submission backfill holds against a real PostgreSQL');
+console.log('\n✓ the submission and cortex backfills hold against a real PostgreSQL');
