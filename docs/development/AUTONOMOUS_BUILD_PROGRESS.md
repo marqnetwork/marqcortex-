@@ -50,10 +50,20 @@ exists as `migration:reconcile`. S7.7 aimed the same instrument at the core
 entity, sharing one reader, one deadline and one report.
 Report: `architecture/database/MCV2-S7.6-S7.7-SHADOW-READ-COMPLETION.md`.
 
-**MCV2 Phase 2 — Submission domain backfill.** The normalizer (every mapping
-judgement, pure), the domain processor and writer, and an orchestrator refactor
-that runs any domain through one loop. Verified against a real PostgreSQL 16.
+**MCV2 Phase 2 — the diagnostic-domain backfills.** Submissions, cortex
+analyses and outcomes: normalizers carrying every mapping judgement, domain
+processors and writers, and an orchestrator refactor that runs any domain
+through one loop. Reconciliation for all four domains, comparing FIELDS through
+the same comparator the shadow read uses. Verified against a real PostgreSQL 16
+in dependency order (`npm run test:database:diagnostic`).
 Report: `architecture/database/MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`.
+
+Two findings recorded rather than worked around: **the report domain has no KV
+source** (the client report is built on every read from `sub:` and `cortex:`, so
+"generate version 1 on first backfill" is a product decision about storing
+report history, not a data migration), and **the certified lead reconciliation
+reported a field-level pass it never made** (`sampleMismatchCount` was the
+literal zero) — that one is fixed, with tests.
 
 ## COMMITS CREATED
 
@@ -66,6 +76,13 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 5. `feat(migration): decide the submission mapping in one pure function, and name every guess`
 6. `feat(migration): one migration loop, two domains, and a backfill that converges`
 7. `test(migration): prove the submission backfill against a real PostgreSQL`
+8. `docs: checkpoint the autonomous build after 4F, the shadow reads and the submission backfill`
+9. `feat(migration): a reconciliation that compares fields, not only counts`
+10. `fix(migration): the lead reconciliation reported a field check it never ran`
+11. `feat(migration): the cortex analysis domain, which enriches and never overwrites`
+12. `feat(migration): the outcome domain, which refuses to guess a verdict`
+13. `docs(roadmap): Phase 2 is code complete for every KV namespace with stored data`
+14. `feat(migration): reconcile every domain, through one comparator`
 
 ## TEST RESULTS
 
@@ -76,14 +93,15 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 | `npm run test:security` | 859 pass |
 | `npm run test:features` | 726 pass |
 | `npm run test:system` | 170 pass |
-| `npm run test:migration` | 137 pass |
+| `npm run test:migration` | 210 pass |
 | `npm run scan:boundaries` | 107 pass |
 | `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
 | `npm run test:database:diagnostic` | 8 assertions, real PostgreSQL 16 |
 | `npm run test:database:4c` / `:4d` / `:scenarios` | pass, real PostgreSQL (regression) |
 | `kv_compare_and_swap` with `DATABASE_URL` | 19 pass — had never run in this environment |
 | `npm run typecheck:api:ai` / `:pure` | clean |
-| `npm run typecheck:web` / `:tests` | 34 / 29 errors — identical to the pre-session baseline |
+| `npm run typecheck:web` | 34 errors — identical to the pre-session baseline |
+| `npm run typecheck:tests` | 27 errors — **two below** the baseline (the `leads.ts` pair is fixed) |
 | `npm run build` | clean |
 
 No test was weakened, skipped or deleted. No test reaches a real provider.
@@ -111,33 +129,38 @@ these as unrunnable; they are not.
 - The `server` deno boundary cannot be type-checked here: `jsr.io` is not
   routable from this environment (an egress restriction, pre-existing). The
   `ai` and `registry-free` boundaries both check clean.
-- `migration/domains/leads.ts` carries two long-standing type errors from the
-  same non-strict-narrowing limitation the submission normalizer works around
-  with an exported type guard. Fixing leads.ts the same way is a small,
-  dependency-safe cleanup.
+- The certified lead reconciliation's dead code and hard-coded field check are
+  fixed; the `leads.ts` type errors are fixed. Nothing else is known-broken in
+  the migration engine.
 
 ## CURRENT BRANCH
 
-`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 7 commits ahead of `main`.
+`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 14 commits ahead of `main`.
 **Not merged.** No PR has been opened; the session prompt did not authorise one.
 
 ## NEXT EXACT TASK
 
-In dependency order, all dependency-safe:
+The KV→SQL migration is code complete for every namespace that holds stored
+data, and everything remaining in Phases 4 and 5 waits on a deployment
+decision. So the next work is the documented gap register
+(`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5):
 
-1. **Reconciliation for the submission domain.** `migration/reconciliation.ts`
-   is lead-shaped, so a submission backfill completes and reports that it did
-   not reconcile. Give the domain descriptor a reconciler and implement the
-   submission one (count `sub:` vs `submissions` where `legacy_kv_key IS NOT
-   NULL`, plus the field-level hash on a sample the mapping document asks for).
-2. **The `cortex:` domain** — `MCV2-S5-KV-RELATIONAL-MAPPING.md` maps
-   `cortex:{submissionId}` to `diagnostic_scores` + `domain_scores`.
-3. **Fix the two `leads.ts` type errors** with the same exported type guard.
-4. Then the documented gap register (`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md`
-   §VI-5). G3 (intelligence breadth) is closed by AI-01 Batches 1–4F. The next
-   open backend gap is **G5 — enterprise performance instrumentation**
-   (§IV-46–§IV-55): no formal KPIs, AI-performance evaluation, unified health
-   framework or scorecards.
+- **G3 — intelligence breadth: CLOSED** by AI-01 Batches 1 through 4F
+  (multi-provider, agentic orchestration, routing). The register still describes
+  it as "gateway is live single-provider", which is now three years of batches
+  out of date; worth correcting when a human confirms the reading.
+- **G5 — enterprise performance instrumentation** is the next open BACKEND gap
+  and is dependency-safe. Read §IV-46 to §IV-55 before starting. Note what those
+  sections deliberately exclude: "no numeric targets, no thresholds, no
+  formulas, no dashboards", and "evaluation implementation is deferred". So the
+  buildable part is a KPI REGISTRY — named indicators per approved category,
+  computed from signals that already exist, carrying no targets — plus the
+  unified health framework. Inventing targets would be inventing product.
+- **G6 — external integrations** (CRM sync, e-sign, scheduling) needs
+  third-party credentials. Blocked.
+- **G4 — the AI Workforce runtime** is the largest documented capability and
+  sits on the Batch 3A/3B substrate. It is a program, not a sprint; scope it
+  deliberately rather than starting it at the end of a session.
 
 ## BLOCKERS
 
@@ -166,4 +189,4 @@ In dependency order, all dependency-safe:
 
 ---
 
-_Last updated: 2026-09-07._
+_Last updated: 2026-09-07, after the diagnostic-domain backfills and reconciliation._
