@@ -232,7 +232,7 @@ export async function reconcileSubmissionsDomain(
     missingCount,
     // The relational `legacy_kv_key` unique index makes a duplicate target row
     // impossible, so this is zero by construction rather than by measurement —
-    // and `test:database:submissions` SB-2 is what proves the index is there.
+    // and `test:database:diagnostic` SB-2 is what proves the index is there.
     duplicateCount: 0,
     orphanCount,
     mismatchCount: sampleMismatchCount,

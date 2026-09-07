@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /**
- * The submission backfill, against a real PostgreSQL.
+ * The diagnostic-domain backfills, against a real PostgreSQL.
+ *
+ * Submissions, then the two domains that depend on them: cortex analyses and
+ * outcomes. They share one scratch database and run in dependency order,
+ * because that is the order a deployment has to run them in and a harness that
+ * seeded each domain independently would prove nothing about the dependency.
  *
  * ── WHAT A UNIT TEST CANNOT ASK ────────────────────────────────────────────
  *
@@ -69,6 +74,7 @@ const STEPS = [
   // The cortex domain hangs off the submission the previous file left behind,
   // which is the dependency it exists to demonstrate.
   ['ASSERT the cortex analysis backfill', join(HARNESS, '112_assert_cortex_backfill.sql'), 'session'],
+  ['ASSERT the outcome backfill', join(HARNESS, '113_assert_outcome_backfill.sql'), 'session'],
 ];
 
 function withDatabase(url, database) {
@@ -157,4 +163,4 @@ for (const [label, file, role] of STEPS) {
 }
 
 dropScratch(SCRATCH_DB);
-console.log('\n✓ the submission and cortex backfills hold against a real PostgreSQL');
+console.log('\n✓ the submission, cortex and outcome backfills hold against a real PostgreSQL');

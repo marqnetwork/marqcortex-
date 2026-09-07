@@ -113,7 +113,7 @@ re-running cannot undo.
 
 ## 5. Verified against a real PostgreSQL
 
-`npm run test:database:submissions` applies the real tenancy and diagnostic
+`npm run test:database:diagnostic` applies the real tenancy and diagnostic
 migrations to a scratch database as `cortex_migration_owner` (NOSUPERUSER, with
 BYPASSRLS — a superuser owner sails through checks a deployment's owner has to
 pass) and then drives the statements the backfill issues, as `service_role`.
@@ -144,7 +144,7 @@ the deployment it models.
 
 ```
 npm run test:migration              137 pass  (41 new across the normalizer and domain)
-npm run test:database:submissions   8 assertions, real PostgreSQL 16
+npm run test:database:diagnostic   8 assertions, real PostgreSQL 16
 npm run test:database:4c            passed, real PostgreSQL  (regression)
 npm run test:database:4d            passed, real PostgreSQL  (regression)
 npm run test:database:scenarios     passed, real PostgreSQL  (regression)
@@ -242,11 +242,63 @@ Five more assertions in the real-PostgreSQL harness (`CB-1`–`CB-5`) cover the
 `SUBMISSION_NOT_MIGRATED` a necessity rather than caution, and the metadata-only
 score row that lets a band be recorded without a number.
 
-## 9. What is NOT done
+## 9. The `outcome:` domain
 
-- **No reconciliation for the cortex domain.** The orchestrator therefore
-  completes a cortex backfill and says plainly that it did not reconcile.
-- **No report backfill.** The client report maps to `reports` +
-  `report_versions`; a separate domain.
+`migration/outcomeNormalizer.ts` and `migration/domains/outcomes.ts`, run with
+`--domain=outcomes`.
+
+**The verdict is the record.** A KV outcome without a boolean `didConvert` is
+quarantined with `MISSING_VERDICT` rather than defaulted: `outcome_type` would
+otherwise be guessed, and a guessed "lost" is a deal a consultant will be told
+they lost. The POST route that writes these records refuses a body without one,
+so its absence means the record predates the current shape or was hand-edited.
+
+**A logged outcome is `closed`, not `open`.** The column defaults to `open`,
+which is right for a row created by something still in progress and wrong for a
+verdict a consultant already reached. `OB-3` proves the status vocabulary is
+enforced, so this is a real choice rather than an arbitrary one.
+
+**The denormalised snapshot is not migrated.** The KV record carries `industry`,
+`company`, `aiScore` and `submittedAt` as they were when the outcome was logged;
+the relational model carries them live on the submission this row already points
+at. Copying them would create a second, staler answer to a question the schema
+already answers — and the runtime shadow read excludes them from its comparison
+for exactly the same reason.
+
+**The mapping is the inverse of the shadow read's reading**, and a test asserts
+it by round-tripping a normalized record through `projectSqlOutcome`. If the two
+disagreed, every migrated outcome would report as drift the moment the
+instrument was switched on.
+
+**The upsert is keyed on `submission_id`, not `legacy_kv_key`.** The UNIQUE
+constraint is on the submission (`OB-1`), so looking up by the KV key would miss
+a row written for the same submission under a different key and the insert would
+then fail on a constraint the writer could have honoured.
+
+The same per-record dependency as the cortex domain: `SUBMISSION_NOT_MIGRATED`
+and a finished run, not a failed batch.
+
+## 10. The report domain has no KV source
+
+`MCV2-S5-KV-RELATIONAL-MAPPING.md` lists "Client report JSON (route
+`/client/.../report`) → `reports` + `report_versions`", with the strategy
+"Generate version 1 on first backfill".
+
+**There is nothing stored to migrate.** `GET /client/submission/:id/report`
+builds the report on every read from `sub:` and `cortex:` — `buildAIClientReport`
+is a pure function of those two records, and no `report:` key exists in KV.
+
+So "generate version 1 on first backfill" is not a data migration: it is a
+proposal that Cortex should START STORING report versions, with the migration
+running the report builder to create the first one. Whether the product wants a
+stored report history is a product decision, and a migration that invented rows
+from a function nobody had asked to persist would be making it. Recorded, not
+built.
+
+## 11. What is NOT done
+
+- **No reconciliation for the cortex or outcome domains.** The orchestrator
+  completes those backfills and says plainly that it did not reconcile.
+- **No report backfill**, for the reason in §10.
 - **Nothing has been run against real data.** Executing a backfill needs a human
   decision and production credentials.

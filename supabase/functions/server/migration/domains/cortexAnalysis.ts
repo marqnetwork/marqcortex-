@@ -6,7 +6,7 @@
  * `domain_scores.submission_id` and `diagnostic_scores.submission_id` are both
  * NOT NULL and reference `submissions`, so an analysis cannot be written before
  * its submission has been migrated. That is a fact about the schema —
- * `test:database:submissions` SB-7 proves the same shape for outcomes — and it
+ * `test:database:diagnostic` SB-7 proves the same shape for outcomes — and it
  * is the whole reason the domains have an order.
  *
  * A record whose submission is not there is therefore QUARANTINED with

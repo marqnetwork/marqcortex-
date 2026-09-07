@@ -34,7 +34,7 @@
     "test:database:scenarios": "node scripts/membership-bootstrap-scenarios.mjs",
     "test:database:4c": "node scripts/ai-provider-administration-scenarios.mjs",
     "test:database:4d": "node scripts/ai-customer-byok-scenarios.mjs",
-    "test:database:submissions": "node scripts/submission-backfill-scenarios.mjs",
+    "test:database:diagnostic": "node scripts/submission-backfill-scenarios.mjs",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
     "test:system": "node --experimental-strip-types --test tests/system/*.test.ts",

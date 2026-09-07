@@ -79,7 +79,7 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 | `npm run test:migration` | 137 pass |
 | `npm run scan:boundaries` | 107 pass |
 | `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
-| `npm run test:database:submissions` | 8 assertions, real PostgreSQL 16 |
+| `npm run test:database:diagnostic` | 8 assertions, real PostgreSQL 16 |
 | `npm run test:database:4c` / `:4d` / `:scenarios` | pass, real PostgreSQL (regression) |
 | `kv_compare_and_swap` with `DATABASE_URL` | 19 pass — had never run in this environment |
 | `npm run typecheck:api:ai` / `:pure` | clean |
