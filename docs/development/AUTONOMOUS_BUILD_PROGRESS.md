@@ -15,6 +15,13 @@ Companion authorities, unchanged by this file:
 
 ## CURRENT ROADMAP STAGE
 
+**PRODUCT/UI IMPLEMENTATION.** The documented AI-01 batch sequence ends at 4F
+and 4F is merged (PR #45, `04bdfba`). There is no Batch 5. The next genuine
+buildable stage is the product/UI surface, against
+`MARQ_CORTEX_PRODUCT_EXPERIENCE.md` — tracked in
+`docs/development/UI_IMPLEMENTATION_MAP.md`, which is the audit of the shipped
+UI against canon plus the sprint sequence.
+
 Phase 6 — AI Platform: AI-01 Batch 4 complete through 4F.
 Phase 4 — Runtime Storage Gateway: shadow read delivered for both domains that
 have runtime reads; Phase 2 backfill and reconciliation delivered for every KV
@@ -24,10 +31,9 @@ sections the blueprint makes buildable.
 
 ## CURRENT BATCH
 
-None in flight. Six units completed this session, all committed and pushed, all
-unmerged.
+UI implementation, sprints 1-4 complete. See THIS SESSION below.
 
-## COMPLETED THIS SESSION
+## COMPLETED — PRIOR SESSION (Batch 4F, merged as PR #45)
 
 **AI-01 Batch 4F — Routing, Failover and Economics.**
 `supabase/functions/server/ai/routing/`. A deterministic governed policy that
@@ -83,7 +89,7 @@ report history, not a data migration), and **the certified lead reconciliation
 reported a field-level pass it never made** (`sampleMismatchCount` was the
 literal zero) — that one is fixed, with tests.
 
-## COMMITS CREATED
+## COMMITS — PRIOR SESSION
 
 On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 
@@ -106,7 +112,7 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 17. `feat(kpi): name the indicators, and refuse the ones that measure activity`
 18. `docs(manifest): register this session's subsystems, as Article 14 requires`
 
-## TEST RESULTS
+## TEST RESULTS — PRIOR SESSION
 
 | Suite | Result |
 |---|---|
@@ -232,4 +238,196 @@ the UI/UX stage. None are in anything this session touched.
 
 ---
 
-_Last updated: 2026-09-07, after G5 and the manifest registration._
+_Prior-session record above. This session's record follows._
+
+---
+
+# THIS SESSION — FRONTEND DEBT + UI SPRINTS 1-4
+
+Branch `claude/marq-cortex-product-complete-5d8hyz`, from `04bdfba`.
+
+## THE GOVERNING FINDING
+
+Cortex had built far more product than it had made reachable. AI-01 Batches
+1-4F delivered a ten-tab AI Control Plane — providers, routing, agents,
+workflows, budget, usage, audit, diagnostics — and the whole of it was reachable
+only at Settings -> AI -> a sub-tab. G5 delivered `/health/enterprise` and
+`/kpis` with no UI consumer at all. To a user of the running product, the
+platform's central governance and operational surfaces were invisible.
+
+Both are now first-class destinations.
+
+## FRONTEND DEBT — CLOSED TO THE DEFERRED LINE
+
+`typecheck:web` went 34 -> 14. All 20 non-cluster errors are fixed. Every
+remaining error is the deferred ClientPortal auth cluster (ClientPortal x8,
+ClientMessaging x3, ProposalViewer x2, EngagementActivityFeed x1), untouched.
+
+None of these were stale annotations. Reading a field the canonical type does
+not declare yields `undefined`, and `undefined` compares equal to nothing, so
+each was a live defect:
+
+- **Every proposal snapshot froze ZERO blocks.** `snapshotEngine` filtered
+  BlockLinks on `linked_entity_*`; schema §5 names them `entity_type`/
+  `entity_id`. The immutable record captured at "sent" held none of the
+  proposal's content. It also read approval off the Block (schema §4 keeps it on
+  the revision) and froze `block.label` (the Block declares `title`).
+- **Every workstream card showed no milestones and no gates.**
+  `ExecutionDashboard` filtered milestones on a `workstream_id` a Milestone does
+  not declare; the ExecutionTask is the only edge.
+- **Every rich-text block edit destroyed the block.** `EditableBlockCard` passed
+  `handleSave` to `RichTextEditor`, which yields raw TEXT where handleSave
+  forwards its first argument as the whole CONTENT record — so `{text: '...'}`
+  became a bare string and the block rendered "Empty" thereafter.
+- **The diagnostic milestone modal never rendered.** `ProgressModal` gates its
+  whole body on `isOpen`, which its only caller never passed.
+- **Every AI assist in the Cortex dashboard got an empty company size and empty
+  reasoning.** The toolbar read `lead.employeeEstimate` (Lead declares
+  `companySize`) and `core_problem.why_first` (it lives on
+  `strategic_decision`).
+- **Approve was dead for every in-review submission.** `QuickActions` declared a
+  private vocabulary ('reviewing', 'sent') where canon is
+  new|in-review|completed|approved.
+- **A mapped execution rendered "vundefined".** `mappingEngine` omitted
+  `execution_version`.
+- **Demo settings rendered no notification preferences.** Both `SettingsPage`
+  fixtures described a different settings product than the server serves.
+- Plus: a leaked `setInterval` (`useState` where `useEffect` was meant), a
+  dropped tooltip (`title` on a lucide `<svg>`), three mock service ids that
+  exist in no canon, and an unreachable `select` branch contradicting
+  `QuestionDef`.
+
+## UI SPRINTS
+
+**Sprint 1 — one navigation model.** Four navigation surfaces described four
+different products: the sidebar had eleven destinations, the command palette
+four, the accelerator table four hand-listed, and the shortcuts help sheet four
+more that were already stale. Ch. 21.4 forbids exactly this. `navigationModel.ts`
+now describes every destination once, grouped by intent (Work, Understand,
+Deliver, Operate, Administer, Platform); all four surfaces derive from it. The
+AI Control Plane is promoted to a first-class destination — the SAME component
+Settings mounts, per Ch. 21.4's "many paths, one canonical entity". Also fixed:
+the collapsed 80px rail rendered bare unlabelled icons.
+
+**Sprint 2 — operational awareness.** `operationalAwarenessService.ts` +
+`OperationsPanel.tsx` consume the G5 reads. The server modules' disciplines are
+restated and asserted at the renderer, which is where they would be lost:
+`unknown` never reads as healthy (own word, own colour, sorts above healthy); a
+dimension nothing measures says so; `value: null` renders "Not measured", never
+0; no target, threshold, grade or score anywhere; and no demo fallback, because
+a fabricated green is worse than a blank page.
+
+**Sprint 3 — the priority inbox.** Its primary action was `opacity-0` until
+`:hover` — unreachable on any touch device and invisible to keyboard focus. The
+row is now the control. And the header counted the TRUNCATED list, so a team
+with twenty items needing attention was told "6 items need attention" with
+critical items past the cap neither shown nor counted.
+
+**Sprint 4 — the shell at every width.** The shell had NO breakpoint of any
+kind: a fixed 280px sidebar beside the content left 95px on a 375px phone.
+Below 1024px the same `<nav>` is now an overlay drawer (Ch. 21.10 — one model,
+only the interaction changes). A closed drawer animates `visibility`, not only
+position, so it leaves the tab order.
+
+## COMMITS — THIS SESSION
+
+1. `fix(frontend): five reads of fields the canonical types never declared`
+2. `fix(frontend): eight more contract breaks, and the frontend debt is at the deferred line`
+3. `feat(ui): one navigation model, and the AI Control Plane becomes reachable`
+4. `feat(ui): the operational awareness surface, and the disciplines it must not lose`
+5. `fix(ui): the priority inbox was unreachable by touch and under-counted the backlog`
+6. `feat(ui): the shell had no breakpoints at all — below 1024px the nav is a drawer`
+
+## TEST RESULTS — THIS SESSION
+
+| Suite | Result |
+|---|---|
+| `npm run test:features` | 908 pass (was 774 at session start) |
+| `npm run test:ai` | 2,183 pass |
+| `npm run test:security` | 859 pass |
+| `npm run test:system` | 170 pass |
+| `npm run test:migration` | 210 pass |
+| `npm run verify:4f` | 167 pass |
+| `npm run verify:health` | 48 pass |
+| `npm run scan:boundaries` | 107 pass |
+| `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
+| `npm run typecheck:web` | **14 errors — all the deferred auth cluster** (was 34) |
+| `npm run typecheck:tests` | 27 errors — unchanged baseline |
+| `npm run build` | clean |
+
+99 tests added across five new suites. No test was weakened, skipped or deleted.
+
+Two existing assertions were UPDATED, not weakened, each pinning a snapshot that
+a deliberate canon-grounded change superseded: `breadcrumbContract`'s
+`default: return []` (Ch. 21.12 — every destination now says where you are; its
+eight named branches untouched), and `navigationModelContract`'s tooltip
+condition, narrowed to the desktop rail because the drawer shows real labels.
+Both suites still pass in full.
+
+`clientPortalAuthContract.test.ts` is UNCHANGED and passes, exclusion pins
+included.
+
+## VERIFIED IN A REAL BROWSER
+
+Sprints 1-4 were driven in Chromium (Playwright, the pre-installed browser)
+against the production build at 1440x900, 820x1180 and 375x812:
+
+- the aside is `static` at 1440 and `fixed` at 820 and below;
+- main content goes from 95px to the full 375px on a phone;
+- no horizontal document overflow at any width;
+- all 13 destinations and all 6 intent groups present at every width;
+- 25 Tab presses never land inside a closed drawer, and do once it is open;
+- open / tap-outside / Escape / navigate all resolve the drawer to hidden;
+- the promoted destinations load — AI Control Plane correctly reports it needs
+  the live backend rather than fabricating state; Operations renders;
+- the command palette offers 13 "Go to" entries where it offered four;
+- no page errors at any width.
+
+## DEFERRED — LIVE VERIFICATION REQUIRED
+
+Recorded, not attempted, per the session mandate:
+
+- **ClientPortal auth cluster** (14 `typecheck:web` errors). Repairing it changes
+  what the browser sends over the wire — an authentication and telemetry change,
+  not a type-only one. Needs a live-backend verification environment.
+  `clientPortalAuthContract.test.ts` must not be weakened or removed.
+- **MCV2-S7.5** outcome shadow read validation — needs real traffic.
+- **Real production backfill execution** — needs production credentials.
+- **G1/G2** data authority and enforced tenancy cutover — deployment actions.
+- **S8.1-S8.3** deployment actions.
+- **G6** external integrations — third-party credentials.
+- **Batch 4E production rollout**, and the 4C/4D production gates.
+- **G4 — the AI Workforce runtime.** The canon defers implementation to a later
+  phase; realizing it is an architecture decision for a human. Unchanged.
+
+## BLOCKERS
+
+None for dependency-safe product/UI work. The sprint sequence in
+`docs/development/UI_IMPLEMENTATION_MAP.md` continues without any deployment.
+
+`deno` is not installed in this environment, so `typecheck:api:*` cannot run
+here. No server code was changed this session, so this is not a regression.
+
+## NEXT EXACT TASK
+
+**UI Sprint 5 — empty states and onboarding**, per
+`docs/development/UI_IMPLEMENTATION_MAP.md`. The two remaining non-deferred rows
+in the audit:
+
+1. **Empty states are inconsistent.** `SubmissionsListPage` and the priority
+   inbox have real ones; other panels render nothing, or a bare string, when
+   they have no data. Audit each panel against Ch. 9 and give every list a state
+   that says what is absent and what to do about it.
+2. **No first-run experience.** Nothing orients an operator opening Cortex for
+   the first time. Ch. 9 and Ch. 21.12.
+
+Then continue the map: the remaining `PARTIAL` rows are the design-token
+inconsistency (colours are hard-coded inline across components while
+`designTokens.ts` exists) and route/page duality (eleven pages live in
+`useState` under one URL, so no in-app destination is linkable or restorable —
+Ch. 21.11 recoverability).
+
+
+---
+
+_Last updated: 2026-09-07, after UI sprints 1-4._
