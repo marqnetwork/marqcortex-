@@ -41,18 +41,18 @@ deployment, and it is therefore Sprint 1.
 | Two-layer layout (`TeamDashboardLayout` → `DashboardLayoutInner`) | OK | Provider mount is correctly separated from consumers. |
 | Persistent sidebar + header + breadcrumbs | OK | Ch. 21.12 orientation is served. |
 | Sidebar collapse | OK | Width animates 280 ↔ 80. |
-| Collapsed-mode labelling | DEFECT | At 80px only the icon renders, with no `title`/`aria-label`. The collapsed sidebar is unusable to a screen reader and unlabelled on hover. |
+| Collapsed-mode labelling | DONE (Sprint 1) | At 80px only the icon renders, with no `title`/`aria-label`. The collapsed sidebar is unusable to a screen reader and unlabelled on hover. |
 | Route/page duality | PARTIAL | `#/team/dashboard` holds eleven pages in `useState`, so no in-app destination is linkable, bookmarkable, or restorable by URL. Ch. 21.11 (recoverability) wants recent locations and history; today a refresh returns to `dashboard`. |
 
 ## 2. Navigation
 
 | Area | Status | Finding |
 |---|---|---|
-| Intent-first grouping (Ch. 21.2) | DEFECT | Eleven flat sidebar items mixing intents: `Dashboard, CORTEX, Analytics, Rev Intel, Execution, Mapping Engine, Reviewer QA, Email Queue, Team, Settings, Architecture`. Exposes software structure, which 21.2 names as the failure mode. |
-| AI Control Plane reachable | **GAP** | Absent from navigation entirely. See governing finding. |
-| One canonical nav model (Ch. 21.4, 21.10) | DEFECT | The sidebar declares eleven destinations; the command palette declares **four** (`dashboard, cortex, team, settings`). Two navigation surfaces, two different realities — precisely the "duplicate realities" 21.4 forbids. |
-| Command palette as intent layer (Ch. 21.7) | PARTIAL | Exists, is good, but covers 4/11 destinations. |
-| Operational health / KPI surfaces | **GAP** | `GET /health/enterprise` and `GET /kpis` shipped in G5 with no UI consumer. |
+| Intent-first grouping (Ch. 21.2) | DONE (Sprint 1) | Eleven flat sidebar items mixing intents: `Dashboard, CORTEX, Analytics, Rev Intel, Execution, Mapping Engine, Reviewer QA, Email Queue, Team, Settings, Architecture`. Exposes software structure, which 21.2 names as the failure mode. |
+| AI Control Plane reachable | DONE | Sprint 1 — first-class destination under Operate, Cmd+3. |
+| One canonical nav model (Ch. 21.4, 21.10) | DONE (Sprint 1) | The sidebar declares eleven destinations; the command palette declares **four** (`dashboard, cortex, team, settings`). Two navigation surfaces, two different realities — precisely the "duplicate realities" 21.4 forbids. |
+| Command palette as intent layer (Ch. 21.7) | DONE (Sprint 1) | Exists, is good, but covers 4/11 destinations. |
+| Operational health / KPI surfaces | DONE | Sprint 2 — the G5 reads now have a consumer. |
 | BYOK / org credentials | PARTIAL | `OrganizationProviderCredentialsPanel` exists, reachable only as a Settings tab. |
 
 ## 3. Dashboard
@@ -101,8 +101,8 @@ deployment, and it is therefore Sprint 1.
 
 | Area | Status | Finding |
 |---|---|---|
-| Enterprise health rollup | **GAP** | Backend only. |
-| Enterprise KPIs | **GAP** | Backend only. |
+| Enterprise health rollup | DONE | Sprint 2 — `OperationsPanel`, reachable under Operate. |
+| Enterprise KPIs | DONE | Sprint 2 — same panel. |
 | Settings "Platform Health" tab | PARTIAL | Serves submission counts only, not the four approved health dimensions. |
 
 ## 10. Settings / admin
@@ -149,17 +149,17 @@ deployment, and it is therefore Sprint 1.
 Ordered by canonical dependency, not by size. Each sprint runs
 DISCOVER → COMPARE → IMPLEMENT → CONNECT → TEST → BUILD → QA → COMMIT.
 
-**Sprint 1 — Navigation as one canonical model.**
+**Sprint 1 — Navigation as one canonical model. DONE.**
 One navigation module both the sidebar and the command palette read, grouped by
 intent, with the AI Control Plane promoted to a first-class destination and
 every destination reachable from the palette. Closes the governing finding.
 
-**Sprint 2 — Operational awareness surface.**
+**Sprint 2 — Operational awareness surface. DONE.**
 A destination for the shipped `/health/enterprise` and `/kpis` reads. Ch. 31.
 Honours G5's discipline: an unreadable signal is `unknown`, and `unknown` never
 rolls up as healthy.
 
-**Sprint 3 — Dashboard as priorities.** Ch. 21.2.
+**Sprint 3 — Dashboard as priorities.** Ch. 21.2. NEXT.
 
 **Sprint 4 — Empty / onboarding / responsive.** Ch. 9.
 

@@ -39,6 +39,7 @@ import {
   Settings,
   Cpu,
   Sparkles,
+  Activity,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -53,6 +54,7 @@ export type DestinationId =
   | 'reviewer'
   | 'emails'
   | 'control-plane'
+  | 'operations'
   | 'team'
   | 'settings'
   | 'architecture';
@@ -196,6 +198,21 @@ export const NAV_GROUPS: readonly NavGroup[] = [
           'usage', 'audit', 'byok', 'model', 'llm', 'governance',
         ],
         shortcutDigit: 3,
+      },
+      {
+        // G5 built the enterprise health roll-up (§IV-51) and the enterprise
+        // KPI report (§IV-48) and shipped both with no consumer at all. This
+        // is where they are read.
+        id: 'operations',
+        label: 'Operations',
+        description: 'Enterprise health and KPI readings',
+        icon: Activity,
+        group: 'operate',
+        keywords: [
+          'health', 'operations', 'operational', 'kpi', 'kpis', 'indicator',
+          'indicators', 'signal', 'signals', 'status', 'uptime', 'awareness',
+          'metrics', 'dimension', 'dimensions',
+        ],
       },
     ],
   },

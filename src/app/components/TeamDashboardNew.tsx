@@ -37,6 +37,8 @@ const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEn
 // canonical entity. It resolves the operator's role server-side and renders its
 // own unauthorized state, exactly as it does under Settings.
 const AIAdministrationConsole    = lazy(() => import('@/app/components/AIAdministrationConsole').then(m => ({ default: m.AIAdministrationConsole })));
+// Operational awareness (§IV-51 health, §IV-48 KPIs).
+const OperationsPanel            = lazy(() => import('@/app/components/OperationsPanel').then(m => ({ default: m.OperationsPanel })));
 
 // ── Panel skeleton shown while a lazy chunk is loading ────────────────────────
 function PanelSkeleton() {
@@ -299,6 +301,12 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
       {currentPage === 'control-plane' && (
         <Suspense fallback={<PanelSkeleton />}>
           <AIAdministrationConsole key="control-plane-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {currentPage === 'operations' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <OperationsPanel key="operations-page" accessToken={accessToken} />
         </Suspense>
       )}
 
