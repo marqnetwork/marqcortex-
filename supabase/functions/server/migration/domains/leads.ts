@@ -8,6 +8,7 @@ import { insertQuarantine } from '../quarantineStore.ts';
 import {
   canonicalLeadHash,
   isLeadEntityKey,
+  isLeadQuarantined,
   normalizeLeadRecord,
   parseLeadKvRecord,
 } from '../normalizer.ts';
@@ -103,7 +104,7 @@ export async function processLeadBatch(
     const parsed = parseLeadKvRecord(record.key, record.rawValue);
     const result = normalizeLeadRecord(parsed, ctx.organizationId, record.key);
 
-    if (!result.ok) {
+    if (isLeadQuarantined(result)) {
       ctx.classifications.quarantined += 1;
       ctx.quarantineCount += 1;
       if (ctx.writeBusinessRows) {

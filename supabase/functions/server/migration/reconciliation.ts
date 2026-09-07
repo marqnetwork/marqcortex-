@@ -3,11 +3,19 @@
  */
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { LEAD_ENTITY_PREFIX, matchesKeyFilter } from './config.ts';
+import { LEAD_ENTITY_PREFIX, matchesKeyFilter, RECONCILIATION_SAMPLE_SIZE } from './config.ts';
 import { createKvReader } from './kvReader.ts';
 import { isLeadEntityKey, parseLeadKvRecord, normalizeLeadRecord } from './normalizer.ts';
+import { LEAD_FIELDS, projectNormalizedLead, projectSqlLead } from './leadProjection.ts';
+import { compareProjections } from '../storage/compare.ts';
+import { deterministicSample } from './submissionReconciliation.ts';
 import { throwOnError } from './client.ts';
-import type { KvReader, RecordClassification, ReconciliationResult } from './types.ts';
+import type {
+  KvReader,
+  NormalizedLeadContact,
+  RecordClassification,
+  ReconciliationResult,
+} from './types.ts';
 
 export async function reconcileLeadsDomain(
   client: SupabaseClient,
@@ -29,6 +37,14 @@ export async function reconcileLeadsDomain(
   };
   const emailToKey = new Map<string, string>();
   const sourceHashes: string[] = [];
+  /**
+   * The normalized record for every KV key that produced one.
+   *
+   * Retained during the scan rather than re-read afterwards. The previous
+   * revision walked `sourceKeys` and called `reader.getKey` for each — an N+1
+   * read of a store it had just finished paging through, repeated three times.
+   */
+  const normalizedByKey = new Map<string, NormalizedLeadContact>();
 
   for (;;) {
     const page = await reader.scanPrefix(LEAD_ENTITY_PREFIX, cursor, batchSize);
@@ -53,6 +69,7 @@ export async function reconcileLeadsDomain(
         emailToKey.set(norm.record.email, norm.record.legacyKvKey);
         classifications.migrated += 1;
       }
+      normalizedByKey.set(record.key, norm.record);
       sourceHashes.push(
         createHash('sha256')
           .update(JSON.stringify({ key: record.key, email: norm.record.email }))
@@ -102,45 +119,24 @@ export async function reconcileLeadsDomain(
   throwOnError(sqlError, 'reconcileLeadsDomain.sqlLeads');
 
   const sqlKeys = new Set((sqlLeads ?? []).map((r) => r.legacy_kv_key as string));
+  const sqlByKey = new Map<string, Record<string, unknown>>();
+  for (const row of (sqlLeads ?? []) as unknown as Array<Record<string, unknown>>) {
+    sqlByKey.set(row.legacy_kv_key as string, row);
+  }
+
+  // MISSING, computed ONCE.
+  //
+  // The previous revision computed it three times: the first two results were
+  // overwritten before use, and the second contained a `missingCount += 0` and
+  // an `isDup` that was assigned, voided and never read. Only the third ran,
+  // and its rule — which is preserved exactly here — is that a record counts as
+  // missing when it normalized, was not quarantined, OWNS its email (a
+  // duplicate email was deliberately skipped, not lost) and has no relational
+  // row.
   let missingCount = 0;
-  for (const key of sourceKeys) {
-    const parsed = parseLeadKvRecord(key, await reader.getKey(key));
-    const norm = normalizeLeadRecord(parsed, organizationId, key);
-    if (!norm.ok || quarantinedKeys.has(key) || classifications.duplicate > 0) {
-      continue;
-    }
-    if (norm.ok && !sqlKeys.has(key) && !quarantinedKeys.has(key)) {
-      const emailDup =
-        [...emailToKey.entries()].filter(([e]) => e === norm.record.email).length > 1;
-      if (!emailDup) missingCount += 1;
-    }
-  }
-
-  for (const key of sourceKeys) {
-    if (sqlKeys.has(key)) continue;
-    const parsed = parseLeadKvRecord(key, await reader.getKey(key));
-    const norm = normalizeLeadRecord(parsed, organizationId, key);
-    if (norm.ok && !quarantinedKeys.has(key)) {
-      const dup = emailToKey.get(norm.record.email) !== key;
-      if (!dup) missingCount += 0;
-    }
-  }
-
-  missingCount = 0;
-  for (const key of sourceKeys) {
-    const raw = await reader.getKey(key);
-    const norm = normalizeLeadRecord(parseLeadKvRecord(key, raw), organizationId, key);
-    if (!norm.ok) continue;
+  for (const [key, record] of normalizedByKey) {
     if (quarantinedKeys.has(key)) continue;
-    const isDup =
-      emailToKey.get(norm.record.email) !== key &&
-      [...sourceKeys].some((k) => {
-        if (k === key) return false;
-        return k !== key;
-      });
-    void isDup;
-    const emailOwner = emailToKey.get(norm.record.email);
-    if (emailOwner !== key) continue;
+    if (emailToKey.get(record.email) !== key) continue;
     if (!sqlKeys.has(key)) missingCount += 1;
   }
 
@@ -168,7 +164,36 @@ export async function reconcileLeadsDomain(
     )
     .digest('hex');
 
-  const sampleMismatchCount = 0;
+  // ── THE FIELD-LEVEL CHECK ────────────────────────────────────────────────
+  //
+  // This number was previously the literal `0`, so `thresholdPassed` asked a
+  // question that could only be answered yes and every reconciliation report
+  // claimed a field-level pass it had never made. Counting rows proves a
+  // backfill wrote SOMETHING for every record; only this proves it wrote the
+  // right thing.
+  //
+  // The comparator is `storage/compare.ts` — the same one the submission
+  // reconciliation and the runtime shadow read use — so a divergence means the
+  // same thing wherever it is reported.
+  const sample = deterministicSample(
+    [...normalizedByKey.keys()].filter((key) => sqlByKey.has(key)),
+    RECONCILIATION_SAMPLE_SIZE,
+  );
+  let sampleMismatchCount = 0;
+  const mismatchedFields: Record<string, number> = {};
+  for (const key of sample) {
+    const divergences = compareProjections(
+      LEAD_FIELDS,
+      projectNormalizedLead(normalizedByKey.get(key)!),
+      projectSqlLead(sqlByKey.get(key)!),
+    );
+    if (divergences.length === 0) continue;
+    sampleMismatchCount += 1;
+    for (const divergence of divergences) {
+      mismatchedFields[divergence.field] = (mismatchedFields[divergence.field] ?? 0) + 1;
+    }
+  }
+
   const thresholdPassed =
     missingCount === 0 &&
     sampleMismatchCount === 0 &&
@@ -182,7 +207,7 @@ export async function reconcileLeadsDomain(
     duplicateCount,
     orphanCount: 0,
     mismatchCount: sampleMismatchCount,
-    sampleSize: Math.min(sourceCount, 100),
+    sampleSize: sample.length,
     sampleMismatchCount,
     checksumSource,
     checksumTarget,
@@ -193,6 +218,8 @@ export async function reconcileLeadsDomain(
       sqlLegacyKeys: sqlKeys.size,
       sourceKeys: sourceKeys.size,
       quarantinedKeys: quarantinedKeys.size,
+      sampleStrategy: 'deterministic-even-spacing',
+      mismatchedFields,
     },
   };
 }

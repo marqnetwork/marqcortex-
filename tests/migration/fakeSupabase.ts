@@ -28,6 +28,8 @@ export interface FakeOperation {
 
 export interface FakeResult {
   data?: unknown;
+  /** PostgREST's `head: true, count: 'exact'` shape, which some reads use. */
+  count?: number | null;
   error?: { message: string } | null;
 }
 
