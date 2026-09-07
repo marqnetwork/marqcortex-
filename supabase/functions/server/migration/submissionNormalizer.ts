@@ -243,6 +243,22 @@ export function normalizeAnswers(answers: unknown): {
   return { rows, dropped };
 }
 
+/**
+ * Narrow a result to its quarantine branch.
+ *
+ * A user-defined type guard rather than an `if (!result.ok)`, because the
+ * repository's Node type-check boundary runs without `strictNullChecks` and
+ * therefore does not narrow a discriminated union by its boolean discriminant.
+ * `domains/leads.ts` carries two long-standing errors for exactly that reason;
+ * this is the same shape of code with the one line that makes the compiler
+ * agree.
+ */
+export function isQuarantined(
+  result: SubmissionNormalizationResult,
+): result is Extract<SubmissionNormalizationResult, { ok: false }> {
+  return !result.ok;
+}
+
 export function parseSubmissionKvRecord(
   key: string,
   rawValue: unknown,

@@ -20,6 +20,7 @@ function parseArgs(argv: string[]): CliFlags & { pipeline?: boolean; help?: bool
   const mode = (flags.mode as string) ?? 'inventory';
   return {
     mode: mode as MigrationMode,
+    domain: (flags.domain as string) ?? undefined,
     dryRun: flags['dry-run'] === true || flags.dryRun === 'true',
     resume: flags.resume === true,
     runId: flags.runId as string | undefined,
@@ -41,12 +42,15 @@ MARQ Cortex Migration CLI (S6.2)
 Commands:
   --mode=inventory          Read-only KV inventory
   --mode=simulation         Parse/normalize/predict without business writes
-  --mode=backfill           Live lead/contact backfill (requires service role)
+  --mode=backfill           Live backfill for --domain (requires service role)
   --mode=reconcile          KV vs SQL reconciliation
   --mode=rollback --runId=  Rollback rows tagged with migration run
   --pipeline                Run inventory → simulation → backfill → reconcile
 
 Options:
+  --domain=leads|submissions
+                            Which KV namespace to migrate. Defaults to leads,
+                            which is what every pre-existing invocation means.
   --dry-run                 No business row writes (simulation default for backfill preview)
   --resume                  Resume from checkpoint
   --runId=<uuid>            Target run for reconcile/rollback

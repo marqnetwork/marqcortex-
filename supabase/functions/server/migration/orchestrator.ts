@@ -26,6 +26,16 @@ import {
   simulationReportToMarkdown,
 } from './domains/leads.ts';
 import {
+  buildSubmissionSimulationReport,
+  createSubmissionDomainContext,
+  processSubmissionBatch,
+  submissionSimulationReportToMarkdown,
+} from './domains/submissions.ts';
+import {
+  MIGRATION_NAME_SUBMISSIONS,
+  SUBMISSION_ENTITY_PREFIX,
+} from './submissionNormalizer.ts';
+import {
   createMigrationRun,
   updateMigrationRun,
   incrementRunCounters,
@@ -35,7 +45,13 @@ import {
   runReconciliation,
   reconciliationToMarkdown,
 } from './reconciliation.ts';
-import type { CliFlags, InventoryReport, MigrationRunRecord, SimulationReport } from './types.ts';
+import type {
+  CliFlags,
+  InventoryReport,
+  KvReader,
+  MigrationRunRecord,
+  SimulationReport,
+} from './types.ts';
 import { MigrationEngineError } from './types.ts';
 
 export interface OrchestratorResult {
@@ -54,8 +70,120 @@ function writeReport(dir: string | undefined, name: string, json: unknown, markd
   }
 }
 
+/**
+ * A migratable domain, as the orchestrator needs it.
+ *
+ * ── WHY THIS EXISTS RATHER THAN A SECOND `runSubmissionMigration` ──────────
+ *
+ * The loop below is the part of a migration that must not vary: paging by key
+ * order, checkpointing after every batch, incrementing the run counters,
+ * pausing at `--maxBatches`, and completing the checkpoint only when the scan
+ * genuinely finished. A second copy of it for the second domain would be a
+ * second place for resume semantics to drift, and resume semantics are what a
+ * half-finished production backfill depends on.
+ *
+ * So the loop is written once and the DOMAIN is a parameter: what to scan, how
+ * to classify a batch, what its counters are, and how to report a simulation.
+ * The lead path is byte-for-byte the behaviour S6.2 certified — `runLeadMigration`
+ * is now a call into this with the lead descriptor, and the lead suite passes
+ * unmodified.
+ */
+export interface MigrationDomainDescriptor<Ctx> {
+  /** `migration_runs.migration_name`. */
+  readonly migrationName: string;
+  /** The KV prefix scanned, and the checkpoint namespace. */
+  readonly entityPrefix: string;
+  createContext(organizationId: string, runId: string, writeBusinessRows: boolean): Ctx;
+  processBatch(
+    client: SupabaseClient,
+    reader: KvReader,
+    ctx: Ctx,
+    records: Array<{ key: string; rawValue: unknown }>,
+  ): Promise<void>;
+  counters(ctx: Ctx): { inserted: number; updated: number; quarantined: number };
+  buildSimulation(ctx: Ctx, discovered: number, runId: string | null): SimulationReport;
+  simulationToMarkdown(report: SimulationReport): string;
+  /**
+   * Whether this domain has a reconciliation implementation.
+   *
+   * The lead domain does; the submission domain does not yet, and a backfill
+   * that reported a reconciliation it never ran would be worse than one that
+   * says plainly that it did not. See `reconciliation.ts`.
+   */
+  readonly reconciles: boolean;
+}
+
+export const LEAD_DOMAIN: MigrationDomainDescriptor<ReturnType<typeof createLeadDomainContext>> = {
+  migrationName: MIGRATION_NAME_LEADS,
+  entityPrefix: LEAD_ENTITY_PREFIX,
+  createContext: createLeadDomainContext,
+  processBatch: processLeadBatch,
+  counters: (ctx) => ({
+    inserted: ctx.inserted,
+    updated: ctx.updated,
+    quarantined: ctx.quarantineCount,
+  }),
+  buildSimulation: (ctx, discovered, runId) => buildSimulationReport(ctx, discovered, runId, []),
+  simulationToMarkdown: simulationReportToMarkdown,
+  reconciles: true,
+};
+
+export const SUBMISSION_DOMAIN: MigrationDomainDescriptor<
+  ReturnType<typeof createSubmissionDomainContext>
+> = {
+  migrationName: MIGRATION_NAME_SUBMISSIONS,
+  entityPrefix: SUBMISSION_ENTITY_PREFIX,
+  createContext: createSubmissionDomainContext,
+  processBatch: processSubmissionBatch,
+  counters: (ctx) => ({
+    inserted: ctx.inserted,
+    updated: ctx.updated,
+    quarantined: ctx.quarantineCount,
+  }),
+  buildSimulation: (ctx, discovered, runId) =>
+    buildSubmissionSimulationReport(ctx, discovered, runId, []),
+  simulationToMarkdown: submissionSimulationReportToMarkdown,
+  reconciles: false,
+};
+
+/**
+ * A domain, ready to run, with its context type erased.
+ *
+ * The erasure is done by a closure rather than a cast: `runnable` is generic in
+ * `Ctx` and returns a function that no longer mentions it, so a map of domains
+ * with different context types is expressible without any of them being
+ * asserted into another. A cast here would be the kind that stays correct until
+ * somebody adds a third domain.
+ */
+export type RunnableMigrationDomain = (
+  client: SupabaseClient,
+  flags: CliFlags,
+) => Promise<OrchestratorResult>;
+
+function runnable<Ctx>(domain: MigrationDomainDescriptor<Ctx>): RunnableMigrationDomain {
+  return (client, flags) => runDomainMigration(client, domain, flags);
+}
+
+/** The domains this CLI can run, by `--domain=`. */
+export const MIGRATION_DOMAINS: Readonly<Record<string, RunnableMigrationDomain>> = {
+  leads: runnable(LEAD_DOMAIN),
+  submissions: runnable(SUBMISSION_DOMAIN),
+};
+
+export function isMigrationDomainName(value: unknown): value is string {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(MIGRATION_DOMAINS, value);
+}
+
 export async function runLeadMigration(
   client: SupabaseClient,
+  flags: CliFlags,
+): Promise<OrchestratorResult> {
+  return runDomainMigration(client, LEAD_DOMAIN, flags);
+}
+
+export async function runDomainMigration<Ctx>(
+  client: SupabaseClient,
+  domain: MigrationDomainDescriptor<Ctx>,
   flags: CliFlags,
 ): Promise<OrchestratorResult> {
   const batchSize = resolveBatchSize(flags.batchSize);
@@ -74,9 +202,9 @@ export async function runLeadMigration(
   } else if (writeControl && flags.mode !== 'inventory') {
     run = await createMigrationRun(client, {
       organization_id: organizationId,
-      migration_name: MIGRATION_NAME_LEADS,
+      migration_name: domain.migrationName,
       mode: flags.mode,
-      source_namespace: LEAD_ENTITY_PREFIX,
+      source_namespace: domain.entityPrefix,
       batch_size: batchSize,
       requested_by: 'migration-cli',
       metadata: { dry_run: !!flags.dryRun, key_prefix_filter: flags.keyPrefixFilter ?? null },
@@ -93,33 +221,34 @@ export async function runLeadMigration(
   const runId = run?.id ?? 'simulation-local';
   let cursor: string | null = null;
   if (flags.resume && run) {
-    const cp = await getCheckpoint(client, run.id, LEAD_ENTITY_PREFIX);
+    const cp = await getCheckpoint(client, run.id, domain.entityPrefix);
     cursor = cp?.last_key ?? null;
   }
 
-  const ctx = createLeadDomainContext(organizationId, runId, writeBusiness);
+  const ctx = domain.createContext(organizationId, runId, writeBusiness);
   let discovered = 0;
   let batchNumber = 0;
 
   for (;;) {
-    const page = await reader.scanPrefix(LEAD_ENTITY_PREFIX, cursor, batchSize);
+    const page = await reader.scanPrefix(domain.entityPrefix, cursor, batchSize);
     if (page.records.length === 0 && batchNumber === 0) break;
 
     discovered += page.records.length;
-    await processLeadBatch(client, reader, ctx, page.records);
+    await domain.processBatch(client, reader, ctx, page.records);
     batchNumber += 1;
 
     if (writeControl && run) {
+      const counters = domain.counters(ctx);
       await incrementRunCounters(client, run.id, {
         total_discovered: page.records.length,
         total_processed: page.records.length,
-        total_inserted: ctx.inserted,
-        total_updated: ctx.updated,
-        total_quarantined: ctx.quarantineCount,
+        total_inserted: counters.inserted,
+        total_updated: counters.updated,
+        total_quarantined: counters.quarantined,
       });
       await upsertCheckpoint(client, {
         run_id: run.id,
-        namespace: LEAD_ENTITY_PREFIX,
+        namespace: domain.entityPrefix,
         last_key: page.records.length ? page.records[page.records.length - 1].key : cursor,
         batch_number: batchNumber,
         processed_count: discovered,
@@ -141,12 +270,12 @@ export async function runLeadMigration(
   }
 
   if (flags.mode === 'simulation') {
-    const simulation = buildSimulationReport(ctx, discovered, run?.id ?? null, []);
+    const simulation = domain.buildSimulation(ctx, discovered, run?.id ?? null);
     writeReport(
       flags.reportsDir,
       'simulation-report',
       simulation,
-      simulationReportToMarkdown(simulation),
+      domain.simulationToMarkdown(simulation),
     );
     if (run) {
       await updateMigrationRun(client, run.id, {
@@ -154,38 +283,49 @@ export async function runLeadMigration(
         completed_at: new Date().toISOString(),
         total_discovered: discovered,
         total_processed: discovered,
-        total_quarantined: ctx.quarantineCount,
+        total_quarantined: domain.counters(ctx).quarantined,
         checksum: simulation.checksumSource,
       });
-      await completeCheckpoint(client, run.id, LEAD_ENTITY_PREFIX);
+      await completeCheckpoint(client, run.id, domain.entityPrefix);
     }
     return { run, simulation, exitCode: simulation.thresholdsPassed ? 0 : 1 };
   }
 
   if (flags.mode === 'backfill') {
     const pausedEarly = !!(flags.maxBatches && batchNumber >= (flags.maxBatches ?? 0));
+    const counters = domain.counters(ctx);
     if (run) {
       await updateMigrationRun(client, run.id, {
         status: pausedEarly ? 'paused' : 'completed',
         completed_at: pausedEarly ? undefined : new Date().toISOString(),
-        total_inserted: ctx.inserted,
-        total_updated: ctx.updated,
-        total_quarantined: ctx.quarantineCount,
+        total_inserted: counters.inserted,
+        total_updated: counters.updated,
+        total_quarantined: counters.quarantined,
       });
       if (!pausedEarly) {
-        await completeCheckpoint(client, run.id, LEAD_ENTITY_PREFIX);
+        await completeCheckpoint(client, run.id, domain.entityPrefix);
       }
     }
     writeReport(flags.reportsDir, 'backfill-report', {
       runId: run?.id,
-      inserted: ctx.inserted,
-      updated: ctx.updated,
-      quarantined: ctx.quarantineCount,
+      domain: domain.migrationName,
+      inserted: counters.inserted,
+      updated: counters.updated,
+      quarantined: counters.quarantined,
       discovered,
       pausedEarly,
+      reconciled: domain.reconciles,
     });
 
     if (pausedEarly) {
+      return { run, exitCode: 0 };
+    }
+
+    // A backfill that reported a reconciliation it never ran would be worse
+    // than one that says plainly that it did not. The submission domain has no
+    // reconciliation implementation yet, so its backfill completes and says so
+    // rather than borrowing the lead domain's counts.
+    if (!domain.reconciles) {
       return { run, exitCode: 0 };
     }
 
@@ -195,6 +335,12 @@ export async function runLeadMigration(
   }
 
   if (flags.mode === 'reconcile') {
+    if (!domain.reconciles) {
+      throw new MigrationEngineError(
+        `The ${domain.migrationName} domain has no reconciliation implementation`,
+        'INVALID_MODE',
+      );
+    }
     const recon = await runReconciliation(
       client,
       organizationId,
@@ -211,7 +357,15 @@ export async function runLeadMigration(
 
 export async function runMigrationCli(flags: CliFlags): Promise<OrchestratorResult> {
   const client = createMigrationClient();
-  return runLeadMigration(client, flags);
+  // Defaults to leads, which is what every existing invocation means.
+  const name = flags.domain ?? 'leads';
+  if (!isMigrationDomainName(name)) {
+    throw new MigrationEngineError(
+      `Unknown migration domain: ${name}. Known: ${Object.keys(MIGRATION_DOMAINS).join(', ')}`,
+      'INVALID_MODE',
+    );
+  }
+  return MIGRATION_DOMAINS[name](client, flags);
 }
 
 export async function runFullPipeline(flags: Omit<CliFlags, 'mode'>): Promise<number> {
