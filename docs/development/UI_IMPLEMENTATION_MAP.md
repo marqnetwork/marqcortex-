@@ -119,7 +119,7 @@ deployment, and it is therefore Sprint 1.
 | Route loading | OK | `RouteLoader` + `PanelSkeleton`. |
 | Route errors | OK | `RouteErrorFallback` per route. |
 | Progress modal | FIXED | Never rendered before this session — `isOpen` was never passed. |
-| Empty states | PARTIAL | Present in places (`SubmissionsListPage`), absent in others. Sprint 4. |
+| Empty states | DONE (Sprint 5) | The defect was not absence but conflation: four panels rendered one filter-blaming message for both "nothing exists yet" and "nothing matches". Now two components, `EmptyState` and `NoResultsState`. |
 | Onboarding | GAP | No first-run experience. Sprint 4+. |
 
 ## 16. Responsive behaviour
@@ -163,9 +163,13 @@ rolls up as healthy.
 
 **Sprint 4 — Responsive shell. DONE.** Ch. 21.10.
 
-**Sprint 5 — Empty states and onboarding.** Ch. 9. NEXT. The remaining
-`PARTIAL`/`GAP` rows above: inconsistent empty states across panels, and no
-first-run experience.
+**Sprint 5 — Empty states. DONE.** Ch. 9.
+
+**Sprint 6 — Onboarding, design tokens, route/page duality.** NEXT. The
+remaining rows: no first-run experience (Ch. 9, Ch. 21.12); colours hard-coded
+inline across components while `designTokens.ts` exists; and eleven pages held
+in `useState` under one URL, so no in-app destination is linkable or restorable
+(Ch. 21.11 recoverability).
 
 Deferred and explicitly out of scope for all sprints: the ClientPortal auth
 cluster, MCV2-S7.5, production backfills, G1/G2 and S8.1–S8.3 deployment

@@ -15,6 +15,7 @@ import {
   Edit2, Trash2, Loader2, AlertTriangle, RefreshCw, Copy,
   ChevronDown, Check, Eye, Crown, Star,
 } from 'lucide-react';
+import { EmptyState } from '@/app/components/EmptyState';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
   getDemoTeamMembers, getDemoTeamFallback,
@@ -212,10 +213,14 @@ export function TeamManagement({ accessToken }: Props) {
             <Loader2 className="size-8 text-[#8B5CF6] animate-spin" />
           </div>
         ) : members.length === 0 ? (
-          <div className="py-16 text-center">
-            <Users className="size-12 text-white/20 mx-auto mb-3" />
-            <p className="text-white/40 text-sm">No team members found</p>
-          </div>
+          // "No team members found" describes a search that failed. Nobody
+          // searched: the directory is empty, which is a different statement
+          // and has a next action.
+          <EmptyState
+            icon={Users}
+            title="No team members yet"
+            body="Team members appear here once they have been invited and have signed in for the first time."
+          />
         ) : (
           <div className="divide-y divide-white/8">
             {members.map(member => (

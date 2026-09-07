@@ -14,7 +14,9 @@ import {
   Building2,
   Calendar,
   ChevronDown,
+  Inbox,
 } from 'lucide-react';
+import { EmptyState, NoResultsState } from '@/app/components/EmptyState';
 import { QuickActions, BatchActions } from '@/app/components/QuickActions';
 import { useDashboard, useScrollRestoration } from '@/app/contexts/DashboardContext';
 
@@ -318,9 +320,22 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
       {/* Submissions List */}
       <div className="space-y-4">
         {filteredSubmissions.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            No submissions found matching your criteria
-          </div>
+          // "matching your criteria" is only true when there ARE criteria. With
+          // an empty list and no filter set it told the operator to change a
+          // search they had not made.
+          submissions.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              title="No submissions yet"
+              body="Completed diagnostics appear here as leads finish the assessment."
+            />
+          ) : (
+            <NoResultsState
+              noun="submissions"
+              totalCount={submissions.length}
+              onClear={() => { setSearchQuery(''); setActiveFilter('All Submissions'); }}
+            />
+          )
         ) : (
           filteredSubmissions.map((submission) => {
             const statusStyle = getStatusColor(submission.status);
