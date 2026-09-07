@@ -242,7 +242,7 @@ _Prior-session record above. This session's record follows._
 
 ---
 
-# THIS SESSION — FRONTEND DEBT + UI SPRINTS 1-4
+# THIS SESSION — FRONTEND DEBT + UI SPRINTS 1-6
 
 Branch `claude/marq-cortex-product-complete-5d8hyz`, from `04bdfba`.
 
@@ -329,6 +329,23 @@ Below 1024px the same `<nav>` is now an overlay drawer (Ch. 21.10 — one model,
 only the interaction changes). A closed drawer animates `visibility`, not only
 position, so it leaves the tab order.
 
+**Sprint 5 — empty states.** The defect was conflation, not absence: four
+panels rendered one filter-blaming message for both "nothing exists yet" and
+"nothing matches your filters". A reviewer opening an empty queue, having set
+no filter, was told their filters were the problem. Now two components;
+`NoResultsState` says how many exist behind the filter and offers to clear it.
+
+**Sprint 6 — addressable destinations.** Ch. 21.11. All eleven pages lived in
+`useState` under one URL: nothing linkable, bookmarkable or restorable, Back
+left the shell, and `/team/execution` handed back through a `sessionStorage`
+key declared as a literal in two files. Destinations are now
+`?page=<id>`. AND the auth gate was discarding the URL anyway — session restore
+runs in an effect, so on the first render both team guards read a null token,
+redirected to login and dropped the location; login bounced back to a bare
+path. Every cold load landed on the dashboard regardless of where it was aimed.
+`isRestoringSession` (cleared in a `finally`, so no early return strands a
+guard) fixes that. Without it, the addressing change would have been invisible.
+
 ## COMMITS — THIS SESSION
 
 1. `fix(frontend): five reads of fields the canonical types never declared`
@@ -337,17 +354,21 @@ position, so it leaves the tab order.
 4. `feat(ui): the operational awareness surface, and the disciplines it must not lose`
 5. `fix(ui): the priority inbox was unreachable by touch and under-counted the backlog`
 6. `feat(ui): the shell had no breakpoints at all — below 1024px the nav is a drawer`
+7. `docs: checkpoint after the frontend debt closure and UI sprints 1-4`
+8. `fix(ui): "nothing here yet" and "nothing matches your filters" are different states`
+9. `feat(ui): every destination gets an address, and the auth gate stops discarding it`
 
 ## TEST RESULTS — THIS SESSION
 
 | Suite | Result |
 |---|---|
-| `npm run test:features` | 908 pass (was 774 at session start) |
+| `npm run test:features` | 954 pass (was 774 at session start) |
 | `npm run test:ai` | 2,183 pass |
 | `npm run test:security` | 859 pass |
 | `npm run test:system` | 170 pass |
 | `npm run test:migration` | 210 pass |
 | `npm run verify:4f` | 167 pass |
+| `npm run verify:4c` / `:4d` | 132 / 199 pass |
 | `npm run verify:health` | 48 pass |
 | `npm run scan:boundaries` | 107 pass |
 | `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
@@ -355,7 +376,8 @@ position, so it leaves the tab order.
 | `npm run typecheck:tests` | 27 errors — unchanged baseline |
 | `npm run build` | clean |
 
-99 tests added across five new suites. No test was weakened, skipped or deleted.
+145 tests added across seven new suites. No test was weakened, skipped or
+deleted.
 
 Two existing assertions were UPDATED, not weakened, each pinning a snapshot that
 a deliberate canon-grounded change superseded: `breadcrumbContract`'s
@@ -391,6 +413,13 @@ Recorded, not attempted, per the session mandate:
   what the browser sends over the wire — an authentication and telemetry change,
   not a type-only one. Needs a live-backend verification environment.
   `clientPortalAuthContract.test.ts` must not be weakened or removed.
+- **`ClientPortalRoute`'s first-render redirect.** NEW FINDING. It has the
+  IDENTICAL defect Sprint 6 fixed on the team routes: session restore runs in an
+  effect, so on the first render the guard reads a null session, redirects to
+  `/client/login` and discards the requested URL. Fixing it changes ClientPortal
+  browser auth behaviour, so it is deferred with the rest of the cluster.
+  `destinationAddressContract.test.ts` asserts it was left alone — that
+  assertion must be inverted, not deleted, when the cluster is repaired.
 - **MCV2-S7.5** outcome shadow read validation — needs real traffic.
 - **Real production backfill execution** — needs production credentials.
 - **G1/G2** data authority and enforced tenancy cutover — deployment actions.
@@ -410,24 +439,28 @@ here. No server code was changed this session, so this is not a regression.
 
 ## NEXT EXACT TASK
 
-**UI Sprint 5 — empty states and onboarding**, per
+**UI Sprint 7 — onboarding and design tokens**, per
 `docs/development/UI_IMPLEMENTATION_MAP.md`. The two remaining non-deferred rows
 in the audit:
 
-1. **Empty states are inconsistent.** `SubmissionsListPage` and the priority
-   inbox have real ones; other panels render nothing, or a bare string, when
-   they have no data. Audit each panel against Ch. 9 and give every list a state
-   that says what is absent and what to do about it.
-2. **No first-run experience.** Nothing orients an operator opening Cortex for
-   the first time. Ch. 9 and Ch. 21.12.
+1. **No first-run experience.** Nothing orients an operator opening Cortex for
+   the first time — no tour, no "start here", no explanation of what the six
+   navigation intents are for. Ch. 9 and Ch. 21.12. Note that the navigation
+   model now makes this tractable: the intents are declared data, so a first-run
+   surface can be generated from them rather than hand-written and left to
+   drift.
+2. **Design-token inconsistency.** `src/app/utils/designTokens.ts` exists, and
+   colours are simultaneously hard-coded inline across components (`#8B5CF6`,
+   `#06D7F6`, `#0A0A0F` and friends appear as literals in dozens of files).
+   Audit which literals correspond to declared tokens, and converge — starting
+   with the shell and the components added this session, which should be
+   exemplary before anything older is touched.
 
-Then continue the map: the remaining `PARTIAL` rows are the design-token
-inconsistency (colours are hard-coded inline across components while
-`designTokens.ts` exists) and route/page duality (eleven pages live in
-`useState` under one URL, so no in-app destination is linkable or restorable —
-Ch. 21.11 recoverability).
+After that the audit's non-deferred rows are exhausted; re-audit the UI against
+the Product Experience for the next sprint set, or take the merge decision on
+this branch.
 
 
 ---
 
-_Last updated: 2026-09-07, after UI sprints 1-4._
+_Last updated: 2026-09-07, after UI sprints 1-6._
