@@ -16,12 +16,15 @@ Companion authorities, unchanged by this file:
 ## CURRENT ROADMAP STAGE
 
 Phase 6 — AI Platform: AI-01 Batch 4 complete through 4F.
-Phase 4 — Runtime Storage Gateway: shadow read delivered for the two domains
-that have runtime reads; Phase 2 backfill delivered for the submission domain.
+Phase 4 — Runtime Storage Gateway: shadow read delivered for both domains that
+have runtime reads; Phase 2 backfill and reconciliation delivered for every KV
+namespace that holds stored data.
+Gap register G5 — enterprise performance instrumentation: closed for the two
+sections the blueprint makes buildable.
 
 ## CURRENT BATCH
 
-None in flight. Four units completed this session, all committed and pushed, all
+None in flight. Six units completed this session, all committed and pushed, all
 unmerged.
 
 ## COMPLETED THIS SESSION
@@ -58,6 +61,21 @@ the same comparator the shadow read uses. Verified against a real PostgreSQL 16
 in dependency order (`npm run test:database:diagnostic`).
 Report: `architecture/database/MCV2-PHASE2-SUBMISSION-BACKFILL-COMPLETION.md`.
 
+**Gap-register G5 — enterprise performance instrumentation.** Two blueprint
+sections closed. §IV-51 the operational health framework
+(`supabase/functions/server/health/`, `GET /health/enterprise`): rolls signals
+the platform already publishes up to the four approved dimensions, with no SLO,
+threshold, alert or dashboard, and with the discipline that an unreadable signal
+is `unknown` and `unknown` never rolls up as healthy. §IV-48 enterprise KPIs
+(`supabase/functions/server/kpi/`, `GET /kpis`): eight named indicators per
+approved category, with the anti-metric exclusion enforced at registration —
+an indicator that names no constitutional success dimension cannot be
+registered — and no target, threshold or grade anywhere.
+Report: `architecture/ENTERPRISE-PERFORMANCE-INSTRUMENTATION.md`.
+
+**Manifest registration.** Eleven new SVC nodes for this session's subsystems,
+as Article 14 requires, with the certified counts moved to match.
+
 Two findings recorded rather than worked around: **the report domain has no KV
 source** (the client report is built on every read from `sub:` and `cortex:`, so
 "generate version 1 on first backfill" is a product decision about storing
@@ -83,6 +101,10 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 12. `feat(migration): the outcome domain, which refuses to guess a verdict`
 13. `docs(roadmap): Phase 2 is code complete for every KV namespace with stored data`
 14. `feat(migration): reconcile every domain, through one comparator`
+15. `docs: checkpoint after the diagnostic-domain backfills and reconciliation`
+16. `feat(health): roll the signals up to the four dimensions, and refuse to grade them`
+17. `feat(kpi): name the indicators, and refuse the ones that measure activity`
+18. `docs(manifest): register this session's subsystems, as Article 14 requires`
 
 ## TEST RESULTS
 
@@ -91,9 +113,10 @@ On `claude/marq-cortex-batch-4f-c1hmm0`, from `b13d3a3`:
 | `npm run test:ai` | 2,183 pass |
 | `npm run verify:4f` | 167 pass |
 | `npm run test:security` | 859 pass |
-| `npm run test:features` | 726 pass |
+| `npm run test:features` | 774 pass |
 | `npm run test:system` | 170 pass |
 | `npm run test:migration` | 210 pass |
+| `npm run verify:health` | 48 pass (health framework + KPIs) |
 | `npm run scan:boundaries` | 107 pass |
 | `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
 | `npm run test:database:diagnostic` | 8 assertions, real PostgreSQL 16 |
@@ -135,32 +158,45 @@ these as unrunnable; they are not.
 
 ## CURRENT BRANCH
 
-`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 14 commits ahead of `main`.
+`claude/marq-cortex-batch-4f-c1hmm0` — pushed, 18 commits ahead of `main`.
 **Not merged.** No PR has been opened; the session prompt did not authorise one.
 
 ## NEXT EXACT TASK
 
-The KV→SQL migration is code complete for every namespace that holds stored
-data, and everything remaining in Phases 4 and 5 waits on a deployment
-decision. So the next work is the documented gap register
-(`MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md` §VI-5):
+Everything dependency-safe and documented has been built. What remains needs a
+human decision, and the decisions are named below rather than guessed at.
 
-- **G3 — intelligence breadth: CLOSED** by AI-01 Batches 1 through 4F
-  (multi-provider, agentic orchestration, routing). The register still describes
-  it as "gateway is live single-provider", which is now three years of batches
-  out of date; worth correcting when a human confirms the reading.
-- **G5 — enterprise performance instrumentation** is the next open BACKEND gap
-  and is dependency-safe. Read §IV-46 to §IV-55 before starting. Note what those
-  sections deliberately exclude: "no numeric targets, no thresholds, no
-  formulas, no dashboards", and "evaluation implementation is deferred". So the
-  buildable part is a KPI REGISTRY — named indicators per approved category,
-  computed from signals that already exist, carrying no targets — plus the
-  unified health framework. Inventing targets would be inventing product.
-- **G6 — external integrations** (CRM sync, e-sign, scheduling) needs
-  third-party credentials. Blocked.
-- **G4 — the AI Workforce runtime** is the largest documented capability and
-  sits on the Batch 3A/3B substrate. It is a program, not a sprint; scope it
-  deliberately rather than starting it at the end of a session.
+**1. A merge decision on this branch.** Eighteen commits, no PR opened — the
+session prompt did not authorise one. Nothing here is merged.
+
+**2. G4 — the AI Workforce runtime. STOP CONDITION, not an oversight.**
+§IV-24 fixes twelve worker categories and §IV-25 eight lifecycle stages, and
+both say plainly that the implementation is "deferred to later Phase 4.x" —
+individual workers in §IV-24, and provisioning, identity and registry in §IV-25.
+
+The buildable shape would be a workforce registry and lifecycle state machine
+starting empty, exactly as Batch 3A did for agents. But that is a SECOND
+registry beside the agent runtime, and whether Cortex realizes the workforce
+layer now — and as its own registry rather than as a facet of the agent one — is
+a sequencing and architecture decision the canon explicitly defers to a human.
+Starting it autonomously would be choosing it. Scope it deliberately with a
+person; do not begin it at the end of a session.
+
+**3. G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
+third-party credentials and accounts. Blocked.
+
+**4. G1/G2 — data authority and enforced tenancy.** The instrument and the
+backfills exist; running them and cutting over is a deployment action.
+
+**5. Blueprint corrections a human should confirm.** The gap register still
+describes G3 as "gateway is live single-provider"; AI-01 Batches 1 through 4F
+have not been true of that for a long time. G5 should move from NOT IMPLEMENTED
+to PARTIAL — §IV-51 and §IV-48 are built; §IV-49 remains deferred by the canon
+itself, and §IV-52/§IV-53 are organisational frameworks rather than runtime
+capabilities.
+
+**6. A cleanup sprint** on the 34 pre-existing `typecheck:web` errors, before
+the UI/UX stage. None are in anything this session touched.
 
 ## BLOCKERS
 
@@ -169,6 +205,10 @@ decision. So the next work is the documented gap register
   `MCV2_SHADOW_READ_OUTCOMES` switched on in a deployment. Human decision.
 - **Running any backfill against real data.** Needs production credentials and a
   human decision.
+- **G4 — the AI Workforce runtime.** The canon defers its implementation to a
+  later phase; realizing it is a sequencing and architecture decision for a
+  human. See NEXT EXACT TASK item 2.
+- **G6 — external integrations.** Needs third-party credentials.
 
 ## PRODUCTION WORK DEFERRED
 
@@ -185,8 +225,11 @@ decision. So the next work is the documented gap register
 - **The shadow reads need no production action either.** Both switches
   (`MCV2_SHADOW_READ_OUTCOMES`, `MCV2_SHADOW_READ_SUBMISSIONS`) are off by
   default, and with them off the routes behave exactly as before.
+- **The health and KPI surfaces need no production action.** Both are team-auth
+  reads over signals that already exist; neither writes anything, and the
+  anonymous `/health` uptime endpoint is unchanged.
 - `AI_ALLOW_REAL_REQUESTS` was not changed by this work.
 
 ---
 
-_Last updated: 2026-09-07, after the diagnostic-domain backfills and reconciliation._
+_Last updated: 2026-09-07, after G5 and the manifest registration._
