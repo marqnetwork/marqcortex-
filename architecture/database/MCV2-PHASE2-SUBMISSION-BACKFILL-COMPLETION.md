@@ -157,13 +157,48 @@ npm run typecheck:tests             29 errors — identical to the baseline
 
 ---
 
-## 7. What is NOT done
+## 7. Reconciliation
 
-- **No reconciliation for this domain.** `runReconciliation` is lead-shaped. The
-  orchestrator therefore completes a submission backfill and says plainly that
-  it did not reconcile, rather than borrowing the lead domain's counts — a
-  backfill that reported a reconciliation it never ran would be worse than one
-  that admits it.
+`migration/submissionReconciliation.ts`, wired onto the domain descriptor, so a
+submission backfill reconciles itself and `--mode=reconcile --domain=submissions`
+works.
+
+**It compares FIELDS, not only counts.** `MCV2-S5-KV-RELATIONAL-MAPPING.md` asks
+for a field-level hash on a sample for this domain, and the difference matters:
+a backfill that wrote a row for every KV record and got the status wrong on all
+of them passes a count check. A field mismatch fails the threshold here.
+
+**The comparison borrows the shadow read's comparator and projection.** A
+reconciliation that agreed and a shadow read that disagreed would send an
+operator hunting for a difference between two stores when the real difference
+was between two comparators. One comparator cannot disagree with itself.
+
+**The sample is deterministic, not random.** The mapping document says random;
+deterministic is better, because a reconciliation is run, a fix is made, and it
+is run again to see whether the fix worked — and with a random sample the second
+run inspects different records, so an unchanged mismatch count means nothing.
+The sample is an evenly spaced walk over the sorted key list: it covers the whole
+range, reproduces across runs, and moves only when the data does.
+
+A quarantined record is **not** counted missing: it was deliberately not
+written, and counting it would make every reconciliation of a real estate fail
+for doing the right thing. An `orphanCount` reports the mirror case — a
+relational row whose KV record is gone, which is not a backfill failure but is
+the number that says a cutover would serve a record the authoritative store no
+longer has.
+
+### A finding about the LEAD reconciliation
+
+`migration/reconciliation.ts` (S6.2, certified) hard-codes
+`sampleMismatchCount = 0` and never performs the field comparison its own report
+claims, and it computes `missingCount` three times, the first two of which are
+overwritten before use. Neither is touched here — it is certified code and this
+work does not need it — but a lead reconciliation reports a field-level pass it
+never made, and that is worth its own change. Recorded in
+`docs/development/AUTONOMOUS_BUILD_PROGRESS.md`.
+
+## 8. What is NOT done
+
 - **No `cortex:` or report backfill.** `MCV2-S5-KV-RELATIONAL-MAPPING.md` maps
   `cortex:{submissionId}` to `diagnostic_scores` + `domain_scores` and the client
   report to `reports` + `report_versions`. Both are separate domains.

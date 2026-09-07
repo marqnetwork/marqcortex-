@@ -43,13 +43,16 @@ import {
 } from './telemetry.ts';
 import {
   runReconciliation,
+  persistReconciliationLog,
   reconciliationToMarkdown,
 } from './reconciliation.ts';
+import { reconcileSubmissionsDomain } from './submissionReconciliation.ts';
 import type {
   CliFlags,
   InventoryReport,
   KvReader,
   MigrationRunRecord,
+  ReconciliationResult,
   SimulationReport,
 } from './types.ts';
 import { MigrationEngineError } from './types.ts';
@@ -104,13 +107,19 @@ export interface MigrationDomainDescriptor<Ctx> {
   buildSimulation(ctx: Ctx, discovered: number, runId: string | null): SimulationReport;
   simulationToMarkdown(report: SimulationReport): string;
   /**
-   * Whether this domain has a reconciliation implementation.
+   * KV vs SQL reconciliation for this domain, or `undefined` when it has none.
    *
-   * The lead domain does; the submission domain does not yet, and a backfill
+   * `undefined` is a real answer rather than a gap to paper over: a backfill
    * that reported a reconciliation it never ran would be worse than one that
-   * says plainly that it did not. See `reconciliation.ts`.
+   * says plainly that it did not, so the orchestrator completes and says so.
    */
-  readonly reconciles: boolean;
+  readonly reconcile?: (
+    client: SupabaseClient,
+    organizationId: string,
+    batchSize: number,
+    runId?: string,
+    keyPrefixFilter?: string,
+  ) => Promise<ReconciliationResult>;
 }
 
 export const LEAD_DOMAIN: MigrationDomainDescriptor<ReturnType<typeof createLeadDomainContext>> = {
@@ -125,7 +134,7 @@ export const LEAD_DOMAIN: MigrationDomainDescriptor<ReturnType<typeof createLead
   }),
   buildSimulation: (ctx, discovered, runId) => buildSimulationReport(ctx, discovered, runId, []),
   simulationToMarkdown: simulationReportToMarkdown,
-  reconciles: true,
+  reconcile: runReconciliation,
 };
 
 export const SUBMISSION_DOMAIN: MigrationDomainDescriptor<
@@ -143,7 +152,21 @@ export const SUBMISSION_DOMAIN: MigrationDomainDescriptor<
   buildSimulation: (ctx, discovered, runId) =>
     buildSubmissionSimulationReport(ctx, discovered, runId, []),
   simulationToMarkdown: submissionSimulationReportToMarkdown,
-  reconciles: false,
+  // Its own reconciliation, and one that actually compares FIELDS rather than
+  // only counting rows — see `submissionReconciliation.ts` for why the sample
+  // is deterministic and why it borrows the shadow read's comparator.
+  reconcile: async (client, organizationId, batchSize, runId, keyPrefixFilter) => {
+    const result = await reconcileSubmissionsDomain(
+      client,
+      createKvReader(client, { keyPrefixFilter }),
+      organizationId,
+      batchSize,
+      runId,
+      keyPrefixFilter,
+    );
+    if (runId) await persistReconciliationLog(client, runId, result);
+    return result;
+  },
 };
 
 /**
@@ -314,7 +337,7 @@ export async function runDomainMigration<Ctx>(
       quarantined: counters.quarantined,
       discovered,
       pausedEarly,
-      reconciled: domain.reconciles,
+      reconciled: domain.reconcile !== undefined,
     });
 
     if (pausedEarly) {
@@ -322,26 +345,32 @@ export async function runDomainMigration<Ctx>(
     }
 
     // A backfill that reported a reconciliation it never ran would be worse
-    // than one that says plainly that it did not. The submission domain has no
-    // reconciliation implementation yet, so its backfill completes and says so
-    // rather than borrowing the lead domain's counts.
-    if (!domain.reconciles) {
+    // than one that says plainly that it did not, so a domain with no
+    // reconciler completes and says so rather than borrowing another domain's
+    // counts.
+    if (!domain.reconcile) {
       return { run, exitCode: 0 };
     }
 
-    const recon = await runReconciliation(client, organizationId, batchSize, run?.id, flags.keyPrefixFilter);
+    const recon = await domain.reconcile(
+      client,
+      organizationId,
+      batchSize,
+      run?.id,
+      flags.keyPrefixFilter,
+    );
     writeReport(flags.reportsDir, 'reconciliation-report', recon, reconciliationToMarkdown(recon));
     return { run, exitCode: recon.thresholdPassed ? 0 : 1 };
   }
 
   if (flags.mode === 'reconcile') {
-    if (!domain.reconciles) {
+    if (!domain.reconcile) {
       throw new MigrationEngineError(
         `The ${domain.migrationName} domain has no reconciliation implementation`,
         'INVALID_MODE',
       );
     }
-    const recon = await runReconciliation(
+    const recon = await domain.reconcile(
       client,
       organizationId,
       batchSize,
