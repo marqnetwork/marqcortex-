@@ -60,7 +60,7 @@ deployment, and it is therefore Sprint 1.
 | Area | Status | Finding |
 |---|---|---|
 | `TeamHomeDashboard` | OK | Present and lazy-loaded. |
-| Priority-first framing (Ch. 21.2 "I need today's priorities") | PARTIAL | Reviewed in Sprint 3. |
+| Priority-first framing (Ch. 21.2 "I need today's priorities") | DONE (Sprint 3) | The inbox exists and leads the middle row. Two defects repaired: the row action was hover-only (unreachable on touch, unfocusable by keyboard), and the header counted the truncated list rather than the backlog. |
 
 ## 4. Organization / customer areas
 
@@ -159,9 +159,9 @@ A destination for the shipped `/health/enterprise` and `/kpis` reads. Ch. 31.
 Honours G5's discipline: an unreadable signal is `unknown`, and `unknown` never
 rolls up as healthy.
 
-**Sprint 3 — Dashboard as priorities.** Ch. 21.2. NEXT.
+**Sprint 3 — Dashboard as priorities. DONE.** Ch. 21.2.
 
-**Sprint 4 — Empty / onboarding / responsive.** Ch. 9.
+**Sprint 4 — Empty / onboarding / responsive.** Ch. 9. NEXT.
 
 Deferred and explicitly out of scope for all sprints: the ClientPortal auth
 cluster, MCV2-S7.5, production backfills, G1/G2 and S8.1–S8.3 deployment
