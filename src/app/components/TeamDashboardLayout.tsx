@@ -9,24 +9,19 @@
 import { useState, type ReactNode, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
-  LayoutDashboard,
   Brain,
-  Users,
-  Settings,
   LogOut,
   ChevronRight,
   Menu,
   X,
   Search as SearchIcon,
-  Shield,
-  BarChart3,
-  Mail,
-  TrendingUp,
-  Zap,
-  GitBranch,
-  Cpu,
 } from 'lucide-react';
 import { useDashboard } from '@/app/contexts/DashboardContext';
+import {
+  NAV_GROUPS,
+  SHORTCUT_DESTINATIONS,
+  type DestinationId,
+} from '@/app/core/navigationModel';
 import { useKeyboardShortcuts, isMac } from '@/app/hooks/useKeyboardShortcuts';
 import { CommandPalette, useCommandPaletteCommands } from '@/app/components/CommandPalette';
 import { KeyboardShortcutsHelp } from '@/app/components/KeyboardShortcutsHelp';
@@ -45,18 +40,8 @@ export interface Breadcrumb {
 
 export interface TeamDashboardLayoutProps {
   children: ReactNode;
-  currentPage:
-    | 'dashboard'
-    | 'cortex'
-    | 'team'
-    | 'settings'
-    | 'reviewer'
-    | 'analytics'
-    | 'emails'
-    | 'revenue'
-    | 'execution'
-    | 'mapping'
-    | 'architecture';
+  /** The model owns the destination list — see navigationModel.ts. */
+  currentPage: DestinationId;
   breadcrumbs?: Breadcrumb[];
   onLogout: () => void;
   onNavigate?: (page: string) => void;
@@ -172,50 +157,17 @@ function DashboardLayoutInner({
         description: 'Toggle sidebar',
         action: () => setSidebarCollapsed(!sidebarCollapsed),
       },
-      {
-        key: '1',
+      // Ch. 21.4 — the accelerators are the third path to the same
+      // destinations, so they are derived from the model rather than restated.
+      ...SHORTCUT_DESTINATIONS.map(destination => ({
+        key: String(destination.shortcutDigit),
         meta: isMac(),
         ctrl: !isMac(),
-        description: 'Go to Dashboard',
-        action: () => onNavigate?.('dashboard'),
-      },
-      {
-        key: '2',
-        meta: isMac(),
-        ctrl: !isMac(),
-        description: 'Go to CORTEX',
-        action: () => onNavigate?.('cortex'),
-      },
-      {
-        key: '3',
-        meta: isMac(),
-        ctrl: !isMac(),
-        description: 'Go to Team',
-        action: () => onNavigate?.('team'),
-      },
-      {
-        key: '4',
-        meta: isMac(),
-        ctrl: !isMac(),
-        description: 'Go to Settings',
-        action: () => onNavigate?.('settings'),
-      },
+        description: `Go to ${destination.label}`,
+        action: () => onNavigate?.(destination.id),
+      })),
     ],
   });
-
-  const navItems = [
-    { id: 'dashboard',  label: 'Dashboard',      icon: LayoutDashboard },
-    { id: 'cortex',     label: 'CORTEX',          icon: Brain           },
-    { id: 'analytics',  label: 'Analytics',       icon: BarChart3       },
-    { id: 'revenue',    label: 'Rev Intel',       icon: TrendingUp      },
-    { id: 'execution',  label: 'Execution',       icon: Zap             },
-    { id: 'mapping',    label: 'Mapping Engine',  icon: GitBranch       },
-    { id: 'reviewer',   label: 'Reviewer QA',     icon: Shield          },
-    { id: 'emails',     label: 'Email Queue',     icon: Mail            },
-    { id: 'team',       label: 'Team',            icon: Users           },
-    { id: 'settings',   label: 'Settings',        icon: Settings        },
-    { id: 'architecture', label: 'Architecture',  icon: Cpu             },
-  ];
 
   return (
     <div className="flex h-screen bg-[#0A0A0F] text-white overflow-hidden">
@@ -256,28 +208,50 @@ function DashboardLayoutInner({
           </div>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onNavigate?.(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive
-                    ? 'bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 text-white'
-                    : 'hover:bg-white/5 text-gray-400 hover:text-white'
-                }`}
-              >
-                <Icon className="size-5 flex-shrink-0" />
-                {!sidebarCollapsed && (
-                  <span className="flex-1 text-left font-medium">{item.label}</span>
-                )}
-              </button>
-            );
-          })}
+        {/* Nav items — grouped by intent (Ch. 21.2), read from the one
+            navigation model every surface shares (Ch. 21.4). */}
+        <nav className="flex-1 p-4 space-y-4 overflow-y-auto" aria-label="Primary">
+          {NAV_GROUPS.map(group => (
+            <div key={group.id} className="space-y-1">
+              {/* The group heading is the operator's intent. Collapsed, the
+                  heading would not fit, so the grouping is carried by the
+                  separator alone and the labels move onto each button. */}
+              {!sidebarCollapsed ? (
+                <p className="px-4 pt-1 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-600">
+                  {group.label}
+                </p>
+              ) : (
+                <div className="mx-3 border-t border-white/5" role="presentation" />
+              )}
+
+              {group.destinations.map(destination => {
+                const Icon = destination.icon;
+                const isActive = currentPage === destination.id;
+                return (
+                  <button
+                    key={destination.id}
+                    onClick={() => onNavigate?.(destination.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    /* Collapsed, only the icon renders. Without these the
+                       collapsed sidebar is unreadable to a screen reader and
+                       unlabelled on hover. */
+                    title={sidebarCollapsed ? destination.label : undefined}
+                    aria-label={destination.label}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 text-white'
+                        : 'hover:bg-white/5 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="size-5 flex-shrink-0" />
+                    {!sidebarCollapsed && (
+                      <span className="flex-1 text-left font-medium">{destination.label}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* User section */}

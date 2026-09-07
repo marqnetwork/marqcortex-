@@ -19,6 +19,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useEscapeKey, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { SHORTCUT_DESTINATIONS } from '@/app/core/navigationModel';
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean;
@@ -58,27 +59,15 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
         icon: Search,
       },
     ],
+    // Ch. 21.4 — the fourth surface onto the same destinations. Derived from
+    // the navigation model, so it can never again describe a different
+    // accelerator table than the one the layout actually registers.
     'Navigation': [
-      {
-        keys: `${mod} 1`,
-        description: 'Go to Dashboard',
-        icon: LayoutDashboard,
-      },
-      {
-        keys: `${mod} 2`,
-        description: 'Go to CORTEX',
-        icon: Brain,
-      },
-      {
-        keys: `${mod} 3`,
-        description: 'Go to Team',
-        icon: Users,
-      },
-      {
-        keys: `${mod} 4`,
-        description: 'Go to Settings',
-        icon: Settings,
-      },
+      ...SHORTCUT_DESTINATIONS.map(destination => ({
+        keys: `${mod} ${destination.shortcutDigit}`,
+        description: `Go to ${destination.label}`,
+        icon: destination.icon,
+      })),
       {
         keys: `${mod} B`,
         description: 'Toggle sidebar',

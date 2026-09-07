@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
+import { DESTINATIONS, destinationLabel, type DestinationId } from '@/app/core/navigationModel';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
 // Each import() is its own Vite split point.
@@ -31,6 +32,11 @@ const EmailNurturePanel          = lazy(() => import('@/app/components/EmailNurt
 const RevenueIntelligenceDashboard = lazy(() => import('@/app/components/RevenueIntelligenceDashboard').then(m => ({ default: m.RevenueIntelligenceDashboard })));
 const TeamHomeDashboard          = lazy(() => import('@/app/components/TeamHomeDashboard').then(m => ({ default: m.TeamHomeDashboard })));
 const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEnginePanel').then(m => ({ default: m.MappingEnginePanel })));
+// The AI Control Plane, as a first-class destination. This is the SAME console
+// the Settings "AI" tab mounts, not a copy: Ch. 21.4 wants many paths to one
+// canonical entity. It resolves the operator's role server-side and renders its
+// own unauthorized state, exactly as it does under Settings.
+const AIAdministrationConsole    = lazy(() => import('@/app/components/AIAdministrationConsole').then(m => ({ default: m.AIAdministrationConsole })));
 
 // ── Panel skeleton shown while a lazy chunk is loading ────────────────────────
 function PanelSkeleton() {
@@ -66,9 +72,25 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
   );
 }
 
-type PageView = 'dashboard' | 'cortex' | 'team' | 'settings' | 'reviewer' | 'analytics' | 'emails' | 'revenue' | 'execution' | 'mapping' | 'architecture';
+// The navigation model owns the destination list; this alias keeps the local
+// name while the single source of truth stays in one place (Ch. 21.4).
+type PageView = DestinationId;
 
 const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+
+/**
+ * The destinations this shell renders in place. 'execution' and 'architecture'
+ * are real destinations, but handleNavigate routes them out of the shell, so
+ * they are never a currentPage here. Derived from the model so a destination
+ * added there and rendered here needs no second list to be updated.
+ */
+const ROUTED_AWAY: ReadonlySet<DestinationId> = new Set<DestinationId>([
+  'execution',
+  'architecture',
+]);
+const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
+  DESTINATIONS.map(d => d.id).filter(id => !ROUTED_AWAY.has(id)),
+);
 
 function readInitialPage(): PageView {
   try {
@@ -150,9 +172,15 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
 
       case 'architecture':
         return [{ label: 'System Architecture' }];
-        
-      default:
+
+      case 'dashboard':
         return [];
+
+      default:
+        // Ch. 21.12 — orientation is continuous. A destination with no bespoke
+        // trail still says where the operator is, using the same label the
+        // sidebar used to get them here.
+        return [{ label: destinationLabel(currentPage) }];
     }
   };
 
@@ -268,8 +296,16 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         </Suspense>
       )}
 
-      {/* Fallback */}
-      {!['dashboard', 'cortex', 'team', 'settings', 'reviewer', 'analytics', 'emails', 'revenue', 'mapping'].includes(currentPage) && (
+      {currentPage === 'control-plane' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <AIAdministrationConsole key="control-plane-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {/* Fallback. Derived from the destinations this shell actually renders —
+          'execution' and 'architecture' are handled by handleNavigate, which
+          leaves the shell entirely, so they never become currentPage. */}
+      {!SHELL_PAGES.has(currentPage) && (
         <div className="p-6 text-center">
           <div className="text-red-500 text-xl mb-2">⚠️ ERROR</div>
           <div className="text-white">Invalid page: {currentPage}</div>

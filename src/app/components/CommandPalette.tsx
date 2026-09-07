@@ -32,6 +32,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useEscapeKey, formatShortcut, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { DESTINATIONS, NAV_GROUPS } from '@/app/core/navigationModel';
 import type { Submission } from '@/app/services/dataService';
 
 // ============================================================================
@@ -399,47 +400,28 @@ export function useCommandPaletteCommands({
 }): Command[] {
   return useMemo(
     () => [
-      // Navigation
-      {
-        id: 'nav-dashboard',
-        label: 'Go to Dashboard',
-        description: 'View all submissions',
-        icon: LayoutDashboard,
-        action: () => onNavigate('dashboard'),
+      // Navigation — Ch. 21.4: the palette is a second path to the SAME
+      // destinations, so it is generated from the navigation model rather than
+      // restated here. It previously listed four of the eleven destinations the
+      // sidebar offered, which left seven pages findable only by knowing where
+      // they were — two navigation surfaces describing two different products.
+      // The group label rides along as a keyword so searching an intent
+      // ("operate", "deliver") finds everything filed under it.
+      ...DESTINATIONS.map((destination): Command => ({
+        id: `nav-${destination.id}`,
+        label: `Go to ${destination.label}`,
+        description: destination.description,
+        icon: destination.icon,
+        action: () => onNavigate(destination.id),
         category: 'navigation',
-        keywords: ['home', 'submissions', 'list'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 1`,
-      },
-      {
-        id: 'nav-cortex',
-        label: 'Go to CORTEX',
-        description: 'AI decision intelligence',
-        icon: Brain,
-        action: () => onNavigate('cortex'),
-        category: 'navigation',
-        keywords: ['ai', 'analysis', 'insights'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 2`,
-      },
-      {
-        id: 'nav-team',
-        label: 'Go to Team',
-        description: 'Manage team members',
-        icon: Users,
-        action: () => onNavigate('team'),
-        category: 'navigation',
-        keywords: ['members', 'permissions'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 3`,
-      },
-      {
-        id: 'nav-settings',
-        label: 'Go to Settings',
-        description: 'Configure preferences',
-        icon: Settings,
-        action: () => onNavigate('settings'),
-        category: 'navigation',
-        keywords: ['preferences', 'config'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 4`,
-      },
+        keywords: [
+          ...destination.keywords,
+          NAV_GROUPS.find(g => g.id === destination.group)?.label.toLowerCase() ?? '',
+        ].filter(Boolean),
+        shortcut: destination.shortcutDigit
+          ? `${isMac() ? '⌘' : 'Ctrl'} ${destination.shortcutDigit}`
+          : undefined,
+      })),
 
       // Actions
       {
