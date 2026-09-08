@@ -37,6 +37,7 @@ import {
   type SectionKey,
   type ActionKey,
 } from '@/app/core/proposalCopilotEngine';
+import { brand, status } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -74,20 +75,20 @@ interface SessionStats {
 // ════════════════════════════════════════════════════════════════════════════════
 
 const SECTION_CFG: Record<SectionKey, { label: string; color: string; shortDesc: string }> = {
-  executive_brief:  { label: 'Executive Brief',  color: '#8B5CF6', shortDesc: '§1 — title, context, why now, success vision' },
-  diagnosis_0:      { label: 'Diagnosis 1',      color: '#FD4438', shortDesc: '§2 — first bottleneck block' },
-  diagnosis_1:      { label: 'Diagnosis 2',      color: '#FB923C', shortDesc: '§2 — second bottleneck block' },
-  diagnosis_2:      { label: 'Diagnosis 3',      color: '#F59E0B', shortDesc: '§2 — third bottleneck block' },
-  scope_boundaries: { label: 'Scope Boundaries', color: '#10B981', shortDesc: '§3 — included, excluded, assumptions' },
-  next_step_offer:  { label: 'Next Step Offer',  color: '#06D7F6', shortDesc: '§4 — offer name, price, CTAs (price locked)' },
+  executive_brief:  { label: 'Executive Brief',  color: brand.accent, shortDesc: '§1 — title, context, why now, success vision' },
+  diagnosis_0:      { label: 'Diagnosis 1',      color: status.danger, shortDesc: '§2 — first bottleneck block' },
+  diagnosis_1:      { label: 'Diagnosis 2',      color: status.warning, shortDesc: '§2 — second bottleneck block' },
+  diagnosis_2:      { label: 'Diagnosis 3',      color: status.caution, shortDesc: '§2 — third bottleneck block' },
+  scope_boundaries: { label: 'Scope Boundaries', color: status.success, shortDesc: '§3 — included, excluded, assumptions' },
+  next_step_offer:  { label: 'Next Step Offer',  color: status.info, shortDesc: '§4 — offer name, price, CTAs (price locked)' },
 };
 
 const ACTION_CFG: Record<ActionKey, { label: string; desc: string; color: string; icon: React.FC<{className?: string}> }> = {
-  improve:   { label: 'Polish Tone',      desc: 'Boardroom-grade precision & clarity',    color: '#8B5CF6', icon: Sparkles   },
-  expand:    { label: 'Add Depth',        desc: 'More structure, detail & evidence',       color: '#06D7F6', icon: Expand     },
-  simplify:  { label: 'Simplify',         desc: 'Client-facing, jargon-free version',      color: '#F59E0B', icon: Minimize2  },
-  fix_gate:  { label: 'Fix Gate Issues',  desc: 'Resolve readiness gate blockers',         color: '#FB923C', icon: Wrench     },
-  custom:    { label: 'Custom Prompt',    desc: 'Describe what you want in plain English',  color: '#10B981', icon: MessageSquare },
+  improve:   { label: 'Polish Tone',      desc: 'Boardroom-grade precision & clarity',    color: brand.accent, icon: Sparkles   },
+  expand:    { label: 'Add Depth',        desc: 'More structure, detail & evidence',       color: status.info, icon: Expand     },
+  simplify:  { label: 'Simplify',         desc: 'Client-facing, jargon-free version',      color: status.caution, icon: Minimize2  },
+  fix_gate:  { label: 'Fix Gate Issues',  desc: 'Resolve readiness gate blockers',         color: status.warning, icon: Wrench     },
+  custom:    { label: 'Custom Prompt',    desc: 'Describe what you want in plain English',  color: status.success, icon: MessageSquare },
 };
 
 const QUICK_PROMPTS = [
@@ -105,7 +106,7 @@ function ValidationBadge({ label, passed, detail }: { label: string; passed: boo
   return (
     <span
       className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
-      style={{ background: passed ? '#10B98115' : '#FD443815', color: passed ? '#10B981' : '#FD4438', border: `1px solid ${passed ? '#10B98130' : '#FD443830'}` }}
+      style={{ background: passed ? '#10B98115' : '#FD443815', color: passed ? status.success : status.danger, border: `1px solid ${passed ? '#10B98130' : '#FD443830'}` }}
       title={detail}
     >
       {passed ? <CheckCircle2 className="size-2.5" /> : <AlertCircle className="size-2.5" />}
@@ -117,15 +118,15 @@ function ValidationBadge({ label, passed, detail }: { label: string; passed: boo
 function DiffRow({ field, before, after }: { field: string; before: string; after: string }) {
   return (
     <div className="space-y-1">
-      <div className="text-[8px] font-bold uppercase tracking-widest text-gray-600">{field}</div>
+      <div className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint">{field}</div>
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-[#FD4438]/5 border border-[#FD4438]/15 rounded-lg p-2.5">
-          <div className="text-[8px] text-[#FD4438] font-bold mb-1 uppercase tracking-wider">Before</div>
-          <p className="text-[10px] text-gray-400 leading-relaxed line-clamp-4">{before || <span className="italic text-gray-700">empty</span>}</p>
+        <div className="bg-cortex-danger/5 border border-cortex-danger/15 rounded-cortex-sm p-2.5">
+          <div className="text-[8px] text-cortex-danger font-bold mb-1 uppercase tracking-wider">Before</div>
+          <p className="text-[10px] text-cortex-muted leading-relaxed line-clamp-4">{before || <span className="italic text-cortex-faint">empty</span>}</p>
         </div>
-        <div className="bg-[#10B981]/5 border border-[#10B981]/15 rounded-lg p-2.5">
-          <div className="text-[8px] text-[#10B981] font-bold mb-1 uppercase tracking-wider">After</div>
-          <p className="text-[10px] text-gray-300 leading-relaxed line-clamp-4">{after}</p>
+        <div className="bg-cortex-success/5 border border-cortex-success/15 rounded-cortex-sm p-2.5">
+          <div className="text-[8px] text-cortex-success font-bold mb-1 uppercase tracking-wider">After</div>
+          <p className="text-[10px] text-cortex-secondary leading-relaxed line-clamp-4">{after}</p>
         </div>
       </div>
     </div>
@@ -162,12 +163,12 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      className="border border-[#8B5CF6]/25 rounded-xl overflow-hidden bg-[#8B5CF6]/[0.04]"
+      className="border border-cortex-accent/25 rounded-cortex-md overflow-hidden bg-cortex-accent/[0.04]"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-cortex-subtle">
         <div className="flex items-center gap-2.5 min-w-0">
-          <Bot className="size-3.5 text-[#8B5CF6] flex-shrink-0" />
+          <Bot className="size-3.5 text-cortex-accent flex-shrink-0" />
           <span
             className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0"
             style={{ background: `${sectionCfg.color}18`, color: sectionCfg.color, border: `1px solid ${sectionCfg.color}30` }}
@@ -181,14 +182,14 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
             <ActionIcon className="size-2.5" />
             {revision.actionLabel}
           </span>
-          <span className="text-[9px] text-gray-600 truncate hidden sm:block">{revision.diff_summary}</span>
+          <span className="text-[9px] text-cortex-faint truncate hidden sm:block">{revision.diff_summary}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Validator badges */}
           <ValidationBadge label="Fact Lock" passed={v.fact_lock.passed} detail={v.fact_lock.violations.join('; ') || 'No violations'} />
           <ValidationBadge label="Jargon" passed={v.jargon.passed} detail={v.jargon.words_found.join(', ') || 'Clean'} />
           <ValidationBadge label="Coherence" passed={v.coherence.passed} detail={v.coherence.missing.join(', ') || 'All fields present'} />
-          <button onClick={() => setExpanded(e => !e)} className="text-gray-600 hover:text-gray-400 transition-colors ml-1">
+          <button onClick={() => setExpanded(e => !e)} className="text-cortex-faint hover:text-cortex-muted transition-colors ml-1">
             {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
         </div>
@@ -206,7 +207,7 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
               {/* Diff view */}
               {revision.changed_fields.length > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[9px] text-gray-600 font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-2 text-[9px] text-cortex-faint font-bold uppercase tracking-wider">
                     <ArrowLeftRight className="size-3" />
                     Changed Fields ({revision.changed_fields.length})
                   </div>
@@ -220,7 +221,7 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
 
               {/* Validation detail (only if something failed) */}
               {!allValid && (
-                <div className="bg-[#FD4438]/5 border border-[#FD4438]/20 rounded-lg p-3 text-[10px] text-[#FD4438] space-y-1">
+                <div className="bg-cortex-danger/5 border border-cortex-danger/20 rounded-cortex-sm p-3 text-[10px] text-cortex-danger space-y-1">
                   {!v.fact_lock.passed && <p>⚠ Fact Lock: {v.fact_lock.violations.join('; ')}</p>}
                   {!v.jargon.passed && <p>⚠ Jargon: {v.jargon.words_found.join(', ')}</p>}
                   {!v.coherence.passed && <p>⚠ Coherence: missing {v.coherence.missing.join(', ')}</p>}
@@ -230,7 +231,7 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
               {/* Reject form */}
               {rejectMode ? (
                 <div className="space-y-2">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-[#FD4438]">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-danger">
                     Why are you rejecting this? (AI will use your reason to improve next time)
                   </label>
                   <textarea
@@ -238,18 +239,18 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
                     onChange={e => setRejectReason(e.target.value)}
                     placeholder="e.g. Too generic — needs to reference ExampleCo's specific $340K pipeline gap, not vague percentages…"
                     rows={3}
-                    className="w-full bg-black/30 border border-[#FD4438]/30 rounded-lg px-3 py-2 text-xs text-white resize-none focus:outline-none focus:border-[#FD4438]/60 placeholder:text-gray-700"
+                    className="w-full bg-cortex-sunken border border-cortex-danger/30 rounded-cortex-sm px-3 py-2 text-xs text-white resize-none focus:outline-none focus:border-cortex-danger/60 placeholder:text-cortex-faint"
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={() => { onReject(revision.id, rejectReason || 'No reason given'); setRejectMode(false); }}
-                      className="flex-1 py-2 rounded-lg bg-[#FD4438]/15 border border-[#FD4438]/30 text-[#FD4438] text-xs font-bold hover:bg-[#FD4438]/25 transition-colors"
+                      className="flex-1 py-2 rounded-cortex-sm bg-cortex-danger/15 border border-cortex-danger/30 text-cortex-danger text-xs font-bold hover:bg-cortex-danger/25 transition-colors"
                     >
                       Submit Rejection → AI Learns From This
                     </button>
                     <button
                       onClick={() => setRejectMode(false)}
-                      className="px-3 py-2 rounded-lg bg-white/5 text-gray-500 text-xs hover:bg-white/10 transition-colors"
+                      className="px-3 py-2 rounded-cortex-sm bg-cortex-control text-cortex-muted text-xs hover:bg-cortex-control-hover transition-colors"
                     >
                       Cancel
                     </button>
@@ -260,21 +261,21 @@ const PendingRevisionCard = React.forwardRef<HTMLDivElement, {
                   <button
                     onClick={() => onAccept(revision.id)}
                     disabled={!allValid}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981] text-xs font-bold hover:bg-[#10B981]/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-cortex-sm bg-cortex-success/15 border border-cortex-success/30 text-cortex-success text-xs font-bold hover:bg-cortex-success/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Check className="size-3.5" />
                     Accept — Apply to Draft
                   </button>
                   <button
                     onClick={() => setRejectMode(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FD4438]/10 border border-[#FD4438]/25 text-[#FD4438] text-xs font-bold hover:bg-[#FD4438]/20 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-cortex-sm bg-cortex-danger/10 border border-cortex-danger/25 text-cortex-danger text-xs font-bold hover:bg-cortex-danger/20 transition-colors"
                   >
                     <X className="size-3.5" />
                     Reject
                   </button>
                   <button
                     onClick={() => onEditManually(revision.id)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-xs font-bold hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-cortex-sm bg-cortex-control border border-cortex-default text-cortex-muted text-xs font-bold hover:bg-cortex-control-hover transition-colors"
                   >
                     <Edit3 className="size-3.5" />
                     Edit Manually
@@ -298,34 +299,34 @@ function HistoryItem({ revision }: { revision: SectionRevision }) {
   const sectionCfg = SECTION_CFG[revision.section];
   const accepted   = revision.status === 'accepted';
   return (
-    <div className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/5">
+    <div className="flex items-start gap-3 px-3 py-2.5 rounded-cortex-sm bg-white/[0.02] border border-cortex-subtle">
       <div
         className="size-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
         style={{ background: accepted ? '#10B98115' : '#FD443815' }}
       >
         {accepted
-          ? <ThumbsUp className="size-2.5 text-[#10B981]" />
-          : <ThumbsDown className="size-2.5 text-[#FD4438]" />
+          ? <ThumbsUp className="size-2.5 text-cortex-success" />
+          : <ThumbsDown className="size-2.5 text-cortex-danger" />
         }
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[9px] font-bold" style={{ color: sectionCfg.color }}>{revision.sectionLabel}</span>
-          <span className="text-[9px] text-gray-600">·</span>
-          <span className="text-[9px] text-gray-500">{revision.actionLabel}</span>
+          <span className="text-[9px] text-cortex-faint">·</span>
+          <span className="text-[9px] text-cortex-muted">{revision.actionLabel}</span>
           <span
             className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
             style={{
               background: accepted ? '#10B98118' : '#FD443818',
-              color: accepted ? '#10B981' : '#FD4438',
+              color: accepted ? status.success : status.danger,
             }}
           >
             {accepted ? 'ACCEPTED' : 'REJECTED'}
           </span>
         </div>
-        <p className="text-[9px] text-gray-600 mt-0.5 truncate">{revision.diff_summary}</p>
+        <p className="text-[9px] text-cortex-faint mt-0.5 truncate">{revision.diff_summary}</p>
         {!accepted && revision.reject_reason && (
-          <p className="text-[9px] text-[#FB923C] mt-0.5 italic">Reason: "{revision.reject_reason}"</p>
+          <p className="text-[9px] text-cortex-warning mt-0.5 italic">Reason: "{revision.reject_reason}"</p>
         )}
       </div>
     </div>
@@ -338,17 +339,17 @@ function HistoryItem({ revision }: { revision: SectionRevision }) {
 
 function FeedbackLoopExplainer() {
   return (
-    <div className="bg-[#06D7F6]/[0.04] border border-[#06D7F6]/15 rounded-xl p-4 space-y-3">
-      <div className="flex items-center gap-2 text-xs font-bold text-[#06D7F6]">
+    <div className="bg-cortex-info/[0.04] border border-cortex-info/15 rounded-cortex-md p-4 space-y-3">
+      <div className="flex items-center gap-2 text-xs font-bold text-cortex-info">
         <Info className="size-3.5" />
         How the AI Feedback Loop Works
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { step: '1', icon: Bot,          color: '#8B5CF6', label: 'AI Generates',   desc: 'Pending revision created — never auto-applied' },
-          { step: '2', icon: ShieldCheck,  color: '#06D7F6', label: '3 Validators',   desc: 'Fact Lock · Coherence · Jargon — all must pass' },
-          { step: '3', icon: ArrowLeftRight, color: '#10B981', label: 'You Review',   desc: 'Side-by-side diff · Accept or Reject with reason' },
-          { step: '4', icon: RotateCcw,    color: '#FB923C', label: 'AI Learns',      desc: 'Rejection reasons fed back as negative context next call' },
+          { step: '1', icon: Bot,          color: brand.accent, label: 'AI Generates',   desc: 'Pending revision created — never auto-applied' },
+          { step: '2', icon: ShieldCheck,  color: status.info, label: '3 Validators',   desc: 'Fact Lock · Coherence · Jargon — all must pass' },
+          { step: '3', icon: ArrowLeftRight, color: status.success, label: 'You Review',   desc: 'Side-by-side diff · Accept or Reject with reason' },
+          { step: '4', icon: RotateCcw,    color: status.warning, label: 'AI Learns',      desc: 'Rejection reasons fed back as negative context next call' },
         ].map(({ step, icon: Icon, color, label, desc }) => (
           <div key={step} className="space-y-1.5">
             <div className="flex items-center gap-1.5">
@@ -361,12 +362,12 @@ function FeedbackLoopExplainer() {
               <Icon className="size-3 flex-shrink-0" style={{ color }} />
               <span className="text-[9px] font-bold" style={{ color }}>{label}</span>
             </div>
-            <p className="text-[9px] text-gray-600 leading-relaxed">{desc}</p>
+            <p className="text-[9px] text-cortex-faint leading-relaxed">{desc}</p>
           </div>
         ))}
       </div>
-      <div className="border-t border-white/5 pt-2.5 text-[9px] text-gray-600 leading-relaxed">
-        <span className="text-[#FB923C] font-bold">Key rule:</span> Math decides priority, LLM only explains decisions. AI cannot change prices, timelines, or ROI metrics — those are fact-locked. Only narrative and structure can be revised.
+      <div className="border-t border-cortex-subtle pt-2.5 text-[9px] text-cortex-faint leading-relaxed">
+        <span className="text-cortex-warning font-bold">Key rule:</span> Math decides priority, LLM only explains decisions. AI cannot change prices, timelines, or ROI metrics — those are fact-locked. Only narrative and structure can be revised.
       </div>
     </div>
   );
@@ -529,30 +530,30 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
   const totalSuggestions = stats.accepted + stats.rejected + pendingCount;
 
   return (
-    <div className="border border-[#8B5CF6]/20 rounded-xl overflow-hidden bg-black/40 backdrop-blur-xl">
+    <div className="border border-cortex-accent/20 rounded-cortex-md overflow-hidden bg-cortex-raised backdrop-blur-xl">
       {/* ── Panel header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
-            <div className="size-5 rounded-lg bg-[#8B5CF6]/20 flex items-center justify-center">
-              <Sparkles className="size-3 text-[#8B5CF6]" />
+            <div className="size-5 rounded-cortex-sm bg-cortex-accent/20 flex items-center justify-center">
+              <Sparkles className="size-3 text-cortex-accent" />
             </div>
             CORTEX AI Copilot
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#8B5CF6]/15 text-[#8B5CF6] font-bold border border-[#8B5CF6]/25 uppercase tracking-wider">
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cortex-accent/15 text-cortex-accent font-bold border border-cortex-accent/25 uppercase tracking-wider">
               Proposal Layer
             </span>
           </div>
 
           {/* Session stats */}
           {totalSuggestions > 0 && (
-            <div className="flex items-center gap-2 text-[9px] text-gray-600">
-              <span className="text-[#10B981] font-bold">✓ {stats.accepted}</span>
+            <div className="flex items-center gap-2 text-[9px] text-cortex-faint">
+              <span className="text-cortex-success font-bold">✓ {stats.accepted}</span>
               <span>·</span>
-              <span className="text-[#FD4438] font-bold">✗ {stats.rejected}</span>
+              <span className="text-cortex-danger font-bold">✗ {stats.rejected}</span>
               {stats.rejection_contexts.length > 0 && (
                 <span className="contents">
                   <span>·</span>
-                  <span className="text-[#FB923C]">{stats.rejection_contexts.length} feedback{stats.rejection_contexts.length !== 1 ? 's' : ''} queued for AI</span>
+                  <span className="text-cortex-warning">{stats.rejection_contexts.length} feedback{stats.rejection_contexts.length !== 1 ? 's' : ''} queued for AI</span>
                 </span>
               )}
             </div>
@@ -560,7 +561,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
 
           {/* Pending badge */}
           {pendingCount > 0 && (
-            <span className="size-5 rounded-full bg-[#FB923C] text-black text-[9px] font-black flex items-center justify-center">
+            <span className="size-5 rounded-full bg-cortex-warning text-black text-[9px] font-black flex items-center justify-center">
               {pendingCount}
             </span>
           )}
@@ -576,10 +577,10 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setCollapsed(false); }}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-all ${
                 activeTab === tab.id && !collapsed
-                  ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30'
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                  ? 'bg-cortex-accent/20 text-cortex-accent border border-cortex-accent/30'
+                  : 'text-cortex-muted hover:text-cortex-secondary hover:bg-cortex-control'
               }`}
             >
               <tab.icon className="size-3" />
@@ -590,14 +591,14 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
           <button
             onClick={handleOpenGlobalChat}
             title="Open in Cortex AI Chat"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-[#8B5CF6] border border-[#8B5CF6]/25 bg-[#8B5CF6]/8 hover:bg-[#8B5CF6]/15 transition-all"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-cortex-sm text-[10px] font-bold text-cortex-accent border border-cortex-accent/25 bg-cortex-accent/8 hover:bg-cortex-accent/15 transition-all"
           >
             <Sparkles className="size-3" />
             Chat ↗
           </button>
           <button
             onClick={() => setCollapsed(c => !c)}
-            className="text-gray-600 hover:text-gray-400 transition-colors ml-1"
+            className="text-cortex-faint hover:text-cortex-muted transition-colors ml-1"
           >
             {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
           </button>
@@ -624,7 +625,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
             {activeTab === 'history' && (
               <div className="p-4">
                 {historyItems.length === 0 ? (
-                  <div className="text-center py-6 text-gray-600 text-xs">
+                  <div className="text-center py-6 text-cortex-faint text-xs">
                     No AI revisions in this session yet. Generate and review suggestions above.
                   </div>
                 ) : (
@@ -635,16 +636,16 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                   </div>
                 )}
                 {stats.rejection_contexts.length > 0 && (
-                  <div className="mt-3 p-3 bg-[#FB923C]/[0.05] border border-[#FB923C]/20 rounded-lg">
-                    <div className="text-[9px] font-bold text-[#FB923C] uppercase tracking-wider mb-2">
+                  <div className="mt-3 p-3 bg-cortex-warning/[0.05] border border-cortex-warning/20 rounded-cortex-sm">
+                    <div className="text-[9px] font-bold text-cortex-warning uppercase tracking-wider mb-2">
                       Feedback Queued for AI Context ({stats.rejection_contexts.length})
                     </div>
                     <div className="space-y-1">
                       {stats.rejection_contexts.map((ctx, i) => (
-                        <p key={i} className="text-[9px] text-gray-500 italic">"{ctx}"</p>
+                        <p key={i} className="text-[9px] text-cortex-muted italic">"{ctx}"</p>
                       ))}
                     </div>
-                    <p className="text-[9px] text-gray-700 mt-2">
+                    <p className="text-[9px] text-cortex-faint mt-2">
                       ↳ These will be prepended to the next AI call as negative context — AI won't repeat these patterns.
                     </p>
                   </div>
@@ -660,7 +661,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                 <div className="space-y-3">
                   {/* Section selector */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
                       Target Section
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -671,10 +672,10 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                           <button
                             key={sec}
                             onClick={() => setSection(sec)}
-                            className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border"
+                            className="px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold transition-all border"
                             style={active
                               ? { background: `${cfg.color}20`, color: cfg.color, borderColor: `${cfg.color}40` }
-                              : { background: 'transparent', color: '#6B7280', borderColor: '#ffffff10' }
+                              : { background: 'transparent', color: status.neutral, borderColor: '#ffffff10' }
                             }
                           >
                             {cfg.label}
@@ -682,12 +683,12 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                         );
                       })}
                     </div>
-                    <p className="text-[9px] text-gray-700">{SECTION_CFG[section].shortDesc}</p>
+                    <p className="text-[9px] text-cortex-faint">{SECTION_CFG[section].shortDesc}</p>
                   </div>
 
                   {/* Action selector */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+                    <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
                       AI Action
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -699,10 +700,10 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                           <button
                             key={act}
                             onClick={() => setAction(act)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold transition-all border"
                             style={active
                               ? { background: `${cfg.color}18`, color: cfg.color, borderColor: `${cfg.color}35` }
-                              : { background: 'transparent', color: '#6B7280', borderColor: '#ffffff10' }
+                              : { background: 'transparent', color: status.neutral, borderColor: '#ffffff10' }
                             }
                           >
                             <Icon className="size-2.5" />
@@ -711,13 +712,13 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                         );
                       })}
                     </div>
-                    <p className="text-[9px] text-gray-700">{ACTION_CFG[action].desc}</p>
+                    <p className="text-[9px] text-cortex-faint">{ACTION_CFG[action].desc}</p>
                   </div>
 
                   {/* Custom prompt input */}
                   {action === 'custom' ? (
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+                      <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
                         Your Prompt
                       </label>
                       <div className="flex gap-2">
@@ -728,12 +729,12 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                           onChange={e => setCustomPrompt(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && !loading && handleGenerate()}
                           placeholder="e.g. Make the executive brief more urgent with ExampleCo's pipeline gap numbers…"
-                          className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#8B5CF6]/50 placeholder:text-gray-700"
+                          className="flex-1 bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white focus:outline-none focus:border-cortex-accent/50 placeholder:text-cortex-faint"
                         />
                         <button
                           onClick={handleGenerate}
                           disabled={loading || !customPrompt.trim()}
-                          className="px-4 py-2 rounded-lg bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-cortex-sm bg-cortex-accent hover:bg-cortex-accent/85 text-white text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                         >
                           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
                           {loading ? 'Generating…' : 'Run'}
@@ -745,13 +746,13 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                       <button
                         onClick={handleGenerate}
                         disabled={loading}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-bold transition-all shadow-lg shadow-[#8B5CF6]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-cortex-md bg-cortex-accent hover:bg-cortex-accent/85 text-white text-xs font-bold transition-all shadow-lg shadow-cortex-accent/20 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                         {loading ? 'AI is thinking…' : `Generate: ${ACTION_CFG[action].label} · ${SECTION_CFG[section].label}`}
                       </button>
                       {stats.rejection_contexts.length > 0 && (
-                        <span className="text-[9px] text-[#FB923C] flex items-center gap-1">
+                        <span className="text-[9px] text-cortex-warning flex items-center gap-1">
                           <RotateCcw className="size-2.5" />
                           {stats.rejection_contexts.length} feedback context{stats.rejection_contexts.length !== 1 ? 's' : ''} will be sent to AI
                         </span>
@@ -765,7 +766,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                       <button
                         key={i}
                         onClick={() => { setAction('custom'); setCustomPrompt(p); }}
-                        className="px-2 py-1 rounded-lg border border-white/8 text-[8px] text-gray-600 hover:text-gray-400 hover:border-white/15 transition-colors"
+                        className="px-2 py-1 rounded-cortex-sm border border-white/8 text-[8px] text-cortex-faint hover:text-cortex-muted hover:border-white/15 transition-colors"
                       >
                         {p}
                       </button>
@@ -776,7 +777,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                 {/* ── Pending revisions queue ──────────────────────────────────── */}
                 {hasPending && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-[#FB923C]">
+                    <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-cortex-warning">
                       <Zap className="size-3" />
                       Pending AI Revisions ({pendingCount}) — Review before applying
                     </div>
@@ -796,21 +797,21 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
 
                 {/* ── Empty state ──────────────────────────────────────────────── */}
                 {!hasPending && !loading && (
-                  <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl">
-                    <Bot className="size-5 text-gray-700 flex-shrink-0" />
+                  <div className="flex items-center gap-3 p-3 bg-white/[0.02] border border-cortex-subtle rounded-cortex-md">
+                    <Bot className="size-5 text-cortex-faint flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-600">Select a section and action above, then click <span className="text-white font-bold">Generate</span>.</p>
-                      <p className="text-[9px] text-gray-700 mt-0.5">AI suggestions are always pending — you Accept, Reject, or Edit. Your rejection reasons teach the AI what not to do next time.</p>
+                      <p className="text-xs text-cortex-faint">Select a section and action above, then click <span className="text-white font-bold">Generate</span>.</p>
+                      <p className="text-[9px] text-cortex-faint mt-0.5">AI suggestions are always pending — you Accept, Reject, or Edit. Your rejection reasons teach the AI what not to do next time.</p>
                     </div>
                   </div>
                 )}
 
                 {/* ── Fact lock notice ────────────────────────────────────────── */}
-                <div className="flex items-center gap-2 text-[9px] text-gray-700">
+                <div className="flex items-center gap-2 text-[9px] text-cortex-faint">
                   <Lock className="size-2.5 flex-shrink-0" />
                   Fact-locked fields (price, timeline, ROI metrics) are protected — AI cannot change them even if asked.
                   {draft.next_step_offer.price > 0 && (
-                    <span className="text-[#06D7F6] font-bold ml-1">
+                    <span className="text-cortex-info font-bold ml-1">
                       ${draft.next_step_offer.price.toLocaleString()} {draft.next_step_offer.currency} · {draft.next_step_offer.duration}
                     </span>
                   )}
