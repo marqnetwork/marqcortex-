@@ -18,6 +18,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
 import { createBooking } from '@/app/services/dataService';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 interface InstantBookingProps {
   contactInfo: {
@@ -191,6 +192,7 @@ function InstantBookingModal({
 }: InstantBookingModalProps) {
   const availableSlots = getNextAvailableSlots();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Book a strategy call' });
 
   return (
     <motion.div
@@ -200,12 +202,16 @@ function InstantBookingModal({
       onClick={onClose}
       className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
     >
+      {/* A booking sheet with a date grid, a time grid and two actions — so a
+          keyboard user had a lot to Tab through, and could Tab straight out of
+          it into the page behind. It declares itself and holds focus now. */}
       <motion.div
+        {...dialogProps}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-[#0A0A0F] border border-[#8B5CF6]/30 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="relative bg-[#0A0A0F] border border-[#8B5CF6]/30 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto outline-none"
       >
         {/* Header */}
         <div className="mb-6">

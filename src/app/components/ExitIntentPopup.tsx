@@ -19,6 +19,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, TrendingUp, Users, CheckCircle2, Download } from 'lucide-react';
 import { saveExitIntentLead } from '@/app/services/dataService';
@@ -52,27 +53,27 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
 
   if (showSuccessMessage) {
     return (
-      <PopupOverlay onClose={onClose}>
+      <PopupOverlay onClose={onClose} label="Your guide is on its way">
         <SuccessMessage email={email} onClose={onClose} />
       </PopupOverlay>
     );
   }
 
   return (
-    <PopupOverlay onClose={onClose}>
+    <PopupOverlay onClose={onClose} label="Before you go">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#8B5CF6]/30 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#8B5CF6]/30 rounded-2xl p-8 w-full shadow-2xl"
       >
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 size-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
         >
-          <X className="size-4 text-white" />
+          <X className="size-4 text-white" aria-hidden="true" />
         </button>
 
         {/* Alert Icon */}
@@ -130,6 +131,7 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
             <input
               type="email"
               required
+              aria-label="Your email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email to get started"
@@ -175,16 +177,46 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
 // COMPONENTS
 // ============================================================================
 
-function PopupOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+/**
+ * The overlay both the offer and its confirmation are shown in.
+ *
+ * This popup APPEARS UNPROMPTED — that is what exit intent means — and until
+ * now it appeared with no dialog role, no focus management and no Escape. A
+ * keyboard user was interrupted mid-page by something they had not asked for,
+ * were never moved into it, could Tab straight past it into the page it was
+ * covering, and had no keystroke that dismissed it. An unannounced modal that
+ * cannot be escaped is the worst version of this pattern, which is why this one
+ * is fixed before the panels deeper in the console.
+ *
+ * `useDialogBehavior` supplies the four behaviours; the markup stays its own,
+ * because the popup's shape is not the shared `Modal` chrome.
+ */
+function PopupOverlay({ children, onClose, label }: {
+  children: React.ReactNode;
+  onClose: () => void;
+  /** Names the dialog — the offer and its confirmation are different things. */
+  label: string;
+}) {
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label });
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
     >
-      {children}
+      {/* The backdrop is its own element rather than the container, so the
+          dialog can be the panel: a click on the backdrop dismisses, and a
+          click inside the panel does not reach it at all. */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div {...dialogProps} className="relative w-full max-w-lg outline-none">
+        {children}
+      </div>
     </motion.div>
   );
 }
@@ -224,7 +256,7 @@ function SuccessMessage({ email, onClose }: { email: string; onClose: () => void
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#06D7F6]/30 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl text-center"
+      className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#06D7F6]/30 rounded-2xl p-8 w-full shadow-2xl text-center"
       onClick={(e) => e.stopPropagation()}
     >
       <button

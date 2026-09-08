@@ -15,6 +15,7 @@ export { Surface, type SurfaceProps, type SurfaceLevel, type SurfacePadding } fr
 export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { Field, type FieldProps } from './Field';
 export { Modal, type ModalProps } from './Modal';
+export { useDialogBehavior, type DialogBehaviorOptions } from './useDialogBehavior';
 export {
   StatusBadge, PriorityBadge, ToneBadge,
   type SubmissionStatus, type Priority, type Tone,

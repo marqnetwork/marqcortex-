@@ -31,12 +31,9 @@
  *   Radix — converting them all to Radix would be a much larger change than
  *   giving them the semantics they are missing.
  */
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-
-/** Everything focusable, in document order. */
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+import { useDialogBehavior } from './useDialogBehavior';
 
 export interface ModalProps {
   open: boolean;
@@ -74,79 +71,18 @@ export function Modal({
   size = 'md',
   className = '',
 }: ModalProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const restoreFocusTo = useRef<HTMLElement | null>(null);
   const id = useId();
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
 
-  // Remember what had focus, move it into the dialog, and put it back on close.
-  // Restoring matters as much as moving: without it, dismissing a dialog drops
-  // the keyboard user at the top of the document rather than where they were.
-  useEffect(() => {
-    if (!open) return;
-    restoreFocusTo.current = document.activeElement as HTMLElement | null;
-
-    const panel = panelRef.current;
-    const first = panel?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? panel)?.focus();
-
-    return () => {
-      restoreFocusTo.current?.focus?.();
-    };
-  }, [open]);
-
-  // Escape closes, and Tab cycles within the dialog rather than walking out of
-  // it into the content the overlay is covering.
-  useEffect(() => {
-    if (!open) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      const panel = panelRef.current;
-      if (!panel) return;
-
-      const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)]
-        .filter(el => el.offsetParent !== null || el === document.activeElement);
-      if (focusable.length === 0) {
-        // Nothing to move to — keep focus on the panel rather than letting it
-        // escape to the page behind.
-        event.preventDefault();
-        panel.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement as HTMLElement | null;
-
-      if (event.shiftKey && (active === first || active === panel)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [open, onClose]);
-
-  // Lock the background scroll, and restore exactly what was there before —
-  // not a hard-coded empty string, which would clobber a page that had set it.
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
-  }, [open]);
+  // The four behaviours live in `useDialogBehavior`, so an overlay that cannot
+  // wear this chrome can still have them. See that module for why.
+  const { dialogProps } = useDialogBehavior({
+    open,
+    onClose,
+    labelledBy: titleId,
+    describedBy: description ? descriptionId : undefined,
+  });
 
   if (!open) return null;
 
@@ -162,12 +98,7 @@ export function Modal({
       />
 
       <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
-        tabIndex={-1}
+        {...dialogProps}
         className={`relative w-full ${SIZE_CLASS[size]} rounded-cortex-lg bg-cortex-overlay border border-cortex-strong shadow-[0_20px_40px_-12px_rgba(0,0,0,0.6)] outline-none ${className}`}
       >
         <div className="flex items-start justify-between gap-4 p-5 border-b border-cortex-subtle">

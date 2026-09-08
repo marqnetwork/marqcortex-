@@ -46,13 +46,18 @@ const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 const stripComments = (t: string) =>
   t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
-describe('the Modal primitive does the five things every overlay needed', () => {
+describe('the Modal primitive wears the chrome and delegates the behaviour', () => {
   const modal = stripComments(read('src/app/components/ui/cortex/Modal.tsx'));
 
-  it('declares itself as a modal dialog with a name', () => {
-    assert.match(modal, /role="dialog"/);
-    assert.match(modal, /aria-modal="true"/);
-    assert.match(modal, /aria-labelledby=\{titleId\}/);
+  it('takes its dialog attributes from the shared hook', () => {
+    // The four behaviours moved into `useDialogBehavior` so an overlay that
+    // cannot wear this chrome can still have them. The suite below asserts the
+    // behaviours themselves at the hook; here we only assert that Modal uses it
+    // rather than keeping a second copy.
+    assert.match(modal, /useDialogBehavior\(\{/);
+    assert.match(modal, /labelledBy: titleId/);
+    assert.match(modal, /describedBy: description \? descriptionId : undefined/);
+    assert.match(modal, /<div\s+\{\.\.\.dialogProps\}/);
   });
 
   it('always renders the name, even when it is visually hidden', () => {
@@ -61,35 +66,13 @@ describe('the Modal primitive does the five things every overlay needed', () => 
     assert.match(modal, /hideTitle \? 'sr-only'/);
   });
 
-  it('moves focus in and restores it on close', () => {
-    assert.match(modal, /restoreFocusTo\.current = document\.activeElement/);
-    assert.match(modal, /\(first \?\? panel\)\?\.focus\(\)/);
-    assert.match(modal, /restoreFocusTo\.current\?\.focus\?\.\(\)/);
-  });
-
-  it('traps Tab in both directions', () => {
-    assert.match(modal, /if \(event\.shiftKey && \(active === first \|\| active === panel\)\)/);
-    assert.match(modal, /\} else if \(!event\.shiftKey && active === last\)/);
-  });
-
-  it('keeps focus on the panel when there is nothing else to move to', () => {
-    // Otherwise Tab escapes an empty dialog into the page behind it.
-    assert.match(modal, /if \(focusable\.length === 0\) \{[\s\S]{0,200}panel\.focus\(\);/);
-  });
-
-  it('closes on Escape', () => {
-    assert.match(modal, /if \(event\.key === 'Escape'\)/);
-  });
-
-  it('locks the background scroll and restores what was there', () => {
-    // Not a hard-coded empty string — that would clobber a page that had set it.
-    assert.match(modal, /const previous = document\.body\.style\.overflow;/);
-    assert.match(modal, /document\.body\.style\.overflow = previous;/);
-  });
-
   it('hides the backdrop rather than the document', () => {
     // Hiding the whole document would hide the dialog with it.
     assert.match(modal, /className="absolute inset-0 bg-black\/70 backdrop-blur-sm"[\s\S]{0,120}aria-hidden="true"/);
+  });
+
+  it('offers a named close control', () => {
+    assert.match(modal, /aria-label="Close"/);
   });
 });
 
@@ -157,5 +140,87 @@ describe('Escape is not suppressed for being inside a text field', () => {
     assert.match(hook, /target\.tagName === 'TEXTAREA' \|\|/);
     assert.match(hook, /target\.isContentEditable/);
     assert.match(hook, /if \(isInputField\) continue;/);
+  });
+});
+
+describe('the behaviour is reusable, so an overlay with its own shape can have it', () => {
+  const hook = stripComments(read('src/app/components/ui/cortex/useDialogBehavior.ts'));
+
+  it('carries all four behaviours', () => {
+    assert.match(hook, /restoreFocusTo\.current = document\.activeElement/);
+    assert.match(hook, /restoreFocusTo\.current\?\.focus\?\.\(\)/);
+    assert.match(hook, /if \(event\.key === 'Escape'\)/);
+    assert.match(hook, /if \(event\.key !== 'Tab'\) return;/);
+    assert.match(hook, /document\.body\.style\.overflow = previous;/);
+  });
+
+  it('returns the attributes the caller owes, so spreading them is the contract', () => {
+    // The hook cannot add these itself — they belong on the caller's element.
+    assert.match(hook, /role: 'dialog' as const/);
+    assert.match(hook, /'aria-modal': true as const/);
+    assert.match(hook, /'aria-label': label/);
+    assert.match(hook, /'aria-labelledby': labelledBy/);
+    assert.match(hook, /tabIndex: -1/);
+  });
+
+  it('is what Modal is built on, so the behaviour exists once', () => {
+    const modal = stripComments(read('src/app/components/ui/cortex/Modal.tsx'));
+    assert.match(modal, /useDialogBehavior\(\{/);
+    assert.match(modal, /<div\s+\{\.\.\.dialogProps\}/);
+    // And no longer carries its own copy.
+    assert.ok(!/document\.body\.style\.overflow = 'hidden'/.test(modal), 'Modal has a second copy of the scroll lock');
+  });
+});
+
+describe('the funnel overlays that interrupt the user now behave', () => {
+  const CASES: [file: string, label: string, why: string][] = [
+    [
+      'src/app/components/ExitIntentPopup.tsx',
+      'Before you go',
+      'appears UNPROMPTED — a modal nobody asked for, that could not be escaped',
+    ],
+    [
+      'src/app/components/ProgressModal.tsx',
+      '',
+      'appears MID-DIAGNOSTIC, over a form the user is part-way through',
+    ],
+    [
+      'src/app/components/InstantBooking.tsx',
+      'Book a strategy call',
+      'a date grid, a time grid and two actions to Tab through',
+    ],
+  ];
+
+  for (const [file, label, why] of CASES) {
+    it(`${file.split('/').pop()} — ${why}`, () => {
+      const source = read(file);
+      assert.match(source, /useDialogBehavior\(/, `${file} does not use the shared behaviour`);
+      assert.match(source, /\{\.\.\.dialogProps\}/, `${file} does not spread the dialog attributes`);
+      // The name may be passed as a hook option (`label: '…'`) or through a
+      // prop on a wrapper that forwards it (`label="…"`). Both are the name.
+      if (label) {
+        assert.ok(
+          source.includes(`label: '${label}'`) || source.includes(`label="${label}"`),
+          `${file} is not named`,
+        );
+      }
+    });
+  }
+
+  it('names the exit popup differently for its offer and its confirmation', () => {
+    // One overlay, two contents. A dialog whose name does not change when its
+    // content does is announced as the wrong thing.
+    const popup = read('src/app/components/ExitIntentPopup.tsx');
+    assert.match(popup, /label="Before you go"/);
+    assert.match(popup, /label="Your guide is on its way"/);
+  });
+
+  it('names the progress modal by the milestone it is reporting', () => {
+    const progress = read('src/app/components/ProgressModal.tsx');
+    assert.match(progress, /label: `You are \$\{milestone\}% through the diagnostic`/);
+  });
+
+  it('gives the exit popup email field a name of its own', () => {
+    assert.match(read('src/app/components/ExitIntentPopup.tsx'), /aria-label="Your email address"/);
   });
 });
