@@ -27,6 +27,7 @@ import type { AIChatMessage } from '@/app/services/dataService';
 import { getDemoSubmissions } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 import { useDialogBehavior } from '@/app/components/ui/cortex';
+import { brand, status, text, border, surface } from '@/app/lib/tokens';
 
 // ---- Types ------------------------------------------------------------------
 
@@ -68,44 +69,44 @@ const SECTIONS: {
 
 const SECTION_QUICK_ACTIONS: Record<string, QuickAction[]> = {
   'proposal.executive_brief': [
-    { label: 'Polish Tone',     prompt: 'Polish the tone of this executive brief for C-suite presentation. Make it concise, authoritative, and compelling. Keep all facts intact.',        icon: Sparkles,      color: '#8B5CF6' },
-    { label: 'Sharpen Why Now', prompt: 'Strengthen the "why now" urgency argument in this executive brief. Ground it in the operational data and market context provided.',               icon: Zap,           color: '#F59E0B' },
-    { label: 'Simplify',        prompt: 'Simplify the language in this executive brief for a non-technical executive audience. Remove any internal consulting language.',                  icon: MessageSquare, color: '#06D7F6' },
+    { label: 'Polish Tone',     prompt: 'Polish the tone of this executive brief for C-suite presentation. Make it concise, authoritative, and compelling. Keep all facts intact.',        icon: Sparkles,      color: brand.accent },
+    { label: 'Sharpen Why Now', prompt: 'Strengthen the "why now" urgency argument in this executive brief. Ground it in the operational data and market context provided.',               icon: Zap,           color: status.caution },
+    { label: 'Simplify',        prompt: 'Simplify the language in this executive brief for a non-technical executive audience. Remove any internal consulting language.',                  icon: MessageSquare, color: status.info },
   ],
   'proposal.diagnosis': [
-    { label: 'Deepen Argument', prompt: 'Deepen the logical argument in this diagnosis block. Add the "what breaks next if unresolved" narrative without inventing new data.',             icon: Sparkles,     color: '#FD4438' },
-    { label: 'Exec Language',   prompt: 'Rewrite this diagnosis block in executive-level language. Remove jargon, add business impact framing.',                                           icon: Zap,          color: '#FB923C' },
-    { label: 'Add Urgency',     prompt: 'Add compelling urgency framing to this diagnosis. Explain the compounding cost of inaction without fabricating numbers.',                         icon: AlertCircle,  color: '#F59E0B' },
+    { label: 'Deepen Argument', prompt: 'Deepen the logical argument in this diagnosis block. Add the "what breaks next if unresolved" narrative without inventing new data.',             icon: Sparkles,     color: status.danger },
+    { label: 'Exec Language',   prompt: 'Rewrite this diagnosis block in executive-level language. Remove jargon, add business impact framing.',                                           icon: Zap,          color: status.warning },
+    { label: 'Add Urgency',     prompt: 'Add compelling urgency framing to this diagnosis. Explain the compounding cost of inaction without fabricating numbers.',                         icon: AlertCircle,  color: status.caution },
   ],
   'recommendation': [
-    { label: 'Strengthen',       prompt: 'Strengthen the recommendation reasoning. Explain why this service is the right first move, grounded in the diagnostic data.',                  icon: Sparkles,     color: '#8B5CF6' },
-    { label: 'Why Now',          prompt: 'Generate a compelling "why this recommendation now" argument based on the lead data and diagnostic findings.',                                  icon: Zap,          color: '#10B981' },
-    { label: 'Risk of Inaction', prompt: 'Write a brief "risk of inaction" narrative for this recommendation. What happens if the client delays?',                                        icon: AlertCircle,  color: '#FD4438' },
+    { label: 'Strengthen',       prompt: 'Strengthen the recommendation reasoning. Explain why this service is the right first move, grounded in the diagnostic data.',                  icon: Sparkles,     color: brand.accent },
+    { label: 'Why Now',          prompt: 'Generate a compelling "why this recommendation now" argument based on the lead data and diagnostic findings.',                                  icon: Zap,          color: status.success },
+    { label: 'Risk of Inaction', prompt: 'Write a brief "risk of inaction" narrative for this recommendation. What happens if the client delays?',                                        icon: AlertCircle,  color: status.danger },
   ],
   'roi': [
-    { label: 'ROI Summary',      prompt: 'Generate a clear, executive-ready ROI summary paragraph. Use only the numbers already provided -- do not fabricate new figures.',              icon: Sparkles,     color: '#10B981' },
-    { label: 'Conservative',     prompt: 'Write a conservative ROI narrative that manages expectations while still demonstrating clear value.',                                            icon: Info,         color: '#06D7F6' },
-    { label: 'Investment Frame', prompt: 'Reframe the ROI as an investment decision rather than a cost. Use the existing figures.',                                                        icon: ArrowRight,   color: '#8B5CF6' },
+    { label: 'ROI Summary',      prompt: 'Generate a clear, executive-ready ROI summary paragraph. Use only the numbers already provided -- do not fabricate new figures.',              icon: Sparkles,     color: status.success },
+    { label: 'Conservative',     prompt: 'Write a conservative ROI narrative that manages expectations while still demonstrating clear value.',                                            icon: Info,         color: status.info },
+    { label: 'Investment Frame', prompt: 'Reframe the ROI as an investment decision rather than a cost. Use the existing figures.',                                                        icon: ArrowRight,   color: brand.accent },
   ],
   'call_prep': [
-    { label: 'Opening Gambit',    prompt: 'Write a strong opening 2-3 sentences for the discovery call with this client, based on their diagnostic profile.',                            icon: Sparkles,     color: '#8B5CF6' },
-    { label: 'Handle Objections', prompt: 'Suggest responses to the most likely objections from this type of client in this industry.',                                                  icon: Zap,          color: '#FB923C' },
-    { label: 'Closing Language',  prompt: 'Write soft closing language for the call that moves toward a clear next step without being pushy.',                                            icon: ArrowRight,   color: '#10B981' },
+    { label: 'Opening Gambit',    prompt: 'Write a strong opening 2-3 sentences for the discovery call with this client, based on their diagnostic profile.',                            icon: Sparkles,     color: brand.accent },
+    { label: 'Handle Objections', prompt: 'Suggest responses to the most likely objections from this type of client in this industry.',                                                  icon: Zap,          color: status.warning },
+    { label: 'Closing Language',  prompt: 'Write soft closing language for the call that moves toward a clear next step without being pushy.',                                            icon: ArrowRight,   color: status.success },
   ],
   'general': [
-    { label: 'Proposal Strategy', prompt: 'Give me strategic advice on how to approach this proposal for the best chance of conversion.',                                                icon: Sparkles,     color: '#8B5CF6' },
-    { label: 'Objection Prep',    prompt: 'What objections should we anticipate from this type of client, and how should we handle them?',                                               icon: Zap,          color: '#FB923C' },
-    { label: 'Next Steps',        prompt: 'Suggest the ideal next steps and timeline for moving this deal forward.',                                                                     icon: ArrowRight,   color: '#10B981' },
+    { label: 'Proposal Strategy', prompt: 'Give me strategic advice on how to approach this proposal for the best chance of conversion.',                                                icon: Sparkles,     color: brand.accent },
+    { label: 'Objection Prep',    prompt: 'What objections should we anticipate from this type of client, and how should we handle them?',                                               icon: Zap,          color: status.warning },
+    { label: 'Next Steps',        prompt: 'Suggest the ideal next steps and timeline for moving this deal forward.',                                                                     icon: ArrowRight,   color: status.success },
   ],
 };
 
 // ---- Status colour map -------------------------------------------------------
 
 const STATUS_COLOR: Record<string, string> = {
-  'new':        '#8B5CF6',
-  'in-review':  '#FB923C',
-  'completed':  '#06D7F6',
-  'approved':   '#10B981',
+  'new':        brand.accent,
+  'in-review':  status.warning,
+  'completed':  status.info,
+  'approved':   status.success,
 };
 
 // ---- Build lead roster from demo data ----------------------------------------
@@ -188,14 +189,14 @@ function MessageBubble({
   if (msg.isLoading) {
     return (
       <div className="flex items-start gap-2.5 mb-4">
-        <div className="size-7 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+        <div className="size-7 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0">
           <Bot className="size-3.5 text-white" />
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
+        <div className="bg-cortex-control border border-cortex-default rounded-cortex-lg rounded-tl-sm px-4 py-3">
           <div className="flex items-center gap-1.5">
-            <span className="size-1.5 rounded-full bg-[#8B5CF6] animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="size-1.5 rounded-full bg-[#8B5CF6] animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="size-1.5 rounded-full bg-[#8B5CF6] animate-bounce" style={{ animationDelay: '300ms' }} />
+            <span className="size-1.5 rounded-full bg-cortex-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="size-1.5 rounded-full bg-cortex-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="size-1.5 rounded-full bg-cortex-accent animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
         </div>
       </div>
@@ -209,17 +210,17 @@ function MessageBubble({
       className={`flex items-start gap-2.5 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}
     >
       {!isUser && (
-        <div className="size-7 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0 mt-0.5">
+        <div className="size-7 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0 mt-0.5">
           <Bot className="size-3.5 text-white" />
         </div>
       )}
 
       <div className={`flex flex-col gap-2 max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+          className={`rounded-cortex-lg px-4 py-3 text-sm leading-relaxed ${
             isUser
-              ? 'bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] text-white rounded-tr-sm'
-              : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
+              ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent/70 text-white rounded-tr-sm'
+              : 'bg-cortex-control border border-cortex-default text-cortex-secondary rounded-tl-sm'
           }`}
         >
           {msg.content.split('\n').map((line, i) => {
@@ -235,36 +236,36 @@ function MessageBubble({
         </div>
 
         {!isUser && msg.applyContent && (
-          <div className="w-full rounded-xl border border-[#8B5CF6]/30 bg-[#8B5CF6]/5 overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#8B5CF6]/20">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#8B5CF6]">
+          <div className="w-full rounded-cortex-md border border-cortex-accent/30 bg-cortex-accent/5 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-cortex-accent/20">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-cortex-accent">
                 Generated Content
               </span>
               <button
                 onClick={() => onCopy(msg.id + '_apply', msg.applyContent!)}
-                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-1 text-[10px] text-cortex-muted hover:text-white transition-colors"
               >
                 {copiedId === msg.id + '_apply'
-                  ? <span className="contents"><Check className="size-3 text-[#10B981]" /><span className="text-[#10B981]">Copied</span></span>
+                  ? <span className="contents"><Check className="size-3 text-cortex-success" /><span className="text-cortex-success">Copied</span></span>
                   : <span className="contents"><Copy className="size-3" />Copy</span>}
               </button>
             </div>
-            <p className="px-3 py-3 text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+            <p className="px-3 py-3 text-xs text-cortex-secondary leading-relaxed whitespace-pre-wrap">
               {msg.applyContent}
             </p>
             {msg.appliedTo ? (
-              <div className="px-3 py-2 flex items-center gap-1.5 border-t border-[#8B5CF6]/20">
-                <CheckCircle2 className="size-3.5 text-[#10B981]" />
-                <span className="text-[11px] text-[#10B981] font-medium">
+              <div className="px-3 py-2 flex items-center gap-1.5 border-t border-cortex-accent/20">
+                <CheckCircle2 className="size-3.5 text-cortex-success" />
+                <span className="text-[11px] text-cortex-success font-medium">
                   Applied to {section?.sectionLabel ?? 'section'}
                 </span>
               </div>
             ) : section ? (
-              <div className="px-3 py-2 border-t border-[#8B5CF6]/20">
+              <div className="px-3 py-2 border-t border-cortex-accent/20">
                 <button
                   onClick={() => onApply(msg)}
-                  className="w-full py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:opacity-90 active:scale-[0.98]"
-                  style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)' }}
+                  className="w-full py-1.5 rounded-cortex-sm text-[11px] font-bold uppercase tracking-wider text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                  style={{ background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})` }}
                 >
                   Apply to {section.sectionLabel}
                 </button>
@@ -274,16 +275,16 @@ function MessageBubble({
         )}
 
         {!isUser && msg.error && (
-          <p className="text-xs text-[#FD4438] mt-1">{msg.error}</p>
+          <p className="text-xs text-cortex-danger mt-1">{msg.error}</p>
         )}
 
         {!isUser && !msg.error && (
           <button
             onClick={() => onCopy(msg.id, msg.content)}
-            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-cortex-muted hover:text-cortex-secondary transition-colors"
           >
             {copiedId === msg.id
-              ? <span className="contents"><Check className="size-3 text-[#10B981]" /><span className="text-[#10B981]">Copied</span></span>
+              ? <span className="contents"><Check className="size-3 text-cortex-success" /><span className="text-cortex-success">Copied</span></span>
               : <span className="contents"><Copy className="size-3" />Copy response</span>}
           </button>
         )}
@@ -328,16 +329,16 @@ function LeadPickerDropdown({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -6, scale: 0.98 }}
       transition={{ duration: 0.12 }}
-      className="absolute top-full left-0 right-0 z-20 mt-1.5 rounded-xl overflow-hidden shadow-2xl"
+      className="absolute top-full left-0 right-0 z-20 mt-1.5 rounded-cortex-md overflow-hidden shadow-2xl"
       style={{
-        background: '#0E0E1C',
-        border: '1px solid rgba(139,92,246,0.25)',
+        background: surface.overlay,
+        border: `1px solid ${brand.accent}40`,
         boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
       }}
     >
       {/* Search bar */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/8">
-        <Search className="size-3.5 text-gray-500 flex-shrink-0" />
+        <Search className="size-3.5 text-cortex-muted flex-shrink-0" />
         <input
           ref={inputRef}
           value={query}
@@ -346,7 +347,7 @@ function LeadPickerDropdown({
           className="flex-1 bg-transparent text-sm text-white placeholder-gray-600 outline-none"
         />
         {query && (
-          <button onClick={() => setQuery('')} className="text-gray-600 hover:text-white">
+          <button onClick={() => setQuery('')} className="text-cortex-faint hover:text-white">
             <X className="size-3.5" />
           </button>
         )}
@@ -359,21 +360,21 @@ function LeadPickerDropdown({
           onClick={() => { onSelect(undefined); onClose(); }}
           className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/4 transition-colors text-left"
         >
-          <div className="size-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="size-3.5 text-gray-500" />
+          <div className="size-7 rounded-cortex-sm bg-cortex-control flex items-center justify-center flex-shrink-0">
+            <Sparkles className="size-3.5 text-cortex-muted" />
           </div>
           <div className="flex-1">
-            <p className="text-xs font-semibold text-gray-400">General -- No specific lead</p>
-            <p className="text-[10px] text-gray-600">AI works from general strategy context</p>
+            <p className="text-xs font-semibold text-cortex-muted">General -- No specific lead</p>
+            <p className="text-[10px] text-cortex-faint">AI works from general strategy context</p>
           </div>
-          {!selectedId && <Check className="size-3.5 text-[#10B981] ml-auto" />}
+          {!selectedId && <Check className="size-3.5 text-cortex-success ml-auto" />}
         </button>
 
         <div className="border-t border-white/6 mx-3" />
 
         {filtered.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-xs text-gray-500">No companies match "{query}"</p>
+            <p className="text-xs text-cortex-muted">No companies match "{query}"</p>
           </div>
         ) : (
           filtered.map(lead => (
@@ -381,12 +382,12 @@ function LeadPickerDropdown({
               key={lead.id}
               onClick={() => { onSelect(lead); onClose(); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/4 transition-colors text-left ${
-                lead.id === selectedId ? 'bg-[#8B5CF6]/8' : ''
+                lead.id === selectedId ? 'bg-cortex-accent/8' : ''
               }`}
             >
               {/* Avatar */}
               <div
-                className="size-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
+                className="size-7 rounded-cortex-sm flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
                 style={{
                   background: `linear-gradient(135deg, ${STATUS_COLOR[lead.status]}40, ${STATUS_COLOR[lead.status]}20)`,
                   border: `1px solid ${STATUS_COLOR[lead.status]}30`,
@@ -400,10 +401,10 @@ function LeadPickerDropdown({
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <span className="text-xs font-semibold text-white truncate">{lead.companyName}</span>
                   {lead.priority === 'high' && (
-                    <span className="size-1.5 rounded-full bg-[#FD4438] flex-shrink-0" />
+                    <span className="size-1.5 rounded-full bg-cortex-danger flex-shrink-0" />
                   )}
                 </div>
-                <p className="text-[10px] text-gray-500 truncate">{lead.industry} - {lead.contactName}</p>
+                <p className="text-[10px] text-cortex-muted truncate">{lead.industry} - {lead.contactName}</p>
               </div>
 
               {/* Meta */}
@@ -414,11 +415,11 @@ function LeadPickerDropdown({
                 >
                   {lead.status}
                 </span>
-                <span className="text-[10px] font-semibold text-[#10B981]">{lead.roiPotential}</span>
+                <span className="text-[10px] font-semibold text-cortex-success">{lead.roiPotential}</span>
               </div>
 
               {lead.id === selectedId && (
-                <Check className="size-3.5 text-[#10B981] ml-1 flex-shrink-0" />
+                <Check className="size-3.5 text-cortex-success ml-1 flex-shrink-0" />
               )}
             </button>
           ))
@@ -456,17 +457,17 @@ function LeadContextStrip({
     <div ref={ref} className="relative mx-4 mt-3" style={{ zIndex: 10 }}>
       <button
         onClick={() => setPickerOpen(p => !p)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left ${
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-cortex-md transition-all text-left ${
           activeLead
-            ? 'bg-white/5 hover:bg-white/8 border border-white/10 hover:border-white/18'
-            : 'bg-[#FD4438]/8 hover:bg-[#FD4438]/12 border border-[#FD4438]/25 hover:border-[#FD4438]/40'
+            ? 'bg-cortex-control hover:bg-white/8 border border-cortex-default hover:border-white/18'
+            : 'bg-cortex-danger/8 hover:bg-cortex-danger/12 border border-cortex-danger/25 hover:border-cortex-danger/40'
         }`}
       >
         {activeLead ? (
           <span className="contents">
             {/* Avatar */}
             <div
-              className="size-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-white"
+              className="size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-white"
               style={{
                 background: `linear-gradient(135deg, ${STATUS_COLOR[activeLead.status]}50, ${STATUS_COLOR[activeLead.status]}25)`,
                 border: `1px solid ${STATUS_COLOR[activeLead.status]}40`,
@@ -482,44 +483,44 @@ function LeadContextStrip({
                 {activeLead.priority === 'high' && (
                   <span
                     className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                    style={{ color: '#FD4438', background: '#FD443815' }}
+                    style={{ color: status.danger, background: '#FD443815' }}
                   >
                     HOT
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[10px] text-gray-500 truncate">{activeLead.industry.split(' / ')[0]}</span>
-                <span className="text-gray-700">-</span>
+                <span className="text-[10px] text-cortex-muted truncate">{activeLead.industry.split(' / ')[0]}</span>
+                <span className="text-cortex-faint">-</span>
                 <span className="text-[9px] font-bold uppercase" style={{ color: STATUS_COLOR[activeLead.status] }}>
                   {activeLead.status}
                 </span>
-                <span className="text-gray-700">-</span>
-                <span className="text-[10px] font-semibold text-[#10B981]">{activeLead.roiPotential}</span>
+                <span className="text-cortex-faint">-</span>
+                <span className="text-[10px] font-semibold text-cortex-success">{activeLead.roiPotential}</span>
               </div>
             </div>
 
             {/* Score */}
             <div className="flex flex-col items-end flex-shrink-0">
               <span className="text-xs font-bold text-white">{activeLead.qualityScore}</span>
-              <span className="text-[9px] text-gray-600">score</span>
+              <span className="text-[9px] text-cortex-faint">score</span>
             </div>
 
             <ChevronDown
-              className={`size-3.5 text-gray-500 transition-transform flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`}
+              className={`size-3.5 text-cortex-muted transition-transform flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`}
             />
           </span>
         ) : (
           <span className="contents">
-            <div className="size-8 rounded-lg bg-[#FD4438]/15 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="size-4 text-[#FD4438]" />
+            <div className="size-8 rounded-cortex-sm bg-cortex-danger/15 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="size-4 text-cortex-danger" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[#FD4438]">No company selected</p>
-              <p className="text-[10px] text-gray-500">Select a company to ground the AI</p>
+              <p className="text-sm font-semibold text-cortex-danger">No company selected</p>
+              <p className="text-[10px] text-cortex-muted">Select a company to ground the AI</p>
             </div>
             <ChevronDown
-              className={`size-3.5 text-[#FD4438]/60 transition-transform flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`}
+              className={`size-3.5 text-cortex-danger/60 transition-transform flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`}
             />
           </span>
         )}
@@ -553,7 +554,7 @@ function SectionSwitcher({
 }) {
   return (
     <div className="px-4 pt-2 pb-1">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600 mb-1.5">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-cortex-faint mb-1.5">
         Working on
       </p>
       <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
@@ -564,18 +565,18 @@ function SectionSwitcher({
             <button
               key={sec.id}
               onClick={() => onChange(sec.id, sec.label)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex-shrink-0 transition-all"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-semibold flex-shrink-0 transition-all"
               style={
                 isActive
                   ? {
-                      background: 'linear-gradient(135deg, #8B5CF620, #3B82F620)',
-                      border: '1px solid #8B5CF640',
-                      color: '#a78bfa',
+                      background: `linear-gradient(135deg, ${brand.accent}20, ${brand.accentAlt}20)`,
+                      border: `1px solid ${brand.accent}40`,
+                      color: brand.accent,
                     }
                   : {
                       background: 'transparent',
                       border: '1px solid transparent',
-                      color: '#555568',
+                      color: text.faint,
                     }
               }
             >
@@ -820,15 +821,15 @@ export function GlobalAIChat() {
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => openChat()}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-white font-semibold text-sm shadow-2xl"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-cortex-lg text-white font-semibold text-sm shadow-2xl"
             style={{
-              background: 'linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%)',
-              boxShadow: '0 8px 32px rgba(139,92,246,0.5)',
+              background: `linear-gradient(135deg, ${brand.accent} 0%, ${brand.accentAlt} 100%)`,
+              boxShadow: `0 8px 32px ${brand.accent}80`,
             }}
           >
             <span
-              className="absolute inset-0 rounded-2xl animate-ping opacity-20"
-              style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)' }}
+              className="absolute inset-0 rounded-cortex-lg animate-ping opacity-20"
+              style={{ background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})` }}
             />
             <Sparkles className="size-4" />
             <span>Cortex AI</span>
@@ -852,7 +853,7 @@ export function GlobalAIChat() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeChat}
-              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-cortex-sunken backdrop-blur-sm"
               aria-hidden="true"
             />
 
@@ -865,25 +866,25 @@ export function GlobalAIChat() {
               {...dialogProps}
               className="fixed right-0 top-0 bottom-0 z-50 flex flex-col w-[440px] max-w-[95vw] outline-none"
               style={{
-                background: 'linear-gradient(180deg, #0D0D1A 0%, #0A0A14 100%)',
-                borderLeft: '1px solid rgba(139,92,246,0.2)',
+                background: `linear-gradient(180deg, ${surface.overlay} 0%, ${surface.canvas} 100%)`,
+                borderLeft: `1px solid ${brand.accent}33`,
               }}
             >
               {/* Header */}
               <div
                 className="flex items-center justify-between px-5 py-3.5 border-b"
-                style={{ borderColor: 'rgba(139,92,246,0.15)' }}
+                style={{ borderColor: `${brand.accent}26` }}
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="size-8 rounded-xl flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)' }}
+                    className="size-8 rounded-cortex-md flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})` }}
                   >
                     <Bot className="size-4 text-white" />
                   </div>
                   <div>
                     <h3 className="font-bold text-white text-sm leading-tight">MARQ Cortex AI</h3>
-                    <p className="text-[10px] text-gray-400 leading-tight">
+                    <p className="text-[10px] text-cortex-muted leading-tight">
                       {isBackendEnabled() ? 'GPT-4o-mini - Live' : 'Demo Mode'}
                     </p>
                   </div>
@@ -892,7 +893,7 @@ export function GlobalAIChat() {
                   {messages.length > 0 && (
                     <button
                       onClick={() => { setMessages([]); setHasAutoSent(null); }}
-                      className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-gray-400 hover:text-white"
+                      className="p-1.5 hover:bg-cortex-control rounded-cortex-sm transition-colors text-cortex-muted hover:text-white"
                       title="Clear chat"
                     >
                       <RotateCcw className="size-3.5" />
@@ -900,7 +901,7 @@ export function GlobalAIChat() {
                   )}
                   <button
                     onClick={closeChat}
-                    className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-gray-400 hover:text-white"
+                    className="p-1.5 hover:bg-cortex-control rounded-cortex-sm transition-colors text-cortex-muted hover:text-white"
                   >
                     <X className="size-4" />
                   </button>
@@ -943,18 +944,18 @@ export function GlobalAIChat() {
                     className="h-full flex flex-col items-center justify-center text-center px-6"
                   >
                     <div
-                      className="size-14 rounded-2xl flex items-center justify-center mb-4"
+                      className="size-14 rounded-cortex-lg flex items-center justify-center mb-4"
                       style={{
-                        background: 'linear-gradient(135deg, #8B5CF620, #3B82F620)',
-                        border: '1px solid rgba(139,92,246,0.2)',
+                        background: `linear-gradient(135deg, ${brand.accent}20, ${brand.accentAlt}20)`,
+                        border: `1px solid ${brand.accent}33`,
                       }}
                     >
-                      <Sparkles className="size-6 text-[#8B5CF6]" />
+                      <Sparkles className="size-6 text-cortex-accent" />
                     </div>
                     <p className="text-sm font-semibold text-white mb-1.5">
                       {activeLead ? `Ready for ${activeLead.companyName}` : 'How can I help?'}
                     </p>
-                    <p className="text-xs text-gray-400 leading-relaxed mb-3">
+                    <p className="text-xs text-cortex-muted leading-relaxed mb-3">
                       {activeLead
                         ? `AI is grounded on ${activeLead.companyName} (${activeLead.industry.split(' / ')[0]}). Select a section above then use a quick action or type your own instruction.`
                         : 'Select a company above to ground the AI on a specific lead, or ask a general strategy question.'}
@@ -963,7 +964,7 @@ export function GlobalAIChat() {
                     {/* Active lead context card */}
                     {activeLead && (
                       <div
-                        className="w-full rounded-xl p-3 text-left"
+                        className="w-full rounded-cortex-md p-3 text-left"
                         style={{
                           background: `${STATUS_COLOR[activeLead.status]}0D`,
                           border: `1px solid ${STATUS_COLOR[activeLead.status]}25`,
@@ -988,8 +989,8 @@ export function GlobalAIChat() {
                             { k: 'Score',    v: String(activeLead.qualityScore) },
                           ].map(row => (
                             <div key={row.k}>
-                              <p className="text-[9px] text-gray-600 uppercase tracking-wider">{row.k}</p>
-                              <p className="text-[11px] text-gray-300 font-medium truncate">{row.v}</p>
+                              <p className="text-[9px] text-cortex-faint uppercase tracking-wider">{row.k}</p>
+                              <p className="text-[11px] text-cortex-secondary font-medium truncate">{row.v}</p>
                             </div>
                           ))}
                         </div>
@@ -997,8 +998,8 @@ export function GlobalAIChat() {
                     )}
 
                     {!isBackendEnabled() && (
-                      <div className="mt-3 px-3 py-2 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/20 w-full">
-                        <p className="text-[10px] text-[#F59E0B] font-medium text-center">
+                      <div className="mt-3 px-3 py-2 rounded-cortex-sm bg-cortex-caution/10 border border-cortex-caution/20 w-full">
+                        <p className="text-[10px] text-cortex-caution font-medium text-center">
                           Demo mode -- set BACKEND_INTEGRATION: true for live GPT-4o-mini
                         </p>
                       </div>
@@ -1022,18 +1023,18 @@ export function GlobalAIChat() {
               {/* Context awareness label */}
               {(activeLead || currentSection) && (
                 <div
-                  className="mx-4 mb-2 px-3 py-1.5 rounded-lg flex items-center gap-2"
+                  className="mx-4 mb-2 px-3 py-1.5 rounded-cortex-sm flex items-center gap-2"
                   style={{
-                    background: 'rgba(139,92,246,0.06)',
-                    border: '1px solid rgba(139,92,246,0.12)',
+                    background: `${brand.accent}0F`,
+                    border: `1px solid ${brand.accent}1F`,
                   }}
                 >
-                  <div className="size-1.5 rounded-full bg-[#8B5CF6] animate-pulse flex-shrink-0" />
-                  <p className="text-[10px] text-gray-500 truncate">
+                  <div className="size-1.5 rounded-full bg-cortex-accent animate-pulse flex-shrink-0" />
+                  <p className="text-[10px] text-cortex-muted truncate">
                     {activeLead && (
-                      <span className="text-[#8B5CF6] font-semibold">{activeLead.companyName}</span>
+                      <span className="text-cortex-accent font-semibold">{activeLead.companyName}</span>
                     )}
-                    {activeLead && currentSection && <span className="text-gray-700"> - </span>}
+                    {activeLead && currentSection && <span className="text-cortex-faint"> - </span>}
                     {currentSection && <span>{currentSection.sectionLabel}</span>}
                     {!activeLead && !currentSection && 'No context -- general mode'}
                   </p>
@@ -1043,7 +1044,7 @@ export function GlobalAIChat() {
               {/* Input */}
               <div
                 className="px-4 pb-4 pt-2 border-t"
-                style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+                style={{ borderColor: border.default }}
               >
                 <form onSubmit={handleSubmit} className="relative">
                   <textarea
@@ -1057,21 +1058,21 @@ export function GlobalAIChat() {
                         : 'Ask anything...'
                     }
                     rows={2}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-[#8B5CF6]/50 transition-colors"
+                    className="w-full bg-cortex-control border border-cortex-default rounded-cortex-md px-4 py-3 pr-12 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-cortex-accent/50 transition-colors"
                     disabled={isTyping}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || isTyping}
-                    className="absolute right-3 bottom-3 size-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                    style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)' }}
+                    className="absolute right-3 bottom-3 size-7 rounded-cortex-sm flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})` }}
                   >
                     {isTyping
                       ? <Loader2 className="size-3.5 text-white animate-spin" />
                       : <Send className="size-3.5 text-white" />}
                   </button>
                 </form>
-                <p className="text-[9px] text-gray-600 mt-1.5 text-center">
+                <p className="text-[9px] text-cortex-faint mt-1.5 text-center">
                   Enter to send - Shift+Enter for new line - AI never overrides diagnostic scores
                 </p>
               </div>
