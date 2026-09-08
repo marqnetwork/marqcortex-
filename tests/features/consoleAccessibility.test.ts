@@ -162,3 +162,40 @@ describe('the shell keeps the landmarks and states it gained', () => {
     }
   });
 });
+
+describe('the execution dashboard has a document outline', () => {
+  const execution = stripComments(read('src/app/components/ExecutionDashboard.tsx'));
+
+  it('makes every section header a real heading', () => {
+    // `SectionHeader` rendered its title in a `<span>`, and it is used
+    // twenty-two times, so every section on the page LOOKED like a heading and
+    // was not one. The document had no outline at all: a screen-reader user
+    // could not list the sections or jump between them, and had to read the
+    // page linearly to find out what was on it — on the densest page in the
+    // console.
+    assert.match(execution, /<h2 className="text-sm font-bold text-white">\{title\}<\/h2>/);
+    assert.ok(
+      !/<span className="text-sm font-bold text-white">\{title\}<\/span>/.test(execution),
+      'the section title is a span again',
+    );
+    // One definition, so the fix reaches all of them.
+    assert.ok((execution.match(/<SectionHeader/g) ?? []).length >= 20);
+  });
+
+  it('gives the page an h1', () => {
+    assert.match(execution, /<h1 className="text-\[11px\] font-black text-white">\{project\.client_name\}<\/h1>/);
+  });
+
+  it('declares its section switcher as a tablist', () => {
+    // Six buttons whose current one was distinguishable only by colour.
+    assert.match(execution, /role="tablist"\s*\n\s*aria-label="Engagement sections"/);
+    assert.match(execution, /role="tab"\s*\n\s*aria-selected=\{isActive\}/);
+    assert.match(execution, /aria-controls="execution-tabpanel"/);
+    assert.match(execution, /id="execution-tabpanel" role="tabpanel"/);
+  });
+
+  it('keeps the styling it had — this is a semantics change, not a redesign', () => {
+    // The heading classes are the span's classes verbatim, so nothing moves.
+    assert.match(execution, /className="text-sm font-bold text-white">\{title\}/);
+  });
+});

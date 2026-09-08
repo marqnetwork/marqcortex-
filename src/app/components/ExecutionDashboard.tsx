@@ -129,6 +129,20 @@ function Card({ children, accent = PURPLE }: { children: React.ReactNode; accent
   );
 }
 
+/**
+ * The heading for each of this dashboard's twenty-two sections.
+ *
+ * `title` used to render in a `<span>`. Every section on the page therefore
+ * LOOKED like a heading and was not one, so the document had no outline at all:
+ * a screen-reader user could not list the sections, could not jump between
+ * them, and had to read the page linearly to find out what was on it. The
+ * execution dashboard is dense — workstreams, milestones, gates, ROI,
+ * governance — and it is exactly the kind of page a heading list exists for.
+ *
+ * `<h2>` because the page's own title is the `<h1>`. The classes are unchanged,
+ * so nothing moves: `@layer base` in `theme.css` sets heading sizes, and the
+ * utility classes here override them exactly as they did on the span.
+ */
 function SectionHeader({ icon: Icon, title, badge, accent = ACCENT, children }: {
   icon: LucideIcon;
   title: string;
@@ -138,8 +152,8 @@ function SectionHeader({ icon: Icon, title, badge, accent = ACCENT, children }: 
 }) {
   return (
     <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
-      <Icon className="size-4 flex-shrink-0" style={{ color: accent }} />
-      <span className="text-sm font-bold text-white">{title}</span>
+      <Icon className="size-4 flex-shrink-0" style={{ color: accent }} aria-hidden="true" />
+      <h2 className="text-sm font-bold text-white">{title}</h2>
       {badge && (
         <span
           className="text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider border"
@@ -2069,7 +2083,9 @@ function ExecHeader({
             EX
           </div>
           <div>
-            <div className="text-[11px] font-black text-white">{project.client_name}</div>
+            {/* The page's own title, and now a real one — it was a styled div,
+                so this dashboard had no `<h1>` for a reader to land on. */}
+            <h1 className="text-[11px] font-black text-white">{project.client_name}</h1>
             <div className="text-[8px] text-gray-700 font-mono flex items-center gap-1.5">
               <span>{project.execution_id}</span>
               <span>·</span>
@@ -2160,8 +2176,13 @@ export function ExecutionDashboard({ project }: ExecutionDashboardProps) {
         onGenerateQBR={handleGenerateQBR}
       />
 
-      {/* Tab nav */}
+      {/* Tab nav.
+          Declared as a tablist with a selected state, so a screen reader
+          announces "tab 3 of 6, selected" rather than six unrelated buttons
+          whose current one is distinguishable only by its colour. */}
       <div
+        role="tablist"
+        aria-label="Engagement sections"
         className="sticky top-[61px] z-10 flex gap-1 border-b border-white/10 px-5 overflow-x-auto"
         style={{ background: '#08080F' }}
       >
@@ -2171,6 +2192,9 @@ export function ExecutionDashboard({ project }: ExecutionDashboardProps) {
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls="execution-tabpanel"
               onClick={() => setActiveTab(tab.id)}
               className="flex items-center gap-1.5 px-3 py-3 text-[9px] font-bold whitespace-nowrap border-b-2 transition-colors"
               style={{
@@ -2178,7 +2202,7 @@ export function ExecutionDashboard({ project }: ExecutionDashboardProps) {
                 color:       isActive ? ACCENT : '#6B7280',
               }}
             >
-              <Icon className="size-3" />
+              <Icon className="size-3" aria-hidden="true" />
               {tab.label}
             </button>
           );
@@ -2186,7 +2210,7 @@ export function ExecutionDashboard({ project }: ExecutionDashboardProps) {
       </div>
 
       {/* Content */}
-      <div className="p-5 max-w-5xl mx-auto">
+      <div id="execution-tabpanel" role="tabpanel" className="p-5 max-w-5xl mx-auto">
         {/* Mapping Engine source banner */}
         <div
           className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg border text-[8px] flex-wrap"
