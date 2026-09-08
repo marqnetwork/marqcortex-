@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Send, CheckCircle2, Sparkles, Lightbulb } from 'lucide-react';
+import { brand, status } from '@/app/lib/tokens';
 import { industrialQuestions } from '@/app/components/IndustrialQuestions';
 import { universalQuestions } from '@/app/components/UniversalQuestions';
 import { AIAssistant } from '@/app/components/AIAssistant';
@@ -25,17 +26,23 @@ interface DiagnosticFormProps {
   };
 }
 
-// Industry definitions
+// Industry definitions.
+//
+// Nine categorical colours, drawn only from declared tokens so an industry
+// added later has somewhere to take its colour FROM. Seven were already tokens
+// written out as hex; `government` was `#6B7280`, a shade off the neutral
+// token, and `other` was `#9333EA`, the only violet in the product with no
+// declaration behind it — it now takes the categorical accent.
 const industries = [
-  { id: 'ecommerce', name: 'E-commerce / DTC', icon: '🛒', color: '#8B5CF6' },
-  { id: 'saas', name: 'SaaS / Software', icon: '💻', color: '#3B82F6' },
-  { id: 'agency', name: 'Agency / Services', icon: '🎨', color: '#06D7F6' },
-  { id: 'healthcare', name: 'Healthcare / Medical', icon: '⚕️', color: '#FB923C' },
-  { id: 'nonprofit', name: 'Non-Profit / Education', icon: '🎓', color: '#FD4438' },
-  { id: 'creators', name: 'Creators / Training / Courses', icon: '📚', color: '#10B981' },
-  { id: 'government', name: 'Government / Public Sector', icon: '🏛️', color: '#6B7280' },
-  { id: 'manufacturing', name: 'Manufacturing / Supply Chain', icon: '🏭', color: '#F59E0B' },
-  { id: 'other', name: 'Other Business / General', icon: '🏢', color: '#9333EA' },
+  { id: 'ecommerce', name: 'E-commerce / DTC', icon: '🛒', color: brand.accent },
+  { id: 'saas', name: 'SaaS / Software', icon: '💻', color: brand.accentAlt },
+  { id: 'agency', name: 'Agency / Services', icon: '🎨', color: status.info },
+  { id: 'healthcare', name: 'Healthcare / Medical', icon: '⚕️', color: status.warning },
+  { id: 'nonprofit', name: 'Non-Profit / Education', icon: '🎓', color: status.danger },
+  { id: 'creators', name: 'Creators / Training / Courses', icon: '📚', color: status.success },
+  { id: 'government', name: 'Government / Public Sector', icon: '🏛️', color: status.neutral },
+  { id: 'manufacturing', name: 'Manufacturing / Supply Chain', icon: '🏭', color: status.caution },
+  { id: 'other', name: 'Other Business / General', icon: '🏢', color: brand.accentTertiary },
 ];
 
 // E-COMMERCE / DTC QUESTIONS
@@ -1710,9 +1717,9 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
         {[...Array(8)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-24 h-24 rounded-3xl opacity-10"
+            className="absolute w-24 h-24 rounded-cortex-lg opacity-10"
             style={{
-              background: `linear-gradient(135deg, ${['#8B5CF6', '#3B82F6', '#06D7F6', '#FB923C'][i % 4]}, transparent)`,
+              background: `linear-gradient(135deg, ${[brand.accent, brand.accentAlt, status.info, status.warning][i % 4]}, transparent)`,
               left: `${10 + (i % 4) * 25}%`,
               top: `${10 + Math.floor(i / 4) * 40}%`,
             }}
@@ -1737,7 +1744,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-16 h-16 rounded-full opacity-10"
             style={{
-              background: 'linear-gradient(135deg, #3B82F6, #06D7F6)',
+              background: `linear-gradient(135deg, ${brand.accentAlt}, ${status.info})`,
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
             }}
@@ -1762,7 +1769,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-2 opacity-10"
             style={{
-              background: 'linear-gradient(180deg, #8B5CF6, #3B82F6)',
+              background: `linear-gradient(180deg, ${brand.accent}, ${brand.accentAlt})`,
               left: `${10 + i * 9}%`,
               bottom: 0,
               height: `${20 + (i + 1) * 6}%`,
@@ -1789,7 +1796,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             style={{
               width: `${100 + i * 20}px`,
               height: `${100 + i * 20}px`,
-              border: '3px solid #FB923C',
+              border: `3px solid ${status.warning}`,
               borderRadius: '50%',
               left: '50%',
               top: '50%',
@@ -1815,7 +1822,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-1 h-20 opacity-10"
             style={{
-              background: `linear-gradient(180deg, #06D7F6, transparent)`,
+              background: `linear-gradient(180deg, ${status.info}, transparent)`,
               left: `${i * 5}%`,
               top: '50%',
               transformOrigin: 'bottom',
@@ -1839,9 +1846,9 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
         {[...Array(15)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-12 h-12 rounded-xl opacity-10"
+            className="absolute w-12 h-12 rounded-cortex-md opacity-10"
             style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)',
+              background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})`,
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
             }}
@@ -1872,7 +1879,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
           >
             <motion.div
               className="w-16 h-16 rounded-full opacity-10"
-              style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)' }}
+              style={{ background: `linear-gradient(135deg, ${brand.accent}, ${brand.accentAlt})` }}
               animate={{
                 scale: [1, 1.3, 1],
               }}
@@ -1885,7 +1892,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             {i < 4 && (
               <motion.div
                 className="w-24 h-1 opacity-10"
-                style={{ background: '#8B5CF6' }}
+                style={{ background: brand.accent }}
                 animate={{
                   scaleX: [0, 1],
                 }}
@@ -1908,7 +1915,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-2 h-2 rounded-full opacity-10"
             style={{
-              background: '#06D7F6',
+              background: status.info,
               left: '50%',
               top: '50%',
             }}
@@ -1933,7 +1940,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-3 h-3 opacity-10"
             style={{
-              background: '#FB923C',
+              background: status.warning,
               clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -1959,7 +1966,7 @@ const BackgroundAnimations = ({ theme }: { theme: string }) => {
             key={i}
             className="absolute w-2 h-2 rounded-full"
             style={{
-              background: ['#8B5CF6', '#3B82F6', '#06D7F6', '#FB923C'][i % 4],
+              background: [brand.accent, brand.accentAlt, status.info, status.warning][i % 4],
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
               opacity: 0.1,
@@ -2062,11 +2069,11 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
         <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/80 to-black/90 pointer-events-none" />
 
         {/* Header */}
-        <header className="border-b border-[#1a1a1a] bg-black/50 backdrop-blur-xl relative z-10">
+        <header className="border-b border-cortex-overlay bg-cortex-canvas/50 backdrop-blur-xl relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-6">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[#70707C] hover:text-white transition-colors"
+              className="flex items-center gap-2 text-cortex-neutral hover:text-white transition-colors"
               style={{ fontFamily: 'Inter' }}
             >
               <ChevronLeft size={20} />
@@ -2088,18 +2095,18 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", delay: 0.2 }}
-                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 rounded-full mb-8"
+                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 rounded-full mb-8"
               >
-                <Sparkles className="text-[#8B5CF6]" size={24} />
-                <span className="text-sm font-semibold text-[#8B5CF6] uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
+                <Sparkles className="text-cortex-accent" size={24} />
+                <span className="text-sm font-semibold text-cortex-accent uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
                   Step 1: Select Your Industry
                 </span>
               </motion.div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-[#F5F5FF] to-[#8B5CF6] bg-clip-text text-transparent" style={{ fontFamily: 'Inter' }}>
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-cortex-primary to-cortex-accent bg-clip-text text-transparent" style={{ fontFamily: 'Inter' }}>
                 What Industry Are You In?
               </h1>
-              <p className="text-xl text-[#70707C] max-w-2xl mx-auto leading-relaxed" style={{ fontFamily: 'Inter' }}>
+              <p className="text-xl text-cortex-neutral max-w-2xl mx-auto leading-relaxed" style={{ fontFamily: 'Inter' }}>
                 We'll customize the diagnostic questions based on your industry to provide the most relevant insights for your business.
               </p>
             </motion.div>
@@ -2115,7 +2122,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                   whileHover={{ scale: 1.05, y: -8 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setSelectedIndustry(industry.id)}
-                  className="group relative p-5 sm:p-8 bg-[#1a1a1a]/60 backdrop-blur-sm border-2 border-[#242424] rounded-2xl hover:border-[#8B5CF6] transition-all overflow-hidden"
+                  className="group relative p-5 sm:p-8 bg-cortex-overlay/60 backdrop-blur-sm border-2 border-cortex-strong rounded-cortex-lg hover:border-cortex-accent transition-all overflow-hidden"
                 >
                   {/* Hover Gradient */}
                   <motion.div
@@ -2132,7 +2139,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     >
                       {industry.icon}
                     </div>
-                    <h3 className="text-2xl font-bold text-[#F5F5FF] mb-2 group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
+                    <h3 className="text-2xl font-bold text-cortex-primary mb-2 group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
                       {industry.name}
                     </h3>
                     <motion.div
@@ -2162,7 +2169,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
               transition={{ delay: 1 }}
               className="mt-12 text-center"
             >
-              <p className="text-sm text-[#70707C] italic" style={{ fontFamily: 'Inter' }}>
+              <p className="text-sm text-cortex-neutral italic" style={{ fontFamily: 'Inter' }}>
                 💡 Don't see your exact industry? Choose the closest match or select "Other Industry"
               </p>
             </motion.div>
@@ -2214,10 +2221,10 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
     <div className="min-h-screen bg-black text-white flex flex-col relative overflow-hidden">
       {/* Restore banner */}
       {showRestoreBanner && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-[#8B5CF6]/90 backdrop-blur-sm px-4 py-3 flex items-center justify-center gap-4 text-sm">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-cortex-accent/90 backdrop-blur-sm px-4 py-3 flex items-center justify-center gap-4 text-sm">
           <span className="text-white font-medium">We found your previous progress. Continue where you left off?</span>
-          <button onClick={() => setShowRestoreBanner(false)} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-white text-xs font-bold transition-colors">Continue</button>
-          <button onClick={handleDiscardRestore} className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-xs font-medium transition-colors">Start Fresh</button>
+          <button onClick={() => setShowRestoreBanner(false)} className="px-3 py-1 bg-cortex-control-hover hover:bg-cortex-control-hover rounded text-white text-xs font-bold transition-colors">Continue</button>
+          <button onClick={handleDiscardRestore} className="px-3 py-1 bg-cortex-control-hover hover:bg-cortex-control-hover rounded text-white/70 text-xs font-medium transition-colors">Start Fresh</button>
         </div>
       )}
 
@@ -2239,25 +2246,25 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
       <div className="absolute inset-0 bg-gradient-to-br from-black/90 via-black/80 to-black/90 pointer-events-none" />
 
       {/* Enhanced Header with Progress */}
-      <header className="border-b border-[#1a1a1a] bg-black/50 backdrop-blur-xl relative z-10">
+      <header className="border-b border-cortex-overlay bg-cortex-canvas/50 backdrop-blur-xl relative z-10">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-6">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-[#70707C] hover:text-white transition-colors"
+              className="flex items-center gap-2 text-cortex-neutral hover:text-white transition-colors"
               style={{ fontFamily: 'Inter' }}
             >
               <ChevronLeft size={20} />
               Back
             </button>
             <div className="flex items-center gap-4">
-              <Sparkles className="text-[#8B5CF6]" size={20} aria-hidden="true" />
+              <Sparkles className="text-cortex-accent" size={20} aria-hidden="true" />
               {/* `aria-live` so moving between questions is ANNOUNCED. Without
                   it the whole step change was silent: the heading swapped, the
                   progress bar grew, and a screen-reader user heard nothing to
                   say they had advanced. */}
               <span
-                className="text-sm font-medium text-[#F5F5FF]"
+                className="text-sm font-medium text-cortex-primary"
                 style={{ fontFamily: 'Inter' }}
                 aria-live="polite"
                 aria-atomic="true"
@@ -2279,11 +2286,11 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
             aria-valuenow={currentStep + 1}
             aria-valuetext={`Question ${currentStep + 1} of ${questions.length}`}
           >
-            <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+            <div className="h-2 bg-cortex-overlay rounded-full overflow-hidden">
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  background: 'linear-gradient(90deg, #8B5CF6, #3B82F6, #06D7F6)',
+                  background: `linear-gradient(90deg, ${brand.accent}, ${brand.accentAlt}, ${status.info})`,
                 }}
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
@@ -2291,7 +2298,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
               />
             </div>
             <motion.div
-              className="absolute -top-1 w-4 h-4 rounded-full bg-white shadow-lg shadow-[#8B5CF6]/50"
+              className="absolute -top-1 w-4 h-4 rounded-full bg-white shadow-lg shadow-cortex-accent/50"
               animate={{ left: `calc(${progress}% - 8px)` }}
               transition={{ duration: 0.5, ease: "easeOut" }}
             />
@@ -2304,7 +2311,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
             animate={{ opacity: 1, y: 0 }}
             className="mt-4 text-center"
           >
-            <p className="text-sm font-medium text-[#8B5CF6]" style={{ fontFamily: 'Inter' }}>
+            <p className="text-sm font-medium text-cortex-accent" style={{ fontFamily: 'Inter' }}>
               {progress < 30 && "🚀 Great start! Keep going..."}
               {progress >= 30 && progress < 60 && "💪 You're doing amazing! Halfway there..."}
               {progress >= 60 && progress < 90 && "🔥 Almost there! You've got this..."}
@@ -2333,11 +2340,11 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="mb-8 p-6 bg-gradient-to-r from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/30 rounded-2xl backdrop-blur-sm"
+                  className="mb-8 p-6 bg-gradient-to-r from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/30 rounded-cortex-lg backdrop-blur-sm"
                 >
                   <div className="flex items-start gap-4">
-                    <Sparkles className="text-[#8B5CF6] flex-shrink-0 mt-1" size={24} />
-                    <p className="text-lg italic text-[#F5F5FF] leading-relaxed" style={{ fontFamily: 'Inter' }}>
+                    <Sparkles className="text-cortex-accent flex-shrink-0 mt-1" size={24} />
+                    <p className="text-lg italic text-cortex-primary leading-relaxed" style={{ fontFamily: 'Inter' }}>
                       "{currentQuestion.motivationalQuote}"
                     </p>
                   </div>
@@ -2353,7 +2360,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     asked fourteen questions they could not hear. */}
                 <h2
                   id="diagnostic-question"
-                  className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 sm:mb-10 text-[#F5F5FF] leading-tight"
+                  className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 sm:mb-10 text-cortex-primary leading-tight"
                   style={{ fontFamily: 'Inter' }}
                 >
                   {currentQuestion.question}
@@ -2376,7 +2383,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     value={(answers[currentQuestion.id] as string) || ''}
                     onChange={(e) => handleAnswer(e.target.value)}
                     placeholder={currentQuestion.placeholder}
-                    className="w-full p-6 bg-[#1a1a1a]/80 backdrop-blur-sm border-2 border-[#242424] rounded-2xl text-lg text-white placeholder:text-[#70707C] focus:border-[#8B5CF6] focus:outline-none resize-none h-48"
+                    className="w-full p-6 bg-cortex-overlay/80 backdrop-blur-sm border-2 border-cortex-strong rounded-cortex-lg text-lg text-white placeholder:text-cortex-neutral focus:border-cortex-accent focus:outline-none resize-none h-48"
                     style={{ fontFamily: 'Inter' }}
                   />
                 )}
@@ -2392,7 +2399,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     value={(answers[currentQuestion.id] as string) || ''}
                     onChange={(e) => handleAnswer(e.target.value)}
                     placeholder={currentQuestion.placeholder}
-                    className="w-full p-6 bg-[#1a1a1a]/80 backdrop-blur-sm border-2 border-[#242424] rounded-2xl text-lg text-white placeholder:text-[#70707C] focus:border-[#8B5CF6] focus:outline-none"
+                    className="w-full p-6 bg-cortex-overlay/80 backdrop-blur-sm border-2 border-cortex-strong rounded-cortex-lg text-lg text-white placeholder:text-cortex-neutral focus:border-cortex-accent focus:outline-none"
                     style={{ fontFamily: 'Inter' }}
                   />
                 )}
@@ -2410,10 +2417,10 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                           whileHover={{ scale: 1.15, y: -4 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAnswer(num)}
-                          className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl font-bold text-base sm:text-xl transition-all ${
+                          className={`w-12 h-12 sm:w-16 sm:h-16 rounded-cortex-md sm:rounded-cortex-lg font-bold text-base sm:text-xl transition-all ${
                             answers[currentQuestion.id] === num
-                              ? 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white scale-110 shadow-2xl shadow-[#8B5CF6]/50'
-                              : 'bg-[#1a1a1a]/80 backdrop-blur-sm text-[#70707C] hover:bg-[#242424] hover:text-white border-2 border-[#242424] hover:border-[#8B5CF6]'
+                              ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-alt text-white scale-110 shadow-2xl shadow-cortex-accent/50'
+                              : 'bg-cortex-overlay/80 backdrop-blur-sm text-cortex-neutral hover:bg-cortex-control-hover hover:text-white border-2 border-cortex-strong hover:border-cortex-accent'
                           }`}
                           style={{ fontFamily: 'Inter' }}
                         >
@@ -2421,7 +2428,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                         </motion.button>
                       ))}
                     </div>
-                    <div className="flex justify-between text-sm text-[#70707C]" style={{ fontFamily: 'Inter' }}>
+                    <div className="flex justify-between text-sm text-cortex-neutral" style={{ fontFamily: 'Inter' }}>
                       <span>😞 Very Poor</span>
                       <span>😊 Excellent</span>
                     </div>
@@ -2442,10 +2449,10 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                 whileTap={{ scale: 0.98 }}
                 onClick={handleNext}
                 disabled={!isAnswered}
-                className={`w-full py-6 rounded-2xl text-xl font-bold flex items-center justify-center gap-3 transition-all ${
+                className={`w-full py-6 rounded-cortex-lg text-xl font-bold flex items-center justify-center gap-3 transition-all ${
                   isAnswered
-                    ? 'bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white hover:shadow-2xl hover:shadow-[#8B5CF6]/50'
-                    : 'bg-[#1a1a1a]/60 backdrop-blur-sm text-[#70707C] cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white hover:shadow-2xl hover:shadow-cortex-accent/50'
+                    : 'bg-cortex-overlay/60 backdrop-blur-sm text-cortex-neutral cursor-not-allowed'
                 }`}
                 style={{ fontFamily: 'Inter' }}
               >
@@ -2466,7 +2473,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
         </div>
 
         {/* Right Side - Example Answers (hidden on mobile, visible on lg+) */}
-        <div className="hidden lg:flex flex-1 items-center justify-center px-8 lg:px-12 py-8 lg:py-12 border-l border-[#1a1a1a]/50">
+        <div className="hidden lg:flex flex-1 items-center justify-center px-8 lg:px-12 py-8 lg:py-12 border-l border-cortex-overlay/50">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -2478,14 +2485,14 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
             >
               {/* Header */}
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#06D7F6]/20 to-[#3B82F6]/20 border border-[#06D7F6]/30 flex items-center justify-center backdrop-blur-sm">
-                  <Lightbulb className="text-[#06D7F6]" size={24} />
+                <div className="w-12 h-12 rounded-cortex-md bg-gradient-to-br from-cortex-info/20 to-cortex-accent-alt/20 border border-cortex-info/30 flex items-center justify-center backdrop-blur-sm">
+                  <Lightbulb className="text-cortex-info" size={24} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-[#F5F5FF]" style={{ fontFamily: 'Inter' }}>
+                  <h3 className="text-2xl font-bold text-cortex-primary" style={{ fontFamily: 'Inter' }}>
                     Example Answers
                   </h3>
-                  <p className="text-sm text-[#70707C]" style={{ fontFamily: 'Inter' }}>
+                  <p className="text-sm text-cortex-neutral" style={{ fontFamily: 'Inter' }}>
                     Get inspired by these real examples
                   </p>
                 </div>
@@ -2499,15 +2506,15 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 + index * 0.1 }}
-                    className="p-5 bg-[#1a1a1a]/60 backdrop-blur-sm border border-[#242424]/50 rounded-xl hover:border-[#06D7F6]/50 transition-all group"
+                    className="p-5 bg-cortex-overlay/60 backdrop-blur-sm border border-cortex-strong/50 rounded-cortex-md hover:border-cortex-info/50 transition-all group"
                   >
                     <div className="flex items-start gap-4">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#06D7F6] to-[#3B82F6] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cortex-info to-cortex-accent-alt flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-xs font-bold text-white" style={{ fontFamily: 'Inter' }}>
                           {index + 1}
                         </span>
                       </div>
-                      <p className="text-[#F5F5FF] leading-relaxed group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
+                      <p className="text-cortex-primary leading-relaxed group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
                         {example}
                       </p>
                     </div>
@@ -2520,9 +2527,9 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
-                className="mt-8 p-4 bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 rounded-xl backdrop-blur-sm"
+                className="mt-8 p-4 bg-cortex-accent/10 border border-cortex-accent/20 rounded-cortex-md backdrop-blur-sm"
               >
-                <p className="text-sm text-[#F5F5FF] italic" style={{ fontFamily: 'Inter' }}>
+                <p className="text-sm text-cortex-primary italic" style={{ fontFamily: 'Inter' }}>
                   💡 Feel free to use your own words - these are just examples to guide you!
                 </p>
               </motion.div>
