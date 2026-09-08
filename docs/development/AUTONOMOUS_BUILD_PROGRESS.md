@@ -785,6 +785,43 @@ weakened; each kept its guarantee and two gained one:
 - `breadcrumbContract.test.ts` — keeps Sprint 7's stricter "no hand-written
   label" rule *and* Sprints 1-6's "every destination says where you are".
 
+## BROWSER SMOKE OF THE INTEGRATED BRANCH
+
+Chromium via the pre-installed browser at `/opt/pw-browsers/chromium` (the
+repo's pinned Playwright expects an older build; launch with `executablePath`),
+against the dev server in demo mode, at 1440px and 390px. 33 checks, all
+passing:
+
+- **Dashboard** — reached, one `h1`, skip link present, `#cortex-main`
+  addressable.
+- **Navigation** — both landmarks named, `aria-current` on the active entry,
+  no unnamed buttons. The sidebar renders all six intent groups, and the
+  AI Control Plane and Operations are both in it — the two destinations
+  Sprint 7's model did not contain.
+- **AI Control Plane** — reachable from the sidebar, addressable at
+  `?page=control-plane`, breadcrumb names it, content renders.
+- **Operations** — the same, at `?page=operations`.
+- **Deep-link refresh recovery** — `?page=analytics` lands on Analytics, and a
+  browser reload STAYS on Analytics rather than bouncing to the dashboard or to
+  login. `?page=nonsense` falls back instead of erroring.
+- **Mobile drawer (390px)** — trigger present, drawer `visibility: hidden` when
+  closed rather than merely translated off-screen, opens with real labels (not
+  an icon rail), closes on Escape, no horizontal overflow.
+- **Onboarding** — the home surface renders and names the signed-in member.
+- **Client portal** — client login renders, one `h1`, no unnamed buttons, no
+  unlabelled inputs.
+- **The folded group** — `Platform` is a real disclosure: `aria-expanded=false`
+  with `aria-controls`, Architecture hidden, one click reveals it. The command
+  palette reaches Operations by name whether the group is folded or not, opens
+  as a dialog and closes on Escape.
+- **No uncaught page errors** on any route driven.
+
+One defect was found and fixed: the client login's email field had a styled
+`<label>` with no `htmlFor` and no `id` on the input, so it named the field on
+screen and to nobody else — a screen-reader user reached an edit box announced
+only by its placeholder, which vanishes on the first keystroke. Pre-existing on
+both source branches; the integration changed no client file.
+
 ## NEXT EXACT TASK
 
 **Token migration was paused for this reconciliation and is now unblocked.**

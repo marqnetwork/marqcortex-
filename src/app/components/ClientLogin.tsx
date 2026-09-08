@@ -168,12 +168,17 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
         >
           {/* Email Field */}
           <div>
-            <label className="block text-sm font-semibold text-gray-200 mb-2">
+            {/* The label was styled text with no `htmlFor`, so it named the
+                field on screen and to nobody else: a screen-reader user reached
+                an edit box announced only by its placeholder, which vanishes as
+                soon as they start typing. */}
+            <label htmlFor="client-login-email" className="block text-sm font-semibold text-gray-200 mb-2">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} aria-hidden="true" />
               <motion.input
+                id="client-login-email"
                 whileFocus={{ scale: 1.01 }}
                 type="email"
                 value={email}
