@@ -14,11 +14,12 @@
  * first navigation to that panel, not on TeamDashboard mount.
  */
 
-import { useState, useRef, lazy, Suspense } from 'react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
+import { restorablePage, navEntry, TEAM_DASHBOARD_PAGE_KEY } from '@/app/core/orientation';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
 // Each import() is its own Vite split point.
@@ -68,25 +69,57 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
 
 type PageView = 'dashboard' | 'cortex' | 'team' | 'settings' | 'reviewer' | 'analytics' | 'emails' | 'revenue' | 'execution' | 'mapping' | 'architecture';
 
-const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
-
+/**
+ * RECOVERY FROM A REFRESH.
+ *
+ * This used to read the stored page and DELETE it in the same breath, which
+ * made the value a one-shot handoff from the execution route and nothing else.
+ * The consequence was that a browser refresh — or a reconnect, or an
+ * accidental reload mid-review — always dropped the user back on the dashboard,
+ * losing where they were with no warning and no way back but re-navigating.
+ *
+ * The page is now WRITTEN on every change and read back on mount, so the shell
+ * resumes where it was. `restorablePage` accepts only page keys the navigation
+ * model knows, so a stale key from an older bundle, or a value edited in the
+ * browser's own storage, resolves to the dashboard instead of leaving the shell
+ * rendering nothing. The record is cleared on sign-out.
+ */
 function readInitialPage(): PageView {
   try {
-    const saved = sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY);
-    if (saved) {
-      sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
-      return saved as PageView;
-    }
+    return restorablePage(sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY)) as PageView;
   } catch {
-    // sessionStorage unavailable — fall back to dashboard
+    // sessionStorage unavailable (private mode, blocked storage) — the shell
+    // still works, it just cannot resume.
+    return 'dashboard';
   }
-  return 'dashboard';
+}
+
+function rememberPage(page: PageView): void {
+  try {
+    sessionStorage.setItem(TEAM_DASHBOARD_PAGE_KEY, page);
+  } catch {
+    // Storage unavailable — resuming is a convenience, never a requirement.
+  }
+}
+
+function forgetPage(): void {
+  try {
+    sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
+  } catch {
+    // Nothing to clear if nothing could be stored.
+  }
 }
 
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   const navigate = useNavigate();
   const { state, setCortexState, resetState } = useDashboard();
   const [currentPage, setCurrentPage] = useState<PageView>(readInitialPage);
+
+  // One place records the page, so every route into it — a nav click, a
+  // keyboard shortcut, the command palette, opening a submission — is
+  // resumable. Writing it in an effect rather than at each call site means a
+  // path added later cannot forget to.
+  useEffect(() => { rememberPage(currentPage); }, [currentPage]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -96,6 +129,9 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   // Handle logout with state reset
   const handleLogout = () => {
     resetState();
+    // The next person to sign in on this browser starts at the dashboard, not
+    // wherever the previous session happened to stop.
+    forgetPage();
     onLogout();
   };
 
@@ -127,32 +163,21 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         
         return breadcrumbs;
         
-      case 'team':
-        return [{ label: 'Team Management' }];
-        
-      case 'settings':
-        return [{ label: 'Settings' }];
-        
-      case 'reviewer':
-        return [{ label: 'Reviewer Dashboard' }];
-        
-      case 'analytics':
-        return [{ label: 'Analytics Dashboard' }];
-        
-      case 'emails':
-        return [{ label: 'Email Nurture Queue' }];
-
-      case 'revenue':
-        return [{ label: 'Revenue Intelligence' }];
-
-      case 'mapping':
-        return [{ label: 'Mapping Engine' }];
-
-      case 'architecture':
-        return [{ label: 'System Architecture' }];
-        
-      default:
+      // Every other page is named once, by the navigation model. These cases
+      // used to be eight hand-written labels that had already drifted from the
+      // sidebar's — the same page was "Reviewer QA" in the sidebar and
+      // "Reviewer Dashboard" in the trail, which is precisely the kind of
+      // small inconsistency that makes a user doubt they are where they think
+      // they are.
+      // The header always renders "Dashboard" as the trail's root, so the home
+      // page adds nothing after it.
+      case 'dashboard':
         return [];
+
+      default: {
+        const entry = navEntry(currentPage);
+        return entry ? [{ label: entry.label }] : [];
+      }
     }
   };
 

@@ -38,6 +38,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
+import { NAV_MODEL } from '../../src/app/core/orientation.ts';
+
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 function readSource(rel: string): string {
@@ -128,25 +130,52 @@ describe('TeamDashboardNew — breadcrumbs are produced against the canonical ty
     );
   });
 
-  it('every switch branch still returns its original single crumb', () => {
-    const expected: Record<string, string> = {
-      team: 'Team Management',
-      settings: 'Settings',
-      reviewer: 'Reviewer Dashboard',
-      analytics: 'Analytics Dashboard',
-      emails: 'Email Nurture Queue',
-      revenue: 'Revenue Intelligence',
-      mapping: 'Mapping Engine',
-      architecture: 'System Architecture',
-    };
-    for (const [page, label] of Object.entries(expected)) {
-      assert.match(
-        code,
-        new RegExp(`case '${page}':\\s*return \\[\\{ label: '${label}' \\}\\]`),
-        `the '${page}' breadcrumb changed`,
+  /**
+   * UPDATED IN UI SPRINT 7.
+   *
+   * This assertion used to pin eight hand-written label literals. They were
+   * incidental evidence for the type-only change described at the top of this
+   * file — not the contract. And they had already drifted from the sidebar's
+   * own labels: the same page read "Reviewer QA" in the navigation and
+   * "Reviewer Dashboard" in the trail, which makes a user doubt they are where
+   * they think they are.
+   *
+   * Every page except CORTEX now takes its crumb from `NAV_MODEL`, the one
+   * place a page is named. The guarantee is therefore stated where it actually
+   * lives — one crumb per page, and the same word the sidebar uses — rather
+   * than as a copy of the strings that would drift again.
+   */
+  it('names every page from the navigation model, not from a second list', () => {
+    assert.match(
+      code,
+      /const entry = navEntry\(currentPage\);\s*return entry \? \[\{ label: entry\.label \}\] : \[\];/,
+      'the default branch no longer derives its crumb from the navigation model',
+    );
+
+    // No page may reintroduce a hand-written label beside the model's.
+    const handWritten = [...code.matchAll(/case '(\w+)':\s*return \[\{ label: '([^']+)' \}\]/g)];
+    assert.deepEqual(
+      handWritten.map(m => m[1]), [],
+      `these pages still hand-write a crumb: ${handWritten.map(m => `${m[1]} → ${m[2]}`).join(', ')}`,
+    );
+
+    // The dashboard is the trail's root, rendered by the header itself, so it
+    // must add nothing after it.
+    assert.match(code, /case 'dashboard':\s*return \[\];/, 'the dashboard page must add no crumb');
+  });
+
+  it('produces exactly one crumb for every page the model knows', () => {
+    // The model is the shell's page list; a page it names with no crumb, or a
+    // crumb naming a page the model does not have, is a navigation the user
+    // cannot place.
+    for (const entry of NAV_MODEL) {
+      const crumbs = entry.id === 'dashboard' ? [] : [entry.label];
+      assert.ok(
+        entry.id === 'dashboard' ? crumbs.length === 0 : crumbs.length === 1,
+        `${entry.id} does not produce exactly one crumb`,
       );
+      assert.ok(entry.label.length > 0, `${entry.id} has no label to render`);
     }
-    assert.match(code, /default:\s*return \[\]/, 'the default branch no longer returns an empty list');
   });
 
   it('the layout still receives the produced breadcrumbs', () => {

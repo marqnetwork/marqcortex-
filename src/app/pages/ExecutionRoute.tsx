@@ -12,8 +12,9 @@ import { DashboardProvider } from '@/app/contexts/DashboardContext';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import { ExecutionDashboard } from '@/app/components/ExecutionDashboard';
 import { EXECUTION_STORE, MOCK_EXECUTION } from '@/app/core/executionEngine';
-
-const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+// The key is declared once, by the navigation model, so this route and the
+// shell that reads it cannot drift apart.
+import { TEAM_DASHBOARD_PAGE_KEY } from '@/app/core/orientation';
 
 export function ExecutionRoute() {
   const navigate = useNavigate();

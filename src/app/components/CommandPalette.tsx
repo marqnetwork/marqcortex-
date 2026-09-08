@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { useEscapeKey, formatShortcut, isMac } from '@/app/hooks/useKeyboardShortcuts';
 import type { Submission } from '@/app/services/dataService';
+import { NAV_MODEL } from '@/app/core/orientation';
+import { navIconFor } from '@/app/lib/navIcons';
 
 // ============================================================================
 // TYPES
@@ -382,6 +384,17 @@ function CommandGroup({
 /**
  * Hook to manage command palette state
  */
+/**
+ * The four navigation shortcuts the shell binds. Declared here so the palette
+ * shows exactly the accelerators that exist, rather than inventing one per page.
+ */
+const NAV_SHORTCUTS: Readonly<Record<string, string | undefined>> = {
+  dashboard: `${isMac() ? '⌘' : 'Ctrl'} 1`,
+  cortex: `${isMac() ? '⌘' : 'Ctrl'} 2`,
+  team: `${isMac() ? '⌘' : 'Ctrl'} 3`,
+  settings: `${isMac() ? '⌘' : 'Ctrl'} 4`,
+};
+
 export function useCommandPaletteCommands({
   onNavigate,
   onToggleSidebar,
@@ -399,47 +412,23 @@ export function useCommandPaletteCommands({
 }): Command[] {
   return useMemo(
     () => [
-      // Navigation
-      {
-        id: 'nav-dashboard',
-        label: 'Go to Dashboard',
-        description: 'View all submissions',
-        icon: LayoutDashboard,
-        action: () => onNavigate('dashboard'),
-        category: 'navigation',
-        keywords: ['home', 'submissions', 'list'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 1`,
-      },
-      {
-        id: 'nav-cortex',
-        label: 'Go to CORTEX',
-        description: 'AI decision intelligence',
-        icon: Brain,
-        action: () => onNavigate('cortex'),
-        category: 'navigation',
-        keywords: ['ai', 'analysis', 'insights'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 2`,
-      },
-      {
-        id: 'nav-team',
-        label: 'Go to Team',
-        description: 'Manage team members',
-        icon: Users,
-        action: () => onNavigate('team'),
-        category: 'navigation',
-        keywords: ['members', 'permissions'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 3`,
-      },
-      {
-        id: 'nav-settings',
-        label: 'Go to Settings',
-        description: 'Configure preferences',
-        icon: Settings,
-        action: () => onNavigate('settings'),
-        category: 'navigation',
-        keywords: ['preferences', 'config'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 4`,
-      },
+      // ── Navigation ──────────────────────────────────────────────────────
+      // Generated from `NAV_MODEL`, so every page the shell can render is
+      // reachable by name. This list used to be four hand-written entries —
+      // dashboard, CORTEX, team, settings — which left seven pages, Execution
+      // and the review queue among them, unreachable from the palette at all.
+      // The four keyboard shortcuts stay attached to the pages they always
+      // named; the rest simply become findable.
+      ...NAV_MODEL.map(entry => ({
+        id: `nav-${entry.id}`,
+        label: `Go to ${entry.label}`,
+        description: entry.description,
+        icon: navIconFor(entry.id),
+        action: () => onNavigate(entry.id),
+        category: 'navigation' as const,
+        keywords: [entry.label, entry.group, ...entry.description.toLowerCase().split(/\s+/)],
+        shortcut: NAV_SHORTCUTS[entry.id],
+      })),
 
       // Actions
       {
