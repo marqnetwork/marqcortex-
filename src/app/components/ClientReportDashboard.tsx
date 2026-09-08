@@ -299,7 +299,8 @@ export function ClientReportDashboard({
                 <Brain className="size-5 text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-white">{data.companyName}</h1>
+                {/* `h2` — the portal header owns the document's `h1`. */}
+                <h2 className="text-sm font-bold text-white">{data.companyName}</h2>
                 <p className="text-xs text-gray-500">Strategic Analysis Report &middot; {data.generatedDate}</p>
               </div>
             </div>

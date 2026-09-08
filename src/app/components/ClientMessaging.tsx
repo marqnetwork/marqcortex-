@@ -249,8 +249,12 @@ export function ClientMessaging({ submissionId, clientName, companyName, clientA
             ? 'border-[#8B5CF6]/50 bg-[#8B5CF6]/5'
             : 'border-white/10 bg-white/3'
         }`}>
+          {/* This is the client's ONLY way to reach the team from the portal,
+              and it was announced as "edit text, blank" — a placeholder is not
+              a name. */}
           <textarea
             ref={textareaRef}
+            aria-label="Write a message to the team"
             value={draft}
             onChange={e => setDraft(e.target.value.slice(0, MAX_CHARS))}
             onKeyDown={handleKeyDown}

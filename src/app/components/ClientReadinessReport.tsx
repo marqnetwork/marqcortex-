@@ -332,9 +332,13 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           )}
 
           {/* Company */}
-          <h1 className="text-5xl md:text-7xl font-bold mb-5 tracking-tight leading-none">
+          {/* `h2`, not `h1`: this renders INSIDE the client portal, whose
+              header already carries the page's `h1` (the company name). Two
+              `h1`s in one document give a screen reader two page titles and no
+              way to tell which one names the page. */}
+          <h2 className="text-5xl md:text-7xl font-bold mb-5 tracking-tight leading-none">
             {props.companyName}
-          </h1>
+          </h2>
 
           {/* Subtitle */}
           <p className="text-xl text-gray-300 mb-10">

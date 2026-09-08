@@ -156,3 +156,68 @@ describe('the portal is reachable by keyboard', () => {
     assert.match(portal, /aria-selected=\{activeView === tab\.id\}/);
   });
 });
+
+describe('every portal tab can be used without sight', () => {
+  /**
+   * All eight tabs were driven in Chromium and the DOM asked which controls had
+   * no accessible name. Three had gaps, and one of them mattered more than its
+   * size suggests: the MESSAGE BOX is the client's only way to reach the team
+   * from the portal, and it was announced as "edit text, blank".
+   */
+  const CASES: [file: string, pattern: RegExp, what: string][] = [
+    [
+      'src/app/components/ClientMessaging.tsx',
+      /aria-label="Write a message to the team"/,
+      'the message box — the only way a client can reach the team from here',
+    ],
+    [
+      'src/app/components/ClientQAReview.tsx',
+      /aria-label="Search your diagnostic responses"/,
+      'the search over the client\'s own answers',
+    ],
+    [
+      'src/app/components/MeetingScheduler.tsx',
+      /aria-label="Previous month"/,
+      'the calendar\'s previous-month control',
+    ],
+    [
+      'src/app/components/MeetingScheduler.tsx',
+      /aria-label="Next month"/,
+      'the calendar\'s next-month control',
+    ],
+  ];
+
+  for (const [file, pattern, what] of CASES) {
+    it(`${file.split('/').pop()}: ${what}`, () => {
+      assert.match(read(file), pattern);
+    });
+  }
+});
+
+describe('the portal has one page title, not two', () => {
+  /**
+   * Three tabs rendered their own `<h1>` inside the portal, whose header
+   * already carries one. Two `h1`s in a document give a screen reader two page
+   * titles and no way to tell which one names the page.
+   */
+  const NESTED = [
+    'src/app/components/ClientReadinessReport.tsx',
+    'src/app/components/ProposalViewer.tsx',
+    'src/app/components/ClientReportDashboard.tsx',
+  ];
+
+  for (const rel of NESTED) {
+    it(`${rel.split('/').pop()} renders no h1 of its own`, () => {
+      const source = read(rel);
+      assert.ok(!/<h1[\s>]/.test(source), `${rel} still declares an h1`);
+      assert.ok(!/<\/h1>/.test(source), `${rel} still closes an h1`);
+    });
+  }
+
+  it('leaves the portal header owning the page title', () => {
+    assert.match(
+      read('src/app/components/ClientPortal.tsx'),
+      /<h1 className="font-bold text-white text-lg leading-tight">\{displayCompany\}<\/h1>/,
+    );
+  });
+});

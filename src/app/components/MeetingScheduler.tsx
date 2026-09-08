@@ -313,9 +313,10 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     : { ...prev, month: m };
                 })
               }
+              aria-label="Previous month"
               className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
             >
-              <ChevronLeft className="size-5" />
+              <ChevronLeft className="size-5" aria-hidden="true" />
             </button>
             <h3 className="font-bold text-white text-lg">
               {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
@@ -329,9 +330,10 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     : { ...prev, month: m };
                 })
               }
+              aria-label="Next month"
               className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
             >
-              <ChevronRight className="size-5" />
+              <ChevronRight className="size-5" aria-hidden="true" />
             </button>
           </div>
 

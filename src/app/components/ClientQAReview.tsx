@@ -131,9 +131,10 @@ export function ClientQAReview({ submission, companyName }: ClientQAReviewProps)
 
         {/* Search */}
         <div className="relative mt-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Search your diagnostic responses"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search your responses..."
