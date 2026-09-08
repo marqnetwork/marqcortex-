@@ -27,9 +27,16 @@ sections the blueprint makes buildable.
 
 ## CURRENT BATCH
 
-None in flight. Thirteen commits on `claude/marq-cortex-ui-sprint-7-11jp3g`,
+None in flight. **Nineteen commits** on `claude/marq-cortex-ui-sprint-7-11jp3g`,
 all pushed, all unmerged. UI Sprint 7's two halves are delivered, and the sprint
-continued into the canonical journeys either side of the console.
+continued through every canonical journey and every remaining route.
+
+**The whole application has now been driven in a browser.** Every route — the
+four public funnel routes, the eight client-portal tabs, the nine console pages,
+the CORTEX overview and lead detail, the architecture and registry tools, and
+the 404 — reports zero unnamed buttons and zero unlabelled inputs, and each has
+exactly one `h1`. Every `fixed inset-0` overlay in `src/app/components` either
+declares itself a dialog or says what it is instead.
 
 ## COMPLETED THIS SESSION — UI SPRINT 7
 
@@ -196,6 +203,12 @@ On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
 11. `fix(funnel): name the lead capture fields, and stop the landing page scrolling sideways`
 12. `fix(diagnostic): a screen-reader user was being asked fourteen questions they could not hear`
 13. `fix(a11y): the command palette could not be closed with the keyboard, and no dialog said it was one`
+14. `docs: checkpoint the full Sprint 7 run, and what the browser kept finding`
+15. `fix(a11y): the execution dashboard had no headings at all`
+16. `fix(a11y): the overlays that interrupt a user were the ones with no way out`
+17. `fix(a11y): every overlay in the app now says what it is`
+18. `fix(a11y): the client's only way to reach the team was an unnamed box`
+19. `fix(a11y): finish the sweep — every route in the app is clean`
 
 ## TEST RESULTS
 
@@ -207,7 +220,7 @@ only, and the backend suites confirm it.
 |---|---|
 | `npm run test:ai` | 2,183 pass |
 | `npm run test:security` | 859 pass |
-| `npm run test:features` | **984 pass** (774 at session start) |
+| `npm run test:features` | **1,008 pass** (774 at session start) |
 | `npm run test:system` | 170 pass |
 | `npm run test:migration` | 210 pass |
 | `npm run test:lifecycle` | 241 pass |
@@ -221,16 +234,21 @@ only, and the backend suites confirm it.
 The two recovered `typecheck:web` errors are the `SettingsPage` `companyName`
 pair, and they are gone because the defect behind them is fixed, not suppressed.
 
-**Nine test files added**: `teamRoleVocabulary`, `orientation`, `designTokens`,
-`consoleSurfaces`, `payloadNarrowing`, `consoleAccessibility`,
+**Eleven test files added**: `teamRoleVocabulary`, `orientation`,
+`designTokens`, `consoleSurfaces`, `payloadNarrowing`, `consoleAccessibility`,
 `clientPortalIntegrity`, `failureIsNotData`, `statusColorConsistency`,
 `publicFunnelAccess`, `dialogSemantics`.
 
-**Two existing assertions were updated rather than deleted**, each with the
-reason recorded in place: `breadcrumbContract` pinned eight label literals that
-were incidental evidence for an older type-only change and had already drifted
-from the sidebar's own labels, and `teamSessionKeys` pinned the exact `useApp()`
-destructuring and the pre-`teamRole` session shape.
+**Three existing assertions were updated rather than deleted**, each with the
+reason recorded in place: `breadcrumbContract` (eight label literals that were
+incidental evidence for an older type-only change and had already drifted from
+the sidebar's), `teamSessionKeys` (the exact `useApp()` destructuring, and the
+pre-`teamRole` session shape), and `frontendIconContracts` (an icon that gained
+`aria-hidden` — the guarantee it was written for, that both `className` and
+`style` survive, is unchanged and still enforced).
+
+**No server file was touched.** `git diff --name-only main..HEAD` reaches
+`src/`, `tests/` and `docs/` only, and every backend suite confirms it.
 
 **Three assertions I wrote were wrong on first run and were corrected rather
 than loosened**: one expected `normalizeTeamRole` not to trim (it does, and the
@@ -306,9 +324,11 @@ Every `test:database:*` harness then runs for real.
 - 32 pre-existing `typecheck:web` and 27 pre-existing `typecheck:tests` errors,
   all in files unrelated to this session's work (proposal viewer, snapshot
   engine, mapping engine, mock data, workflow expression validation).
-- The `server` deno boundary cannot be type-checked here: `jsr.io` is not
-  routable from this environment (an egress restriction, pre-existing). The
-  `ai` and `registry-free` boundaries both check clean.
+- The `server` deno boundary could not be type-checked at all this session:
+  **Deno is not installed in this environment**, so `typecheck:api:ai` and
+  `typecheck:api:pure` print an install hint and exit rather than running. The
+  previous session had them checking clean. This is not a regression and
+  nothing here could have caused one — no server file was touched.
 - **`src/app/components/DiagnosticQuestion.tsx` is dead code.** Nothing imports
   or renders it, its question text is hard-coded as a design mockup, and it is
   the source of one of the standing `typecheck:web` errors. The real form is
@@ -394,6 +414,5 @@ to PARTIAL.
 
 ---
 
-_Last updated: 2026-09-08, after UI Sprint 7 — onboarding, design tokens, the
-four feedback states, payload narrowing, the client portal, the public funnel,
-the diagnostic, and dialog semantics._
+_Last updated: 2026-09-08, at the end of UI Sprint 7 — nineteen commits,
+1,008 feature tests, and every route in the application driven in a browser._
