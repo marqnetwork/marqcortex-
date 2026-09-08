@@ -510,7 +510,7 @@ function LeadOverviewView({
                     style={{
                       background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.15))',
                       border: '1px solid rgba(139,92,246,0.4)',
-                      color: '#C4B5FD',
+                      color: brand.accentLight,
                     }}
                     title={`AI-analyze ${unanalyzedCount} unanalyzed lead${unanalyzedCount !== 1 ? 's' : ''}`}
                   >
@@ -554,7 +554,7 @@ function LeadOverviewView({
               >
                 {batchError ? (
                   <div className="px-4 py-3 rounded-cortex-md flex items-center justify-between gap-3"
-                    style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.25)', color: '#FCA5A5' }}>
+                    style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.25)', color: status.dangerLight }}>
                     <div className="flex items-center gap-2 text-sm">
                       <AlertTriangle className="size-4 text-cortex-danger flex-shrink-0" />
                       {batchError}
@@ -563,7 +563,7 @@ function LeadOverviewView({
                   </div>
                 ) : batchProgress && (
                   <div className="px-4 py-3 rounded-cortex-md flex items-center gap-3"
-                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', color: '#6EE7B7' }}>
+                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', color: status.successLight }}>
                     <Sparkles className="size-4 flex-shrink-0" />
                     <span className="text-sm">
                       {isBatchAnalyzing
@@ -616,7 +616,7 @@ function LeadOverviewView({
               style={{
                 background: viewMode === 'list' ? 'rgba(139,92,246,0.25)' : 'transparent',
                 border: viewMode === 'list' ? '1px solid rgba(139,92,246,0.4)' : '1px solid transparent',
-                color: viewMode === 'list' ? '#C4B5FD' : status.neutral,
+                color: viewMode === 'list' ? brand.accentLight : status.neutral,
               }}
             >
               <LayoutList className="size-3.5" />
@@ -628,7 +628,7 @@ function LeadOverviewView({
               style={{
                 background: viewMode === 'table' ? 'rgba(59,130,246,0.2)' : 'transparent',
                 border: viewMode === 'table' ? '1px solid rgba(59,130,246,0.35)' : '1px solid transparent',
-                color: viewMode === 'table' ? '#93C5FD' : status.neutral,
+                color: viewMode === 'table' ? brand.accentAltLight : status.neutral,
               }}
             >
               <Table2 className="size-3.5" />
@@ -1419,7 +1419,7 @@ function CortexLeadDetail({
                       ? 'rgba(139,92,246,0.15)'
                       : 'linear-gradient(135deg, rgba(139,92,246,0.25), rgba(59,130,246,0.25))',
                     border: '1px solid rgba(139,92,246,0.5)',
-                    color: '#C4B5FD',
+                    color: brand.accentLight,
                   }}
                   title={!accessToken ? 'Team login required' : 'Run AI analysis on this submission'}
                 >
@@ -1478,7 +1478,7 @@ function CortexLeadDetail({
                     style={{
                       background: 'rgba(253,68,56,0.1)',
                       border: '1px solid rgba(253,68,56,0.35)',
-                      color: '#FCA5A5',
+                      color: status.dangerLight,
                     }}
                   >
                     <div className="flex items-start gap-2">

@@ -74,6 +74,17 @@
      it exists; it was rendering as an undeclared `#EC4899` in two places. */
   --cortex-accent-tertiary: #EC4899;
 
+  /* THE THREE-STEP SCALE.
+     Each of these hues is rendered by the product at three weights and always
+     for the same two jobs: `-light` is TEXT sitting on a tint of its own hue,
+     where the base colour would not clear AA; `-deep` is the PRESSED state of a
+     solid fill, where the base colour would not look pressed. Sixteen files
+     were already doing both with undeclared hex. */
+  --cortex-accent-light: #A78BFA;
+  --cortex-accent-deep: #7C3AED;
+  --cortex-accent-alt-light: #60A5FA;
+  --cortex-accent-alt-deep: #2563EB;
+
   /* ── Status ────────────────────────────────────────────────────────────────
      One colour per meaning. `info` and `accent-alt` are deliberately distinct:
      one states a fact, the other is brand. */
@@ -83,6 +94,13 @@
   --cortex-status-info: #06D7F6;
   --cortex-status-caution: #F59E0B;
   --cortex-status-neutral: #70707C;
+
+  --cortex-status-success-light: #34D399;
+  --cortex-status-success-deep: #059669;
+  --cortex-status-danger-light: #FCA5A5;
+  --cortex-status-danger-deep: #DC2626;
+  --cortex-status-caution-light: #FBBF24;
+  --cortex-status-caution-deep: #D97706;
 
   /* ── Radii ─────────────────────────────────────────────────────────────────
      Matching what is already rendered: `rounded-lg`, `rounded-xl`,
@@ -167,6 +185,10 @@
   --color-cortex-accent: var(--cortex-accent);
   --color-cortex-accent-alt: var(--cortex-accent-alt);
   --color-cortex-accent-tertiary: var(--cortex-accent-tertiary);
+  --color-cortex-accent-light: var(--cortex-accent-light);
+  --color-cortex-accent-deep: var(--cortex-accent-deep);
+  --color-cortex-accent-alt-light: var(--cortex-accent-alt-light);
+  --color-cortex-accent-alt-deep: var(--cortex-accent-alt-deep);
 
   --color-cortex-success: var(--cortex-status-success);
   --color-cortex-warning: var(--cortex-status-warning);
@@ -174,6 +196,12 @@
   --color-cortex-info: var(--cortex-status-info);
   --color-cortex-caution: var(--cortex-status-caution);
   --color-cortex-neutral: var(--cortex-status-neutral);
+  --color-cortex-success-light: var(--cortex-status-success-light);
+  --color-cortex-success-deep: var(--cortex-status-success-deep);
+  --color-cortex-danger-light: var(--cortex-status-danger-light);
+  --color-cortex-danger-deep: var(--cortex-status-danger-deep);
+  --color-cortex-caution-light: var(--cortex-status-caution-light);
+  --color-cortex-caution-deep: var(--cortex-status-caution-deep);
 
   --radius-cortex-sm: var(--cortex-radius-sm);
   --radius-cortex-md: var(--cortex-radius-md);

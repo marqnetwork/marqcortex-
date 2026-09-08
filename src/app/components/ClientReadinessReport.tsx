@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 
 import { exportToPDF } from '@/app/utils/pdfExport';
+import { brand, status } from '@/app/lib/tokens';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -111,15 +112,15 @@ interface ClientReadinessReportProps {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const READINESS_COLOURS: Record<string, string> = {
-  High:   '#10B981',
-  Medium: '#FB923C',
-  Low:    '#FD4438',
+  High:   status.success,
+  Medium: status.warning,
+  Low:    status.danger,
 };
 
 const HEAT_COLOURS: Record<string, string> = {
-  green:  '#10B981',
-  yellow: '#FB923C',
-  red:    '#FD4438',
+  green:  status.success,
+  yellow: status.warning,
+  red:    status.danger,
 };
 
 const HEAT_LABELS: Record<string, string> = {
@@ -214,7 +215,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
   };
 
   return (
-    <div ref={reportRef} className="bg-[#0A0A0F] text-gray-100 font-[Inter,sans-serif]">
+    <div ref={reportRef} className="bg-cortex-canvas text-gray-100 font-[Inter,sans-serif]">
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -232,16 +233,16 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
         initial={{ y: -60, opacity: 0 }}
         animate={{ y: navVisible ? 0 : -60, opacity: navVisible ? 1 : 0 }}
         transition={{ duration: 0.2 }}
-        className="no-print fixed top-0 left-0 right-0 z-50 bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/10 shadow-sm"
+        className="no-print fixed top-0 left-0 right-0 z-50 bg-cortex-canvas/95 backdrop-blur-xl border-b border-cortex-default shadow-sm"
       >
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
           {/* Brand + company */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="size-7 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+            <div className="size-7 rounded-cortex-sm bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
               <Brain className="size-3.5 text-white" />
             </div>
             <span className="font-bold text-white text-sm hidden sm:block">{props.companyName}</span>
-            <span className="hidden sm:block text-gray-600">·</span>
+            <span className="hidden sm:block text-cortex-faint">·</span>
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full hidden sm:block"
               style={{ color: readinessColor, backgroundColor: `${readinessColor}18`, border: `1px solid ${readinessColor}40` }}
@@ -258,8 +259,8 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                 onClick={() => scrollTo(s.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
                   activeSection === s.id
-                    ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
-                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                    ? 'bg-cortex-accent/20 text-cortex-accent'
+                    : 'text-cortex-muted hover:text-white hover:bg-cortex-control'
                 }`}
               >
                 {s.label}
@@ -272,7 +273,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
             <button
               onClick={handlePrint}
               disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/8 hover:bg-white/15 text-gray-300 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/8 hover:bg-white/15 text-cortex-secondary rounded-cortex-sm text-xs font-medium transition-all disabled:opacity-50"
             >
               {isExporting ? (
                 <svg className="size-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75"/></svg>
@@ -283,7 +284,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
             </button>
             <button
               onClick={handleCTA}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white rounded-lg text-xs font-semibold transition-all hover:opacity-90"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white rounded-cortex-sm text-xs font-semibold transition-all hover:opacity-90"
             >
               <Calendar className="size-3.5" />
               <span className="hidden sm:block">Book a Call</span>
@@ -298,7 +299,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       <div
         id="report-cover"
         ref={coverRef}
-        className="flex flex-col items-center justify-center bg-gradient-to-br from-[#0A0A0F] via-[#0f0f1e] to-[#1a1a2e] text-white px-8 py-24"
+        className="flex flex-col items-center justify-center bg-gradient-to-br from-cortex-canvas via-cortex-overlay to-cortex-overlay text-white px-8 py-24"
       >
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -307,17 +308,17 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
         >
           {/* Brand mark */}
           <div className="flex items-center justify-center gap-3 mb-14">
-            <div className="size-14 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/30">
+            <div className="size-14 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center shadow-lg shadow-cortex-accent/30">
               <Brain className="size-7 text-white" />
             </div>
             <div className="text-left">
               <div className="font-bold text-white text-lg leading-tight">MARQ Cortex</div>
-              <div className="text-gray-400 text-xs">Operational Intelligence</div>
+              <div className="text-cortex-muted text-xs">Operational Intelligence</div>
             </div>
           </div>
 
           {/* Badge */}
-          <div className="inline-block px-4 py-1.5 bg-gradient-to-r from-[#8B5CF6]/30 to-[#3B82F6]/30 border border-[#8B5CF6]/40 rounded-full text-sm font-semibold text-[#A78BFA] mb-4 tracking-wide uppercase">
+          <div className="inline-block px-4 py-1.5 bg-gradient-to-r from-cortex-accent/30 to-cortex-accent-alt/30 border border-cortex-accent/40 rounded-full text-sm font-semibold text-cortex-accent-light mb-4 tracking-wide uppercase">
             AI Readiness & Operations Report
           </div>
 
@@ -341,16 +342,16 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           </h2>
 
           {/* Subtitle */}
-          <p className="text-xl text-gray-300 mb-10">
+          <p className="text-xl text-cortex-secondary mb-10">
             An AI Readiness & Operations Diagnostic
           </p>
 
           {/* Meta chips */}
           <div className="flex items-center justify-center gap-3 flex-wrap mb-14 text-sm">
-            <span className="px-4 py-1.5 bg-white/8 border border-white/15 rounded-full text-gray-300">
+            <span className="px-4 py-1.5 bg-white/8 border border-white/15 rounded-full text-cortex-secondary">
               {props.industry}
             </span>
-            <span className="px-4 py-1.5 bg-white/8 border border-white/15 rounded-full text-gray-300">
+            <span className="px-4 py-1.5 bg-white/8 border border-white/15 rounded-full text-cortex-secondary">
               {new Date(props.generatedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </span>
             <span
@@ -364,14 +365,14 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           {/* Scroll cue */}
           <button
             onClick={() => scrollTo('executive')}
-            className="no-print flex flex-col items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mx-auto"
+            className="no-print flex flex-col items-center gap-2 text-cortex-muted hover:text-cortex-secondary transition-colors mx-auto"
           >
             <span className="text-xs uppercase tracking-widest">Read Report</span>
             <ChevronDown className="size-5 animate-bounce" />
           </button>
 
-          <div className="mt-14 pt-8 border-t border-white/10">
-            <p className="text-sm text-gray-500 italic">
+          <div className="mt-14 pt-8 border-t border-cortex-default">
+            <p className="text-sm text-cortex-muted italic">
               {props.aiPowered
                 ? 'This report was generated by CORTEX AI, analysing your diagnostic responses against operational patterns across 1,000+ businesses.'
                 : 'This report is based on your responses and operational patterns observed across similar businesses.'}
@@ -383,15 +384,15 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           2. EXECUTIVE SNAPSHOT
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-executive" className="page-break bg-[#0A0A0F] px-8 py-20">
+      <div id="report-executive" className="page-break bg-cortex-canvas px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>Executive Snapshot</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">Your Operational Readiness</h2>
-          <p className="text-gray-500 mb-14 text-lg">A clear-eyed view of where you stand right now</p>
+          <p className="text-cortex-muted mb-14 text-lg">A clear-eyed view of where you stand right now</p>
 
           {/* Readiness score + interpretation */}
           <div
-            className="flex gap-8 items-start p-8 rounded-2xl mb-10 border"
+            className="flex gap-8 items-start p-8 rounded-cortex-lg mb-10 border"
             style={{ backgroundColor: `${readinessColor}08`, borderColor: `${readinessColor}30` }}
           >
             {/* Circle badge */}
@@ -411,7 +412,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
               <h3 className="text-2xl font-bold text-white mb-3">
                 Readiness Level: <span style={{ color: readinessColor }}>{props.readinessLevel}</span>
               </h3>
-              <p className="text-gray-300 text-lg leading-relaxed">{props.readinessInterpretation}</p>
+              <p className="text-cortex-secondary text-lg leading-relaxed">{props.readinessInterpretation}</p>
             </div>
           </div>
 
@@ -419,21 +420,21 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           <h3 className="text-xl font-bold text-white mb-5">What This Means for You</h3>
           <div className="grid gap-3 mb-10">
             {props.whatThisMeans.map((point, i) => (
-              <div key={i} className="flex items-start gap-4 p-5 bg-white/5 rounded-xl border border-white/10">
-                <div className="size-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+              <div key={i} className="flex items-start gap-4 p-5 bg-cortex-control rounded-cortex-md border border-cortex-default">
+                <div className="size-8 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
                   {i + 1}
                 </div>
-                <p className="text-gray-300 text-base leading-relaxed">{point}</p>
+                <p className="text-cortex-secondary text-base leading-relaxed">{point}</p>
               </div>
             ))}
           </div>
 
           {/* Immediate risk */}
-          <div className="flex gap-4 items-start p-6 bg-[#FD4438]/10 border border-[#FD4438]/25 rounded-xl">
-            <AlertTriangle className="size-6 text-[#FD4438] flex-shrink-0 mt-0.5" />
+          <div className="flex gap-4 items-start p-6 bg-cortex-danger/10 border border-cortex-danger/25 rounded-cortex-md">
+            <AlertTriangle className="size-6 text-cortex-danger flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-[#FD4438] uppercase tracking-wider mb-1.5">Immediate Risk</p>
-              <p className="text-gray-300 leading-relaxed">{props.immediateRisk}</p>
+              <p className="text-sm font-bold text-cortex-danger uppercase tracking-wider mb-1.5">Immediate Risk</p>
+              <p className="text-cortex-secondary leading-relaxed">{props.immediateRisk}</p>
             </div>
           </div>
         </div>
@@ -442,11 +443,11 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           3. CORE DIAGNOSIS
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-diagnosis" className="page-break bg-[#0d0d14] px-8 py-20">
+      <div id="report-diagnosis" className="page-break bg-cortex-overlay px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>Core Diagnosis</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">What's Slowing You Down Right Now</h2>
-          <p className="text-gray-500 mb-14 text-lg">The core constraints identified through your diagnostic</p>
+          <p className="text-cortex-muted mb-14 text-lg">The core constraints identified through your diagnostic</p>
 
           <div className="space-y-8">
             {props.coreIssues.map((issue, idx) => (
@@ -456,31 +457,31 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.08 }}
-                className="bg-black/40 rounded-2xl border border-white/10 overflow-hidden"
+                className="bg-cortex-raised rounded-cortex-lg border border-cortex-default overflow-hidden"
               >
                 {/* Issue header bar */}
                 <div className="flex items-center gap-4 px-8 pt-8 pb-5">
-                  <div className="size-11 rounded-full bg-gradient-to-br from-[#FD4438] to-[#FB923C] text-white flex items-center justify-center font-black text-lg flex-shrink-0">
+                  <div className="size-11 rounded-full bg-gradient-to-br from-cortex-danger to-cortex-warning text-white flex items-center justify-center font-black text-lg flex-shrink-0">
                     {idx + 1}
                   </div>
                   <h3 className="text-2xl font-bold text-white">{issue.title}</h3>
                 </div>
 
                 <div className="px-8 pb-8 space-y-6">
-                  <p className="text-gray-300 text-base leading-relaxed">{issue.problem}</p>
+                  <p className="text-cortex-secondary text-base leading-relaxed">{issue.problem}</p>
 
-                  <div className="bg-[#FB923C]/10 border border-[#FB923C]/20 rounded-xl p-5">
-                    <p className="text-xs font-bold text-[#FB923C] uppercase tracking-wider mb-2">Why It Exists</p>
-                    <p className="text-gray-300 text-sm leading-relaxed">{issue.whyItExists}</p>
+                  <div className="bg-cortex-warning/10 border border-cortex-warning/20 rounded-cortex-md p-5">
+                    <p className="text-xs font-bold text-cortex-warning uppercase tracking-wider mb-2">Why It Exists</p>
+                    <p className="text-cortex-secondary text-sm leading-relaxed">{issue.whyItExists}</p>
                   </div>
 
                   <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Business Impact</p>
+                    <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-3">Business Impact</p>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {issue.businessImpact.map((impact, j) => (
-                        <div key={j} className="flex items-start gap-2.5 p-3 bg-white/5 rounded-lg">
-                          <div className="size-1.5 rounded-full bg-[#FD4438] flex-shrink-0 mt-1.5" />
-                          <span className="text-gray-300 text-sm leading-relaxed">{impact}</span>
+                        <div key={j} className="flex items-start gap-2.5 p-3 bg-cortex-control rounded-cortex-sm">
+                          <div className="size-1.5 rounded-full bg-cortex-danger flex-shrink-0 mt-1.5" />
+                          <span className="text-cortex-secondary text-sm leading-relaxed">{impact}</span>
                         </div>
                       ))}
                     </div>
@@ -495,11 +496,11 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           4. OPERATIONAL HEATMAP
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-heatmap" className="page-break bg-[#0A0A0F] px-8 py-20">
+      <div id="report-heatmap" className="page-break bg-cortex-canvas px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>Operational Heatmap</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">Where You Stand Across Four Areas</h2>
-          <p className="text-gray-500 mb-14 text-lg">A colour-coded view of your operational landscape</p>
+          <p className="text-cortex-muted mb-14 text-lg">A colour-coded view of your operational landscape</p>
 
           <div className="grid sm:grid-cols-2 gap-5 mb-10">
             {[
@@ -515,10 +516,10 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                   initial={{ opacity: 0, scale: 0.97 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
-                  className="p-6 bg-white/5 border border-white/10 rounded-2xl"
+                  className="p-6 bg-cortex-control border border-cortex-default rounded-cortex-lg"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="size-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${col}18` }}>
+                    <div className="size-9 rounded-cortex-md flex items-center justify-center" style={{ backgroundColor: `${col}18` }}>
                       <Icon className="size-4.5" style={{ color: col }} />
                     </div>
                     <div>
@@ -533,22 +534,22 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                     {/* Coloured dot */}
                     <div className="ml-auto size-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: col }} />
                   </div>
-                  <p className="text-sm text-gray-400 leading-relaxed">{data.explanation}</p>
+                  <p className="text-sm text-cortex-muted leading-relaxed">{data.explanation}</p>
                 </motion.div>
               );
             })}
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-6 pt-6 border-t border-white/10">
+          <div className="flex items-center justify-center gap-6 pt-6 border-t border-cortex-default">
             {[
-              { color: '#FD4438', label: 'Immediate Attention' },
-              { color: '#FB923C', label: 'Near-Term Priority' },
-              { color: '#10B981', label: 'Stable' },
+              { color: status.danger, label: 'Immediate Attention' },
+              { color: status.warning, label: 'Near-Term Priority' },
+              { color: status.success, label: 'Stable' },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="size-3 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-sm text-gray-500">{label}</span>
+                <span className="text-sm text-cortex-muted">{label}</span>
               </div>
             ))}
           </div>
@@ -558,49 +559,49 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           5. WHAT AI CAN FIX
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-ai" className="page-break bg-[#0d0d14] px-8 py-20">
+      <div id="report-ai" className="page-break bg-cortex-overlay px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>AI Analysis</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">What AI Can Fix — And What It Shouldn't</h2>
-          <p className="text-gray-500 mb-14 text-lg">Cutting through the hype to show you what's real</p>
+          <p className="text-cortex-muted mb-14 text-lg">Cutting through the hype to show you what's real</p>
 
           <div className="grid sm:grid-cols-2 gap-6">
             {/* High-impact */}
-            <div className="bg-black/40 rounded-2xl border-l-4 border-[#10B981] border border-white/10 p-7">
+            <div className="bg-cortex-raised rounded-cortex-lg border-l-4 border-cortex-success border border-cortex-default p-7">
               <div className="flex items-center gap-3 mb-5">
-                <div className="size-9 rounded-xl bg-[#10B981]/15 flex items-center justify-center">
-                  <Lightbulb className="size-4.5 text-[#10B981]" />
+                <div className="size-9 rounded-cortex-md bg-cortex-success/15 flex items-center justify-center">
+                  <Lightbulb className="size-4.5 text-cortex-success" />
                 </div>
                 <h3 className="text-lg font-bold text-white">High-Impact AI Opportunities</h3>
               </div>
               <div className="space-y-3">
                 {props.highImpactAI.map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <CheckCircle2 className="size-5 text-[#10B981] flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-300 text-sm leading-relaxed">{item}</span>
+                    <CheckCircle2 className="size-5 text-cortex-success flex-shrink-0 mt-0.5" />
+                    <span className="text-cortex-secondary text-sm leading-relaxed">{item}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Should not automate */}
-            <div className="bg-black/40 rounded-2xl border-l-4 border-[#FB923C] border border-white/10 p-7">
+            <div className="bg-cortex-raised rounded-cortex-lg border-l-4 border-cortex-warning border border-cortex-default p-7">
               <div className="flex items-center gap-3 mb-5">
-                <div className="size-9 rounded-xl bg-[#FB923C]/15 flex items-center justify-center">
-                  <Shield className="size-4.5 text-[#FB923C]" />
+                <div className="size-9 rounded-cortex-md bg-cortex-warning/15 flex items-center justify-center">
+                  <Shield className="size-4.5 text-cortex-warning" />
                 </div>
                 <h3 className="text-lg font-bold text-white">What Should NOT Be Automated</h3>
               </div>
               <div className="space-y-3">
                 {props.shouldNotAutomate.map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <XCircle className="size-5 text-[#FB923C] flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-300 text-sm leading-relaxed">{item}</span>
+                    <XCircle className="size-5 text-cortex-warning flex-shrink-0 mt-0.5" />
+                    <span className="text-cortex-secondary text-sm leading-relaxed">{item}</span>
                   </div>
                 ))}
               </div>
-              <div className="mt-6 pt-5 border-t border-white/10">
-                <p className="text-xs text-gray-500 italic">
+              <div className="mt-6 pt-5 border-t border-cortex-default">
+                <p className="text-xs text-cortex-muted italic">
                   We're not here to automate everything — we're here to solve the right problems with precision.
                 </p>
               </div>
@@ -613,25 +614,25 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           5B. COMPETITIVE LANDSCAPE (NEW)
       ══════════════════════════════════════════════════════════════════════ */}
       {props.competitiveLandscape && (
-        <div id="report-competitive" className="page-break bg-[#0A0A0F] px-8 py-20">
+        <div id="report-competitive" className="page-break bg-cortex-canvas px-8 py-20">
           <div className="max-w-4xl mx-auto">
             <SectionLabel>Industry Context</SectionLabel>
             <h2 className="text-4xl font-bold text-white mb-3">How You Compare to Your Peers</h2>
-            <p className="text-gray-500 mb-14 text-lg">Where you stand relative to similar businesses in your sector</p>
+            <p className="text-cortex-muted mb-14 text-lg">Where you stand relative to similar businesses in your sector</p>
 
             {/* Peer comparison summary */}
-            <div className="bg-gradient-to-br from-[#3B82F6]/10 to-[#06D7F6]/8 border border-[#3B82F6]/20 rounded-2xl p-8 mb-10">
+            <div className="bg-gradient-to-br from-cortex-accent-alt/10 to-cortex-info/8 border border-cortex-accent-alt/20 rounded-cortex-lg p-8 mb-10">
               <div className="flex items-center gap-3 mb-4">
-                <Users className="size-5 text-[#3B82F6]" />
+                <Users className="size-5 text-cortex-accent-alt" />
                 <h3 className="text-lg font-bold text-white">Peer Comparison</h3>
               </div>
-              <p className="text-gray-300 leading-relaxed">{props.competitiveLandscape.peerComparison}</p>
+              <p className="text-cortex-secondary leading-relaxed">{props.competitiveLandscape.peerComparison}</p>
             </div>
 
             {/* Benchmark cards */}
             <div className="space-y-4 mb-10">
               {props.competitiveLandscape.industryBenchmarks.map((bm, i) => {
-                const posColor = bm.yourPosition === 'ahead' ? '#10B981' : bm.yourPosition === 'on-par' ? '#FB923C' : '#FD4438';
+                const posColor = bm.yourPosition === 'ahead' ? status.success : bm.yourPosition === 'on-par' ? status.warning : status.danger;
                 const posLabel = bm.yourPosition === 'ahead' ? 'Ahead' : bm.yourPosition === 'on-par' ? 'On Par' : 'Behind';
                 return (
                   <motion.div
@@ -640,7 +641,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.06 }}
-                    className="flex items-center gap-5 p-5 bg-white/5 rounded-xl border border-white/10"
+                    className="flex items-center gap-5 p-5 bg-cortex-control rounded-cortex-md border border-cortex-default"
                   >
                     <div
                       className="px-3 py-1 rounded-full text-xs font-bold flex-shrink-0"
@@ -650,7 +651,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-white text-sm">{bm.metric}</p>
-                      <p className="text-gray-400 text-sm leading-relaxed mt-1">{bm.detail}</p>
+                      <p className="text-cortex-muted text-sm leading-relaxed mt-1">{bm.detail}</p>
                     </div>
                   </motion.div>
                 );
@@ -658,11 +659,11 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
             </div>
 
             {/* Competitive window */}
-            <div className="flex gap-4 items-start p-6 bg-[#3B82F6]/10 border border-[#3B82F6]/20 rounded-xl">
-              <Clock className="size-5 text-[#3B82F6] flex-shrink-0 mt-0.5" />
+            <div className="flex gap-4 items-start p-6 bg-cortex-accent-alt/10 border border-cortex-accent-alt/20 rounded-cortex-md">
+              <Clock className="size-5 text-cortex-accent-alt flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-bold text-[#3B82F6] uppercase tracking-wider mb-1.5">Competitive Window</p>
-                <p className="text-gray-300 leading-relaxed">{props.competitiveLandscape.competitiveWindow}</p>
+                <p className="text-sm font-bold text-cortex-accent-alt uppercase tracking-wider mb-1.5">Competitive Window</p>
+                <p className="text-cortex-secondary leading-relaxed">{props.competitiveLandscape.competitiveWindow}</p>
               </div>
             </div>
           </div>
@@ -672,31 +673,31 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           6. RECOMMENDED FIRST STEP
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-first-step" className="page-break bg-[#0d0d14] px-8 py-20">
+      <div id="report-first-step" className="page-break bg-cortex-overlay px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>Recommendation</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">Where to Start (Safely)</h2>
-          <p className="text-gray-500 mb-14 text-lg">The logical first move given everything we found</p>
+          <p className="text-cortex-muted mb-14 text-lg">The logical first move given everything we found</p>
 
-          <div className="bg-gradient-to-br from-[#8B5CF6]/12 to-[#3B82F6]/8 border-2 border-[#8B5CF6]/25 rounded-2xl p-10">
+          <div className="bg-gradient-to-br from-cortex-accent/12 to-cortex-accent-alt/8 border-2 border-cortex-accent/25 rounded-cortex-lg p-10">
             <div className="flex items-center gap-5 mb-8">
-              <div className="size-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/25">
+              <div className="size-16 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center shadow-lg shadow-cortex-accent/25">
                 <Target className="size-8 text-white" />
               </div>
               <div>
-                <p className="text-xs text-[#8B5CF6] font-bold uppercase tracking-wider mb-1">Recommended First Service</p>
+                <p className="text-xs text-cortex-accent font-bold uppercase tracking-wider mb-1">Recommended First Service</p>
                 <h3 className="text-2xl font-bold text-white">{props.recommendedService}</h3>
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-8">
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Why This Comes First</p>
-                <p className="text-gray-300 leading-relaxed">{props.whyFirst}</p>
+                <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-3">Why This Comes First</p>
+                <p className="text-cortex-secondary leading-relaxed">{props.whyFirst}</p>
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">What It Unlocks Next</p>
-                <p className="text-gray-300 leading-relaxed">{props.whatItUnlocks}</p>
+                <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-3">What It Unlocks Next</p>
+                <p className="text-cortex-secondary leading-relaxed">{props.whatItUnlocks}</p>
               </div>
             </div>
           </div>
@@ -707,11 +708,11 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           6B. QUICK WINS (NEW)
       ══════════════════════════════════════════════════════════════════════ */}
       {props.quickWins && props.quickWins.length > 0 && (
-        <div id="report-quick-wins" className="page-break bg-[#0A0A0F] px-8 py-20">
+        <div id="report-quick-wins" className="page-break bg-cortex-canvas px-8 py-20">
           <div className="max-w-4xl mx-auto">
             <SectionLabel>Quick Wins</SectionLabel>
             <h2 className="text-4xl font-bold text-white mb-3">Actions You Can Take This Week</h2>
-            <p className="text-gray-500 mb-14 text-lg">Low-effort, high-impact moves you can start immediately — no engagement required</p>
+            <p className="text-cortex-muted mb-14 text-lg">Low-effort, high-impact moves you can start immediately — no engagement required</p>
 
             <div className="grid gap-5">
               {props.quickWins.map((win, i) => (
@@ -721,10 +722,10 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.06 }}
-                  className="bg-black/40 rounded-2xl border border-white/10 p-7"
+                  className="bg-cortex-raised rounded-cortex-lg border border-cortex-default p-7"
                 >
                   <div className="flex items-start gap-5">
-                    <div className="size-11 rounded-xl bg-gradient-to-br from-[#10B981] to-[#06D7F6] flex items-center justify-center flex-shrink-0">
+                    <div className="size-11 rounded-cortex-md bg-gradient-to-br from-cortex-success to-cortex-info flex items-center justify-center flex-shrink-0">
                       <Rocket className="size-5 text-white" />
                     </div>
                     <div className="flex-1">
@@ -733,18 +734,18 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                         <span
                           className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
                             win.effort === 'low'
-                              ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30'
-                              : 'bg-[#FB923C]/15 text-[#FB923C] border border-[#FB923C]/30'
+                              ? 'bg-cortex-success/15 text-cortex-success border border-cortex-success/30'
+                              : 'bg-cortex-warning/15 text-cortex-warning border border-cortex-warning/30'
                           }`}
                         >
                           {win.effort === 'low' ? 'Low Effort' : 'Medium Effort'}
                         </span>
                       </div>
-                      <p className="text-gray-400 text-sm leading-relaxed mb-3">{win.description}</p>
+                      <p className="text-cortex-muted text-sm leading-relaxed mb-3">{win.description}</p>
                       <div className="flex items-center gap-2 text-sm">
-                        <TrendingUp className="size-4 text-[#8B5CF6]" />
-                        <span className="font-medium text-[#8B5CF6]">Expected Impact:</span>
-                        <span className="text-gray-300">{win.expectedImpact}</span>
+                        <TrendingUp className="size-4 text-cortex-accent" />
+                        <span className="font-medium text-cortex-accent">Expected Impact:</span>
+                        <span className="text-cortex-secondary">{win.expectedImpact}</span>
                       </div>
                     </div>
                   </div>
@@ -758,11 +759,11 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           7. IMPACT RANGE
       ══════════════════════════════════════════════════════════════════════ */}
-      <div id="report-impact" className="page-break bg-[#0d0d14] px-8 py-20">
+      <div id="report-impact" className="page-break bg-cortex-overlay px-8 py-20">
         <div className="max-w-4xl mx-auto">
           <SectionLabel>Expected Impact</SectionLabel>
           <h2 className="text-4xl font-bold text-white mb-3">What Businesses Like Yours Typically See</h2>
-          <p className="text-gray-500 mb-14 text-lg">Conservative estimates based on your diagnostic profile</p>
+          <p className="text-cortex-muted mb-14 text-lg">Conservative estimates based on your diagnostic profile</p>
 
           <div className="grid sm:grid-cols-3 gap-5 mb-8">
             {[
@@ -770,22 +771,22 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                 label: 'Hours Saved Per Month',
                 value: props.impactRange.hoursSavedPerMonth,
                 icon: Zap,
-                color: '#3B82F6',
-                bg: '#3B82F6',
+                color: brand.accentAlt,
+                bg: brand.accentAlt,
               },
               {
                 label: 'Cost Leakage Reduced',
                 value: props.impactRange.costLeakageReduced,
                 icon: DollarSign,
-                color: '#10B981',
-                bg: '#10B981',
+                color: status.success,
+                bg: status.success,
               },
               {
                 label: 'Revenue Acceleration',
                 value: props.impactRange.revenueAcceleration,
                 icon: TrendingUp,
-                color: '#8B5CF6',
-                bg: '#8B5CF6',
+                color: brand.accent,
+                bg: brand.accent,
               },
             ].map(({ label, value, icon: Icon, color, bg }) => (
               <motion.div
@@ -793,22 +794,22 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="bg-black/40 rounded-2xl border border-white/10 p-7 text-center"
+                className="bg-cortex-raised rounded-cortex-lg border border-cortex-default p-7 text-center"
               >
                 <div
-                  className="size-12 rounded-xl flex items-center justify-center mx-auto mb-4"
+                  className="size-12 rounded-cortex-md flex items-center justify-center mx-auto mb-4"
                   style={{ backgroundColor: `${bg}18` }}
                 >
                   <Icon className="size-6" style={{ color }} />
                 </div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{label}</p>
+                <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-2">{label}</p>
                 <p className="text-2xl font-black text-white leading-tight">{value}</p>
               </motion.div>
             ))}
           </div>
 
-          <div className="p-5 bg-white/5 border border-white/10 rounded-xl">
-            <p className="text-sm text-gray-500 italic text-center">{props.impactRange.disclaimer}</p>
+          <div className="p-5 bg-cortex-control border border-cortex-default rounded-cortex-md">
+            <p className="text-sm text-cortex-muted italic text-center">{props.impactRange.disclaimer}</p>
           </div>
         </div>
       </div>
@@ -817,19 +818,19 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           7B. IMPLEMENTATION TIMELINE (NEW)
       ══════════════════════════════════════════════════════════════════════ */}
       {props.implementationTimeline && (
-        <div id="report-timeline" className="page-break bg-[#0A0A0F] px-8 py-20">
+        <div id="report-timeline" className="page-break bg-cortex-canvas px-8 py-20">
           <div className="max-w-4xl mx-auto">
             <SectionLabel>Implementation Roadmap</SectionLabel>
             <h2 className="text-4xl font-bold text-white mb-3">Your {props.implementationTimeline.totalDuration} Path Forward</h2>
-            <p className="text-gray-500 mb-14 text-lg">A phased approach designed for minimal disruption and maximum momentum</p>
+            <p className="text-cortex-muted mb-14 text-lg">A phased approach designed for minimal disruption and maximum momentum</p>
 
             <div className="relative">
               {/* Vertical timeline line */}
-              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#8B5CF6] via-[#3B82F6] to-[#06D7F6] hidden sm:block" />
+              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cortex-accent via-cortex-accent-alt to-cortex-info hidden sm:block" />
 
               <div className="space-y-8">
                 {props.implementationTimeline.phases.map((phase, i) => {
-                  const phaseColors = ['#8B5CF6', '#3B82F6', '#06D7F6', '#10B981'];
+                  const phaseColors = [brand.accent, brand.accentAlt, status.info, status.success];
                   const color = phaseColors[i % phaseColors.length];
                   return (
                     <motion.div
@@ -843,7 +844,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                       {/* Timeline dot */}
                       <div className="relative flex-shrink-0 hidden sm:flex">
                         <div
-                          className="size-12 rounded-full flex items-center justify-center border-4 border-[#0A0A0F] shadow-lg z-10"
+                          className="size-12 rounded-full flex items-center justify-center border-4 border-cortex-canvas shadow-lg z-10"
                           style={{ backgroundColor: color }}
                         >
                           <span className="text-white font-black text-sm">{i + 1}</span>
@@ -851,7 +852,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                       </div>
 
                       {/* Phase card */}
-                      <div className="flex-1 bg-white/5 rounded-2xl border border-white/10 p-7">
+                      <div className="flex-1 bg-cortex-control rounded-cortex-lg border border-cortex-default p-7">
                         <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <h3 className="font-bold text-white text-lg">{phase.label}</h3>
                           <span
@@ -861,13 +862,13 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
                             {phase.weeks}
                           </span>
                         </div>
-                        <p className="text-gray-400 text-sm leading-relaxed mb-4">{phase.description}</p>
+                        <p className="text-cortex-muted text-sm leading-relaxed mb-4">{phase.description}</p>
                         <div className="space-y-2">
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Key Milestones</p>
+                          <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider">Key Milestones</p>
                           {phase.milestones.map((ms, j) => (
                             <div key={j} className="flex items-start gap-2.5">
                               <CheckCircle2 className="size-4 flex-shrink-0 mt-0.5" style={{ color }} />
-                              <span className="text-sm text-gray-300">{ms}</span>
+                              <span className="text-sm text-cortex-secondary">{ms}</span>
                             </div>
                           ))}
                         </div>
@@ -886,7 +887,7 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
       ══════════════════════════════════════════════════════════════════════ */}
       <div
         id="report-cta"
-        className="flex flex-col items-center justify-center bg-gradient-to-br from-[#0A0A0F] via-[#0f0f1e] to-[#1a1a2e] text-white px-8 py-24 text-center"
+        className="flex flex-col items-center justify-center bg-gradient-to-br from-cortex-canvas via-cortex-overlay to-cortex-overlay text-white px-8 py-24 text-center"
       >
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -894,21 +895,21 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           viewport={{ once: true }}
           className="max-w-2xl"
         >
-          <div className="size-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center mx-auto mb-8 shadow-lg shadow-[#8B5CF6]/30">
+          <div className="size-16 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center mx-auto mb-8 shadow-lg shadow-cortex-accent/30">
             <Calendar className="size-8 text-white" />
           </div>
 
           <h2 className="text-5xl font-bold mb-5 tracking-tight">Next Step</h2>
-          <p className="text-2xl text-gray-300 mb-5">
+          <p className="text-2xl text-cortex-secondary mb-5">
             Book a 30-minute Readiness Call to walk through this report.
           </p>
-          <p className="text-gray-400 mb-10 text-lg leading-relaxed">
+          <p className="text-cortex-muted mb-10 text-lg leading-relaxed">
             We'll validate what we've identified, answer your questions, and map out a clear path forward. No pressure — if there's no fit, we'll say so.
           </p>
 
           <button
             onClick={handleCTA}
-            className="no-print inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:opacity-90 text-white rounded-xl text-lg font-bold transition-all shadow-lg shadow-[#8B5CF6]/30 mb-5"
+            className="no-print inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:opacity-90 text-white rounded-cortex-md text-lg font-bold transition-all shadow-lg shadow-cortex-accent/30 mb-5"
           >
             <Calendar className="size-5" />
             Schedule Your Readiness Call
@@ -916,14 +917,14 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
           </button>
 
           <div>
-            <p className="text-gray-500 text-sm mb-6">No obligation. 30 minutes. Clear outcome.</p>
+            <p className="text-cortex-muted text-sm mb-6">No obligation. 30 minutes. Clear outcome.</p>
           </div>
 
-          <div className="pt-8 border-t border-white/10 flex items-center justify-center gap-4 no-print">
+          <div className="pt-8 border-t border-cortex-default flex items-center justify-center gap-4 no-print">
             <button
               onClick={handlePrint}
               disabled={isExporting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white/8 hover:bg-white/15 border border-white/15 text-white rounded-cortex-sm text-sm font-medium transition-all disabled:opacity-50"
             >
               {isExporting ? (
                 <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75"/></svg>
@@ -944,8 +945,8 @@ export function ClientReadinessReport(props: ClientReadinessReportProps) {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="inline-flex items-center gap-2 mb-4">
-      <div className="size-1.5 rounded-full bg-[#8B5CF6]" />
-      <span className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest">{children}</span>
+      <div className="size-1.5 rounded-full bg-cortex-accent" />
+      <span className="text-xs font-bold text-cortex-accent uppercase tracking-widest">{children}</span>
     </div>
   );
 }

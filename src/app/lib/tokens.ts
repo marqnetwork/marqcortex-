@@ -56,6 +56,10 @@ export const CORTEX_TOKENS = {
   '--cortex-accent': '#8B5CF6',
   '--cortex-accent-alt': '#3B82F6',
   '--cortex-accent-tertiary': '#EC4899',
+  '--cortex-accent-light': '#A78BFA',
+  '--cortex-accent-deep': '#7C3AED',
+  '--cortex-accent-alt-light': '#60A5FA',
+  '--cortex-accent-alt-deep': '#2563EB',
 
   '--cortex-status-success': '#10B981',
   '--cortex-status-warning': '#FB923C',
@@ -63,6 +67,12 @@ export const CORTEX_TOKENS = {
   '--cortex-status-info': '#06D7F6',
   '--cortex-status-caution': '#F59E0B',
   '--cortex-status-neutral': '#70707C',
+  '--cortex-status-success-light': '#34D399',
+  '--cortex-status-success-deep': '#059669',
+  '--cortex-status-danger-light': '#FCA5A5',
+  '--cortex-status-danger-deep': '#DC2626',
+  '--cortex-status-caution-light': '#FBBF24',
+  '--cortex-status-caution-deep': '#D97706',
 
   '--cortex-radius-sm': '8px',
   '--cortex-radius-md': '12px',
@@ -139,6 +149,12 @@ export const brand = {
   accent: CORTEX_TOKENS['--cortex-accent'],
   accentAlt: CORTEX_TOKENS['--cortex-accent-alt'],
   accentTertiary: CORTEX_TOKENS['--cortex-accent-tertiary'],
+  /** Text on a tint of the accent. The base accent is 4.33:1 there — under AA. */
+  accentLight: CORTEX_TOKENS['--cortex-accent-light'],
+  /** The accent, pressed. */
+  accentDeep: CORTEX_TOKENS['--cortex-accent-deep'],
+  accentAltLight: CORTEX_TOKENS['--cortex-accent-alt-light'],
+  accentAltDeep: CORTEX_TOKENS['--cortex-accent-alt-deep'],
 } as const;
 
 export const status = {
@@ -148,6 +164,13 @@ export const status = {
   info: CORTEX_TOKENS['--cortex-status-info'],
   caution: CORTEX_TOKENS['--cortex-status-caution'],
   neutral: CORTEX_TOKENS['--cortex-status-neutral'],
+
+  successLight: CORTEX_TOKENS['--cortex-status-success-light'],
+  successDeep: CORTEX_TOKENS['--cortex-status-success-deep'],
+  dangerLight: CORTEX_TOKENS['--cortex-status-danger-light'],
+  dangerDeep: CORTEX_TOKENS['--cortex-status-danger-deep'],
+  cautionLight: CORTEX_TOKENS['--cortex-status-caution-light'],
+  cautionDeep: CORTEX_TOKENS['--cortex-status-caution-deep'],
 } as const;
 
 export const radius = {

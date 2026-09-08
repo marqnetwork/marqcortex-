@@ -197,6 +197,51 @@ describe('the tokens are usable from a class name', () => {
 
 // ── 4. This is a convergence, not a redesign ─────────────────────────────────
 
+describe('the three-step scale exists for the two jobs the base colour cannot do', () => {
+  // `-light` is TEXT on a tint of its own hue; `-deep` is a solid fill,
+  // PRESSED. Sixteen files were doing both with undeclared hex before these
+  // were named.
+  const relative = (hex: string) => {
+    const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const contrast = (fg: string, bg: string) => {
+    const [a, b] = [relative(fg), relative(bg)].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+  };
+
+  const PAIRS: [name: string, light: string, base: string, deep: string][] = [
+    ['accent',     brand.accentLight,    brand.accent,    brand.accentDeep],
+    ['accent-alt', brand.accentAltLight, brand.accentAlt, brand.accentAltDeep],
+    ['success',    status.successLight,  status.success,  status.successDeep],
+    ['danger',     status.dangerLight,   status.danger,   status.dangerDeep],
+    ['caution',    status.cautionLight,  status.caution,  status.cautionDeep],
+  ];
+
+  for (const [name, light, base, deep] of PAIRS) {
+    it(`${name}: light is lighter than base, and deep is darker`, () => {
+      assert.ok(relative(light) > relative(base), `${name}-light is not lighter than the base`);
+      assert.ok(relative(deep) < relative(base), `${name}-deep is not darker than the base`);
+    });
+
+    it(`${name}: the light step clears AA on the canvas where the base may not`, () => {
+      // This is the whole reason the light step exists. `#C4B5FD` and friends
+      // were being hand-written precisely because the base colour is not
+      // readable as text on a dark surface.
+      assert.ok(
+        contrast(light, surface.canvas) >= 4.5,
+        `${name}-light is ${contrast(light, surface.canvas).toFixed(2)}:1 on the canvas`,
+      );
+    });
+  }
+
+  it('every step is distinct', () => {
+    const all = PAIRS.flatMap(([, l, b, d]) => [l, b, d]);
+    assert.equal(new Set(all).size, all.length, 'two steps of the scale share a colour');
+  });
+});
+
 describe('the tokens are the colours the product already renders', () => {
   it('keeps the brand pair', () => {
     assert.equal(brand.accent, '#8B5CF6');

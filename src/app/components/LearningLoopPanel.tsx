@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { getLearningLoop, type LearningLoopData } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { brand, border, text, surface, status as statusToken } from '@/app/lib/tokens';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ function timeAgo(iso: string): string {
 }
 
 function convColor(rate: number): string {
-  return rate >= 60 ? '#10B981' : rate >= 40 ? '#FB923C' : '#FD4438';
+  return rate >= 60 ? statusToken.success : rate >= 40 ? statusToken.warning : statusToken.danger;
 }
 
 // ── Recharts dark tooltip ─────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ function DarkTooltip({ active, payload, label, formatter }: {
       minWidth:     120,
     }}>
       {label !== undefined && label !== null && label !== '' && (
-        <p style={{ color: '#9CA3AF', fontSize: 10, marginBottom: 5,
+        <p style={{ color: text.muted, fontSize: 10, marginBottom: 5,
           textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {label}
         </p>
@@ -94,9 +95,9 @@ function DarkTooltip({ active, payload, label, formatter }: {
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{
             width: 8, height: 8, borderRadius: 2,
-            background: p.fill || p.color || '#8B5CF6',
+            background: p.fill || p.color || brand.accent,
           }} />
-          <span style={{ color: '#E5E7EB', fontSize: 12, fontWeight: 700 }}>
+          <span style={{ color: text.secondary, fontSize: 12, fontWeight: 700 }}>
             {p.name}: {formatter ? formatter(p.value, p.name) : p.value}
           </span>
         </div>
@@ -115,7 +116,7 @@ function KPICard({ label, value, sub, icon: Icon, color }: {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl p-5 flex flex-col gap-2.5"
+      className="rounded-cortex-lg p-5 flex flex-col gap-2.5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
     >
       <div className="flex items-center justify-between">
@@ -124,7 +125,7 @@ function KPICard({ label, value, sub, icon: Icon, color }: {
       </div>
       <div>
         <p className="text-xs font-bold text-white">{label}</p>
-        {sub && <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">{sub}</p>}
+        {sub && <p className="text-[10px] text-cortex-muted mt-0.5 leading-snug">{sub}</p>}
       </div>
       <div className="h-[2px] rounded-full"
         style={{ background: `linear-gradient(90deg, ${color}55, transparent)` }} />
@@ -138,20 +139,20 @@ function DonutPanel({ data }: { data: LearningLoopData }) {
   const total = data.totalConverted + data.totalLost;
 
   const pieData = total === 0
-    ? [{ name: 'No data', value: 1, color: '#1F2937' }]
+    ? [{ name: 'No data', value: 1, color: border.strong }]
     : [
-        { name: 'Won',  value: data.totalConverted, color: '#10B981' },
-        { name: 'Lost', value: data.totalLost,      color: '#FD4438' },
+        { name: 'Won',  value: data.totalConverted, color: statusToken.success },
+        { name: 'Lost', value: data.totalLost,      color: statusToken.danger },
       ].filter(d => d.value > 0);
 
   return (
-    <div className="rounded-2xl p-5"
+    <div className="rounded-cortex-lg p-5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-1">
-        <BarChart3 className="size-4 text-[#8B5CF6]" />
+        <BarChart3 className="size-4 text-cortex-accent" />
         <h3 className="text-sm font-bold text-white">Win / Loss Ratio</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-5">Outcome distribution across all logged deals</p>
+      <p className="text-[10px] text-cortex-muted mb-5">Outcome distribution across all logged deals</p>
 
       <div className="flex items-center gap-6">
 
@@ -177,7 +178,7 @@ function DonutPanel({ data }: { data: LearningLoopData }) {
             <span className="text-[28px] font-bold text-white leading-none">
               {total === 0 ? '—' : `${data.conversionRate}%`}
             </span>
-            <span className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">
+            <span className="text-[9px] text-cortex-muted uppercase tracking-widest mt-1">
               {total === 0 ? 'No data' : 'Win rate'}
             </span>
           </div>
@@ -187,24 +188,24 @@ function DonutPanel({ data }: { data: LearningLoopData }) {
         <div className="flex flex-col gap-4 flex-1 min-w-0">
           {/* Won */}
           <div className="flex items-center gap-2.5">
-            <div className="size-2.5 rounded-full flex-shrink-0" style={{ background: '#10B981' }} />
+            <div className="size-2.5 rounded-full flex-shrink-0" style={{ background: statusToken.success }} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Won</span>
-                <span className="text-sm font-bold text-[#10B981]">{data.totalConverted}</span>
+                <span className="text-xs text-cortex-muted">Won</span>
+                <span className="text-sm font-bold text-cortex-success">{data.totalConverted}</span>
               </div>
               {data.totalRevenue > 0 && (
-                <p className="text-[10px] text-gray-600">{fmt$(data.totalRevenue)} revenue</p>
+                <p className="text-[10px] text-cortex-faint">{fmt$(data.totalRevenue)} revenue</p>
               )}
             </div>
           </div>
           {/* Lost */}
           <div className="flex items-center gap-2.5">
-            <div className="size-2.5 rounded-full flex-shrink-0" style={{ background: '#FD4438' }} />
+            <div className="size-2.5 rounded-full flex-shrink-0" style={{ background: statusToken.danger }} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Lost</span>
-                <span className="text-sm font-bold text-[#FD4438]">{data.totalLost}</span>
+                <span className="text-xs text-cortex-muted">Lost</span>
+                <span className="text-sm font-bold text-cortex-danger">{data.totalLost}</span>
               </div>
             </div>
           </div>
@@ -212,17 +213,17 @@ function DonutPanel({ data }: { data: LearningLoopData }) {
           {/* Supplementary stats */}
           <div className="space-y-1.5 mt-1">
             {data.avgDealSize > 0 && (
-              <div className="px-2.5 py-1.5 rounded-lg text-[10px]"
+              <div className="px-2.5 py-1.5 rounded-cortex-sm text-[10px]"
                 style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.18)' }}>
-                <span className="text-gray-500">Avg deal: </span>
-                <span className="text-[#10B981] font-bold">{fmt$(data.avgDealSize)}</span>
+                <span className="text-cortex-muted">Avg deal: </span>
+                <span className="text-cortex-success font-bold">{fmt$(data.avgDealSize)}</span>
               </div>
             )}
             {data.avgDaysToClose !== null && (
-              <div className="px-2.5 py-1.5 rounded-lg text-[10px]"
+              <div className="px-2.5 py-1.5 rounded-cortex-sm text-[10px]"
                 style={{ background: 'rgba(6,215,246,0.06)', border: '1px solid rgba(6,215,246,0.14)' }}>
-                <span className="text-gray-500">Avg close: </span>
-                <span className="text-[#06D7F6] font-bold">{data.avgDaysToClose}d</span>
+                <span className="text-cortex-muted">Avg close: </span>
+                <span className="text-cortex-info font-bold">{data.avgDaysToClose}d</span>
               </div>
             )}
           </div>
@@ -234,7 +235,11 @@ function DonutPanel({ data }: { data: LearningLoopData }) {
 
 // ── Loss Reason Bar ───────────────────────────────────────────────────────────
 
-const LOSS_PALETTE = ['#FD4438', '#E84040', '#D44848', '#C05050', '#AD5858'];
+// A SEQUENTIAL RAMP, not the status vocabulary: five steps desaturating away
+// from the danger colour so a chart can show magnitude. Only the first step
+// means "danger"; the rest are distances from it, and pointing them at status
+// tokens would make them move independently of the ramp they belong to.
+const LOSS_PALETTE = [statusToken.danger, '#E84040', '#D44848', '#C05050', '#AD5858'];
 
 function LossReasonsPanel({ data }: { data: LearningLoopData }) {
   const chartData = data.topLostReasons.slice(0, 7).map(r => {
@@ -249,18 +254,18 @@ function LossReasonsPanel({ data }: { data: LearningLoopData }) {
   const barH = Math.max(180, chartData.length * 38);
 
   return (
-    <div className="rounded-2xl p-5"
+    <div className="rounded-cortex-lg p-5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-1">
-        <XCircle className="size-4 text-[#FD4438]" />
+        <XCircle className="size-4 text-cortex-danger" />
         <h3 className="text-sm font-bold text-white">Top Loss Reasons</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-5">Why deals were lost — extracted from outcome logs</p>
+      <p className="text-[10px] text-cortex-muted mb-5">Why deals were lost — extracted from outcome logs</p>
 
       {chartData.length === 0 ? (
-        <div className="flex items-center justify-center rounded-xl"
+        <div className="flex items-center justify-center rounded-cortex-md"
           style={{ height: 160, border: '1px dashed rgba(255,255,255,0.07)' }}>
-          <p className="text-xs text-gray-600">No lost deals recorded yet</p>
+          <p className="text-xs text-cortex-faint">No lost deals recorded yet</p>
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={barH}>
@@ -271,7 +276,7 @@ function LossReasonsPanel({ data }: { data: LearningLoopData }) {
           >
             <XAxis
               type="number"
-              tick={{ fill: '#6B7280', fontSize: 10 }}
+              tick={{ fill: statusToken.neutral, fontSize: 10 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
               tickLine={false}
               allowDecimals={false}
@@ -280,7 +285,7 @@ function LossReasonsPanel({ data }: { data: LearningLoopData }) {
               type="category"
               dataKey="name"
               width={148}
-              tick={{ fill: '#9CA3AF', fontSize: 10 }}
+              tick={{ fill: text.muted, fontSize: 10 }}
               axisLine={false}
               tickLine={false}
             />
@@ -302,7 +307,7 @@ function LossReasonsPanel({ data }: { data: LearningLoopData }) {
               <LabelList
                 dataKey="count"
                 position="right"
-                style={{ fill: '#9CA3AF', fontSize: 10, fontWeight: 700 }}
+                style={{ fill: text.muted, fontSize: 10, fontWeight: 700 }}
                 formatter={(v: number) => `${v}×`}
               />
             </Bar>
@@ -333,18 +338,18 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
   const barH = Math.max(200, chartData.length * 40);
 
   return (
-    <div className="rounded-2xl p-5"
+    <div className="rounded-cortex-lg p-5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-1">
-        <Building2 className="size-4 text-[#3B82F6]" />
+        <Building2 className="size-4 text-cortex-accent-alt" />
         <h3 className="text-sm font-bold text-white">Industry Win Rate</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-5">Conversion % by industry — sorted by performance</p>
+      <p className="text-[10px] text-cortex-muted mb-5">Conversion % by industry — sorted by performance</p>
 
       {chartData.length === 0 ? (
-        <div className="flex items-center justify-center rounded-xl"
+        <div className="flex items-center justify-center rounded-cortex-md"
           style={{ height: 160, border: '1px dashed rgba(255,255,255,0.07)' }}>
-          <p className="text-xs text-gray-600">Log outcomes across industries to see patterns</p>
+          <p className="text-xs text-cortex-faint">Log outcomes across industries to see patterns</p>
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={barH}>
@@ -357,7 +362,7 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
               type="number"
               domain={[0, 100]}
               tickFormatter={(v: number) => `${v}%`}
-              tick={{ fill: '#6B7280', fontSize: 10 }}
+              tick={{ fill: statusToken.neutral, fontSize: 10 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
               tickLine={false}
             />
@@ -365,7 +370,7 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
               type="category"
               dataKey="name"
               width={136}
-              tick={{ fill: '#9CA3AF', fontSize: 10 }}
+              tick={{ fill: text.muted, fontSize: 10 }}
               axisLine={false}
               tickLine={false}
             />
@@ -382,17 +387,17 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
                     padding:      '10px 14px',
                     boxShadow:    '0 12px 40px rgba(0,0,0,0.7)',
                   }}>
-                    <p style={{ color: '#E5E7EB', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    <p style={{ color: text.secondary, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                       {d.fullName}
                     </p>
                     <p style={{ color: d.fill, fontSize: 14, fontWeight: 800, marginBottom: 4 }}>
                       {d.rate}% win rate
                     </p>
-                    <p style={{ color: '#9CA3AF', fontSize: 10 }}>
+                    <p style={{ color: text.muted, fontSize: 10 }}>
                       {d.won} won · {d.lost} lost · {d.total} total
                     </p>
                     {d.avgDeal > 0 && (
-                      <p style={{ color: '#06D7F6', fontSize: 10, marginTop: 2 }}>
+                      <p style={{ color: statusToken.info, fontSize: 10, marginTop: 2 }}>
                         Avg deal: {fmt$(d.avgDeal)}
                       </p>
                     )}
@@ -407,7 +412,7 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
               <LabelList
                 dataKey="rate"
                 position="right"
-                style={{ fill: '#9CA3AF', fontSize: 10, fontWeight: 700 }}
+                style={{ fill: text.muted, fontSize: 10, fontWeight: 700 }}
                 formatter={(v: number) => `${v}%`}
               />
             </Bar>
@@ -422,9 +427,9 @@ function IndustryPanel({ data }: { data: LearningLoopData }) {
 
 function ScoreBandPanel({ data }: { data: LearningLoopData }) {
   const bands = [
-    { label: `High  ·  ${data.scoreCorrelation.highScore.range}`, color: '#10B981', ...data.scoreCorrelation.highScore },
-    { label: `Mid   ·  ${data.scoreCorrelation.midScore.range}`,  color: '#FB923C', ...data.scoreCorrelation.midScore  },
-    { label: `Low   ·  ${data.scoreCorrelation.lowScore.range}`,  color: '#FD4438', ...data.scoreCorrelation.lowScore  },
+    { label: `High  ·  ${data.scoreCorrelation.highScore.range}`, color: statusToken.success, ...data.scoreCorrelation.highScore },
+    { label: `Mid   ·  ${data.scoreCorrelation.midScore.range}`,  color: statusToken.warning, ...data.scoreCorrelation.midScore  },
+    { label: `Low   ·  ${data.scoreCorrelation.lowScore.range}`,  color: statusToken.danger, ...data.scoreCorrelation.lowScore  },
   ];
 
   const hasInsight =
@@ -432,13 +437,13 @@ function ScoreBandPanel({ data }: { data: LearningLoopData }) {
     data.scoreCorrelation.lowScore.rate  !== null;
 
   return (
-    <div className="rounded-2xl p-5"
+    <div className="rounded-cortex-lg p-5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-1">
-        <Sparkles className="size-4 text-[#8B5CF6]" />
+        <Sparkles className="size-4 text-cortex-accent" />
         <h3 className="text-sm font-bold text-white">Score Band Analysis</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-5">
+      <p className="text-[10px] text-cortex-muted mb-5">
         Does a higher AI score predict a win? Validates CORTEX accuracy.
       </p>
 
@@ -448,11 +453,11 @@ function ScoreBandPanel({ data }: { data: LearningLoopData }) {
           return (
             <div key={i} className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-300 font-mono font-medium text-[10px]">{band.label}</span>
+                <span className="text-cortex-secondary font-mono font-medium text-[10px]">{band.label}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-600 text-[10px]">{band.converted}/{band.total}</span>
+                  <span className="text-cortex-faint text-[10px]">{band.converted}/{band.total}</span>
                   <span className="font-bold text-sm"
-                    style={{ color: band.rate === null ? '#4B5563' : band.color }}>
+                    style={{ color: band.rate === null ? text.faint : band.color }}>
                     {band.rate === null ? '—' : `${band.rate}%`}
                   </span>
                 </div>
@@ -467,7 +472,7 @@ function ScoreBandPanel({ data }: { data: LearningLoopData }) {
                   style={{ background: `linear-gradient(90deg, ${band.color}, ${band.color}88)` }}
                 />
               </div>
-              <p className="text-[10px] text-gray-600">
+              <p className="text-[10px] text-cortex-faint">
                 {band.total} outcome{band.total !== 1 ? 's' : ''} in this band
               </p>
             </div>
@@ -478,11 +483,11 @@ function ScoreBandPanel({ data }: { data: LearningLoopData }) {
       {hasInsight && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-          className="mt-5 p-3 rounded-xl text-[10px] leading-relaxed"
+          className="mt-5 p-3 rounded-cortex-md text-[10px] leading-relaxed"
           style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}
         >
-          <span className="text-[#8B5CF6] font-bold">Insight: </span>
-          <span className="text-gray-400">
+          <span className="text-cortex-accent font-bold">Insight: </span>
+          <span className="text-cortex-muted">
             {(data.scoreCorrelation.highScore.rate ?? 0) > (data.scoreCorrelation.lowScore.rate ?? 0)
               ? `High-score leads (${data.scoreCorrelation.highScore.range}) convert at ${data.scoreCorrelation.highScore.rate}% vs ${data.scoreCorrelation.lowScore.rate}% for low — AI is calling it correctly.`
               : `Similar conversion across score bands. Consider refining scoring weights in CORTEX.`}
@@ -500,22 +505,22 @@ function RecentOutcomesPanel({ data }: { data: LearningLoopData }) {
   const COLS = ['Company', 'Industry', 'Result', 'Value', 'AI Score', 'Rec. Worked', 'Date'];
 
   return (
-    <div className="rounded-2xl p-5"
+    <div className="rounded-cortex-lg p-5"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-1">
-        <Clock className="size-4 text-[#06D7F6]" />
+        <Clock className="size-4 text-cortex-info" />
         <h3 className="text-sm font-bold text-white">Recent Outcomes</h3>
         <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
-          style={{ background: 'rgba(6,215,246,0.1)', color: '#06D7F6', border: '1px solid rgba(6,215,246,0.2)' }}>
+          style={{ background: 'rgba(6,215,246,0.1)', color: statusToken.info, border: '1px solid rgba(6,215,246,0.2)' }}>
           Last {rows.length}
         </span>
       </div>
-      <p className="text-[10px] text-gray-500 mb-4">Most recently logged deal outcomes with AI correlation</p>
+      <p className="text-[10px] text-cortex-muted mb-4">Most recently logged deal outcomes with AI correlation</p>
 
       {rows.length === 0 ? (
-        <div className="flex items-center justify-center py-10 rounded-xl"
+        <div className="flex items-center justify-center py-10 rounded-cortex-md"
           style={{ border: '1px dashed rgba(255,255,255,0.07)' }}>
-          <p className="text-xs text-gray-600">No outcomes logged yet</p>
+          <p className="text-xs text-cortex-faint">No outcomes logged yet</p>
         </div>
       ) : (
         <div className="overflow-auto" style={{ maxHeight: 340 }}>
@@ -525,7 +530,7 @@ function RecentOutcomesPanel({ data }: { data: LearningLoopData }) {
                 {COLS.map(h => (
                   <th key={h}
                     className="text-left pb-2 pr-4 whitespace-nowrap"
-                    style={{ color: '#6B7280', fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                    style={{ color: statusToken.neutral, fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
                     {h}
                   </th>
                 ))}
@@ -541,13 +546,13 @@ function RecentOutcomesPanel({ data }: { data: LearningLoopData }) {
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                 >
                   <td className="py-2.5 pr-4 text-white font-semibold text-[11px]">{o.company}</td>
-                  <td className="py-2.5 pr-4 text-gray-400 text-[11px]">{o.industry}</td>
+                  <td className="py-2.5 pr-4 text-cortex-muted text-[11px]">{o.industry}</td>
                   <td className="py-2.5 pr-4">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
                       style={{
                         background: o.didConvert ? 'rgba(16,185,129,0.14)' : 'rgba(253,68,56,0.12)',
                         border:     `1px solid ${o.didConvert ? 'rgba(16,185,129,0.3)' : 'rgba(253,68,56,0.3)'}`,
-                        color:      o.didConvert ? '#10B981' : '#FD4438',
+                        color:      o.didConvert ? statusToken.success : statusToken.danger,
                       }}>
                       {o.didConvert
                         ? <TrendingUp className="size-2.5" />
@@ -556,21 +561,21 @@ function RecentOutcomesPanel({ data }: { data: LearningLoopData }) {
                     </span>
                   </td>
                   <td className="py-2.5 pr-4 text-[11px] font-bold"
-                    style={{ color: '#06D7F6' }}>
+                    style={{ color: statusToken.info }}>
                     {o.conversionValue ? fmt$(o.conversionValue) : '—'}
                   </td>
                   <td className="py-2.5 pr-4 text-[11px] font-bold"
-                    style={{ color: o.aiScore >= 75 ? '#10B981' : o.aiScore >= 50 ? '#FB923C' : '#FD4438' }}>
+                    style={{ color: o.aiScore >= 75 ? statusToken.success : o.aiScore >= 50 ? statusToken.warning : statusToken.danger }}>
                     {o.aiScore || '—'}
                   </td>
                   <td className="py-2.5 pr-4">
                     {o.recommendationWorked === null
-                      ? <span className="text-gray-600 text-[11px]">—</span>
+                      ? <span className="text-cortex-faint text-[11px]">—</span>
                       : o.recommendationWorked
-                        ? <CheckCircle2 className="size-3.5 text-[#10B981]" />
-                        : <XCircle className="size-3.5 text-[#FD4438]" />}
+                        ? <CheckCircle2 className="size-3.5 text-cortex-success" />
+                        : <XCircle className="size-3.5 text-cortex-danger" />}
                   </td>
-                  <td className="py-2.5 text-gray-500 text-[10px] whitespace-nowrap">
+                  <td className="py-2.5 text-cortex-muted text-[10px] whitespace-nowrap">
                     {timeAgo(o.loggedAt)}
                   </td>
                 </motion.tr>
@@ -589,16 +594,16 @@ function ImprovementAreasPanel({ data }: { data: LearningLoopData }) {
   const max = data.improvementAreas[0]?.count || 1;
 
   return (
-    <div className="rounded-2xl p-5 flex flex-col"
+    <div className="rounded-cortex-lg p-5 flex flex-col"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', minHeight: 200 }}>
       <div className="flex items-center gap-2 mb-1">
-        <Lightbulb className="size-4 text-[#FB923C]" />
+        <Lightbulb className="size-4 text-cortex-warning" />
         <h3 className="text-sm font-bold text-white">Improvement Votes</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-4">Process areas flagged for CORTEX refinement — larger = more votes</p>
+      <p className="text-[10px] text-cortex-muted mb-4">Process areas flagged for CORTEX refinement — larger = more votes</p>
 
       {data.improvementAreas.length === 0 ? (
-        <p className="text-xs text-gray-600">No improvement areas tagged yet</p>
+        <p className="text-xs text-cortex-faint">No improvement areas tagged yet</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {data.improvementAreas.map((area, i) => {
@@ -642,29 +647,29 @@ function HowCortexLearns() {
     { title: 'Pricing accuracy',     desc: 'Deal size patterns by industry refine ROI estimate ranges'                      },
   ];
   return (
-    <div className="rounded-2xl p-5 flex flex-col"
+    <div className="rounded-cortex-lg p-5 flex flex-col"
       style={{
         background: 'linear-gradient(135deg, rgba(139,92,246,0.07), rgba(59,130,246,0.05))',
         border:     '1px solid rgba(139,92,246,0.2)',
         minHeight:  200,
       }}>
       <div className="flex items-center gap-2 mb-1">
-        <Brain className="size-4 text-[#8B5CF6]" />
+        <Brain className="size-4 text-cortex-accent" />
         <h3 className="text-sm font-bold text-white">How CORTEX Gets Smarter</h3>
       </div>
-      <p className="text-[10px] text-gray-500 mb-4">Every outcome logged feeds the intelligence loop</p>
+      <p className="text-[10px] text-cortex-muted mb-4">Every outcome logged feeds the intelligence loop</p>
       <div className="space-y-3 flex-1">
         {items.map((item, i) => (
           <div key={i} className="flex items-start gap-2.5">
-            <CheckCircle2 className="size-3.5 text-[#10B981] flex-shrink-0 mt-px" />
+            <CheckCircle2 className="size-3.5 text-cortex-success flex-shrink-0 mt-px" />
             <p className="text-[11px] leading-snug">
               <span className="text-white font-semibold">{item.title}: </span>
-              <span className="text-gray-400">{item.desc}</span>
+              <span className="text-cortex-muted">{item.desc}</span>
             </p>
           </div>
         ))}
       </div>
-      <p className="text-[#8B5CF6] text-[11px] font-bold mt-4">
+      <p className="text-cortex-accent text-[11px] font-bold mt-4">
         Your moat: every deal logged makes the next easier to close. 🧠
       </p>
     </div>
@@ -676,18 +681,18 @@ function HowCortexLearns() {
 function EmptyState() {
   return (
     <div className="space-y-5">
-      <div className="text-center py-20 rounded-2xl"
+      <div className="text-center py-20 rounded-cortex-lg"
         style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
-        <div className="size-20 rounded-2xl mx-auto mb-6 flex items-center justify-center"
+        <div className="size-20 rounded-cortex-lg mx-auto mb-6 flex items-center justify-center"
           style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.18)' }}>
-          <Activity className="size-10 opacity-30 text-[#8B5CF6]" />
+          <Activity className="size-10 opacity-30 text-cortex-accent" />
         </div>
         <h2 className="text-xl font-bold text-white mb-3">No outcomes logged yet</h2>
-        <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
+        <p className="text-cortex-muted text-sm max-w-md mx-auto leading-relaxed">
           The Learning Loop activates when your team logs deal outcomes from the Pipeline.{' '}
           Drag a lead to{' '}
-          <span className="text-[#10B981] font-semibold">Converted</span> or{' '}
-          <span className="text-[#FD4438] font-semibold">Lost</span>{' '}
+          <span className="text-cortex-success font-semibold">Converted</span> or{' '}
+          <span className="text-cortex-danger font-semibold">Lost</span>{' '}
           to log your first outcome and start the intelligence feedback loop.
         </p>
       </div>
@@ -741,7 +746,7 @@ export function LearningLoopPanel({
   useEffect(() => { load(); }, [accessToken]);
 
   return (
-    <div className="min-h-screen text-white" style={{ background: '#0A0A0F' }}>
+    <div className="min-h-screen text-white" style={{ background: surface.canvas }}>
 
       {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 backdrop-blur-xl"
@@ -752,19 +757,19 @@ export function LearningLoopPanel({
           <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-white transition-colors flex-shrink-0"
+              className="flex items-center gap-2 text-sm text-cortex-muted hover:text-white transition-colors flex-shrink-0"
             >
               <ArrowLeft className="size-4" />
               CORTEX
             </button>
 
             <div className="flex items-center gap-3 min-w-0">
-              <div className="size-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              <div className="size-10 rounded-cortex-md flex items-center justify-center flex-shrink-0"
                 style={{
                   background: 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(6,215,246,0.16))',
                   border:     '1px solid rgba(16,185,129,0.28)',
                 }}>
-                <TrendingUp className="size-5 text-[#10B981]" />
+                <TrendingUp className="size-5 text-cortex-success" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -773,13 +778,13 @@ export function LearningLoopPanel({
                     <motion.span
                       initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.25)' }}
+                      style={{ background: 'rgba(16,185,129,0.12)', color: statusToken.success, border: '1px solid rgba(16,185,129,0.25)' }}
                     >
                       {data.totalOutcomes} outcome{data.totalOutcomes !== 1 ? 's' : ''}
                     </motion.span>
                   )}
                 </div>
-                <p className="text-[10px] text-gray-500">
+                <p className="text-[10px] text-cortex-muted">
                   Pattern intelligence ·{' '}
                   {refreshedAt ? `Updated ${timeAgo(refreshedAt)}` : 'Loading…'}
                 </p>
@@ -791,7 +796,7 @@ export function LearningLoopPanel({
           <button
             onClick={() => load(true)}
             disabled={isRefreshing || status === 'loading'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-200 transition-colors disabled:opacity-40 flex-shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-xs font-medium text-cortex-muted hover:text-cortex-secondary transition-colors disabled:opacity-40 flex-shrink-0"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             <RefreshCw className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -811,13 +816,13 @@ export function LearningLoopPanel({
               initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-4 py-3 rounded-xl flex items-center justify-between gap-3"
-                style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.25)', color: '#FCA5A5' }}>
+              <div className="px-4 py-3 rounded-cortex-md flex items-center justify-between gap-3"
+                style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.25)', color: statusToken.dangerLight }}>
                 <div className="flex items-center gap-2 text-sm">
-                  <AlertTriangle className="size-4 text-[#FD4438] flex-shrink-0" />
+                  <AlertTriangle className="size-4 text-cortex-danger flex-shrink-0" />
                   {error}
                 </div>
-                <button onClick={() => setError(null)} className="text-gray-500 hover:text-white">✕</button>
+                <button onClick={() => setError(null)} className="text-cortex-muted hover:text-white">✕</button>
               </div>
             </motion.div>
           )}
@@ -826,11 +831,11 @@ export function LearningLoopPanel({
         {/* Loading */}
         {status === 'loading' && (
           <div className="flex flex-col items-center justify-center py-40 gap-4">
-            <div className="size-16 rounded-2xl flex items-center justify-center"
+            <div className="size-16 rounded-cortex-lg flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(6,215,246,0.1))', border: '1px solid rgba(16,185,129,0.22)' }}>
-              <Brain className="size-8 text-[#10B981] animate-pulse" />
+              <Brain className="size-8 text-cortex-success animate-pulse" />
             </div>
-            <p className="text-gray-500 text-sm">Aggregating intelligence data…</p>
+            <p className="text-cortex-muted text-sm">Aggregating intelligence data…</p>
           </div>
         )}
 
@@ -847,7 +852,7 @@ export function LearningLoopPanel({
                 value={String(data.totalOutcomes)}
                 sub={`${data.totalConverted} won · ${data.totalLost} lost`}
                 icon={Target}
-                color="#8B5CF6"
+                color={brand.accent}
               />
               <KPICard
                 label="Win Rate"
@@ -861,14 +866,14 @@ export function LearningLoopPanel({
                 value={fmt$(data.totalRevenue)}
                 sub={data.avgDealSize > 0 ? `Avg deal: ${fmt$(data.avgDealSize)}` : 'No deal values logged yet'}
                 icon={DollarSign}
-                color="#06D7F6"
+                color={statusToken.info}
               />
               <KPICard
                 label="Rec. Accuracy"
                 value={data.recommendationAccuracy !== null ? `${data.recommendationAccuracy}%` : 'N/A'}
                 sub={data.avgDaysToClose !== null ? `Avg ${data.avgDaysToClose}d to close` : 'Not enough data yet'}
                 icon={Award}
-                color="#FB923C"
+                color={statusToken.warning}
               />
             </div>
 
