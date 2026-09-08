@@ -2251,15 +2251,34 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
               Back
             </button>
             <div className="flex items-center gap-4">
-              <Sparkles className="text-[#8B5CF6]" size={20} />
-              <span className="text-sm font-medium text-[#F5F5FF]" style={{ fontFamily: 'Inter' }}>
+              <Sparkles className="text-[#8B5CF6]" size={20} aria-hidden="true" />
+              {/* `aria-live` so moving between questions is ANNOUNCED. Without
+                  it the whole step change was silent: the heading swapped, the
+                  progress bar grew, and a screen-reader user heard nothing to
+                  say they had advanced. */}
+              <span
+                className="text-sm font-medium text-[#F5F5FF]"
+                style={{ fontFamily: 'Inter' }}
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 {currentStep + 1} of {questions.length} Questions
               </span>
             </div>
           </div>
 
-          {/* Animated Progress Bar */}
-          <div className="relative">
+          {/* Animated Progress Bar.
+              Declared as a progressbar with its real values, so the position in
+              a fourteen-question form is available to assistive technology and
+              not only to the eye. */}
+          <div
+            className="relative"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={questions.length}
+            aria-valuenow={currentStep + 1}
+            aria-valuetext={`Question ${currentStep + 1} of ${questions.length}`}
+          >
             <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
               <motion.div
                 className="h-full rounded-full"
@@ -2324,8 +2343,19 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                   </div>
                 </motion.div>
 
-                {/* Question */}
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 sm:mb-10 text-[#F5F5FF] leading-tight" style={{ fontFamily: 'Inter' }}>
+                {/* Question.
+                    The heading IS the label for whatever control follows it —
+                    a textarea, an email field or a scale — so it carries an id
+                    and each control points at it with `aria-labelledby`. The
+                    controls previously had only a placeholder, which is not an
+                    accessible name and disappears the moment the user types, so
+                    on the product's primary journey a screen-reader user was
+                    asked fourteen questions they could not hear. */}
+                <h2
+                  id="diagnostic-question"
+                  className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-6 sm:mb-10 text-[#F5F5FF] leading-tight"
+                  style={{ fontFamily: 'Inter' }}
+                >
                   {currentQuestion.question}
                 </h2>
 
@@ -2371,6 +2401,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
+                    aria-labelledby="diagnostic-question"
                     value={(answers[currentQuestion.id] as string) || ''}
                     onChange={(e) => handleAnswer(e.target.value)}
                     placeholder={currentQuestion.placeholder}
@@ -2386,6 +2417,7 @@ export default function DiagnosticForm({ onComplete, onBack, initialData }: Diag
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
                     type="email"
+                    aria-labelledby="diagnostic-question"
                     value={(answers[currentQuestion.id] as string) || ''}
                     onChange={(e) => handleAnswer(e.target.value)}
                     placeholder={currentQuestion.placeholder}

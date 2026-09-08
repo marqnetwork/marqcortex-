@@ -113,3 +113,44 @@ describe('the landing page does not scroll sideways', () => {
     assert.match(landing, /initial=\{\{ opacity: 0, x: -20 \}\}/);
   });
 });
+
+describe('the diagnostic can be answered without sight', () => {
+  const form = read('src/app/components/DiagnosticForm.tsx');
+
+  it('makes the question the accessible name of whatever answers it', () => {
+    // Each control had only a placeholder, which is not a name and vanishes the
+    // moment the user types. On the product's primary journey a screen-reader
+    // user was asked fourteen questions they could not hear.
+    assert.match(form, /id="diagnostic-question"/);
+    const labelled = form.match(/aria-labelledby="diagnostic-question"/g) ?? [];
+    assert.ok(labelled.length >= 2, `only ${labelled.length} controls point at the question`);
+  });
+
+  it('declares the position in the form as a progressbar', () => {
+    assert.match(form, /role="progressbar"/);
+    assert.match(form, /aria-valuenow=\{currentStep \+ 1\}/);
+    assert.match(form, /aria-valuemax=\{questions\.length\}/);
+    assert.match(form, /aria-valuetext=\{`Question \$\{currentStep \+ 1\} of \$\{questions\.length\}`\}/);
+  });
+
+  it('announces moving between questions', () => {
+    // The step change swapped the heading and grew the bar, and said nothing.
+    assert.match(form, /aria-live="polite"\s*\n\s*aria-atomic="true"/);
+  });
+});
+
+describe('the floating assistant is a named control', () => {
+  const assistant = read('src/app/components/AIAssistant.tsx');
+
+  it('names itself and reports its state', () => {
+    // Icon-only, floating over every page of the funnel, and announced as
+    // "button" and nothing else. One control opens and closes, so the name
+    // carries the state too.
+    assert.match(assistant, /aria-label=\{isOpen \? 'Close the assistant' : 'Open the assistant'\}/);
+    assert.match(assistant, /aria-expanded=\{isOpen\}/);
+  });
+
+  it('gives the notification dot words', () => {
+    assert.match(assistant, /<span className="sr-only">The assistant has something for you<\/span>/);
+  });
+});

@@ -64,14 +64,19 @@ export function AIAssistant({
         animate={{ scale: 1 }}
         transition={{ delay: 0.5, type: 'spring' }}
         onClick={() => setIsOpen(!isOpen)}
+        // Icon-only, and floating over every page of the funnel: without a name
+        // it was announced as "button" and nothing else. The name states what it
+        // does AND its state, since the same control opens and closes.
+        aria-label={isOpen ? 'Close the assistant' : 'Open the assistant'}
+        aria-expanded={isOpen}
         className={`fixed bottom-6 right-6 size-14 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] shadow-2xl flex items-center justify-center z-50 transition-all hover:scale-110 ${
           showPulse ? 'animate-bounce' : ''
         }`}
       >
         {isOpen ? (
-          <X className="size-6 text-white" />
+          <X className="size-6 text-white" aria-hidden="true" />
         ) : (
-          <MessageCircle className="size-6 text-white" />
+          <MessageCircle className="size-6 text-white" aria-hidden="true" />
         )}
         
         {/* Notification Badge */}
@@ -81,7 +86,8 @@ export function AIAssistant({
             animate={{ scale: 1 }}
             className="absolute -top-1 -right-1 size-5 bg-[#FD4438] rounded-full border-2 border-[#0A0A0F] flex items-center justify-center"
           >
-            <span className="text-xs font-bold text-white">!</span>
+            <span className="text-xs font-bold text-white" aria-hidden="true">!</span>
+            <span className="sr-only">The assistant has something for you</span>
           </motion.div>
         )}
       </motion.button>
