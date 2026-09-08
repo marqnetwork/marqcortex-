@@ -20,6 +20,7 @@ import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
 import { restorablePage, navEntry, TEAM_DASHBOARD_PAGE_KEY } from '@/app/core/orientation';
+import { LoadingState } from '@/app/components/ui/cortex';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
 // Each import() is its own Vite split point.
@@ -33,23 +34,19 @@ const RevenueIntelligenceDashboard = lazy(() => import('@/app/components/Revenue
 const TeamHomeDashboard          = lazy(() => import('@/app/components/TeamHomeDashboard').then(m => ({ default: m.TeamHomeDashboard })));
 const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEnginePanel').then(m => ({ default: m.MappingEnginePanel })));
 
-// ── Panel skeleton shown while a lazy chunk is loading ────────────────────────
+/**
+ * Shown while a lazily-split panel's chunk is downloading.
+ *
+ * This was a hand-built skeleton with its own hard-coded surface colour, radius
+ * and keyframes — and no accessible name, so a screen-reader user got silence
+ * for the length of the download. It is now the shared `LoadingState`, which
+ * announces the wait and is styled from the token layer like every other
+ * loading surface in the console.
+ */
 function PanelSkeleton() {
   return (
-    <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {[80, 60, 100, 60, 80].map((w, i) => (
-        <div
-          key={i}
-          style={{
-            height: i === 0 ? '40px' : '20px',
-            width: `${w}%`,
-            borderRadius: '8px',
-            background: 'rgba(255,255,255,0.05)',
-            animation: 'pulse 1.5s ease-in-out infinite',
-          }}
-        />
-      ))}
-      <style>{`@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }`}</style>
+    <div className="p-8">
+      <LoadingState label="Loading this section" rows={5} />
     </div>
   );
 }

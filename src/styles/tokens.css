@@ -1,0 +1,176 @@
+/**
+ * ══════════════════════════════════════════════════════════════════════════════
+ * MARQ CORTEX — Design Tokens
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * THE ONE PLACE THE PRODUCT'S SURFACES, TEXT, BORDERS, RADII AND STATUS COLOURS
+ * ARE NAMED.
+ *
+ * WHY THIS FILE EXISTS
+ *   The console carried 5,311 hard-coded hex literals across 98 components, and
+ *   the inconsistency was not cosmetic — it was semantic. Three different
+ *   "panel" surfaces (`bg-black/40`, `/30`, `/20`) were used interchangeably for
+ *   the same kind of container, so depth stopped meaning anything. Four hairline
+ *   borders (`white/10`, `/8`, `/6`, `/5`) sat side by side on the same screen,
+ *   none of them distinguishable and all of them a decision somebody had to make
+ *   again. "Muted text" was `text-white/60`, `text-white/50` and `text-gray-400`
+ *   depending on the file. A reader cannot learn a visual language that has four
+ *   words for the same thing.
+ *
+ * WHAT THIS IS NOT
+ *   It is NOT a redesign. Every value below is a value the product already
+ *   renders, chosen as the one the codebase uses most for that role — the
+ *   dominant `bg-black/40` (213 uses) becomes the raised surface, the dominant
+ *   `border-white/10` (471 uses) becomes the default border. Converging a
+ *   component onto these tokens is expected to change nothing visible. That is
+ *   the point: the tokens make the existing language sayable, so the outliers
+ *   can be retired one surface at a time without a rewrite.
+ *
+ * `src/app/lib/tokens.ts` MIRRORS THIS FILE
+ *   Most of the console styles through inline `style={{ }}` objects and through
+ *   chart libraries that take colours as strings, neither of which can read a
+ *   CSS custom property. The TypeScript mirror carries the same literals so
+ *   those call sites have a name to use, and
+ *   `tests/features/designTokens.test.ts` parses both files and fails if a
+ *   token is missing from either or if a single value disagrees.
+ */
+
+:root {
+  /* ── Surfaces ──────────────────────────────────────────────────────────────
+     Four depths, and only four. Anything that is a panel uses `raised`;
+     anything nested inside a panel uses `sunken`; anything floating above the
+     page uses `overlay`. */
+  --cortex-surface-canvas: #0A0A0F;
+  --cortex-surface-raised: rgba(0, 0, 0, 0.4);
+  --cortex-surface-sunken: rgba(0, 0, 0, 0.3);
+  --cortex-surface-overlay: #0D0D18;
+
+  /* Interactive fills — inputs, hoverable rows, secondary buttons. */
+  --cortex-surface-control: rgba(255, 255, 255, 0.05);
+  --cortex-surface-control-hover: rgba(255, 255, 255, 0.1);
+
+  /* ── Borders ───────────────────────────────────────────────────────────────
+     Three weights. `subtle` separates rows inside one surface, `default` is
+     every panel edge, `strong` marks a focused or selected boundary. */
+  --cortex-border-subtle: rgba(255, 255, 255, 0.05);
+  --cortex-border-default: rgba(255, 255, 255, 0.1);
+  --cortex-border-strong: rgba(255, 255, 255, 0.2);
+
+  /* ── Text ──────────────────────────────────────────────────────────────────
+     Four levels. `primary` is the content, `secondary` supports it, `muted` is
+     metadata, `faint` is for text that must not compete at all. */
+  --cortex-text-primary: #FFFFFF;
+  --cortex-text-secondary: rgba(255, 255, 255, 0.7);
+  --cortex-text-muted: rgba(255, 255, 255, 0.5);
+  --cortex-text-faint: rgba(255, 255, 255, 0.3);
+
+  /* ── Brand ─────────────────────────────────────────────────────────────────
+     The gradient pair the product has always used for its identity. */
+  --cortex-accent: #8B5CF6;
+  --cortex-accent-alt: #3B82F6;
+
+  /* ── Status ────────────────────────────────────────────────────────────────
+     One colour per meaning. `info` and `accent-alt` are deliberately distinct:
+     one states a fact, the other is brand. */
+  --cortex-status-success: #10B981;
+  --cortex-status-warning: #FB923C;
+  --cortex-status-danger: #FD4438;
+  --cortex-status-info: #06D7F6;
+  --cortex-status-caution: #F59E0B;
+  --cortex-status-neutral: #70707C;
+
+  /* ── Radii ─────────────────────────────────────────────────────────────────
+     Matching what is already rendered: `rounded-lg`, `rounded-xl`,
+     `rounded-2xl` and `rounded-full`. */
+  --cortex-radius-sm: 8px;
+  --cortex-radius-md: 12px;
+  --cortex-radius-lg: 16px;
+  --cortex-radius-pill: 9999px;
+
+  /* ── Spacing ───────────────────────────────────────────────────────────────
+     A 4px scale. Named so a gap can be chosen by role rather than by number. */
+  --cortex-space-1: 4px;
+  --cortex-space-2: 8px;
+  --cortex-space-3: 12px;
+  --cortex-space-4: 16px;
+  --cortex-space-5: 24px;
+  --cortex-space-6: 32px;
+
+  /* ── Elevation ─────────────────────────────────────────────────────────────
+     Panels sit flat and are separated by their border, not by a shadow. Only
+     things that genuinely float carry one. */
+  --cortex-elevation-flat: none;
+  --cortex-elevation-overlay: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+  --cortex-elevation-accent: 0 0 20px rgba(139, 92, 246, 0.25);
+
+  /* ── Typography ────────────────────────────────────────────────────────────
+     Seven roles. The scale is what the console already renders; naming it stops
+     the next screen inventing an eighth size. */
+  --cortex-font-size-display: 24px;
+  --cortex-font-size-title: 20px;
+  --cortex-font-size-heading: 16px;
+  --cortex-font-size-body: 14px;
+  --cortex-font-size-label: 13px;
+  --cortex-font-size-caption: 12px;
+  --cortex-font-size-micro: 10px;
+
+  --cortex-font-weight-regular: 400;
+  --cortex-font-weight-medium: 500;
+  --cortex-font-weight-semibold: 600;
+  --cortex-font-weight-bold: 700;
+
+  --cortex-line-height-tight: 1.25;
+  --cortex-line-height-normal: 1.5;
+
+  /* ── Controls ──────────────────────────────────────────────────────────────
+     Two heights. Anything a finger has to hit uses `comfortable`, which clears
+     the 44px touch target the compact layout needs. */
+  --cortex-control-height-compact: 36px;
+  --cortex-control-height-comfortable: 44px;
+
+  /* ── Motion ────────────────────────────────────────────────────────────────
+     One duration for state changes, one for things that travel. */
+  --cortex-duration-fast: 150ms;
+  --cortex-duration-normal: 250ms;
+}
+
+/**
+ * Tailwind utilities for the tokens above.
+ *
+ * `@theme inline` is what turns a custom property into a utility class, so
+ * `bg-cortex-raised`, `border-cortex-default` and `text-cortex-muted` exist
+ * alongside the values. Without this the class-based half of the codebase would
+ * have no way to say a token and would keep reaching for `bg-black/40`.
+ */
+@theme inline {
+  --color-cortex-canvas: var(--cortex-surface-canvas);
+  --color-cortex-raised: var(--cortex-surface-raised);
+  --color-cortex-sunken: var(--cortex-surface-sunken);
+  --color-cortex-overlay: var(--cortex-surface-overlay);
+  --color-cortex-control: var(--cortex-surface-control);
+  --color-cortex-control-hover: var(--cortex-surface-control-hover);
+
+  --color-cortex-subtle: var(--cortex-border-subtle);
+  --color-cortex-default: var(--cortex-border-default);
+  --color-cortex-strong: var(--cortex-border-strong);
+
+  --color-cortex-primary: var(--cortex-text-primary);
+  --color-cortex-secondary: var(--cortex-text-secondary);
+  --color-cortex-muted: var(--cortex-text-muted);
+  --color-cortex-faint: var(--cortex-text-faint);
+
+  --color-cortex-accent: var(--cortex-accent);
+  --color-cortex-accent-alt: var(--cortex-accent-alt);
+
+  --color-cortex-success: var(--cortex-status-success);
+  --color-cortex-warning: var(--cortex-status-warning);
+  --color-cortex-danger: var(--cortex-status-danger);
+  --color-cortex-info: var(--cortex-status-info);
+  --color-cortex-caution: var(--cortex-status-caution);
+  --color-cortex-neutral: var(--cortex-status-neutral);
+
+  --radius-cortex-sm: var(--cortex-radius-sm);
+  --radius-cortex-md: var(--cortex-radius-md);
+  --radius-cortex-lg: var(--cortex-radius-lg);
+  --radius-cortex-pill: var(--cortex-radius-pill);
+}

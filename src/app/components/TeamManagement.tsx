@@ -26,6 +26,7 @@ import {
   TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
   TEAM_ROLE_LABELS, type TeamRole,
 } from '@/app/lib/teamRole';
+import { EmptyState, LoadingState } from '@/app/components/ui/cortex';
 
 interface Props {
   accessToken?: string;
@@ -243,13 +244,23 @@ export function TeamManagement({ accessToken }: Props) {
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="size-8 text-[#8B5CF6] animate-spin" />
+          // A bare spinner said nothing to a screen reader and held none of the
+          // space the roster will occupy, so the panel jumped when it arrived.
+          <div className="py-10 px-6">
+            <LoadingState label="Loading your team" rows={4} />
           </div>
         ) : members.length === 0 ? (
-          <div className="py-16 text-center">
-            <Users className="size-12 text-white/20 mx-auto mb-3" />
-            <p className="text-white/40 text-sm">No team members found</p>
+          // "No team members found" stated an absence and offered nothing. A
+          // workspace with an empty roster is a workspace that has not brought
+          // its people in yet, and the one useful thing to do about it is the
+          // invite — offered here only to somebody the server would let do it.
+          <div className="py-10 px-6">
+            <EmptyState
+              icon={<Users className="size-10" />}
+              title="Nobody else is in this workspace yet"
+              description="Cortex is shared work. Invite the people who do it with you, and they will see the same pipeline you do."
+              action={mayAdminister ? { label: 'Invite a colleague', onClick: () => setShowInvite(true) } : undefined}
+            />
           </div>
         ) : (
           <div className="divide-y divide-white/8">

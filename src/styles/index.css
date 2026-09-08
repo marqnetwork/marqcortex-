@@ -1,3 +1,6 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+/* Cortex design tokens — imported after the base theme so a token can build on
+   a theme variable, and never the other way round. */
+@import './tokens.css';

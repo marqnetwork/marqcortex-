@@ -432,7 +432,15 @@ describe('authenticated team UI', () => {
       'src/app/components/TeamMessageThread.tsx',
     ]) {
       const text = read(rel);
-      assert.ok(text.includes('const { teamUser } = useApp();'), `${rel} sources identity from context`);
+      // Matched as a destructuring of `useApp()` that includes `teamUser`,
+      // rather than as one exact string: a component may legitimately also
+      // take `teamRole` from the same call, and pinning the literal made
+      // adding a second field look like a regression in the identity source.
+      assert.match(
+        text,
+        /const \{[^}]*\bteamUser\b[^}]*\} = useApp\(\);/,
+        `${rel} sources identity from context`,
+      );
       assert.ok(text.includes('teamUser?.name'), `${rel} reads the authenticated name`);
       assert.equal(storageAccesses(text).length, 0, `${rel} must not touch storage`);
     }

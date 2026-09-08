@@ -139,8 +139,24 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
       if (isVerboseLogging()) {
         console.log('✅ Notifications loaded:', res);
       }
-      setNotifications(res.notifications);
-      setUnreadCount(res.unreadCount);
+      // The response is narrowed before it reaches state, because it is
+      // untrusted input and this component sits in the CONSOLE HEADER.
+      //
+      // `getNotifications` returns `data as { notifications: … }` — an
+      // assertion, not a check. A 200 whose body lacks `notifications` (a
+      // partial deploy, a proxy answering with a stub, an error payload
+      // returned with the wrong status) therefore set state to `undefined`,
+      // and the next render read `notifications.length` and threw. Because
+      // the bell is rendered by the shell on EVERY page, that single malformed
+      // response replaced the whole console with the route error boundary —
+      // not the notification list, the entire application.
+      //
+      // The dashboard's own submissions call already guarded this way
+      // (`result.submissions ?? []`). This one did not.
+      setNotifications(Array.isArray(res?.notifications) ? res.notifications : []);
+      setUnreadCount(typeof res?.unreadCount === 'number' && Number.isFinite(res.unreadCount)
+        ? res.unreadCount
+        : 0);
       setLastFetch(new Date());
     } catch (err) {
       if (isVerboseLogging()) {
