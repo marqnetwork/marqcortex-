@@ -22,14 +22,15 @@ import {
 } from 'lucide-react';
 import type { InstantScoreResult, InstantInsight } from '@/app/utils/instantScoring';
 import { InstantBookingOffer } from '@/app/components/InstantBooking';
+import { brand, status } from '@/app/lib/tokens';
 
 // ── MARQ Cortex palette ──────────────────────────────────────────────────────────
-const PURPLE = '#8B5CF6';
-const BLUE   = '#3B82F6';
-const CYAN   = '#06D7F6';
-const ORANGE = '#FB923C';
-const RED    = '#FD4438';
-const GREEN  = '#10B981';
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const CYAN   = status.info;
+const ORANGE = status.warning;
+const RED    = status.danger;
+const GREEN  = status.success;
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ function DimensionBar({ label, value, color, delay }: { label: string; value: nu
         <span className="text-white/70">{label}</span>
         <span className="font-semibold" style={{ color }}>{value}%</span>
       </div>
-      <div className="h-2.5 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-2.5 bg-cortex-control rounded-full overflow-hidden">
         <motion.div
           className="h-full rounded-full"
           style={{ background: `linear-gradient(90deg, ${color}, ${color}90)` }}
@@ -175,7 +176,7 @@ function InsightCard({ insight, index }: { insight: InstantInsight; index: numbe
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 2.6 + index * 0.15 }}
-      className="p-5 rounded-2xl border transition-colors hover:border-opacity-40"
+      className="p-5 rounded-cortex-lg border transition-colors hover:border-opacity-40"
       style={{
         background: `linear-gradient(135deg, ${insight.color}08, transparent)`,
         borderColor: `${insight.color}20`,
@@ -183,7 +184,7 @@ function InsightCard({ insight, index }: { insight: InstantInsight; index: numbe
     >
       <div className="flex items-start gap-3">
         <div
-          className="size-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          className="size-9 rounded-cortex-md flex items-center justify-center flex-shrink-0"
           style={{ background: `${insight.color}15`, color: insight.color }}
         >
           {severityIcon}
@@ -233,7 +234,7 @@ export default function ScorePage({
   const visibleInsights = showAllInsights ? insights : insights.slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white overflow-hidden">
+    <div className="min-h-screen bg-cortex-canvas text-white overflow-hidden">
       {/* Submitting overlay */}
       <AnimatePresence>
         {isSubmitting && (
@@ -252,7 +253,7 @@ export default function ScorePage({
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                className="size-12 border-4 border-white/20 border-t-[#8B5CF6] rounded-full mx-auto mb-4"
+                className="size-12 border-4 border-cortex-strong border-t-cortex-accent rounded-full mx-auto mb-4"
                 aria-hidden="true"
               />
               <p className="text-white/70">Saving your responses…</p>
@@ -273,10 +274,10 @@ export default function ScorePage({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 mb-6"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cortex-accent/10 border border-cortex-accent/30 mb-6"
           >
-            <Sparkles className="size-4 text-[#8B5CF6]" />
-            <span className="text-sm font-medium text-[#8B5CF6]" style={{ fontFamily: 'Inter' }}>
+            <Sparkles className="size-4 text-cortex-accent" />
+            <span className="text-sm font-medium text-cortex-accent" style={{ fontFamily: 'Inter' }}>
               Your AI Readiness Score
             </span>
           </motion.div>
@@ -307,7 +308,7 @@ export default function ScorePage({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.5 }}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12 p-6 rounded-2xl bg-black/40 border border-white/8"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12 p-6 rounded-cortex-lg bg-cortex-raised border border-white/8"
         >
           <DimensionBar label="Operational Maturity" value={dimensions.operationalMaturity} color={PURPLE} delay={1.6} />
           <DimensionBar label="Automation Readiness" value={dimensions.automationReadiness} color={CYAN} delay={1.8} />
@@ -320,7 +321,7 @@ export default function ScorePage({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2.4 }}
-          className="mb-10 p-5 sm:p-6 rounded-2xl border"
+          className="mb-10 p-5 sm:p-6 rounded-cortex-lg border"
           style={{
             background: `linear-gradient(135deg, ${bottleneckTheme.color}08, transparent)`,
             borderColor: `${bottleneckTheme.color}25`,
@@ -328,7 +329,7 @@ export default function ScorePage({
         >
           <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
             <div
-              className="size-12 sm:size-14 rounded-2xl flex items-center justify-center text-xl sm:text-2xl flex-shrink-0"
+              className="size-12 sm:size-14 rounded-cortex-lg flex items-center justify-center text-xl sm:text-2xl flex-shrink-0"
               style={{ background: `${bottleneckTheme.color}15` }}
             >
               {bottleneckTheme.icon}
@@ -353,7 +354,7 @@ export default function ScorePage({
           className="mb-10"
         >
           <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3" style={{ fontFamily: 'Inter' }}>
-            <Target className="size-6 text-[#06D7F6]" />
+            <Target className="size-6 text-cortex-info" />
             Your Operational Insights
           </h2>
           <div className="space-y-4">
@@ -406,7 +407,7 @@ export default function ScorePage({
             transition={{ delay: 3.3 }}
             className="mb-10"
           >
-            <div className="bg-gradient-to-br from-[#8B5CF6]/15 via-[#3B82F6]/10 to-[#06D7F6]/15 border-2 border-[#8B5CF6]/30 rounded-2xl p-6 sm:p-8 text-center">
+            <div className="bg-gradient-to-br from-cortex-accent/15 via-cortex-accent-alt/10 to-cortex-info/15 border-2 border-cortex-accent/30 rounded-cortex-lg p-6 sm:p-8 text-center">
               <h2 className="text-2xl sm:text-3xl font-bold mb-3" style={{ fontFamily: 'Inter' }}>
                 Ready to Unlock Your Score&apos;s Full Potential?
               </h2>
@@ -419,7 +420,7 @@ export default function ScorePage({
                 whileHover={{ scale: 1.04, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setShowBooking(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 sm:px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl text-base sm:text-lg font-bold hover:shadow-2xl hover:shadow-[#8B5CF6]/40 transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 sm:px-8 py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md text-base sm:text-lg font-bold hover:shadow-2xl hover:shadow-cortex-accent/40 transition-all"
                 style={{ fontFamily: 'Inter' }}
               >
                 <Calendar className="size-5" />
@@ -455,13 +456,13 @@ export default function ScorePage({
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mb-10 p-8 rounded-2xl bg-gradient-to-br from-[#10B981]/15 to-[#06D7F6]/15 border-2 border-[#10B981]/30 text-center"
+            className="mb-10 p-8 rounded-cortex-lg bg-gradient-to-br from-cortex-success/15 to-cortex-info/15 border-2 border-cortex-success/30 text-center"
           >
-            <CheckCircle2 className="size-12 text-[#10B981] mx-auto mb-4" />
+            <CheckCircle2 className="size-12 text-cortex-success mx-auto mb-4" />
             <h3 className="text-2xl font-bold mb-2">Call Booked!</h3>
             <p className="text-white/60">
               We'll prepare a detailed analysis of your score before the call.
-              Check <strong className="text-[#06D7F6]">{contactInfo.email}</strong> for confirmation.
+              Check <strong className="text-cortex-info">{contactInfo.email}</strong> for confirmation.
             </p>
           </motion.div>
         )}
@@ -471,17 +472,17 @@ export default function ScorePage({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 3.5 }}
-          className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/20 mb-8"
+          className="p-4 sm:p-5 rounded-cortex-lg bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/20 mb-8"
         >
           <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
-            <div className="size-10 sm:size-11 rounded-xl bg-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0">
-              <Mail className="size-5 text-[#8B5CF6]" />
+            <div className="size-10 sm:size-11 rounded-cortex-md bg-cortex-accent/20 flex items-center justify-center flex-shrink-0">
+              <Mail className="size-5 text-cortex-accent" />
             </div>
             <div className="min-w-0">
               <h3 className="font-bold text-white mb-1 text-sm sm:text-base" style={{ fontFamily: 'Inter' }}>Your Full Report is Being Prepared</h3>
               <p className="text-xs sm:text-sm text-white/60 break-words">
                 Our AI engine (CORTEX) is running a deeper analysis on your responses. You&apos;ll receive the
-                full report at <strong className="text-[#06D7F6]">{contactInfo.email}</strong> within 4-6 hours.
+                full report at <strong className="text-cortex-info">{contactInfo.email}</strong> within 4-6 hours.
               </p>
             </div>
           </div>
@@ -492,10 +493,10 @@ export default function ScorePage({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 3.7 }}
-          className="p-6 rounded-2xl bg-black/40 border border-white/8 mb-8"
+          className="p-6 rounded-cortex-lg bg-cortex-raised border border-white/8 mb-8"
         >
           <h3 className="text-lg font-bold mb-5 flex items-center gap-2" style={{ fontFamily: 'Inter' }}>
-            <Layers className="size-5 text-[#3B82F6]" />
+            <Layers className="size-5 text-cortex-accent-alt" />
             What Happens Next
           </h3>
           <div className="space-y-4">
@@ -526,7 +527,7 @@ export default function ScorePage({
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 mb-4">
           <button
             onClick={onBackToHome}
-            className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold transition-all text-sm"
+            className="px-6 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md font-semibold transition-all text-sm"
             style={{ fontFamily: 'Inter' }}
           >
             Back to Home
@@ -535,7 +536,7 @@ export default function ScorePage({
 
         <p className="text-xs text-white/30 text-center mt-6 mb-4" style={{ fontFamily: 'Inter' }}>
           Questions?{' '}
-          <a href="mailto:support@marqcortex.com" className="text-[#06D7F6] hover:underline">
+          <a href="mailto:support@marqcortex.com" className="text-cortex-info hover:underline">
             Contact support
           </a>
         </p>
@@ -549,10 +550,10 @@ export default function ScorePage({
 function ROICard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
     <div
-      className="p-5 rounded-2xl border text-center"
+      className="p-5 rounded-cortex-lg border text-center"
       style={{ background: `${color}06`, borderColor: `${color}18` }}
     >
-      <div className="inline-flex items-center justify-center size-10 rounded-xl mb-3" style={{ background: `${color}15`, color }}>
+      <div className="inline-flex items-center justify-center size-10 rounded-cortex-md mb-3" style={{ background: `${color}15`, color }}>
         {icon}
       </div>
       <p className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Inter' }}>{value}</p>
