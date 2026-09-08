@@ -68,6 +68,11 @@
      The gradient pair the product has always used for its identity. */
   --cortex-accent: #8B5CF6;
   --cortex-accent-alt: #3B82F6;
+  /* The third accent. Not a status — it carries no good/bad meaning — but a
+     CATEGORICAL hue, for scales that need more distinct colours than the
+     status vocabulary can spare. The seven-department portfolio scale is why
+     it exists; it was rendering as an undeclared `#EC4899` in two places. */
+  --cortex-accent-tertiary: #EC4899;
 
   /* ── Status ────────────────────────────────────────────────────────────────
      One colour per meaning. `info` and `accent-alt` are deliberately distinct:
@@ -161,6 +166,7 @@
 
   --color-cortex-accent: var(--cortex-accent);
   --color-cortex-accent-alt: var(--cortex-accent-alt);
+  --color-cortex-accent-tertiary: var(--cortex-accent-tertiary);
 
   --color-cortex-success: var(--cortex-status-success);
   --color-cortex-warning: var(--cortex-status-warning);

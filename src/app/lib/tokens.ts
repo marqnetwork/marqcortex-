@@ -55,6 +55,7 @@ export const CORTEX_TOKENS = {
 
   '--cortex-accent': '#8B5CF6',
   '--cortex-accent-alt': '#3B82F6',
+  '--cortex-accent-tertiary': '#EC4899',
 
   '--cortex-status-success': '#10B981',
   '--cortex-status-warning': '#FB923C',
@@ -137,6 +138,7 @@ export const text = {
 export const brand = {
   accent: CORTEX_TOKENS['--cortex-accent'],
   accentAlt: CORTEX_TOKENS['--cortex-accent-alt'],
+  accentTertiary: CORTEX_TOKENS['--cortex-accent-tertiary'],
 } as const;
 
 export const status = {
@@ -231,6 +233,35 @@ export const SUBMISSION_STATUS_COLOR: Readonly<
   'in-review': status.warning,
   completed: status.info,
   approved: status.success,
+};
+
+/**
+ * The colour that means a given business department, everywhere.
+ *
+ * The portfolio views declared this map TWICE, in two components of the same
+ * file, with the same twelve entries written two different ways — so a
+ * department recoloured on one view and not the other would have looked like
+ * two departments. It is declared once here, drawn only from tokens.
+ *
+ * The trailing entries are the legacy keys older submissions still carry; they
+ * deliberately share a colour with their modern equivalent, because they ARE
+ * the same department under an older name.
+ */
+export const DEPARTMENT_COLOR: Readonly<Record<string, string>> = {
+  revenue_engine:          status.success,
+  customer_experience:     status.info,
+  operations_supply_chain: status.warning,
+  marketing_acquisition:   brand.accentTertiary,
+  finance_unit_economics:  status.caution,
+  data_infrastructure:     brand.accentAlt,
+  talent_process:          brand.accent,
+
+  // Legacy keys, same departments.
+  operations: status.warning,
+  revenue:    status.success,
+  systems:    brand.accentAlt,
+  governance: brand.accent,
+  data:       status.caution,
 };
 
 /** The colour that means a given priority, everywhere. */
