@@ -25,7 +25,12 @@ import {
   sendTestEmailRequest, sendWeeklyDigestRequest,
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here. It selects between
+// showing a failure and silently substituting demo data, and on a screen whose
+// values are written back to the server on Save there is no version of that
+// substitution which is safe. A failed load is reported, always.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { LoadingState, ErrorState } from '@/app/components/ui/cortex';
 import { normalizeTeamRole, TEAM_ROLE_LABELS, TEAM_ROLE_DESCRIPTIONS } from '@/app/lib/teamRole';
 import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
 import { OrganizationProviderCredentialsPanel } from '@/app/components/OrganizationProviderCredentialsPanel';
@@ -61,6 +66,53 @@ const TABS = [
   { id: 'byok',          label: 'AI Provider Keys',  icon: KeyRound },
 ];
 
+/**
+ * The demo-mode settings.
+ *
+ * Declared ONCE, and against the real `SettingsResponse` shape. There used to
+ * be two copies of this object — one for demo mode and one substituted on a
+ * failed live request — and both had been written against an older, different
+ * `PlatformSettings`: `companyName`, `companyEmail`, `emailNotifications` and
+ * five other fields the server neither sends nor stores, with `brandingName`,
+ * `defaultAssignee`, `autoAssign` and `notificationPrefs` — the fields this
+ * page actually renders — absent entirely.
+ *
+ * The consequence was not cosmetic. `NotificationSettings` initialises its
+ * toggles from `{ ...settings.notificationPrefs }`; spreading `undefined`
+ * yields `{}`, so every notification toggle rendered OFF regardless of the
+ * real configuration, and pressing Save wrote that empty object back.
+ */
+function demoSettings(): SettingsResponse {
+  return {
+    success: true,
+    currentUser: {
+      id: 'demo_user_1',
+      email: 'demo@marqcortex.com',
+      name: 'Demo User',
+      teamRole: 'admin',
+    },
+    platformSettings: {
+      brandingName: 'CORTEX Intelligence',
+      defaultAssignee: 'auto',
+      autoAssign: true,
+      notificationPrefs: {
+        newSubmission: true,
+        reportReady: true,
+        teamActivity: false,
+        weeklyDigest: true,
+        proposalViewed: true,
+        proposalAccepted: true,
+        messageReceived: true,
+      },
+    },
+    health: {
+      submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
+      serverTime: new Date().toISOString(),
+      recentActivity: [],
+    },
+  };
+}
+
 export function SettingsPage({ accessToken }: Props) {
   const [activeTab, setActiveTab]   = useState('profile');
   const [data, setData]             = useState<SettingsResponse | null>(null);
@@ -82,88 +134,30 @@ export function SettingsPage({ accessToken }: Props) {
         if (isVerboseLogging()) {
           console.log('📦 Using demo data for settings (backend disabled)');
         }
-        const demoSettings: SettingsResponse = {
-          success: true,
-          currentUser: {
-            id: 'demo_user_1',
-            email: 'demo@marqcortex.com',
-            name: 'Demo User',
-            teamRole: 'admin',
-          },
-          platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
-              proposalAccepted: true,
-              messageReceived: true,
-            },
-          },
-          health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
-            serverTime: new Date().toISOString(),
-            recentActivity: [],
-          },
-        };
-        setData(demoSettings);
-        setIsLoading(false);
+        setData(demoSettings());
         return;
       }
-
-      const res = await getPlatformSettings(accessToken);
-      setData(res);
+      setData(await getPlatformSettings(accessToken));
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load settings:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load settings');
-      } else {
-        const demoSettings: SettingsResponse = {
-          success: true,
-          currentUser: {
-            id: 'demo_user_1',
-            email: 'demo@marqcortex.com',
-            name: 'Demo User',
-            teamRole: 'admin',
-          },
-          platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
-              proposalAccepted: true,
-              messageReceived: true,
-            },
-          },
-          health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
-            serverTime: new Date().toISOString(),
-            recentActivity: [],
-          },
-        };
-        setData(demoSettings);
-      }
+      // A FAILED LOAD IS NOT DATA.
+      //
+      // This used to substitute the demo settings whenever `SHOW_API_ERRORS`
+      // was off, on the reasoning that a seamless screen beats an error. On a
+      // read-only dashboard that is arguable. On the SETTINGS screen it is not:
+      // the panel renders the substituted values into live form controls, and
+      // Save writes whatever those controls hold back to the server. A
+      // transient failure therefore offered the user a form pre-filled with
+      // values that were never theirs, and one click would persist them over
+      // the real configuration.
+      //
+      // The screen now says the load failed and offers the retry, exactly as it
+      // already did when `SHOW_API_ERRORS` was on. Nothing is rendered that
+      // could be saved.
+      setData(null);
+      setError(err?.message || 'Settings could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -185,23 +179,23 @@ export function SettingsPage({ accessToken }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="size-10 text-[#8B5CF6] animate-spin mx-auto mb-4" />
-          <p className="text-white/40 text-sm">Loading settings…</p>
-        </div>
+      <div className="p-6">
+        <LoadingState label="Loading settings" rows={6} />
       </div>
     );
   }
 
-  if (error) {
+  // Rendered when the load failed AND when it produced nothing: the settings
+  // panels take `data.platformSettings` and would otherwise read fields off
+  // `null`. There is no third state where this screen has a form to show.
+  if (error || !data) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-3 p-4 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-[#FD4438] text-sm mb-4">
-          <AlertTriangle className="size-4 flex-shrink-0" />
-          {error}
-          <button onClick={() => load()} className="ml-auto underline text-xs">Retry</button>
-        </div>
+        <ErrorState
+          title="Settings could not be loaded"
+          detail={error ?? undefined}
+          onRetry={() => load()}
+        />
       </div>
     );
   }
@@ -571,7 +565,7 @@ function NotificationsTab({
                   <p className="font-semibold text-white text-sm mb-0.5">{item.label}</p>
                   <p className="text-xs text-white/40">{item.description}</p>
                 </div>
-                <Toggle checked={prefs[item.key]} onChange={() => toggle(item.key)} />
+                <Toggle checked={prefs[item.key]} onChange={() => toggle(item.key)} label={item.label} />
               </div>
             ))}
           </div>
@@ -632,7 +626,7 @@ function PlatformTab({
               <p className="font-semibold text-white text-sm mb-0.5">Auto-assign new submissions</p>
               <p className="text-xs text-white/40">Automatically assign incoming submissions to a team member</p>
             </div>
-            <Toggle checked={autoAssign} onChange={() => setAutoAssign(prev => !prev)} />
+            <Toggle checked={autoAssign} onChange={() => setAutoAssign(prev => !prev)} label="Auto-assign new submissions" />
           </div>
 
           {autoAssign && (
@@ -804,12 +798,27 @@ function SettingsCard({
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+/**
+ * A switch, declared as one.
+ *
+ * This was a bare `<button>` whose entire state lived in a background colour.
+ * A screen-reader user was told "button" and nothing else — not what it
+ * controls, and not whether the notification it governs is on or off — so the
+ * notification settings were unusable without sight. `role="switch"` plus
+ * `aria-checked` is what makes the state readable, and `aria-label` is what
+ * names it, since the label sits in a sibling element rather than in a
+ * `<label>`.
+ */
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
       onClick={onChange}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-        checked ? 'bg-[#8B5CF6]' : 'bg-white/15'
+      className={`relative w-11 h-6 rounded-cortex-pill transition-colors flex-shrink-0 ${
+        checked ? 'bg-cortex-accent' : 'bg-cortex-strong'
       }`}
     >
       <motion.div

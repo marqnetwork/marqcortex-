@@ -240,3 +240,60 @@ describe('the shells use the shared states rather than local ones', () => {
     assert.equal(CORTEX_TOKENS['--cortex-status-neutral'], '#70707C');
   });
 });
+
+// ── The settings screen never renders values that were never the user's ──────
+
+describe('the settings screen refuses to substitute data for a failed load', () => {
+  const settings = stripComments(read('src/app/components/SettingsPage.tsx'));
+
+  it('declares its demo settings once, against the real response shape', () => {
+    // There used to be TWO copies of this object — one for demo mode, one
+    // substituted on a failed live request — and both were written against an
+    // older `PlatformSettings`: `companyName`, `companyEmail`,
+    // `emailNotifications` and five other fields the server neither sends nor
+    // stores, with `brandingName`, `defaultAssignee`, `autoAssign` and
+    // `notificationPrefs` — the fields this page renders — absent entirely.
+    assert.equal((settings.match(/function demoSettings\(\): SettingsResponse/g) ?? []).length, 1);
+    assert.ok(
+      !/companyName:/.test(settings),
+      'the settings fallback is back to a shape the server does not use',
+    );
+    for (const field of ['brandingName:', 'defaultAssignee:', 'autoAssign:', 'notificationPrefs:']) {
+      assert.ok(settings.includes(field), `the demo settings omit ${field}`);
+    }
+  });
+
+  it('reports a failed load instead of pre-filling the form', () => {
+    // `NotificationSettings` initialises its toggles from
+    // `{ ...settings.notificationPrefs }` and Save writes them back, so a
+    // substituted object is a form of values that were never the user's, one
+    // click from being persisted over the real configuration.
+    assert.match(settings, /setData\(null\);\s*\n\s*setError\(/);
+    assert.match(settings, /if \(error \|\| !data\) \{/, 'the screen renders without data');
+    assert.ok(
+      !/shouldShowApiErrors/.test(settings),
+      'the screen is choosing again between reporting a failure and hiding it',
+    );
+  });
+
+  it('uses the shared loading and error states', () => {
+    assert.match(settings, /<LoadingState label="Loading settings"/);
+    assert.match(settings, /<ErrorState[\s\S]{0,200}Settings could not be loaded/);
+  });
+
+  it('declares its toggles as switches with a readable state and a name', () => {
+    // The toggle was a bare `<button>` whose entire state lived in a background
+    // colour. A screen-reader user was told "button" and nothing else — not
+    // what it controls, and not whether the notification it governs is on —
+    // which made the notification settings unusable without sight.
+    assert.match(settings, /role="switch"/, 'the toggle is not declared as a switch');
+    assert.match(settings, /aria-checked=\{checked\}/, 'the toggle state is not readable');
+    assert.match(settings, /aria-label=\{label\}/, 'the toggle has no accessible name');
+    // Every call site supplies that name.
+    const calls = settings.match(/<Toggle\b[^/]*\/>/g) ?? [];
+    assert.ok(calls.length > 0, 'no toggles found');
+    for (const call of calls) {
+      assert.match(call, /label=/, `a toggle is rendered without a label: ${call}`);
+    }
+  });
+});
