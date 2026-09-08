@@ -162,6 +162,16 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
           onClick={(e) => e.stopPropagation()}
+          // The palette manages its own focus (it focuses the search box on
+          // open) and its own keyboard (arrows, Enter), and does it well — so
+          // it keeps that rather than being wrapped in the shared `Modal`,
+          // which would compete for both. What it was missing is the
+          // DECLARATION: without these three attributes a screen reader is
+          // never told a dialog opened, and the page behind stays in the
+          // accessibility tree.
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
           className="w-full max-w-2xl bg-[#0A0A0F] border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Search Input */}

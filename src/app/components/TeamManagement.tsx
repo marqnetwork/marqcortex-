@@ -28,7 +28,7 @@ import {
   TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
   TEAM_ROLE_LABELS, type TeamRole,
 } from '@/app/lib/teamRole';
-import { EmptyState, LoadingState, ErrorState } from '@/app/components/ui/cortex';
+import { EmptyState, LoadingState, ErrorState, Modal } from '@/app/components/ui/cortex';
 import { brand, status } from '@/app/lib/tokens';
 import { asArray } from '@/app/lib/payload';
 
@@ -565,26 +565,25 @@ function InviteModal({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0A0A0F] border border-white/15 rounded-2xl w-full max-w-md shadow-2xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <UserPlus className="size-5 text-[#8B5CF6]" />
-            {tempCreds ? 'Member Created' : 'Invite Team Member'}
-          </h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/8 rounded-lg transition-colors text-white/40 hover:text-white">
-            <X className="size-4" />
-          </button>
-        </div>
+  // The temporary password is shown ONCE and cannot be recovered, so once it is
+  // on screen the dialog stops being dismissible by a click beside it — losing
+  // it to a stray click means the new member cannot sign in. Escape still works.
+  const showingCredentials = tempCreds !== null;
 
-        <div className="p-6 space-y-5">
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      dismissOnBackdrop={!showingCredentials}
+      title={showingCredentials ? 'Member created' : 'Invite a team member'}
+      description={
+        showingCredentials
+          ? 'Share these temporary credentials securely. They are shown once.'
+          : 'They will be created with a temporary password you share with them.'
+      }
+    >
+        <div className="space-y-5">
           {tempCreds ? (
             /* ── Credentials reveal ── */
             <div className="space-y-4">
@@ -687,13 +686,22 @@ function InviteModal({
             </span>
           )}
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   );
 }
 
 // ── Confirm remove modal ────────────────────────────────────────────────────
 
+/**
+ * Removing somebody is irreversible, so this dialog is DELIBERATELY not
+ * dismissible by clicking the backdrop — a stray click beside a confirm dialog
+ * should not silently cancel the decision the user came here to make. Escape
+ * still closes it, because that is an intentional keystroke.
+ *
+ * It is the shared `Modal`, so unlike the overlay it replaces it declares
+ * itself as a dialog, moves focus in and back out, traps Tab, and locks the
+ * background scroll.
+ */
 function ConfirmRemoveModal({
   member, onConfirm, onCancel,
 }: {
@@ -709,24 +717,15 @@ function ConfirmRemoveModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0A0A0F] border border-[#FD4438]/30 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
-      >
-        <div className="text-center mb-6">
-          <div className="size-14 rounded-full bg-[#FD4438]/10 flex items-center justify-center mx-auto mb-4">
-            <Trash2 className="size-6 text-[#FD4438]" />
-          </div>
-          <h3 className="text-lg font-bold text-white mb-2">Remove Team Member?</h3>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            <strong className="text-white">{member.name}</strong> ({member.email}) will lose access to CORTEX immediately.
-            This action deletes their Supabase account and cannot be undone.
-          </p>
-        </div>
-        <div className="flex gap-3">
+    <Modal
+      open
+      onClose={onCancel}
+      size="sm"
+      dismissOnBackdrop={false}
+      title="Remove team member?"
+      description={`${member.name} (${member.email}) will lose access to CORTEX immediately. This deletes their Supabase account and cannot be undone.`}
+      footer={
+        <>
           <button
             onClick={onCancel}
             className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-sm transition-colors"
@@ -738,11 +737,17 @@ function ConfirmRemoveModal({
             disabled={isRemoving}
             className="flex-1 py-3 bg-[#FD4438] hover:bg-[#E03530] text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isRemoving ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            {isRemoving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
             {isRemoving ? 'Removing…' : 'Remove'}
           </button>
+        </>
+      }
+    >
+      <div className="text-center">
+        <div className="size-14 rounded-full bg-[#FD4438]/10 flex items-center justify-center mx-auto" aria-hidden="true">
+          <Trash2 className="size-6 text-[#FD4438]" />
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </Modal>
   );
 }

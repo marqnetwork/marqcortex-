@@ -144,6 +144,11 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           onClick={(e) => e.stopPropagation()}
+          // Declared as a dialog. It already closes on Escape; what it lacked
+          // was any way for assistive technology to know it had opened.
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keyboard shortcuts"
           className="w-full max-w-4xl bg-[#0A0A0F] border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Header */}
