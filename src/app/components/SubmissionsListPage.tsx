@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { QuickActions, BatchActions } from '@/app/components/QuickActions';
 import { useDashboard, useScrollRestoration } from '@/app/contexts/DashboardContext';
+import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, status as statusToken } from '@/app/lib/tokens';
 
 interface SubmissionsListPageProps {
   onViewCortex: () => void;
@@ -140,31 +141,33 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
     return matchesSearch && matchesFilter;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new':
-        return { bg: 'rgba(139, 92, 246, 0.1)', border: '#8B5CF6', text: '#8B5CF6' };
-      case 'in-review':
-        return { bg: 'rgba(251, 146, 60, 0.1)', border: '#FB923C', text: '#FB923C' };
-      case 'completed':
-        return { bg: 'rgba(6, 215, 246, 0.1)', border: '#06D7F6', text: '#06D7F6' };
-      default:
-        return { bg: 'rgba(112, 112, 124, 0.1)', border: '#70707C', text: '#70707C' };
-    }
-  };
+  /**
+   * One colour per state, from the token layer.
+   *
+   * These were two switch statements of literal rgba values, and both were
+   * wrong in the same way: `getStatusColor` HAD NO `approved` CASE. An approved
+   * submission fell to the default and rendered in neutral grey — the "we do
+   * not recognise this" colour — on a page whose own Approve button produces
+   * exactly that status. It read as green everywhere else in the console.
+   * `getPriorityColor` disagreed with the token map on `low` in the same way
+   * `FullFeaturedDashboard` did.
+   *
+   * `Record` lookups replace the switches, so a status added to the domain
+   * cannot silently fall through to grey again — the compiler names it at the
+   * map in `tokens.ts`, and an unrecognised value here is explicitly neutral
+   * rather than accidentally so.
+   */
+  const swatch = (colour: string) => ({
+    bg: `color-mix(in srgb, ${colour} 10%, transparent)`,
+    border: colour,
+    text: colour,
+  });
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return { bg: 'rgba(253, 68, 56, 0.1)', border: '#FD4438', text: '#FD4438' };
-      case 'medium':
-        return { bg: 'rgba(251, 146, 60, 0.1)', border: '#FB923C', text: '#FB923C' };
-      case 'low':
-        return { bg: 'rgba(6, 215, 246, 0.1)', border: '#06D7F6', text: '#06D7F6' };
-      default:
-        return { bg: 'rgba(112, 112, 124, 0.1)', border: '#70707C', text: '#70707C' };
-    }
-  };
+  const getStatusColor = (status: string) =>
+    swatch(SUBMISSION_STATUS_COLOR[status as keyof typeof SUBMISSION_STATUS_COLOR] ?? statusToken.neutral);
+
+  const getPriorityColor = (priority: string) =>
+    swatch(PRIORITY_COLOR[priority as keyof typeof PRIORITY_COLOR] ?? statusToken.neutral);
 
   // Action handlers
   const handleApprove = (id: string) => {

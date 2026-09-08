@@ -32,32 +32,32 @@ import { EngagementIntelligence } from '@/app/components/EngagementIntelligence'
 // meant drawing charts from seeded records.
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 import { asArray } from '@/app/lib/payload';
+import { brand, status, SUBMISSION_STATUS_COLOR, PRIORITY_COLOR } from '@/app/lib/tokens';
 import { ErrorState } from '@/app/components/ui/cortex';
 
 // ============================================================================
 // COLOURS
 // ============================================================================
 
-const PURPLE = '#8B5CF6';
-const BLUE   = '#3B82F6';
-const CYAN   = '#06D7F6';
-const ORANGE = '#FB923C';
-const RED    = '#FD4438';
-const GREEN  = '#10B981';
-const GRAY   = '#70707C';
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const CYAN   = status.info;
+const ORANGE = status.warning;
+const RED    = status.danger;
+const GREEN  = status.success;
+const GRAY   = status.neutral;
 
-const STATUS_COLORS: Record<string, string> = {
-  new:       PURPLE,
-  'in-review': ORANGE,
-  completed: BLUE,
-  approved:  GREEN,
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high:   RED,
-  medium: ORANGE,
-  low:    GRAY,
-};
+/**
+ * Status and priority colours come from the token layer, not from this file.
+ *
+ * They used to be declared here, and they DISAGREED with the rest of the
+ * console: `completed` was drawn in blue on this panel and in cyan on the
+ * submission list, the pipeline snapshot and the home dashboard's funnel. The
+ * same status, two colours, on two screens a user moves between in one session
+ * — which is precisely what makes a colour stop carrying meaning.
+ */
+const STATUS_COLORS: Record<string, string> = SUBMISSION_STATUS_COLOR;
+const PRIORITY_COLORS: Record<string, string> = PRIORITY_COLOR;
 
 // ============================================================================
 // TYPES

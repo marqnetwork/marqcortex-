@@ -29,6 +29,7 @@ import { useApp } from '@/app/contexts/AppContext';
 import { SkeletonCardGrid, SkeletonTable } from '@/app/components/Skeletons';
 import { FEATURES } from '@/config/features';
 import { useDebounce } from '@/app/hooks/usePerformance';
+import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR } from '@/app/lib/tokens';
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
@@ -36,18 +37,40 @@ const SEED_SUBMISSIONS: Submission[] = getDemoSubmissions();
 
 // ── Status / priority palettes ────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  new:        { bg: 'bg-[#8B5CF6]/10', border: 'border-[#8B5CF6]/40', text: 'text-[#8B5CF6]', dot: 'bg-[#8B5CF6]' },
-  'in-review':{ bg: 'bg-[#FB923C]/10', border: 'border-[#FB923C]/40', text: 'text-[#FB923C]', dot: 'bg-[#FB923C]' },
-  completed:  { bg: 'bg-[#06D7F6]/10', border: 'border-[#06D7F6]/40', text: 'text-[#06D7F6]', dot: 'bg-[#06D7F6]' },
-  approved:   { bg: 'bg-[#10B981]/10', border: 'border-[#10B981]/40', text: 'text-[#10B981]', dot: 'bg-[#10B981]' },
-};
+/**
+ * Status and priority styling, DERIVED from the token layer.
+ *
+ * These were four and three literal Tailwind class sets, and they disagreed
+ * with the rest of the console: `low` priority was drawn in cyan here and in
+ * neutral grey on the analytics panel, which reads as an informational tag on
+ * one screen and as "nothing to see" on the next.
+ *
+ * Tailwind's arbitrary-value classes must be literal at build time, so a class
+ * string cannot be derived from a runtime token. The style is therefore
+ * produced as inline CSS — the same technique the shared `StatusBadge` uses —
+ * with the three surfaces mixed from ONE colour at fixed opacities, so a badge
+ * can never be styled into illegibility by choosing them separately.
+ */
+function tone(colour: string) {
+  return {
+    text: { color: colour },
+    fill: { background: `color-mix(in srgb, ${colour} 10%, transparent)`, color: colour },
+    bordered: {
+      background: `color-mix(in srgb, ${colour} 10%, transparent)`,
+      borderColor: `color-mix(in srgb, ${colour} 40%, transparent)`,
+      color: colour,
+    },
+    dot: { background: colour },
+  };
+}
 
-const PRIORITY_STYLE: Record<string, { bg: string; text: string }> = {
-  high:   { bg: 'bg-[#FD4438]/10', text: 'text-[#FD4438]' },
-  medium: { bg: 'bg-[#FB923C]/10', text: 'text-[#FB923C]' },
-  low:    { bg: 'bg-[#06D7F6]/10', text: 'text-[#06D7F6]' },
-};
+const STATUS_STYLE = Object.fromEntries(
+  Object.entries(SUBMISSION_STATUS_COLOR).map(([key, colour]) => [key, tone(colour as string)]),
+) as Record<string, ReturnType<typeof tone>>;
+
+const PRIORITY_STYLE = Object.fromEntries(
+  Object.entries(PRIORITY_COLOR).map(([key, colour]) => [key, tone(colour as string)]),
+) as Record<string, ReturnType<typeof tone>>;
 
 const STATUSES = ['new', 'in-review', 'completed', 'approved'] as Submission['status'][];
 const PRIORITIES = ['high', 'medium', 'low'] as Submission['priority'][];
@@ -706,8 +729,11 @@ function SubmissionGridCard({
         </div>
         {/* Status badge */}
         <div className="relative shrink-0" onClick={e => { e.stopPropagation(); if (canUpdate) setShowStatusMenu(!showStatusMenu); }}>
-          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${st.bg} ${st.border} ${st.text} ${canUpdate ? 'cursor-pointer hover:opacity-80' : ''}`}>
-            {isUpdating ? <Loader2 className="size-3 animate-spin" /> : <span className={`size-1.5 rounded-full ${st.dot}`} />}
+          <span
+            style={st.bordered}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-cortex-pill text-[10px] font-bold border ${canUpdate ? 'cursor-pointer hover:opacity-80' : ''}`}
+          >
+            {isUpdating ? <Loader2 className="size-3 animate-spin" /> : <span className="size-1.5 rounded-full" style={st.dot} />}
             {submission.status.replace('-', ' ').toUpperCase()}
           </span>
           <AnimatePresence>
@@ -770,7 +796,7 @@ function SubmissionGridCard({
           <DollarSign className="size-3.5 text-[#10B981]" />
           <span className="text-xs font-semibold text-[#10B981]">{submission.roiPotential}</span>
         </div>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${pr.bg} ${pr.text}`}>
+        <span style={pr.fill} className="px-2 py-0.5 rounded text-[10px] font-bold">
           {submission.priority.toUpperCase()}
         </span>
       </div>
@@ -869,7 +895,7 @@ function SubmissionListView({
 
               {/* Priority */}
               <div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${pr.bg} ${pr.text}`}>
+                <span style={pr.fill} className="px-2 py-0.5 rounded text-[10px] font-bold">
                   {sub.priority.toUpperCase()}
                 </span>
               </div>
@@ -904,9 +930,10 @@ function StatusBadgeInline({ submission, onStatusChange, isUpdating, canUpdate }
     <div className="relative">
       <button
         onClick={() => canUpdate && setOpen(!open)}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.bg} ${st.border} ${st.text} ${canUpdate ? 'hover:opacity-80 cursor-pointer' : ''}`}
+        style={st.bordered}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-cortex-pill text-[10px] font-bold border ${canUpdate ? 'hover:opacity-80 cursor-pointer' : ''}`}
       >
-        {isUpdating ? <Loader2 className="size-2.5 animate-spin" /> : <span className={`size-1.5 rounded-full ${st.dot}`} />}
+        {isUpdating ? <Loader2 className="size-2.5 animate-spin" /> : <span className="size-1.5 rounded-full" style={st.dot} />}
         {submission.status.replace('-', ' ').toUpperCase()}
       </button>
       <AnimatePresence>
