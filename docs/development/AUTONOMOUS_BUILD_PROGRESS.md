@@ -27,8 +27,9 @@ sections the blueprint makes buildable.
 
 ## CURRENT BATCH
 
-None in flight. Five units completed this session, all committed and pushed on
-`claude/marq-cortex-ui-sprint-7-11jp3g`, all unmerged.
+None in flight. Thirteen commits on `claude/marq-cortex-ui-sprint-7-11jp3g`,
+all pushed, all unmerged. UI Sprint 7's two halves are delivered, and the sprint
+continued into the canonical journeys either side of the console.
 
 ## COMPLETED THIS SESSION — UI SPRINT 7
 
@@ -136,6 +137,48 @@ labelled only by a placeholder (CORTEX, review queue), unnamed icon-only refresh
 buttons (team roster, CORTEX), and toggles whose entire state was a background
 colour. All fixed; re-swept clean.
 
+### 6. What the browser verification kept finding
+
+The pattern that produced the most value this session was driving the running
+app in Chromium and asking the DOM a specific question, then fixing what it
+answered. Four of the session's defects were found that way and would not have
+been found by reading the source:
+
+**A whole family of fallbacks answered a failed request with invented business
+data.** Six panels caught a failed live request and, whenever `SHOW_API_ERRORS`
+was off — the default — substituted seeded data rather than reporting the
+failure. The worst was the CLIENT PORTAL, where the reader is the customer:
+`getDemoClientSubmission` takes the client's real company name and email as
+overrides and fills everything else from a seeded profile, including the
+diagnostic ANSWERS, and `generateClientReport` derives the readiness score,
+findings and recommendations from those. On any transient failure a client read
+a report that was never derived from their diagnostic, under their own company
+name, with nothing to say so. The analytics panel was the worst-behaved of the
+rest — its substitution sat OUTSIDE the flag check, so with errors enabled it
+rendered the banner AND fabricated charts beneath it, captioned "showing
+computed data from submissions".
+
+**One status meant two colours.** `completed` was cyan on three surfaces and
+blue on the analytics panel; `low` priority was grey on one and cyan on another;
+and `SubmissionsListPage.getStatusColor` had no `approved` case at all, so an
+approved submission rendered in the neutral "unrecognised" grey on the page
+whose own Approve button produces that status.
+
+**The command palette could not be closed with the keyboard.**
+`useKeyboardShortcuts` skipped shortcuts originating in an input — right for a
+bare `d`, wrong for Escape — and the palette focuses its search box on open. A
+⌘K feature had no keyboard exit.
+
+**No dialog said it was one.** Eighteen hand-rolled overlays, none declaring
+`role="dialog"` or `aria-modal`, so Tab walked out of every one of them into the
+content behind.
+
+Alongside those, accessible names were missing across seven console pages and
+the whole public funnel — including the four fields of the lead capture form
+that opens the acquisition journey, and every answer control in the fourteen
+question diagnostic, where the question sat in a heading the control was not
+connected to.
+
 ## COMMITS CREATED
 
 On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
@@ -146,13 +189,31 @@ On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
 4. `fix(console): a 200 that arrives without its payload must not take down a panel`
 5. `fix(settings): a failed load is not a form, and a toggle is not a coloured rectangle`
 6. `fix(a11y): name the controls the console left unnamed`
+7. `docs: checkpoint UI Sprint 7 — what was built, what was found, and what is next`
+8. `fix(portal): a client must never be shown a report that is not theirs`
+9. `fix(console): stop answering a failed request with invented business data`
+10. `fix(ui): one status, one colour — the console disagreed with itself in three places`
+11. `fix(funnel): name the lead capture fields, and stop the landing page scrolling sideways`
+12. `fix(diagnostic): a screen-reader user was being asked fourteen questions they could not hear`
+13. `fix(a11y): the command palette could not be closed with the keyboard, and no dialog said it was one`
 
 ## TEST RESULTS
 
+Every suite run at the end of the session. No test was weakened, skipped or
+deleted, and no backend suite regressed — this sprint touched the browser bundle
+only, and the backend suites confirm it.
+
 | Suite | Result |
 |---|---|
-| `npm run test:features` | 908 pass (was 774 at session start) |
+| `npm run test:ai` | 2,183 pass |
+| `npm run test:security` | 859 pass |
+| `npm run test:features` | **984 pass** (774 at session start) |
 | `npm run test:system` | 170 pass |
+| `npm run test:migration` | 210 pass |
+| `npm run test:lifecycle` | 241 pass |
+| `npm run verify:health` | 48 pass |
+| `npm run scan:boundaries` | 107 pass |
+| `npm run test:database` | pass, 1 skipped without `DATABASE_URL` |
 | `npm run typecheck:web` | **32 errors — two BELOW the 34 baseline** |
 | `npm run typecheck:tests` | 27 errors — identical to baseline |
 | `npm run build` | clean |
@@ -160,31 +221,56 @@ On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
 The two recovered `typecheck:web` errors are the `SettingsPage` `companyName`
 pair, and they are gone because the defect behind them is fixed, not suppressed.
 
-Five test files added: `teamRoleVocabulary`, `orientation`, `designTokens`,
-`consoleSurfaces`, `payloadNarrowing`, `consoleAccessibility`. Two existing
-assertions were updated rather than deleted, each with the reason recorded in
-place: `breadcrumbContract` pinned eight label literals that were incidental
-evidence for an older type-only change and had already drifted from the sidebar's
-own labels, and `teamSessionKeys` pinned the exact `useApp()` destructuring and
-the pre-`teamRole` session shape.
+**Nine test files added**: `teamRoleVocabulary`, `orientation`, `designTokens`,
+`consoleSurfaces`, `payloadNarrowing`, `consoleAccessibility`,
+`clientPortalIntegrity`, `failureIsNotData`, `statusColorConsistency`,
+`publicFunnelAccess`, `dialogSemantics`.
 
-No test was weakened, skipped or deleted.
+**Two existing assertions were updated rather than deleted**, each with the
+reason recorded in place: `breadcrumbContract` pinned eight label literals that
+were incidental evidence for an older type-only change and had already drifted
+from the sidebar's own labels, and `teamSessionKeys` pinned the exact `useApp()`
+destructuring and the pre-`teamRole` session shape.
+
+**Three assertions I wrote were wrong on first run and were corrected rather
+than loosened**: one expected `normalizeTeamRole` not to trim (it does, and the
+server's does too), one matched a function DECLARATION where it meant the call,
+and one flagged a demo-mode branch's own seed construction, which is what demo
+mode is.
 
 ## BROWSER VERIFICATION
 
-Chromium via the pre-installed Playwright, against the dev server, at 1440px and
-390px, in demo mode and against a stubbed backend:
+Chromium via the pre-installed Playwright (`/opt/pw-browsers/chromium`), against
+the dev server, at 1440px, 768px and 390px, in demo mode and against a stubbed
+backend that could be made to fail on demand. This is where four of the
+session's defects were found; it is worth repeating next session.
 
-- Real identity in the sidebar; grouped navigation with the system group folded;
-  `aria-current` on the active entry; the skip link present.
-- A reload landing back on Analytics rather than the dashboard.
-- The drawer opening from the header and closing on Escape; the aside not
-  rendered at all when closed.
-- Loading announced with the KPI grid absent; the empty workspace leading with
-  orientation and naming the signed-in member, with exactly one next action; the
-  failed load raising an alert and presenting no zeros.
-- Zero unnamed buttons and zero unlabelled inputs across seven pages.
-- No page errors anywhere after the notification fix.
+- **The shell.** Real identity in the sidebar; navigation grouped with the
+  system group folded; `aria-current` on the active entry; the skip link
+  present; a reload landing back on Analytics rather than the dashboard; the
+  drawer opening from the header and closing on Escape, and not rendered at all
+  when closed.
+- **The four states.** Loading announced with the KPI grid absent; the empty
+  workspace leading with orientation and naming the signed-in member, with
+  exactly one next action; the failed load raising an alert and presenting no
+  zeros. On the team, analytics and engagement panels, a stubbed 503 produces
+  the alert and no seeded content, and the success paths were re-checked after.
+- **The client portal.** A stubbed 503 on the submission fetch shows "Your
+  report could not be loaded" with an alert role and leaks no part of the seeded
+  profile. Demo mode still signs in and renders the full journey.
+- **Accessible names.** Zero unnamed buttons and zero unlabelled inputs across
+  seven console pages, the client portal, and all four funnel routes.
+- **The diagnostic.** The answer field on question one is announced as the
+  question's own text, and on question two as that question's; the progressbar
+  reports 1 of 14 and 2 of 14.
+- **Dialogs.** The invite dialog is named, focus moves in, the body scroll
+  locks, focus does not escape across 25 consecutive Tab presses, Escape closes
+  it, the scroll is restored to what it was, and focus returns to the button
+  that opened it. The command palette now closes on Escape.
+- **Layout.** No horizontal overflow on the landing page at 390, 768 or 1440
+  after scrolling the full page so every `whileInView` section fires. The
+  console reflows to two columns at 390px with no overflow on any panel.
+- **No page errors anywhere** after the notification-centre fix.
 
 ## A DATABASE IS AVAILABLE IN THIS ENVIRONMENT
 
@@ -223,6 +309,10 @@ Every `test:database:*` harness then runs for real.
 - The `server` deno boundary cannot be type-checked here: `jsr.io` is not
   routable from this environment (an egress restriction, pre-existing). The
   `ai` and `registry-free` boundaries both check clean.
+- **`src/app/components/DiagnosticQuestion.tsx` is dead code.** Nothing imports
+  or renders it, its question text is hard-coded as a design mockup, and it is
+  the source of one of the standing `typecheck:web` errors. The real form is
+  `DiagnosticForm.tsx`. Deleting it is a separate, small decision.
 - **The workspace's own name cannot be shown in the shell yet.** It lives in
   `platformSettings.brandingName`, behind `GET /settings` — a route that also
   scans every submission via `kv.getByPrefix('sub:')` to compute health counts.
@@ -232,21 +322,30 @@ Every `test:database:*` harness then runs for real.
 
 ## NEXT EXACT TASK
 
-**1. The client portal journey.** The team console now distinguishes loading,
-empty, failed and real, and the client portal has not been audited against the
-same four states or swept for accessible names. It is the other half of the
-product's canonical journeys. Dependency-safe, no credentials needed — the
-portal runs in demo mode with three seeded clients.
+**1. Finish the dialog migration.** Thirteen hand-rolled overlays remain, all in
+panels off the canonical journeys, and each is announced as nothing and lets Tab
+walk out of it. `components/ui/cortex/Modal.tsx` exists and two dialogs are
+migrated, so each remaining one is small and reviewable. `dialogSemantics.test.ts`
+shows the shape. Dependency-safe.
 
-**2. Continue the token migration surface by surface**, starting with the
-surfaces a canonical journey passes through. The vocabulary and the primitives
-exist; each migration is small, reviewable, and expected to change nothing
-visible.
+**2. Continue the token migration surface by surface.** The vocabulary, the
+Tailwind utilities, the primitives and the drift test exist; the shells, the
+feedback states and the status vocabulary are converged. Roughly five thousand
+literals remain, and each surface is small and expected to change nothing
+visible. Start with surfaces a canonical journey passes through. Deliberately
+NOT a mass search-and-replace: that is a visual regression no test could catch.
 
-**3. A merge decision on this branch.** Six commits, no PR opened — the session
-prompt did not authorise one.
+**3. Sweep the remaining panels the way the console and funnel were swept.**
+Reviewer QA, the email queue, the execution dashboard, the proposal viewer and
+the CORTEX module panels have not been driven in a browser. The four questions
+that found everything this session: which controls have no accessible name;
+what does a failed load render; what does an empty state render; does the
+document scroll sideways at 390px.
 
-**4. G4 — the AI Workforce runtime. STOP CONDITION, not an oversight.** §IV-24
+**4. A merge decision on this branch.** Thirteen commits, no PR opened — the
+session prompt did not authorise one.
+
+**5. G4 — the AI Workforce runtime. STOP CONDITION, not an oversight.** §IV-24
 fixes twelve worker categories and §IV-25 eight lifecycle stages, and both say
 plainly that the implementation is "deferred to later Phase 4.x". The buildable
 shape would be a workforce registry and lifecycle state machine starting empty,
@@ -256,13 +355,13 @@ own registry rather than as a facet of the agent one, is a sequencing and
 architecture decision the canon explicitly defers to a human. Scope it
 deliberately with a person; do not begin it at the end of a session.
 
-**5. G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
+**6. G6 — external integrations** (CRM sync, e-sign, scheduling). Needs
 third-party credentials and accounts. Blocked.
 
-**6. G1/G2 — data authority and enforced tenancy.** The instrument and the
+**7. G1/G2 — data authority and enforced tenancy.** The instrument and the
 backfills exist; running them and cutting over is a deployment action.
 
-**7. Blueprint corrections a human should confirm.** The gap register still
+**8. Blueprint corrections a human should confirm.** The gap register still
 describes G3 as "gateway is live single-provider"; AI-01 Batches 1 through 4F
 have not been true of that for a long time. G5 should move from NOT IMPLEMENTED
 to PARTIAL.
@@ -295,5 +394,6 @@ to PARTIAL.
 
 ---
 
-_Last updated: 2026-09-08, after UI Sprint 7 (onboarding, design tokens,
-feedback states, payload narrowing, settings and accessibility)._
+_Last updated: 2026-09-08, after UI Sprint 7 — onboarding, design tokens, the
+four feedback states, payload narrowing, the client portal, the public funnel,
+the diagnostic, and dialog semantics._
