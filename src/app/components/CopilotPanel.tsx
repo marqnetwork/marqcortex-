@@ -35,6 +35,7 @@ import {
 import type { AIAction } from '@/app/core/aiAssistEngine';
 import { AI_ACTION_LABELS } from '@/app/core/aiAssistEngine';
 import { useApp } from '@/app/contexts/AppContext';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -805,17 +806,22 @@ export function CopilotPanel({
     review:        '3 · Review Queue',
   };
 
+  // A side drawer over a backdrop that takes the interaction — a modal dialog.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Proposal copilot' });
+
   return (
     <span className="contents">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 z-40"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-full z-50 flex flex-col"
+        {...dialogProps}
+        className="fixed top-0 right-0 h-full z-50 flex flex-col outline-none"
         style={{
           width: 'min(480px, 100vw)',
           background: '#0D0D1E',

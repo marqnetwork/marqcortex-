@@ -15,6 +15,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, TrendingUp, DollarSign, Zap, Target, Award, Sparkles, Brain } from 'lucide-react';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,11 @@ export function WinCelebration({
   conversionRate,
   onClose,
 }: WinCelebrationProps) {
+  // A full-screen celebration with confetti and a dismiss button, over the page
+  // the user was working on. It had no dialog role and no Escape, so it could be
+  // Tabbed straight past into the content it was covering.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Deal won' });
+
   const confettiPieces = useConfetti(CONFETTI_COUNT);
 
   // Animated counters
@@ -198,6 +204,7 @@ export function WinCelebration({
             border: '1.5px solid rgba(16,185,129,0.4)',
             boxShadow: '0 32px 96px rgba(0,0,0,0.8), 0 0 60px rgba(16,185,129,0.12)',
           }}
+          {...dialogProps}
           onClick={e => e.stopPropagation()}
         >
           {/* Ambient glow rings */}

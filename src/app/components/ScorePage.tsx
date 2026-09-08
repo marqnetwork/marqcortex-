@@ -243,13 +243,19 @@ export default function ScorePage({
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
           >
-            <div className="text-center">
+            {/* A wait, not a dialog — nothing here is interactive and there is
+                nothing to dismiss. `role="status"` with `aria-live` announces
+                the wait instead, which is what was missing: the whole overlay
+                was silent, so a screen-reader user saw their submission
+                apparently do nothing. */}
+            <div className="text-center" role="status" aria-live="polite" aria-busy="true">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
                 className="size-12 border-4 border-white/20 border-t-[#8B5CF6] rounded-full mx-auto mb-4"
+                aria-hidden="true"
               />
-              <p className="text-white/70">Saving your responses...</p>
+              <p className="text-white/70">Saving your responses…</p>
             </div>
           </motion.div>
         )}

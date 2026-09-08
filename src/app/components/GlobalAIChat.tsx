@@ -26,6 +26,7 @@ import { chatWithAI } from '@/app/services/dataService';
 import type { AIChatMessage } from '@/app/services/dataService';
 import { getDemoSubmissions } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ---- Types ------------------------------------------------------------------
 
@@ -627,6 +628,11 @@ export function GlobalAIChat() {
     setCurrentSection,
   } = useGlobalAIChat();
 
+  // The chat is a side drawer over a backdrop that takes the interaction, so it
+  // is a modal dialog: it needs to announce itself, hold focus, and close on
+  // Escape. `open: isOpen` means the hook does nothing at all while it is shut.
+  const { dialogProps } = useDialogBehavior({ open: isOpen, onClose: closeChat, label: 'Cortex assistant' });
+
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -847,6 +853,7 @@ export function GlobalAIChat() {
               exit={{ opacity: 0 }}
               onClick={closeChat}
               className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+              aria-hidden="true"
             />
 
             <motion.div
@@ -855,7 +862,8 @@ export function GlobalAIChat() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed right-0 top-0 bottom-0 z-50 flex flex-col w-[440px] max-w-[95vw]"
+              {...dialogProps}
+              className="fixed right-0 top-0 bottom-0 z-50 flex flex-col w-[440px] max-w-[95vw] outline-none"
               style={{
                 background: 'linear-gradient(180deg, #0D0D1A 0%, #0A0A14 100%)',
                 borderLeft: '1px solid rgba(139,92,246,0.2)',

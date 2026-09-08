@@ -30,6 +30,7 @@ import type {
 import { generateContractPayload } from '@/app/core/contractEngine';
 import { runContractReadyGate }    from '@/app/core/contractEngine';
 import type { ContractGateResult } from '@/app/core/contractEngine';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -187,6 +188,11 @@ function ContractPrintModal({
   draft: ProposalDraft;
   onClose: () => void;
 }) {
+  // Declares this overlay as a dialog and gives it the four behaviours it
+  // never had: focus in and back out, a Tab trap, Escape, and a scroll lock.
+  // See `useDialogBehavior` for why the behaviour is separable from `Modal`.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Contract draft' });
+
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
@@ -236,7 +242,7 @@ function ContractPrintModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-[#0D0D14] border border-white/15 rounded-2xl overflow-hidden shadow-2xl my-6">
+      <div {...dialogProps} className="w-full max-w-3xl bg-[#0D0D14] border border-white/15 rounded-2xl overflow-hidden shadow-2xl my-6 outline-none">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/30">
           <span className="flex items-center gap-2.5 text-sm font-bold text-white">

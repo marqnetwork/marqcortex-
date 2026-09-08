@@ -76,6 +76,7 @@ import {
 } from '@/app/services/dataService';
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DRAG_TYPE        = 'KANBAN_LEAD';
@@ -2311,6 +2312,11 @@ function OutcomeModal({
   onConfirm:  (payload: OutcomePayload) => Promise<void>;
   onCancel:   () => void;
 }) {
+  // The outcome modal decides whether a deal was won or lost and writes it —
+  // an irreversible record. It declares itself as a dialog and holds focus now;
+  // backdrop dismissal was never offered here and still is not.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose: onCancel, label: 'Log the outcome of this deal' });
+
   const isWin       = pending.toColumn.outcomeType === 'win';
   const accentColor = isWin ? '#10B981' : '#FD4438';
   const isBulk      = pending.leads.length > 1;
@@ -2348,11 +2354,12 @@ function OutcomeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.65)' }}>
       <motion.div
+        {...dialogProps}
         initial={{ opacity: 0, scale: 0.94, y: 20 }}
         animate={{ opacity: 1, scale: 1,    y: 0  }}
         exit={{   opacity: 0, scale: 0.94,  y: 16 }}
         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-        className={`w-full rounded-2xl overflow-hidden flex ${isWin ? 'max-w-[500px] flex-col' : 'max-w-[860px] flex-col md:flex-row max-h-[90vh]'}`}
+        className={`w-full rounded-2xl overflow-hidden flex outline-none ${isWin ? 'max-w-[500px] flex-col' : 'max-w-[860px] flex-col md:flex-row max-h-[90vh]'}`}
         style={{
           background: 'linear-gradient(180deg, #0D0D1A 0%, #0A0A14 100%)',
           border:     `1px solid ${accentColor}45`,

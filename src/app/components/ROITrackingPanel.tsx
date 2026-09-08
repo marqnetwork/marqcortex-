@@ -50,6 +50,7 @@ import {
   VARIANCE_TAG_CFG,
 } from '@/app/core/roiTrackingEngine';
 import type { ProjectedMonth } from '@/app/core/roiTrackingEngine';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -670,6 +671,11 @@ function QuarterlyModal({
   text:    string;
   onClose: () => void;
 }) {
+  // Declares this overlay as a dialog and gives it the four behaviours it
+  // never had: focus in and back out, a Tab trap, Escape, and a scroll lock.
+  // See `useDialogBehavior` for why the behaviour is separable from `Modal`.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Quarterly ROI review' });
+
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -682,7 +688,7 @@ function QuarterlyModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.80)' }}
     >
-      <div className="w-full max-w-2xl bg-[#0D0D18] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+      <div {...dialogProps} className="w-full max-w-2xl bg-[#0D0D18] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh] outline-none">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
           <span className="text-sm font-bold text-white flex items-center gap-2">
             <ClipboardList className="size-4 text-[#10B981]" />

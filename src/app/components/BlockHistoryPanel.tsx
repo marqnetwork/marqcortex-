@@ -21,6 +21,7 @@ import {
   SOURCE_COLORS,
   LOCK_REASON_LABELS,
 } from '@/app/core/blockEngine';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -193,6 +194,8 @@ interface BlockHistoryPanelProps {
 }
 
 export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProps) {
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Revision history' });
+
   const { block, revisions, lock } = blockState;
 
   // Stats
@@ -207,10 +210,12 @@ export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProp
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Panel */}
-      <div className="relative w-full max-w-md h-full bg-[#0D0D18] border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
+      {/* Panel. A slide-in drawer is still a modal overlay: it covers the page,
+          it takes the interaction, and it needs to say so and hold focus. */}
+      <div {...dialogProps} className="relative w-full max-w-md h-full bg-[#0D0D18] border-l border-white/10 flex flex-col shadow-2xl overflow-hidden outline-none">
 
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-white/8 bg-black/30">

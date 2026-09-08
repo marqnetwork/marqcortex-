@@ -37,7 +37,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -222,5 +222,70 @@ describe('the funnel overlays that interrupt the user now behave', () => {
 
   it('gives the exit popup email field a name of its own', () => {
     assert.match(read('src/app/components/ExitIntentPopup.tsx'), /aria-label="Your email address"/);
+  });
+});
+
+describe('every hand-rolled overlay in the app is accounted for', () => {
+  /**
+   * The sweep that started this work found eighteen `fixed inset-0` overlays in
+   * `src/app/components`, and NOT ONE of them declared itself. This test is the
+   * completeness check: every such file must now either declare a dialog, use
+   * the shared behaviour, or be something that is legitimately not a dialog and
+   * say which — a wait (`role="status"`) or a decorative backdrop
+   * (`aria-hidden`). A new overlay that declares nothing fails here.
+   */
+  const COMPONENTS_DIR = 'src/app/components';
+
+  function overlayFiles(): string[] {
+    return readdirSync(join(REPO_ROOT, COMPONENTS_DIR))
+      .filter(name => name.endsWith('.tsx'))
+      .filter(name => read(`${COMPONENTS_DIR}/${name}`).includes('fixed inset-0'));
+  }
+
+  it('found the overlays this sweep was about', () => {
+    // A sanity check on the discovery itself: if this drops to a handful, the
+    // test below is passing vacuously.
+    assert.ok(overlayFiles().length >= 15, `only ${overlayFiles().length} overlay files found`);
+  });
+
+  it('leaves no overlay that declares nothing', () => {
+    const undeclared: string[] = [];
+    for (const name of overlayFiles()) {
+      const source = read(`${COMPONENTS_DIR}/${name}`);
+      const declares =
+        source.includes('role="dialog"') ||       // declared inline
+        source.includes('dialogProps') ||          // uses the shared behaviour
+        source.includes('role="status"') ||        // a wait, not a dialog
+        source.includes('aria-hidden="true"');     // a decorative backdrop
+      if (!declares) undeclared.push(name);
+    }
+    assert.deepEqual(
+      undeclared, [],
+      `these overlays announce themselves as nothing: ${undeclared.join(', ')}`,
+    );
+  });
+
+  it('names every overlay that uses the shared behaviour', () => {
+    const unnamed: string[] = [];
+    for (const name of overlayFiles()) {
+      const source = read(`${COMPONENTS_DIR}/${name}`);
+      if (!source.includes('useDialogBehavior(')) continue;
+      // Read the CALL, not the file: a name may be a literal, a template, a
+      // forwarded prop (`{ open, onClose, label }`) or a `labelledBy` id, and
+      // all four are names. What must not happen is a call that passes none.
+      for (const call of source.match(/useDialogBehavior\(\{[^}]*\}/g) ?? []) {
+        if (!/\blabel\b|\blabelledBy\b/.test(call)) unnamed.push(`${name}: ${call.slice(0, 60)}`);
+      }
+    }
+    assert.deepEqual(unnamed, [], `these dialogs have no accessible name: ${unnamed.join(', ')}`);
+  });
+
+  it('treats the submitting overlay as a wait rather than a dialog', () => {
+    // Nothing in it is interactive and there is nothing to dismiss. It was
+    // silent, so a screen-reader user saw their submission apparently do
+    // nothing.
+    const score = read('src/app/components/ScorePage.tsx');
+    assert.match(score, /role="status" aria-live="polite" aria-busy="true"/);
+    assert.ok(!/role="dialog"/.test(score), 'the submitting overlay is being declared a dialog');
   });
 });

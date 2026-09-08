@@ -579,8 +579,15 @@ describe('Task 17 — render behaviour preserved at all twenty repaired sites', 
     ['src/app/components/EngagementActivityFeed.tsx',
       /<Icon\s+className="[^"]*"\s+style=\{\{\s*color:\s*cfg\.color\s*\}\}\s*\/>/,
       'event icon colour render'],
+    // UPDATED IN UI SPRINT 7. The contract here is that the icon still receives
+    // BOTH `className` and `style={{ color: accent }}` — the earlier defect was
+    // losing the style prop. This icon has since gained `aria-hidden="true"`,
+    // because it sits beside the section heading it decorates and would
+    // otherwise be announced twice. Allowing attributes AFTER the style keeps
+    // the guarantee exactly as it was and stops it failing on an unrelated
+    // addition; it still fails if either prop is dropped.
     ['src/app/components/ExecutionDashboard.tsx',
-      /<Icon\s+className="[^"]*"\s+style=\{\{\s*color:\s*accent\s*\}\}\s*\/>/,
+      /<Icon\s+className="[^"]*"\s+style=\{\{\s*color:\s*accent\s*\}\}[^>]*\/>/,
       'SectionHeader icon colour render'],
     ['src/app/components/ExportPanel.tsx',
       /<Icon\s+className="[^"]*"\s+style=\{\{\s*color:\s*config\.color\s*\}\}\s*\/>/,

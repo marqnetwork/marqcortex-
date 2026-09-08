@@ -48,6 +48,7 @@ import {
   type ExportSafetyGate,
   type ExportSectionContent,
 } from '@/app/core/exportEngine';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // EXPORT TYPE CONFIG
@@ -329,9 +330,12 @@ function ExportPreviewModal({
   };
 
   const activeSection = payload.sections.find(s => s.id === activeSectionId);
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Export preview' });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch" style={{ background: 'rgba(0,0,0,0.85)' }}>
+    // A full-screen export preview with a sidebar and a document pane. It takes
+    // the whole viewport and the whole interaction, so it is a dialog.
+    <div {...dialogProps} className="fixed inset-0 z-50 flex items-stretch outline-none" style={{ background: 'rgba(0,0,0,0.85)' }}>
       {/* Sidebar nav */}
       <div
         className="w-56 flex-shrink-0 flex flex-col border-r border-white/10 overflow-y-auto"

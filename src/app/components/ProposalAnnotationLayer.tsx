@@ -653,6 +653,7 @@ function AnnotationPanel({
             className="fixed inset-0 z-40"
             style={{ background: 'rgba(0,0,0,0.35)' }}
             onClick={onClose}
+            aria-hidden="true"
           />
 
           {/* Panel */}
