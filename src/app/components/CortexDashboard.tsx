@@ -56,6 +56,7 @@ import { TeamMessageThread } from '@/app/components/TeamMessageThread';
 import { CortexProposalModule } from '@/app/components/CortexProposalModule';
 import { CortexChatPanel } from '@/app/components/CortexChatPanel';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { brand, status } from '@/app/lib/tokens';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -155,29 +156,29 @@ function ClientEngagementBadge({ engagement }: { engagement: EngagementData | nu
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {/* View count */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#06D7F6]/10 border border-[#06D7F6]/25 rounded-lg text-xs">
-        <Eye className="size-3 text-[#06D7F6]" />
-        <span className="text-[#06D7F6] font-medium">
+      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cortex-info/10 border border-cortex-info/25 rounded-cortex-sm text-xs">
+        <Eye className="size-3 text-cortex-info" />
+        <span className="text-cortex-info font-medium">
           {engagement.reportViewCount} view{engagement.reportViewCount !== 1 ? 's' : ''}
         </span>
       </div>
       {/* Last viewed */}
       {engagement.lastViewedAt && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-400">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cortex-control border border-cortex-default rounded-cortex-sm text-xs text-cortex-muted">
           <Clock className="size-3" />
           Last viewed {timeAgo(engagement.lastViewedAt)}
         </div>
       )}
       {/* CTA clicked */}
       {engagement.ctaClickedAt && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#10B981]/10 border border-[#10B981]/25 rounded-lg text-xs text-[#10B981] font-medium">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cortex-success/10 border border-cortex-success/25 rounded-cortex-sm text-xs text-cortex-success font-medium">
           <CheckCircle2 className="size-3" />
           CTA clicked
         </div>
       )}
       {/* PDF saved */}
       {engagement.pdfPrintedAt && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#8B5CF6]/10 border border-[#8B5CF6]/25 rounded-lg text-xs text-[#8B5CF6]">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cortex-accent/10 border border-cortex-accent/25 rounded-cortex-sm text-xs text-cortex-accent">
           <Download className="size-3" />
           PDF saved
         </div>
@@ -464,26 +465,26 @@ function LeadOverviewView({
       )}
     </AnimatePresence>
 
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Header */}
-      <div className="border-b border-white/10 bg-black/40 backdrop-blur-xl sticky top-0 z-10">
+      <div className="border-b border-cortex-default bg-cortex-raised backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={onBack}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-cortex-muted hover:text-white transition-colors"
               >
                 <ArrowLeft className="size-4" />
                 Dashboard
               </button>
               <div className="flex items-center gap-3">
-                <div className="size-12 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+                <div className="size-12 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
                   <Brain className="size-6 text-white" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">CORTEX</h1>
-                  <p className="text-gray-400 text-xs">Decision Intelligence · 10 Modules</p>
+                  <p className="text-cortex-muted text-xs">Decision Intelligence · 10 Modules</p>
                 </div>
               </div>
             </div>
@@ -492,7 +493,7 @@ function LeadOverviewView({
                 onClick={() => loadLeads(true)}
                 disabled={isRefreshing}
                 aria-label="Refresh the lead list"
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-gray-400"
+                className="p-2 hover:bg-cortex-control rounded-cortex-sm transition-colors text-cortex-muted"
               >
                 <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
               </button>
@@ -505,7 +506,7 @@ function LeadOverviewView({
                   <button
                     onClick={handleBatchAnalyze}
                     disabled={isBatchAnalyzing || !accessToken}
-                    className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-all text-sm disabled:opacity-50"
+                    className="px-4 py-2 rounded-cortex-sm flex items-center gap-2 font-medium transition-all text-sm disabled:opacity-50"
                     style={{
                       background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.15))',
                       border: '1px solid rgba(139,92,246,0.4)',
@@ -524,7 +525,7 @@ function LeadOverviewView({
 
               <button
                 onClick={onViewInsights}
-                className="px-4 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white rounded-lg flex items-center gap-2 font-medium hover:opacity-90 transition-opacity"
+                className="px-4 py-2 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white rounded-cortex-sm flex items-center gap-2 font-medium hover:opacity-90 transition-opacity"
               >
                 <TrendingUp className="size-4" />
                 Learning Insights
@@ -534,12 +535,12 @@ function LeadOverviewView({
 
           {/* Stats */}
           <div className="grid grid-cols-6 gap-3">
-            <StatCard label="Total Leads" value={stats.total} icon={Users} color="#8B5CF6" />
-            <StatCard label="New" value={stats.new} icon={Zap} color="#3B82F6" />
-            <StatCard label="Ready for Call" value={stats.readyForCall} icon={Phone} color="#06D7F6" />
-            <StatCard label="Proposals Out" value={stats.proposalSent} icon={FileText} color="#FB923C" />
-            <StatCard label="High Urgency" value={stats.highUrgency} icon={Flame} color="#FD4438" />
-            <StatCard label="Outcomes Logged" value={stats.outcomesLogged} icon={TrendingUp} color="#10B981" />
+            <StatCard label="Total Leads" value={stats.total} icon={Users} color={brand.accent} />
+            <StatCard label="New" value={stats.new} icon={Zap} color={brand.accentAlt} />
+            <StatCard label="Ready for Call" value={stats.readyForCall} icon={Phone} color={status.info} />
+            <StatCard label="Proposals Out" value={stats.proposalSent} icon={FileText} color={status.warning} />
+            <StatCard label="High Urgency" value={stats.highUrgency} icon={Flame} color={status.danger} />
+            <StatCard label="Outcomes Logged" value={stats.outcomesLogged} icon={TrendingUp} color={status.success} />
           </div>
 
           {/* Batch analyze progress/error banner */}
@@ -552,16 +553,16 @@ function LeadOverviewView({
                 className="mt-3 overflow-hidden"
               >
                 {batchError ? (
-                  <div className="px-4 py-3 rounded-xl flex items-center justify-between gap-3"
+                  <div className="px-4 py-3 rounded-cortex-md flex items-center justify-between gap-3"
                     style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.25)', color: '#FCA5A5' }}>
                     <div className="flex items-center gap-2 text-sm">
-                      <AlertTriangle className="size-4 text-[#FD4438] flex-shrink-0" />
+                      <AlertTriangle className="size-4 text-cortex-danger flex-shrink-0" />
                       {batchError}
                     </div>
-                    <button onClick={() => setBatchError(null)} className="text-gray-500 hover:text-white">✕</button>
+                    <button onClick={() => setBatchError(null)} className="text-cortex-muted hover:text-white">✕</button>
                   </div>
                 ) : batchProgress && (
-                  <div className="px-4 py-3 rounded-xl flex items-center gap-3"
+                  <div className="px-4 py-3 rounded-cortex-md flex items-center gap-3"
                     style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', color: '#6EE7B7' }}>
                     <Sparkles className="size-4 flex-shrink-0" />
                     <span className="text-sm">
@@ -570,7 +571,7 @@ function LeadOverviewView({
                         : `✓ Analyzed ${batchProgress.done}/${batchProgress.total} submissions successfully`}
                     </span>
                     {!isBatchAnalyzing && (
-                      <button onClick={() => setBatchProgress(null)} className="ml-auto text-gray-500 hover:text-white text-xs">✕</button>
+                      <button onClick={() => setBatchProgress(null)} className="ml-auto text-cortex-muted hover:text-white text-xs">✕</button>
                     )}
                   </div>
                 )}
@@ -583,7 +584,7 @@ function LeadOverviewView({
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Search bar */}
         <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-500" aria-hidden="true" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-cortex-muted" aria-hidden="true" />
           {/* A placeholder is not an accessible name — it is absent from the
               accessibility tree in some browsers and gone the moment the user
               types. This search box was announced as "edit text, blank". */}
@@ -593,12 +594,12 @@ function LeadOverviewView({
             placeholder="Search leads by company, email, industry…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#8B5CF6]/50 focus:ring-1 focus:ring-[#8B5CF6]/30 transition-all text-sm"
+            className="w-full pl-11 pr-4 py-3 bg-cortex-raised border border-cortex-default rounded-cortex-md text-white placeholder-gray-500 focus:outline-none focus:border-cortex-accent/50 focus:ring-1 focus:ring-cortex-accent/30 transition-all text-sm"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-cortex-muted hover:text-white transition-colors"
             >
               <XCircle className="size-4" />
             </button>
@@ -608,14 +609,14 @@ function LeadOverviewView({
         {/* Toolbar: view toggle + sort + filters */}
         <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
           {/* View mode toggle */}
-          <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex items-center gap-1 p-1 rounded-cortex-md" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <button
               onClick={() => setViewMode('list')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-sm font-semibold transition-all"
               style={{
                 background: viewMode === 'list' ? 'rgba(139,92,246,0.25)' : 'transparent',
                 border: viewMode === 'list' ? '1px solid rgba(139,92,246,0.4)' : '1px solid transparent',
-                color: viewMode === 'list' ? '#C4B5FD' : '#6B7280',
+                color: viewMode === 'list' ? '#C4B5FD' : status.neutral,
               }}
             >
               <LayoutList className="size-3.5" />
@@ -623,11 +624,11 @@ function LeadOverviewView({
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-sm font-semibold transition-all"
               style={{
                 background: viewMode === 'table' ? 'rgba(59,130,246,0.2)' : 'transparent',
                 border: viewMode === 'table' ? '1px solid rgba(59,130,246,0.35)' : '1px solid transparent',
-                color: viewMode === 'table' ? '#93C5FD' : '#6B7280',
+                color: viewMode === 'table' ? '#93C5FD' : status.neutral,
               }}
             >
               <Table2 className="size-3.5" />
@@ -635,11 +636,11 @@ function LeadOverviewView({
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-sm font-semibold transition-all"
               style={{
                 background: viewMode === 'pipeline' ? 'rgba(6,215,246,0.18)' : 'transparent',
                 border: viewMode === 'pipeline' ? '1px solid rgba(6,215,246,0.35)' : '1px solid transparent',
-                color: viewMode === 'pipeline' ? '#06D7F6' : '#6B7280',
+                color: viewMode === 'pipeline' ? status.info : status.neutral,
               }}
             >
               <Kanban className="size-3.5" />
@@ -650,8 +651,8 @@ function LeadOverviewView({
           <div className="flex items-center gap-3 flex-wrap">
             {/* Sort control */}
             {viewMode !== 'pipeline' && (
-              <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <ArrowUpDown className="size-3.5 text-gray-500 ml-2" />
+              <div className="flex items-center gap-1 p-1 rounded-cortex-md" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <ArrowUpDown className="size-3.5 text-cortex-muted ml-2" />
                 {([
                   { id: 'date', label: 'Newest' },
                   { id: 'urgency', label: 'Urgency' },
@@ -660,10 +661,10 @@ function LeadOverviewView({
                   <button
                     key={s.id}
                     onClick={() => setSortBy(s.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-cortex-sm text-xs font-medium transition-all ${
                       sortBy === s.id
-                        ? 'bg-white/10 text-white'
-                        : 'text-gray-500 hover:text-gray-300'
+                        ? 'bg-cortex-control-hover text-white'
+                        : 'text-cortex-muted hover:text-cortex-secondary'
                     }`}
                   >
                     {s.label}
@@ -686,10 +687,10 @@ function LeadOverviewView({
                 <button
                   key={f.id}
                   onClick={() => setFilterStatus(f.id as typeof filterStatus)}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
+                  className={`px-3 py-1.5 rounded-cortex-sm font-medium transition-all text-sm ${
                     filterStatus === f.id
-                      ? 'bg-[#8B5CF6] text-white'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                      ? 'bg-cortex-accent text-white'
+                      : 'bg-cortex-control text-cortex-muted hover:bg-cortex-control-hover hover:text-white'
                   }`}
                 >
                   {f.label}
@@ -703,7 +704,7 @@ function LeadOverviewView({
         {/* Results count */}
         {!isLoading && viewMode !== 'pipeline' && (
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-cortex-muted">
               {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
               {filterStatus !== 'all' && ` · ${filterStatus.replace(/-/g, ' ')}`}
               {searchQuery && ` · matching "${searchQuery}"`}
@@ -714,7 +715,7 @@ function LeadOverviewView({
         {/* Content: Pipeline Kanban, Table, or Lead Cards list */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="size-8 text-[#8B5CF6] animate-spin" />
+            <Loader2 className="size-8 text-cortex-accent animate-spin" />
           </div>
         ) : viewMode === 'pipeline' ? (
           <PipelineKanban
@@ -759,11 +760,11 @@ function LeadOverviewView({
             onViewLearningLoop={onViewInsights}
           />
         ) : filteredLeads.length === 0 ? (
-          <div className="text-center py-20 text-gray-600">
+          <div className="text-center py-20 text-cortex-faint">
             <Brain className="size-16 mx-auto mb-4 opacity-20" />
             <p className="text-lg">No leads {searchQuery ? 'matching your search' : 'in this category'}</p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-[#8B5CF6] hover:underline">
+              <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-cortex-accent hover:underline">
                 Clear search
               </button>
             )}
@@ -805,18 +806,18 @@ function LeadTable({ leads, cortexStatus, outcomesMap, onSelectLead }: {
   onSelectLead: (id: string) => void;
 }) {
   return (
-    <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-white/10 text-left">
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Company</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Industry</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Readiness</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Urgency</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">AI</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider text-center">Outcome</th>
-            <th className="px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Submitted</th>
+          <tr className="border-b border-cortex-default text-left">
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider">Company</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider">Industry</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider">Status</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider text-center">Readiness</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider text-center">Urgency</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider text-center">AI</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider text-center">Outcome</th>
+            <th className="px-4 py-3 text-xs font-semibold text-cortex-muted uppercase tracking-wider">Submitted</th>
           </tr>
         </thead>
         <tbody>
@@ -832,25 +833,25 @@ function LeadTable({ leads, cortexStatus, outcomesMap, onSelectLead }: {
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.03 }}
                 onClick={() => onSelectLead(lead.id)}
-                className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group"
+                className="border-b border-cortex-subtle hover:bg-cortex-control cursor-pointer transition-colors group"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div
-                      className="size-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                      className="size-8 rounded-cortex-sm flex items-center justify-center text-xs font-bold flex-shrink-0"
                       style={{ background: `${statusStyle.bg}20`, color: statusStyle.text }}
                     >
                       {lead.companyName.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-white truncate group-hover:text-[#8B5CF6] transition-colors">
+                      <p className="font-semibold text-white truncate group-hover:text-cortex-accent transition-colors">
                         {lead.companyName}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">{lead.contactEmail}</p>
+                      <p className="text-xs text-cortex-muted truncate">{lead.contactEmail}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-400 text-xs">{lead.industry}</td>
+                <td className="px-4 py-3 text-cortex-muted text-xs">{lead.industry}</td>
                 <td className="px-4 py-3">
                   <span
                     className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
@@ -876,7 +877,7 @@ function LeadTable({ leads, cortexStatus, outcomesMap, onSelectLead }: {
                     {[...Array(10)].map((_, j) => (
                       <div
                         key={j}
-                        className={`size-1.5 rounded-full ${j < lead.urgencyLevel ? 'bg-[#FD4438]' : 'bg-white/10'}`}
+                        className={`size-1.5 rounded-full ${j < lead.urgencyLevel ? 'bg-cortex-danger' : 'bg-cortex-control-hover'}`}
                       />
                     ))}
                   </div>
@@ -885,24 +886,24 @@ function LeadTable({ leads, cortexStatus, outcomesMap, onSelectLead }: {
                   {ai ? (
                     <span
                       className="text-xs font-bold"
-                      style={{ color: ai.aiScore >= 75 ? '#10B981' : ai.aiScore >= 50 ? '#FB923C' : '#FD4438' }}
+                      style={{ color: ai.aiScore >= 75 ? status.success : ai.aiScore >= 50 ? status.warning : status.danger }}
                     >
                       {ai.aiScore}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-600">—</span>
+                    <span className="text-xs text-cortex-faint">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {outcome ? (
-                    <span className="text-xs font-bold" style={{ color: outcome.didConvert ? '#10B981' : '#FD4438' }}>
+                    <span className="text-xs font-bold" style={{ color: outcome.didConvert ? status.success : status.danger }}>
                       {outcome.didConvert ? (outcome.conversionValue ? `$${Math.round(outcome.conversionValue / 1000)}K` : 'WON') : 'LOST'}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-600">—</span>
+                    <span className="text-xs text-cortex-faint">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-xs text-gray-400">
+                <td className="px-4 py-3 text-xs text-cortex-muted">
                   {new Date(lead.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </td>
               </motion.tr>
@@ -943,7 +944,7 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
       onClick={onClick}
-      className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6 hover:border-[#8B5CF6]/50 transition-all cursor-pointer"
+      className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6 hover:border-cortex-accent/50 transition-all cursor-pointer"
     >
       <div className="flex items-start justify-between gap-6">
         <div className="flex-1">
@@ -960,7 +961,7 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
               {lead.status.toUpperCase().replace(/-/g, ' ')}
             </span>
             {lead.urgencyLevel >= 8 && (
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#FD4438]/20 text-[#FD4438] border border-[#FD4438]/30 flex items-center gap-1">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-cortex-danger/20 text-cortex-danger border border-cortex-danger/30 flex items-center gap-1">
                 <Flame className="size-3" /> HIGH URGENCY
               </span>
             )}
@@ -971,7 +972,7 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
                 style={{
                   background: outcome.didConvert ? 'rgba(16,185,129,0.15)' : 'rgba(253,68,56,0.1)',
                   border: `1px solid ${outcome.didConvert ? 'rgba(16,185,129,0.35)' : 'rgba(253,68,56,0.3)'}`,
-                  color: outcome.didConvert ? '#10B981' : '#FD4438',
+                  color: outcome.didConvert ? status.success : status.danger,
                 }}
               >
                 {outcome.didConvert
@@ -985,12 +986,12 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
             {/* AI analysis badge */}
             {aiStatus ? (
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1"
-                style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981' }}>
+                style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: status.success }}>
                 <Sparkles className="size-3" />
                 AI · {aiStatus.aiScore}
               </span>
             ) : (
-              <span className="px-2.5 py-1 rounded-full text-xs font-medium text-gray-500 border border-white/10 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium text-cortex-muted border border-cortex-default flex items-center gap-1">
                 <Brain className="size-3" />
                 Not analyzed
               </span>
@@ -998,19 +999,19 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
           </div>
 
           <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-            <div><span className="text-gray-400">Industry: </span><span className="text-white">{lead.industry}</span></div>
-            <div><span className="text-gray-400">Size: </span><span className="text-white">{lead.companySize}</span></div>
-            <div><span className="text-gray-400">Submitted: </span><span className="text-white">
+            <div><span className="text-cortex-muted">Industry: </span><span className="text-white">{lead.industry}</span></div>
+            <div><span className="text-cortex-muted">Size: </span><span className="text-white">{lead.companySize}</span></div>
+            <div><span className="text-cortex-muted">Submitted: </span><span className="text-white">
               {new Date(lead.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span></div>
           </div>
 
-          <div className="bg-[#FD4438]/10 border border-[#FD4438]/20 rounded-lg p-3">
+          <div className="bg-cortex-danger/10 border border-cortex-danger/20 rounded-cortex-sm p-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="size-4 text-[#FD4438] flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="size-4 text-cortex-danger flex-shrink-0 mt-0.5" />
               <div>
-                <div className="text-xs font-semibold text-[#FD4438] mb-1">PRIMARY PAIN SIGNAL</div>
-                <p className="text-sm text-gray-300">{lead.primaryPainSignal}</p>
+                <div className="text-xs font-semibold text-cortex-danger mb-1">PRIMARY PAIN SIGNAL</div>
+                <p className="text-sm text-cortex-secondary">{lead.primaryPainSignal}</p>
               </div>
             </div>
           </div>
@@ -1018,9 +1019,9 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
 
         <div className="flex flex-col gap-4 items-end flex-shrink-0">
           <div className="text-center">
-            <div className="text-xs text-gray-400 mb-2">Readiness</div>
+            <div className="text-xs text-cortex-muted mb-2">Readiness</div>
             <div
-              className="px-4 py-2 rounded-lg font-bold text-lg"
+              className="px-4 py-2 rounded-cortex-sm font-bold text-lg"
               style={{
                 backgroundColor: `${readinessColor}20`,
                 color: readinessColor,
@@ -1031,20 +1032,20 @@ function LeadCard({ lead, onClick, aiStatus, outcome }: {
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xs text-gray-400 mb-2">Urgency</div>
+            <div className="text-xs text-cortex-muted mb-2">Urgency</div>
             <div className="flex items-center gap-0.5">
               {[...Array(10)].map((_, i) => (
                 <div
                   key={i}
-                  className={`size-2 rounded-full ${i < lead.urgencyLevel ? 'bg-[#FD4438]' : 'bg-white/10'}`}
+                  className={`size-2 rounded-full ${i < lead.urgencyLevel ? 'bg-cortex-danger' : 'bg-cortex-control-hover'}`}
                 />
               ))}
             </div>
           </div>
           {aiStatus && (
             <div className="text-center">
-              <div className="text-xs text-gray-400 mb-1">AI Score</div>
-              <div className="text-2xl font-bold" style={{ color: aiStatus.aiScore >= 75 ? '#10B981' : aiStatus.aiScore >= 50 ? '#FB923C' : '#FD4438' }}>
+              <div className="text-xs text-cortex-muted mb-1">AI Score</div>
+              <div className="text-2xl font-bold" style={{ color: aiStatus.aiScore >= 75 ? status.success : aiStatus.aiScore >= 50 ? status.warning : status.danger }}>
                 {aiStatus.aiScore}
               </div>
             </div>
@@ -1338,8 +1339,8 @@ function CortexLeadDetail({
 
   if (isLoading || !data) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0F]">
-        <Loader2 className="size-10 text-[#8B5CF6] animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-cortex-canvas">
+        <Loader2 className="size-10 text-cortex-accent animate-spin" />
       </div>
     );
   }
@@ -1347,19 +1348,19 @@ function CortexLeadDetail({
   // Full-screen overlay while AI is actively analyzing
   if (isAnalyzing && !data) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0A0A0F] gap-6">
-        <div className="size-20 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 flex items-center justify-center">
-          <Brain className="size-10 text-[#8B5CF6] animate-pulse" />
+      <div className="flex flex-col items-center justify-center min-h-screen bg-cortex-canvas gap-6">
+        <div className="size-20 rounded-cortex-lg bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 flex items-center justify-center">
+          <Brain className="size-10 text-cortex-accent animate-pulse" />
         </div>
         <div className="text-center">
           <p className="text-xl font-bold text-white mb-2">CORTEX is thinking…</p>
-          <p className="text-gray-400 text-sm">Running 8-step intelligence analysis via GPT-4o-mini</p>
+          <p className="text-cortex-muted text-sm">Running 8-step intelligence analysis via GPT-4o-mini</p>
         </div>
         <div className="flex gap-1.5">
           {[0, 1, 2].map(i => (
             <motion.div
               key={i}
-              className="size-2 rounded-full bg-[#8B5CF6]"
+              className="size-2 rounded-full bg-cortex-accent"
               animate={{ opacity: [0.3, 1, 0.3] }}
               transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.4 }}
             />
@@ -1372,13 +1373,13 @@ function CortexLeadDetail({
   const statusStyle = getStatusColor(currentStatus);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Sticky Header */}
-      <div className="border-b border-white/10 bg-black/40 backdrop-blur-xl sticky top-0 z-20">
+      <div className="border-b border-cortex-default bg-cortex-raised backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-3"
+            className="flex items-center gap-2 text-cortex-muted hover:text-white transition-colors mb-3"
           >
             <ArrowLeft className="size-4" />
             Back to CORTEX Overview
@@ -1387,7 +1388,7 @@ function CortexLeadDetail({
           <div className="flex items-start justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold mb-1">{data.lead.companyName}</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-400 mb-2">
+              <div className="flex items-center gap-4 text-sm text-cortex-muted mb-2">
                 <span>{data.lead.industry}</span>
                 <span>•</span>
                 <span>{data.lead.companySize}</span>
@@ -1396,7 +1397,7 @@ function CortexLeadDetail({
               </div>
               {/* AI Analysis timestamp */}
               {aiAnalysis && (
-                <div className="text-xs text-[#8B5CF6]/80 flex items-center gap-1 mb-1">
+                <div className="text-xs text-cortex-accent/80 flex items-center gap-1 mb-1">
                   <Sparkles className="size-3" />
                   AI analyzed {timeAgo(aiAnalysis.analyzedAt)} · {aiAnalysis.model}
                 </div>
@@ -1412,7 +1413,7 @@ function CortexLeadDetail({
                 <button
                   onClick={handleAnalyzeWithAI}
                   disabled={isAnalyzing || !accessToken}
-                  className="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="px-4 py-2 rounded-cortex-sm text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
                   style={{
                     background: isAnalyzing
                       ? 'rgba(139,92,246,0.15)'
@@ -1437,11 +1438,11 @@ function CortexLeadDetail({
               ) : (
                 <div className="flex items-center gap-2">
                   <div
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                    className="px-3 py-1.5 rounded-cortex-sm text-xs font-bold flex items-center gap-1.5"
                     style={{
                       background: 'rgba(16,185,129,0.15)',
                       border: '1px solid rgba(16,185,129,0.4)',
-                      color: '#10B981',
+                      color: status.success,
                     }}
                   >
                     <Sparkles className="size-3" />
@@ -1450,14 +1451,14 @@ function CortexLeadDetail({
                   <button
                     onClick={handleAnalyzeWithAI}
                     disabled={isAnalyzing}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
+                    className="p-1.5 rounded-cortex-sm text-cortex-muted hover:text-cortex-secondary hover:bg-cortex-control transition-colors"
                     title="Re-run AI analysis"
                   >
                     {isAnalyzing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
                   </button>
                   <button
                     onClick={handleClearAIAnalysis}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-colors"
+                    className="p-1.5 rounded-cortex-sm text-cortex-muted hover:text-red-400 hover:bg-red-500/5 transition-colors"
                     title="Clear AI analysis"
                   >
                     <XCircle className="size-3.5" />
@@ -1473,7 +1474,7 @@ function CortexLeadDetail({
                   className="absolute top-full mt-2 right-0 z-50 max-w-sm"
                 >
                   <div
-                    className="p-3 rounded-xl text-xs leading-relaxed"
+                    className="p-3 rounded-cortex-md text-xs leading-relaxed"
                     style={{
                       background: 'rgba(253,68,56,0.1)',
                       border: '1px solid rgba(253,68,56,0.35)',
@@ -1481,18 +1482,18 @@ function CortexLeadDetail({
                     }}
                   >
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="size-3.5 text-[#FD4438] flex-shrink-0 mt-0.5" />
+                      <AlertTriangle className="size-3.5 text-cortex-danger flex-shrink-0 mt-0.5" />
                       <div>
                         {keyMissing ? (
                           <span className="contents">
-                            <strong className="text-[#FD4438]">API Key Required</strong>
-                            <br />Add <code className="bg-white/10 px-1 rounded">OPENAI_API_KEY</code> in Supabase
+                            <strong className="text-cortex-danger">API Key Required</strong>
+                            <br />Add <code className="bg-cortex-control-hover px-1 rounded">OPENAI_API_KEY</code> in Supabase
                             {' '}Edge Functions → Secrets.
                           </span>
                         ) : analyzeError}
                         <button
                           onClick={() => setAnalyzeError(null)}
-                          className="ml-2 text-gray-500 hover:text-white"
+                          className="ml-2 text-cortex-muted hover:text-white"
                         >
                           ✕
                         </button>
@@ -1507,7 +1508,7 @@ function CortexLeadDetail({
                 <button
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
                   disabled={isUpdatingStatus}
-                  className="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all hover:opacity-80"
+                  className="px-4 py-2 rounded-cortex-sm text-sm font-bold flex items-center gap-2 transition-all hover:opacity-80"
                   style={{
                     backgroundColor: `${statusStyle.bg}30`,
                     color: statusStyle.text,
@@ -1528,7 +1529,7 @@ function CortexLeadDetail({
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      className="absolute top-full mt-2 right-0 bg-[#0A0A0F] border border-white/20 rounded-xl shadow-2xl z-30 min-w-48 overflow-hidden"
+                      className="absolute top-full mt-2 right-0 bg-cortex-canvas border border-cortex-strong rounded-cortex-md shadow-2xl z-30 min-w-48 overflow-hidden"
                     >
                       {([
                         'new', 'needs-review', 'ready-for-call',
@@ -1539,8 +1540,8 @@ function CortexLeadDetail({
                           <button
                             key={s}
                             onClick={() => handleStatusChange(s)}
-                            className={`w-full px-4 py-3 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2 ${
-                              currentStatus === s ? 'bg-white/10' : ''
+                            className={`w-full px-4 py-3 text-left text-sm hover:bg-cortex-control transition-colors flex items-center gap-2 ${
+                              currentStatus === s ? 'bg-cortex-control-hover' : ''
                             }`}
                           >
                             <span
@@ -1558,7 +1559,7 @@ function CortexLeadDetail({
                 </AnimatePresence>
               </div>
 
-              <button className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium">
+              <button className="px-4 py-2 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-white rounded-cortex-sm transition-colors flex items-center gap-2 text-sm font-medium">
                 <Download className="size-4" />
                 Export
               </button>
@@ -1571,10 +1572,10 @@ function CortexLeadDetail({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 text-sm font-medium ${
+                className={`px-3 py-2 rounded-cortex-sm transition-all flex items-center gap-1.5 text-sm font-medium ${
                   activeTab === tab.id
-                    ? 'bg-[#8B5CF6] text-white'
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                    ? 'bg-cortex-accent text-white'
+                    : 'bg-cortex-control text-cortex-muted hover:bg-cortex-control-hover hover:text-white'
                 }`}
               >
                 <tab.icon className="size-3.5" />
@@ -1583,7 +1584,7 @@ function CortexLeadDetail({
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
                     activeTab === tab.id
                       ? 'bg-white/20 text-white'
-                      : 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
+                      : 'bg-cortex-accent/20 text-cortex-accent'
                   }`}>
                     {tab.badge}
                   </span>
@@ -1598,18 +1599,18 @@ function CortexLeadDetail({
       {aiAnalysis?.analysisNotes && (
         <div className="max-w-7xl mx-auto px-6 pt-6">
           <div
-            className="p-4 rounded-xl flex items-start gap-3"
+            className="p-4 rounded-cortex-md flex items-start gap-3"
             style={{
               background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.06))',
               border: '1px solid rgba(139,92,246,0.25)',
             }}
           >
-            <Sparkles className="size-4 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
+            <Sparkles className="size-4 text-cortex-accent flex-shrink-0 mt-0.5" />
             <div>
-              <span className="text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider mr-2">
+              <span className="text-xs font-semibold text-cortex-accent uppercase tracking-wider mr-2">
                 CORTEX Intelligence Note
               </span>
-              <span className="text-sm text-gray-300">{aiAnalysis.analysisNotes}</span>
+              <span className="text-sm text-cortex-secondary">{aiAnalysis.analysisNotes}</span>
             </div>
           </div>
         </div>
@@ -1687,12 +1688,12 @@ function StatCard({ label, value, icon: Icon, color }: {
   color: string;
 }) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-4">
       <div className="flex items-center justify-between mb-2">
         <Icon className="size-5" style={{ color }} />
         <span className="text-2xl font-bold" style={{ color }}>{value}</span>
       </div>
-      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-xs text-cortex-muted">{label}</div>
     </div>
   );
 }

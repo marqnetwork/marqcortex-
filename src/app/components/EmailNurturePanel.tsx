@@ -39,14 +39,17 @@ import { FEATURES } from '@/config/features';
 import { getEmailStatus, sendTestEmailRequest } from '@/app/services/dataService';
 import { log } from '@/app/utils/logger';
 import { useApp } from '@/app/contexts/AppContext';
+import { brand, status as statusToken } from '@/app/lib/tokens';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
-const PURPLE = '#8B5CF6';
-const BLUE = '#3B82F6';
-const CYAN = '#06D7F6';
-const ORANGE = '#FB923C';
-const RED = '#FD4438';
-const GREEN = '#10B981';
+const PURPLE = brand.accent;
+const BLUE = brand.accentAlt;
+const CYAN = statusToken.info;
+const ORANGE = statusToken.warning;
+const RED = statusToken.danger;
+const GREEN = statusToken.success;
+/** A step that was skipped: said, but not emphasised. */
+const GRAY = statusToken.neutral;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,7 +81,7 @@ function statusConfig(status: EmailStatus) {
     case 'pending':
       return { label: 'Pending', color: ORANGE, bg: `${ORANGE}15`, icon: Clock };
     case 'skipped':
-      return { label: 'Skipped', color: '#6B7280', bg: 'rgba(107,114,128,0.15)', icon: XCircle };
+      return { label: 'Skipped', color: GRAY, bg: `${GRAY}26`, icon: XCircle };
     case 'failed':
       return { label: 'Failed', color: RED, bg: `${RED}15`, icon: AlertTriangle };
   }
@@ -207,14 +210,14 @@ export function EmailNurturePanel() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white" role="main" aria-label="Email Nurture Queue">
+    <div className="min-h-screen bg-cortex-canvas text-white" role="main" aria-label="Email Nurture Queue">
       {/* Header */}
-      <div className="border-b border-white/10 bg-black/40 backdrop-blur-xl sticky top-0 z-20">
+      <div className="border-b border-cortex-default bg-cortex-raised backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-[1400px] mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                <Mail className="size-8 text-[#8B5CF6]" />
+                <Mail className="size-8 text-cortex-accent" />
                 Email Nurture Queue
               </h1>
               <p className="text-white/60">
@@ -223,7 +226,7 @@ export function EmailNurturePanel() {
             </div>
             <button
               onClick={refresh}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-2 text-sm"
+              className="px-4 py-2 rounded-cortex-md bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default transition-all flex items-center gap-2 text-sm"
             >
               <RefreshCw className="size-4" />
               Refresh
@@ -231,18 +234,18 @@ export function EmailNurturePanel() {
           </div>
 
           {/* Resend delivery status bar */}
-          <div className={`mb-6 p-3 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
+          <div className={`mb-6 p-3 rounded-cortex-md border flex flex-col sm:flex-row items-start sm:items-center gap-3 ${
             resendStatus?.configured
-              ? 'bg-[#10B981]/5 border-[#10B981]/20'
-              : 'bg-[#FB923C]/5 border-[#FB923C]/20'
+              ? 'bg-cortex-success/5 border-cortex-success/20'
+              : 'bg-cortex-warning/5 border-cortex-warning/20'
           }`}>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {resendLoading ? (
                 <Loader2 className="size-4 text-white/50 animate-spin flex-shrink-0" />
               ) : resendStatus?.configured ? (
-                <Wifi className="size-4 text-[#10B981] flex-shrink-0" />
+                <Wifi className="size-4 text-cortex-success flex-shrink-0" />
               ) : (
-                <WifiOff className="size-4 text-[#FB923C] flex-shrink-0" />
+                <WifiOff className="size-4 text-cortex-warning flex-shrink-0" />
               )}
               <span className="text-xs text-white/60 truncate">
                 {resendLoading ? 'Checking email delivery...' : (
@@ -256,14 +259,14 @@ export function EmailNurturePanel() {
               <button
                 onClick={handleTestEmail}
                 disabled={testEmailSending}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                className="px-3 py-1.5 rounded-cortex-sm bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
               >
                 {testEmailSending ? <Loader2 className="size-3 animate-spin" /> : <TestTube2 className="size-3" />}
                 Send Test Email
               </button>
               {testEmailResult && (
                 <span className={`text-[10px] max-w-[200px] truncate ${
-                  testEmailResult.startsWith('Error') ? 'text-[#FD4438]' : 'text-[#10B981]'
+                  testEmailResult.startsWith('Error') ? 'text-cortex-danger' : 'text-cortex-success'
                 }`}>
                   {testEmailResult}
                 </span>
@@ -275,7 +278,7 @@ export function EmailNurturePanel() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard label="Pending" value={stats.pending} color={ORANGE} icon={<Clock className="size-5" />} />
             <StatCard label="Sent" value={stats.sent} color={GREEN} icon={<CheckCircle2 className="size-5" />} />
-            <StatCard label="Skipped" value={stats.skipped} color="#6B7280" icon={<XCircle className="size-5" />} />
+            <StatCard label="Skipped" value={stats.skipped} color={GRAY} icon={<XCircle className="size-5" />} />
             <StatCard label="Total" value={stats.total} color={PURPLE} icon={<Inbox className="size-5" />} />
           </div>
         </div>
@@ -287,7 +290,7 @@ export function EmailNurturePanel() {
           {EMAIL_TEMPLATE_CONFIGS.filter((t) => t.id !== 'proposal_delivered').map((tpl) => (
             <div
               key={tpl.id}
-              className="p-4 rounded-xl border"
+              className="p-4 rounded-cortex-md border"
               style={{ background: `${tpl.color}06`, borderColor: `${tpl.color}20` }}
             >
               <div className="flex items-center gap-2 mb-2">
@@ -312,7 +315,7 @@ export function EmailNurturePanel() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search emails by name, company, or email"
-              className="w-full pl-10 pr-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-white text-sm placeholder-white/40 focus:outline-none focus:border-[#8B5CF6]/50"
+              className="w-full pl-10 pr-4 py-2.5 bg-cortex-raised border border-cortex-default rounded-cortex-md text-white text-sm placeholder-white/40 focus:outline-none focus:border-cortex-accent/50"
             />
           </div>
 
@@ -321,10 +324,10 @@ export function EmailNurturePanel() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-2 rounded-cortex-sm text-xs font-semibold transition-all ${
                   filter === f
-                    ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40'
-                    : 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                    ? 'bg-cortex-accent/20 text-cortex-accent border border-cortex-accent/40'
+                    : 'bg-cortex-control text-white/60 border border-cortex-default hover:bg-cortex-control-hover'
                 }`}
               >
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -332,11 +335,11 @@ export function EmailNurturePanel() {
             ))}
           </div>
 
-          <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-0.5">
+          <div className="flex gap-1 bg-cortex-control border border-cortex-default rounded-cortex-sm p-0.5">
             <button
               onClick={() => setGroupBy('time')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                groupBy === 'time' ? 'bg-[#8B5CF6]/30 text-white' : 'text-white/50 hover:text-white/80'
+                groupBy === 'time' ? 'bg-cortex-accent/30 text-white' : 'text-white/50 hover:text-white/80'
               }`}
             >
               <Clock className="size-3.5 inline mr-1" />Timeline
@@ -344,7 +347,7 @@ export function EmailNurturePanel() {
             <button
               onClick={() => setGroupBy('lead')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                groupBy === 'lead' ? 'bg-[#8B5CF6]/30 text-white' : 'text-white/50 hover:text-white/80'
+                groupBy === 'lead' ? 'bg-cortex-accent/30 text-white' : 'text-white/50 hover:text-white/80'
               }`}
             >
               <Users className="size-3.5 inline mr-1" />By Lead
@@ -410,10 +413,10 @@ export function EmailNurturePanel() {
 
       {/* AB Testing Panel */}
       <div className="max-w-[1400px] mx-auto px-6 pb-8">
-        <div className="border-t border-white/10 pt-8">
+        <div className="border-t border-cortex-default pt-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-[#06D7F6]/20 to-[#8B5CF6]/20 border border-[#06D7F6]/30 flex items-center justify-center">
-              <Beaker className="size-5 text-[#06D7F6]" />
+            <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-info/20 to-cortex-accent/20 border border-cortex-info/30 flex items-center justify-center">
+              <Beaker className="size-5 text-cortex-info" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">A/B Subject Line Testing</h2>
@@ -426,10 +429,10 @@ export function EmailNurturePanel() {
 
       {/* Delivery Analytics Panel */}
       <div className="max-w-[1400px] mx-auto px-6 pb-8">
-        <div className="border-t border-white/10 pt-8">
+        <div className="border-t border-cortex-default pt-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-[#3B82F6]/20 to-[#06D7F6]/20 border border-[#3B82F6]/30 flex items-center justify-center">
-              <BarChart3 className="size-5 text-[#3B82F6]" />
+            <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent-alt/20 to-cortex-info/20 border border-cortex-accent-alt/30 flex items-center justify-center">
+              <BarChart3 className="size-5 text-cortex-accent-alt" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Delivery Analytics</h2>
@@ -451,7 +454,7 @@ export function EmailNurturePanel() {
 
 function StatCard({ label, value, color, icon }: { label: string; value: number; color: string; icon: React.ReactNode }) {
   return (
-    <div className="p-4 rounded-xl bg-black/40 border border-white/10">
+    <div className="p-4 rounded-cortex-md bg-cortex-raised border border-cortex-default">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-white/60">{label}</span>
         <span style={{ color }}>{icon}</span>
@@ -480,7 +483,7 @@ function EmailRow({
 
   return (
     <div
-      className="rounded-xl border transition-all"
+      className="rounded-cortex-md border transition-all"
       style={{ borderColor: expanded ? `${tpl.color}40` : 'rgba(255,255,255,0.08)', background: expanded ? `${tpl.color}04` : 'rgba(0,0,0,0.3)' }}
     >
       <button onClick={onToggle} className="w-full px-5 py-4 flex items-center gap-4 text-left">
@@ -539,8 +542,8 @@ function EmailRow({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 pt-0 border-t border-white/5">
-              <div className="p-4 rounded-xl bg-white/3 mt-3 mb-4">
+            <div className="px-5 pb-5 pt-0 border-t border-cortex-subtle">
+              <div className="p-4 rounded-cortex-md bg-white/3 mt-3 mb-4">
                 <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Preview</p>
                 <p className="text-sm text-white/70 leading-relaxed">{email.previewText}</p>
               </div>
@@ -568,14 +571,14 @@ function EmailRow({
                   <div className="flex gap-2">
                     <button
                       onClick={(e) => { e.stopPropagation(); onSend(); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white text-xs font-semibold hover:opacity-90 transition-opacity"
                     >
                       <Send className="size-3" />
                       Mark Sent
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); onSkip(); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 text-xs font-semibold transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-white/60 text-xs font-semibold transition-all"
                     >
                       <XCircle className="size-3" />
                       Skip
@@ -613,21 +616,21 @@ function LeadGroup({
   const sent = group.emails.filter((e) => e.status === 'sent').length;
 
   return (
-    <div className="rounded-2xl border border-white/10 overflow-hidden bg-black/30">
+    <div className="rounded-cortex-lg border border-cortex-default overflow-hidden bg-cortex-sunken">
       {/* Lead header */}
       <button
         onClick={() => setOpen(!open)}
         className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-white/3 transition-colors"
       >
-        <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 flex items-center justify-center flex-shrink-0">
-          <Mail className="size-5 text-[#8B5CF6]" />
+        <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 flex items-center justify-center flex-shrink-0">
+          <Mail className="size-5 text-cortex-accent" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-bold text-white">{group.contactName}</div>
           <div className="text-xs text-white/50">{group.companyName} &bull; {group.contactEmail}</div>
         </div>
         {group.readinessScore != null && (
-          <div className="px-2.5 py-1 rounded-full bg-[#8B5CF6]/15 text-[#8B5CF6] text-xs font-bold flex-shrink-0">
+          <div className="px-2.5 py-1 rounded-full bg-cortex-accent/15 text-cortex-accent text-xs font-bold flex-shrink-0">
             Score: {group.readinessScore}
           </div>
         )}
@@ -700,14 +703,14 @@ function LeadGroup({
                       <div className="flex gap-1.5 flex-shrink-0">
                         <button
                           onClick={() => onSend(email.id)}
-                          className="p-1.5 rounded-lg bg-[#8B5CF6]/20 text-[#8B5CF6] hover:bg-[#8B5CF6]/30 transition-colors"
+                          className="p-1.5 rounded-cortex-sm bg-cortex-accent/20 text-cortex-accent hover:bg-cortex-accent/30 transition-colors"
                           title="Mark as sent"
                         >
                           <Send className="size-3" />
                         </button>
                         <button
                           onClick={() => onSkip(email.id)}
-                          className="p-1.5 rounded-lg bg-white/5 text-white/40 hover:bg-white/10 transition-colors"
+                          className="p-1.5 rounded-cortex-sm bg-cortex-control text-white/40 hover:bg-cortex-control-hover transition-colors"
                           title="Skip"
                         >
                           <XCircle className="size-3" />
@@ -735,16 +738,16 @@ function EmailHTMLPreview({ emailId }: { emailId: string }) {
     <div className="mb-4">
       <button
         onClick={(e) => { e.stopPropagation(); setShowHTML(!showHTML); }}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 text-xs font-semibold transition-all mb-3"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-white/50 text-xs font-semibold transition-all mb-3"
       >
         <Eye className="size-3" />
         {showHTML ? 'Hide' : 'Show'} Email Preview
       </button>
 
       {showHTML && preview && (
-        <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="rounded-cortex-md border border-cortex-default overflow-hidden">
           {/* Email header bar */}
-          <div className="px-4 py-3 bg-white/5 border-b border-white/10 space-y-1">
+          <div className="px-4 py-3 bg-cortex-control border-b border-cortex-default space-y-1">
             <div className="flex items-center gap-2 text-xs">
               <span className="text-white/40 w-12">From:</span>
               <span className="text-white/70">{preview.from}</span>
@@ -763,15 +766,15 @@ function EmailHTMLPreview({ emailId }: { emailId: string }) {
             <iframe
               srcDoc={preview.html}
               title="Email preview"
-              className="w-full border-0 rounded-lg bg-[#0A0A1A]"
+              className="w-full border-0 rounded-cortex-sm bg-cortex-overlay"
               style={{ height: '320px', pointerEvents: 'none' }}
               sandbox=""
             />
           </div>
           {/* Personalisation tokens */}
-          <div className="px-4 py-2 border-t border-white/5 flex flex-wrap gap-2">
+          <div className="px-4 py-2 border-t border-cortex-subtle flex flex-wrap gap-2">
             {Object.entries(preview.personalisation).filter(([, v]) => v).map(([k, v]) => (
-              <span key={k} className="px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] text-[10px] font-mono">
+              <span key={k} className="px-2 py-0.5 rounded-full bg-cortex-accent/10 text-cortex-accent text-[10px] font-mono">
                 {`{{${k}}}`} = {v}
               </span>
             ))}
@@ -800,8 +803,8 @@ function DeliveryAnalytics() {
       {/* Overview cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {overviewCards.map((card) => (
-          <div key={card.label} className="p-5 rounded-xl bg-black/40 border border-white/10 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-5 rounded-xl" style={{ background: `radial-gradient(circle at 80% 20%, ${card.color}, transparent 70%)` }} />
+          <div key={card.label} className="p-5 rounded-cortex-md bg-cortex-raised border border-cortex-default relative overflow-hidden">
+            <div className="absolute inset-0 opacity-5 rounded-cortex-md" style={{ background: `radial-gradient(circle at 80% 20%, ${card.color}, transparent 70%)` }} />
             <div className="relative">
               <p className="text-xs text-white/50 mb-1">{card.label}</p>
               <p className="text-3xl font-bold" style={{ color: card.color }}>{card.value}</p>
@@ -812,14 +815,14 @@ function DeliveryAnalytics() {
       </div>
 
       {/* Per-template performance table */}
-      <div className="rounded-xl border border-white/10 overflow-hidden bg-black/30">
-        <div className="px-5 py-3 border-b border-white/10 bg-white/3">
+      <div className="rounded-cortex-md border border-cortex-default overflow-hidden bg-cortex-sunken">
+        <div className="px-5 py-3 border-b border-cortex-default bg-white/3">
           <h3 className="text-sm font-bold text-white/80">Performance by Template</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-cortex-subtle">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Template</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Sent</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Delivered</th>
@@ -832,7 +835,7 @@ function DeliveryAnalytics() {
               {templatePerf.map((tp) => {
                 const tplCfg = getTemplateConfig(tp.templateId);
                 return (
-                  <tr key={tp.templateId} className="border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors">
+                  <tr key={tp.templateId} className="border-b border-cortex-subtle last:border-0 hover:bg-white/3 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <span className="text-base">{tplCfg.icon}</span>
@@ -843,7 +846,7 @@ function DeliveryAnalytics() {
                     <td className="text-right px-4 py-3 text-white/70 font-mono text-xs">{tp.stats.delivered}</td>
                     <td className="text-right px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 bg-cortex-control-hover rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${tp.stats.openRate}%`, background: tp.stats.openRate >= 50 ? GREEN : tp.stats.openRate >= 30 ? ORANGE : RED }} />
                         </div>
                         <span className="text-xs font-mono text-white/70 w-10 text-right">{tp.stats.openRate}%</span>
@@ -865,11 +868,11 @@ function DeliveryAnalytics() {
 
       {/* Demo mode disclaimer */}
       {!FEATURES.BACKEND_INTEGRATION && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#FB923C]/5 border border-[#FB923C]/15">
-          <Zap className="size-4 text-[#FB923C] flex-shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 rounded-cortex-md bg-cortex-warning/5 border border-cortex-warning/15">
+          <Zap className="size-4 text-cortex-warning flex-shrink-0" />
           <p className="text-xs text-white/50">
-            <span className="text-[#FB923C] font-semibold">Demo Mode</span> — These metrics are simulated based on industry
-            benchmarks. Connect Resend and flip <code className="text-white/60 bg-white/5 px-1 rounded">BACKEND_INTEGRATION</code> to
+            <span className="text-cortex-warning font-semibold">Demo Mode</span> — These metrics are simulated based on industry
+            benchmarks. Connect Resend and flip <code className="text-white/60 bg-cortex-control px-1 rounded">BACKEND_INTEGRATION</code> to
             true for real delivery tracking via webhooks.
           </p>
         </div>

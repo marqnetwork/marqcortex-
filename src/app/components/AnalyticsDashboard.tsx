@@ -32,7 +32,7 @@ import { EngagementIntelligence } from '@/app/components/EngagementIntelligence'
 // meant drawing charts from seeded records.
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 import { asArray } from '@/app/lib/payload';
-import { brand, status, SUBMISSION_STATUS_COLOR, PRIORITY_COLOR } from '@/app/lib/tokens';
+import { brand, status, text, SUBMISSION_STATUS_COLOR, PRIORITY_COLOR } from '@/app/lib/tokens';
 import { ErrorState } from '@/app/components/ui/cortex';
 
 // ============================================================================
@@ -177,8 +177,8 @@ export function AnalyticsDashboard({ accessToken }: Props) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <Loader2 className="size-10 text-[#8B5CF6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading analytics…</p>
+          <Loader2 className="size-10 text-cortex-accent animate-spin mx-auto mb-4" />
+          <p className="text-cortex-muted">Loading analytics…</p>
         </div>
       </div>
     );
@@ -195,10 +195,10 @@ export function AnalyticsDashboard({ accessToken }: Props) {
               <span
                 className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${
                   analytics.weeklyTrend.changePercent > 0
-                    ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
+                    ? 'bg-cortex-success/10 border-cortex-success/30 text-cortex-success'
                     : analytics.weeklyTrend.changePercent < 0
-                    ? 'bg-[#FD4438]/10 border-[#FD4438]/30 text-[#FD4438]'
-                    : 'bg-white/5 border-white/15 text-gray-400'
+                    ? 'bg-cortex-danger/10 border-cortex-danger/30 text-cortex-danger'
+                    : 'bg-cortex-control border-white/15 text-cortex-muted'
                 }`}
               >
                 {analytics.weeklyTrend.changePercent > 0 ? (
@@ -212,12 +212,12 @@ export function AnalyticsDashboard({ accessToken }: Props) {
               </span>
             )}
           </div>
-          <p className="text-gray-400 text-sm">
+          <p className="text-cortex-muted text-sm">
             {lastUpdated
               ? `Last updated ${lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
               : 'Live data from Supabase'}
             {analytics?.generatedAt && (
-              <span className="text-gray-600 ml-2">
+              <span className="text-cortex-faint ml-2">
                 · Server aggregated {analytics.total} submissions
               </span>
             )}
@@ -226,7 +226,7 @@ export function AnalyticsDashboard({ accessToken }: Props) {
         <button
           onClick={() => load(true)}
           disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white transition-all text-sm"
         >
           <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
@@ -234,7 +234,7 @@ export function AnalyticsDashboard({ accessToken }: Props) {
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────── */}
-      <div className="flex gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl w-fit">
+      <div className="flex gap-1.5 p-1 bg-cortex-raised border border-cortex-default rounded-cortex-md w-fit">
         {([
           { id: 'overview',    label: 'Overview',               icon: BarChart3 },
           { id: 'engagement',  label: 'Engagement Intelligence', icon: Activity  },
@@ -242,10 +242,10 @@ export function AnalyticsDashboard({ accessToken }: Props) {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-sm font-medium transition-all ${
               activeTab === tab.id
-                ? 'bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white shadow-lg'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white shadow-lg'
+                : 'text-cortex-muted hover:text-white hover:bg-cortex-control'
             }`}
           >
             <tab.icon className="size-4" />
@@ -305,8 +305,8 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="date" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="date" tick={{ fill: status.neutral, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: status.neutral, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip content={<DarkTooltip />} />
                     <Area
                       key="area-count"
@@ -331,10 +331,10 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                     data={industryData.slice(0, 6)}
                     margin={{ top: 0, right: 10, left: 0, bottom: 0 }}
                   >
-                    <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis type="number" tick={{ fill: status.neutral, fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <YAxis
                       type="category" dataKey="name" width={90}
-                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                      tick={{ fill: text.muted, fontSize: 10 }}
                       axisLine={false} tickLine={false}
                     />
                     <Tooltip content={<DarkTooltip />} />
@@ -377,11 +377,11 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                       <div key={p.name} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="size-2.5 rounded-full" style={{ backgroundColor: p.color }} />
-                          <span className="text-sm text-gray-300 capitalize">{p.name}</span>
+                          <span className="text-sm text-cortex-secondary capitalize">{p.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-white">{p.value}</span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-cortex-muted">
                             {analytics?.total ? `${Math.round((p.value / analytics.total) * 100)}%` : '—'}
                           </span>
                         </div>
@@ -400,8 +400,8 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={scoreDistData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="range" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="range" tick={{ fill: status.neutral, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: status.neutral, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip content={<DarkTooltip />} />
                     <Bar key="bar-score" dataKey="count" radius={[4, 4, 0, 0]}>
                       {scoreDistData.map((d) => (
@@ -439,15 +439,15 @@ export function AnalyticsDashboard({ accessToken }: Props) {
               />
             </div>
             {analytics?.avgTimeToReviewHours != null && (
-              <div className="mt-5 pt-5 border-t border-white/10 flex items-center gap-3">
-                <div className="size-8 rounded-lg bg-[#FB923C]/15 flex items-center justify-center">
-                  <Clock className="size-4 text-[#FB923C]" />
+              <div className="mt-5 pt-5 border-t border-cortex-default flex items-center gap-3">
+                <div className="size-8 rounded-cortex-sm bg-cortex-warning/15 flex items-center justify-center">
+                  <Clock className="size-4 text-cortex-warning" />
                 </div>
                 <div>
                   <span className="text-sm text-white font-semibold">
                     {analytics.avgTimeToReviewHours}h avg time-to-review
                   </span>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-cortex-muted mt-0.5">
                     Average hours from submission to first review action
                   </p>
                 </div>
@@ -468,25 +468,25 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                 ].map(stat => (
                   <div
                     key={stat.label}
-                    className="rounded-xl p-4 border text-center"
+                    className="rounded-cortex-md p-4 border text-center"
                     style={{ backgroundColor: `${stat.color}10`, borderColor: `${stat.color}25` }}
                   >
                     <stat.icon className="size-4 mx-auto mb-2" style={{ color: stat.color }} />
                     <div className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</div>
-                    <div className="text-[10px] text-gray-500 mt-1 leading-tight">{stat.label}</div>
+                    <div className="text-[10px] text-cortex-muted mt-1 leading-tight">{stat.label}</div>
                   </div>
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-white/4 rounded-xl border border-white/8">
-                  <div className="text-xs text-gray-400 mb-1">View Rate (sent → viewed)</div>
+                <div className="p-4 bg-white/4 rounded-cortex-md border border-white/8">
+                  <div className="text-xs text-cortex-muted mb-1">View Rate (sent → viewed)</div>
                   <div className="flex items-end gap-2">
                     <span className="text-2xl font-bold" style={{ color: analytics.proposalStats.viewRate >= 60 ? GREEN : ORANGE }}>
                       {analytics.proposalStats.viewRate}%
                     </span>
-                    <span className="text-xs text-gray-500 mb-0.5">of sent proposals viewed</span>
+                    <span className="text-xs text-cortex-muted mb-0.5">of sent proposals viewed</span>
                   </div>
-                  <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="mt-2 h-1.5 bg-cortex-control-hover rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${analytics.proposalStats.viewRate}%` }}
@@ -496,15 +496,15 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                     />
                   </div>
                 </div>
-                <div className="p-4 bg-white/4 rounded-xl border border-white/8">
-                  <div className="text-xs text-gray-400 mb-1">Close Rate (sent → accepted)</div>
+                <div className="p-4 bg-white/4 rounded-cortex-md border border-white/8">
+                  <div className="text-xs text-cortex-muted mb-1">Close Rate (sent → accepted)</div>
                   <div className="flex items-end gap-2">
                     <span className="text-2xl font-bold" style={{ color: analytics.proposalStats.conversionRate >= 30 ? GREEN : analytics.proposalStats.conversionRate >= 15 ? ORANGE : RED }}>
                       {analytics.proposalStats.conversionRate}%
                     </span>
-                    <span className="text-xs text-gray-500 mb-0.5">of sent proposals closed</span>
+                    <span className="text-xs text-cortex-muted mb-0.5">of sent proposals closed</span>
                   </div>
-                  <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="mt-2 h-1.5 bg-cortex-control-hover rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${analytics.proposalStats.conversionRate}%` }}
@@ -524,9 +524,9 @@ export function AnalyticsDashboard({ accessToken }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/10">
+                    <tr className="border-b border-cortex-default">
                       {['Stage', 'Count', '% of Total', 'Drop-off'].map(h => (
-                        <th key={h} className="text-left py-3 px-4 text-gray-400 font-medium">{h}</th>
+                        <th key={h} className="text-left py-3 px-4 text-cortex-muted font-medium">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -536,7 +536,7 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                       const dropoff = prev > 0 && i > 0 ? Math.round(((prev - stage.count) / prev) * 100) : null;
                       const total = analytics?.total || submissions.length || 1;
                       return (
-                        <tr key={stage.label} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                        <tr key={stage.label} className="border-b border-cortex-subtle hover:bg-white/3 transition-colors">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               <div className="size-2 rounded-full" style={{ backgroundColor: stage.color }} />
@@ -546,7 +546,7 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                           <td className="py-3 px-4 text-white font-bold">{stage.count}</td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-white/10 rounded-full max-w-24">
+                              <div className="flex-1 h-1.5 bg-cortex-control-hover rounded-full max-w-24">
                                 <div
                                   className="h-full rounded-full transition-all"
                                   style={{
@@ -555,16 +555,16 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                                   }}
                                 />
                               </div>
-                              <span className="text-gray-400 text-xs">{Math.round((stage.count / total) * 100)}%</span>
+                              <span className="text-cortex-muted text-xs">{Math.round((stage.count / total) * 100)}%</span>
                             </div>
                           </td>
                           <td className="py-3 px-4">
                             {dropoff !== null ? (
-                              <span className={`text-xs font-medium ${dropoff > 30 ? 'text-[#FD4438]' : dropoff > 10 ? 'text-[#FB923C]' : 'text-[#10B981]'}`}>
+                              <span className={`text-xs font-medium ${dropoff > 30 ? 'text-cortex-danger' : dropoff > 10 ? 'text-cortex-warning' : 'text-cortex-success'}`}>
                                 {dropoff > 0 ? `−${dropoff}%` : 'No drop'}
                               </span>
                             ) : (
-                              <span className="text-gray-600 text-xs">—</span>
+                              <span className="text-cortex-faint text-xs">—</span>
                             )}
                           </td>
                         </tr>
@@ -599,9 +599,9 @@ function SectionCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className={`bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 ${className}`}
+      className={`bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-6 ${className}`}
     >
-      <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+      <h2 className="text-sm font-semibold text-cortex-muted uppercase tracking-wider mb-5 flex items-center gap-2">
         <Icon className="size-4" />
         {title}
       </h2>
@@ -616,14 +616,14 @@ function KPICard({ kpi, delay }: { kpi: ReturnType<typeof buildKPIs>[0]; delay: 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors"
+      className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-5 hover:border-cortex-strong transition-colors"
     >
       <div className="flex items-center justify-between mb-3">
-        <div className="size-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
+        <div className="size-9 rounded-cortex-md flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
           <kpi.icon className="size-4" style={{ color: kpi.color }} />
         </div>
         {kpi.trend !== 'neutral' && (
-          <div className={`flex items-center gap-1 text-xs font-medium ${kpi.trend === 'up' ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+          <div className={`flex items-center gap-1 text-xs font-medium ${kpi.trend === 'up' ? 'text-cortex-success' : 'text-cortex-danger'}`}>
             {kpi.trend === 'up' ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
           </div>
         )}
@@ -631,9 +631,9 @@ function KPICard({ kpi, delay }: { kpi: ReturnType<typeof buildKPIs>[0]; delay: 
       <div className="text-2xl font-bold text-white mb-1" style={{ color: kpi.color }}>
         {kpi.value}
       </div>
-      <div className="text-xs text-gray-400 mb-1">{kpi.label}</div>
+      <div className="text-xs text-cortex-muted mb-1">{kpi.label}</div>
       {kpi.detail && (
-        <div className="text-[10px] text-gray-600 truncate">{kpi.detail}</div>
+        <div className="text-[10px] text-cortex-faint truncate">{kpi.detail}</div>
       )}
     </motion.div>
   );
@@ -649,17 +649,17 @@ function PipelineStage({
   return (
     <div className="text-center">
       <div
-        className="rounded-xl p-4 mb-3 border"
+        className="rounded-cortex-md p-4 mb-3 border"
         style={{ backgroundColor: `${stage.color}15`, borderColor: `${stage.color}30` }}
       >
         <div className="text-3xl font-bold mb-1" style={{ color: stage.color }}>
           {stage.count}
         </div>
-        <div className="text-xs text-gray-400">{stage.label}</div>
+        <div className="text-xs text-cortex-muted">{stage.label}</div>
       </div>
       {index < total - 1 && (
         <div className="hidden md:flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10">
-          <div className="text-gray-600">→</div>
+          <div className="text-cortex-faint">→</div>
         </div>
       )}
     </div>
@@ -677,7 +677,7 @@ function ScoreBar({
         <span className="text-sm font-medium text-white">{label}</span>
         <span className="text-lg font-bold" style={{ color }}>{value}%</span>
       </div>
-      <div className="h-2 bg-white/10 rounded-full mb-2 overflow-hidden">
+      <div className="h-2 bg-cortex-control-hover rounded-full mb-2 overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
@@ -686,14 +686,14 @@ function ScoreBar({
           style={{ backgroundColor: color }}
         />
       </div>
-      <p className="text-xs text-gray-500">{description}</p>
+      <p className="text-xs text-cortex-muted">{description}</p>
     </div>
   );
 }
 
 function EmptyChart({ message }: { message: string }) {
   return (
-    <div className="flex items-center justify-center h-40 text-gray-600">
+    <div className="flex items-center justify-center h-40 text-cortex-faint">
       <div className="text-center">
         <BarChart3 className="size-10 mx-auto mb-2 opacity-30" />
         <p className="text-sm">{message}</p>
@@ -705,8 +705,8 @@ function EmptyChart({ message }: { message: string }) {
 function DarkTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0A0A0F] border border-white/20 rounded-xl px-4 py-3 shadow-2xl">
-      {label && <p className="text-xs text-gray-400 mb-1">{label}</p>}
+    <div className="bg-cortex-canvas border border-cortex-strong rounded-cortex-md px-4 py-3 shadow-2xl">
+      {label && <p className="text-xs text-cortex-muted mb-1">{label}</p>}
       {payload.map((p: any, i: number) => (
         <p key={i} className="text-sm font-bold" style={{ color: p.color || p.fill || '#fff' }}>
           {p.name ? `${p.name}: ` : ''}{p.value}

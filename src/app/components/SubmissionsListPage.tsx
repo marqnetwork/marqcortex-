@@ -19,7 +19,7 @@ import {
 import { EmptyState, NoResultsState } from '@/app/components/EmptyState';
 import { QuickActions, BatchActions } from '@/app/components/QuickActions';
 import { useDashboard, useScrollRestoration } from '@/app/contexts/DashboardContext';
-import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, status as statusToken } from '@/app/lib/tokens';
+import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, brand, status as statusToken } from '@/app/lib/tokens';
 
 interface SubmissionsListPageProps {
   onViewCortex: () => void;
@@ -229,7 +229,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
             <h1 className="text-3xl font-bold text-white mb-2">
               Diagnostic Submissions
             </h1>
-            <p className="text-gray-400">
+            <p className="text-cortex-muted">
               Manage and review all diagnostic submissions
             </p>
           </div>
@@ -238,7 +238,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-cortex-muted"
                 size={20}
               />
               <input
@@ -246,7 +246,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search submissions..."
-                className="w-80 h-12 pl-12 pr-4 bg-black/40 border border-white/10 rounded-lg text-white placeholder:text-gray-400 focus:border-[#8B5CF6] focus:outline-none transition-colors"
+                className="w-80 h-12 pl-12 pr-4 bg-cortex-raised border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-accent focus:outline-none transition-colors"
                 ref={searchInputRef}
               />
             </div>
@@ -254,7 +254,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
             <div className="relative">
               <button
                 onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className="h-12 px-5 bg-black/40 border border-white/10 rounded-lg text-white flex items-center gap-2 hover:border-[#8B5CF6] transition-colors"
+                className="h-12 px-5 bg-cortex-raised border border-cortex-default rounded-cortex-sm text-white flex items-center gap-2 hover:border-cortex-accent transition-colors"
               >
                 <Filter size={18} />
                 {selectedFilter}
@@ -262,7 +262,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
               </button>
 
               {showFilterMenu && (
-                <div className="absolute top-14 right-0 w-56 bg-black/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl p-2 z-50">
+                <div className="absolute top-14 right-0 w-56 bg-black/95 backdrop-blur-xl border border-cortex-default rounded-cortex-sm shadow-2xl p-2 z-50">
                   {filterOptions.map((option) => (
                     <button
                       key={option}
@@ -270,10 +270,10 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                         setActiveFilter(option);
                         setShowFilterMenu(false);
                       }}
-                      className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                      className={`w-full text-left px-4 py-2 rounded-cortex-sm transition-colors ${
                         selectedFilter === option
-                          ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
-                          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                          ? 'bg-cortex-accent/20 text-cortex-accent'
+                          : 'text-cortex-muted hover:bg-cortex-control hover:text-white'
                       }`}
                     >
                       {option}
@@ -290,22 +290,22 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
           <StatCard
             label="Total Submissions"
             value={submissions.length}
-            color="#8B5CF6"
+            color={brand.accent}
           />
           <StatCard
             label="New"
             value={submissions.filter((s) => s.status === 'new').length}
-            color="#3B82F6"
+            color={brand.accentAlt}
           />
           <StatCard
             label="In Review"
             value={submissions.filter((s) => s.status === 'in-review').length}
-            color="#FB923C"
+            color={statusToken.warning}
           />
           <StatCard
             label="Completed"
             value={submissions.filter((s) => s.status === 'completed').length}
-            color="#06D7F6"
+            color={statusToken.info}
           />
         </div>
       </div>
@@ -349,7 +349,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                 key={submission.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-black/40 border border-white/10 rounded-xl p-6 hover:border-[#8B5CF6]/50 transition-all"
+                className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6 hover:border-cortex-accent/50 transition-all"
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -375,7 +375,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                       {submission.status.replace('-', ' ').toUpperCase()}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <div className="flex items-center gap-2 text-sm text-cortex-muted">
                     <Calendar size={16} />
                     {submission.submittedDate}
                   </div>
@@ -386,7 +386,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                   {submission.company}
                 </h3>
 
-                <div className="flex items-center gap-6 mb-4 text-sm text-gray-400">
+                <div className="flex items-center gap-6 mb-4 text-sm text-cortex-muted">
                   <div className="flex items-center gap-2">
                     <Mail size={16} />
                     {submission.email}
@@ -398,34 +398,34 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-6 pt-4 border-t border-white/10 mb-4">
+                <div className="grid grid-cols-4 gap-6 pt-4 border-t border-cortex-default mb-4">
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">Employees</p>
+                    <p className="text-xs text-cortex-muted mb-1">Employees</p>
                     <p className="text-sm font-bold text-white">{submission.employees}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">Revenue</p>
+                    <p className="text-xs text-cortex-muted mb-1">Revenue</p>
                     <p className="text-sm font-bold text-white">{submission.revenue}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">Completion</p>
+                    <p className="text-xs text-cortex-muted mb-1">Completion</p>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-[#8B5CF6]">
+                      <p className="text-sm font-bold text-cortex-accent">
                         {submission.completionScore}%
                       </p>
-                      <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-cortex-control rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full"
+                          className="h-full bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-full"
                           style={{ width: `${submission.completionScore}%` }}
                         />
                       </div>
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">Action</p>
+                    <p className="text-xs text-cortex-muted mb-1">Action</p>
                     <button
                       onClick={onViewCortex}
-                      className="text-sm font-bold text-[#06D7F6] hover:text-[#3B82F6] transition-colors"
+                      className="text-sm font-bold text-cortex-info hover:text-cortex-accent-alt transition-colors"
                     >
                       View Details →
                     </button>
@@ -462,8 +462,8 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="bg-black/40 border border-white/10 rounded-xl p-4">
-      <p className="text-sm text-gray-400 mb-2">{label}</p>
+    <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-4">
+      <p className="text-sm text-cortex-muted mb-2">{label}</p>
       <p className="text-3xl font-bold" style={{ color }}>
         {value}
       </p>
