@@ -17,16 +17,19 @@ import {
 } from 'lucide-react';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
-  getDemoTeamMembers, getDemoTeamFallback,
+  getDemoTeamMembers,
   type TeamMemberRecord,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
+// means showing a roster of people who are not in the workspace.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 import { useApp } from '@/app/contexts/AppContext';
 import {
   TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
   TEAM_ROLE_LABELS, type TeamRole,
 } from '@/app/lib/teamRole';
-import { EmptyState, LoadingState } from '@/app/components/ui/cortex';
+import { EmptyState, LoadingState, ErrorState } from '@/app/components/ui/cortex';
+import { brand, status } from '@/app/lib/tokens';
 import { asArray } from '@/app/lib/payload';
 
 interface Props {
@@ -107,13 +110,15 @@ export function TeamManagement({ accessToken }: Props) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load team members:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load team members');
-      } else {
-        // Fall back to demo data
-        const demoMembers: TeamMemberRecord[] = getDemoTeamFallback();
-        setMembers(demoMembers);
-      }
+      // A FAILED LOAD IS NOT A ROSTER.
+      //
+      // This used to substitute `getDemoTeamFallback()` whenever
+      // `SHOW_API_ERRORS` was off — the default — so a failed request showed
+      // the team a list of colleagues who are not in their workspace, with
+      // roles they do not hold, beside controls offering to re-role and remove
+      // them. Every one of those actions would have failed against ids the
+      // server has never seen.
+      setError(err.message || 'The team list could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -212,13 +217,20 @@ export function TeamManagement({ accessToken }: Props) {
         </div>
       </div>
 
-      {/* ── Stats ── */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* ── Stats ──
+          Counted from the roster, so they are shown only when there IS a
+          roster. A failed load left "Total Members 0 · Active 0 · Admins 0"
+          on screen above the error — four confident zeros about a list the
+          panel had not managed to read. The grid is responsive for the same
+          reason the role cards are: four fixed columns are unreadable on a
+          phone. */}
+      {!error && !isLoading && (
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: Users,        label: 'Total Members', value: stats.total,   color: '#8B5CF6' },
-          { icon: CheckCircle2, label: 'Active',         value: stats.active,  color: '#10B981' },
-          { icon: Crown,        label: 'Admins',         value: stats.admins,  color: '#FB923C' },
-          { icon: Eye,          label: 'Viewers',        value: stats.viewers, color: '#06D7F6' },
+          { icon: Users,        label: 'Total Members', value: stats.total,   color: brand.accent    },
+          { icon: CheckCircle2, label: 'Active',         value: stats.active,  color: status.success  },
+          { icon: Crown,        label: 'Admins',         value: stats.admins,  color: status.warning  },
+          { icon: Eye,          label: 'Viewers',        value: stats.viewers, color: status.info     },
         ].map(s => (
           <div key={s.label} className="bg-black/40 border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
@@ -229,17 +241,24 @@ export function TeamManagement({ accessToken }: Props) {
           </div>
         ))}
       </div>
-
-      {/* ── Error / loading ── */}
-      {error && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-[#FD4438] text-sm">
-          <AlertTriangle className="size-4 flex-shrink-0" />
-          {error}
-          <button onClick={load} className="ml-auto underline text-xs">Retry</button>
-        </div>
       )}
 
-      {/* ── Team list ── */}
+      {/* ── Error ──
+          The shared state, so a failure here announces itself through
+          `role="alert"` rather than being red text that appears silently. */}
+      {error && (
+        <ErrorState
+          title="The team list could not be loaded"
+          detail={error}
+          onRetry={load}
+        />
+      )}
+
+      {/* ── Team list ──
+          Hidden while the load is failing: an EMPTY state below an error reads
+          as "there is nobody here", which is precisely the thing the panel does
+          not know. The error carries the retry; the list returns with it. */}
+      {!error && (
       <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="font-bold text-white">Team Members</h2>
@@ -281,6 +300,8 @@ export function TeamManagement({ accessToken }: Props) {
           </div>
         )}
       </div>
+
+      )}
 
       {/* ── Role reference ── */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">

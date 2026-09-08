@@ -28,7 +28,11 @@ import {
 } from 'lucide-react';
 import { getAnalytics, getSubmissions, type Submission } from '@/app/services/dataService';
 import { EngagementIntelligence } from '@/app/components/EngagementIntelligence';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
+// meant drawing charts from seeded records.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
+import { ErrorState } from '@/app/components/ui/cortex';
 
 // ============================================================================
 // COLOURS
@@ -122,23 +126,33 @@ export function AnalyticsDashboard({ accessToken }: Props) {
         getAnalytics(accessToken),
         getSubmissions(accessToken),
       ]);
+      if (!analyticsRes.analytics) throw new Error('Analytics were not returned.');
       setAnalytics(analyticsRes.analytics);
-      setSubmissions(submissionsRes.submissions || []);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setSubmissions(asArray<Submission>(submissionsRes.submissions));
       setLastUpdated(new Date());
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Analytics load error:', err);
       }
       
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load analytics');
-      }
-      
-      // Fall back to demo data
-      const demoSubmissions: Submission[] = generateDemoSubmissions();
-      setSubmissions(demoSubmissions);
-      setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
-      setLastUpdated(new Date());
+      // A FAILED LOAD IS NOT ANALYTICS.
+      //
+      // This was the worst-behaved of the fallbacks in this family: the
+      // substitution sat OUTSIDE the `shouldShowApiErrors()` branch, so with
+      // errors enabled the panel rendered the error banner AND a full set of
+      // charts computed from `generateDemoSubmissions()` directly beneath it —
+      // conversion rates, industry breakdowns, weekly trends — every one of
+      // them derived from seeded records, and none of them distinguishable from
+      // the real thing once drawn. With errors disabled, which is the default,
+      // there was not even the banner.
+      //
+      // The panel reports the failure and renders no chart. An analytics screen
+      // that cannot load its data has nothing to say, and saying nothing is the
+      // honest answer.
+      setError(err.message || 'Analytics could not be loaded.');
+      setSubmissions([]);
+      setAnalytics(null);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -246,14 +260,21 @@ export function AnalyticsDashboard({ accessToken }: Props) {
       )}
 
       {/* ── Overview tab ─────────────────────────────────────── */}
-      {activeTab === 'overview' && (
-        <span className="contents">
-          {error && (
-            <div className="p-3 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-sm text-[#FD4438]">
-              ⚠️ {error} — showing computed data from submissions.
-            </div>
-          )}
+      {/* The failure REPLACES the charts rather than sitting above them. The
+          banner it replaces read "showing computed data from submissions",
+          which was true of demo records the panel had just generated — a
+          caption that made fabricated charts sound like a fallback
+          calculation. */}
+      {activeTab === 'overview' && error && (
+        <ErrorState
+          title="Analytics could not be loaded"
+          detail={error}
+          onRetry={() => load()}
+        />
+      )}
 
+      {activeTab === 'overview' && !error && (
+        <span className="contents">
           {/* ── KPI Banner ───────────────────────────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {kpis.map((kpi, i) => (

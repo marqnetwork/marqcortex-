@@ -22,7 +22,9 @@ import {
   BarChart3, Target,
 } from 'lucide-react';
 import { getEngagementAnalytics, type EngagementAnalytics } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
+// means showing invented engagement numbers instead of none.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 
 // ── Colours ────────────────────────────────────────────────────────────────
 
@@ -183,6 +185,8 @@ export function EngagementIntelligence({ accessToken }: Props) {
       }
 
       const res = await getEngagementAnalytics(accessToken);
+      // A response without the analytics is a failure, not a blank panel.
+      if (!res.engagement) throw new Error('Engagement data was not returned.');
       setData(res.engagement);
       setLastUpdated(new Date());
     } catch (err: any) {
@@ -190,36 +194,19 @@ export function EngagementIntelligence({ accessToken }: Props) {
         console.error('❌ Engagement analytics error:', err);
       }
       
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load engagement data');
-      } else {
-        // Fall back to demo data
-        const demoData: EngagementAnalytics = {
-          reportDelivery: {
-            reportAvailable: 15,
-            totalViewed: 12,
-            totalCTAClicked: 8,
-            totalPDFSaved: 5,
-            totalViews: 34,
-            avgViewsPerViewed: 2.8,
-            viewRate: 80,
-            ctaRate: 67,
-            pdfRate: 42,
-          },
-          notes: {
-            total: 47,
-            submissionsWithNotes: 10,
-            byType: { note: 20, action: 15, flag: 7, insight: 5 },
-            topCommented: [
-              { id: 'demo_1', company: 'Demo Company 1', count: 8 },
-            ],
-          },
-          topEngagedLeads: [],
-          recentActivity: [],
-        };
-        setData(demoData);
-        setLastUpdated(new Date());
-      }
+      // A FAILED LOAD IS NOT A MEASUREMENT.
+      //
+      // This used to substitute a hand-written `EngagementAnalytics` — fifteen
+      // reports available, twelve viewed, eight CTA clicks, an 80% view rate —
+      // whenever `SHOW_API_ERRORS` was off, which is the default. Those are not
+      // placeholder shapes; they are numbers, rendered in the same cards as the
+      // real ones, on a panel whose entire purpose is telling the team how
+      // clients are engaging. A team reading them would have drawn conclusions
+      // about outreach that nothing in their pipeline supported.
+      //
+      // The panel reports the failure instead. There is no number here worth
+      // inventing.
+      setError(err.message || 'Engagement data could not be loaded.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
