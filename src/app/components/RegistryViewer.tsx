@@ -369,6 +369,7 @@ function RegistryTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) 
         <input
           value={query}
           onChange={e => { setQuery(e.target.value); setVisible(PAGE_SIZE); }}
+          aria-label="Search the registry by name, id or description"
           placeholder="Search by name, ID, or description…"
           style={{
             flex: 1, minWidth: 200,
@@ -441,6 +442,10 @@ function FilterSelect({
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
+      // The component was already given a `label` — it used it only inside the
+      // "All …s" option text and never as the control's own name, so each
+      // filter was announced as an unnamed combo box.
+      aria-label={`Filter by ${label.toLowerCase()}`}
       style={{
         background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: 6, padding: '8px 10px',
@@ -1303,9 +1308,15 @@ export function RegistryViewer() {
               background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 14,
-            }}>⬡</div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#F9FAFB' }}>MARQ Cortex</span>
-            <span style={{ fontSize: 12, color: '#4B5563' }}>/ System Registry</span>
+            }} aria-hidden="true">⬡</div>
+            {/* The page's title, and now a real heading — this route had no
+                `h1` at all, so a screen reader landing on it was told nothing
+                about where it had landed. `h1` carries the styling the two
+                spans had, so nothing moves. */}
+            <h1 style={{ fontSize: 16, fontWeight: 700, color: '#F9FAFB', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+              MARQ Cortex
+              <span style={{ fontSize: 12, fontWeight: 400, color: '#4B5563' }}>/ System Registry</span>
+            </h1>
           </div>
           <div style={{ fontSize: 12, color: '#4B5563' }}>
             {totalNodes} verified nodes · v{manifest.version} · Last verified {manifest.lastVerified}

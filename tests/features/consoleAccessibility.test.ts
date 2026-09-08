@@ -199,3 +199,30 @@ describe('the execution dashboard has a document outline', () => {
     assert.match(execution, /className="text-sm font-bold text-white">\{title\}/);
   });
 });
+
+describe('the system tools were swept too', () => {
+  /**
+   * `/registry` is a developer tool rather than a canonical journey, which is
+   * why it was swept last — but it had the same two faults as everything else,
+   * and leaving them would have meant the standing claim ("every route reports
+   * zero unnamed controls") was not actually true of every route.
+   */
+  const registry = read('src/app/components/RegistryViewer.tsx');
+
+  it('names the search box', () => {
+    assert.match(registry, /aria-label="Search the registry by name, id or description"/);
+  });
+
+  it('uses the label the filter select was already given', () => {
+    // `FilterSelect` received a `label` prop and used it only inside the
+    // "All …s" option text, never as the control's own name, so each filter
+    // was announced as an unnamed combo box.
+    assert.match(registry, /aria-label=\{`Filter by \$\{label\.toLowerCase\(\)\}`\}/);
+  });
+
+  it('gives the route an h1', () => {
+    // The route had no heading at all: a screen reader landing on it was told
+    // nothing about where it had landed.
+    assert.match(registry, /<h1 style=\{\{ fontSize: 16, fontWeight: 700, color: '#F9FAFB', margin: 0/);
+  });
+});
