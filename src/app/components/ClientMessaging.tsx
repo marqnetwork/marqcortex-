@@ -17,7 +17,10 @@ import {
   getClientMessages, postClientMessage, trackEngagement,
   getDemoMessages, type Message, type ClientAuthContext,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: on the client-facing
+// thread, hiding a failure means showing an empty conversation instead.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
 
 const MAX_CHARS = 1000;
 
@@ -73,7 +76,8 @@ export function ClientMessaging({ submissionId, clientName, companyName, clientA
       }
 
       const res = await getClientMessages(submissionId, clientAuth);
-      const incoming = res.messages ?? [];
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      const incoming = asArray<Message>(res.messages);
 
       // Detect new team replies since last load
       const teamCount = incoming.filter(m => m.author === 'team').length;
@@ -89,12 +93,21 @@ export function ClientMessaging({ submissionId, clientName, companyName, clientA
       if (isVerboseLogging() && !silent) {
         console.error('Failed to load messages:', err);
       }
-      if (!silent && !shouldShowApiErrors()) {
-        const demoMessages: Message[] = [];
-        setMessages(demoMessages);
-        setError(null);
-      } else if (!silent) {
-        setError(err.message);
+      // A FAILED LOAD IS NOT AN EMPTY CONVERSATION.
+      //
+      // This used to clear the thread and clear the error whenever
+      // `SHOW_API_ERRORS` was off — the default — so a client whose request
+      // failed saw an empty message list with nothing to explain it, and could
+      // reasonably conclude the team had never replied to them. On the
+      // customer-facing portal that is a worse outcome than an error banner,
+      // not a gentler one.
+      //
+      // A SILENT POLL still says nothing: it runs every few seconds behind a
+      // thread the client is already reading, and replacing that with an error
+      // because one poll failed would be its own defect. Only a load the client
+      // asked for reports.
+      if (!silent) {
+        setError(err.message || 'Your messages could not be loaded.');
       }
     } finally {
       setIsLoading(false);

@@ -29,7 +29,12 @@ import { ClientMessaging } from '@/app/components/ClientMessaging';
 import { ProposalViewer } from '@/app/components/ProposalViewer';
 import { StageTracker } from '@/app/components/StageTracker';
 import { EngagementActivityFeed } from '@/app/components/EngagementActivityFeed';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here. It selects between
+// reporting a failure and silently substituting demo data, and on the
+// customer-facing portal there is no version of that substitution which is
+// acceptable — see the catch in `loadSubmission`.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { ErrorState } from '@/app/components/ui/cortex';
 import { SkeletonClientPortal } from '@/app/components/Skeletons';
 import { ClientQAReview } from '@/app/components/ClientQAReview';
 import { ClientReportDashboard } from '@/app/components/ClientReportDashboard';
@@ -180,7 +185,14 @@ export default function ClientPortal({
       }
 
       const result = await getClientSubmission(submissionId, clientAuth);
-      if (result.submission) {
+      // A response without a submission is a FAILURE, not an empty portal. The
+      // `if (result.submission)` guard used to let it fall through silently,
+      // leaving the previous render — or nothing at all — on screen with no
+      // indication that the load had not worked.
+      if (!result.submission) {
+        throw new Error('Your submission could not be found.');
+      }
+      {
         setSubmission(result.submission);
 
         // Try AI-powered report first, fall back to deterministic
@@ -204,19 +216,29 @@ export default function ClientPortal({
         console.error('❌ Failed to load client submission:', err);
       }
       
-      // Only show error if feature flag is enabled
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load your submission data.');
-      } else {
-        // Silently fall back to demo data
-        if (isVerboseLogging()) {
-          console.log('📦 Falling back to demo data after error');
-        }
-        const demoSubmission = getDemoClientSubmission({ submissionId, companyName, clientEmail });
-        setSubmission(demoSubmission);
-        setReportData(generateClientReport(demoSubmission));
-        setIsAIPowered(false);
-      }
+      // A CLIENT IS NEVER SHOWN A REPORT THAT IS NOT THEIRS.
+      //
+      // This used to fall back to `getDemoClientSubmission({ submissionId,
+      // companyName, clientEmail })` whenever `SHOW_API_ERRORS` was off — which
+      // is the default. That helper takes the client's real company name and
+      // email as overrides and fills EVERYTHING ELSE from a seeded profile: the
+      // contact, the industry, the employee count, the revenue band, the
+      // completion, quality and AI scores, the ROI figure, and the diagnostic
+      // answers themselves. `generateClientReport` then derives the readiness
+      // report and its prioritised recommendations from those seeded answers.
+      //
+      // So on any transient failure — an expired session, a cold edge function,
+      // a network blip — a paying client opened their portal and read a
+      // readiness score, a set of findings and a list of recommendations that
+      // were never derived from their diagnostic, presented under their own
+      // company name, with nothing on the page to say so. That is not a
+      // degraded experience; it is a fabricated one, on the customer-facing
+      // surface, and no error-display setting makes it acceptable.
+      //
+      // The portal now says the report could not be loaded and offers the
+      // retry. Demo data belongs to demo mode, which is handled above and
+      // returns before this point can be reached.
+      setError(err.message || 'Your report could not be loaded.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -229,20 +251,24 @@ export default function ClientPortal({
     return <SkeletonClientPortal />;
   }
 
-  // Error state
+  // Error state.
+  //
+  // `!submission` is deliberate: a background poll that fails while the client
+  // is reading their real report must not replace it with an error page. A
+  // first load that fails has nothing to keep, and shows this.
   if (error && !submission) {
     return (
-      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center px-6">
-        <div className="text-center max-w-md">
-          <AlertTriangle className="size-16 text-[#FD4438] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Unable to Load Report</h2>
-          <p className="text-gray-400 mb-6">{error}</p>
-          <button
-            onClick={() => loadSubmission()}
-            className="px-6 py-3 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-xl font-medium transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-cortex-canvas flex items-center justify-center px-6">
+        <div className="w-full max-w-md">
+          {/* The shared error state, so the portal fails the way the rest of
+              the product does — and, unlike the hand-built panel it replaces,
+              announces itself through `role="alert"` rather than appearing as
+              silent red text. */}
+          <ErrorState
+            title="Your report could not be loaded"
+            detail={error ?? undefined}
+            onRetry={() => loadSubmission()}
+          />
         </div>
       </div>
     );
@@ -256,6 +282,16 @@ export default function ClientPortal({
 
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
+      {/* The portal header carries eight section tabs. Without this a keyboard
+          user walked all eight, on every view, before reaching the content —
+          and there was no `<main>` landmark to jump to either. */}
+      <a
+        href="#portal-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:px-4 focus:py-2 focus:rounded-cortex-md focus:bg-cortex-accent focus:text-white focus:font-semibold"
+      >
+        Skip to your report
+      </a>
+
       {/* ================================================================== */}
       {/* DARK MARQ CORTEX HEADER — sticky, unified design */}
       {/* ================================================================== */}
@@ -339,6 +375,7 @@ export default function ClientPortal({
       {/* ================================================================== */}
       {/* CONTENT */}
       {/* ================================================================== */}
+      <main id="portal-main" tabIndex={-1} aria-label="Your engagement">
       <AnimatePresence mode="wait">
         {activeView === 'status' && (
           <motion.div
@@ -543,6 +580,7 @@ export default function ClientPortal({
           </motion.div>
         )}
       </AnimatePresence>
+      </main>
     </div>
   );
 }
