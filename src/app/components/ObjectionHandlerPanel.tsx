@@ -35,6 +35,7 @@ import {
   type EscalationRecord,
 } from '@/app/services/dataService';
 import { isBackendEnabled } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -509,9 +510,11 @@ export function ObjectionHandlerPanel({ draft, submissionId, accessToken }: Obje
     getEscalations(submissionId, accessToken)
       .then((res) => {
         if (cancelled) return;
-        setEscalations(res.escalations);
+        // Narrowed before it becomes state — see `@/app/lib/payload`.
+        const escalations = asArray<EscalationRecord>(res.escalations);
+        setEscalations(escalations);
         // Reflect persisted escalations in the detection-history log.
-        setHistory(res.escalations.slice(0, 10).map((e) => ({
+        setHistory(escalations.slice(0, 10).map((e) => ({
           id:        e.id,
           input:     e.inputExcerpt || `[${OBJECTION_LABELS[e.objectionType]}]`,
           detected:  { type: e.objectionType, confidence: e.confidence, at_risk: e.atRisk },

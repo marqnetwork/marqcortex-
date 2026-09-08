@@ -27,6 +27,7 @@ import {
   TEAM_ROLE_LABELS, type TeamRole,
 } from '@/app/lib/teamRole';
 import { EmptyState, LoadingState } from '@/app/components/ui/cortex';
+import { asArray } from '@/app/lib/payload';
 
 interface Props {
   accessToken?: string;
@@ -100,7 +101,8 @@ export function TeamManagement({ accessToken }: Props) {
       }
 
       const res = await getTeamMembers(accessToken);
-      setMembers(res.members);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setMembers(asArray<TeamMemberRecord>(res.members));
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load team members:', err);

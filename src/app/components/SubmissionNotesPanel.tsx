@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { getNotes, addNote, deleteNote, type Note } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
 
 // ── Types & config ─────────────────────────────────────────────────────────
 
@@ -131,7 +132,8 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
     else setIsRefreshing(true);
     try {
       const res = await getNotes(submissionId, accessToken);
-      setNotes(res.notes);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setNotes(asArray(res.notes));
     } catch (err) {
       console.error('SubmissionNotesPanel fetch error:', err);
     } finally {

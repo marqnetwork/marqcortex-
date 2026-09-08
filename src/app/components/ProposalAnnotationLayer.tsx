@@ -24,6 +24,7 @@ import {
   type ProposalAnnotation,
 } from '@/app/services/dataService';
 import { generateAnnotatedProposalHTML } from '@/app/utils/proposalExport';
+import { asArray } from '@/app/lib/payload';
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 
@@ -279,7 +280,8 @@ export function AnnotationProvider({
     setIsLoading(true);
     try {
       const res = await getProposalAnnotations(submissionId);
-      setAnnotations(res.annotations);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setAnnotations(asArray(res.annotations));
     } catch (err) {
       console.error('Load annotations error:', err);
     } finally {

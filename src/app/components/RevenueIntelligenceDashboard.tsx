@@ -52,6 +52,7 @@ import {
 import type { ObjectionType } from '@/app/types/cortex-types';
 import * as dataService from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // COLOURS
@@ -812,7 +813,8 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
         if (cancelled) return;
         // Live snapshots are authoritative — apply them even when empty rather
         // than falling back to MOCK_SNAPSHOTS, which would fabricate revenue.
-        setSnapshots(res.snapshots);
+        // Narrowed before it becomes state — see `@/app/lib/payload`.
+        setSnapshots(asArray(res.snapshots));
         setLoadState('ready');
       } catch (err) {
         if (cancelled) return;

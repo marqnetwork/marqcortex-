@@ -35,6 +35,7 @@ import {
   type EngagementEvent, type EngagementEventType, type ClientAuthContext,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
 
 // ── Event config ──────────────────────────────────────────────────────────────
 
@@ -143,9 +144,14 @@ export function EngagementActivityFeed({ submissionId, refreshTick = 0, clientAu
     try {
       if (isBackendEnabled()) {
         const res = await getEngagementLog(submissionId, clientAuth);
-        setEvents(res.events);
+        // Narrowed before it becomes state: `getEngagementLog` asserts the
+        // response shape rather than checking it, so a 200 without `events`
+        // used to put `undefined` into a state variable this component then
+        // maps over. See `@/app/lib/payload`.
+        const events = asArray<EngagementEvent>(res.events);
+        setEvents(events);
         // Flash "LIVE" if new events arrived during a silent poll
-        if (silent && res.events.length > prevCountRef.current) {
+        if (silent && events.length > prevCountRef.current) {
           setLiveFlash(true);
           setTimeout(() => setLiveFlash(false), 2000);
         }
