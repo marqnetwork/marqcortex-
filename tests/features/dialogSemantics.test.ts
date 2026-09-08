@@ -122,6 +122,53 @@ describe('the shell overlays keep their own focus handling and gain the declarat
   }
 });
 
+describe('the annotations drawer is a dialog by declaration, not only by behaviour', () => {
+  const panel = stripComments(read('src/app/components/ProposalAnnotationLayer.tsx'));
+
+  it('takes the four behaviours from the shared hook', () => {
+    // It keeps its own shape — a right-hand slide-in rather than a centred
+    // Modal — which is the case `useDialogBehavior` exists for. Before this it
+    // had no role, no aria-modal, no focus moved in or restored and no Escape,
+    // so Tab walked out of it into the proposal it was covering.
+    assert.match(panel, /useDialogBehavior\(\{ open, onClose, labelledBy: titleId \}\)/);
+    assert.match(panel, /\{\.\.\.dialogProps\}/);
+  });
+
+  it('is named by its own heading', () => {
+    // `labelledBy` points at a real heading, so the drawer is announced as
+    // "Annotations" rather than as "dialog".
+    assert.match(panel, /<h2 id=\{titleId\}[^>]*>Annotations<\/h2>/);
+  });
+
+  it('names its close control', () => {
+    assert.match(panel, /aria-label="Close annotations"/);
+  });
+
+  it('keeps the scrim decorative', () => {
+    // The scrim dismisses on click but must not be announced: it is not a
+    // control, and the drawer above it already offers a named close.
+    assert.match(panel, /className="fixed inset-0 z-40"[\s\S]{0,200}aria-hidden="true"/);
+  });
+});
+
+describe('the highlighter palette stays out of the status vocabulary', () => {
+  const panel = stripComments(read('src/app/components/ProposalAnnotationLayer.tsx'));
+
+  it('declares all six highlight tints together', () => {
+    // These are tints chosen so text under a highlight stays readable; they
+    // carry no good/bad meaning. Pointing some of them at status tokens would
+    // make a highlight colour change when the product's danger colour did.
+    const block = panel.match(/export const ANNOT_COLORS[\s\S]*?\n\];/);
+    assert.ok(block, 'expected the highlighter palette');
+    const entries = block[0].match(/hex: '#[0-9A-Fa-f]{6}'/g) ?? [];
+    assert.equal(entries.length, 6, 'every highlight tint is declared in this one list');
+    assert.ok(
+      !/hex: (?:status|brand)\./.test(block[0]),
+      'a highlight tint must not be a status colour',
+    );
+  });
+});
+
 describe('Escape is not suppressed for being inside a text field', () => {
   const hook = stripComments(read('src/app/hooks/useKeyboardShortcuts.tsx'));
 
