@@ -116,8 +116,11 @@ describe('every priority action is reachable without hover', () => {
   });
 
   it('the CTA is visible before it is hovered', () => {
+    // The accent is now said as the token rather than as its hex, so this
+    // pins the two OPACITIES — which is what the guarantee always was: a
+    // resting state that can be seen, and a hover that brightens it.
     assert.ok(
-      /group-hover:bg-\[#8B5CF6\]\/25/.test(code) && /bg-\[#8B5CF6\]\/10/.test(code),
+      /group-hover:bg-cortex-accent\/25/.test(code) && /bg-cortex-accent\/10/.test(code),
       'the CTA should brighten on hover, not appear on it',
     );
   });
