@@ -30,7 +30,7 @@ import {
 // values are written back to the server on Save there is no version of that
 // substitution which is safe. A failed load is reported, always.
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
-import { LoadingState, ErrorState } from '@/app/components/ui/cortex';
+import { LoadingState, ErrorState, Field } from '@/app/components/ui/cortex';
 import { normalizeTeamRole, TEAM_ROLE_LABELS, TEAM_ROLE_DESCRIPTIONS } from '@/app/lib/teamRole';
 import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
 import { OrganizationProviderCredentialsPanel } from '@/app/components/OrganizationProviderCredentialsPanel';
@@ -344,23 +344,37 @@ function ProfileTab({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Display Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
-            />
+            {/* `Field` owns the label/control association. Both of these were
+                `<label>` elements with no `htmlFor`, wrapping nothing — styled
+                paragraphs beside unnamed inputs, so a screen reader announced
+                "edit text, blank" and clicking the label focused nothing. */}
+            <Field label="Display Name">
+              {field => (
+                <input
+                  {...field}
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
+                />
+              )}
+            </Field>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Email Address</label>
-            <input
-              type="email"
-              value={user.email}
-              disabled
-              className="w-full px-4 py-3 bg-white/3 border border-white/6 rounded-xl text-white/40 text-sm cursor-not-allowed"
-            />
-            <p className="text-xs text-white/30 mt-1.5">Email is managed through Supabase Auth and cannot be changed here.</p>
+            <Field
+              label="Email Address"
+              hint="Email is managed through Supabase Auth and cannot be changed here."
+            >
+              {field => (
+                <input
+                  {...field}
+                  type="email"
+                  value={user.email}
+                  disabled
+                  className="w-full px-4 py-3 bg-white/3 border border-white/6 rounded-xl text-white/40 text-sm cursor-not-allowed"
+                />
+              )}
+            </Field>
           </div>
 
           <SaveBtn

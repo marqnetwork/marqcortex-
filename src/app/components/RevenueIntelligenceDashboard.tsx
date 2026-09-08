@@ -19,7 +19,7 @@
  * Architecture note: production → pre-computed aggregate table (spec §3).
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useId } from 'react';
 import {
   ComposedChart, BarChart, Bar, Line, LineChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -140,10 +140,15 @@ function FilterPill({
   displayMap?: Record<string, string>;
 }) {
   const isActive = value !== 'all';
+  // The label was a `<span>` beside the `<select>`, so all five filters were
+  // announced as unnamed combo boxes — a screen-reader user could hear the
+  // options but not which dimension they filtered. `useId` ties the two
+  // together, and the visible text is now a real `<label>`.
+  const selectId = useId();
   return (
     <div className="relative">
       <div className="flex items-center gap-1.5 text-[9px]">
-        <span className="text-gray-700 uppercase tracking-wide font-bold whitespace-nowrap">{label}</span>
+        <label htmlFor={selectId} className="text-gray-700 uppercase tracking-wide font-bold whitespace-nowrap">{label}</label>
         <div
           className="flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer"
           style={{
@@ -152,6 +157,7 @@ function FilterPill({
           }}
         >
           <select
+            id={selectId}
             value={value}
             onChange={e => onChange(e.target.value)}
             className="bg-transparent text-[9px] font-bold outline-none cursor-pointer pr-4"

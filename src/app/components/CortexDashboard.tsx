@@ -491,9 +491,10 @@ function LeadOverviewView({
               <button
                 onClick={() => loadLeads(true)}
                 disabled={isRefreshing}
+                aria-label="Refresh the lead list"
                 className="p-2 hover:bg-white/5 rounded-lg transition-colors text-gray-400"
               >
-                <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
               </button>
 
               {/* Analyze All Unanalyzed */}
@@ -582,9 +583,13 @@ function LeadOverviewView({
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Search bar */}
         <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-500" aria-hidden="true" />
+          {/* A placeholder is not an accessible name — it is absent from the
+              accessibility tree in some browsers and gone the moment the user
+              types. This search box was announced as "edit text, blank". */}
           <input
             type="text"
+            aria-label="Search leads by company, email or industry"
             placeholder="Search leads by company, email, industry…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}

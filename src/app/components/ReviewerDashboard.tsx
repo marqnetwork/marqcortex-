@@ -174,9 +174,14 @@ export function ReviewerDashboard() {
             {/* Filters & Search */}
             <div className="flex items-center gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
+                {/* A placeholder is not a name: it is absent from the
+                    accessibility tree in some browsers and disappears the
+                    moment the user types. The search box was announced as
+                    "edit text, blank". */}
                 <input
                   type="text"
+                  aria-label="Search submissions by company name"
                   placeholder="Search by company name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

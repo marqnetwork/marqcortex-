@@ -193,9 +193,10 @@ export function TeamManagement({ accessToken }: Props) {
           <button
             onClick={load}
             disabled={isLoading}
+            aria-label="Refresh the team list"
             className="p-2.5 bg-black/40 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:border-white/20 transition-all"
           >
-            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
           {/* Only an admin or owner may create a member. Offering the button to
               anybody else produced a modal, a filled-in form and a 403. */}
