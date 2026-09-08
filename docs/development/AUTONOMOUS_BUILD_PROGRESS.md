@@ -839,7 +839,146 @@ both source branches; the integration changed no client file.
 
 3. **A merge decision on this branch.** Thirty-one commits, no PR opened.
 
+
 ---
 
-_Last updated: 2026-09-08, after reconciling UI Sprints 1-6 with UI Sprint 7
-onto `claude/marq-cortex-ui-continuity-q1iiy3` — the one current UI branch._
+# UI SPRINT 8 — DESIGN-TOKEN MIGRATION
+
+Branch `claude/marq-cortex-ui-continuity-q1iiy3`, continuing from the branch
+reconciliation above. **This section supersedes the NEXT EXACT TASK lists in
+every section before it.**
+
+## WHAT WAS DONE
+
+Ten coherent surfaces migrated onto the token layer, one at a time, each with
+its own browser pass before the commit. **Colour literals in `src/app` went from
+roughly 5,000 to 2,418.**
+
+| # | Surface | Was |
+|---|---|---|
+| 1 | Console home dashboard | 41 literals, own grey ramp |
+| 2 | Execution dashboard (6 tabs) | 72, two ad-hoc greys used 31 times |
+| 3 | CORTEX analysis sections (9 modules) | 315, a department map declared twice |
+| 4 | Landing page | 93, own light type ramp |
+| 5 | Diagnostic form | 90, nine industry colours |
+| 6 | Score page + client report dashboard | 130, neither imported the token layer |
+| 7 | Global AI chat (on every console page) | 74, one accent at six opacities |
+| 8 | Six console work panels | 186 |
+| 9 | Seven proposal and ROI panels | 426 |
+| 10 | Pipeline kanban | 221, the largest file in the product |
+
+## TWO ADDITIONS TO THE TOKEN LAYER
+
+Both are colours the product was **already rendering** and had simply never
+declared — which is the test suite's own stated standard for what belongs here.
+
+**`--cortex-accent-tertiary` (#EC4899).** The seven-department portfolio scale
+needs seven distinct hues and the status vocabulary can spare six. The seventh
+was an undeclared pink living inside a map that was declared twice.
+
+**The three-step scale** — `-light` and `-deep` for accent, accent-alt, success,
+danger and caution. Every surface hit the same wall: a tinted chip needs TEXT of
+its own hue and the base colour is not readable there (`#C4B5FD` on an accent
+tint is 4.33:1, under AA); a solid button needs a PRESSED state and the base
+colour does not look pressed. Sixteen files were rendering `#A78BFA` and twenty
+were rendering `#7C3AED` to do exactly these two jobs. Warning is deliberately
+absent a pair: it is the one hue nothing lightened or darkened at scale.
+
+Eleven new assertions pin what the steps are FOR — light is lighter, deep is
+darker, all steps distinct, and every light step clears 4.5:1 on the canvas.
+
+## WHAT DELIBERATELY DID NOT CONVERGE, AND WHY
+
+These are not omissions. Each is recorded with a test or a comment at the site.
+
+- **`ProposalControlPanel`'s export template.** It writes a document into a new
+  window with `document.write`, in a LIGHT theme. The console's CSS variables do
+  not exist in that window, so `var(--cortex-*)` there resolves to nothing. Its
+  styles interpolate the token VALUES instead; its own light greys stay, because
+  they are that document's vocabulary and not the console's.
+- **Two sequential ramps** — `LOSS_PALETTE` in `LearningLoopPanel` and
+  `LOOP_LOSS_PALETTE` in `PipelineKanban`. Four or five steps desaturating away
+  from the danger colour so a chart can show magnitude. Only the first step means
+  danger; the rest are distances from it.
+- **`ANNOT_COLORS`, the highlighter palette.** Six tints chosen so text stays
+  readable under a highlight. They carry no good/bad meaning, and a highlight
+  must not change colour the day the product's danger colour does. There is a
+  test asserting all six stay declared together and that none is a status colour.
+
+## THE ONE VISIBLE CHANGE
+
+The landing page's type ramp was lighter than the console's four declared text
+levels, so converging it lowered body-copy contrast. Measured in Chromium
+against the page's own background: primary 21.00:1 (was ~19.5), secondary
+9.95:1 (was ~14.9), muted 5.28:1 (was ~8.0). Every level that changed still
+clears WCAG AA. If the marketing surface is meant to keep a brighter ramp, the
+answer is to declare that ramp as tokens rather than leave it as sixteen hex
+literals — one revert away.
+
+## A DEFECT FIXED ALONG THE WAY
+
+**The annotations drawer was a dialog that never said so.** A client reading
+their proposal opens Notes and a panel slides in over the document; it had no
+`role`, no `aria-modal`, no focus moved in or restored, no Escape, and an
+unnamed close button. Tab walked straight out of it into the proposal it was
+covering. It now takes the four behaviours from `useDialogBehavior` — it keeps
+its own slide-in shape, which is the case that hook exists for — and is verified
+in the browser: announced as "Annotations", focus moves in, does not escape
+across 25 Tab presses, Escape closes it, focus returns to the Notes button.
+
+## WHY THIS WENT SURFACE BY SURFACE AND NOT AS A SWEEP
+
+Four collisions that a tree-wide search-and-replace would have shipped:
+
+- `EmailNurturePanel` has a function whose own parameter is `status`, so
+  `status.neutral` inside it resolved to the string `"skipped"`.
+- `SubmissionsListPage` imports the token module under an alias, so
+  `status.warning` there was `window.status`.
+- `LearningLoopPanel` and `PipelineKanban` have the same shadow. In the kanban
+  the palette is therefore read once at module scope, where no parameter can
+  shadow it — in a component whose parameter is a plain `string` rather than a
+  union, the mistake would have compiled cleanly and rendered `undefined` as a
+  colour.
+- `ProposalControlPanel`'s export template, above, would have been given CSS
+  variables that do not exist in the window it writes to.
+
+The compiler caught two of the four. The other two needed a person to look.
+
+## VERIFICATION
+
+`typecheck:web` **14** — unchanged throughout, and still exactly the deferred
+ClientPortal auth cluster (ClientPortal x8, ClientMessaging x3, ProposalViewer
+x2, EngagementActivityFeed x1), untouched by design.
+
+features **1205**, AI **2183**, security **859**, system **170**, migration
+**210**, boundaries **107** — all passing. Production build succeeds.
+
+Browser smoke, 25 checks, all passing: the four public funnel routes and the
+eleven console destinations each render with zero unresolved token classes, no
+horizontal overflow and one `h1`; a deep link survives a refresh; the drawer
+opens and closes on Escape at 390px; all eight client-portal tabs are styled;
+and no page errors anywhere.
+
+## NEXT EXACT TASK
+
+1. **Continue the token migration.** About 2,400 literals remain, and the two
+   additions above unblock nearly all of them. The next largest are
+   `RegistryViewer` (185 — an internal tool, so low user impact),
+   `ContractDraftViewer` (68 — check for an export template like the control
+   panel's before touching it), `MonteCarloPanel`, `ROIExecutiveDashboard` and
+   the notification and toast components.
+
+2. **Decide the marketing type ramp**, per "the one visible change" above.
+   Either accept the console ramp on the funnel, or declare the brighter ramp
+   as tokens. It is a product decision, not an engineering one.
+
+3. **`text-cortex-neutral` is 4.30:1 on the funnel canvas** — AA-large, under AA
+   for body text. That is the contrast `#70707C` already had; it is not a
+   regression, but it is now a named colour and therefore fixable in one place.
+
+4. **A merge decision on this branch.** Forty-four commits, no PR opened.
+
+---
+
+_Last updated: 2026-09-08, after UI Sprint 8 — ten surfaces migrated onto the
+token layer, two additions to it, and one dialog that was never declared._
