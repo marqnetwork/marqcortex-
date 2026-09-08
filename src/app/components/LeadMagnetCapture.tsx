@@ -94,7 +94,10 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
+    // `<main>` rather than a bare `<div>`: this is a whole route, and it was
+    // the only one in the funnel with no main landmark for a screen reader to
+    // jump to.
+    <main className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -150,16 +153,17 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
           <div className="space-y-5">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-name" className="block text-sm font-medium text-white/80 mb-2">
                 Full Name *
               </label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  id="lead-name"
                   placeholder="John Smith"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
                 />
@@ -168,16 +172,17 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-email" className="block text-sm font-medium text-white/80 mb-2">
                 Email Address *
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  id="lead-email"
                   placeholder="john@company.com"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
                 />
@@ -186,15 +191,16 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-phone" className="block text-sm font-medium text-white/80 mb-2">
                 Phone Number
               </label>
               <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  id="lead-phone"
                   placeholder="+1 (555) 123-4567"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
                 />
@@ -203,15 +209,16 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
 
             {/* Website */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-website" className="block text-sm font-medium text-white/80 mb-2">
                 Company Website
               </label>
               <div className="relative">
-                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="url"
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  id="lead-website"
                   placeholder="https://company.com"
                   className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
                 />
@@ -270,7 +277,7 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
           </div>
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 }
 
@@ -280,7 +287,7 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
 
 function DownloadingScreen({ countdown, name }: { countdown: number; name: string }) {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
+    <main className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -353,7 +360,7 @@ function DownloadingScreen({ countdown, name }: { countdown: number; name: strin
           </div>
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 }
 

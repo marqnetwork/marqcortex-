@@ -164,7 +164,19 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.2 AUTHORITY STRIP ───────────────────────────────────────── */}
-      <section className="py-10 sm:py-14 px-4 sm:px-8 border-y border-[#1a1a1a] bg-[#050508]">
+      {/* `overflow-x-clip` on every band, and on the seven below it.
+          Several sections enter with `initial={{ x: -20 }}`, which places the
+          element 20px outside the viewport until its `whileInView` fires. With
+          nothing clipping that, the DOCUMENT grew horizontally: at 390px the
+          page scrolled 394px wide, so a phone could swipe the whole layout
+          sideways off its own left edge. The hero and the closing CTA already
+          clipped; these did not.
+
+          `overflow-x-clip` rather than `overflow-x-hidden` because `hidden`
+          creates a scroll container, which would break `position: sticky`
+          inside these bands and steal the scroll anchoring. `clip` cuts the
+          overflow without either side effect. */}
+      <section className="py-10 sm:py-14 px-4 sm:px-8 border-y border-[#1a1a1a] bg-[#050508] overflow-x-clip">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-8">
             {[
@@ -195,7 +207,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.3 PROBLEM SECTION ───────────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -251,7 +263,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.4 OPERATIONAL SYMPTOMS GRID ─────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508] overflow-x-clip">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {[
@@ -326,7 +338,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.5 POSITIONING SECTION ───────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -428,7 +440,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.6 DIAGNOSTIC INTRODUCTION ───────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508] overflow-x-clip">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -484,7 +496,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.7 HOW IT WORKS ──────────────────────────────────────────── */}
-      <section ref={howItWorksRef} className="py-20 sm:py-28 px-4 sm:px-8">
+      <section ref={howItWorksRef} className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -565,7 +577,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.8 WHO THIS IS FOR ───────────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508] overflow-x-clip">
         <div className="max-w-5xl mx-auto">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -648,7 +660,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.9 COMPLIANCE & TRUST ────────────────────────────────────── */}
-      <section className="py-16 sm:py-20 px-4 sm:px-8">
+      <section className="py-16 sm:py-20 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
           <div className="p-8 sm:p-10 bg-gradient-to-br from-[#111115] to-[#0A0A0E] border border-[#242424] rounded-2xl">
             <div className="flex items-center gap-3 mb-8">
