@@ -32,9 +32,8 @@ import {
   Building2,
 } from 'lucide-react';
 import { useEscapeKey, formatShortcut, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { DESTINATIONS, NAV_GROUPS } from '@/app/core/navigationModel';
 import type { Submission } from '@/app/services/dataService';
-import { NAV_MODEL } from '@/app/core/orientation';
-import { navIconFor } from '@/app/lib/navIcons';
 
 // ============================================================================
 // TYPES
@@ -394,17 +393,6 @@ function CommandGroup({
 /**
  * Hook to manage command palette state
  */
-/**
- * The four navigation shortcuts the shell binds. Declared here so the palette
- * shows exactly the accelerators that exist, rather than inventing one per page.
- */
-const NAV_SHORTCUTS: Readonly<Record<string, string | undefined>> = {
-  dashboard: `${isMac() ? '⌘' : 'Ctrl'} 1`,
-  cortex: `${isMac() ? '⌘' : 'Ctrl'} 2`,
-  team: `${isMac() ? '⌘' : 'Ctrl'} 3`,
-  settings: `${isMac() ? '⌘' : 'Ctrl'} 4`,
-};
-
 export function useCommandPaletteCommands({
   onNavigate,
   onToggleSidebar,
@@ -422,22 +410,27 @@ export function useCommandPaletteCommands({
 }): Command[] {
   return useMemo(
     () => [
-      // ── Navigation ──────────────────────────────────────────────────────
-      // Generated from `NAV_MODEL`, so every page the shell can render is
-      // reachable by name. This list used to be four hand-written entries —
-      // dashboard, CORTEX, team, settings — which left seven pages, Execution
-      // and the review queue among them, unreachable from the palette at all.
-      // The four keyboard shortcuts stay attached to the pages they always
-      // named; the rest simply become findable.
-      ...NAV_MODEL.map(entry => ({
-        id: `nav-${entry.id}`,
-        label: `Go to ${entry.label}`,
-        description: entry.description,
-        icon: navIconFor(entry.id),
-        action: () => onNavigate(entry.id),
-        category: 'navigation' as const,
-        keywords: [entry.label, entry.group, ...entry.description.toLowerCase().split(/\s+/)],
-        shortcut: NAV_SHORTCUTS[entry.id],
+      // Navigation — Ch. 21.4: the palette is a second path to the SAME
+      // destinations, so it is generated from the navigation model rather than
+      // restated here. It previously listed four of the eleven destinations the
+      // sidebar offered, which left seven pages findable only by knowing where
+      // they were — two navigation surfaces describing two different products.
+      // The group label rides along as a keyword so searching an intent
+      // ("operate", "deliver") finds everything filed under it.
+      ...DESTINATIONS.map((destination): Command => ({
+        id: `nav-${destination.id}`,
+        label: `Go to ${destination.label}`,
+        description: destination.description,
+        icon: destination.icon,
+        action: () => onNavigate(destination.id),
+        category: 'navigation',
+        keywords: [
+          ...destination.keywords,
+          NAV_GROUPS.find(g => g.id === destination.group)?.label.toLowerCase() ?? '',
+        ].filter(Boolean),
+        shortcut: destination.shortcutDigit
+          ? `${isMac() ? '⌘' : 'Ctrl'} ${destination.shortcutDigit}`
+          : undefined,
       })),
 
       // Actions

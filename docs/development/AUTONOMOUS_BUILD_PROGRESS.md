@@ -15,7 +15,13 @@ Companion authorities, unchanged by this file:
 
 ## CURRENT ROADMAP STAGE
 
-**UI Sprint 7 — Onboarding and Design-Token Convergence. Both halves delivered.**
+**PRODUCT/UI IMPLEMENTATION — UI Sprints 1-7, reconciled onto one branch.**
+
+The documented AI-01 batch sequence ends at 4F and 4F is merged (PR #45,
+`04bdfba`). There is no Batch 5. The buildable stage is the product/UI surface,
+against `MARQ_CORTEX_PRODUCT_EXPERIENCE.md` — tracked in
+`docs/development/UI_IMPLEMENTATION_MAP.md`, which is the audit of the shipped
+UI against canon plus the sprint sequence.
 
 Phase 6 — AI Platform: AI-01 Batch 4 complete through 4F. **Merged to `main`**
 (PR #45), together with every backend unit from the previous session.
@@ -27,16 +33,40 @@ sections the blueprint makes buildable.
 
 ## CURRENT BATCH
 
-None in flight. **Nineteen commits** on `claude/marq-cortex-ui-sprint-7-11jp3g`,
-all pushed, all unmerged. UI Sprint 7's two halves are delivered, and the sprint
-continued through every canonical journey and every remaining route.
+None in flight.
+
+### THE ONE CURRENT UI DEVELOPMENT BRANCH
+
+> **`claude/marq-cortex-ui-continuity-q1iiy3`** — and no other.
+>
+> UI Sprints 1-6 and UI Sprint 7 were built on two branches that were both cut
+> from `main` and never from each other. Neither contained the other's work.
+> They are now integrated on the branch above, which is the only branch UI work
+> continues on. The two source branches are preserved, unmodified, as history:
+>
+> | Branch | Cut from | Commits | Status |
+> |---|---|---|---|
+> | `claude/marq-cortex-product-complete-5d8hyz` | `04bdfba` (`main`) | 10 | superseded — integrated, kept for provenance |
+> | `claude/marq-cortex-ui-sprint-7-11jp3g` | `04bdfba` (`main`) | 20 | superseded — integrated, kept for provenance |
+>
+> See **BRANCH CONTINUITY** below for the ancestry evidence and what the
+> integration had to reconcile.
+
+UI Sprints 1-7 are delivered. Sprints 1-6 made the product reachable — one
+navigation model, the AI Control Plane and Operations as first-class
+destinations, a responsive shell, honest empty states and URL-addressable
+destinations. Sprint 7 made it legible — one visual vocabulary, an onboarding
+the console derives rather than stores, and an accessibility sweep of every
+route.
 
 **The whole application has now been driven in a browser.** Every route — the
-four public funnel routes, the eight client-portal tabs, the nine console pages,
-the CORTEX overview and lead detail, the architecture and registry tools, and
-the 404 — reports zero unnamed buttons and zero unlabelled inputs, and each has
+four public funnel routes, the eight client-portal tabs, the console pages, the
+CORTEX overview and lead detail, the architecture and registry tools, and the
+404 — reports zero unnamed buttons and zero unlabelled inputs, and each has
 exactly one `h1`. Every `fixed inset-0` overlay in `src/app/components` either
 declares itself a dialog or says what it is instead.
+
+## COMPLETED — PRIOR SESSION (Batch 4F, merged as PR #45)
 
 ## COMPLETED THIS SESSION — UI SPRINT 7
 
@@ -186,7 +216,7 @@ that opens the acquisition journey, and every answer control in the fourteen
 question diagnostic, where the question sat in a heading the control was not
 connected to.
 
-## COMMITS CREATED
+## COMMITS — PRIOR SESSION
 
 On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
 
@@ -210,7 +240,7 @@ On `claude/marq-cortex-ui-sprint-7-11jp3g`, from `04bdfba`:
 18. `fix(a11y): the client's only way to reach the team was an unnamed box`
 19. `fix(a11y): finish the sweep — every route in the app is clean`
 
-## TEST RESULTS
+## TEST RESULTS — PRIOR SESSION
 
 Every suite run at the end of the session. No test was weakened, skipped or
 deleted, and no backend suite regressed — this sprint touched the browser bundle
@@ -414,5 +444,365 @@ to PARTIAL.
 
 ---
 
-_Last updated: 2026-09-08, at the end of UI Sprint 7 — nineteen commits,
-1,008 feature tests, and every route in the application driven in a browser._
+_Prior-session record above. This session's record follows._
+
+---
+
+# THIS SESSION — FRONTEND DEBT + UI SPRINTS 1-6
+
+Branch `claude/marq-cortex-product-complete-5d8hyz`, from `04bdfba`.
+
+## THE GOVERNING FINDING
+
+Cortex had built far more product than it had made reachable. AI-01 Batches
+1-4F delivered a ten-tab AI Control Plane — providers, routing, agents,
+workflows, budget, usage, audit, diagnostics — and the whole of it was reachable
+only at Settings -> AI -> a sub-tab. G5 delivered `/health/enterprise` and
+`/kpis` with no UI consumer at all. To a user of the running product, the
+platform's central governance and operational surfaces were invisible.
+
+Both are now first-class destinations.
+
+## FRONTEND DEBT — CLOSED TO THE DEFERRED LINE
+
+`typecheck:web` went 34 -> 14. All 20 non-cluster errors are fixed. Every
+remaining error is the deferred ClientPortal auth cluster (ClientPortal x8,
+ClientMessaging x3, ProposalViewer x2, EngagementActivityFeed x1), untouched.
+
+None of these were stale annotations. Reading a field the canonical type does
+not declare yields `undefined`, and `undefined` compares equal to nothing, so
+each was a live defect:
+
+- **Every proposal snapshot froze ZERO blocks.** `snapshotEngine` filtered
+  BlockLinks on `linked_entity_*`; schema §5 names them `entity_type`/
+  `entity_id`. The immutable record captured at "sent" held none of the
+  proposal's content. It also read approval off the Block (schema §4 keeps it on
+  the revision) and froze `block.label` (the Block declares `title`).
+- **Every workstream card showed no milestones and no gates.**
+  `ExecutionDashboard` filtered milestones on a `workstream_id` a Milestone does
+  not declare; the ExecutionTask is the only edge.
+- **Every rich-text block edit destroyed the block.** `EditableBlockCard` passed
+  `handleSave` to `RichTextEditor`, which yields raw TEXT where handleSave
+  forwards its first argument as the whole CONTENT record — so `{text: '...'}`
+  became a bare string and the block rendered "Empty" thereafter.
+- **The diagnostic milestone modal never rendered.** `ProgressModal` gates its
+  whole body on `isOpen`, which its only caller never passed.
+- **Every AI assist in the Cortex dashboard got an empty company size and empty
+  reasoning.** The toolbar read `lead.employeeEstimate` (Lead declares
+  `companySize`) and `core_problem.why_first` (it lives on
+  `strategic_decision`).
+- **Approve was dead for every in-review submission.** `QuickActions` declared a
+  private vocabulary ('reviewing', 'sent') where canon is
+  new|in-review|completed|approved.
+- **A mapped execution rendered "vundefined".** `mappingEngine` omitted
+  `execution_version`.
+- **Demo settings rendered no notification preferences.** Both `SettingsPage`
+  fixtures described a different settings product than the server serves.
+- Plus: a leaked `setInterval` (`useState` where `useEffect` was meant), a
+  dropped tooltip (`title` on a lucide `<svg>`), three mock service ids that
+  exist in no canon, and an unreachable `select` branch contradicting
+  `QuestionDef`.
+
+## UI SPRINTS
+
+**Sprint 1 — one navigation model.** Four navigation surfaces described four
+different products: the sidebar had eleven destinations, the command palette
+four, the accelerator table four hand-listed, and the shortcuts help sheet four
+more that were already stale. Ch. 21.4 forbids exactly this. `navigationModel.ts`
+now describes every destination once, grouped by intent (Work, Understand,
+Deliver, Operate, Administer, Platform); all four surfaces derive from it. The
+AI Control Plane is promoted to a first-class destination — the SAME component
+Settings mounts, per Ch. 21.4's "many paths, one canonical entity". Also fixed:
+the collapsed 80px rail rendered bare unlabelled icons.
+
+**Sprint 2 — operational awareness.** `operationalAwarenessService.ts` +
+`OperationsPanel.tsx` consume the G5 reads. The server modules' disciplines are
+restated and asserted at the renderer, which is where they would be lost:
+`unknown` never reads as healthy (own word, own colour, sorts above healthy); a
+dimension nothing measures says so; `value: null` renders "Not measured", never
+0; no target, threshold, grade or score anywhere; and no demo fallback, because
+a fabricated green is worse than a blank page.
+
+**Sprint 3 — the priority inbox.** Its primary action was `opacity-0` until
+`:hover` — unreachable on any touch device and invisible to keyboard focus. The
+row is now the control. And the header counted the TRUNCATED list, so a team
+with twenty items needing attention was told "6 items need attention" with
+critical items past the cap neither shown nor counted.
+
+**Sprint 4 — the shell at every width.** The shell had NO breakpoint of any
+kind: a fixed 280px sidebar beside the content left 95px on a 375px phone.
+Below 1024px the same `<nav>` is now an overlay drawer (Ch. 21.10 — one model,
+only the interaction changes). A closed drawer animates `visibility`, not only
+position, so it leaves the tab order.
+
+**Sprint 5 — empty states.** The defect was conflation, not absence: four
+panels rendered one filter-blaming message for both "nothing exists yet" and
+"nothing matches your filters". A reviewer opening an empty queue, having set
+no filter, was told their filters were the problem. Now two components;
+`NoResultsState` says how many exist behind the filter and offers to clear it.
+
+**Sprint 6 — addressable destinations.** Ch. 21.11. All eleven pages lived in
+`useState` under one URL: nothing linkable, bookmarkable or restorable, Back
+left the shell, and `/team/execution` handed back through a `sessionStorage`
+key declared as a literal in two files. Destinations are now
+`?page=<id>`. AND the auth gate was discarding the URL anyway — session restore
+runs in an effect, so on the first render both team guards read a null token,
+redirected to login and dropped the location; login bounced back to a bare
+path. Every cold load landed on the dashboard regardless of where it was aimed.
+`isRestoringSession` (cleared in a `finally`, so no early return strands a
+guard) fixes that. Without it, the addressing change would have been invisible.
+
+## COMMITS — THIS SESSION
+
+1. `fix(frontend): five reads of fields the canonical types never declared`
+2. `fix(frontend): eight more contract breaks, and the frontend debt is at the deferred line`
+3. `feat(ui): one navigation model, and the AI Control Plane becomes reachable`
+4. `feat(ui): the operational awareness surface, and the disciplines it must not lose`
+5. `fix(ui): the priority inbox was unreachable by touch and under-counted the backlog`
+6. `feat(ui): the shell had no breakpoints at all — below 1024px the nav is a drawer`
+7. `docs: checkpoint after the frontend debt closure and UI sprints 1-4`
+8. `fix(ui): "nothing here yet" and "nothing matches your filters" are different states`
+9. `feat(ui): every destination gets an address, and the auth gate stops discarding it`
+
+## TEST RESULTS — THIS SESSION
+
+| Suite | Result |
+|---|---|
+| `npm run test:features` | 954 pass (was 774 at session start) |
+| `npm run test:ai` | 2,183 pass |
+| `npm run test:security` | 859 pass |
+| `npm run test:system` | 170 pass |
+| `npm run test:migration` | 210 pass |
+| `npm run verify:4f` | 167 pass |
+| `npm run verify:4c` / `:4d` | 132 / 199 pass |
+| `npm run verify:health` | 48 pass |
+| `npm run scan:boundaries` | 107 pass |
+| `npm run test:database` | 206 pass, 1 skipped without `DATABASE_URL` |
+| `npm run typecheck:web` | **14 errors — all the deferred auth cluster** (was 34) |
+| `npm run typecheck:tests` | 27 errors — unchanged baseline |
+| `npm run build` | clean |
+
+145 tests added across seven new suites. No test was weakened, skipped or
+deleted.
+
+Two existing assertions were UPDATED, not weakened, each pinning a snapshot that
+a deliberate canon-grounded change superseded: `breadcrumbContract`'s
+`default: return []` (Ch. 21.12 — every destination now says where you are; its
+eight named branches untouched), and `navigationModelContract`'s tooltip
+condition, narrowed to the desktop rail because the drawer shows real labels.
+Both suites still pass in full.
+
+`clientPortalAuthContract.test.ts` is UNCHANGED and passes, exclusion pins
+included.
+
+## VERIFIED IN A REAL BROWSER
+
+Sprints 1-4 were driven in Chromium (Playwright, the pre-installed browser)
+against the production build at 1440x900, 820x1180 and 375x812:
+
+- the aside is `static` at 1440 and `fixed` at 820 and below;
+- main content goes from 95px to the full 375px on a phone;
+- no horizontal document overflow at any width;
+- all 13 destinations and all 6 intent groups present at every width;
+- 25 Tab presses never land inside a closed drawer, and do once it is open;
+- open / tap-outside / Escape / navigate all resolve the drawer to hidden;
+- the promoted destinations load — AI Control Plane correctly reports it needs
+  the live backend rather than fabricating state; Operations renders;
+- the command palette offers 13 "Go to" entries where it offered four;
+- no page errors at any width.
+
+## DEFERRED — LIVE VERIFICATION REQUIRED
+
+Recorded, not attempted, per the session mandate:
+
+- **ClientPortal auth cluster** (14 `typecheck:web` errors). Repairing it changes
+  what the browser sends over the wire — an authentication and telemetry change,
+  not a type-only one. Needs a live-backend verification environment.
+  `clientPortalAuthContract.test.ts` must not be weakened or removed.
+- **`ClientPortalRoute`'s first-render redirect.** NEW FINDING. It has the
+  IDENTICAL defect Sprint 6 fixed on the team routes: session restore runs in an
+  effect, so on the first render the guard reads a null session, redirects to
+  `/client/login` and discards the requested URL. Fixing it changes ClientPortal
+  browser auth behaviour, so it is deferred with the rest of the cluster.
+  `destinationAddressContract.test.ts` asserts it was left alone — that
+  assertion must be inverted, not deleted, when the cluster is repaired.
+- **MCV2-S7.5** outcome shadow read validation — needs real traffic.
+- **Real production backfill execution** — needs production credentials.
+- **G1/G2** data authority and enforced tenancy cutover — deployment actions.
+- **S8.1-S8.3** deployment actions.
+- **G6** external integrations — third-party credentials.
+- **Batch 4E production rollout**, and the 4C/4D production gates.
+- **G4 — the AI Workforce runtime.** The canon defers implementation to a later
+  phase; realizing it is an architecture decision for a human. Unchanged.
+
+## BLOCKERS
+
+None for dependency-safe product/UI work. The sprint sequence in
+`docs/development/UI_IMPLEMENTATION_MAP.md` continues without any deployment.
+
+`deno` is not installed in this environment, so `typecheck:api:*` cannot run
+here. No server code was changed this session, so this is not a regression.
+
+## NEXT EXACT TASK
+
+**UI Sprint 7 — onboarding and design tokens**, per
+`docs/development/UI_IMPLEMENTATION_MAP.md`. The two remaining non-deferred rows
+in the audit:
+
+1. **No first-run experience.** Nothing orients an operator opening Cortex for
+   the first time — no tour, no "start here", no explanation of what the six
+   navigation intents are for. Ch. 9 and Ch. 21.12. Note that the navigation
+   model now makes this tractable: the intents are declared data, so a first-run
+   surface can be generated from them rather than hand-written and left to
+   drift.
+2. **Design-token inconsistency.** `src/app/utils/designTokens.ts` exists, and
+   colours are simultaneously hard-coded inline across components (`#8B5CF6`,
+   `#06D7F6`, `#0A0A0F` and friends appear as literals in dozens of files).
+   Audit which literals correspond to declared tokens, and converge — starting
+   with the shell and the components added this session, which should be
+   exemplary before anything older is touched.
+
+After that the audit's non-deferred rows are exhausted; re-audit the UI against
+the Product Experience for the next sprint set, or take the merge decision on
+this branch.
+
+
+
+---
+
+# BRANCH CONTINUITY — UI SPRINTS 1-6 + UI SPRINT 7
+
+Recorded 2026-09-08. **This section supersedes the two NEXT EXACT TASK lists
+above**, which were written independently by two branches neither of which
+could see the other.
+
+## THE FINDING
+
+A checkpoint reported UI Sprints 1-6 complete with `typecheck:web` at 14, and a
+later checkpoint reported UI Sprint 7 at 20 commits with `typecheck:web` at 32
+against a stated baseline of 34. A baseline that had returned to 34 was the
+symptom: Sprint 7 had never inherited Sprints 1-6.
+
+Git confirmed it. Both branches were cut from the same commit and neither was
+an ancestor of the other:
+
+```
+origin/main                                     04bdfbabcb74f9d332cee8b3b3c096cf7ae66a73
+origin/claude/marq-cortex-product-complete-5d8hyz   4b6244b92fa12d05d9b051e5a6fd34f449d5725b   (10 commits ahead)
+origin/claude/marq-cortex-ui-sprint-7-11jp3g        0e252de25e67481364fc2afcc25ac5ed82217a87   (20 commits ahead)
+
+merge-base(main, sprints-1-6)  = 04bdfba
+merge-base(main, sprint-7)     = 04bdfba
+merge-base(sprints-1-6, sprint-7) = 04bdfba      <- the fork point is main itself
+git merge-base --is-ancestor sprints-1-6 sprint-7  -> NO
+git merge-base --is-ancestor sprint-7 sprints-1-6  -> NO
+```
+
+Sprint 7's tree contained none of Sprints 1-6's new modules — not
+`core/navigationModel.ts`, `components/OperationsPanel.tsx`,
+`services/operationalAwarenessService.ts`, `components/EmptyState.tsx`,
+`components/RouteRestoring.tsx`, nor any of the eight contract suites that pin
+them.
+
+## WHY `typecheck:web` APPEARED TO RESET FROM 14 TO 34
+
+It did not reset. The two branches were measuring different trees, and both
+numbers were correct for the tree they were measured on. Re-measured here:
+
+| Tree | `typecheck:web` |
+|---|---|
+| `origin/main` | 34 |
+| Sprints 1-6 tip | 14 |
+| Sprint 7 tip | 32 |
+| **this integration branch** | **14** |
+
+Sprints 1-6 fixed the 20 non-cluster errors, reaching 14. Sprint 7 was cut from
+`main`, so it started from 34 — not from 14 — and its own two fixes took it to
+32. Sprint 7's "baseline 34" was accurate; it was simply the wrong baseline to
+be starting from.
+
+**No fix was lost.** The integrated tree's 14 errors are the same
+(file, message) set as Sprints 1-6's 14, and the error Sprint 7 fixed
+(`SettingsPage` / `companyName` not on `PlatformSettings`) is absent from the
+integrated tree — both branches had corrected it independently, so Sprint 7's
+two fixes were a subset of Sprints 1-6's twenty. All 14 that remain are the
+deferred ClientPortal auth cluster (ClientPortal x8, ClientMessaging x3,
+ProposalViewer x2, EngagementActivityFeed x1), untouched by design.
+
+## WHAT THE INTEGRATION HAD TO RECONCILE
+
+A true merge, `sprint-7 + sprints-1-6`, preserving both histories. Nine files
+conflicted. Three were duplicate realities rather than textual clashes — both
+branches had independently built the same thing:
+
+1. **Two navigation models.** Sprints 1-6 built `core/navigationModel.ts`
+   (13 destinations, grouped by intent, with icons, palette keywords and
+   accelerators, and `PAGE_PARAM` for URL addressing). Sprint 7 built
+   `core/orientation.ts` with a second `NAV_MODEL` of 11 entries — lacking the
+   AI Control Plane and Operations entirely, and restoring pages through a
+   `sessionStorage` key rather than the URL.
+
+   Ch. 21.4 forbids exactly this: "Navigation should never create duplicate
+   realities." `navigationModel.ts` is canonical — it is the superset, it is
+   what the contract suites pin, and it is the one that satisfies
+   URL-addressable destinations. `orientation.ts` now *projects* it: it declares
+   no navigation of its own, and gained a `tier` (`primary`/`secondary`/
+   `system`) so Sprint 7's progressive disclosure keeps working over the
+   canonical list. `TEAM_DASHBOARD_PAGE_KEY` is gone with the side channel it
+   served. `lib/navIcons.tsx` is gone too — it existed only to give the
+   duplicate model icons that the canonical one already carries.
+
+2. **Two accelerator tables.** The command palette hand-listed four shortcuts
+   and named `Ctrl 3` "Team"; the shell binds `Ctrl 3` to the AI Control Plane.
+   The palette now derives both the destinations and their accelerators from
+   the model, so the two cannot disagree again.
+
+3. **Two empty-state components.** Sprint 7's `ui/cortex` vocabulary (19 files)
+   and Sprints 1-6's `components/EmptyState.tsx`. Both survive, because they
+   are not the same thing: only the latter carries `NoResultsState`, the
+   distinction between "nothing here yet" and "nothing matches your filters".
+   `TeamManagement` uses that one, and keeps Sprint 7's role-gated invite
+   action inside it.
+
+Where the two branches genuinely disagreed on behaviour, the safer half won:
+the settings page no longer substitutes a demo fixture when a load fails,
+because that fixture rendered into live form controls that Save would have
+written back over the real configuration.
+
+## TESTS
+
+Three suites had to be re-pointed at the integrated implementation. None was
+weakened; each kept its guarantee and two gained one:
+
+- `orientation.test.ts` — the shell-page list now names all 13 destinations,
+  and the assertion stays exact in both directions.
+- `consoleAccessibility.test.ts` — one control serves both widths, so its name
+  is asserted as the three-state expression rather than as a literal.
+- `responsiveShellContract.test.ts` — the header's search control is
+  `"Search submissions"`, not `"Search"`.
+- `proposalExecutionStateContracts.test.ts` — **gained** an assertion that the
+  settings error path builds no fixture and clears the form.
+- `breadcrumbContract.test.ts` — keeps Sprint 7's stricter "no hand-written
+  label" rule *and* Sprints 1-6's "every destination says where you are".
+
+## NEXT EXACT TASK
+
+**Token migration was paused for this reconciliation and is now unblocked.**
+
+1. **Continue the design-token migration, surface by surface.** The vocabulary,
+   the Tailwind utilities, the primitives and the drift test exist; the shells,
+   the feedback states and the status vocabulary are converged. Roughly five
+   thousand literals remain. Start with surfaces a canonical journey passes
+   through. Deliberately NOT a mass search-and-replace — that is a visual
+   regression no test could catch.
+
+2. **Finish the dialog migration.** Thirteen hand-rolled overlays remain, all in
+   panels off the canonical journeys. `components/ui/cortex/Modal.tsx` exists
+   and `dialogSemantics.test.ts` shows the shape.
+
+3. **A merge decision on this branch.** Thirty-one commits, no PR opened.
+
+---
+
+_Last updated: 2026-09-08, after reconciling UI Sprints 1-6 with UI Sprint 7
+onto `claude/marq-cortex-ui-continuity-q1iiy3` — the one current UI branch._

@@ -37,8 +37,10 @@ import {
   Sparkles,
   Flag,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ClipboardCheck
 } from 'lucide-react';
+import { EmptyState, NoResultsState } from '@/app/components/EmptyState';
 import { FEATURES } from '@/config/features';
 
 interface QualityScore {
@@ -240,11 +242,25 @@ export function ReviewerDashboard() {
                 ))}
               </AnimatePresence>
 
+              {/* An empty queue and a filter that excludes everything are
+                  different situations with different next actions. This said
+                  "No submissions match your filters" for both, so a reviewer
+                  opening an empty queue was sent to fix filters they had never
+                  set. */}
               {filteredSubmissions.length === 0 && (
-                <div className="text-center py-16 text-white/40">
-                  <Filter className="size-12 mx-auto mb-4 opacity-30" />
-                  <p>No submissions match your filters</p>
-                </div>
+                submissions.length === 0 ? (
+                  <EmptyState
+                    icon={ClipboardCheck}
+                    title="No submissions to review"
+                    body="Completed diagnostics arrive here for quality review. Nothing is waiting."
+                  />
+                ) : (
+                  <NoResultsState
+                    noun="submissions"
+                    totalCount={submissions.length}
+                    onClear={() => { setFilter('all'); setSearchQuery(''); }}
+                  />
+                )
               )}
             </div>
           </div>

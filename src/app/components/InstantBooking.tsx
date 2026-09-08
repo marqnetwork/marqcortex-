@@ -14,7 +14,7 @@
  * EXPECTED IMPACT: Time to call 24h → 4h (-83%)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
 import { createBooking } from '@/app/services/dataService';
@@ -342,7 +342,11 @@ function PriorityBenefit({
 function CountdownTimer({ minutes }: { minutes: number }) {
   const [timeLeft, setTimeLeft] = useState(minutes * 60);
 
-  useState(() => {
+  // This was `useState`, not `useEffect`. A lazy useState initialiser runs once
+  // and its return value becomes STATE, so the returned teardown was never a
+  // cleanup and the second argument was ignored: the interval was never cleared,
+  // and it went on calling setTimeLeft after the component unmounted.
+  useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);

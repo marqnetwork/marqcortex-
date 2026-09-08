@@ -42,6 +42,7 @@ import { OrientationPanel } from '@/app/components/OrientationPanel';
 import { LoadingState, ErrorState, Surface } from '@/app/components/ui/cortex';
 import { brand, status } from '@/app/lib/tokens';
 import { canAdministerTeam } from '@/app/lib/teamRole';
+import type { DestinationId } from '@/app/core/navigationModel';
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -186,14 +187,21 @@ function buildPriorityActions(subs: Submission[]): PriorityAction[] {
       });
     }
   });
-  // Sort: critical first, then by days descending
-  return actions
-    .sort((a, b) => {
-      const uo = { critical: 0, high: 1, medium: 2 };
-      return (uo[a.urgency] - uo[b.urgency]) || (b.daysAgo - a.daysAgo);
-    })
-    .slice(0, 6);
+  // Sort: critical first, then by days descending.
+  //
+  // The whole backlog is returned, NOT the first six. The panel used to cap
+  // here and then count the capped array — so a team with twenty things needing
+  // attention was told "6 items need attention", and critical items past the
+  // cap were neither shown nor counted. The cap is a display decision and now
+  // lives at the render, where the count can still tell the truth.
+  return actions.sort((a, b) => {
+    const uo = { critical: 0, high: 1, medium: 2 };
+    return (uo[a.urgency] - uo[b.urgency]) || (b.daysAgo - a.daysAgo);
+  });
 }
+
+/** How many priority actions the inbox shows before it says "and N more". */
+const PRIORITY_VISIBLE_LIMIT = 6;
 
 interface ActivityItem {
   id: string;
@@ -363,6 +371,10 @@ export function TeamHomeDashboard({
 
   const trendData      = useMemo(() => buildTrendData(submissions), [submissions]);
   const priorityItems  = useMemo(() => buildPriorityActions(submissions), [submissions]);
+  const visiblePriorityItems = useMemo(
+    () => priorityItems.slice(0, PRIORITY_VISIBLE_LIMIT),
+    [priorityItems],
+  );
 
   // Recent Activity: live submissions in backend mode, representative feed in demo mode
   const recentActivity = useMemo<ActivityItem[]>(
@@ -688,13 +700,22 @@ export function TeamHomeDashboard({
                         <p className="text-xs text-gray-600">No urgent actions required right now</p>
                       </div>
                     ) : (
-                      priorityItems.map((item, i) => (
-                        <motion.div
+                      visiblePriorityItems.map((item, i) => (
+                        // The row itself is the control. The action used to live
+                        // on a button held at opacity-0 until :hover, which made
+                        // the primary action of every priority item unreachable
+                        // on any touch device and invisible to keyboard focus —
+                        // Ch. 21.10 asks for one model across interaction modes,
+                        // and a hover-only affordance is not one.
+                        <motion.button
                           key={item.id}
+                          type="button"
+                          onClick={() => onViewCortex(item.id)}
+                          aria-label={`${item.actionLabel}: ${item.company} — ${item.detail}`}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05 }}
-                          className="flex items-center gap-4 px-5 py-3.5 hover:bg-white/3 transition-all group"
+                          className="w-full text-left flex items-center gap-4 px-5 py-3.5 hover:bg-white/3 focus:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#8B5CF6] transition-all group"
                         >
                           {/* Urgency dot */}
                           <div className={`size-2 rounded-full flex-shrink-0 ${
@@ -723,27 +744,36 @@ export function TeamHomeDashboard({
                             <span className="text-[10px] text-gray-500">Score {item.score}</span>
                           </div>
 
-                          {/* CTA */}
-                          <button
-                            onClick={() => onViewCortex(item.id)}
-                            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/30 rounded-lg text-[11px] font-medium text-[#8B5CF6] transition-all opacity-0 group-hover:opacity-100"
+                          {/* CTA — an affordance now, not the control, so it
+                              may not be a nested button. Always visible: it
+                              brightens on hover rather than appearing. */}
+                          <span
+                            aria-hidden="true"
+                            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#8B5CF6]/10 group-hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/20 group-hover:border-[#8B5CF6]/30 rounded-lg text-[11px] font-medium text-[#8B5CF6]/70 group-hover:text-[#8B5CF6] transition-all"
                           >
                             {item.actionLabel}
                             <ArrowRight className="size-3" />
-                          </button>
-                        </motion.div>
+                          </span>
+                        </motion.button>
                       ))
                     )}
                   </div>
 
                   {/* Footer */}
-                  <div className="px-5 py-3 border-t border-white/8">
+                  <div className="px-5 py-3 border-t border-white/8 flex items-center justify-between gap-3 flex-wrap">
                     <button
                       onClick={() => onNavigate?.('cortex')}
                       className="text-xs text-[#8B5CF6] hover:text-[#a78bfa] flex items-center gap-1 transition-colors"
                     >
                       View all leads in CORTEX <ChevronRight className="size-3" />
                     </button>
+                    {/* Say what is not on screen, rather than letting the list
+                        imply the backlog ends here. */}
+                    {priorityItems.length > visiblePriorityItems.length && (
+                      <span className="text-[10px] text-gray-500">
+                        {priorityItems.length - visiblePriorityItems.length} more not shown
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -876,14 +906,18 @@ export function TeamHomeDashboard({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 p-4">
-                    {[
+                    {/* A curated shortcut set, not a second navigation — but the
+                        page ids are typed against the navigation model so a
+                        renamed or mistyped destination is a compile error rather
+                        than a tile that silently does nothing. */}
+                    {([
                       { label: 'CORTEX',        sub: 'AI pipeline',    icon: Brain,     color: PURPLE,  page: 'cortex' },
                       { label: 'Analytics',     sub: 'Charts & data',  icon: BarChart3, color: BLUE,    page: 'analytics' },
                       { label: 'Rev Intel',     sub: 'Revenue data',   icon: TrendingUp,color: GREEN,   page: 'revenue' },
                       { label: 'Reviewer QA',   sub: 'Quality review', icon: Shield,    color: CYAN,    page: 'reviewer' },
                       { label: 'Email Queue',   sub: 'Nurture flow',   icon: Mail,      color: ORANGE,  page: 'emails' },
                       { label: 'Execution',     sub: 'Live projects',  icon: ListChecks,color: PURPLE,  page: 'execution' },
-                    ].map(a => (
+                    ] satisfies { label: string; sub: string; icon: typeof Brain; color: string; page: DestinationId }[]).map(a => (
                       <button
                         key={a.label}
                         onClick={() => onNavigate?.(a.page)}

@@ -83,9 +83,15 @@ describe('the navigation model covers the shell without hiding anything', () => 
   it('covers every page the shell renders', () => {
     // The keys `TeamDashboardNew` switches on. If a page is added to the shell
     // and not to the model, it becomes unreachable from the sidebar.
+    // UI Sprint 1 made the AI Control Plane and Operations first-class
+    // destinations. They are renderable pages, so the model must name them —
+    // this list is the shell's, and the assertion below is exact in both
+    // directions precisely so a destination cannot be added to one and not
+    // the other.
     const shellPages = [
       'dashboard', 'cortex', 'team', 'settings', 'reviewer',
       'analytics', 'emails', 'revenue', 'execution', 'mapping', 'architecture',
+      'control-plane', 'operations',
     ];
     for (const page of shellPages) {
       assert.ok(navEntry(page), `${page} is renderable but not in the nav model`);

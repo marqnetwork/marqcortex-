@@ -148,7 +148,7 @@ describe('TeamDashboardNew — breadcrumbs are produced against the canonical ty
   it('names every page from the navigation model, not from a second list', () => {
     assert.match(
       code,
-      /const entry = navEntry\(currentPage\);\s*return entry \? \[\{ label: entry\.label \}\] : \[\];/,
+      /default:\s*(?:\/\/[^\n]*\n\s*)*return \[\{ label: destinationLabel\(currentPage\) \}\];/,
       'the default branch no longer derives its crumb from the navigation model',
     );
 
@@ -176,6 +176,20 @@ describe('TeamDashboardNew — breadcrumbs are produced against the canonical ty
       );
       assert.ok(entry.label.length > 0, `${entry.id} has no label to render`);
     }
+    // UI Sprint 1 changed what the UNNAMED branches do, deliberately.
+    // Ch. 21.12 (orientation is continuous) says a destination should always
+    // say where the operator is. 'dashboard' is the one page that genuinely
+    // needs no crumb — it is the root — so it now says so explicitly, and every
+    // other unnamed destination falls back to the same label the sidebar used
+    // to get there. The eight named branches above are unchanged.
+    assert.match(
+      code, /case 'dashboard':\s*return \[\]/,
+      'the dashboard is the root and carries no crumb',
+    );
+    assert.match(
+      code, /default:\s*return \[\{ label: destinationLabel\(currentPage\) \}\]/,
+      'every other destination must still say where the operator is',
+    );
   });
 
   it('the layout still receives the produced breadcrumbs', () => {

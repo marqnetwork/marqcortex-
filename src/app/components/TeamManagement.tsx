@@ -15,6 +15,7 @@ import {
   Edit2, Trash2, Loader2, AlertTriangle, RefreshCw, Copy,
   ChevronDown, Check, Eye, Crown, Star, Briefcase, LineChart,
 } from 'lucide-react';
+import { EmptyState } from '@/app/components/EmptyState';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
   getDemoTeamMembers,
@@ -28,7 +29,7 @@ import {
   TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
   TEAM_ROLE_LABELS, type TeamRole,
 } from '@/app/lib/teamRole';
-import { EmptyState, LoadingState, ErrorState, Modal } from '@/app/components/ui/cortex';
+import { LoadingState, ErrorState, Modal } from '@/app/components/ui/cortex';
 import { brand, status } from '@/app/lib/tokens';
 import { asArray } from '@/app/lib/payload';
 
@@ -272,18 +273,16 @@ export function TeamManagement({ accessToken }: Props) {
             <LoadingState label="Loading your team" rows={4} />
           </div>
         ) : members.length === 0 ? (
-          // "No team members found" stated an absence and offered nothing. A
-          // workspace with an empty roster is a workspace that has not brought
-          // its people in yet, and the one useful thing to do about it is the
-          // invite — offered here only to somebody the server would let do it.
-          <div className="py-10 px-6">
-            <EmptyState
-              icon={<Users className="size-10" />}
-              title="Nobody else is in this workspace yet"
-              description="Cortex is shared work. Invite the people who do it with you, and they will see the same pipeline you do."
-              action={mayAdminister ? { label: 'Invite a colleague', onClick: () => setShowInvite(true) } : undefined}
-            />
-          </div>
+          // "No team members found" describes a search that failed. Nobody
+          // searched: the directory is empty, which is a different statement
+          // and has a next action — the invite, offered only to somebody the
+          // server would actually let perform it.
+          <EmptyState
+            icon={Users}
+            title="No team members yet"
+            body="Team members appear here once they have been invited and have signed in for the first time."
+            action={mayAdminister ? { label: 'Invite a colleague', onClick: () => setShowInvite(true) } : undefined}
+          />
         ) : (
           <div className="divide-y divide-white/8">
             {members.map(member => (

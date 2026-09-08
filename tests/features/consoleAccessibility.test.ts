@@ -142,14 +142,18 @@ describe('the shell keeps the landmarks and states it gained', () => {
   });
 
   it('names every icon-only control in the shell', () => {
-    for (const label of [
-      'Close navigation', 'Open navigation', 'Search submissions', 'Sign out',
-    ]) {
+    for (const label of ['Open navigation', 'Search submissions', 'Sign out']) {
       assert.ok(shell.includes(`aria-label="${label}"`), `the shell is missing "${label}"`);
     }
-    // The collapse control's name changes with its state, so it is asserted
-    // as the expression rather than as a literal.
-    assert.match(shell, /aria-label=\{sidebarCollapsed \? 'Expand navigation' : 'Collapse navigation'\}/);
+    // One control serves both widths: it closes the drawer where there is a
+    // drawer, and collapses the rail where there is a rail. Its name therefore
+    // changes with its state, so it is asserted as the expression rather than
+    // as a literal — but every one of the three states must still be named.
+    assert.match(
+      shell,
+      /aria-label=\{\s*isCompact\s*\?\s*'Close navigation'\s*:\s*sidebarCollapsed \? 'Expand navigation' : 'Collapse navigation'\s*\}/,
+      'the drawer close / rail collapse control must name all three of its states',
+    );
   });
 
   it('hides decorative glyphs from assistive technology', () => {

@@ -34,6 +34,7 @@ import {
 } from '@/app/utils/emailNurtureQueue';
 import { ABTestingPanel } from '@/app/components/ABTestingPanel';
 import { Beaker } from 'lucide-react';
+import { EmptyState, NoResultsState } from '@/app/components/EmptyState';
 import { FEATURES } from '@/config/features';
 import { getEmailStatus, sendTestEmailRequest } from '@/app/services/dataService';
 import { log } from '@/app/utils/logger';
@@ -387,12 +388,23 @@ export function EmailNurturePanel() {
           </div>
         )}
 
+        {/* An empty queue and a filter that excludes everything are different
+            situations. This told an operator with an empty queue to adjust
+            filters they had never set, and never said the queue was empty. */}
         {filtered.length === 0 && (
-          <div className="text-center py-20 text-white/40">
-            <Mail className="size-12 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-semibold mb-1">No emails match your filters</p>
-            <p className="text-sm">Try adjusting the filter or search terms.</p>
-          </div>
+          queue.length === 0 ? (
+            <EmptyState
+              icon={Mail}
+              title="The nurture queue is empty"
+              body="Emails are queued as leads progress through the diagnostic. Nothing is waiting to send."
+            />
+          ) : (
+            <NoResultsState
+              noun="emails"
+              totalCount={queue.length}
+              onClear={() => { setFilter('all'); setSearch(''); }}
+            />
+          )
         )}
       </div>
 

@@ -14,12 +14,17 @@
  * first navigation to that panel, not on TeamDashboard mount.
  */
 
-import { useState, useRef, useEffect, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router';
+import { useState, useRef, lazy, Suspense } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
-import { restorablePage, navEntry, TEAM_DASHBOARD_PAGE_KEY } from '@/app/core/orientation';
+import {
+  DESTINATIONS,
+  destinationLabel,
+  PAGE_PARAM,
+  type DestinationId,
+} from '@/app/core/navigationModel';
 import { LoadingState } from '@/app/components/ui/cortex';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
@@ -33,6 +38,13 @@ const EmailNurturePanel          = lazy(() => import('@/app/components/EmailNurt
 const RevenueIntelligenceDashboard = lazy(() => import('@/app/components/RevenueIntelligenceDashboard').then(m => ({ default: m.RevenueIntelligenceDashboard })));
 const TeamHomeDashboard          = lazy(() => import('@/app/components/TeamHomeDashboard').then(m => ({ default: m.TeamHomeDashboard })));
 const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEnginePanel').then(m => ({ default: m.MappingEnginePanel })));
+// The AI Control Plane, as a first-class destination. This is the SAME console
+// the Settings "AI" tab mounts, not a copy: Ch. 21.4 wants many paths to one
+// canonical entity. It resolves the operator's role server-side and renders its
+// own unauthorized state, exactly as it does under Settings.
+const AIAdministrationConsole    = lazy(() => import('@/app/components/AIAdministrationConsole').then(m => ({ default: m.AIAdministrationConsole })));
+// Operational awareness (§IV-51 health, §IV-48 KPIs).
+const OperationsPanel            = lazy(() => import('@/app/components/OperationsPanel').then(m => ({ default: m.OperationsPanel })));
 
 /**
  * Shown while a lazily-split panel's chunk is downloading.
@@ -64,59 +76,68 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
   );
 }
 
-type PageView = 'dashboard' | 'cortex' | 'team' | 'settings' | 'reviewer' | 'analytics' | 'emails' | 'revenue' | 'execution' | 'mapping' | 'architecture';
+// The navigation model owns the destination list; this alias keeps the local
+// name while the single source of truth stays in one place (Ch. 21.4).
+type PageView = DestinationId;
+
+/**
+ * The destinations this shell renders in place. 'execution' and 'architecture'
+ * are real destinations, but handleNavigate routes them out of the shell, so
+ * they are never a currentPage here. Derived from the model so a destination
+ * added there and rendered here needs no second list to be updated.
+ */
+const ROUTED_AWAY: ReadonlySet<DestinationId> = new Set<DestinationId>([
+  'execution',
+  'architecture',
+]);
+const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
+  DESTINATIONS.map(d => d.id).filter(id => !ROUTED_AWAY.has(id)),
+);
 
 /**
  * RECOVERY FROM A REFRESH.
  *
- * This used to read the stored page and DELETE it in the same breath, which
- * made the value a one-shot handoff from the execution route and nothing else.
- * The consequence was that a browser refresh — or a reconnect, or an
- * accidental reload mid-review — always dropped the user back on the dashboard,
- * losing where they were with no warning and no way back but re-navigating.
+ * The destination named by the URL, or the dashboard.
  *
- * The page is now WRITTEN on every change and read back on mount, so the shell
- * resumes where it was. `restorablePage` accepts only page keys the navigation
- * model knows, so a stale key from an older bundle, or a value edited in the
- * browser's own storage, resolves to the dashboard instead of leaving the shell
- * rendering nothing. The record is cleared on sign-out.
+ * The shell used to keep the page in `useState`, seeded from a sessionStorage
+ * key that was read and DELETED in the same breath — so a refresh, a reconnect
+ * or an accidental reload mid-review always dropped the operator back on the
+ * dashboard, losing where they were with no warning. The URL is now the record,
+ * which restores on refresh, survives a shared link and makes Back mean what it
+ * says.
+ *
+ * An unknown value falls back rather than being trusted: the parameter is
+ * user-editable, and a hand-typed `?page=nonsense` must land somewhere real
+ * instead of on the invalid-page error screen.
  */
-function readInitialPage(): PageView {
-  try {
-    return restorablePage(sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY)) as PageView;
-  } catch {
-    // sessionStorage unavailable (private mode, blocked storage) — the shell
-    // still works, it just cannot resume.
-    return 'dashboard';
-  }
-}
-
-function rememberPage(page: PageView): void {
-  try {
-    sessionStorage.setItem(TEAM_DASHBOARD_PAGE_KEY, page);
-  } catch {
-    // Storage unavailable — resuming is a convenience, never a requirement.
-  }
-}
-
-function forgetPage(): void {
-  try {
-    sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
-  } catch {
-    // Nothing to clear if nothing could be stored.
-  }
+function pageFromParam(raw: string | null): PageView {
+  if (raw && SHELL_PAGES.has(raw as DestinationId)) return raw as PageView;
+  return 'dashboard';
 }
 
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state, setCortexState, resetState } = useDashboard();
-  const [currentPage, setCurrentPage] = useState<PageView>(readInitialPage);
 
-  // One place records the page, so every route into it — a nav click, a
-  // keyboard shortcut, the command palette, opening a submission — is
-  // resumable. Writing it in an effect rather than at each call site means a
-  // path added later cannot forget to.
-  useEffect(() => { rememberPage(currentPage); }, [currentPage]);
+  // The URL is the source of truth for which destination is showing, so Back,
+  // Forward, a refresh and a shared link all agree with the sidebar.
+  const currentPage = pageFromParam(searchParams.get(PAGE_PARAM));
+  const setCurrentPage = (page: PageView) => {
+    setSearchParams(
+      previous => {
+        const next = new URLSearchParams(previous);
+        // The dashboard is the shell's root; it needs no parameter, and
+        // carrying one would make two URLs for one place.
+        if (page === 'dashboard') next.delete(PAGE_PARAM);
+        else next.set(PAGE_PARAM, page);
+        return next;
+      },
+      // A destination change is a navigation, so it belongs in history: Back
+      // returns to where the operator came from, which is the whole point.
+      { replace: false },
+    );
+  };
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,9 +147,6 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   // Handle logout with state reset
   const handleLogout = () => {
     resetState();
-    // The next person to sign in on this browser starts at the dashboard, not
-    // wherever the previous session happened to stop.
-    forgetPage();
     onLogout();
   };
 
@@ -171,10 +189,11 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
       case 'dashboard':
         return [];
 
-      default: {
-        const entry = navEntry(currentPage);
-        return entry ? [{ label: entry.label }] : [];
-      }
+      default:
+        // Ch. 21.12 — orientation is continuous. A destination with no bespoke
+        // trail still says where the operator is, using the same label the
+        // sidebar used to get them here.
+        return [{ label: destinationLabel(currentPage) }];
     }
   };
 
@@ -290,8 +309,22 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         </Suspense>
       )}
 
-      {/* Fallback */}
-      {!['dashboard', 'cortex', 'team', 'settings', 'reviewer', 'analytics', 'emails', 'revenue', 'mapping'].includes(currentPage) && (
+      {currentPage === 'control-plane' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <AIAdministrationConsole key="control-plane-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {currentPage === 'operations' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <OperationsPanel key="operations-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {/* Fallback. Derived from the destinations this shell actually renders —
+          'execution' and 'architecture' are handled by handleNavigate, which
+          leaves the shell entirely, so they never become currentPage. */}
+      {!SHELL_PAGES.has(currentPage) && (
         <div className="p-6 text-center">
           <div className="text-red-500 text-xl mb-2">⚠️ ERROR</div>
           <div className="text-white">Invalid page: {currentPage}</div>

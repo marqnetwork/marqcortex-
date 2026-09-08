@@ -68,6 +68,17 @@ interface AppState {
   teamRole: TeamRole;
   loginTeam: (token: string, user?: unknown) => void;
   isSessionExpired: boolean;
+  /**
+   * True until the mount-time session restore has finished.
+   *
+   * Restore runs in an effect, so on the very first render `teamAccessToken`
+   * is null even for a signed-in operator. A route guard that redirects on
+   * that first render sends every cold load to the login screen and DISCARDS
+   * the requested URL — which is why a refresh or a shared link to any
+   * in-app destination used to land on the bare dashboard. Guards must wait
+   * for this to be false before concluding anyone is signed out.
+   */
+  isRestoringSession: boolean;
 
   // Client auth
   clientSession: ClientSession | null;
@@ -106,6 +117,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [isClientSessionExpired, setIsClientSessionExpired] = useState(false);
+  // Starts true: nothing is known about the session until the effect below runs.
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
 
   // Restore sessions on mount.
   //
@@ -114,6 +127,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // consulted: a value left behind by an older bundle has no establishable
   // origin or expiry, so it is cleared on logout rather than trusted here.
   useEffect(() => {
+    // Wrapped so that EVERY exit path — including the early returns below —
+    // clears the restoring flag. A guard waiting on it must never wait forever.
+    try {
+      restoreSessions();
+    } finally {
+      setIsRestoringSession(false);
+    }
+  }, []);
+
+  function restoreSessions() {
     const restoredTeam = parseTeamSession(localStorage.getItem(TEAM_SESSION_KEY));
     if (restoredTeam) {
       const expiry = localStorage.getItem(TEAM_SESSION_EXPIRY_KEY);
@@ -149,7 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch { /* ignore */ }
-  }, []);
+  }
 
   // Periodic session-expiry check (every 60s while app is open)
   useEffect(() => {
@@ -221,13 +244,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamRole: teamUser?.teamRole ?? DEFAULT_TEAM_ROLE,
         loginTeam,
         isSessionExpired,
+        isRestoringSession,
         clientSession, setClientSession,
         loginClient,
         isClientSessionExpired,
         logout,
       }), [
         contactInfo, scoreResult, lastIndustry, isSubmitting,
-        teamAccessToken, teamUser, loginTeam, isSessionExpired,
+        teamAccessToken, teamUser, loginTeam, isSessionExpired, isRestoringSession,
         clientSession, loginClient, isClientSessionExpired, logout,
       ])}
     >

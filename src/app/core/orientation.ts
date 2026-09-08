@@ -45,21 +45,33 @@
 import { canAdministerTeam, type TeamRole } from '../lib/teamRole.ts';
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+//
+// THIS MODULE DECLARES NO NAVIGATION OF ITS OWN.
+//
+// UI Sprint 1 established `navigationModel.ts` as the one canonical description
+// of where an operator can go, precisely because Ch. 21.4 forbids duplicate
+// realities: "Navigation should never create duplicate realities." A second
+// model here would be exactly that — and it was, briefly, describing eleven
+// destinations while the canonical model described thirteen. The two it lacked
+// were the AI Control Plane and Operations, so the orientation could not point
+// anyone at either.
+//
+// What orientation needs from navigation is a projection: an entry's label, its
+// one-line description, its group heading and its tier. All four come from the
+// canonical model, so a destination added there is picked up here for free.
 
-/**
- * How prominent an entry is on first contact.
- *
- * `primary`   — the work itself. Always visible.
- * `secondary` — the work around the work. Always visible, grouped apart.
- * `system`    — tools that describe the platform rather than the business.
- *               Collapsed until asked for. §13.1 names "exposing internal
- *               technical architecture in the interface" as an anti-pattern;
- *               deleting these would be worse, so they are grouped and folded.
- */
-export type NavTier = 'primary' | 'secondary' | 'system';
+import {
+  NAV_GROUPS,
+  DESTINATIONS,
+  isSystemGroup,
+  type Destination,
+  type NavTier,
+} from './navigationModel.ts';
+
+export type { NavTier };
 
 export interface NavEntry {
-  /** The page key `TeamDashboardNew` switches on. Unchanged from before. */
+  /** The page key the shell switches on. */
   id: string;
   /** What the business calls this, not what the codebase calls it. */
   label: string;
@@ -70,95 +82,25 @@ export interface NavEntry {
   group: string;
 }
 
+function toEntry(destination: Destination, groupLabel: string): NavEntry {
+  return {
+    id: destination.id,
+    label: destination.label,
+    description: destination.description,
+    tier: destination.tier,
+    group: groupLabel,
+  };
+}
+
 /**
- * THE navigation model.
+ * THE navigation model, projected for orientation.
  *
- * Ordering and grouping follow the shape of the work — a submission arrives, it
- * is analysed, it becomes an engagement, the engagement is measured — rather
- * than the shape of the codebase. Two labels changed, and only to stop naming
- * internals at the user: "Rev Intel" is an abbreviation of a codebase symbol,
- * and "Mapping Engine" names a module. Neither page moved, and no page's `id`
- * changed, so every existing route, shortcut and palette command still resolves.
+ * Order is the canonical model's order — the shape of the work, not the shape
+ * of the codebase.
  */
-export const NAV_MODEL: readonly NavEntry[] = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    description: 'What is happening, and what needs you today',
-    tier: 'primary',
-    group: 'Work',
-  },
-  {
-    id: 'cortex',
-    label: 'CORTEX',
-    description: 'The analysis behind every submission',
-    tier: 'primary',
-    group: 'Work',
-  },
-  {
-    id: 'execution',
-    label: 'Execution',
-    description: 'Engagements already under way',
-    tier: 'primary',
-    group: 'Work',
-  },
-  {
-    id: 'reviewer',
-    label: 'Review Queue',
-    description: 'Work waiting for sign-off',
-    tier: 'primary',
-    group: 'Work',
-  },
-  {
-    id: 'analytics',
-    label: 'Analytics',
-    description: 'How the pipeline is performing over time',
-    tier: 'secondary',
-    group: 'Insight',
-  },
-  {
-    id: 'revenue',
-    label: 'Revenue Intelligence',
-    description: 'Where revenue is coming from, and what changed',
-    tier: 'secondary',
-    group: 'Insight',
-  },
-  {
-    id: 'emails',
-    label: 'Email Queue',
-    description: 'Follow-ups scheduled and sent',
-    tier: 'secondary',
-    group: 'Insight',
-  },
-  {
-    id: 'team',
-    label: 'Team',
-    description: 'Who is in this workspace',
-    tier: 'secondary',
-    group: 'Workspace',
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    description: 'How this workspace behaves',
-    tier: 'secondary',
-    group: 'Workspace',
-  },
-  {
-    id: 'mapping',
-    label: 'Diagnostic Mapping',
-    description: 'How diagnostic answers become analysis',
-    tier: 'system',
-    group: 'System',
-  },
-  {
-    id: 'architecture',
-    label: 'System Architecture',
-    description: 'How the platform itself is put together',
-    tier: 'system',
-    group: 'System',
-  },
-];
+export const NAV_MODEL: readonly NavEntry[] = NAV_GROUPS.flatMap(group =>
+  group.destinations.map(destination => toEntry(destination, group.label)),
+);
 
 export interface NavGroup {
   label: string;
@@ -171,28 +113,14 @@ export interface NavGroup {
  * Group the model for rendering, preserving declaration order within a group
  * and first-appearance order between groups.
  */
-export function navigationGroups(model: readonly NavEntry[] = NAV_MODEL): readonly NavGroup[] {
-  const order: string[] = [];
-  const byGroup = new Map<string, NavEntry[]>();
-
-  for (const entry of model) {
-    if (!byGroup.has(entry.group)) {
-      byGroup.set(entry.group, []);
-      order.push(entry.group);
-    }
-    byGroup.get(entry.group)!.push(entry);
-  }
-
-  return order.map(label => {
-    const entries = byGroup.get(label)!;
-    return {
-      label,
-      entries,
-      // A group is folded only when every entry in it is system-tier. A group
-      // holding any real work is never hidden behind a disclosure.
-      collapsible: entries.every(entry => entry.tier === 'system'),
-    };
-  });
+export function navigationGroups(): readonly NavGroup[] {
+  return NAV_GROUPS.map(group => ({
+    label: group.label,
+    entries: group.destinations.map(destination => toEntry(destination, group.label)),
+    // A group is folded only when every entry in it is system-tier. A group
+    // holding any real work is never hidden behind a disclosure.
+    collapsible: isSystemGroup(group),
+  }));
 }
 
 /** Look up an entry by the page key the shell switches on. */
@@ -205,24 +133,21 @@ export function navigablePageIds(model: readonly NavEntry[] = NAV_MODEL): readon
   return model.map(entry => entry.id);
 }
 
-/**
- * Where the shell records the page it is showing.
- *
- * Declared here, once, and imported by both writers — the dashboard shell and
- * the execution route that hands off to it. Declaring a key name is not using
- * it: this module still performs no storage access of any kind.
- */
-export const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+// The destination is carried in the URL, not in session storage. `PAGE_PARAM`
+// in `navigationModel.ts` names the query parameter; there is no storage key
+// here to drift from it, and `TEAM_DASHBOARD_PAGE_KEY` — which named one — is
+// gone with the side channel it served.
 
 /**
- * Decide what page to restore after a refresh.
+ * Decide what page to show for a value that came from outside the application.
  *
  * The shell used to read a saved page out of session storage and DELETE it in
- * the same breath, so the value survived exactly one render and a browser
- * refresh always dropped the user back on the dashboard — mid-task, with no
- * warning. Restoration is now a decision this function makes: a stored value
- * that names a page the model knows is restored, and anything else falls back
- * to the dashboard rather than leaving the shell on a page it cannot render.
+ * the same breath, so a browser refresh always dropped the user back on the
+ * dashboard, mid-task and with no warning. The destination now lives in the
+ * URL, which restores on refresh and survives a shared link — but a URL is
+ * user-editable, so the value still has to be checked: one that names a page
+ * the model knows is used, and anything else falls back to the dashboard
+ * rather than leaving the shell on a page it cannot render.
  */
 export function restorablePage(
   stored: string | null | undefined,
@@ -232,6 +157,10 @@ export function restorablePage(
   if (typeof stored !== 'string' || !stored) return fallback;
   return navEntry(stored, model) ? stored : fallback;
 }
+
+// `DESTINATIONS` is re-exported so a consumer needing the full canonical
+// records (icons, keywords, accelerators) does not import a second model.
+export { DESTINATIONS };
 
 // ── Workspace state ───────────────────────────────────────────────────────────
 

@@ -661,7 +661,12 @@ export function ExportPanel({
               <span>{new Date(exportPayload.generated_at).toLocaleTimeString()}</span>
             </div>
           </div>
-          <Lock className="size-3.5 text-gray-700 flex-shrink-0" title="Immutable snapshot" />
+          {/* A lucide icon renders an <svg> and accepts no `title` prop, so the
+              tooltip was dropped silently. Carry it on a wrapping element, where
+              it is both a real tooltip and an accessible name. */}
+          <span title="Immutable snapshot" aria-label="Immutable snapshot" className="flex-shrink-0">
+            <Lock className="size-3.5 text-gray-700" />
+          </span>
         </div>
       )}
 

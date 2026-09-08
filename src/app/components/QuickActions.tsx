@@ -21,7 +21,14 @@ import { CheckCircle2, Edit3, Send, Zap, Clock, AlertTriangle, Sparkles } from '
 interface QuickActionsProps {
   submissionId: string;
   qualityScore: number;
-  status: 'new' | 'reviewing' | 'approved' | 'sent';
+  /**
+   * The canonical Submission status vocabulary (api.Submission.status, and the
+   * server's own counts): new | in-review | completed | approved. This prop
+   * previously declared a private vocabulary — 'reviewing' and 'sent' — that no
+   * submission ever carries, so Approve stayed disabled for every submission
+   * actually in review and the 'a' shortcut was dead on it.
+   */
+  status: 'new' | 'in-review' | 'completed' | 'approved';
   onApprove: () => void;
   onEdit: () => void;
   onSend: () => void;
@@ -49,7 +56,7 @@ export function QuickActions({
 
       switch (e.key.toLowerCase()) {
         case 'a':
-          if (status === 'new' || status === 'reviewing') {
+          if (status === 'new' || status === 'in-review') {
             onApprove();
           }
           break;
@@ -148,7 +155,7 @@ export function QuickActions({
           label="Approve"
           hotkey="A"
           onClick={onApprove}
-          disabled={status !== 'new' && status !== 'reviewing'}
+          disabled={status !== 'new' && status !== 'in-review'}
           variant="success"
           tooltip="Approve for sending"
         />
