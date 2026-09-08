@@ -77,6 +77,44 @@ import {
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 import { useDialogBehavior } from '@/app/components/ui/cortex';
+import {
+  brand,
+  status as tokenStatus,
+  text as tokenText,
+  border as tokenBorder,
+  surface as tokenSurface,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once, at module scope, from the token layer. Deliberately NOT referenced
+// as `status.x` inside the components below: several of them take a parameter
+// called `status`, and an unqualified reference there resolves to the parameter
+// rather than to the token — silently, at runtime, as a wrong colour.
+const K_ACCENT            = brand.accent;
+const K_ACCENT_LIGHT      = brand.accentLight;
+const K_ACCENT_DEEP       = brand.accentDeep;
+const K_ACCENT_ALT        = brand.accentAlt;
+const K_ACCENT_ALT_LIGHT  = brand.accentAltLight;
+const K_ACCENT_ALT_DEEP   = brand.accentAltDeep;
+const K_INFO              = tokenStatus.info;
+const K_SUCCESS           = tokenStatus.success;
+const K_SUCCESS_LIGHT     = tokenStatus.successLight;
+const K_SUCCESS_DEEP      = tokenStatus.successDeep;
+const K_WARNING           = tokenStatus.warning;
+const K_DANGER            = tokenStatus.danger;
+const K_DANGER_LIGHT      = tokenStatus.dangerLight;
+const K_DANGER_DEEP       = tokenStatus.dangerDeep;
+const K_CAUTION           = tokenStatus.caution;
+const K_CAUTION_LIGHT     = tokenStatus.cautionLight;
+const K_CAUTION_DEEP      = tokenStatus.cautionDeep;
+const K_NEUTRAL           = tokenStatus.neutral;
+const K_TEXT_MUTED        = tokenText.muted;
+const K_TEXT_FAINT        = tokenText.faint;
+const K_BORDER_STRONG     = tokenBorder.strong;
+const K_CANVAS            = tokenSurface.canvas;
+const K_OVERLAY           = tokenSurface.overlay;
+
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DRAG_TYPE        = 'KANBAN_LEAD';
@@ -101,12 +139,12 @@ export interface PipelineColumnDef {
 }
 
 export const PIPELINE_COLUMNS: PipelineColumnDef[] = [
-  { id: 'new',            label: 'New Leads',      backendStatus: 'new',           color: '#3B82F6', triggersOutcome: false, Icon: Zap        },
-  { id: 'needs-review',   label: 'Needs Review',   backendStatus: 'in-review',     color: '#8B5CF6', triggersOutcome: false, Icon: Brain      },
-  { id: 'ready-for-call', label: 'Ready for Call', backendStatus: 'completed',     color: '#06D7F6', triggersOutcome: false, Icon: Phone      },
-  { id: 'proposal-sent',  label: 'Proposal Sent',  backendStatus: 'proposal-sent', color: '#FB923C', triggersOutcome: false, Icon: FileText   },
-  { id: 'converted',      label: 'Converted',      backendStatus: 'approved',      color: '#10B981', triggersOutcome: true,  outcomeType: 'win',  Icon: TrendingUp },
-  { id: 'disqualified',   label: 'Lost',           backendStatus: 'rejected',      color: '#FD4438', triggersOutcome: true,  outcomeType: 'loss', Icon: XCircle    },
+  { id: 'new',            label: 'New Leads',      backendStatus: 'new',           color: K_ACCENT_ALT, triggersOutcome: false, Icon: Zap        },
+  { id: 'needs-review',   label: 'Needs Review',   backendStatus: 'in-review',     color: K_ACCENT, triggersOutcome: false, Icon: Brain      },
+  { id: 'ready-for-call', label: 'Ready for Call', backendStatus: 'completed',     color: K_INFO, triggersOutcome: false, Icon: Phone      },
+  { id: 'proposal-sent',  label: 'Proposal Sent',  backendStatus: 'proposal-sent', color: K_WARNING, triggersOutcome: false, Icon: FileText   },
+  { id: 'converted',      label: 'Converted',      backendStatus: 'approved',      color: K_SUCCESS, triggersOutcome: true,  outcomeType: 'win',  Icon: TrendingUp },
+  { id: 'disqualified',   label: 'Lost',           backendStatus: 'rejected',      color: K_DANGER, triggersOutcome: true,  outcomeType: 'loss', Icon: XCircle    },
 ];
 
 // ── 10B: Column capacity defaults (0 = unlimited) ─────────────────────────────
@@ -211,9 +249,9 @@ const AGE_TIER_CONFIG: (null | {
   topGradient: string;
 })[] = [
   null,
-  { label: 'Aging',    color: '#D97706', bg: 'rgba(217,119,6,0.11)',  border: 'rgba(217,119,6,0.3)',  topGradient: 'linear-gradient(180deg, rgba(217,119,6,0.05) 0%, rgba(15,15,28,0.9) 40%)'  },
-  { label: 'Stale',    color: '#EA580C', bg: 'rgba(234,88,12,0.12)',  border: 'rgba(234,88,12,0.33)', topGradient: 'linear-gradient(180deg, rgba(234,88,12,0.07) 0%, rgba(15,15,28,0.9) 40%)'  },
-  { label: 'Critical', color: '#DC2626', bg: 'rgba(220,38,38,0.12)',  border: 'rgba(220,38,38,0.35)', topGradient: 'linear-gradient(180deg, rgba(220,38,38,0.09) 0%, rgba(15,15,28,0.9) 40%)'  },
+  { label: 'Aging',    color: K_CAUTION_DEEP, bg: 'rgba(217,119,6,0.11)',  border: 'rgba(217,119,6,0.3)',  topGradient: 'linear-gradient(180deg, rgba(217,119,6,0.05) 0%, rgba(15,15,28,0.9) 40%)'  },
+  { label: 'Stale',    color: K_CAUTION_DEEP, bg: 'rgba(234,88,12,0.12)',  border: 'rgba(234,88,12,0.33)', topGradient: 'linear-gradient(180deg, rgba(234,88,12,0.07) 0%, rgba(15,15,28,0.9) 40%)'  },
+  { label: 'Critical', color: K_DANGER_DEEP, bg: 'rgba(220,38,38,0.12)',  border: 'rgba(220,38,38,0.35)', topGradient: 'linear-gradient(180deg, rgba(220,38,38,0.09) 0%, rgba(15,15,28,0.9) 40%)'  },
 ];
 
 // ── Domain types ───────────────────────────────────────────────────────────────
@@ -329,42 +367,42 @@ function RemoteChangeBanner({
       initial={{ opacity: 0, y: -10, height: 0 }}
       animate={{ opacity: 1, y: 0,   height: 'auto' }}
       exit={{   opacity: 0, y: -10,  height: 0 }}
-      className="mb-4 rounded-xl overflow-hidden"
+      className="mb-4 rounded-cortex-md overflow-hidden"
       style={{ background: 'rgba(6,215,246,0.06)', border: '1px solid rgba(6,215,246,0.22)' }}
     >
       {/* Header row */}
       <div className="flex items-center gap-3 px-4 py-2.5">
         {/* Live pulse dot */}
         <span className="relative flex size-2 flex-shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: '#06D7F6' }} />
-          <span className="relative inline-flex rounded-full size-2" style={{ background: '#06D7F6' }} />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: K_INFO }} />
+          <span className="relative inline-flex rounded-full size-2" style={{ background: K_INFO }} />
         </span>
 
-        <span className="text-xs font-semibold flex-1" style={{ color: '#06D7F6' }}>
+        <span className="text-xs font-semibold flex-1" style={{ color: K_INFO }}>
           {count} card{count !== 1 ? 's' : ''} moved by a team member
         </span>
-        <span className="text-[11px] text-gray-600">
+        <span className="text-[11px] text-cortex-faint">
           · <LiveClock ts={banner.detectedAt} />
         </span>
 
         <div className="flex items-center gap-2 ml-2">
           <button
             onClick={() => setExpanded(v => !v)}
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-200 transition-colors"
+            className="flex items-center gap-1 text-[11px] text-cortex-muted hover:text-gray-200 transition-colors"
           >
             Review {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
           </button>
           <button
             onClick={onAcceptAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
-            style={{ background: 'rgba(6,215,246,0.18)', border: '1px solid rgba(6,215,246,0.38)', color: '#06D7F6' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-bold transition-all"
+            style={{ background: 'rgba(6,215,246,0.18)', border: '1px solid rgba(6,215,246,0.38)', color: K_INFO }}
           >
             <CheckCircle2 className="size-3" />
             Accept all
           </button>
           <button
             onClick={onDismiss}
-            className="p-1.5 rounded-lg text-gray-600 hover:text-gray-300 transition-colors"
+            className="p-1.5 rounded-cortex-sm text-cortex-faint hover:text-cortex-secondary transition-colors"
           >
             <XIcon className="size-3" />
           </button>
@@ -390,10 +428,10 @@ function RemoteChangeBanner({
                 return (
                   <div key={change.leadId} className="flex items-center gap-3 text-xs">
                     <span className="text-white font-medium w-28 truncate flex-shrink-0">{lead.companyName}</span>
-                    <span className="text-gray-600 truncate">{fromCol.label}</span>
-                    <ArrowRight className="size-3 flex-shrink-0" style={{ color: '#06D7F6' }} />
+                    <span className="text-cortex-faint truncate">{fromCol.label}</span>
+                    <ArrowRight className="size-3 flex-shrink-0" style={{ color: K_INFO }} />
                     <span className="font-semibold flex-shrink-0" style={{ color: toCol.color }}>{toCol.label}</span>
-                    <span className="ml-auto text-[10px] text-gray-600">
+                    <span className="ml-auto text-[10px] text-cortex-faint">
                       <LiveClock ts={change.detectedAt} />
                     </span>
                   </div>
@@ -424,13 +462,13 @@ function QpRow({
     <button
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      className="flex items-center gap-2 w-full rounded-lg transition-all text-left"
+      className="flex items-center gap-2 w-full rounded-cortex-sm transition-all text-left"
       style={{
         padding:    '6px 10px',
         background: 'transparent',
         border:     'none',
         cursor:     disabled ? 'not-allowed' : 'pointer',
-        color:      disabled ? '#374151' : color,
+        color:      disabled ? K_BORDER_STRONG : color,
         fontSize:   11,
         fontWeight: disabled ? 400 : 600,
         opacity:    disabled ? 0.45 : 1,
@@ -438,7 +476,7 @@ function QpRow({
       onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = hoverBg; }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
     >
-      <span className="flex-shrink-0" style={{ color: disabled ? '#374151' : color }}>{icon}</span>
+      <span className="flex-shrink-0" style={{ color: disabled ? K_BORDER_STRONG : color }}>{icon}</span>
       <span className="truncate">{label}</span>
     </button>
   );
@@ -525,7 +563,7 @@ function CardQuickPopover({
         top,
         width:          POP_W,
         zIndex:         9999,
-        background:     'linear-gradient(180deg, #111128 0%, #0A0A18 100%)',
+        background:     `linear-gradient(180deg, ${K_OVERLAY} 0%, ${K_CANVAS} 100%)`,
         border:         '1px solid rgba(255,255,255,0.1)',
         borderRadius:   12,
         boxShadow:      '0 20px 56px rgba(0,0,0,0.7), 0 0 0 1px rgba(139,92,246,0.1)',
@@ -536,7 +574,7 @@ function CardQuickPopover({
       {/* ── Header ── */}
       <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '9px 12px 7px' }}>
         <p className="text-[11px] font-bold text-white leading-tight truncate">{lead.companyName}</p>
-        <p className="text-[9px] font-semibold mt-0.5 uppercase tracking-widest" style={{ color: '#4B5563' }}>
+        <p className="text-[9px] font-semibold mt-0.5 uppercase tracking-widest" style={{ color: K_TEXT_FAINT }}>
           Quick Actions
         </p>
       </div>
@@ -544,7 +582,7 @@ function CardQuickPopover({
       {/* ── 13F: Engagement Signal + contextual next step ── */}
       {engCfg && nextStep && latestEngagement && (
         <div style={{ background: `${engCfg.color}0d`, borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '8px 12px' }}>
-          <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#4B5563', marginBottom: 5 }}>
+          <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: K_TEXT_FAINT, marginBottom: 5 }}>
             Engagement Signal
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
@@ -552,7 +590,7 @@ function CardQuickPopover({
             <span style={{ fontSize: 10, fontWeight: 600, color: engCfg.color, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {engCfg.label}
             </span>
-            <span style={{ fontSize: 9, color: '#374151', flexShrink: 0 }}>{isoTimeAgo(latestEngagement.at)}</span>
+            <span style={{ fontSize: 9, color: K_BORDER_STRONG, flexShrink: 0 }}>{isoTimeAgo(latestEngagement.at)}</span>
           </div>
           <button
             onClick={() => {
@@ -581,18 +619,18 @@ function CardQuickPopover({
 
       {/* ── Move section ── */}
       <div className="p-1 pt-1.5">
-        <p className="text-[9px] font-bold uppercase tracking-widest px-2.5 pb-0.5" style={{ color: '#374151' }}>Move</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest px-2.5 pb-0.5" style={{ color: K_BORDER_STRONG }}>Move</p>
         <QpRow
           icon={<ChevronLeft className="size-3" />}
           label={prevCol ? prevCol.label : 'First stage'}
-          color={prevCol ? (prevCol.color ?? '#8B5CF6') : '#374151'}
+          color={prevCol ? (prevCol.color ?? K_ACCENT) : K_BORDER_STRONG}
           disabled={!prevCol}
           onClick={() => prevCol && onQuickMove(prevCol.id)}
         />
         <QpRow
           icon={<ChevronRight className="size-3" />}
           label={nextCol ? nextCol.label : 'Last stage'}
-          color={nextCol ? (nextCol.color ?? '#3B82F6') : '#374151'}
+          color={nextCol ? (nextCol.color ?? K_ACCENT_ALT) : K_BORDER_STRONG}
           disabled={!nextCol}
           onClick={() => nextCol && onQuickMove(nextCol.id)}
         />
@@ -602,17 +640,17 @@ function CardQuickPopover({
 
       {/* ── Actions (13F: Priority flag added) ── */}
       <div className="p-1">
-        <QpRow icon={<ArrowRight className="size-3" />} label="Open Detail" color="#06D7F6" onClick={onOpenDetail} />
+        <QpRow icon={<ArrowRight className="size-3" />} label="Open Detail" color={K_INFO} onClick={onOpenDetail} />
         <QpRow
           icon={isSelected ? <Check className="size-3" strokeWidth={3} /> : <MousePointerClick className="size-3" />}
           label={isSelected ? 'Deselect card' : 'Select card'}
-          color="#8B5CF6"
+          color={K_ACCENT}
           onClick={onToggleSelect}
         />
         <QpRow
           icon={<Flag className="size-3" />}
           label={isPriority ? 'Remove priority' : 'Mark as priority'}
-          color={isPriority ? '#FB923C' : '#6B7280'}
+          color={isPriority ? K_WARNING : K_NEUTRAL}
           onClick={onTogglePriority}
         />
       </div>
@@ -633,7 +671,7 @@ function CardQuickPopover({
                     textTransform: 'uppercase', letterSpacing: '0.05em',
                     border: `1px solid ${noteType === t ? NOTE_TYPE_COLORS[t] : 'rgba(255,255,255,0.08)'}`,
                     background: noteType === t ? `${NOTE_TYPE_COLORS[t]}20` : 'transparent',
-                    color: noteType === t ? NOTE_TYPE_COLORS[t] : '#374151',
+                    color: noteType === t ? NOTE_TYPE_COLORS[t] : K_BORDER_STRONG,
                     cursor: 'pointer', transition: 'all 0.12s',
                   }}
                 >
@@ -664,7 +702,7 @@ function CardQuickPopover({
             <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
               <button
                 onClick={e => { e.stopPropagation(); setNoteExpanded(false); setNoteText(''); }}
-                style={{ fontSize: 10, color: '#4B5563', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                style={{ fontSize: 10, color: K_TEXT_FAINT, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
               >
                 Cancel
               </button>
@@ -673,7 +711,7 @@ function CardQuickPopover({
                 onClick={e => { e.stopPropagation(); handleSaveNote(); }}
                 style={{
                   flex: 1, fontSize: 11, fontWeight: 700,
-                  color: noteSaving ? '#374151' : NOTE_TYPE_COLORS[noteType],
+                  color: noteSaving ? K_BORDER_STRONG : NOTE_TYPE_COLORS[noteType],
                   background: noteSaving ? 'transparent' : `${NOTE_TYPE_COLORS[noteType]}18`,
                   border: `1px solid ${noteSaving ? 'rgba(255,255,255,0.06)' : `${NOTE_TYPE_COLORS[noteType]}35`}`,
                   borderRadius: 7, padding: '3px 8px',
@@ -689,7 +727,7 @@ function CardQuickPopover({
           <QpRow
             icon={noteSaved ? <CheckCircle2 className="size-3" /> : <PenLine className="size-3" />}
             label={noteSaved ? '✓ Note saved' : 'Add quick note'}
-            color={noteSaved ? '#10B981' : '#6B7280'}
+            color={noteSaved ? K_SUCCESS : K_NEUTRAL}
             onClick={() => { if (!noteSaved) setNoteExpanded(true); }}
           />
         )}
@@ -702,7 +740,7 @@ function CardQuickPopover({
         <QpRow
           icon={copyDone ? <CheckCircle2 className="size-3" /> : <Copy className="size-3" />}
           label={copyDone ? '✓ Copied!' : 'Copy company name'}
-          color={copyDone ? '#10B981' : '#6B7280'}
+          color={copyDone ? K_SUCCESS : K_NEUTRAL}
           onClick={onCopy}
         />
       </div>
@@ -731,7 +769,7 @@ function ScoreTrendSparkline({
     ? history!.slice(-5)                         // most recent 5 real readings
     : getSeededSparkline(leadId, currentScore);  // deterministic seed fallback
   const trend  = getSparklineTrend(points);
-  const color  = trend === 'up' ? '#10B981' : trend === 'down' ? '#FD4438' : '#6B7280';
+  const color  = trend === 'up' ? K_SUCCESS : trend === 'down' ? K_DANGER : K_NEUTRAL;
 
   const W = 30, H = 10;
   const minV  = Math.min(...points) - 2;
@@ -825,13 +863,13 @@ interface EngagementCfg {
 }
 
 const ENGAGEMENT_EVENT_CONFIG: Record<string, EngagementCfg> = {
-  portal_opened:     { Icon: Eye,           color: '#A78BFA', label: 'Opened portal',    intent: 'low'    },
-  report_viewed:     { Icon: FileText,      color: '#06D7F6', label: 'Viewed report',    intent: 'medium' },
-  cta_clicked:       { Icon: Zap,           color: '#FB923C', label: 'Clicked schedule', intent: 'high'   },
-  pdf_printed:       { Icon: ScrollText,    color: '#10B981', label: 'Saved PDF',        intent: 'medium' },
-  proposal_viewed:   { Icon: FileText,      color: '#A78BFA', label: 'Viewed proposal',  intent: 'high'   },
-  meeting_scheduled: { Icon: Calendar,      color: '#34D399', label: 'Meeting booked',   intent: 'high'   },
-  message_sent:      { Icon: MessageSquare, color: '#60A5FA', label: 'Sent message',     intent: 'low'    },
+  portal_opened:     { Icon: Eye,           color: K_ACCENT_LIGHT, label: 'Opened portal',    intent: 'low'    },
+  report_viewed:     { Icon: FileText,      color: K_INFO, label: 'Viewed report',    intent: 'medium' },
+  cta_clicked:       { Icon: Zap,           color: K_WARNING, label: 'Clicked schedule', intent: 'high'   },
+  pdf_printed:       { Icon: ScrollText,    color: K_SUCCESS, label: 'Saved PDF',        intent: 'medium' },
+  proposal_viewed:   { Icon: FileText,      color: K_ACCENT_LIGHT, label: 'Viewed proposal',  intent: 'high'   },
+  meeting_scheduled: { Icon: Calendar,      color: K_SUCCESS_LIGHT, label: 'Meeting booked',   intent: 'high'   },
+  message_sent:      { Icon: MessageSquare, color: K_ACCENT_ALT_LIGHT, label: 'Sent message',     intent: 'low'    },
 };
 
 // ── 13F: Engagement-driven suggested next steps ───────────────────────────────
@@ -845,19 +883,19 @@ interface EngagementNextStep {
 }
 
 const ENGAGEMENT_NEXT_STEPS: Partial<Record<string, EngagementNextStep>> = {
-  meeting_scheduled: { Icon: FileText,      label: 'Prep call brief',       color: '#34D399', action: 'open_detail'   },
-  cta_clicked:       { Icon: FileText,      label: 'Send proposal now',     color: '#FB923C', action: 'move_proposal' },
-  proposal_viewed:   { Icon: MessageSquare, label: 'Follow up on proposal', color: '#A78BFA', action: 'open_detail'   },
-  report_viewed:     { Icon: Phone,         label: 'Schedule a call',       color: '#06D7F6', action: 'open_detail'   },
-  message_sent:      { Icon: MessageSquare, label: 'Reply to message',      color: '#60A5FA', action: 'open_detail'   },
-  portal_opened:     { Icon: Eye,           label: 'Send portal update',    color: '#A78BFA', action: 'open_detail'   },
+  meeting_scheduled: { Icon: FileText,      label: 'Prep call brief',       color: K_SUCCESS_LIGHT, action: 'open_detail'   },
+  cta_clicked:       { Icon: FileText,      label: 'Send proposal now',     color: K_WARNING, action: 'move_proposal' },
+  proposal_viewed:   { Icon: MessageSquare, label: 'Follow up on proposal', color: K_ACCENT_LIGHT, action: 'open_detail'   },
+  report_viewed:     { Icon: Phone,         label: 'Schedule a call',       color: K_INFO, action: 'open_detail'   },
+  message_sent:      { Icon: MessageSquare, label: 'Reply to message',      color: K_ACCENT_ALT_LIGHT, action: 'open_detail'   },
+  portal_opened:     { Icon: Eye,           label: 'Send portal update',    color: K_ACCENT_LIGHT, action: 'open_detail'   },
 };
 
 /** Note type → accent colour used in the Quick Note form */
 const NOTE_TYPE_COLORS: Record<string, string> = {
-  note:   '#8B5CF6',
-  action: '#FB923C',
-  flag:   '#FD4438',
+  note:   K_ACCENT,
+  action: K_WARNING,
+  flag:   K_DANGER,
 };
 
 function isoTimeAgo(iso: string): string {
@@ -880,7 +918,7 @@ function ClientActivityRow({ event }: { event: EngagementEvent }) {
 
   return (
     <div
-      className="flex items-center gap-1.5 mt-2 mb-0.5 px-1.5 py-1 rounded-lg"
+      className="flex items-center gap-1.5 mt-2 mb-0.5 px-1.5 py-1 rounded-cortex-sm"
       style={{
         background: isHigh   ? `${color}12` : 'transparent',
         border:     isHigh   ? `1px solid ${color}28` : 'none',
@@ -889,15 +927,15 @@ function ClientActivityRow({ event }: { event: EngagementEvent }) {
     >
       <Icon
         className="size-2.5 flex-shrink-0"
-        style={{ color: isHigh || isMedium ? color : '#6B7280' }}
+        style={{ color: isHigh || isMedium ? color : K_NEUTRAL }}
       />
       <span
         className="text-[10px] flex-1 truncate font-medium leading-none"
-        style={{ color: isHigh ? color : isMedium ? 'rgba(255,255,255,0.45)' : '#6B7280' }}
+        style={{ color: isHigh ? color : isMedium ? 'rgba(255,255,255,0.45)' : K_NEUTRAL }}
       >
         {label}
       </span>
-      <span className="text-[10px] text-gray-600 flex-shrink-0 tabular-nums leading-none">
+      <span className="text-[10px] text-cortex-faint flex-shrink-0 tabular-nums leading-none">
         {isoTimeAgo(event.at)}
       </span>
     </div>
@@ -1027,7 +1065,7 @@ function KanbanCard({
       ref={dragRef as unknown as React.RefObject<HTMLDivElement>}
       onClick={handleCardClick}
       data-kb-card-focused={isFocused ? 'true' : undefined}
-      className="group relative rounded-xl p-4 transition-all duration-200 select-none cortex-card"
+      className="group relative rounded-cortex-md p-4 transition-all duration-200 select-none cortex-card"
       style={{
         opacity: isGroupDragging ? 0.3 : isDragging ? 0.35
           : (staleFilterActive && ageTier === 0) ? 0.2
@@ -1048,11 +1086,11 @@ function KanbanCard({
       {/* Top-right area: spinner / conflict chip / ⋯ quick-actions trigger */}
       {isSaving && !isConflict ? (
         <div className="absolute top-2 right-2">
-          <Loader2 className="size-3 animate-spin text-[#8B5CF6]" />
+          <Loader2 className="size-3 animate-spin text-cortex-accent" />
         </div>
       ) : isConflict ? (
         <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold"
-          style={{ background: 'rgba(251,146,60,0.2)', border: '1px solid rgba(251,146,60,0.4)', color: '#FB923C' }}>
+          style={{ background: 'rgba(251,146,60,0.2)', border: '1px solid rgba(251,146,60,0.4)', color: K_WARNING }}>
           <AlertTriangle className="size-2.5" />
           Conflict
         </div>
@@ -1062,11 +1100,11 @@ function KanbanCard({
           ref={triggerRef}
           onClick={openQp}
           title="Quick actions"
-          className="absolute top-1.5 right-1.5 flex items-center justify-center size-6 rounded-lg transition-all"
+          className="absolute top-1.5 right-1.5 flex items-center justify-center size-6 rounded-cortex-sm transition-all"
           style={{
             background:  qpOpen ? 'rgba(139,92,246,0.25)' : 'transparent',
             border:      qpOpen ? '1px solid rgba(139,92,246,0.45)' : '1px solid transparent',
-            color:       qpOpen ? '#C4B5FD' : 'transparent',
+            color:       qpOpen ? K_ACCENT_LIGHT : 'transparent',
             // Only show on group-hover; CSS hack via opacity on group hover
           }}
           // Show via class on the parent's group-hover
@@ -1123,16 +1161,16 @@ function KanbanCard({
             initial={{ opacity: 0, height: 0, marginBottom: 0 }}
             animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
             exit={{   opacity: 0, height: 0, marginBottom: 0 }}
-            className="rounded-lg overflow-hidden"
+            className="rounded-cortex-sm overflow-hidden"
             style={{ background: 'rgba(6,215,246,0.08)', border: '1px solid rgba(6,215,246,0.2)' }}
           >
             <div className="flex items-center justify-between gap-2 px-2.5 py-1.5">
-              <div className="flex items-center gap-1.5 text-[10px] min-w-0" style={{ color: '#06D7F6' }}>
+              <div className="flex items-center gap-1.5 text-[10px] min-w-0" style={{ color: K_INFO }}>
                 <Users className="size-2.5 flex-shrink-0" />
                 <span className="truncate font-medium">
                   Team → <span style={{ color: toCol.color }}>{toCol.label}</span>
                 </span>
-                <span className="text-gray-600 flex-shrink-0">
+                <span className="text-cortex-faint flex-shrink-0">
                   · <LiveClock ts={remoteChange.detectedAt} />
                 </span>
               </div>
@@ -1141,14 +1179,14 @@ function KanbanCard({
                   onClick={e => { e.stopPropagation(); onAcceptRemote(lead.id, remoteChange.toColumn); }}
                   title="Accept team's position"
                   className="text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors"
-                  style={{ background: 'rgba(6,215,246,0.2)', color: '#06D7F6' }}
+                  style={{ background: 'rgba(6,215,246,0.2)', color: K_INFO }}
                 >
                   ✓
                 </button>
                 <button
                   onClick={e => { e.stopPropagation(); onDismissRemote(lead.id); }}
                   title="Keep my position"
-                  className="text-[10px] text-gray-600 hover:text-gray-300 px-1 py-0.5 rounded transition-colors"
+                  className="text-[10px] text-cortex-faint hover:text-cortex-secondary px-1 py-0.5 rounded transition-colors"
                 >
                   ✕
                 </button>
@@ -1170,8 +1208,8 @@ function KanbanCard({
         </span>
       </div>
 
-      <p className="text-[11px] text-gray-500 mb-2">{lead.industry} · {lead.companySize}</p>
-      <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2 mb-3 min-h-[2.4em]">
+      <p className="text-[11px] text-cortex-muted mb-2">{lead.industry} · {lead.companySize}</p>
+      <p className="text-[11px] text-cortex-muted leading-relaxed line-clamp-2 mb-3 min-h-[2.4em]">
         {lead.primaryPainSignal}
       </p>
 
@@ -1183,7 +1221,7 @@ function KanbanCard({
             <span
               className="text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded-md"
               style={{
-                color:      aiStatus.aiScore >= 75 ? '#10B981' : aiStatus.aiScore >= 50 ? '#FB923C' : '#FD4438',
+                color:      aiStatus.aiScore >= 75 ? K_SUCCESS : aiStatus.aiScore >= 50 ? K_WARNING : K_DANGER,
                 background: aiStatus.aiScore >= 75 ? 'rgba(16,185,129,0.1)' : aiStatus.aiScore >= 50 ? 'rgba(251,146,60,0.1)' : 'rgba(253,68,56,0.1)',
               }}
             >
@@ -1192,12 +1230,12 @@ function KanbanCard({
             <ScoreTrendSparkline leadId={lead.id} currentScore={aiStatus.aiScore} history={scoreHistory} />
           </div>
         ) : (
-          <span className="text-[10px] text-gray-600 flex items-center gap-1">
+          <span className="text-[10px] text-cortex-faint flex items-center gap-1">
             <Brain className="size-2.5" />–
           </span>
         )}
 
-        {lead.urgencyLevel >= 8 && <Flame className="size-3 text-[#FD4438] flex-shrink-0" />}
+        {lead.urgencyLevel >= 8 && <Flame className="size-3 text-cortex-danger flex-shrink-0" />}
 
         {/* 12C: Score-threshold chips — critical or hot, never both */}
         <AnimatePresence>
@@ -1213,7 +1251,7 @@ function KanbanCard({
               style={{
                 background: 'rgba(253,68,56,0.14)',
                 border:     '1px solid rgba(253,68,56,0.38)',
-                color:      '#FD4438',
+                color:      K_DANGER,
               }}
             >
               <AlertTriangle className="size-2.5" />Critical
@@ -1231,7 +1269,7 @@ function KanbanCard({
               style={{
                 background: 'rgba(16,185,129,0.12)',
                 border:     '1px solid rgba(16,185,129,0.32)',
-                color:      '#10B981',
+                color:      K_SUCCESS,
               }}
             >
               <Sparkles className="size-2.5" />Hot
@@ -1263,7 +1301,7 @@ function KanbanCard({
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1"
             style={{
               background: outcome.didConvert ? 'rgba(16,185,129,0.15)' : 'rgba(253,68,56,0.1)',
-              color:      outcome.didConvert ? '#10B981' : '#FD4438',
+              color:      outcome.didConvert ? K_SUCCESS : K_DANGER,
               border:     `1px solid ${outcome.didConvert ? 'rgba(16,185,129,0.3)' : 'rgba(253,68,56,0.25)'}`,
             }}>
             {outcome.didConvert ? <TrendingUp className="size-2.5" /> : <TrendingDown className="size-2.5" />}
@@ -1287,7 +1325,7 @@ function KanbanCard({
               style={{
                 background: 'rgba(251,146,60,0.12)',
                 border:     '1px solid rgba(251,146,60,0.32)',
-                color:      '#FB923C',
+                color:      K_WARNING,
               }}
             >
               <Flag className="size-2.5" />P1
@@ -1298,7 +1336,7 @@ function KanbanCard({
         {!isSelectMode && (
           <button
             onClick={e => { e.stopPropagation(); onCardClick(lead.id); }}
-            className="ml-auto text-[10px] text-gray-600 hover:text-[#8B5CF6] transition-colors flex items-center gap-0.5 font-medium"
+            className="ml-auto text-[10px] text-cortex-faint hover:text-cortex-accent transition-colors flex items-center gap-0.5 font-medium"
           >
             Detail <ArrowRight className="size-2.5" />
           </button>
@@ -1435,22 +1473,22 @@ function KanbanColumnView({
   const cap           = capacity > 0 ? capacity : null;   // null → unlimited
   const atCapacity    = cap !== null && leads.length >= cap;
   const nearCapacity  = cap !== null && !atCapacity && leads.length / cap >= 0.8;
-  const capBadgeColor = atCapacity  ? '#FD4438'
-                      : nearCapacity ? '#D97706'
-                      : isSelectMode && (allSelected || someSelected) ? '#C4B5FD'
+  const capBadgeColor = atCapacity  ? K_DANGER
+                      : nearCapacity ? K_CAUTION_DEEP
+                      : isSelectMode && (allSelected || someSelected) ? K_ACCENT_LIGHT
                       : column.color;
   const capBadgeBg    = atCapacity  ? 'rgba(253,68,56,0.18)'
                       : nearCapacity ? 'rgba(217,119,6,0.18)'
                       : isSelectMode && (allSelected || someSelected) ? 'rgba(139,92,246,0.22)'
                       : `${column.color}20`;
   // Amber drop-zone tint overrides blue when at capacity
-  const dropColor     = isActive && atCapacity ? '#D97706' : column.color;
+  const dropColor     = isActive && atCapacity ? K_CAUTION_DEEP : column.color;
 
   return (
     <div
       ref={dropRef as unknown as React.RefObject<HTMLDivElement>}
       data-kb-col-focused={isFocusedCol ? 'true' : undefined}
-      className="flex flex-col w-[270px] flex-shrink-0 rounded-2xl transition-all duration-200"
+      className="flex flex-col w-[270px] flex-shrink-0 rounded-cortex-lg transition-all duration-200"
       style={{
         background: isActive
           ? `linear-gradient(180deg, ${dropColor}12 0%, rgba(10,10,20,0.7) 100%)`
@@ -1501,7 +1539,7 @@ function KanbanColumnView({
                     <Check className="size-3 text-white" strokeWidth={3} />
                   )}
                   {someSelected && (
-                    <div className="w-2.5 h-[2px] rounded-full bg-[#C4B5FD]" />
+                    <div className="w-2.5 h-[2px] rounded-full bg-cortex-accent-light" />
                   )}
                 </motion.button>
               )}
@@ -1569,7 +1607,7 @@ function KanbanColumnView({
         </div>
 
         {column.id === 'converted' && totalRevenue > 0 && (
-          <div className="text-[11px] text-[#10B981] font-semibold flex items-center gap-1 mt-1">
+          <div className="text-[11px] text-cortex-success font-semibold flex items-center gap-1 mt-1">
             <DollarSign className="size-2.5" />
             ${totalRevenue >= 1000000 ? `${(totalRevenue / 1000000).toFixed(1)}M` : `${Math.round(totalRevenue / 1000)}K`} logged
           </div>
@@ -1577,7 +1615,7 @@ function KanbanColumnView({
 
         {isActive && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-2 text-[10px] font-semibold text-center py-1 rounded-lg"
+            className="mt-2 text-[10px] font-semibold text-center py-1 rounded-cortex-sm"
             style={{ background: `${dropColor}18`, color: dropColor }}>
             {atCapacity
               ? `⚠ Full (${leads.length}/${cap}) · drop to override`
@@ -1599,13 +1637,13 @@ function KanbanColumnView({
               className="flex items-center gap-2 overflow-hidden"
             >
               <div className="flex items-center gap-1">
-                <Clock className="size-2.5 flex-shrink-0" style={{ color: '#D97706' }} />
-                <span className="text-[9px] font-bold" style={{ color: '#D97706' }}>
+                <Clock className="size-2.5 flex-shrink-0" style={{ color: K_CAUTION_DEEP }} />
+                <span className="text-[9px] font-bold" style={{ color: K_CAUTION_DEEP }}>
                   {staleCount} stale
                 </span>
               </div>
               {criticalCount > 0 && (
-                <span className="text-[9px] font-semibold" style={{ color: '#DC2626' }}>
+                <span className="text-[9px] font-semibold" style={{ color: K_DANGER_DEEP }}>
                   · {criticalCount} critical
                 </span>
               )}
@@ -1630,9 +1668,9 @@ function KanbanColumnView({
         <AnimatePresence mode="popLayout">
           {leads.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="flex items-center justify-center rounded-xl border-2 border-dashed"
+              className="flex items-center justify-center rounded-cortex-md border-2 border-dashed"
               style={{ borderColor: isActive ? `${column.color}50` : 'rgba(255,255,255,0.06)', minHeight: '80px' }}>
-              <span className="text-[11px] text-gray-600">{isActive ? 'Drop here' : 'Empty'}</span>
+              <span className="text-[11px] text-cortex-faint">{isActive ? 'Drop here' : 'Empty'}</span>
             </motion.div>
           ) : (
             leads.map((lead, cardIdx) => (
@@ -1676,14 +1714,14 @@ function KanbanColumnView({
 
 // ── 8C: Activity Drawer helpers ───────────────────────────────────────────────
 const ACTIVITY_META: Record<ActivityEntry['type'], { Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
-  move:        { Icon: ArrowRight,   color: '#06D7F6' },
-  bulk_move:   { Icon: Layers,       color: '#8B5CF6' },
-  win:         { Icon: TrendingUp,   color: '#10B981' },
-  loss:        { Icon: TrendingDown, color: '#FD4438' },
-  bulk_win:    { Icon: TrendingUp,   color: '#10B981' },
-  bulk_loss:   { Icon: TrendingDown, color: '#FD4438' },
-  remote_sync: { Icon: Radio,        color: '#FB923C' },
-  reset:       { Icon: RotateCcw,    color: '#6B7280' },
+  move:        { Icon: ArrowRight,   color: K_INFO },
+  bulk_move:   { Icon: Layers,       color: K_ACCENT },
+  win:         { Icon: TrendingUp,   color: K_SUCCESS },
+  loss:        { Icon: TrendingDown, color: K_DANGER },
+  bulk_win:    { Icon: TrendingUp,   color: K_SUCCESS },
+  bulk_loss:   { Icon: TrendingDown, color: K_DANGER },
+  remote_sync: { Icon: Radio,        color: K_WARNING },
+  reset:       { Icon: RotateCcw,    color: K_NEUTRAL },
 };
 
 function getColLabel(colId: string): string {
@@ -1761,7 +1799,7 @@ function ActivityDrawer({
           className="fixed right-0 top-0 h-screen z-40 flex flex-col"
           style={{
             width: '300px',
-            background: 'linear-gradient(180deg, #0D0D1A 0%, #09090F 100%)',
+            background: `linear-gradient(180deg, ${K_OVERLAY} 0%, ${K_CANVAS} 100%)`,
             borderLeft: '1px solid rgba(255,255,255,0.07)',
             boxShadow: '-20px 0 60px rgba(0,0,0,0.55), -2px 0 0 rgba(139,92,246,0.08)',
           }}
@@ -1776,14 +1814,14 @@ function ActivityDrawer({
           >
             <div className="flex items-center justify-between mb-0.5">
               <div className="flex items-center gap-2">
-                <ScrollText className="size-3.5 text-[#8B5CF6]" />
+                <ScrollText className="size-3.5 text-cortex-accent" />
                 <span className="text-[10px] font-bold text-white tracking-widest uppercase">
                   Activity Feed
                 </span>
               </div>
               <button
                 onClick={onClose}
-                className="size-7 flex items-center justify-center rounded-lg text-gray-600 hover:text-white transition-colors"
+                className="size-7 flex items-center justify-center rounded-cortex-sm text-cortex-faint hover:text-white transition-colors"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
                 <XIcon className="size-3.5" />
@@ -1803,13 +1841,13 @@ function ActivityDrawer({
               /* Empty state */
               <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
                 <div
-                  className="size-14 rounded-2xl flex items-center justify-center"
+                  className="size-14 rounded-cortex-lg flex items-center justify-center"
                   style={{ background: 'rgba(139,92,246,0.09)', border: '1px solid rgba(139,92,246,0.18)' }}
                 >
-                  <ScrollText className="size-7 text-[#8B5CF6] opacity-50" />
+                  <ScrollText className="size-7 text-cortex-accent opacity-50" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-600">No activity yet</p>
+                  <p className="text-xs font-bold text-cortex-faint">No activity yet</p>
                   <p className="text-[10px] text-gray-700 mt-1.5 leading-relaxed">
                     Move a card, log an outcome, or wait for a live sync to see events here.
                   </p>
@@ -1834,7 +1872,7 @@ function ActivityDrawer({
                       initial={i === 0 ? { opacity: 0, y: -10, scale: 0.97 } : false}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                      className="group flex gap-3 px-3 py-3 rounded-xl transition-colors"
+                      className="group flex gap-3 px-3 py-3 rounded-cortex-md transition-colors"
                       style={{
                         background: 'transparent',
                         borderLeft: `2px solid ${color}38`,
@@ -1845,7 +1883,7 @@ function ActivityDrawer({
                     >
                       {/* Icon bubble */}
                       <div
-                        className="size-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                        className="size-7 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
                         style={{ background: `${color}14`, border: `1px solid ${color}28` }}
                       >
                         <Icon className="size-3.5" style={{ color }} />
@@ -1860,7 +1898,7 @@ function ActivityDrawer({
                           {canJump && (
                             <button
                               onClick={() => { onJumpToCard(entry.leadId!); onClose(); }}
-                              className="flex-shrink-0 flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-700 hover:text-[#8B5CF6] transition-colors opacity-0 group-hover:opacity-100"
+                              className="flex-shrink-0 flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-700 hover:text-cortex-accent transition-colors opacity-0 group-hover:opacity-100"
                             >
                               Jump <ArrowRight className="size-2.5" />
                             </button>
@@ -1868,14 +1906,14 @@ function ActivityDrawer({
                         </div>
 
                         {detail && (
-                          <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{detail}</p>
+                          <p className="text-[10px] text-cortex-muted mt-0.5 leading-tight">{detail}</p>
                         )}
 
                         {hasBulkNames && entry.companies && (
                           <p className="text-[9px] text-gray-700 mt-0.5 leading-tight">
                             {entry.companies.slice(0, 3).join(', ')}
                             {entry.companies.length > 3 && (
-                              <span className="text-gray-600"> +{entry.companies.length - 3} more</span>
+                              <span className="text-cortex-faint"> +{entry.companies.length - 3} more</span>
                             )}
                           </p>
                         )}
@@ -2005,12 +2043,12 @@ function LossIntelPanel({
         }}
       >
         <div className="flex items-center gap-2 mb-0.5">
-          <Brain className="size-3.5 text-[#8B5CF6]" />
+          <Brain className="size-3.5 text-cortex-accent" />
           <span className="text-[10px] font-bold text-white tracking-widest uppercase">
             CORTEX Intelligence
           </span>
         </div>
-        <p className="text-[10px] text-gray-600 leading-relaxed">
+        <p className="text-[10px] text-cortex-faint leading-relaxed">
           {loading
             ? 'Fetching loss patterns…'
             : isEmpty
@@ -2028,7 +2066,7 @@ function LossIntelPanel({
             {[75, 55, 68, 45, 80].map(w => (
               <div
                 key={w}
-                className="rounded-lg animate-pulse"
+                className="rounded-cortex-sm animate-pulse"
                 style={{ width: `${w}%`, height: '28px', background: 'rgba(255,255,255,0.05)' }}
               />
             ))}
@@ -2039,20 +2077,20 @@ function LossIntelPanel({
         {!loading && isEmpty && (
           <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
             <div
-              className="size-12 rounded-2xl flex items-center justify-center"
+              className="size-12 rounded-cortex-lg flex items-center justify-center"
               style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)' }}
             >
-              <Sparkles className="size-6 text-[#8B5CF6]" />
+              <Sparkles className="size-6 text-cortex-accent" />
             </div>
             <div>
               <p className="text-xs font-bold text-white">First loss to be logged</p>
-              <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">
+              <p className="text-[10px] text-cortex-faint mt-1 leading-relaxed">
                 Intelligence grows with each outcome. Future losses will surface pattern matches here.
               </p>
             </div>
             <div
               className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest"
-              style={{ background: 'rgba(139,92,246,0.15)', color: '#8B5CF6', border: '1px solid rgba(139,92,246,0.3)' }}
+              style={{ background: 'rgba(139,92,246,0.15)', color: K_ACCENT, border: '1px solid rgba(139,92,246,0.3)' }}
             >
               Writing history
             </div>
@@ -2065,11 +2103,11 @@ function LossIntelPanel({
             {/* Industry Context */}
             {industryMatch && (
               <div>
-                <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+                <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest mb-2">
                   Industry Context
                 </p>
                 <div
-                  className="rounded-xl p-3"
+                  className="rounded-cortex-md p-3"
                   style={{ background: 'rgba(253,68,56,0.07)', border: '1px solid rgba(253,68,56,0.15)' }}
                 >
                   <div className="flex items-center justify-between mb-1.5">
@@ -2078,13 +2116,13 @@ function LossIntelPanel({
                       className="text-[10px] font-bold px-2 py-0.5 rounded-md"
                       style={{
                         background: industryMatch.conversionRate >= 50 ? 'rgba(16,185,129,0.15)' : 'rgba(253,68,56,0.15)',
-                        color:      industryMatch.conversionRate >= 50 ? '#10B981' : '#FD4438',
+                        color:      industryMatch.conversionRate >= 50 ? K_SUCCESS : K_DANGER,
                       }}
                     >
                       {industryMatch.conversionRate}% won
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] text-gray-500 mb-2">
+                  <div className="flex items-center gap-3 text-[10px] text-cortex-muted mb-2">
                     <span>{industryMatch.total} deals</span>
                     <span>{industryMatch.total - industryMatch.converted} lost</span>
                     {industryMatch.avgDealSize > 0 && (
@@ -2098,8 +2136,8 @@ function LossIntelPanel({
                       style={{
                         width:      `${industryMatch.conversionRate}%`,
                         background: industryMatch.conversionRate >= 50
-                          ? 'linear-gradient(90deg,#059669,#10B981)'
-                          : 'linear-gradient(90deg,#DC2626,#FD4438)',
+                          ? `linear-gradient(90deg,${K_SUCCESS_DEEP},${K_SUCCESS})`
+                          : `linear-gradient(90deg,${K_DANGER_DEEP},${K_DANGER})`,
                         transition: 'width 0.6s ease',
                       }}
                     />
@@ -2112,7 +2150,7 @@ function LossIntelPanel({
             {topReasons.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                  <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                     Common Blockers
                   </p>
                   <span className="text-[9px] text-gray-700">tap to select</span>
@@ -2127,7 +2165,7 @@ function LossIntelPanel({
                         key={r.reason}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => onSuggestReason(fullLabel)}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-left transition-all"
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-cortex-sm text-xs text-left transition-all"
                         style={{
                           background: isActive
                             ? 'rgba(253,68,56,0.22)'
@@ -2139,7 +2177,7 @@ function LossIntelPanel({
                             : isTop  ? 'rgba(253,68,56,0.22)'
                                      : 'rgba(255,255,255,0.06)'
                           }`,
-                          color: isActive ? '#FCA5A5' : isTop ? '#FDB4AF' : '#6B7280',
+                          color: isActive ? K_DANGER_LIGHT : isTop ? K_DANGER_LIGHT : K_NEUTRAL,
                         }}
                       >
                         <span className="truncate font-medium">{fullLabel}</span>
@@ -2147,7 +2185,7 @@ function LossIntelPanel({
                           className="ml-2 flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold"
                           style={{
                             background: isTop ? 'rgba(253,68,56,0.2)' : 'rgba(255,255,255,0.06)',
-                            color:      isTop ? '#FD4438' : '#4B5563',
+                            color:      isTop ? K_DANGER : K_TEXT_FAINT,
                           }}
                         >
                           ×{r.count}
@@ -2163,7 +2201,7 @@ function LossIntelPanel({
             {topAreas.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                  <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                     Flagged Areas
                   </p>
                   <span className="text-[9px] text-gray-700">tap to tag</span>
@@ -2177,7 +2215,7 @@ function LossIntelPanel({
                         key={a.area}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => onSuggestArea(a.area)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-cortex-sm text-[10px] font-medium transition-all"
                         style={{
                           background: isTagged
                             ? 'rgba(139,92,246,0.22)'
@@ -2189,7 +2227,7 @@ function LossIntelPanel({
                             : isTop  ? 'rgba(251,146,60,0.3)'
                                      : 'rgba(255,255,255,0.07)'
                           }`,
-                          color: isTagged ? '#C4B5FD' : isTop ? '#FB923C' : '#6B7280',
+                          color: isTagged ? K_ACCENT_LIGHT : isTop ? K_WARNING : K_NEUTRAL,
                         }}
                       >
                         {isTagged && <Check className="size-2.5 flex-shrink-0" strokeWidth={3} />}
@@ -2205,20 +2243,20 @@ function LossIntelPanel({
             {/* Score Band Insight */}
             {scoreBand && scoreBand.total > 0 && (
               <div>
-                <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+                <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest mb-2">
                   Score Band Insight
                 </p>
                 <div
-                  className="rounded-xl p-3"
+                  className="rounded-cortex-md p-3"
                   style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.15)' }}
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-cortex-muted">
                       {primaryLead.readinessScore} readiness · {scoreBand.range}
                     </span>
                     <span
                       className="text-xs font-bold"
-                      style={{ color: (scoreBand.rate ?? 0) >= 50 ? '#10B981' : '#FB923C' }}
+                      style={{ color: (scoreBand.rate ?? 0) >= 50 ? K_SUCCESS : K_WARNING }}
                     >
                       {scoreBand.rate !== null ? `${scoreBand.rate}% wins` : '—'}
                     </span>
@@ -2229,13 +2267,13 @@ function LossIntelPanel({
                       style={{
                         width:      `${scoreBand.rate ?? 0}%`,
                         background: (scoreBand.rate ?? 0) >= 50
-                          ? 'linear-gradient(90deg,#059669,#10B981)'
-                          : 'linear-gradient(90deg,#D97706,#FB923C)',
+                          ? `linear-gradient(90deg,${K_SUCCESS_DEEP},${K_SUCCESS})`
+                          : `linear-gradient(90deg,${K_CAUTION_DEEP},${K_WARNING})`,
                         transition: 'width 0.6s ease',
                       }}
                     />
                   </div>
-                  <p className="text-[9px] text-gray-600">{scoreBand.total} outcomes in this band</p>
+                  <p className="text-[9px] text-cortex-faint">{scoreBand.total} outcomes in this band</p>
                 </div>
               </div>
             )}
@@ -2243,7 +2281,7 @@ function LossIntelPanel({
             {/* Recommendation Accuracy */}
             {data.recommendationAccuracy !== null && (
               <div>
-                <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+                <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest mb-2">
                   Rec Accuracy
                 </p>
                 <div className="flex items-center gap-3">
@@ -2253,10 +2291,10 @@ function LossIntelPanel({
                       style={{
                         width:      `${data.recommendationAccuracy}%`,
                         background: data.recommendationAccuracy >= 70
-                          ? 'linear-gradient(90deg,#059669,#10B981)'
+                          ? `linear-gradient(90deg,${K_SUCCESS_DEEP},${K_SUCCESS})`
                           : data.recommendationAccuracy >= 50
-                            ? 'linear-gradient(90deg,#D97706,#FB923C)'
-                            : 'linear-gradient(90deg,#DC2626,#FD4438)',
+                            ? `linear-gradient(90deg,${K_CAUTION_DEEP},${K_WARNING})`
+                            : `linear-gradient(90deg,${K_DANGER_DEEP},${K_DANGER})`,
                         transition: 'width 0.6s ease',
                       }}
                     />
@@ -2265,16 +2303,16 @@ function LossIntelPanel({
                     className="text-xs font-bold flex-shrink-0"
                     style={{
                       color: data.recommendationAccuracy >= 70
-                        ? '#10B981'
+                        ? K_SUCCESS
                         : data.recommendationAccuracy >= 50
-                          ? '#FB923C'
-                          : '#FD4438',
+                          ? K_WARNING
+                          : K_DANGER,
                     }}
                   >
                     {data.recommendationAccuracy}%
                   </span>
                 </div>
-                <p className="text-[9px] text-gray-600 mt-1">Prevented loss when applied</p>
+                <p className="text-[9px] text-cortex-faint mt-1">Prevented loss when applied</p>
               </div>
             )}
 
@@ -2284,16 +2322,16 @@ function LossIntelPanel({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="rounded-xl p-3"
+                className="rounded-cortex-md p-3"
                 style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}
               >
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Lightbulb className="size-3 text-[#8B5CF6] flex-shrink-0" />
-                  <span className="text-[9px] font-bold text-[#8B5CF6] uppercase tracking-widest">
+                  <Lightbulb className="size-3 text-cortex-accent flex-shrink-0" />
+                  <span className="text-[9px] font-bold text-cortex-accent uppercase tracking-widest">
                     CORTEX Advisory
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-400 leading-relaxed">{advisory}</p>
+                <p className="text-[11px] text-cortex-muted leading-relaxed">{advisory}</p>
               </motion.div>
             )}
           </span>
@@ -2318,7 +2356,7 @@ function OutcomeModal({
   const { dialogProps } = useDialogBehavior({ open: true, onClose: onCancel, label: 'Log the outcome of this deal' });
 
   const isWin       = pending.toColumn.outcomeType === 'win';
-  const accentColor = isWin ? '#10B981' : '#FD4438';
+  const accentColor = isWin ? K_SUCCESS : K_DANGER;
   const isBulk      = pending.leads.length > 1;
 
   const [dealValue,  setDealValue]  = useState('');
@@ -2359,9 +2397,9 @@ function OutcomeModal({
         animate={{ opacity: 1, scale: 1,    y: 0  }}
         exit={{   opacity: 0, scale: 0.94,  y: 16 }}
         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-        className={`w-full rounded-2xl overflow-hidden flex outline-none ${isWin ? 'max-w-[500px] flex-col' : 'max-w-[860px] flex-col md:flex-row max-h-[90vh]'}`}
+        className={`w-full rounded-cortex-lg overflow-hidden flex outline-none ${isWin ? 'max-w-[500px] flex-col' : 'max-w-[860px] flex-col md:flex-row max-h-[90vh]'}`}
         style={{
-          background: 'linear-gradient(180deg, #0D0D1A 0%, #0A0A14 100%)',
+          background: `linear-gradient(180deg, ${K_OVERLAY} 0%, ${K_CANVAS} 100%)`,
           border:     `1px solid ${accentColor}45`,
           boxShadow:  `0 24px 80px rgba(0,0,0,0.7), 0 0 40px ${accentColor}12`,
         }}
@@ -2373,7 +2411,7 @@ function OutcomeModal({
         <div className="px-6 py-5"
           style={{ background: `linear-gradient(135deg, ${accentColor}12, transparent 60%)`, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="flex items-start gap-3">
-            <div className="size-11 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+            <div className="size-11 rounded-cortex-md flex items-center justify-center flex-shrink-0 mt-0.5"
               style={{ background: `${accentColor}20`, border: `1px solid ${accentColor}35` }}>
               {isWin
                 ? <TrendingUp className="size-5" style={{ color: accentColor }} />
@@ -2384,13 +2422,13 @@ function OutcomeModal({
                 {isWin ? '🎉 Log Win' : 'Log Loss'}
                 {isBulk && (
                   <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{ background: 'rgba(139,92,246,0.2)', color: '#C4B5FD', border: '1px solid rgba(139,92,246,0.35)' }}>
+                    style={{ background: 'rgba(139,92,246,0.2)', color: K_ACCENT_LIGHT, border: '1px solid rgba(139,92,246,0.35)' }}>
                     {pending.leads.length} leads
                   </span>
                 )}
               </h2>
               {!isBulk ? (
-                <p className="text-xs text-gray-400 mt-0.5">{pending.leads[0].companyName} · {pending.leads[0].industry}</p>
+                <p className="text-xs text-cortex-muted mt-0.5">{pending.leads[0].companyName} · {pending.leads[0].industry}</p>
               ) : (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {pending.leads.map(l => (
@@ -2402,7 +2440,7 @@ function OutcomeModal({
                 </div>
               )}
             </div>
-            <div className="text-[10px] text-gray-600 text-right leading-relaxed flex-shrink-0">
+            <div className="text-[10px] text-cortex-faint text-right leading-relaxed flex-shrink-0">
               Feeds CORTEX<br />Learning Loop
             </div>
           </div>
@@ -2412,20 +2450,20 @@ function OutcomeModal({
         <div className="px-6 py-5 space-y-5 overflow-y-auto" style={{ maxHeight: isWin ? '60vh' : '55vh' }}>
           {isWin && (
             <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <label className="block text-[11px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">
                 {isBulk ? `Combined Deal Value (USD) — split equally across ${pending.leads.length} leads` : 'Deal Value (USD)'}
               </label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-cortex-muted" />
                 <input type="number" placeholder="e.g. 75000" value={dealValue}
                   onChange={e => setDealValue(e.target.value)} autoFocus
-                  className="w-full rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
+                  className="w-full rounded-cortex-md pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none transition-colors"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
                   onFocus={e => (e.target.style.borderColor = `${accentColor}60`)}
                   onBlur={e  => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')} />
               </div>
               {isBulk && dealValue && Number(dealValue) > 0 && (
-                <p className="text-[10px] text-gray-600 mt-1.5">
+                <p className="text-[10px] text-cortex-faint mt-1.5">
                   ≈ ${Math.round(Number(dealValue) / pending.leads.length).toLocaleString()} per lead
                 </p>
               )}
@@ -2434,18 +2472,18 @@ function OutcomeModal({
 
           {!isWin && (
             <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Primary Reason Lost <span className="text-[#FD4438]">*</span>
-                {isBulk && <span className="text-gray-600 ml-1 normal-case font-normal">(all {pending.leads.length} leads)</span>}
+              <label className="block text-[11px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">
+                Primary Reason Lost <span className="text-cortex-danger">*</span>
+                {isBulk && <span className="text-cortex-faint ml-1 normal-case font-normal">(all {pending.leads.length} leads)</span>}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {LOST_REASONS.map(reason => (
                   <button key={reason} onClick={() => setLostReason(reason)}
-                    className="px-3 py-2 rounded-lg text-xs font-medium text-left transition-all"
+                    className="px-3 py-2 rounded-cortex-sm text-xs font-medium text-left transition-all"
                     style={{
                       background: lostReason === reason ? 'rgba(253,68,56,0.18)' : 'rgba(255,255,255,0.04)',
                       border: `1px solid ${lostReason === reason ? 'rgba(253,68,56,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                      color:  lostReason === reason ? '#FCA5A5' : '#6B7280',
+                      color:  lostReason === reason ? K_DANGER_LIGHT : K_NEUTRAL,
                     }}>
                     {reason}
                   </button>
@@ -2455,21 +2493,21 @@ function OutcomeModal({
           )}
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">
               Did our recommendation help close / prevent close?
             </label>
             <div className="flex gap-2">
               {[
-                { val: true,  label: '✓ Yes',   color: '#10B981' },
-                { val: false, label: '✗ No',    color: '#FD4438' },
-                { val: null,  label: '~ Unsure', color: '#6B7280' },
+                { val: true,  label: '✓ Yes',   color: K_SUCCESS },
+                { val: false, label: '✗ No',    color: K_DANGER },
+                { val: null,  label: '~ Unsure', color: K_NEUTRAL },
               ].map(opt => (
                 <button key={String(opt.val)} onClick={() => setRecWorked(opt.val)}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                  className="flex-1 py-2.5 rounded-cortex-md text-xs font-semibold transition-all"
                   style={{
                     background: recWorked === opt.val ? `${opt.color}18` : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${recWorked === opt.val ? opt.color + '55' : 'rgba(255,255,255,0.08)'}`,
-                    color:  recWorked === opt.val ? opt.color : '#6B7280',
+                    color:  recWorked === opt.val ? opt.color : K_NEUTRAL,
                   }}>
                   {opt.label}
                 </button>
@@ -2478,18 +2516,18 @@ function OutcomeModal({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Improvement Areas <span className="text-gray-600 normal-case font-normal">(optional)</span>
+            <label className="block text-[11px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">
+              Improvement Areas <span className="text-cortex-faint normal-case font-normal">(optional)</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
               {IMPROVEMENT_TAGS.map(tag => (
                 <button key={tag}
                   onClick={() => setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                  className="px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all"
                   style={{
                     background: tags.includes(tag) ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${tags.includes(tag) ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                    color:  tags.includes(tag) ? '#C4B5FD' : '#6B7280',
+                    color:  tags.includes(tag) ? K_ACCENT_LIGHT : K_NEUTRAL,
                   }}>
                   {tag}
                 </button>
@@ -2498,20 +2536,20 @@ function OutcomeModal({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              What we learned <span className="text-gray-600 normal-case font-normal">(optional)</span>
+            <label className="block text-[11px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">
+              What we learned <span className="text-cortex-faint normal-case font-normal">(optional)</span>
             </label>
             <textarea placeholder="Key insight from this deal…" rows={2} value={learned}
               onChange={e => setLearned(e.target.value)}
-              className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none transition-colors"
+              className="w-full rounded-cortex-md px-4 py-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none transition-colors"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
               onFocus={e => (e.target.style.borderColor = 'rgba(139,92,246,0.4)')}
               onBlur={e  => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')} />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-              style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.3)', color: '#FCA5A5' }}>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-cortex-md text-sm"
+              style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.3)', color: K_DANGER_LIGHT }}>
               <AlertTriangle className="size-4 flex-shrink-0" />{error}
             </div>
           )}
@@ -2520,14 +2558,14 @@ function OutcomeModal({
         {/* Footer */}
         <div className="px-6 py-4 flex gap-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button onClick={onCancel} disabled={isSaving}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-gray-400 hover:text-white transition-all"
+            className="flex-1 py-3 rounded-cortex-md text-sm font-semibold text-cortex-muted hover:text-white transition-all"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             Cancel — keep in place
           </button>
           <button onClick={handleSave} disabled={isSaving || !canSave}
-            className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40"
+            className="flex-1 py-3 rounded-cortex-md text-sm font-bold text-white transition-all disabled:opacity-40"
             style={{
-              background: isWin ? 'linear-gradient(135deg, #059669, #10B981)' : 'linear-gradient(135deg, #DC2626, #FD4438)',
+              background: isWin ? `linear-gradient(135deg, ${K_SUCCESS_DEEP}, ${K_SUCCESS})` : `linear-gradient(135deg, ${K_DANGER_DEEP}, ${K_DANGER})`,
               boxShadow:  canSave && !isSaving ? `0 4px 20px ${accentColor}35` : 'none',
             }}>
             {isSaving
@@ -2601,7 +2639,7 @@ function ShortcutLegend({ onClose }: { onClose: () => void }) {
       className="fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden"
       style={{
         width: '280px',
-        background: 'linear-gradient(180deg, #0D0D1A 0%, #09090F 100%)',
+        background: `linear-gradient(180deg, ${K_OVERLAY} 0%, ${K_CANVAS} 100%)`,
         border:      '1px solid rgba(255,255,255,0.08)',
         borderRadius: '16px',
         boxShadow:   '0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(139,92,246,0.1)',
@@ -2616,14 +2654,14 @@ function ShortcutLegend({ onClose }: { onClose: () => void }) {
         }}
       >
         <div className="flex items-center gap-2">
-          <Keyboard className="size-3.5 text-[#8B5CF6]" />
+          <Keyboard className="size-3.5 text-cortex-accent" />
           <span className="text-[10px] font-bold text-white tracking-widest uppercase">
             Keyboard Shortcuts
           </span>
         </div>
         <button
           onClick={onClose}
-          className="size-6 flex items-center justify-center rounded-md text-gray-600 hover:text-white transition-colors"
+          className="size-6 flex items-center justify-center rounded-md text-cortex-faint hover:text-white transition-colors"
           style={{ background: 'rgba(255,255,255,0.04)' }}
         >
           <XIcon className="size-3" />
@@ -2634,18 +2672,18 @@ function ShortcutLegend({ onClose }: { onClose: () => void }) {
       <div className="px-4 py-3 space-y-3.5">
         {SHORTCUT_GROUPS.map(group => (
           <div key={group.label}>
-            <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">
+            <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest mb-2">
               {group.label}
             </p>
             <div className="space-y-1.5">
               {group.items.map(item => (
                 <div key={item.desc} className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-gray-500 leading-tight">{item.desc}</span>
+                  <span className="text-[11px] text-cortex-muted leading-tight">{item.desc}</span>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {item.keys.map(k => (
                       <kbd
                         key={k}
-                        className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded text-[#C4B5FD] text-center"
+                        className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded text-cortex-accent-light text-center"
                         style={{
                           background:  'rgba(139,92,246,0.15)',
                           border:      '1px solid rgba(139,92,246,0.3)',
@@ -2670,8 +2708,8 @@ function ShortcutLegend({ onClose }: { onClose: () => void }) {
         style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
       >
         <p className="text-[9px] text-gray-700 text-center">
-          Press <span className="text-gray-600 font-mono font-bold">?</span> to toggle ·
-          <span className="text-gray-600 font-mono font-bold"> Esc</span> to dismiss
+          Press <span className="text-cortex-faint font-mono font-bold">?</span> to toggle ·
+          <span className="text-cortex-faint font-mono font-bold"> Esc</span> to dismiss
         </p>
       </div>
     </motion.div>
@@ -2704,7 +2742,7 @@ function CapacityConfigPanel({
       className="overflow-hidden mb-4"
     >
       <div
-        className="rounded-2xl overflow-hidden"
+        className="rounded-cortex-lg overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, rgba(251,146,60,0.05) 0%, rgba(10,10,15,0.97) 100%)',
           border:     '1px solid rgba(251,146,60,0.18)',
@@ -2718,20 +2756,20 @@ function CapacityConfigPanel({
         >
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="size-7 rounded-lg flex items-center justify-center flex-shrink-0"
+              className="size-7 rounded-cortex-sm flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)' }}
             >
-              <Gauge className="size-3.5 text-[#FB923C]" />
+              <Gauge className="size-3.5 text-cortex-warning" />
             </div>
             <div>
               <span className="text-xs font-bold text-white tracking-wide">COLUMN CAPACITY</span>
-              <span className="ml-2 text-[9px] text-gray-600">Max cards per active stage · 0 = unlimited</span>
+              <span className="ml-2 text-[9px] text-cortex-faint">Max cards per active stage · 0 = unlimited</span>
             </div>
           </div>
           <button
             onClick={onClose}
             title="Close capacity panel"
-            className="flex items-center justify-center size-[26px] rounded-lg text-gray-600 hover:text-white transition-colors"
+            className="flex items-center justify-center size-[26px] rounded-cortex-sm text-cortex-faint hover:text-white transition-colors"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
           >
             <XIcon className="size-3" />
@@ -2746,7 +2784,7 @@ function CapacityConfigPanel({
             return (
               <div
                 key={col.id}
-                className="rounded-xl p-3 flex flex-col gap-2"
+                className="rounded-cortex-md p-3 flex flex-col gap-2"
                 style={{
                   background: unlimited ? 'rgba(255,255,255,0.02)' : `${col.color}09`,
                   border:     `1px solid ${unlimited ? 'rgba(255,255,255,0.07)' : col.color + '30'}`,
@@ -2764,11 +2802,11 @@ function CapacityConfigPanel({
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => onUpdate(col.id, Math.max(0, val - 1))}
-                    className="size-6 rounded-lg flex items-center justify-center text-xs font-bold transition-all"
+                    className="size-6 rounded-cortex-sm flex items-center justify-center text-xs font-bold transition-all"
                     style={{
                       background: 'rgba(255,255,255,0.06)',
                       border:     '1px solid rgba(255,255,255,0.1)',
-                      color:      '#9CA3AF',
+                      color:      K_TEXT_MUTED,
                     }}
                   >
                     −
@@ -2782,16 +2820,16 @@ function CapacityConfigPanel({
                       const n = parseInt(e.target.value, 10);
                       if (!isNaN(n) && n >= 0) onUpdate(col.id, n);
                     }}
-                    className="flex-1 min-w-0 text-center text-xs font-bold rounded-lg py-0.5 focus:outline-none transition-colors"
+                    className="flex-1 min-w-0 text-center text-xs font-bold rounded-cortex-sm py-0.5 focus:outline-none transition-colors"
                     style={{
                       background:  'rgba(255,255,255,0.05)',
                       border:      `1px solid ${unlimited ? 'rgba(255,255,255,0.1)' : col.color + '45'}`,
-                      color:       unlimited ? '#6B7280' : col.color,
+                      color:       unlimited ? K_NEUTRAL : col.color,
                     }}
                   />
                   <button
                     onClick={() => onUpdate(col.id, val + 1)}
-                    className="size-6 rounded-lg flex items-center justify-center text-xs font-bold transition-all"
+                    className="size-6 rounded-cortex-sm flex items-center justify-center text-xs font-bold transition-all"
                     style={{
                       background: `${col.color}15`,
                       border:     `1px solid ${col.color}35`,
@@ -2805,7 +2843,7 @@ function CapacityConfigPanel({
                 {/* Status label */}
                 <span
                   className="text-[9px] font-semibold text-center"
-                  style={{ color: unlimited ? '#4B5563' : col.color }}
+                  style={{ color: unlimited ? K_TEXT_FAINT : col.color }}
                 >
                   {unlimited ? 'Unlimited' : `Max ${val} cards`}
                 </span>
@@ -2821,10 +2859,10 @@ function CapacityConfigPanel({
         >
           {/* Save status */}
           <p className="text-[9px] flex items-center gap-1.5">
-            {saveStatus === 'idle'   && <span className="text-gray-600">Auto-saved to team workspace</span>}
-            {saveStatus === 'saving' && <span className="contents"><span className="size-2 rounded-full bg-[#FB923C] animate-pulse inline-block" /><span className="text-[#FB923C]">Saving…</span></span>}
-            {saveStatus === 'saved'  && <span className="contents"><span className="size-2 rounded-full bg-[#10B981] inline-block" /><span className="text-[#10B981]">Saved ✓</span></span>}
-            {saveStatus === 'error'  && <span className="contents"><span className="size-2 rounded-full bg-[#FD4438] inline-block" /><span className="text-[#FD4438]">Save failed — retry</span></span>}
+            {saveStatus === 'idle'   && <span className="text-cortex-faint">Auto-saved to team workspace</span>}
+            {saveStatus === 'saving' && <span className="contents"><span className="size-2 rounded-full bg-cortex-warning animate-pulse inline-block" /><span className="text-cortex-warning">Saving…</span></span>}
+            {saveStatus === 'saved'  && <span className="contents"><span className="size-2 rounded-full bg-cortex-success inline-block" /><span className="text-cortex-success">Saved ✓</span></span>}
+            {saveStatus === 'error'  && <span className="contents"><span className="size-2 rounded-full bg-cortex-danger inline-block" /><span className="text-cortex-danger">Save failed — retry</span></span>}
           </p>
           <button
             onClick={() =>
@@ -2832,7 +2870,7 @@ function CapacityConfigPanel({
                 onUpdate(c.id, COLUMN_CAPACITY_DEFAULTS[c.id] ?? 0)
               )
             }
-            className="text-[9px] text-gray-700 hover:text-gray-400 transition-colors flex-shrink-0"
+            className="text-[9px] text-gray-700 hover:text-cortex-muted transition-colors flex-shrink-0"
           >
             Reset defaults
           </button>
@@ -2970,15 +3008,15 @@ function PipelineStats({ leads, outcomesMap }: { leads: Lead[]; outcomesMap: Out
   return (
     <div className="flex items-center gap-4 flex-wrap">
       {[
-        { label: 'In Pipeline', value: leads.length,   color: '#8B5CF6' },
-        { label: 'Wins',        value: wins,            color: '#10B981' },
-        { label: 'Losses',      value: losses,          color: '#FD4438' },
-        { label: 'Conv. Rate',  value: convRate !== null ? `${convRate}%` : '–', color: convRate !== null ? (convRate >= 50 ? '#10B981' : '#FB923C') : '#6B7280' },
-        { label: 'Revenue',     value: totalRevenue > 0 ? (totalRevenue >= 1000000 ? `$${(totalRevenue / 1000000).toFixed(1)}M` : `$${Math.round(totalRevenue / 1000)}K`) : '$–', color: '#06D7F6' },
+        { label: 'In Pipeline', value: leads.length,   color: K_ACCENT },
+        { label: 'Wins',        value: wins,            color: K_SUCCESS },
+        { label: 'Losses',      value: losses,          color: K_DANGER },
+        { label: 'Conv. Rate',  value: convRate !== null ? `${convRate}%` : '–', color: convRate !== null ? (convRate >= 50 ? K_SUCCESS : K_WARNING) : K_NEUTRAL },
+        { label: 'Revenue',     value: totalRevenue > 0 ? (totalRevenue >= 1000000 ? `$${(totalRevenue / 1000000).toFixed(1)}M` : `$${Math.round(totalRevenue / 1000)}K`) : '$–', color: K_INFO },
       ].map(s => (
         <div key={s.label} className="flex items-center gap-2">
           <div className="size-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
-          <span className="text-xs text-gray-500">{s.label}:</span>
+          <span className="text-xs text-cortex-muted">{s.label}:</span>
           <span className="text-xs font-bold" style={{ color: s.color }}>{s.value}</span>
         </div>
       ))}
@@ -3002,7 +3040,7 @@ function LoopMiniDonut({ won, lost }: { won: number; lost: number }) {
   const circ    = 2 * Math.PI * r;
   const winRate = total > 0 ? won / total : 0;
   const wonLen  = circ * winRate;
-  const ringColor = winRate >= 0.6 ? '#10B981' : winRate >= 0.4 ? '#FB923C' : '#FD4438';
+  const ringColor = winRate >= 0.6 ? K_SUCCESS : winRate >= 0.4 ? K_WARNING : K_DANGER;
 
   return (
     <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
@@ -3024,7 +3062,7 @@ function LoopMiniDonut({ won, lost }: { won: number; lost: number }) {
           fontWeight="700" fontFamily="Inter, system-ui, sans-serif">
           {total === 0 ? '—' : `${Math.round(winRate * 100)}%`}
         </text>
-        <text x={cx} y={cy + 8} textAnchor="middle" fill="#6B7280" fontSize="7"
+        <text x={cx} y={cy + 8} textAnchor="middle" fill={K_NEUTRAL} fontSize="7"
           letterSpacing="0.08em" fontFamily="Inter, system-ui, sans-serif">
           WIN RATE
         </text>
@@ -3038,11 +3076,11 @@ function LoopKPI({ label, value, color, sub }: {
   label: string; value: string; color: string; sub?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 px-3 py-2.5 rounded-xl"
+    <div className="flex flex-col gap-1 px-3 py-2.5 rounded-cortex-md"
       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <span className="text-[19px] font-bold leading-none" style={{ color }}>{value}</span>
       <span className="text-[10px] font-semibold text-white">{label}</span>
-      {sub && <span className="text-[9px] text-gray-600 leading-tight">{sub}</span>}
+      {sub && <span className="text-[9px] text-cortex-faint leading-tight">{sub}</span>}
       <div className="h-px rounded-full mt-0.5"
         style={{ background: `linear-gradient(90deg, ${color}50, transparent)` }} />
     </div>
@@ -3057,7 +3095,7 @@ function LoopLossBar({ label, count, maxCount, color }: {
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-gray-400 truncate">{label}</span>
+        <span className="text-[10px] text-cortex-muted truncate">{label}</span>
         <span className="text-[10px] font-bold flex-shrink-0" style={{ color }}>{count}×</span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden"
@@ -3081,11 +3119,11 @@ function LoopScoreBand({ label, rate, total, color, i }: {
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-mono text-gray-500">{label}</span>
+        <span className="text-[9px] font-mono text-cortex-muted">{label}</span>
         <div className="flex items-center gap-2">
           <span className="text-[9px] text-gray-700">{total} deals</span>
           <span className="text-[10px] font-bold w-8 text-right"
-            style={{ color: rate === null ? '#4B5563' : color }}>
+            style={{ color: rate === null ? K_TEXT_FAINT : color }}>
             {rate === null ? '—' : `${rate}%`}
           </span>
         </div>
@@ -3126,7 +3164,7 @@ function InlineLearningLoopPanel({
       transition={{ duration: 0.26, ease: [0.4, 0, 0.2, 1] }}
       className="overflow-hidden mb-4"
     >
-      <div className="rounded-2xl overflow-hidden"
+      <div className="rounded-cortex-lg overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, rgba(16,185,129,0.05) 0%, rgba(10,10,15,0.97) 100%)',
           border:     '1px solid rgba(16,185,129,0.18)',
@@ -3137,18 +3175,18 @@ function InlineLearningLoopPanel({
         <div className="flex items-center justify-between px-4 py-3"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="flex items-center gap-3 min-w-0">
-            <div className="size-7 rounded-lg flex items-center justify-center flex-shrink-0"
+            <div className="size-7 rounded-cortex-sm flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(16,185,129,0.13)', border: '1px solid rgba(16,185,129,0.25)' }}>
-              <Brain className="size-3.5 text-[#10B981]" />
+              <Brain className="size-3.5 text-cortex-success" />
             </div>
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <span className="text-xs font-bold text-white tracking-wide">LEARNING LOOP</span>
-              <span className="text-[9px] text-gray-600">Pattern intelligence</span>
+              <span className="text-[9px] text-cortex-faint">Pattern intelligence</span>
               {data && (
                 <motion.span
                   initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                   className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: 'rgba(16,185,129,0.1)', color: '#10B981', border: '1px solid rgba(16,185,129,0.22)' }}
+                  style={{ background: 'rgba(16,185,129,0.1)', color: K_SUCCESS, border: '1px solid rgba(16,185,129,0.22)' }}
                 >
                   {data.totalOutcomes} outcome{data.totalOutcomes !== 1 ? 's' : ''}
                 </motion.span>
@@ -3165,8 +3203,8 @@ function InlineLearningLoopPanel({
             {onOpenFull && (
               <button
                 onClick={onOpenFull}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all"
-                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#10B981' }}
+                className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[10px] font-semibold transition-all"
+                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: K_SUCCESS }}
               >
                 Full Report <ArrowRight className="size-2.5" />
               </button>
@@ -3175,7 +3213,7 @@ function InlineLearningLoopPanel({
               onClick={onRefresh}
               disabled={status === 'loading'}
               title="Refresh intelligence data"
-              className="flex items-center justify-center size-[26px] rounded-lg text-gray-600 hover:text-gray-300 transition-colors disabled:opacity-40"
+              className="flex items-center justify-center size-[26px] rounded-cortex-sm text-cortex-faint hover:text-cortex-secondary transition-colors disabled:opacity-40"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
             >
               <RefreshCw className={`size-3 ${status === 'loading' ? 'animate-spin' : ''}`} />
@@ -3183,7 +3221,7 @@ function InlineLearningLoopPanel({
             <button
               onClick={onClose}
               title="Close (L)"
-              className="flex items-center justify-center size-[26px] rounded-lg text-gray-600 hover:text-white transition-colors"
+              className="flex items-center justify-center size-[26px] rounded-cortex-sm text-cortex-faint hover:text-white transition-colors"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
             >
               <XIcon className="size-3" />
@@ -3197,22 +3235,22 @@ function InlineLearningLoopPanel({
           {/* Loading */}
           {status === 'loading' && (
             <div className="flex items-center justify-center gap-3 py-8">
-              <Brain className="size-5 text-[#10B981] animate-pulse" />
-              <span className="text-xs text-gray-500">Aggregating intelligence data…</span>
+              <Brain className="size-5 text-cortex-success animate-pulse" />
+              <span className="text-xs text-cortex-muted">Aggregating intelligence data…</span>
             </div>
           )}
 
           {/* Error / empty */}
           {(status === 'error' || status === 'idle') && (
             <div className="flex items-center gap-3 py-6">
-              <AlertTriangle className="size-4 text-[#D97706] flex-shrink-0" />
-              <span className="text-[11px] text-gray-500">
+              <AlertTriangle className="size-4 text-cortex-caution-deep flex-shrink-0" />
+              <span className="text-[11px] text-cortex-muted">
                 No outcome data yet — drop a lead on{' '}
-                <span className="text-[#10B981] font-semibold">Converted</span> or{' '}
-                <span className="text-[#FD4438] font-semibold">Lost</span> to start the loop.
+                <span className="text-cortex-success font-semibold">Converted</span> or{' '}
+                <span className="text-cortex-danger font-semibold">Lost</span> to start the loop.
               </span>
               {status === 'error' && (
-                <button onClick={onRefresh} className="text-[10px] text-[#8B5CF6] hover:underline flex-shrink-0">Retry</button>
+                <button onClick={onRefresh} className="text-[10px] text-cortex-accent hover:underline flex-shrink-0">Retry</button>
               )}
             </div>
           )}
@@ -3224,23 +3262,23 @@ function InlineLearningLoopPanel({
               {/* ── KPI strip ─────────────────────────────────────────── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 <LoopKPI
-                  label="Outcomes" color="#8B5CF6"
+                  label="Outcomes" color={K_ACCENT}
                   value={String(data.totalOutcomes)}
                   sub={`${data.totalConverted} won · ${data.totalLost} lost`}
                 />
                 <LoopKPI
                   label="Win Rate"
-                  color={data.conversionRate >= 60 ? '#10B981' : data.conversionRate >= 40 ? '#FB923C' : '#FD4438'}
+                  color={data.conversionRate >= 60 ? K_SUCCESS : data.conversionRate >= 40 ? K_WARNING : K_DANGER}
                   value={`${data.conversionRate}%`}
                   sub={`${data.totalConverted} of ${data.totalOutcomes} deals`}
                 />
                 <LoopKPI
-                  label="Revenue Won" color="#06D7F6"
+                  label="Revenue Won" color={K_INFO}
                   value={fmtMoney(data.totalRevenue)}
                   sub={data.avgDealSize > 0 ? `Avg ${fmtMoney(data.avgDealSize)}` : 'No deal values yet'}
                 />
                 <LoopKPI
-                  label="Rec. Accuracy" color="#FB923C"
+                  label="Rec. Accuracy" color={K_WARNING}
                   value={data.recommendationAccuracy !== null ? `${data.recommendationAccuracy}%` : 'N/A'}
                   sub={data.avgDaysToClose !== null ? `Avg ${data.avgDaysToClose}d to close` : 'Insufficient data'}
                 />
@@ -3250,44 +3288,44 @@ function InlineLearningLoopPanel({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 {/* Win/loss donut + legend */}
-                <div className="flex items-center gap-4 p-3 rounded-xl"
+                <div className="flex items-center gap-4 p-3 rounded-cortex-md"
                   style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                   <LoopMiniDonut won={data.totalConverted} lost={data.totalLost} />
                   <div className="flex flex-col gap-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full flex-shrink-0" style={{ background: '#10B981' }} />
-                      <span className="text-[11px] text-gray-400 flex-1">Won</span>
-                      <span className="text-[12px] font-bold text-[#10B981]">{data.totalConverted}</span>
+                      <div className="size-2 rounded-full flex-shrink-0" style={{ background: K_SUCCESS }} />
+                      <span className="text-[11px] text-cortex-muted flex-1">Won</span>
+                      <span className="text-[12px] font-bold text-cortex-success">{data.totalConverted}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full flex-shrink-0" style={{ background: '#FD4438' }} />
-                      <span className="text-[11px] text-gray-400 flex-1">Lost</span>
-                      <span className="text-[12px] font-bold text-[#FD4438]">{data.totalLost}</span>
+                      <div className="size-2 rounded-full flex-shrink-0" style={{ background: K_DANGER }} />
+                      <span className="text-[11px] text-cortex-muted flex-1">Lost</span>
+                      <span className="text-[12px] font-bold text-cortex-danger">{data.totalLost}</span>
                     </div>
                     {data.totalRevenue > 0 && (
-                      <div className="px-2 py-1 rounded-lg text-[10px] mt-1"
+                      <div className="px-2 py-1 rounded-cortex-sm text-[10px] mt-1"
                         style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
-                        <span className="text-gray-500">Revenue: </span>
-                        <span className="text-[#10B981] font-bold">{fmtMoney(data.totalRevenue)}</span>
+                        <span className="text-cortex-muted">Revenue: </span>
+                        <span className="text-cortex-success font-bold">{fmtMoney(data.totalRevenue)}</span>
                         {data.avgDealSize > 0 && (
-                          <span className="text-gray-600"> · avg {fmtMoney(data.avgDealSize)}</span>
+                          <span className="text-cortex-faint"> · avg {fmtMoney(data.avgDealSize)}</span>
                         )}
                       </div>
                     )}
                     {data.avgDaysToClose !== null && (
-                      <div className="px-2 py-1 rounded-lg text-[10px]"
+                      <div className="px-2 py-1 rounded-cortex-sm text-[10px]"
                         style={{ background: 'rgba(6,215,246,0.05)', border: '1px solid rgba(6,215,246,0.12)' }}>
-                        <span className="text-gray-500">Avg close: </span>
-                        <span className="text-[#06D7F6] font-bold">{data.avgDaysToClose}d</span>
+                        <span className="text-cortex-muted">Avg close: </span>
+                        <span className="text-cortex-info font-bold">{data.avgDaysToClose}d</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Top loss reasons */}
-                <div className="p-3 rounded-xl space-y-2.5"
+                <div className="p-3 rounded-cortex-md space-y-2.5"
                   style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                  <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                     Top Loss Reasons
                   </p>
                   {data.topLostReasons.length === 0 ? (
@@ -3310,34 +3348,34 @@ function InlineLearningLoopPanel({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 {/* Score bands */}
-                <div className="p-3 rounded-xl space-y-2.5"
+                <div className="p-3 rounded-cortex-md space-y-2.5"
                   style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                  <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                     Score Band Win Rate
                   </p>
                   <LoopScoreBand
                     label={`High · ${data.scoreCorrelation.highScore.range}`}
                     rate={data.scoreCorrelation.highScore.rate}
                     total={data.scoreCorrelation.highScore.total}
-                    color="#10B981" i={0}
+                    color={K_SUCCESS} i={0}
                   />
                   <LoopScoreBand
                     label={`Mid  · ${data.scoreCorrelation.midScore.range}`}
                     rate={data.scoreCorrelation.midScore.rate}
                     total={data.scoreCorrelation.midScore.total}
-                    color="#FB923C" i={1}
+                    color={K_WARNING} i={1}
                   />
                   <LoopScoreBand
                     label={`Low  · ${data.scoreCorrelation.lowScore.range}`}
                     rate={data.scoreCorrelation.lowScore.rate}
                     total={data.scoreCorrelation.lowScore.total}
-                    color="#FD4438" i={2}
+                    color={K_DANGER} i={2}
                   />
                   {data.scoreCorrelation.highScore.rate !== null &&
                    data.scoreCorrelation.lowScore.rate  !== null && (
                     <motion.p
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-                      className="text-[9px] text-gray-600 leading-snug pt-0.5"
+                      className="text-[9px] text-cortex-faint leading-snug pt-0.5"
                     >
                       {(data.scoreCorrelation.highScore.rate ?? 0) > (data.scoreCorrelation.lowScore.rate ?? 0)
                         ? '✓ High-score leads convert better — AI calibration confirmed.'
@@ -3347,12 +3385,12 @@ function InlineLearningLoopPanel({
                 </div>
 
                 {/* Improvement tags + most recent outcomes */}
-                <div className="p-3 rounded-xl space-y-3"
+                <div className="p-3 rounded-cortex-md space-y-3"
                   style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
 
                   {data.improvementAreas.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                      <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                         Improvement Votes
                       </p>
                       <div className="flex flex-wrap gap-1.5">
@@ -3379,7 +3417,7 @@ function InlineLearningLoopPanel({
 
                   {data.recentOutcomes.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">
+                      <p className="text-[9px] font-bold text-cortex-faint uppercase tracking-widest">
                         Most Recent Outcomes
                       </p>
                       {data.recentOutcomes.slice(0, 3).map((o, i) => (
@@ -3394,19 +3432,19 @@ function InlineLearningLoopPanel({
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
                             style={{
                               background: o.didConvert ? 'rgba(16,185,129,0.12)' : 'rgba(253,68,56,0.1)',
-                              color:      o.didConvert ? '#10B981' : '#FD4438',
+                              color:      o.didConvert ? K_SUCCESS : K_DANGER,
                             }}>
                             {o.didConvert ? 'WON' : 'LOST'}
                           </span>
                           <span className="text-[10px] text-white font-medium truncate flex-1">{o.company}</span>
                           {o.conversionValue && o.didConvert && (
-                            <span className="text-[9px] font-bold text-[#06D7F6] flex-shrink-0">
+                            <span className="text-[9px] font-bold text-cortex-info flex-shrink-0">
                               {fmtMoney(o.conversionValue)}
                             </span>
                           )}
                           {o.aiScore > 0 && (
                             <span className="text-[9px] font-bold flex-shrink-0"
-                              style={{ color: o.aiScore >= 75 ? '#10B981' : o.aiScore >= 50 ? '#FB923C' : '#FD4438' }}>
+                              style={{ color: o.aiScore >= 75 ? K_SUCCESS : o.aiScore >= 50 ? K_WARNING : K_DANGER }}>
                               {o.aiScore}
                             </span>
                           )}
@@ -4407,12 +4445,12 @@ export function PipelineKanban({
         }
         /* 10C: show ⋯ trigger on card hover */
         .cortex-card:hover [data-qp-trigger] {
-          color:   #6B7280 !important;
+          color:   ${K_NEUTRAL} !important;
           border-color: rgba(255,255,255,0.1) !important;
           background: rgba(255,255,255,0.05) !important;
         }
         .cortex-card:hover [data-qp-trigger]:hover {
-          color:   #C4B5FD !important;
+          color:   ${K_ACCENT_LIGHT} !important;
           border-color: rgba(139,92,246,0.45) !important;
           background: rgba(139,92,246,0.18) !important;
         }
@@ -4443,24 +4481,24 @@ export function PipelineKanban({
             {isSelectMode ? (
               <motion.div key="select" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
                 className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold"
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-cortex-sm text-xs font-bold"
                   style={{
                     background: selectionCount > 0 ? 'rgba(139,92,246,0.18)' : 'rgba(255,255,255,0.05)',
                     border:     selectionCount > 0 ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                    color:      selectionCount > 0 ? '#C4B5FD' : '#6B7280',
+                    color:      selectionCount > 0 ? K_ACCENT_LIGHT : K_NEUTRAL,
                   }}>
                   <Layers className="size-3" />
                   {selectionCount === 0 ? 'Click cards to select' : `${selectionCount} card${selectionCount !== 1 ? 's' : ''} selected`}
                 </div>
                 {selectionCount > 0 && (
                   <button onClick={clearSelection}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-gray-500 hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium text-cortex-muted hover:text-white transition-colors"
                     style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <XIcon className="size-3" />Clear
                   </button>
                 )}
                 {selectionCount > 1 && (
-                  <span className="text-[11px] text-gray-600 hidden sm:block">
+                  <span className="text-[11px] text-cortex-faint hidden sm:block">
                     Drag any selected card to move all {selectionCount}
                   </span>
                 )}
@@ -4478,9 +4516,9 @@ export function PipelineKanban({
             {/* 7C: Live staleness badge */}
             {lastPolledAt && (
               <div className="flex items-center gap-1.5 text-[11px]"
-                style={{ color: liveStatus === 'offline' ? '#FD4438' : '#4B5563' }}>
+                style={{ color: liveStatus === 'offline' ? K_DANGER : K_TEXT_FAINT }}>
                 <span className="size-1.5 rounded-full flex-shrink-0" style={{
-                  background: liveStatus === 'live' ? '#10B981' : liveStatus === 'polling' ? '#FB923C' : liveStatus === 'offline' ? '#FD4438' : '#6B7280',
+                  background: liveStatus === 'live' ? K_SUCCESS : liveStatus === 'polling' ? K_WARNING : liveStatus === 'offline' ? K_DANGER : K_NEUTRAL,
                 }} />
                 {liveStatus === 'polling'
                   ? 'Syncing…'
@@ -4496,7 +4534,7 @@ export function PipelineKanban({
                 onClick={handleManualPoll}
                 disabled={isManualPoll || liveStatus === 'polling'}
                 title="Check for board changes now"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-gray-500 hover:text-gray-200 transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium text-cortex-muted hover:text-gray-200 transition-colors disabled:opacity-40"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
                 <RefreshCw className={`size-3 ${isManualPoll || liveStatus === 'polling' ? 'animate-spin' : ''}`} />
@@ -4513,13 +4551,13 @@ export function PipelineKanban({
                   : overCapCount > 0
                     ? `${overCapCount} column${overCapCount !== 1 ? 's' : ''} at capacity — configure limits`
                     : 'Configure column capacity limits'}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all"
                 style={{
                   background: capPanelOpen    ? 'rgba(251,146,60,0.18)' :
                               overCapCount > 0 ? 'rgba(251,146,60,0.1)'  : 'rgba(255,255,255,0.04)',
                   border:     capPanelOpen    ? '1px solid rgba(251,146,60,0.45)' :
                               overCapCount > 0 ? '1px solid rgba(251,146,60,0.3)'  : '1px solid rgba(255,255,255,0.08)',
-                  color:      capPanelOpen || overCapCount > 0 ? '#FB923C' : '#6B7280',
+                  color:      capPanelOpen || overCapCount > 0 ? K_WARNING : K_NEUTRAL,
                 }}
               >
                 <Gauge className="size-3" />
@@ -4534,7 +4572,7 @@ export function PipelineKanban({
                       minWidth: 16, height: 16,
                       background: 'rgba(251,146,60,0.22)',
                       border:     '1px solid rgba(251,146,60,0.4)',
-                      color:      '#FB923C',
+                      color:      K_WARNING,
                       padding:    '0 3px',
                     }}
                   >
@@ -4553,11 +4591,11 @@ export function PipelineKanban({
                   : totalStaleCount > 0
                     ? `${totalStaleCount} stale lead${totalStaleCount !== 1 ? 's' : ''} — click to highlight`
                     : 'Highlight stale cards (7+ days inactive)'}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all"
                 style={{
                   background: staleFilterActive ? 'rgba(217,119,6,0.18)' : 'rgba(255,255,255,0.04)',
                   border:     staleFilterActive ? '1px solid rgba(217,119,6,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                  color:      staleFilterActive ? '#D97706' : totalStaleCount > 0 ? '#D97706' : '#6B7280',
+                  color:      staleFilterActive ? K_CAUTION_DEEP : totalStaleCount > 0 ? K_CAUTION_DEEP : K_NEUTRAL,
                 }}
               >
                 <Clock className="size-3" />
@@ -4572,7 +4610,7 @@ export function PipelineKanban({
                       minWidth: 16, height: 16,
                       background: 'rgba(217,119,6,0.2)',
                       border:     '1px solid rgba(217,119,6,0.35)',
-                      color:      '#D97706',
+                      color:      K_CAUTION_DEEP,
                       padding:    '0 3px',
                     }}
                   >
@@ -4594,7 +4632,7 @@ export function PipelineKanban({
                       ? 'Report downloaded!'
                       : 'Download CORTEX loss pattern report as CSV'
                 }
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all disabled:opacity-60"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all disabled:opacity-60"
                 style={{
                   background: exportStatus === 'success'
                     ? 'rgba(16,185,129,0.12)'
@@ -4607,10 +4645,10 @@ export function PipelineKanban({
                       ? '1px solid rgba(253,68,56,0.25)'
                       : '1px solid rgba(255,255,255,0.08)',
                   color: exportStatus === 'success'
-                    ? '#10B981'
+                    ? K_SUCCESS
                     : exportStatus === 'error'
-                      ? '#FD4438'
-                      : '#6B7280',
+                      ? K_DANGER
+                      : K_NEUTRAL,
                 }}
               >
                 {exportStatus === 'loading' && <Loader2 className="size-3 animate-spin" />}
@@ -4630,11 +4668,11 @@ export function PipelineKanban({
             <button
               onClick={feedOpen ? closeFeed : openFeed}
               title="Toggle activity feed"
-              className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+              className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all"
               style={{
                 background: feedOpen ? 'rgba(139,92,246,0.18)' : 'rgba(255,255,255,0.04)',
                 border:     feedOpen ? '1px solid rgba(139,92,246,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                color:      feedOpen ? '#C4B5FD' : '#6B7280',
+                color:      feedOpen ? K_ACCENT_LIGHT : K_NEUTRAL,
               }}
             >
               <ScrollText className="size-3" />
@@ -4646,7 +4684,7 @@ export function PipelineKanban({
                   className="flex items-center justify-center text-[9px] font-bold rounded-full text-white leading-none"
                   style={{
                     minWidth: 16, height: 16,
-                    background: '#8B5CF6',
+                    background: K_ACCENT,
                     padding: '0 4px',
                   }}
                 >
@@ -4660,11 +4698,11 @@ export function PipelineKanban({
               <button
                 onClick={loopOpen ? () => setLoopOpen(false) : openLoopPanel}
                 title={loopOpen ? 'Close Learning Loop (L)' : 'Open Learning Loop intelligence panel (L)'}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium transition-all"
                 style={{
                   background: loopOpen ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)',
                   border:     loopOpen ? '1px solid rgba(16,185,129,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                  color:      loopOpen ? '#10B981' : '#6B7280',
+                  color:      loopOpen ? K_SUCCESS : K_NEUTRAL,
                 }}
               >
                 <Brain className="size-3" />
@@ -4677,7 +4715,7 @@ export function PipelineKanban({
                       minWidth: 16, height: 16,
                       background: 'rgba(16,185,129,0.18)',
                       border:     '1px solid rgba(16,185,129,0.3)',
-                      color:      '#10B981',
+                      color:      K_SUCCESS,
                       padding:    '0 3px',
                     }}
                   >
@@ -4690,13 +4728,13 @@ export function PipelineKanban({
             {/* 7B: Select mode toggle */}
             {isSelectMode ? (
               <button onClick={exitSelectMode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
-                style={{ background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.5)', color: '#C4B5FD' }}>
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-bold transition-all"
+                style={{ background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.5)', color: K_ACCENT_LIGHT }}>
                 <XIcon className="size-3" />Exit select mode
               </button>
             ) : (
               <button onClick={enterSelectMode} title="Enable multi-select"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-gray-500 hover:text-gray-200 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] font-medium text-cortex-muted hover:text-gray-200 transition-colors"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <MousePointerClick className="size-3" />Select
               </button>
@@ -4706,32 +4744,32 @@ export function PipelineKanban({
             <AnimatePresence mode="wait">
               {syncStatus === 'loading' && (
                 <motion.div key="loading" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', color: '#A78BFA' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', color: K_ACCENT_LIGHT }}>
                   <Loader2 className="size-3 animate-spin" />Loading layout…
                 </motion.div>
               )}
               {syncStatus === 'saving' && (
                 <motion.div key="saving" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(6,215,246,0.08)', border: '1px solid rgba(6,215,246,0.2)', color: '#06D7F6' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(6,215,246,0.08)', border: '1px solid rgba(6,215,246,0.2)', color: K_INFO }}>
                   <Cloud className="size-3" />Saving…
                 </motion.div>
               )}
               {syncStatus === 'saved' && (
                 <motion.div key="saved" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10B981' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: K_SUCCESS }}>
                   <CheckCircle2 className="size-3" />Board synced
                 </motion.div>
               )}
               {syncStatus === 'error' && (
                 <motion.div key="error" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.25)', color: '#FCA5A5' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.25)', color: K_DANGER_LIGHT }}>
                   <WifiOff className="size-3" />
                   {syncError || 'Sync failed'}
-                  <button onClick={handleRetrySync} className="ml-1 underline hover:no-underline text-[#FD4438]">Retry</button>
+                  <button onClick={handleRetrySync} className="ml-1 underline hover:no-underline text-cortex-danger">Retry</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -4740,22 +4778,22 @@ export function PipelineKanban({
             <AnimatePresence>
               {capSaveStatus === 'saving' && (
                 <motion.div key="cap-saving" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.2)', color: '#FB923C' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.2)', color: K_WARNING }}>
                   <Gauge className="size-3 animate-pulse" />Saving caps…
                 </motion.div>
               )}
               {capSaveStatus === 'saved' && (
                 <motion.div key="cap-saved" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10B981' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: K_SUCCESS }}>
                   <CheckCircle2 className="size-3" />Caps saved
                 </motion.div>
               )}
               {capSaveStatus === 'error' && (
                 <motion.div key="cap-error" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium"
-                  style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.25)', color: '#FCA5A5' }}>
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[11px] font-medium"
+                  style={{ background: 'rgba(253,68,56,0.1)', border: '1px solid rgba(253,68,56,0.25)', color: K_DANGER_LIGHT }}>
                   <AlertTriangle className="size-3" />Cap save failed
                 </motion.div>
               )}
@@ -4764,7 +4802,7 @@ export function PipelineKanban({
             {/* Reset */}
             {accessToken && syncStatus !== 'loading' && (
               <button onClick={handleResetPositions} title="Reset board layout to submission statuses"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-gray-600 hover:text-gray-300 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[11px] text-cortex-faint hover:text-cortex-secondary transition-colors"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <RotateCcw className="size-3" />Reset layout
               </button>
@@ -4774,11 +4812,11 @@ export function PipelineKanban({
             <button
               onClick={() => setShowShortcuts(s => !s)}
               title="Keyboard shortcuts (?)"
-              className="flex items-center justify-center size-[30px] rounded-lg text-[11px] font-bold transition-all"
+              className="flex items-center justify-center size-[30px] rounded-cortex-sm text-[11px] font-bold transition-all"
               style={{
                 background: showShortcuts ? 'rgba(139,92,246,0.18)' : 'rgba(255,255,255,0.03)',
                 border:     showShortcuts ? '1px solid rgba(139,92,246,0.45)' : '1px solid rgba(255,255,255,0.07)',
-                color:      showShortcuts ? '#C4B5FD' : '#6B7280',
+                color:      showShortcuts ? K_ACCENT_LIGHT : K_NEUTRAL,
               }}
             >
               <Keyboard className="size-3.5" />
@@ -4815,7 +4853,7 @@ export function PipelineKanban({
         {/* Board */}
         {!positionsLoaded ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="size-6 text-[#8B5CF6] animate-spin" />
+            <Loader2 className="size-6 text-cortex-accent animate-spin" />
           </div>
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-8 pt-1 -mx-1 px-1">
@@ -4855,82 +4893,82 @@ export function PipelineKanban({
         )}
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-2 text-[11px] text-gray-600 flex-wrap">
+        <div className="flex items-center gap-4 mt-2 text-[11px] text-cortex-faint flex-wrap">
           <div className="flex items-center gap-1.5">
             <GripVertical className="size-3" />Drag cards between stages
           </div>
           <div className="flex items-center gap-1.5">
-            <MousePointerClick className="size-3 text-[#8B5CF6]" />
-            <span className="text-[#8B5CF6] font-semibold">Select</span> to multi-drag a group
+            <MousePointerClick className="size-3 text-cortex-accent" />
+            <span className="text-cortex-accent font-semibold">Select</span> to multi-drag a group
           </div>
           <div className="flex items-center gap-1.5">
-            <Layers className="size-3 text-[#8B5CF6]" />
-            Column <span className="text-[#8B5CF6] font-semibold">☑</span> selects all cards in that stage
+            <Layers className="size-3 text-cortex-accent" />
+            Column <span className="text-cortex-accent font-semibold">☑</span> selects all cards in that stage
           </div>
           <div className="flex items-center gap-1.5">
-            <Radio className="size-3 text-[#06D7F6]" />
-            <span className="text-[#06D7F6] font-semibold">Live sync</span> · polls every 30 s
+            <Radio className="size-3 text-cortex-info" />
+            <span className="text-cortex-info font-semibold">Live sync</span> · polls every 30 s
           </div>
           <div className="flex items-center gap-1.5">
-            <BarChart2 className="size-3 text-[#8B5CF6]" />
-            Sparkline = <span className="text-[#8B5CF6] font-semibold">live</span> after 2+ score reads · dashed = estimated
+            <BarChart2 className="size-3 text-cortex-accent" />
+            Sparkline = <span className="text-cortex-accent font-semibold">live</span> after 2+ score reads · dashed = estimated
           </div>
           <div className="flex items-center gap-1.5">
-            <TrendingUp className="size-3 text-[#10B981]" />
-            Drop on <span className="text-[#10B981] font-semibold">Converted</span> to log a win
+            <TrendingUp className="size-3 text-cortex-success" />
+            Drop on <span className="text-cortex-success font-semibold">Converted</span> to log a win
           </div>
           <div className="flex items-center gap-1.5">
-            <XCircle className="size-3 text-[#FD4438]" />
-            Drop on <span className="text-[#FD4438] font-semibold">Lost</span> to log a loss
+            <XCircle className="size-3 text-cortex-danger" />
+            Drop on <span className="text-cortex-danger font-semibold">Lost</span> to log a loss
           </div>
           <div className="flex items-center gap-1.5">
-            <ScrollText className="size-3 text-[#8B5CF6]" />
-            <span className="text-[#8B5CF6] font-semibold">Activity</span> logs every board event
+            <ScrollText className="size-3 text-cortex-accent" />
+            <span className="text-cortex-accent font-semibold">Activity</span> logs every board event
           </div>
           <div className="flex items-center gap-1.5">
-            <Download className="size-3 text-[#06D7F6]" />
-            <span className="text-[#06D7F6] font-semibold">Loss Report</span> exports Learning Loop as CSV
+            <Download className="size-3 text-cortex-info" />
+            <span className="text-cortex-info font-semibold">Loss Report</span> exports Learning Loop as CSV
           </div>
           <div className="flex items-center gap-1.5">
-            <Keyboard className="size-3 text-[#8B5CF6]" />
-            <span className="text-[#8B5CF6] font-semibold">?</span> keyboard shortcuts · <span className="text-[#8B5CF6] font-semibold">← →</span> columns · <span className="text-[#8B5CF6] font-semibold">↑ ↓</span> cards
+            <Keyboard className="size-3 text-cortex-accent" />
+            <span className="text-cortex-accent font-semibold">?</span> keyboard shortcuts · <span className="text-cortex-accent font-semibold">← →</span> columns · <span className="text-cortex-accent font-semibold">↑ ↓</span> cards
           </div>
           <div className="flex items-center gap-1.5">
-            <Brain className="size-3 text-[#10B981]" />
-            <span className="text-[#10B981] font-semibold">Loop</span>
+            <Brain className="size-3 text-cortex-success" />
+            <span className="text-cortex-success font-semibold">Loop</span>
             inline Learning Loop · win rate · loss reasons · score bands
           </div>
           <div className="flex items-center gap-1.5">
-            <Gauge className="size-3 text-[#FB923C]" />
-            <span className="text-[#FB923C] font-semibold">Cap</span>
-            click <span className="text-[#FB923C] font-semibold">N/cap</span> denominator to edit · auto-saved to team workspace
+            <Gauge className="size-3 text-cortex-warning" />
+            <span className="text-cortex-warning font-semibold">Cap</span>
+            click <span className="text-cortex-warning font-semibold">N/cap</span> denominator to edit · auto-saved to team workspace
           </div>
           <div className="flex items-center gap-1.5">
-            <AlertTriangle className="size-3 text-[#FD4438]" />
-            <span className="text-[#FD4438] font-semibold">Critical</span>
+            <AlertTriangle className="size-3 text-cortex-danger" />
+            <span className="text-cortex-danger font-semibold">Critical</span>
             red pulsing border + chip when AI score ≤ 38
           </div>
           <div className="flex items-center gap-1.5">
-            <Sparkles className="size-3 text-[#10B981]" />
-            <span className="text-[#10B981] font-semibold">Hot</span>
+            <Sparkles className="size-3 text-cortex-success" />
+            <span className="text-cortex-success font-semibold">Hot</span>
             green border + chip when AI score ≥ 85
           </div>
           <div className="flex items-center gap-1.5">
-            <MoreVertical className="size-3 text-[#8B5CF6]" />
-            <span className="text-[#8B5CF6] font-semibold">⋯</span>
+            <MoreVertical className="size-3 text-cortex-accent" />
+            <span className="text-cortex-accent font-semibold">⋯</span>
             hover a card · quick-move prev/next · select · copy name
           </div>
           <div className="flex items-center gap-1.5">
-            <Clock className="size-3 text-[#D97706]" />
-            <span className="text-[#D97706] font-semibold">Stale</span>
+            <Clock className="size-3 text-cortex-caution-deep" />
+            <span className="text-cortex-caution-deep font-semibold">Stale</span>
             highlights leads inactive 7d+ ·
-            <span className="font-semibold" style={{ color: '#EA580C' }}>14d+</span> stale ·
-            <span className="font-semibold" style={{ color: '#DC2626' }}>30d+</span> critical ·
-            <span className="text-[#D97706] font-semibold">🔔 bell alert at each tier</span>
+            <span className="font-semibold" style={{ color: K_CAUTION_DEEP }}>14d+</span> stale ·
+            <span className="font-semibold" style={{ color: K_DANGER_DEEP }}>30d+</span> critical ·
+            <span className="text-cortex-caution-deep font-semibold">🔔 bell alert at each tier</span>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <Cloud className="size-3 text-[#06D7F6]" />
-            <span className="text-[#06D7F6]">Layout auto-saves to cloud</span>
+            <Cloud className="size-3 text-cortex-info" />
+            <span className="text-cortex-info">Layout auto-saves to cloud</span>
           </div>
         </div>
       </div>
