@@ -100,6 +100,7 @@ export type { DemoClient, DemoNurtureLead } from '@/app/utils/demoData';
 export type { ClientReportData } from '@/app/utils/clientReportGenerator';
 
 // ── Internal imports (not re-exported) ──────────────────────────────────────
+import { normalizeTeamRole } from '@/app/lib/teamRole';
 import * as api from '@/app/lib/api';
 import type { ClientAuthContext } from '@/app/lib/session';
 import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
@@ -146,14 +147,21 @@ export async function saveExitIntentLead(email: string) {
 export async function teamLogin(
   email: string,
   password: string,
-): Promise<{ success: boolean; accessToken: string; user: { id: string; email: string; name: string } }> {
+): Promise<{
+  success: boolean;
+  accessToken: string;
+  user: { id: string; email: string; name: string; teamRole?: string };
+}> {
   if (isDemo()) {
     log('Team login (demo mode)');
     if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
       return {
         success: true,
         accessToken: 'demo_access_token_12345',
-        user: { id: 'user_001', email, name: 'Admin User' },
+        // Demo mode signs in the one demo account, and it is the admin one —
+        // stating the role here rather than leaving it to the fail-closed
+        // default is what makes the demo show the admin experience it claims to.
+        user: { id: 'user_001', email, name: 'Admin User', teamRole: 'admin' },
       };
     }
     throw new Error('Invalid credentials. Use demo credentials shown below.');
@@ -918,7 +926,7 @@ export async function inviteTeamMember(
       id: `user_demo_${Date.now()}`,
       email: payload.email,
       name: payload.name,
-      teamRole: payload.teamRole as any,
+      teamRole: normalizeTeamRole(payload.teamRole),
       status: 'pending',
       joinedDate: new Date().toISOString(),
       lastActive: null,

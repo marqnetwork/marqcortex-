@@ -21,9 +21,11 @@ import {
   TEAM_SESSION_EXPIRY_KEY,
   CLIENT_SESSION_KEY,
   LEGACY_TEAM_SESSION_KEYS,
+  normaliseTeamUser,
   type TeamUser,
   type ClientSession,
 } from '@/app/lib/session';
+import { DEFAULT_TEAM_ROLE, type TeamRole } from '@/app/lib/teamRole';
 
 // ── Session expiry ───────────────────────────────────────────────────────────
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
@@ -55,7 +57,16 @@ interface AppState {
   setTeamAccessToken: (token: string | null) => void;
   /** The signed-in team member, when the login response supplied one. */
   teamUser: TeamUser | null;
-  loginTeam: (token: string, user?: TeamUser | null) => void;
+  /**
+   * The signed-in member's role, for deciding what the console SHOWS.
+   *
+   * Never null: a session that carried no identity, or one whose role the
+   * server no longer issues, reads as `viewer` — the least privileged role —
+   * so a gap in the data can never widen what the console offers. This is not
+   * authorization; see `@/app/lib/teamRole`.
+   */
+  teamRole: TeamRole;
+  loginTeam: (token: string, user?: unknown) => void;
   isSessionExpired: boolean;
 
   // Client auth
@@ -161,12 +172,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [clientSession]);
 
-  const loginTeam = useCallback((token: string, user: TeamUser | null = null) => {
+  // `user` is typed `unknown` because it comes straight off the login
+  // response — an untrusted wire shape. `normaliseTeamUser` is the one place
+  // that decides what a team identity is, so the value stored and the value
+  // restored on the next load go through identical narrowing.
+  const loginTeam = useCallback((token: string, user: unknown = null) => {
+    const normalised = normaliseTeamUser(user);
     setTeamAccessToken(token);
-    setTeamUser(user);
+    setTeamUser(normalised);
     setIsSessionExpired(false);
     // Token and identity are one canonical record under one canonical key.
-    localStorage.setItem(TEAM_SESSION_KEY, serializeTeamSession({ accessToken: token, user }));
+    localStorage.setItem(TEAM_SESSION_KEY, serializeTeamSession({ accessToken: token, user: normalised }));
     localStorage.setItem(TEAM_SESSION_EXPIRY_KEY, (Date.now() + SESSION_TTL_MS).toString());
   }, []);
 
@@ -202,6 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isSubmitting, setIsSubmitting,
         teamAccessToken, setTeamAccessToken,
         teamUser,
+        teamRole: teamUser?.teamRole ?? DEFAULT_TEAM_ROLE,
         loginTeam,
         isSessionExpired,
         clientSession, setClientSession,

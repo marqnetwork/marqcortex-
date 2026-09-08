@@ -4,6 +4,7 @@
 import { edgeFunctionBaseUrl, supabaseAnonKey } from '@/config/supabase.config';
 import { FEATURES } from '@/config/features';
 import type { ClientAuthContext } from '@/app/lib/session';
+import type { TeamRole } from '@/app/lib/teamRole';
 import type { DealSnapshot } from '@/app/core/dashboardAggregator';
 
 const BASE = edgeFunctionBaseUrl;
@@ -209,7 +210,17 @@ export async function teamLogin(email: string, password: string) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Login failed');
-  return data as { success: boolean; accessToken: string; user: { id: string; email: string; name: string } };
+  // `teamRole` has always been in this response — `resolveTeamAuthority` puts
+  // it there. The declared type omitted it, so every consumer downstream was
+  // typed as if the field did not exist and the console could not offer a
+  // role-appropriate experience. It is declared as `string` here because this
+  // is the untrusted wire shape; `normalizeTeamRole` narrows it at the session
+  // boundary and fails closed to `viewer`.
+  return data as {
+    success: boolean;
+    accessToken: string;
+    user: { id: string; email: string; name: string; teamRole?: string };
+  };
 }
 
 // ============================================================================
@@ -1043,7 +1054,18 @@ export interface TeamMemberRecord {
   id: string;
   email: string;
   name: string;
-  teamRole: 'admin' | 'reviewer' | 'viewer';
+
+  /**
+   * The member's role, from the canonical six the server issues.
+   *
+   * This used to read `'admin' | 'reviewer' | 'viewer'` — three of the six in
+   * `teamAuthorization.ts`. The other three are not hypothetical: the server
+   * assigns and returns `analyst`, `consultant` and `owner`, and the console
+   * rendered each of them as a "Viewer" with read-only permissions listed
+   * beside their name. Narrowing a wire type below what the wire carries does
+   * not prevent the value arriving; it only stops the console handling it.
+   */
+  teamRole: TeamRole;
   status: 'active' | 'pending';
   joinedDate: string;
   lastActive: string | null;

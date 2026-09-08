@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserPlus, Mail, Shield, Clock, CheckCircle2, X,
   Edit2, Trash2, Loader2, AlertTriangle, RefreshCw, Copy,
-  ChevronDown, Check, Eye, Crown, Star,
+  ChevronDown, Check, Eye, Crown, Star, Briefcase, LineChart,
 } from 'lucide-react';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
@@ -21,24 +21,53 @@ import {
   type TeamMemberRecord,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { useApp } from '@/app/contexts/AppContext';
+import {
+  TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
+  TEAM_ROLE_LABELS, type TeamRole,
+} from '@/app/lib/teamRole';
 
 interface Props {
   accessToken?: string;
 }
 
-const ROLE_CONFIG = {
-  admin:    { label: 'Admin',    color: 'text-[#8B5CF6] bg-[#8B5CF6]/10 border-[#8B5CF6]/30', icon: Crown },
-  reviewer: { label: 'Reviewer', color: 'text-[#06D7F6] bg-[#06D7F6]/10 border-[#06D7F6]/30', icon: Star },
-  viewer:   { label: 'Viewer',   color: 'text-white/60 bg-white/5 border-white/15',            icon: Eye },
+/**
+ * Presentation for each of the SIX roles the server issues.
+ *
+ * This map used to hold three. The server has always been able to assign and
+ * return `analyst`, `consultant` and `owner`, and each of them fell through
+ * `ROLE_CONFIG[member.teamRole] || ROLE_CONFIG.viewer` and rendered as a
+ * "Viewer" — a consultant shown to their own team as read-only. Labels come
+ * from the one vocabulary in `@/app/lib/teamRole` so they cannot drift from it.
+ */
+const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof Crown }> = {
+  owner:      { label: TEAM_ROLE_LABELS.owner,      color: 'text-[#FB923C] bg-[#FB923C]/10 border-[#FB923C]/30', icon: Crown       },
+  admin:      { label: TEAM_ROLE_LABELS.admin,      color: 'text-[#8B5CF6] bg-[#8B5CF6]/10 border-[#8B5CF6]/30', icon: Shield      },
+  consultant: { label: TEAM_ROLE_LABELS.consultant, color: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30', icon: Briefcase   },
+  analyst:    { label: TEAM_ROLE_LABELS.analyst,    color: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/30', icon: LineChart   },
+  reviewer:   { label: TEAM_ROLE_LABELS.reviewer,   color: 'text-[#06D7F6] bg-[#06D7F6]/10 border-[#06D7F6]/30', icon: Star        },
+  viewer:     { label: TEAM_ROLE_LABELS.viewer,     color: 'text-white/60 bg-white/5 border-white/15',           icon: Eye         },
 };
 
-const ROLE_PERMS: Record<string, string[]> = {
-  admin:    ['All permissions — full platform access'],
-  reviewer: ['View submissions', 'Manage CORTEX', 'Send proposals', 'Reply to messages', 'Add notes'],
-  viewer:   ['View submissions', 'View reports (read-only)'],
+/** Roles in the order the console presents them — most privileged first. */
+const ROLE_DISPLAY_ORDER: readonly TeamRole[] = [...TEAM_ROLES].reverse();
+
+const ROLE_PERMS: Record<TeamRole, string[]> = {
+  owner:      ['Everything an admin can do', 'Can administer other admins'],
+  admin:      ['All platform access', 'Invite, re-role and remove members'],
+  consultant: ['Own engagements end to end', 'Edit CORTEX, proposals and reports', 'Message clients'],
+  analyst:    ['Work the pipeline', 'Edit CORTEX analysis', 'Add notes'],
+  reviewer:   ['View submissions', 'Manage CORTEX', 'Send proposals', 'Reply to messages', 'Add notes'],
+  viewer:     ['View submissions', 'View reports (read-only)'],
 };
 
 export function TeamManagement({ accessToken }: Props) {
+  // The signed-in member's own role, from the session the server issued.
+  // It decides what this console OFFERS; the server decides what it allows.
+  const { teamRole } = useApp();
+  const assignable = assignableRoles(teamRole);
+  const mayAdminister = canAdministerTeam(teamRole);
+
   const [members, setMembers]         = useState<TeamMemberRecord[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [error, setError]             = useState<string | null>(null);
@@ -123,7 +152,9 @@ export function TeamManagement({ accessToken }: Props) {
   const stats = {
     total:   members.length,
     active:  members.filter(m => m.status === 'active').length,
-    admins:  members.filter(m => m.teamRole === 'admin').length,
+    // "Administrators" is the server's ADMIN_ROLES set, not the single `admin`
+    // string — an owner administers the team and was not being counted.
+    admins:  members.filter(m => canAdministerTeam(normalizeTeamRole(m.teamRole))).length,
     viewers: members.filter(m => m.teamRole === 'viewer').length,
   };
 
@@ -163,13 +194,17 @@ export function TeamManagement({ accessToken }: Props) {
           >
             <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold hover:opacity-90 transition-opacity text-sm"
-          >
-            <UserPlus className="size-4" />
-            Invite Member
-          </button>
+          {/* Only an admin or owner may create a member. Offering the button to
+              anybody else produced a modal, a filled-in form and a 403. */}
+          {mayAdminister && (
+            <button
+              onClick={() => setShowInvite(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold hover:opacity-90 transition-opacity text-sm"
+            >
+              <UserPlus className="size-4" />
+              Invite Member
+            </button>
+          )}
         </div>
       </div>
 
@@ -226,6 +261,7 @@ export function TeamManagement({ accessToken }: Props) {
                 onEdit={() => setEditingId(editingId === member.id ? null : member.id)}
                 onRoleChange={(role) => handleRoleChange(member.id, role)}
                 onRemove={() => setConfirmRemove(member.id)}
+                assignable={assignable}
               />
             ))}
           </div>
@@ -233,8 +269,10 @@ export function TeamManagement({ accessToken }: Props) {
       </div>
 
       {/* ── Role reference ── */}
-      <div className="grid grid-cols-3 gap-4">
-        {(Object.entries(ROLE_CONFIG) as [string, typeof ROLE_CONFIG['admin']][]).map(([role, cfg]) => (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+        {ROLE_DISPLAY_ORDER.map(role => {
+          const cfg = ROLE_CONFIG[role];
+          return (
           <div key={role} className="bg-black/30 border border-white/8 rounded-xl p-5">
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold mb-3 ${cfg.color}`}>
               <cfg.icon className="size-3.5" />
@@ -249,7 +287,8 @@ export function TeamManagement({ accessToken }: Props) {
               ))}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Invite modal ── */}
@@ -259,6 +298,7 @@ export function TeamManagement({ accessToken }: Props) {
             onClose={() => setShowInvite(false)}
             onInvite={handleInvite}
             showToast={showToast}
+            assignable={assignable}
           />
         )}
       </AnimatePresence>
@@ -280,15 +320,19 @@ export function TeamManagement({ accessToken }: Props) {
 // ── Member row ──────────────────────────────────────────────────────────────
 
 function MemberRow({
-  member, isEditing, onEdit, onRoleChange, onRemove,
+  member, isEditing, onEdit, onRoleChange, onRemove, assignable,
 }: {
   member: TeamMemberRecord;
   isEditing: boolean;
   onEdit: () => void;
-  onRoleChange: (role: string) => void;
+  onRoleChange: (role: TeamRole) => void;
   onRemove: () => void;
+  assignable: readonly TeamRole[];
 }) {
-  const roleCfg = ROLE_CONFIG[member.teamRole] || ROLE_CONFIG.viewer;
+  // A stored role the console does not recognise resolves to `viewer` rather
+  // than crashing on an undefined config — the same fail-closed default the
+  // server uses.
+  const roleCfg = ROLE_CONFIG[normalizeTeamRole(member.teamRole)];
   const RoleIcon = roleCfg.icon;
   const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -317,6 +361,7 @@ function MemberRow({
                   current={member.teamRole}
                   disabled={member.isSelf}
                   onChange={onRoleChange}
+                  assignable={assignable}
                 />
               ) : (
                 <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-semibold ${roleCfg.color}`}>
@@ -344,8 +389,10 @@ function MemberRow({
           </div>
         </div>
 
-        {/* Actions */}
-        {!member.isSelf && (
+        {/* Actions — re-roling and removing are administration, so they follow
+            the same rule the server applies. `assignable` is empty for every
+            role that may not administer the team. */}
+        {!member.isSelf && assignable.length > 0 && (
           <div className="flex items-center gap-2">
             <button
               onClick={onEdit}
@@ -374,15 +421,26 @@ function MemberRow({
 
 // ── Role selector dropdown ──────────────────────────────────────────────────
 
+/**
+ * Offers only the roles the signed-in member may actually assign.
+ *
+ * The server's rule is that a caller may grant a role whose rank is strictly
+ * below their own, and may never change their own role at all. This dropdown
+ * used to list every role it knew to everybody, so a reviewer was invited to
+ * promote somebody to admin and received a 403 for trying. `assignableRoles`
+ * is the same rule read from the same vocabulary — it removes the dead offer,
+ * it does not create the restriction. The server still enforces it.
+ */
 function RoleSelector({
-  current, disabled, onChange,
+  current, disabled, onChange, assignable,
 }: {
   current: string;
   disabled: boolean;
-  onChange: (role: string) => void;
+  onChange: (role: TeamRole) => void;
+  assignable: readonly TeamRole[];
 }) {
   const [open, setOpen] = useState(false);
-  if (disabled) return null;
+  if (disabled || assignable.length === 0) return null;
 
   return (
     <div className="relative">
@@ -401,19 +459,22 @@ function RoleSelector({
             exit={{ opacity: 0, y: 6 }}
             className="absolute top-full left-0 mt-1 z-20 bg-[#0D0D18] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-40"
           >
-            {(Object.entries(ROLE_CONFIG) as [string, typeof ROLE_CONFIG['admin']][]).map(([role, cfg]) => (
-              <button
-                key={role}
-                onClick={() => { onChange(role); setOpen(false); }}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors text-left ${
-                  role === current ? 'text-white' : 'text-white/60'
-                }`}
-              >
-                <cfg.icon className="size-3.5 flex-shrink-0" style={{ color: role === current ? undefined : undefined }} />
-                {cfg.label}
-                {role === current && <Check className="size-3 ml-auto text-[#8B5CF6]" />}
-              </button>
-            ))}
+            {assignable.map(role => {
+              const cfg = ROLE_CONFIG[role];
+              return (
+                <button
+                  key={role}
+                  onClick={() => { onChange(role); setOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors text-left ${
+                    role === current ? 'text-white' : 'text-white/60'
+                  }`}
+                >
+                  <cfg.icon className="size-3.5 flex-shrink-0" />
+                  {cfg.label}
+                  {role === current && <Check className="size-3 ml-auto text-[#8B5CF6]" />}
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
@@ -424,15 +485,20 @@ function RoleSelector({
 // ── Invite modal ────────────────────────────────────────────────────────────
 
 function InviteModal({
-  onClose, onInvite, showToast,
+  onClose, onInvite, showToast, assignable,
 }: {
   onClose: () => void;
   onInvite: (p: { name: string; email: string; teamRole: string }) => Promise<string | undefined>;
   showToast: (msg: string, type: 'success' | 'error') => void;
+  /** The roles the signed-in member may grant — never more than the server allows. */
+  assignable: readonly TeamRole[];
 }) {
   const [name, setName]           = useState('');
   const [email, setEmail]         = useState('');
-  const [teamRole, setTeamRole]   = useState('viewer');
+  // `viewer` is always assignable by anyone who may invite at all (it is the
+  // lowest rank), so it is a safe default that never pre-selects a role the
+  // server would refuse.
+  const [teamRole, setTeamRole]   = useState<TeamRole>('viewer');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempCreds, setTempCreds] = useState<{ email: string; password: string } | null>(null);
   const [copied, setCopied]       = useState(false);
@@ -552,12 +618,14 @@ function InviteModal({
                 <label className="block text-sm font-semibold text-white mb-2">Role</label>
                 <select
                   value={teamRole}
-                  onChange={e => setTeamRole(e.target.value)}
+                  onChange={e => setTeamRole(normalizeTeamRole(e.target.value))}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
                 >
-                  <option value="viewer">Viewer — read-only access</option>
-                  <option value="reviewer">Reviewer — can edit and send reports</option>
-                  <option value="admin">Admin — full access</option>
+                  {assignable.map(role => (
+                    <option key={role} value={role}>
+                      {TEAM_ROLE_LABELS[role]} — {ROLE_PERMS[role][0]}
+                    </option>
+                  ))}
                 </select>
               </div>
 

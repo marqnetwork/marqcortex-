@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { teamLogin } from '@/app/services/dataService';
-import { FEATURES } from '@/config/features';
-import type { TeamUser } from '@/app/lib/session';
 
 interface TeamLoginProps {
-  onLogin: (accessToken: string, user?: TeamUser | null) => void;
+  /**
+   * `user` is the login response's user object, unnarrowed. The session layer
+   * owns what a team identity is (`normaliseTeamUser`), so this component
+   * hands the response through rather than reshaping it on the way.
+   */
+  onLogin: (accessToken: string, user?: unknown) => void;
   onBack: () => void;
 }
 
@@ -23,19 +26,15 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
     setError('');
     setIsLoading(true);
     try {
-      if (FEATURES.BACKEND_INTEGRATION) {
-        const result = await teamLogin(email, password);
-        // The login response already carries the authenticated team member —
-        // hand it to the session alongside the token.
-        onLogin(result.accessToken, result.user ?? null);
-      } else {
-        // Demo mode: accept demo credentials without API call
-        if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
-          onLogin('demo_access_token_12345');
-        } else {
-          throw new Error('Invalid credentials. Use demo credentials shown below.');
-        }
-      }
+      // One login path, both modes. `dataService.teamLogin` already branches on
+      // demo mode and returns the same shape either way — including the user.
+      // This component used to re-implement the demo branch inline and call
+      // `onLogin(token)` with no user at all, so a demo session carried no
+      // identity: the console greeted "Team" and the sidebar had nobody to
+      // name. Deleting the duplicate fixes that and removes a second copy of
+      // the demo credentials from the source.
+      const result = await teamLogin(email, password);
+      onLogin(result.accessToken, result.user ?? null);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
     } finally {

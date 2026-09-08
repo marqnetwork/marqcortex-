@@ -200,7 +200,11 @@ describe('legacy team keys are never used as an active source', () => {
 
 // ── 3. Team session record — behavioural ──────────────────────────────────────
 
-const user = { id: 'u-1', email: 'lead@marqcortex.com', name: 'Avery Stone' };
+// A team identity now includes the role the server resolved for the account.
+// `teamRole` is never optional on a restored user: a record that carried none
+// resolves to `viewer`, the least privileged role, rather than to "unknown" —
+// see `tests/features/teamRoleVocabulary.test.ts` for that boundary in full.
+const user = { id: 'u-1', email: 'lead@marqcortex.com', name: 'Avery Stone', teamRole: 'consultant' } as const;
 
 describe('team session record round-trips', () => {
   it('preserves token and user', () => {

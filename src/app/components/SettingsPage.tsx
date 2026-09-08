@@ -26,6 +26,7 @@ import {
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { normalizeTeamRole, TEAM_ROLE_LABELS, TEAM_ROLE_DESCRIPTIONS } from '@/app/lib/teamRole';
 import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
 import { OrganizationProviderCredentialsPanel } from '@/app/components/OrganizationProviderCredentialsPanel';
 
@@ -325,7 +326,11 @@ function ProfileTab({
   };
 
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const roleLabel = user.teamRole === 'admin' ? 'Administrator' : user.teamRole === 'reviewer' ? 'Reviewer' : 'Viewer';
+  // Six roles, one vocabulary. The nested ternary this replaces knew three,
+  // so an analyst, consultant or owner read their own account details and were
+  // told they were a "Viewer" with read-only access.
+  const role = normalizeTeamRole(user.teamRole);
+  const roleLabel = TEAM_ROLE_LABELS[role];
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -376,7 +381,7 @@ function ProfileTab({
         <div className="space-y-3">
           <InfoRow label="User ID" value={user.id} mono />
           <InfoRow label="Role" value={roleLabel} />
-          <InfoRow label="Access Level" value={user.teamRole === 'admin' ? 'Full platform access' : user.teamRole === 'reviewer' ? 'Edit & send reports' : 'Read-only access'} />
+          <InfoRow label="Access Level" value={TEAM_ROLE_DESCRIPTIONS[role]} />
         </div>
       </SettingsCard>
     </div>
