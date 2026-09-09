@@ -30,6 +30,43 @@ import { PROCESSES } from '../utils/registryProcesses';
 import type { MQCProcess, ProcessStatus } from '../utils/registryProcesses';
 import { AUDIT, AUDIT_SUMMARY } from '../utils/registryAudit';
 import type { AuditEntry, AuditStatus } from '../utils/registryAudit';
+import {
+  brand,
+  status as tokenStatus,
+  text as tokenText,
+  border as tokenBorder,
+  surface as tokenSurface,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once, at module scope. Deliberately NOT referenced as `status.x` inside
+// the components below: several take a parameter called `status`, and an
+// unqualified reference there resolves to the parameter rather than the token.
+const K_ACCENT           = brand.accent;
+const K_ACCENT_LIGHT     = brand.accentLight;
+const K_ACCENT_DEEP      = brand.accentDeep;
+const K_ACCENT_ALT       = brand.accentAlt;
+const K_ACCENT_ALT_LIGHT = brand.accentAltLight;
+const K_INFO             = tokenStatus.info;
+const K_SUCCESS          = tokenStatus.success;
+const K_SUCCESS_LIGHT    = tokenStatus.successLight;
+const K_WARNING          = tokenStatus.warning;
+const K_DANGER           = tokenStatus.danger;
+const K_DANGER_LIGHT     = tokenStatus.dangerLight;
+const K_CAUTION          = tokenStatus.caution;
+const K_CAUTION_LIGHT    = tokenStatus.cautionLight;
+const K_NEUTRAL          = tokenStatus.neutral;
+const K_TEXT_PRIMARY     = tokenText.primary;
+const K_TEXT_SECONDARY   = tokenText.secondary;
+const K_TEXT_MUTED       = tokenText.muted;
+const K_TEXT_FAINT       = tokenText.faint;
+const K_BORDER_STRONG    = tokenBorder.strong;
+const K_BORDER_DEFAULT   = tokenBorder.default;
+const K_BORDER_SUBTLE    = tokenBorder.subtle;
+const K_CANVAS           = tokenSurface.canvas;
+const K_OVERLAY          = tokenSurface.overlay;
+
 
 // ── Inline debounce (avoids circular hook dependency) ────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -57,37 +94,37 @@ type TabId = typeof TABS[number]['id'];
 
 // ── Colour maps ───────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<StatusType, { bg: string; text: string; dot: string }> = {
-  LIVE:    { bg: 'rgba(16,185,129,0.12)',  text: '#10B981', dot: '#10B981' },
-  DEMO:    { bg: 'rgba(245,158,11,0.12)',  text: '#F59E0B', dot: '#F59E0B' },
-  GATED:   { bg: 'rgba(139,92,246,0.12)', text: '#8B5CF6', dot: '#8B5CF6' },
-  MISSING: { bg: 'rgba(239,68,68,0.12)',  text: '#EF4444', dot: '#EF4444' },
-  SYSTEM:  { bg: 'rgba(107,114,128,0.12)', text: '#6B7280', dot: '#6B7280' },
+  LIVE:    { bg: `${K_SUCCESS}1F`,  text: K_SUCCESS, dot: K_SUCCESS },
+  DEMO:    { bg: `${K_CAUTION}1F`,  text: K_CAUTION, dot: K_CAUTION },
+  GATED:   { bg: `${K_ACCENT}1F`, text: K_ACCENT, dot: K_ACCENT },
+  MISSING: { bg: `${K_DANGER}1F`,  text: K_DANGER, dot: K_DANGER },
+  SYSTEM:  { bg: `${K_NEUTRAL}1F`, text: K_NEUTRAL, dot: K_NEUTRAL },
 };
 
 // Audit status colour map — adds VISUAL which manifest StatusType doesn't have
 const AUDIT_STATUS_COLORS: Record<AuditStatus, { bg: string; text: string; dot: string }> = {
-  LIVE:    { bg: 'rgba(16,185,129,0.12)',  text: '#10B981', dot: '#10B981' },
-  DEMO:    { bg: 'rgba(245,158,11,0.12)',  text: '#F59E0B', dot: '#F59E0B' },
-  GATED:   { bg: 'rgba(139,92,246,0.12)', text: '#8B5CF6', dot: '#8B5CF6' },
-  MISSING: { bg: 'rgba(239,68,68,0.12)',  text: '#EF4444', dot: '#EF4444' },
-  VISUAL:  { bg: 'rgba(107,114,128,0.12)', text: '#6B7280', dot: '#6B7280' },
+  LIVE:    { bg: `${K_SUCCESS}1F`,  text: K_SUCCESS, dot: K_SUCCESS },
+  DEMO:    { bg: `${K_CAUTION}1F`,  text: K_CAUTION, dot: K_CAUTION },
+  GATED:   { bg: `${K_ACCENT}1F`, text: K_ACCENT, dot: K_ACCENT },
+  MISSING: { bg: `${K_DANGER}1F`,  text: K_DANGER, dot: K_DANGER },
+  VISUAL:  { bg: `${K_NEUTRAL}1F`, text: K_NEUTRAL, dot: K_NEUTRAL },
 };
 
 const PROCESS_STATUS_COLORS: Record<ProcessStatus, { text: string; bg: string }> = {
-  stable:      { text: '#10B981', bg: 'rgba(16,185,129,0.10)' },
-  watch:       { text: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
-  hot:         { text: '#EF4444', bg: 'rgba(239,68,68,0.10)' },
-  'demo-only': { text: '#8B5CF6', bg: 'rgba(139,92,246,0.10)' },
-  partial:     { text: '#60A5FA', bg: 'rgba(59,130,246,0.10)' },
+  stable:      { text: K_SUCCESS, bg: `${K_SUCCESS}1A` },
+  watch:       { text: K_CAUTION, bg: `${K_CAUTION}1A` },
+  hot:         { text: K_DANGER, bg: `${K_DANGER}1A` },
+  'demo-only': { text: K_ACCENT, bg: `${K_ACCENT}1A` },
+  partial:     { text: K_ACCENT_ALT_LIGHT, bg: `${K_ACCENT_ALT}1A` },
 };
 
 const TYPE_COLORS: Record<EntityType, { bg: string; text: string }> = {
-  PAGE: { bg: 'rgba(59,130,246,0.15)',   text: '#60A5FA' },
-  COMP: { bg: 'rgba(139,92,246,0.15)',   text: '#A78BFA' },
-  CORE: { bg: 'rgba(16,185,129,0.15)',   text: '#34D399' },
-  SVC:  { bg: 'rgba(251,146,60,0.15)',   text: '#FB923C' },
-  HOOK: { bg: 'rgba(34,211,238,0.15)',   text: '#22D3EE' },
-  TYPE: { bg: 'rgba(156,163,175,0.15)',  text: '#9CA3AF' },
+  PAGE: { bg: `${K_ACCENT_ALT}26`,   text: K_ACCENT_ALT_LIGHT },
+  COMP: { bg: `${K_ACCENT}26`,   text: K_ACCENT_LIGHT },
+  CORE: { bg: `${K_SUCCESS}26`,   text: K_SUCCESS_LIGHT },
+  SVC:  { bg: `${K_WARNING}26`,   text: K_WARNING },
+  HOOK: { bg: `${K_INFO}26`,   text: K_INFO },
+  TYPE: { bg: `${K_TEXT_MUTED}26`,  text: K_TEXT_MUTED },
 };
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -133,33 +170,33 @@ function NodeCard({
     <div
       onClick={() => onClick(entry)}
       style={{
-        background: '#111118',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: K_OVERLAY,
+        border: `1px solid ${K_BORDER_DEFAULT}`,
         borderRadius: 8,
         padding: '14px 16px',
         cursor: 'pointer',
         transition: 'border-color 0.15s',
       }}
-      onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(139,92,246,0.4)')}
-      onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = `${K_ACCENT}66`)}
+      onMouseLeave={e => (e.currentTarget.style.borderColor = `${K_BORDER_DEFAULT}`)}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{entry.id}</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 11, color: K_NEUTRAL }}>{entry.id}</span>
         <TypeBadge type={entry.type} />
         <StatusBadge status={entry.status} />
         {entry.notes && (
-          <span style={{ fontSize: 10, color: '#F59E0B', background: 'rgba(245,158,11,0.08)', padding: '1px 6px', borderRadius: 3 }}>
+          <span style={{ fontSize: 10, color: K_CAUTION, background: `${K_CAUTION}14`, padding: '1px 6px', borderRadius: 3 }}>
             ⚠ notes
           </span>
         )}
       </div>
-      <div style={{ fontWeight: 600, color: '#E5E7EB', fontSize: 13, marginBottom: 4 }}>
+      <div style={{ fontWeight: 600, color: K_TEXT_SECONDARY, fontSize: 13, marginBottom: 4 }}>
         {entry.name}
       </div>
-      <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.5, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: K_TEXT_MUTED, lineHeight: 1.5, marginBottom: 8 }}>
         {entry.description}
       </div>
-      <div style={{ fontFamily: 'monospace', fontSize: 10, color: '#4B5563', wordBreak: 'break-all' }}>
+      <div style={{ fontFamily: 'monospace', fontSize: 10, color: K_TEXT_FAINT, wordBreak: 'break-all' }}>
         {entry.filePath}
       </div>
       {entry.dependencies.length > 0 && (
@@ -169,8 +206,8 @@ function NodeCard({
             return (
               <span key={depId} style={{
                 fontSize: 10, fontFamily: 'monospace',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#6B7280', padding: '1px 6px', borderRadius: 3,
+                background: `${K_BORDER_SUBTLE}`,
+                color: K_NEUTRAL, padding: '1px 6px', borderRadius: 3,
               }}>
                 {dep ? dep.name : depId}
               </span>
@@ -202,7 +239,7 @@ function NodeDetailPanel({
     }} onClick={onClose}>
       <div
         style={{
-          background: '#0F0F1A', border: '1px solid rgba(139,92,246,0.3)',
+          background: K_OVERLAY, border: `1px solid ${K_ACCENT}4C`,
           borderRadius: 12, padding: 28, maxWidth: 680, width: '100%',
           maxHeight: '80vh', overflowY: 'auto',
         }}
@@ -211,40 +248,40 @@ function NodeDetailPanel({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#8B5CF6' }}>{entry.id}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: K_ACCENT }}>{entry.id}</span>
               <TypeBadge type={entry.type} />
               <StatusBadge status={entry.status} />
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#F9FAFB' }}>{entry.name}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: K_TEXT_PRIMARY }}>{entry.name}</div>
           </div>
           <button onClick={onClose} style={{
-            background: 'none', border: 'none', color: '#6B7280',
+            background: 'none', border: 'none', color: K_NEUTRAL,
             cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 4,
           }}>✕</button>
         </div>
 
         <Section label="Description">
-          <p style={{ color: '#D1D5DB', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{entry.description}</p>
+          <p style={{ color: K_TEXT_SECONDARY, fontSize: 13, lineHeight: 1.6, margin: 0 }}>{entry.description}</p>
         </Section>
 
         <Section label="File Path">
-          <code style={{ fontFamily: 'monospace', fontSize: 12, color: '#34D399', background: 'rgba(16,185,129,0.08)', padding: '4px 8px', borderRadius: 4, display: 'block', wordBreak: 'break-all' }}>
+          <code style={{ fontFamily: 'monospace', fontSize: 12, color: K_SUCCESS_LIGHT, background: `${K_SUCCESS}14`, padding: '4px 8px', borderRadius: 4, display: 'block', wordBreak: 'break-all' }}>
             {entry.filePath}
           </code>
         </Section>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Section label="Domain">
-            <span style={{ color: '#A78BFA', fontSize: 12 }}>{entry.domain}</span>
+            <span style={{ color: K_ACCENT_LIGHT, fontSize: 12 }}>{entry.domain}</span>
           </Section>
           {entry.route && (
             <Section label="Route">
-              <code style={{ color: '#60A5FA', fontSize: 12 }}>{entry.route}</code>
+              <code style={{ color: K_ACCENT_ALT_LIGHT, fontSize: 12 }}>{entry.route}</code>
             </Section>
           )}
           {entry.backendRoute && (
             <Section label="Backend Route">
-              <code style={{ color: '#FB923C', fontSize: 12 }}>{entry.backendRoute}</code>
+              <code style={{ color: K_WARNING, fontSize: 12 }}>{entry.backendRoute}</code>
             </Section>
           )}
         </div>
@@ -254,14 +291,14 @@ function NodeDetailPanel({
             {entry.inputs && entry.inputs.length > 0 && (
               <Section label="Inputs">
                 {entry.inputs.map(i => (
-                  <span key={i} style={{ fontSize: 11, fontFamily: 'monospace', color: '#9CA3AF', display: 'block' }}>{i}</span>
+                  <span key={i} style={{ fontSize: 11, fontFamily: 'monospace', color: K_TEXT_MUTED, display: 'block' }}>{i}</span>
                 ))}
               </Section>
             )}
             {entry.outputs && entry.outputs.length > 0 && (
               <Section label="Outputs">
                 {entry.outputs.map(o => (
-                  <span key={o} style={{ fontSize: 11, fontFamily: 'monospace', color: '#9CA3AF', display: 'block' }}>{o}</span>
+                  <span key={o} style={{ fontSize: 11, fontFamily: 'monospace', color: K_TEXT_MUTED, display: 'block' }}>{o}</span>
                 ))}
               </Section>
             )}
@@ -274,10 +311,10 @@ function NodeDetailPanel({
               {deps.map(d => (
                 <span key={d.id} style={{
                   fontSize: 11, padding: '3px 8px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.05)', color: '#D1D5DB',
+                  background: `${K_BORDER_SUBTLE}`, color: K_TEXT_SECONDARY,
                   fontFamily: 'monospace',
                 }}>
-                  <span style={{ color: '#6B7280', fontSize: 10 }}>{d.id} </span>{d.name}
+                  <span style={{ color: K_NEUTRAL, fontSize: 10 }}>{d.id} </span>{d.name}
                 </span>
               ))}
             </div>
@@ -290,10 +327,10 @@ function NodeDetailPanel({
               {dependents.map(d => (
                 <span key={d.id} style={{
                   fontSize: 11, padding: '3px 8px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.05)', color: '#D1D5DB',
+                  background: `${K_BORDER_SUBTLE}`, color: K_TEXT_SECONDARY,
                   fontFamily: 'monospace',
                 }}>
-                  <span style={{ color: '#6B7280', fontSize: 10 }}>{d.id} </span>{d.name}
+                  <span style={{ color: K_NEUTRAL, fontSize: 10 }}>{d.id} </span>{d.name}
                 </span>
               ))}
             </div>
@@ -302,7 +339,7 @@ function NodeDetailPanel({
 
         {entry.notes && (
           <Section label="⚠ Notes">
-            <p style={{ color: '#FCD34D', fontSize: 12, lineHeight: 1.6, margin: 0, background: 'rgba(245,158,11,0.06)', padding: '10px 12px', borderRadius: 6 }}>
+            <p style={{ color: K_CAUTION_LIGHT, fontSize: 12, lineHeight: 1.6, margin: 0, background: `${K_CAUTION}0F`, padding: '10px 12px', borderRadius: 6 }}>
               {entry.notes}
             </p>
           </Section>
@@ -315,7 +352,7 @@ function NodeDetailPanel({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
         {label}
       </div>
       {children}
@@ -373,9 +410,9 @@ function RegistryTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) 
           placeholder="Search by name, ID, or description…"
           style={{
             flex: 1, minWidth: 200,
-            background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
+            background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
             borderRadius: 6, padding: '8px 12px',
-            color: '#E5E7EB', fontSize: 13, outline: 'none',
+            color: K_TEXT_SECONDARY, fontSize: 13, outline: 'none',
           }}
         />
         <FilterSelect value={typeFilter} onChange={v => { setTypeFilter(v as EntityType | 'ALL'); setVisible(PAGE_SIZE); }}
@@ -387,9 +424,9 @@ function RegistryTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) 
       </div>
 
       {/* Count */}
-      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-        Showing <strong style={{ color: '#9CA3AF' }}>{Math.min(visible, filtered.length)}</strong> of{' '}
-        <strong style={{ color: '#9CA3AF' }}>{filtered.length}</strong> nodes
+      <div style={{ fontSize: 12, color: K_NEUTRAL, marginBottom: 12 }}>
+        Showing <strong style={{ color: K_TEXT_MUTED }}>{Math.min(visible, filtered.length)}</strong> of{' '}
+        <strong style={{ color: K_TEXT_MUTED }}>{filtered.length}</strong> nodes
         {filtered.length !== allEntries.length && ` (${allEntries.length} total)`}
       </div>
 
@@ -411,18 +448,18 @@ function RegistryTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) 
           onClick={() => setVisible(v => v + PAGE_SIZE)}
           style={{
             marginTop: 16, width: '100%', padding: '10px',
-            background: 'rgba(139,92,246,0.1)',
-            border: '1px solid rgba(139,92,246,0.3)',
-            borderRadius: 8, color: '#A78BFA', cursor: 'pointer', fontSize: 13,
+            background: `${K_ACCENT}1A`,
+            border: `1px solid ${K_ACCENT}4C`,
+            borderRadius: 8, color: K_ACCENT_LIGHT, cursor: 'pointer', fontSize: 13,
           }}
         >
           Show {Math.min(PAGE_SIZE, filtered.length - visible)} more
-          <span style={{ color: '#6B7280', marginLeft: 8 }}>({filtered.length - visible} remaining)</span>
+          <span style={{ color: K_NEUTRAL, marginLeft: 8 }}>({filtered.length - visible} remaining)</span>
         </button>
       )}
 
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#4B5563' }}>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: K_TEXT_FAINT }}>
           No nodes match your filters.
         </div>
       )}
@@ -447,9 +484,9 @@ function FilterSelect({
       // filter was announced as an unnamed combo box.
       aria-label={`Filter by ${label.toLowerCase()}`}
       style={{
-        background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
+        background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
         borderRadius: 6, padding: '8px 10px',
-        color: '#9CA3AF', fontSize: 12, outline: 'none', cursor: 'pointer',
+        color: K_TEXT_MUTED, fontSize: 12, outline: 'none', cursor: 'pointer',
       }}
     >
       {options.map(o => (
@@ -488,9 +525,9 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
           disabled={running}
           style={{
             padding: '9px 20px',
-            background: running ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.15)',
-            border: '1px solid rgba(139,92,246,0.4)',
-            borderRadius: 8, color: '#A78BFA', cursor: running ? 'default' : 'pointer',
+            background: running ? `${K_ACCENT}33` : `${K_ACCENT}26`,
+            border: `1px solid ${K_ACCENT}66`,
+            borderRadius: 8, color: K_ACCENT_LIGHT, cursor: running ? 'default' : 'pointer',
             fontSize: 13, fontWeight: 600,
           }}
         >
@@ -499,7 +536,7 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
         {report && (
           <span style={{
             fontSize: 13,
-            color: report.passed ? '#10B981' : '#EF4444',
+            color: report.passed ? K_SUCCESS : K_DANGER,
             fontWeight: 600,
           }}>
             {report.passed ? '✅ All checks passed' : `❌ ${report.errorCount} error${report.errorCount !== 1 ? 's' : ''} found`}
@@ -508,7 +545,7 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
       </div>
 
       {!report && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#4B5563' }}>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: K_TEXT_FAINT }}>
           Click "Run Validation" to check manifest integrity.
         </div>
       )}
@@ -518,17 +555,17 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
           {/* Summary pills */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
             {[
-              { label: 'Nodes', value: report.totalNodes, color: '#6B7280' },
-              { label: 'Errors', value: report.errorCount, color: '#EF4444' },
-              { label: 'Warnings', value: report.warningCount, color: '#F59E0B' },
-              { label: 'Info', value: report.infoCount, color: '#60A5FA' },
+              { label: 'Nodes', value: report.totalNodes, color: K_NEUTRAL },
+              { label: 'Errors', value: report.errorCount, color: K_DANGER },
+              { label: 'Warnings', value: report.warningCount, color: K_CAUTION },
+              { label: 'Info', value: report.infoCount, color: K_ACCENT_ALT_LIGHT },
             ].map(({ label, value, color }) => (
               <div key={label} style={{
-                background: '#111118', border: '1px solid rgba(255,255,255,0.06)',
+                background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
                 borderRadius: 8, padding: '12px 20px', textAlign: 'center',
               }}>
                 <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
-                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{label}</div>
+                <div style={{ fontSize: 11, color: K_NEUTRAL, marginTop: 2 }}>{label}</div>
               </div>
             ))}
           </div>
@@ -537,7 +574,7 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
           {['ERROR', 'WARNING', 'INFO'].map(sev => {
             const issues = grouped[sev] || [];
             if (issues.length === 0) return null;
-            const color = sev === 'ERROR' ? '#EF4444' : sev === 'WARNING' ? '#F59E0B' : '#60A5FA';
+            const color = sev === 'ERROR' ? K_DANGER : sev === 'WARNING' ? K_CAUTION : K_ACCENT_ALT_LIGHT;
             const icon = sev === 'ERROR' ? '❌' : sev === 'WARNING' ? '⚠️' : 'ℹ️';
             return (
               <div key={sev} style={{ marginBottom: 20 }}>
@@ -547,16 +584,16 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {issues.map((issue, i) => (
                     <div key={i} style={{
-                      background: '#111118', border: `1px solid ${color}22`,
+                      background: K_OVERLAY, border: `1px solid ${color}22`,
                       borderLeft: `3px solid ${color}`, borderRadius: 6,
                       padding: '10px 12px',
                     }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8B5CF6' }}>{issue.nodeId}</span>
-                        <span style={{ color: '#6B7280', fontSize: 11 }}>{issue.nodeName}</span>
-                        <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#4B5563' }}>.{issue.field}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: K_ACCENT }}>{issue.nodeId}</span>
+                        <span style={{ color: K_NEUTRAL, fontSize: 11 }}>{issue.nodeName}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 10, color: K_TEXT_FAINT }}>.{issue.field}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#D1D5DB' }}>{issue.message}</div>
+                      <div style={{ fontSize: 12, color: K_TEXT_SECONDARY }}>{issue.message}</div>
                     </div>
                   ))}
                 </div>
@@ -566,8 +603,8 @@ function ValidationTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }
 
           {report.issues.length === 0 && (
             <div style={{
-              textAlign: 'center', padding: '32px', background: 'rgba(16,185,129,0.05)',
-              border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, color: '#10B981',
+              textAlign: 'center', padding: '32px', background: `${K_SUCCESS}0D`,
+              border: `1px solid ${K_SUCCESS}33`, borderRadius: 10, color: K_SUCCESS,
             }}>
               Manifest is clean. Every ID resolves. Every dependency exists.
             </div>
@@ -608,25 +645,25 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
       {/* Headline */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
         {[
-          { label: 'Total Nodes', value: entries.length, color: '#A78BFA' },
-          { label: 'LIVE', value: `${livePercent}%`, color: '#10B981' },
-          { label: 'With Notes', value: withNotes, color: '#F59E0B' },
-          { label: 'Have Deps', value: withDeps, color: '#60A5FA' },
+          { label: 'Total Nodes', value: entries.length, color: K_ACCENT_LIGHT },
+          { label: 'LIVE', value: `${livePercent}%`, color: K_SUCCESS },
+          { label: 'With Notes', value: withNotes, color: K_CAUTION },
+          { label: 'Have Deps', value: withDeps, color: K_ACCENT_ALT_LIGHT },
         ].map(({ label, value, color }) => (
           <div key={label} style={{
-            background: '#111118', border: '1px solid rgba(255,255,255,0.06)',
+            background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
             borderRadius: 10, padding: '18px 16px',
           }}>
             <div style={{ fontSize: 26, fontWeight: 800, color }}>{value}</div>
-            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{label}</div>
+            <div style={{ fontSize: 11, color: K_NEUTRAL, marginTop: 4 }}>{label}</div>
           </div>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* By Type */}
-        <div style={{ background: '#111118', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Type</div>
+        <div style={{ background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`, borderRadius: 10, padding: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Type</div>
           {(['PAGE', 'COMP', 'CORE', 'SVC', 'HOOK', 'TYPE'] as EntityType[]).map(type => {
             const count = byType[type] ?? 0;
             const pct = Math.round((count / entries.length) * 100);
@@ -635,9 +672,9 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
               <div key={type} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: c.text, fontWeight: 600 }}>{type}</span>
-                  <span style={{ color: '#6B7280' }}>{count}</span>
+                  <span style={{ color: K_NEUTRAL }}>{count}</span>
                 </div>
-                <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                <div style={{ height: 4, background: `${K_BORDER_SUBTLE}`, borderRadius: 2 }}>
                   <div style={{ height: '100%', width: `${pct}%`, background: c.text, borderRadius: 2, opacity: 0.7 }} />
                 </div>
               </div>
@@ -646,8 +683,8 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
         </div>
 
         {/* By Status */}
-        <div style={{ background: '#111118', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Status</div>
+        <div style={{ background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`, borderRadius: 10, padding: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Status</div>
           {(['LIVE', 'DEMO', 'GATED', 'MISSING', 'SYSTEM'] as StatusType[]).map(status => {
             const count = byStatus[status] ?? 0;
             const pct = Math.round((count / entries.length) * 100);
@@ -656,9 +693,9 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
               <div key={status} style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: c.text, fontWeight: 600 }}>{status}</span>
-                  <span style={{ color: '#6B7280' }}>{count}</span>
+                  <span style={{ color: K_NEUTRAL }}>{count}</span>
                 </div>
-                <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                <div style={{ height: 4, background: `${K_BORDER_SUBTLE}`, borderRadius: 2 }}>
                   <div style={{ height: '100%', width: `${pct}%`, background: c.dot, borderRadius: 2, opacity: 0.7 }} />
                 </div>
               </div>
@@ -668,26 +705,26 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
       </div>
 
       {/* By Domain */}
-      <div style={{ background: '#111118', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Domain</div>
+      <div style={{ background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`, borderRadius: 10, padding: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>By Domain</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
           {byDomain.map(([domain, count]) => (
             <div key={domain} style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.05)',
+              background: `${K_BORDER_SUBTLE}`,
+              border: `1px solid ${K_BORDER_SUBTLE}`,
               borderRadius: 6, padding: '10px 12px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 12, color: '#9CA3AF' }}>{domain}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#E5E7EB' }}>{count}</span>
+              <span style={{ fontSize: 12, color: K_TEXT_MUTED }}>{domain}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: K_TEXT_SECONDARY }}>{count}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Manifest metadata */}
-      <div style={{ background: '#111118', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>Manifest Metadata</div>
+      <div style={{ background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`, borderRadius: 10, padding: 18 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>Manifest Metadata</div>
         {[
           { label: 'Version', value: manifest.version },
           { label: 'Last Verified', value: manifest.lastVerified },
@@ -695,8 +732,8 @@ function StatsTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
           { label: 'Core Rule', value: manifest.coreRule },
         ].map(({ label, value }) => (
           <div key={label} style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12 }}>
-            <span style={{ color: '#4B5563', minWidth: 160 }}>{label}</span>
-            <span style={{ color: '#D1D5DB' }}>{value}</span>
+            <span style={{ color: K_TEXT_FAINT, minWidth: 160 }}>{label}</span>
+            <span style={{ color: K_TEXT_SECONDARY }}>{value}</span>
           </div>
         ))}
       </div>
@@ -736,9 +773,9 @@ function DependenciesTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
           placeholder="Search nodes…"
           style={{
             width: '100%', boxSizing: 'border-box', marginBottom: 12,
-            background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
+            background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
             borderRadius: 6, padding: '8px 12px',
-            color: '#E5E7EB', fontSize: 13, outline: 'none',
+            color: K_TEXT_SECONDARY, fontSize: 13, outline: 'none',
           }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 560, overflowY: 'auto' }}>
@@ -748,14 +785,14 @@ function DependenciesTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
               onClick={() => setSelected(selected?.id === entry.id ? null : entry)}
               style={{
                 padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
-                background: selected?.id === entry.id ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${selected?.id === entry.id ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.04)'}`,
+                background: selected?.id === entry.id ? `${K_ACCENT}26` : `${K_BORDER_SUBTLE}`,
+                border: `1px solid ${selected?.id === entry.id ? `${K_ACCENT}66` : `${K_BORDER_SUBTLE}`}`,
                 display: 'flex', alignItems: 'center', gap: 10,
               }}
             >
               <TypeBadge type={entry.type} />
-              <span style={{ fontSize: 13, color: '#E5E7EB', flex: 1 }}>{entry.name}</span>
-              <span style={{ fontSize: 11, color: '#6B7280' }}>
+              <span style={{ fontSize: 13, color: K_TEXT_SECONDARY, flex: 1 }}>{entry.name}</span>
+              <span style={{ fontSize: 11, color: K_NEUTRAL }}>
                 {entry.dependencies.length}↓ {entries.filter(e => e.dependencies.includes(entry.id)).length}↑
               </span>
             </div>
@@ -765,14 +802,14 @@ function DependenciesTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
 
       {selected && depDetail && (
         <div>
-          <div style={{ background: '#111118', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 10, padding: 16, marginBottom: 12 }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#8B5CF6', marginBottom: 4 }}>{selected.id}</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#F9FAFB', marginBottom: 8 }}>{selected.name}</div>
+          <div style={{ background: K_OVERLAY, border: `1px solid ${K_ACCENT}33`, borderRadius: 10, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: K_ACCENT, marginBottom: 4 }}>{selected.id}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: K_TEXT_PRIMARY, marginBottom: 8 }}>{selected.name}</div>
             <StatusBadge status={selected.status} />
           </div>
 
-          <DepSection title={`Depends on (${depDetail.deps.length})`} nodes={depDetail.deps} color="#FB923C" arrow="↓" />
-          <DepSection title={`Used by (${depDetail.dependents.length})`} nodes={depDetail.dependents} color="#34D399" arrow="↑" />
+          <DepSection title={`Depends on (${depDetail.deps.length})`} nodes={depDetail.deps} color={K_WARNING} arrow="↓" />
+          <DepSection title={`Used by (${depDetail.dependents.length})`} nodes={depDetail.dependents} color={K_SUCCESS_LIGHT} arrow="↑" />
         </div>
       )}
     </div>
@@ -786,8 +823,8 @@ function DepSection({
 }) {
   if (nodes.length === 0) return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: '#4B5563', marginBottom: 8 }}>{title}</div>
-      <div style={{ fontSize: 12, color: '#374151', fontStyle: 'italic' }}>None</div>
+      <div style={{ fontSize: 11, color: K_TEXT_FAINT, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 12, color: K_BORDER_STRONG, fontStyle: 'italic' }}>None</div>
     </div>
   );
   return (
@@ -797,12 +834,12 @@ function DepSection({
         {nodes.map(n => (
           <div key={n.id} style={{
             padding: '8px 10px', borderRadius: 6,
-            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
+            background: `${K_BORDER_SUBTLE}`, border: `1px solid ${K_BORDER_SUBTLE}`,
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <TypeBadge type={n.type} />
-            <span style={{ fontSize: 12, color: '#D1D5DB', flex: 1 }}>{n.name}</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#4B5563' }}>{n.id}</span>
+            <span style={{ fontSize: 12, color: K_TEXT_SECONDARY, flex: 1 }}>{n.name}</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: K_TEXT_FAINT }}>{n.id}</span>
           </div>
         ))}
       </div>
@@ -840,8 +877,8 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
 
   return (
     <span className="contents">
-      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
-        <strong style={{ color: '#9CA3AF' }}>{PROCESSES.length}</strong> end-to-end workflow processes — trigger → steps → outcome · Math decides priority.
+      <div style={{ fontSize: 12, color: K_NEUTRAL, marginBottom: 14 }}>
+        <strong style={{ color: K_TEXT_MUTED }}>{PROCESSES.length}</strong> end-to-end workflow processes — trigger → steps → outcome · Math decides priority.
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -851,8 +888,8 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
           placeholder="Search processes…"
           style={{
             flex: 1, minWidth: 200,
-            background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 6, padding: '8px 12px', color: '#E5E7EB', fontSize: 13, outline: 'none',
+            background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
+            borderRadius: 6, padding: '8px 12px', color: K_TEXT_SECONDARY, fontSize: 13, outline: 'none',
           }}
         />
         <FilterSelect value={domainFilter} onChange={v => { setDomainFilter(v); setVisible(PAGE_SIZE); }}
@@ -861,9 +898,9 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
           options={['ALL', 'stable', 'watch', 'hot', 'demo-only', 'partial']} label="Status" />
       </div>
 
-      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-        Showing <strong style={{ color: '#9CA3AF' }}>{Math.min(visible, filtered.length)}</strong> of{' '}
-        <strong style={{ color: '#9CA3AF' }}>{filtered.length}</strong> processes
+      <div style={{ fontSize: 12, color: K_NEUTRAL, marginBottom: 12 }}>
+        Showing <strong style={{ color: K_TEXT_MUTED }}>{Math.min(visible, filtered.length)}</strong> of{' '}
+        <strong style={{ color: K_TEXT_MUTED }}>{filtered.length}</strong> processes
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -874,46 +911,46 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
             <div
               key={proc.id}
               style={{
-                background: '#111118',
-                border: `1px solid ${isOpen ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.06)'}`,
+                background: K_OVERLAY,
+                border: `1px solid ${isOpen ? `${K_ACCENT}66` : `${K_BORDER_DEFAULT}`}`,
                 borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
               }}
               onClick={() => setExpanded(isOpen ? null : proc.id)}
             >
               <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280', flexShrink: 0 }}>{proc.id}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, color: K_NEUTRAL, flexShrink: 0 }}>{proc.id}</span>
                 <span style={{
                   fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
                   padding: '2px 8px', borderRadius: 4,
                   background: sc.bg, color: sc.text, flexShrink: 0,
                 }}>{proc.status.toUpperCase()}</span>
                 <span style={{
-                  fontSize: 10, color: '#8B5CF6', background: 'rgba(139,92,246,0.08)',
+                  fontSize: 10, color: K_ACCENT, background: `${K_ACCENT}14`,
                   padding: '2px 7px', borderRadius: 4, flexShrink: 0,
                 }}>{proc.domain}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#E5E7EB', flex: 1 }}>{proc.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: K_TEXT_SECONDARY, flex: 1 }}>{proc.label}</span>
                 {proc.featureFlag && (
-                  <span style={{ fontSize: 10, color: '#F59E0B', background: 'rgba(245,158,11,0.08)', padding: '2px 6px', borderRadius: 3 }}>
+                  <span style={{ fontSize: 10, color: K_CAUTION, background: `${K_CAUTION}14`, padding: '2px 6px', borderRadius: 3 }}>
                     🚩 {proc.featureFlag}
                   </span>
                 )}
-                <span style={{ fontSize: 11, color: '#4B5563', flexShrink: 0 }}>{proc.steps.length} steps {isOpen ? '▲' : '▼'}</span>
+                <span style={{ fontSize: 11, color: K_TEXT_FAINT, flexShrink: 0 }}>{proc.steps.length} steps {isOpen ? '▲' : '▼'}</span>
               </div>
 
               {isOpen && (
-                <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${K_BORDER_SUBTLE}` }}>
                   <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Trigger</div>
-                      <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.5 }}>{proc.trigger}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Trigger</div>
+                      <div style={{ fontSize: 12, color: K_TEXT_MUTED, lineHeight: 1.5 }}>{proc.trigger}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Outcome</div>
-                      <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.5 }}>{proc.outcome}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Outcome</div>
+                      <div style={{ fontSize: 12, color: K_TEXT_MUTED, lineHeight: 1.5 }}>{proc.outcome}</div>
                     </div>
                   </div>
                   <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#4B5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: K_TEXT_FAINT, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
                       Steps ({proc.steps.length})
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -922,7 +959,7 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
                         return (
                           <span key={stepId} style={{
                             fontSize: 10, fontFamily: 'monospace',
-                            background: 'rgba(139,92,246,0.08)', color: '#A78BFA',
+                            background: `${K_ACCENT}14`, color: K_ACCENT_LIGHT,
                             padding: '2px 7px', borderRadius: 4,
                           }}>
                             {i + 1}. {node ? node.name : stepId}
@@ -932,8 +969,8 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
                     </div>
                   </div>
                   {proc.notes && (
-                    <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 6 }}>
-                      <span style={{ fontSize: 11, color: '#FCD34D', lineHeight: 1.5 }}>{proc.notes}</span>
+                    <div style={{ marginTop: 10, padding: '8px 12px', background: `${K_CAUTION}0F`, border: `1px solid ${K_CAUTION}26`, borderRadius: 6 }}>
+                      <span style={{ fontSize: 11, color: K_CAUTION_LIGHT, lineHeight: 1.5 }}>{proc.notes}</span>
                     </div>
                   )}
                 </div>
@@ -948,15 +985,15 @@ function ProcessesTab({ allNodes }: { allNodes: Record<string, ManifestEntry> })
           onClick={() => setVisible(v => v + PAGE_SIZE)}
           style={{
             marginTop: 16, width: '100%', padding: '10px',
-            background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
-            borderRadius: 8, color: '#34D399', cursor: 'pointer', fontSize: 13,
+            background: `${K_SUCCESS}14`, border: `1px solid ${K_SUCCESS}33`,
+            borderRadius: 8, color: K_SUCCESS_LIGHT, cursor: 'pointer', fontSize: 13,
           }}
         >
           Show more ({filtered.length - visible} remaining)
         </button>
       )}
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#4B5563' }}>No processes match.</div>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: K_TEXT_FAINT }}>No processes match.</div>
       )}
     </span>
   );
@@ -1001,8 +1038,8 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
               key={s}
               onClick={() => { setStatusFilter(statusFilter === s ? 'ALL' : s); setVisible(PAGE_SIZE); }}
               style={{
-                background: statusFilter === s ? c.bg : '#111118',
-                border: `1px solid ${statusFilter === s ? c.dot : 'rgba(255,255,255,0.07)'}`,
+                background: statusFilter === s ? c.bg : K_OVERLAY,
+                border: `1px solid ${statusFilter === s ? c.dot : `${K_BORDER_DEFAULT}`}`,
                 borderRadius: 8, padding: '8px 14px', cursor: 'pointer', textAlign: 'center',
               }}
             >
@@ -1011,7 +1048,7 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
             </div>
           );
         })}
-        <div style={{ fontSize: 11, color: '#4B5563', alignSelf: 'center', marginLeft: 4 }}>
+        <div style={{ fontSize: 11, color: K_TEXT_FAINT, alignSelf: 'center', marginLeft: 4 }}>
           {AUDIT_SUMMARY.total} total
         </div>
       </div>
@@ -1024,8 +1061,8 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
           placeholder="Search by label, ID, component, or evidence…"
           style={{
             flex: 1, minWidth: 200,
-            background: '#111118', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 6, padding: '8px 12px', color: '#E5E7EB', fontSize: 13, outline: 'none',
+            background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`,
+            borderRadius: 6, padding: '8px 12px', color: K_TEXT_SECONDARY, fontSize: 13, outline: 'none',
           }}
         />
         <FilterSelect value={componentFilter}
@@ -1033,9 +1070,9 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
           options={['ALL', ...components]} label="Component" />
       </div>
 
-      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-        Showing <strong style={{ color: '#9CA3AF' }}>{Math.min(visible, filtered.length)}</strong> of{' '}
-        <strong style={{ color: '#9CA3AF' }}>{filtered.length}</strong> interactions
+      <div style={{ fontSize: 12, color: K_NEUTRAL, marginBottom: 12 }}>
+        Showing <strong style={{ color: K_TEXT_MUTED }}>{Math.min(visible, filtered.length)}</strong> of{' '}
+        <strong style={{ color: K_TEXT_MUTED }}>{filtered.length}</strong> interactions
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1045,15 +1082,15 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
             <div
               key={entry.id}
               style={{
-                background: '#111118',
-                border: `1px solid ${entry.status === 'MISSING' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.05)'}`,
-                borderLeft: entry.status === 'MISSING' ? '3px solid #EF4444' : '3px solid transparent',
+                background: K_OVERLAY,
+                border: `1px solid ${entry.status === 'MISSING' ? `${K_DANGER}40` : `${K_BORDER_SUBTLE}`}`,
+                borderLeft: entry.status === 'MISSING' ? `3px solid ${K_DANGER}` : '3px solid transparent',
                 borderRadius: 7,
                 padding: '10px 14px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#6B7280', flexShrink: 0 }}>{entry.id}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 10, color: K_NEUTRAL, flexShrink: 0 }}>{entry.id}</span>
                 <span style={{
                   fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
                   padding: '2px 7px', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -1062,16 +1099,16 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: c.dot, display: 'inline-block' }} />
                   {entry.status}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#E5E7EB', flex: 1 }}>{entry.label}</span>
-                <span style={{ fontSize: 11, color: '#4B5563', flexShrink: 0 }}>{entry.component}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: K_TEXT_SECONDARY, flex: 1 }}>{entry.label}</span>
+                <span style={{ fontSize: 11, color: K_TEXT_FAINT, flexShrink: 0 }}>{entry.component}</span>
               </div>
-              <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.5, fontStyle: 'italic' }}>
+              <div style={{ fontSize: 11, color: K_NEUTRAL, lineHeight: 1.5, fontStyle: 'italic' }}>
                 {entry.evidence}
               </div>
               {entry.fixHint && (
-                <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 5 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#EF4444', marginRight: 6 }}>FIX HINT</span>
-                  <span style={{ fontSize: 11, color: '#FCA5A5' }}>{entry.fixHint}</span>
+                <div style={{ marginTop: 6, padding: '6px 10px', background: `${K_DANGER}0F`, border: `1px solid ${K_DANGER}26`, borderRadius: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: K_DANGER, marginRight: 6 }}>FIX HINT</span>
+                  <span style={{ fontSize: 11, color: K_DANGER_LIGHT }}>{entry.fixHint}</span>
                 </div>
               )}
             </div>
@@ -1084,15 +1121,15 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
           onClick={() => setVisible(v => v + PAGE_SIZE)}
           style={{
             marginTop: 16, width: '100%', padding: '10px',
-            background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
-            borderRadius: 8, color: '#A78BFA', cursor: 'pointer', fontSize: 13,
+            background: `${K_ACCENT}14`, border: `1px solid ${K_ACCENT}33`,
+            borderRadius: 8, color: K_ACCENT_LIGHT, cursor: 'pointer', fontSize: 13,
           }}
         >
           Show more ({filtered.length - visible} remaining)
         </button>
       )}
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#4B5563' }}>No interactions match.</div>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: K_TEXT_FAINT }}>No interactions match.</div>
       )}
     </span>
   );
@@ -1119,19 +1156,19 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
 
       {/* ── Section 1: Interaction Audit ─────────────────────────────────────── */}
       <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: K_ACCENT_LIGHT, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
           Interaction Audit — {AUDIT_SUMMARY.total} buttons / inputs / shortcuts classified
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'LIVE',    value: AUDIT_SUMMARY.live,    color: '#10B981' },
-            { label: 'DEMO',    value: AUDIT_SUMMARY.demo,    color: '#F59E0B' },
-            { label: 'GATED',   value: AUDIT_SUMMARY.gated,   color: '#8B5CF6' },
-            { label: 'MISSING', value: AUDIT_SUMMARY.missing, color: '#EF4444' },
-            { label: 'VISUAL',  value: AUDIT_SUMMARY.visual,  color: '#6B7280' },
+            { label: 'LIVE',    value: AUDIT_SUMMARY.live,    color: K_SUCCESS },
+            { label: 'DEMO',    value: AUDIT_SUMMARY.demo,    color: K_CAUTION },
+            { label: 'GATED',   value: AUDIT_SUMMARY.gated,   color: K_ACCENT },
+            { label: 'MISSING', value: AUDIT_SUMMARY.missing, color: K_DANGER },
+            { label: 'VISUAL',  value: AUDIT_SUMMARY.visual,  color: K_NEUTRAL },
           ].map(({ label, value, color }) => (
-            <div key={label} style={{ background: '#111118', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '14px 12px', textAlign: 'center' }}>
+            <div key={label} style={{ background: K_OVERLAY, border: `1px solid ${K_BORDER_DEFAULT}`, borderRadius: 8, padding: '14px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
               <div style={{ fontSize: 10, color, fontWeight: 600, marginTop: 3, letterSpacing: '0.06em' }}>{label}</div>
             </div>
@@ -1141,24 +1178,24 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
         {/* MISSING entries — dead buttons requiring handler wiring */}
         {missingInteractions.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', marginBottom: 8, letterSpacing: '0.06em' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: K_DANGER, marginBottom: 8, letterSpacing: '0.06em' }}>
               ❌ MISSING — {missingInteractions.length} interactions with no handler wired
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {missingInteractions.map(a => (
                 <div key={a.id} style={{
-                  background: '#111118', border: '1px solid rgba(239,68,68,0.2)',
-                  borderLeft: '3px solid #EF4444', borderRadius: 7, padding: '10px 14px',
+                  background: K_OVERLAY, border: `1px solid ${K_DANGER}33`,
+                  borderLeft: `3px solid ${K_DANGER}`, borderRadius: 7, padding: '10px 14px',
                 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#6B7280' }}>{a.id}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#E5E7EB', flex: 1 }}>{a.label}</span>
-                    <span style={{ fontSize: 11, color: '#4B5563' }}>{a.component}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: K_NEUTRAL }}>{a.id}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: K_TEXT_SECONDARY, flex: 1 }}>{a.label}</span>
+                    <span style={{ fontSize: 11, color: K_TEXT_FAINT }}>{a.component}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', fontStyle: 'italic', marginBottom: a.fixHint ? 5 : 0 }}>{a.evidence}</div>
+                  <div style={{ fontSize: 11, color: K_TEXT_MUTED, fontStyle: 'italic', marginBottom: a.fixHint ? 5 : 0 }}>{a.evidence}</div>
                   {a.fixHint && (
-                    <div style={{ fontSize: 11, color: '#FCA5A5', background: 'rgba(239,68,68,0.06)', padding: '5px 8px', borderRadius: 4 }}>
-                      <strong style={{ color: '#EF4444' }}>Fix: </strong>{a.fixHint}
+                    <div style={{ fontSize: 11, color: K_DANGER_LIGHT, background: `${K_DANGER}0F`, padding: '5px 8px', borderRadius: 4 }}>
+                      <strong style={{ color: K_DANGER }}>Fix: </strong>{a.fixHint}
                     </div>
                   )}
                 </div>
@@ -1169,7 +1206,7 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
 
         {/* GATED entries — require BACKEND_INTEGRATION=true */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#8B5CF6', marginBottom: 8, letterSpacing: '0.06em' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: K_ACCENT, marginBottom: 8, letterSpacing: '0.06em' }}>
             🚩 GATED — {gatedInteractions.length} require BACKEND_INTEGRATION=true
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -1179,7 +1216,7 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
                 title={a.label}
                 style={{
                   fontSize: 11, fontFamily: 'monospace',
-                  background: 'rgba(139,92,246,0.08)', color: '#A78BFA',
+                  background: `${K_ACCENT}14`, color: K_ACCENT_LIGHT,
                   padding: '3px 8px', borderRadius: 4,
                 }}
               >
@@ -1192,7 +1229,7 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
 
       {/* ── Section 2: Manifest Node Status ──────────────────────────────────── */}
       <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: K_ACCENT_LIGHT, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
           Manifest Node Status — click to expand
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -1205,8 +1242,8 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
                 key={status}
                 onClick={() => setSelectedManifestStatus(isSelected ? null : status)}
                 style={{
-                  background: isSelected ? c.bg : '#111118',
-                  border: `2px solid ${isSelected ? c.dot : 'rgba(255,255,255,0.06)'}`,
+                  background: isSelected ? c.bg : K_OVERLAY,
+                  border: `2px solid ${isSelected ? c.dot : `${K_BORDER_DEFAULT}`}`,
                   borderRadius: 10, padding: '14px 18px', cursor: 'pointer',
                   minWidth: 100, textAlign: 'center', transition: 'all 0.15s',
                 }}
@@ -1227,13 +1264,13 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
               {byManifestStatus[selectedManifestStatus].map(entry => (
                 <div key={entry.id} style={{
                   padding: '10px 14px', borderRadius: 7,
-                  background: '#111118', border: '1px solid rgba(255,255,255,0.05)',
+                  background: K_OVERLAY, border: `1px solid ${K_BORDER_SUBTLE}`,
                   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                 }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#6B7280' }}>{entry.id}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: K_NEUTRAL }}>{entry.id}</span>
                   <TypeBadge type={entry.type} />
-                  <span style={{ fontSize: 13, color: '#E5E7EB', flex: 1 }}>{entry.name}</span>
-                  <span style={{ fontSize: 11, color: '#4B5563' }}>{entry.domain}</span>
+                  <span style={{ fontSize: 13, color: K_TEXT_SECONDARY, flex: 1 }}>{entry.name}</span>
+                  <span style={{ fontSize: 11, color: K_TEXT_FAINT }}>{entry.domain}</span>
                 </div>
               ))}
             </div>
@@ -1241,24 +1278,24 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
         )}
 
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#F59E0B', marginBottom: 10, letterSpacing: '0.06em' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: K_CAUTION, marginBottom: 10, letterSpacing: '0.06em' }}>
             ⚠ Nodes with attention notes ({nodesWithNotes.length})
           </div>
           {nodesWithNotes.length === 0 && (
-            <div style={{ color: '#4B5563', fontSize: 13 }}>No notes — manifest is clean.</div>
+            <div style={{ color: K_TEXT_FAINT, fontSize: 13 }}>No notes — manifest is clean.</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {nodesWithNotes.map(entry => (
               <div key={entry.id} style={{
-                background: '#111118', border: '1px solid rgba(245,158,11,0.2)',
-                borderLeft: '3px solid #F59E0B', borderRadius: 8, padding: '12px 14px',
+                background: K_OVERLAY, border: `1px solid ${K_CAUTION}33`,
+                borderLeft: `3px solid ${K_CAUTION}`, borderRadius: 8, padding: '12px 14px',
               }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#8B5CF6' }}>{entry.id}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#E5E7EB' }}>{entry.name}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: K_ACCENT }}>{entry.id}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: K_TEXT_SECONDARY }}>{entry.name}</span>
                   <StatusBadge status={entry.status} />
                 </div>
-                <p style={{ margin: 0, fontSize: 12, color: '#FCD34D', lineHeight: 1.6 }}>{entry.notes}</p>
+                <p style={{ margin: 0, fontSize: 12, color: K_CAUTION_LIGHT, lineHeight: 1.6 }}>{entry.notes}</p>
               </div>
             ))}
           </div>
@@ -1289,15 +1326,15 @@ export function RegistryViewer() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0A0A0F',
-      color: '#E5E7EB',
+      background: K_CANVAS,
+      color: K_TEXT_SECONDARY,
       fontFamily: 'Inter, -apple-system, sans-serif',
       padding: '0 0 64px',
     }}>
       {/* Header */}
       <div style={{
-        background: '#0D0D16',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: K_OVERLAY,
+        borderBottom: `1px solid ${K_BORDER_DEFAULT}`,
         padding: '20px 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
       }}>
@@ -1305,7 +1342,7 @@ export function RegistryViewer() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 6,
-              background: 'linear-gradient(135deg, #8B5CF6, #06B6D4)',
+              background: `linear-gradient(135deg, ${K_ACCENT}, ${K_INFO})`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 14,
             }} aria-hidden="true">⬡</div>
@@ -1313,20 +1350,20 @@ export function RegistryViewer() {
                 `h1` at all, so a screen reader landing on it was told nothing
                 about where it had landed. `h1` carries the styling the two
                 spans had, so nothing moves. */}
-            <h1 style={{ fontSize: 16, fontWeight: 700, color: '#F9FAFB', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontSize: 16, fontWeight: 700, color: K_TEXT_PRIMARY, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
               MARQ Cortex
-              <span style={{ fontSize: 12, fontWeight: 400, color: '#4B5563' }}>/ System Registry</span>
+              <span style={{ fontSize: 12, fontWeight: 400, color: K_TEXT_FAINT }}>/ System Registry</span>
             </h1>
           </div>
-          <div style={{ fontSize: 12, color: '#4B5563' }}>
+          <div style={{ fontSize: 12, color: K_TEXT_FAINT }}>
             {totalNodes} verified nodes · v{manifest.version} · Last verified {manifest.lastVerified}
           </div>
         </div>
         <div style={{
           padding: '6px 14px', borderRadius: 6,
-          background: manifest.backendIntegration ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
-          border: `1px solid ${manifest.backendIntegration ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
-          color: manifest.backendIntegration ? '#10B981' : '#F59E0B',
+          background: manifest.backendIntegration ? `${K_SUCCESS}1F` : `${K_CAUTION}1F`,
+          border: `1px solid ${manifest.backendIntegration ? `${K_SUCCESS}4C` : `${K_CAUTION}4C`}`,
+          color: manifest.backendIntegration ? K_SUCCESS : K_CAUTION,
           fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
         }}>
           {manifest.backendIntegration ? '● LIVE' : '◎ DEMO MODE'}
@@ -1335,17 +1372,17 @@ export function RegistryViewer() {
 
       {/* Core rule banner */}
       <div style={{
-        background: 'rgba(139,92,246,0.06)',
-        borderBottom: '1px solid rgba(139,92,246,0.15)',
+        background: `${K_ACCENT}0F`,
+        borderBottom: `1px solid ${K_ACCENT}26`,
         padding: '8px 32px',
-        fontSize: 11, color: '#7C3AED', fontStyle: 'italic', textAlign: 'center',
+        fontSize: 11, color: K_ACCENT_DEEP, fontStyle: 'italic', textAlign: 'center',
       }}>
         "{manifest.coreRule}"
       </div>
 
       {/* Tabs */}
       <div style={{
-        display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', borderBottom: `1px solid ${K_BORDER_DEFAULT}`,
         padding: '0 32px', overflowX: 'auto',
       }}>
         {TABS.map(tab => (
@@ -1355,8 +1392,8 @@ export function RegistryViewer() {
             style={{
               padding: '14px 18px', background: 'none', border: 'none',
               cursor: 'pointer', fontSize: 13, fontWeight: 500,
-              color: activeTab === tab.id ? '#A78BFA' : '#6B7280',
-              borderBottom: `2px solid ${activeTab === tab.id ? '#8B5CF6' : 'transparent'}`,
+              color: activeTab === tab.id ? K_ACCENT_LIGHT : K_NEUTRAL,
+              borderBottom: `2px solid ${activeTab === tab.id ? K_ACCENT : 'transparent'}`,
               whiteSpace: 'nowrap', transition: 'color 0.15s',
             }}
           >

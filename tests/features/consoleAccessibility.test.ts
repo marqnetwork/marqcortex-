@@ -227,6 +227,9 @@ describe('the system tools were swept too', () => {
   it('gives the route an h1', () => {
     // The route had no heading at all: a screen reader landing on it was told
     // nothing about where it had landed.
-    assert.match(registry, /<h1 style=\{\{ fontSize: 16, fontWeight: 700, color: '#F9FAFB', margin: 0/);
+    // The colour is now the primary-text token rather than the `#F9FAFB` it
+    // spelled out; the guarantee here is the heading, and that it is styled
+    // deliberately rather than inheriting from whatever wraps it.
+    assert.match(registry, /<h1 style=\{\{ fontSize: 16, fontWeight: 700, color: K_TEXT_PRIMARY, margin: 0/);
   });
 });
