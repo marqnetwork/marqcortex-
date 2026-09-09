@@ -33,6 +33,7 @@ import { LoadingState, ErrorState, Modal } from '@/app/components/ui/cortex';
 import { brand, status } from '@/app/lib/tokens';
 import { asArray } from '@/app/lib/payload';
 
+
 interface Props {
   accessToken?: string;
 }
@@ -47,12 +48,12 @@ interface Props {
  * from the one vocabulary in `@/app/lib/teamRole` so they cannot drift from it.
  */
 const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof Crown }> = {
-  owner:      { label: TEAM_ROLE_LABELS.owner,      color: 'text-[#FB923C] bg-[#FB923C]/10 border-[#FB923C]/30', icon: Crown       },
-  admin:      { label: TEAM_ROLE_LABELS.admin,      color: 'text-[#8B5CF6] bg-[#8B5CF6]/10 border-[#8B5CF6]/30', icon: Shield      },
-  consultant: { label: TEAM_ROLE_LABELS.consultant, color: 'text-[#3B82F6] bg-[#3B82F6]/10 border-[#3B82F6]/30', icon: Briefcase   },
-  analyst:    { label: TEAM_ROLE_LABELS.analyst,    color: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/30', icon: LineChart   },
-  reviewer:   { label: TEAM_ROLE_LABELS.reviewer,   color: 'text-[#06D7F6] bg-[#06D7F6]/10 border-[#06D7F6]/30', icon: Star        },
-  viewer:     { label: TEAM_ROLE_LABELS.viewer,     color: 'text-white/60 bg-white/5 border-white/15',           icon: Eye         },
+  owner:      { label: TEAM_ROLE_LABELS.owner,      color: 'text-cortex-warning bg-cortex-warning/10 border-cortex-warning/30', icon: Crown       },
+  admin:      { label: TEAM_ROLE_LABELS.admin,      color: 'text-cortex-accent bg-cortex-accent/10 border-cortex-accent/30', icon: Shield      },
+  consultant: { label: TEAM_ROLE_LABELS.consultant, color: 'text-cortex-accent-alt bg-cortex-accent-alt/10 border-cortex-accent-alt/30', icon: Briefcase   },
+  analyst:    { label: TEAM_ROLE_LABELS.analyst,    color: 'text-cortex-success bg-cortex-success/10 border-cortex-success/30', icon: LineChart   },
+  reviewer:   { label: TEAM_ROLE_LABELS.reviewer,   color: 'text-cortex-info bg-cortex-info/10 border-cortex-info/30', icon: Star        },
+  viewer:     { label: TEAM_ROLE_LABELS.viewer,     color: 'text-white/60 bg-cortex-control border-white/15',           icon: Eye         },
 };
 
 /** Roles in the order the console presents them — most privileged first. */
@@ -177,10 +178,10 @@ export function TeamManagement({ accessToken }: Props) {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-cortex-md border text-sm font-medium ${
               toast.type === 'success'
-                ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
-                : 'bg-[#FD4438]/10 border-[#FD4438]/30 text-[#FD4438]'
+                ? 'bg-cortex-success/10 border-cortex-success/30 text-cortex-success'
+                : 'bg-cortex-danger/10 border-cortex-danger/30 text-cortex-danger'
             }`}
           >
             {toast.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
@@ -200,7 +201,7 @@ export function TeamManagement({ accessToken }: Props) {
             onClick={load}
             disabled={isLoading}
             aria-label="Refresh the team list"
-            className="p-2.5 bg-black/40 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:border-white/20 transition-all"
+            className="p-2.5 bg-cortex-raised border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white hover:border-cortex-strong transition-all"
           >
             <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
@@ -209,7 +210,7 @@ export function TeamManagement({ accessToken }: Props) {
           {mayAdminister && (
             <button
               onClick={() => setShowInvite(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold hover:opacity-90 transition-opacity text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold hover:opacity-90 transition-opacity text-sm"
             >
               <UserPlus className="size-4" />
               Invite Member
@@ -233,7 +234,7 @@ export function TeamManagement({ accessToken }: Props) {
           { icon: Crown,        label: 'Admins',         value: stats.admins,  color: status.warning  },
           { icon: Eye,          label: 'Viewers',        value: stats.viewers, color: status.info     },
         ].map(s => (
-          <div key={s.label} className="bg-black/40 border border-white/10 rounded-xl p-5">
+          <div key={s.label} className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-white/50">{s.label}</span>
               <s.icon className="size-4" style={{ color: s.color }} />
@@ -260,8 +261,8 @@ export function TeamManagement({ accessToken }: Props) {
           as "there is nobody here", which is precisely the thing the panel does
           not know. The error carries the retry; the list returns with it. */}
       {!error && (
-      <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-cortex-default flex items-center justify-between">
           <h2 className="font-bold text-white">Team Members</h2>
           <span className="text-sm text-white/40">{members.length} member{members.length !== 1 ? 's' : ''}</span>
         </div>
@@ -307,7 +308,7 @@ export function TeamManagement({ accessToken }: Props) {
         {ROLE_DISPLAY_ORDER.map(role => {
           const cfg = ROLE_CONFIG[role];
           return (
-          <div key={role} className="bg-black/30 border border-white/8 rounded-xl p-5">
+          <div key={role} className="bg-cortex-sunken border border-white/8 rounded-cortex-md p-5">
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold mb-3 ${cfg.color}`}>
               <cfg.icon className="size-3.5" />
               {cfg.label}
@@ -378,7 +379,7 @@ function MemberRow({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {/* Avatar */}
-          <div className="size-11 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+          <div className="size-11 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">{initials}</span>
           </div>
 
@@ -387,7 +388,7 @@ function MemberRow({
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold text-white">{member.name}</span>
               {member.isSelf && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-[#8B5CF6]/20 text-[#8B5CF6] rounded-full font-bold">YOU</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-cortex-accent/20 text-cortex-accent rounded-full font-bold">YOU</span>
               )}
               {/* Role badge */}
               {isEditing ? (
@@ -430,9 +431,9 @@ function MemberRow({
           <div className="flex items-center gap-2">
             <button
               onClick={onEdit}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-cortex-sm transition-colors ${
                 isEditing
-                  ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
+                  ? 'bg-cortex-accent/20 text-cortex-accent'
                   : 'hover:bg-white/8 text-white/40 hover:text-white'
               }`}
               title="Edit role"
@@ -441,7 +442,7 @@ function MemberRow({
             </button>
             <button
               onClick={onRemove}
-              className="p-2 rounded-lg hover:bg-[#FD4438]/10 text-white/30 hover:text-[#FD4438] transition-colors"
+              className="p-2 rounded-cortex-sm hover:bg-cortex-danger/10 text-white/30 hover:text-cortex-danger transition-colors"
               title="Remove member"
             >
               <Trash2 className="size-4" />
@@ -480,7 +481,7 @@ function RoleSelector({
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-[#8B5CF6]/50 bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-colors font-semibold"
+        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-cortex-accent/50 bg-cortex-accent/10 text-cortex-accent hover:bg-cortex-accent/20 transition-colors font-semibold"
       >
         Change Role
         <ChevronDown className="size-3" />
@@ -491,7 +492,7 @@ function RoleSelector({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            className="absolute top-full left-0 mt-1 z-20 bg-[#0D0D18] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-40"
+            className="absolute top-full left-0 mt-1 z-20 bg-cortex-overlay border border-white/15 rounded-cortex-md shadow-xl overflow-hidden min-w-40"
           >
             {assignable.map(role => {
               const cfg = ROLE_CONFIG[role];
@@ -499,13 +500,13 @@ function RoleSelector({
                 <button
                   key={role}
                   onClick={() => { onChange(role); setOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors text-left ${
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-cortex-control transition-colors text-left ${
                     role === current ? 'text-white' : 'text-white/60'
                   }`}
                 >
                   <cfg.icon className="size-3.5 flex-shrink-0" />
                   {cfg.label}
-                  {role === current && <Check className="size-3 ml-auto text-[#8B5CF6]" />}
+                  {role === current && <Check className="size-3 ml-auto text-cortex-accent" />}
                 </button>
               );
             })}
@@ -586,38 +587,38 @@ function InviteModal({
           {tempCreds ? (
             /* ── Credentials reveal ── */
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 bg-[#10B981]/10 border border-[#10B981]/25 rounded-xl">
-                <CheckCircle2 className="size-5 text-[#10B981] flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-4 bg-cortex-success/10 border border-cortex-success/25 rounded-cortex-md">
+                <CheckCircle2 className="size-5 text-cortex-success flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-[#10B981] text-sm mb-1">Account created successfully!</p>
-                  <p className="text-gray-400 text-xs leading-relaxed">
+                  <p className="font-semibold text-cortex-success text-sm mb-1">Account created successfully!</p>
+                  <p className="text-cortex-muted text-xs leading-relaxed">
                     Share these temporary credentials with {name}. They can log in and change their password.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-sm space-y-2">
+              <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-4 font-mono text-sm space-y-2">
                 <div className="flex justify-between">
                   <span className="text-white/40">Email</span>
                   <span className="text-white">{tempCreds.email}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/40">Password</span>
-                  <span className="text-[#FB923C] font-bold">{tempCreds.password}</span>
+                  <span className="text-cortex-warning font-bold">{tempCreds.password}</span>
                 </div>
               </div>
 
               <button
                 onClick={copyCredentials}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md text-sm font-medium transition-colors"
               >
-                {copied ? <Check className="size-4 text-[#10B981]" /> : <Copy className="size-4" />}
+                {copied ? <Check className="size-4 text-cortex-success" /> : <Copy className="size-4" />}
                 {copied ? 'Copied to clipboard!' : 'Copy credentials'}
               </button>
 
               <button
                 onClick={() => { showToast(`${name} added to the team`, 'success'); onClose(); }}
-                className="w-full py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
+                className="w-full py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold text-sm hover:opacity-90 transition-opacity"
               >
                 Done
               </button>
@@ -632,7 +633,7 @@ function InviteModal({
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Jane Doe"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder:text-white/25 focus:border-cortex-accent focus:outline-none text-sm"
                 />
               </div>
 
@@ -643,7 +644,7 @@ function InviteModal({
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="jane@yourcompany.com"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder:text-white/25 focus:border-cortex-accent focus:outline-none text-sm"
                 />
               </div>
 
@@ -652,7 +653,7 @@ function InviteModal({
                 <select
                   value={teamRole}
                   onChange={e => setTeamRole(normalizeTeamRole(e.target.value))}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white focus:border-cortex-accent focus:outline-none text-sm"
                 >
                   {assignable.map(role => (
                     <option key={role} value={role}>
@@ -662,21 +663,21 @@ function InviteModal({
                 </select>
               </div>
 
-              <div className="p-3.5 bg-[#3B82F6]/8 border border-[#3B82F6]/20 rounded-xl text-xs text-gray-400 leading-relaxed">
+              <div className="p-3.5 bg-cortex-accent-alt/8 border border-cortex-accent-alt/20 rounded-cortex-md text-xs text-cortex-muted leading-relaxed">
                 A temporary password will be auto-generated and shown after creation. Share it securely with the new member.
               </div>
 
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-sm transition-colors"
+                  className="flex-1 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md font-semibold text-sm transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !name.trim() || !email.trim()}
-                  className="flex-1 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
                   {isSubmitting ? 'Creating…' : 'Create Account'}
@@ -727,14 +728,14 @@ function ConfirmRemoveModal({
         <>
           <button
             onClick={onCancel}
-            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-sm transition-colors"
+            className="flex-1 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md font-semibold text-sm transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handle}
             disabled={isRemoving}
-            className="flex-1 py-3 bg-[#FD4438] hover:bg-[#E03530] text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-cortex-danger hover:bg-cortex-danger/85 text-white rounded-cortex-md font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isRemoving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
             {isRemoving ? 'Removing…' : 'Remove'}
@@ -743,8 +744,8 @@ function ConfirmRemoveModal({
       }
     >
       <div className="text-center">
-        <div className="size-14 rounded-full bg-[#FD4438]/10 flex items-center justify-center mx-auto" aria-hidden="true">
-          <Trash2 className="size-6 text-[#FD4438]" />
+        <div className="size-14 rounded-full bg-cortex-danger/10 flex items-center justify-center mx-auto" aria-hidden="true">
+          <Trash2 className="size-6 text-cortex-danger" />
         </div>
       </div>
     </Modal>

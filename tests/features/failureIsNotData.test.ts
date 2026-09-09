@@ -145,7 +145,11 @@ describe('the team panel makes no claim about a roster it could not read', () =>
   it('hides the empty state too', () => {
     // "Nobody else is in this workspace yet" under a load failure reads as a
     // fact about the workspace. It is a fact about the request.
-    assert.match(team, /\{!error && \(\s*<div className="bg-black\/40 border border-white\/10 rounded-xl overflow-hidden">/);
+    // The container's classes are now the token vocabulary rather than
+    // `bg-black/40 border-white/10 rounded-xl`. What is pinned is the GUARD:
+    // the roster card, empty state and all, renders only when there is no
+    // error.
+    assert.match(team, /\{!error && \(\s*<div className="bg-cortex-raised border border-cortex-default rounded-cortex-md overflow-hidden">/);
   });
 });
 

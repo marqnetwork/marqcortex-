@@ -23,6 +23,11 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ARCHITECTURE DATA
@@ -50,7 +55,7 @@ const LAYERS: ArchLayer[] = [
     id: 'frontend',
     title: 'Frontend Application Layer',
     subtitle: 'React 18 + Tailwind CSS v4 + React Router (Hash) + Motion',
-    color: '#8B5CF6',
+    color: brand.accent,
     icon: Globe,
     modules: [
       { name: 'Landing Page & Lead Capture', description: 'Public-facing pages with diagnostic form, instant scoring, and lead magnet capture', files: ['LandingPage.tsx', 'LeadMagnetCapture.tsx', 'DiagnosticForm.tsx', 'ScorePage.tsx'], status: 'complete', type: 'ui' },
@@ -69,7 +74,7 @@ const LAYERS: ArchLayer[] = [
     id: 'core-engine',
     title: 'Core Deterministic Engine',
     subtitle: 'Math decides priority. LLM only explains decisions.',
-    color: '#3B82F6',
+    color: brand.accentAlt,
     icon: Cpu,
     modules: [
       { name: 'Input Normalizer', description: 'Converts raw diagnostic answers into structured NormalizedDiagnostics with causal categories, signal types, and domain pain counts', files: ['inputNormalizer.ts'], status: 'complete', type: 'core' },
@@ -86,7 +91,7 @@ const LAYERS: ArchLayer[] = [
     id: 'finance-engine',
     title: 'Finance Engine Stack',
     subtitle: 'roi_engine_v1 → cashflow_v1 → dcf_v1 → irr_v2 → montecarlo_v3 → scenarios_v4',
-    color: '#10B981',
+    color: STATUS.success,
     icon: DollarSign,
     modules: [
       { name: 'ROI Engine', description: 'Per-recommendation ROI with 4-type realization factors (efficiency/cost/revenue/risk), confidence weighting, 3-case range, dependency-safe aggregation', files: ['roiEngine.ts'], status: 'complete', type: 'core' },
@@ -104,7 +109,7 @@ const LAYERS: ArchLayer[] = [
     id: 'ai-layer',
     title: 'AI Narrative Layer',
     subtitle: 'GPT-4o-mini for explanation ONLY. Never decides priority or ROI.',
-    color: '#EC4899',
+    color: brand.accentTertiary,
     icon: Brain,
     modules: [
       { name: 'AI Scoring Prompts', description: 'Structured prompts for generating natural language explanations of math-derived decisions', files: ['cortexAIPrompts.ts', 'mockAIAnalysis.ts'], status: 'complete', type: 'ai' },
@@ -119,7 +124,7 @@ const LAYERS: ArchLayer[] = [
     id: 'backend',
     title: 'Backend Infrastructure',
     subtitle: 'Supabase Edge Functions (Hono) + KV Store + Auth + Storage',
-    color: '#FB923C',
+    color: STATUS.warning,
     icon: Server,
     modules: [
       { name: 'Hono Web Server', description: 'Edge function running Hono with CORS, logging, and route-prefixed endpoints', files: ['server/index.tsx'], status: 'complete', type: 'api' },
@@ -134,7 +139,7 @@ const LAYERS: ArchLayer[] = [
     id: 'data-flow',
     title: 'Data Flow & State Management',
     subtitle: 'AppContext → DashboardContext → GlobalAIChatContext',
-    color: '#06D7F6',
+    color: STATUS.info,
     icon: Network,
     modules: [
       { name: 'AppContext', description: 'Root state: auth sessions (team + client), login/logout, route guards', files: ['AppContext.tsx'], status: 'complete', type: 'data' },
@@ -151,16 +156,16 @@ const LAYERS: ArchLayer[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PIPELINE_STEPS = [
-  { label: 'Client Submits Diagnostic', icon: FileText, color: '#8B5CF6' },
-  { label: 'Input Normalizer', icon: Code, color: '#3B82F6' },
-  { label: 'Scoring Engine (6 domains)', icon: BarChart3, color: '#3B82F6' },
-  { label: 'Decision Engine (Math)', icon: Target, color: '#3B82F6' },
-  { label: 'Template Assembler', icon: Boxes, color: '#3B82F6' },
-  { label: 'Portfolio Builder (7 depts)', icon: Layers, color: '#10B981' },
-  { label: 'ROI + Cost + Cashflow', icon: DollarSign, color: '#10B981' },
-  { label: 'DCF + IRR + Monte Carlo', icon: TrendingUp, color: '#10B981' },
-  { label: 'AI Narrative (GPT-4o-mini)', icon: Brain, color: '#EC4899' },
-  { label: 'Client Report Delivered', icon: FileText, color: '#8B5CF6' },
+  { label: 'Client Submits Diagnostic', icon: FileText, color: brand.accent },
+  { label: 'Input Normalizer', icon: Code, color: brand.accentAlt },
+  { label: 'Scoring Engine (6 domains)', icon: BarChart3, color: brand.accentAlt },
+  { label: 'Decision Engine (Math)', icon: Target, color: brand.accentAlt },
+  { label: 'Template Assembler', icon: Boxes, color: brand.accentAlt },
+  { label: 'Portfolio Builder (7 depts)', icon: Layers, color: STATUS.success },
+  { label: 'ROI + Cost + Cashflow', icon: DollarSign, color: STATUS.success },
+  { label: 'DCF + IRR + Monte Carlo', icon: TrendingUp, color: STATUS.success },
+  { label: 'AI Narrative (GPT-4o-mini)', icon: Brain, color: brand.accentTertiary },
+  { label: 'Client Report Delivered', icon: FileText, color: brand.accent },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -199,17 +204,17 @@ export function SystemArchitecture() {
   const completeModules = LAYERS.reduce((s, l) => s + l.modules.filter(m => m.status === 'complete').length, 0);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Header */}
-      <div className="bg-black/80 border-b border-white/10">
+      <div className="bg-black/80 border-b border-cortex-default">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center gap-4 mb-4">
-            <div className="size-12 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+            <div className="size-12 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
               <Workflow className="size-6 text-white" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">MARQ Cortex — System Architecture</h1>
-              <p className="text-sm text-gray-400">Product architecture, data flow, and system analysis</p>
+              <p className="text-sm text-cortex-muted">Product architecture, data flow, and system analysis</p>
             </div>
           </div>
           {/* Stats bar */}
@@ -229,8 +234,8 @@ export function SystemArchitecture() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id ? 'bg-[#8B5CF6] text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                className={`px-4 py-2 rounded-cortex-sm text-sm font-medium transition-all ${
+                  activeTab === tab.id ? 'bg-cortex-accent text-white' : 'text-cortex-muted hover:text-white hover:bg-cortex-control'
                 }`}
               >
                 {tab.label}
@@ -260,9 +265,9 @@ export function SystemArchitecture() {
           {/* TAB 2: Data Pipeline */}
           {activeTab === 'pipeline' && (
             <motion.div key="pipeline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="bg-black/40 border border-white/10 rounded-2xl p-8">
+              <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-8">
                 <h3 className="text-lg font-bold text-white mb-6">Core Data Pipeline</h3>
-                <p className="text-sm text-gray-400 mb-8">
+                <p className="text-sm text-cortex-muted mb-8">
                   Data flows through a deterministic 10-step pipeline. The AI layer is explicitly gated:
                   it can only <strong className="text-white">explain</strong> decisions, never <strong className="text-white">make</strong> them.
                 </p>
@@ -275,53 +280,53 @@ export function SystemArchitecture() {
                       transition={{ delay: idx * 0.05 }}
                       className="flex items-center gap-4"
                     >
-                      <div className="size-10 rounded-xl flex items-center justify-center flex-shrink-0 border"
+                      <div className="size-10 rounded-cortex-md flex items-center justify-center flex-shrink-0 border"
                         style={{ background: `${step.color}15`, borderColor: `${step.color}30` }}>
                         <step.icon className="size-5" style={{ color: step.color }} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-gray-500">STEP {idx + 1}</span>
+                          <span className="text-xs font-bold text-cortex-muted">STEP {idx + 1}</span>
                           <span className="text-sm font-medium text-white">{step.label}</span>
                         </div>
                       </div>
                       {idx < PIPELINE_STEPS.length - 1 && (
-                        <ArrowDown className="size-4 text-gray-600 flex-shrink-0" />
+                        <ArrowDown className="size-4 text-cortex-faint flex-shrink-0" />
                       )}
                     </motion.div>
                   ))}
                 </div>
                 {/* Key rules */}
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <RuleCard icon={Lock} title="Math-First" description="Priority scores, ROI, and all financial metrics are computed deterministically. No LLM influence." color="#3B82F6" />
-                  <RuleCard icon={Shield} title="Immutable Versions" description="Every recalculation creates a new immutable version. ≥25 versions stored with delta logs." color="#10B981" />
-                  <RuleCard icon={Eye} title="Full Transparency" description="Every number traces back to its formula, assumptions, and input data. No black boxes." color="#8B5CF6" />
+                  <RuleCard icon={Lock} title="Math-First" description="Priority scores, ROI, and all financial metrics are computed deterministically. No LLM influence." color={brand.accentAlt} />
+                  <RuleCard icon={Shield} title="Immutable Versions" description="Every recalculation creates a new immutable version. ≥25 versions stored with delta logs." color={STATUS.success} />
+                  <RuleCard icon={Eye} title="Full Transparency" description="Every number traces back to its formula, assumptions, and input data. No black boxes." color={brand.accent} />
                 </div>
               </div>
 
               {/* Engine dependency map */}
-              <div className="mt-6 bg-black/40 border border-white/10 rounded-2xl p-8">
+              <div className="mt-6 bg-cortex-raised border border-cortex-default rounded-cortex-lg p-8">
                 <h3 className="text-lg font-bold text-white mb-4">Finance Engine Dependency Chain</h3>
                 <div className="flex items-start gap-2 flex-wrap">
                   {[
-                    { label: 'ROI Engine', sub: 'v1', color: '#10B981' },
-                    { label: 'Cost Model', sub: 'v1', color: '#10B981' },
-                    { label: 'Cashflow', sub: 'v1', color: '#3B82F6' },
-                    { label: 'DCF/NPV', sub: 'v1', color: '#3B82F6' },
-                    { label: 'IRR', sub: 'v2', color: '#8B5CF6' },
-                    { label: 'Monte Carlo', sub: 'v3', color: '#EC4899' },
-                    { label: 'Scenarios', sub: 'v4', color: '#FB923C' },
+                    { label: 'ROI Engine', sub: 'v1', color: STATUS.success },
+                    { label: 'Cost Model', sub: 'v1', color: STATUS.success },
+                    { label: 'Cashflow', sub: 'v1', color: brand.accentAlt },
+                    { label: 'DCF/NPV', sub: 'v1', color: brand.accentAlt },
+                    { label: 'IRR', sub: 'v2', color: brand.accent },
+                    { label: 'Monte Carlo', sub: 'v3', color: brand.accentTertiary },
+                    { label: 'Scenarios', sub: 'v4', color: STATUS.warning },
                   ].map((eng, idx) => (
                     <span key={eng.label} className="contents">
-                      <div className="px-4 py-3 rounded-xl border text-center" style={{ background: `${eng.color}10`, borderColor: `${eng.color}30` }}>
+                      <div className="px-4 py-3 rounded-cortex-md border text-center" style={{ background: `${eng.color}10`, borderColor: `${eng.color}30` }}>
                         <div className="text-sm font-bold text-white">{eng.label}</div>
                         <div className="text-xs mt-0.5" style={{ color: eng.color }}>{eng.sub}</div>
                       </div>
-                      {idx < 6 && <ArrowRight className="size-4 text-gray-600 self-center flex-shrink-0" />}
+                      {idx < 6 && <ArrowRight className="size-4 text-cortex-faint self-center flex-shrink-0" />}
                     </span>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-4">
+                <p className="text-xs text-cortex-muted mt-4">
                   Each engine runs sequentially. Downstream engines never modify upstream outputs. DCF/IRR/Monte Carlo operate on validated cashflow only.
                 </p>
               </div>
@@ -341,10 +346,10 @@ export function SystemArchitecture() {
                     <motion.div
                       key={idx}
                       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
-                      className="p-5 bg-green-500/5 border border-green-500/20 rounded-2xl"
+                      className="p-5 bg-green-500/5 border border-green-500/20 rounded-cortex-lg"
                     >
                       <h4 className="text-sm font-bold text-white mb-1">{s.title}</h4>
-                      <p className="text-xs text-gray-400 leading-relaxed">{s.description}</p>
+                      <p className="text-xs text-cortex-muted leading-relaxed">{s.description}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -360,7 +365,7 @@ export function SystemArchitecture() {
                     <motion.div
                       key={idx}
                       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
-                      className={`p-5 rounded-2xl border ${
+                      className={`p-5 rounded-cortex-lg border ${
                         w.severity === 'high'
                           ? 'bg-red-500/5 border-red-500/20'
                           : w.severity === 'medium'
@@ -378,7 +383,7 @@ export function SystemArchitecture() {
                           {w.severity}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 leading-relaxed">{w.description}</p>
+                      <p className="text-xs text-cortex-muted leading-relaxed">{w.description}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -398,8 +403,8 @@ export function SystemArchitecture() {
                     { priority: 5, title: 'Enable Supabase Realtime', description: 'Replace 30s polling with Supabase Realtime subscriptions for instant updates.', effort: 'Medium' },
                     { priority: 6, title: 'Multi-Tenant Architecture', description: 'Add tenant isolation (org_id prefix on all KV keys) to support multiple consultancy accounts.', effort: 'High' },
                   ].map(step => (
-                    <div key={step.priority} className="flex items-start gap-4 p-4 bg-black/40 border border-white/10 rounded-xl">
-                      <div className="size-8 rounded-lg bg-[#8B5CF6]/20 text-[#8B5CF6] flex items-center justify-center flex-shrink-0 text-sm font-bold">
+                    <div key={step.priority} className="flex items-start gap-4 p-4 bg-cortex-raised border border-cortex-default rounded-cortex-md">
+                      <div className="size-8 rounded-cortex-sm bg-cortex-accent/20 text-cortex-accent flex items-center justify-center flex-shrink-0 text-sm font-bold">
                         {step.priority}
                       </div>
                       <div className="flex-1">
@@ -413,7 +418,7 @@ export function SystemArchitecture() {
                             {step.effort} effort
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">{step.description}</p>
+                        <p className="text-xs text-cortex-muted mt-1">{step.description}</p>
                       </div>
                     </div>
                   ))}
@@ -439,33 +444,33 @@ function LayerCard({ layer, index, expanded, onToggle }: {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}
-      className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden hover:border-white/15 transition-colors"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden hover:border-white/15 transition-colors"
     >
       <button onClick={onToggle} className="w-full text-left p-5 flex items-start gap-4">
-        <div className="size-10 rounded-xl flex items-center justify-center flex-shrink-0 border"
+        <div className="size-10 rounded-cortex-md flex items-center justify-center flex-shrink-0 border"
           style={{ background: `${layer.color}15`, borderColor: `${layer.color}30` }}>
           <layer.icon className="size-5" style={{ color: layer.color }} />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-bold text-white">{layer.title}</h3>
-          <p className="text-xs text-gray-500 mt-0.5">{layer.subtitle}</p>
+          <p className="text-xs text-cortex-muted mt-0.5">{layer.subtitle}</p>
           <div className="flex items-center gap-3 mt-2 text-xs">
             <span className="text-green-400">{completeCount}/{layer.modules.length} modules</span>
-            <div className="flex-1 h-1.5 bg-white/5 rounded-full max-w-[120px]">
+            <div className="flex-1 h-1.5 bg-cortex-control rounded-full max-w-[120px]">
               <div className="h-full rounded-full" style={{ width: `${(completeCount / layer.modules.length) * 100}%`, background: layer.color }} />
             </div>
           </div>
         </div>
-        {expanded ? <ChevronUp className="size-5 text-gray-400" /> : <ChevronDown className="size-5 text-gray-400" />}
+        {expanded ? <ChevronUp className="size-5 text-cortex-muted" /> : <ChevronDown className="size-5 text-cortex-muted" />}
       </button>
 
       {expanded && (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-          className="border-t border-white/5 p-5"
+          className="border-t border-cortex-subtle p-5"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {layer.modules.map((mod, mIdx) => (
-              <div key={mIdx} className="p-3 bg-white/3 border border-white/5 rounded-xl">
+              <div key={mIdx} className="p-3 bg-white/3 border border-cortex-subtle rounded-cortex-md">
                 <div className="flex items-center gap-2 mb-1">
                   <div className={`size-2 rounded-full ${
                     mod.status === 'complete' ? 'bg-green-400' :
@@ -482,11 +487,11 @@ function LayerCard({ layer, index, expanded, onToggle }: {
                     {mod.type}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 leading-relaxed">{mod.description}</p>
+                <p className="text-xs text-cortex-muted leading-relaxed">{mod.description}</p>
                 {mod.files && mod.files.length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-2">
                     {mod.files.map(f => (
-                      <span key={f} className="text-xs px-1.5 py-0.5 bg-white/5 rounded text-gray-500 font-mono">{f}</span>
+                      <span key={f} className="text-xs px-1.5 py-0.5 bg-cortex-control rounded text-cortex-muted font-mono">{f}</span>
                     ))}
                   </div>
                 )}
@@ -503,12 +508,12 @@ function RuleCard({ icon: Icon, title, description, color }: {
   icon: LucideIcon; title: string; description: string; color: string;
 }) {
   return (
-    <div className="p-4 rounded-xl border" style={{ background: `${color}08`, borderColor: `${color}20` }}>
+    <div className="p-4 rounded-cortex-md border" style={{ background: `${color}08`, borderColor: `${color}20` }}>
       <div className="flex items-center gap-2 mb-2">
         <Icon className="size-4" style={{ color }} />
         <span className="text-sm font-bold text-white">{title}</span>
       </div>
-      <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+      <p className="text-xs text-cortex-muted leading-relaxed">{description}</p>
     </div>
   );
 }
