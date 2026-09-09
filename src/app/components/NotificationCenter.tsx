@@ -18,6 +18,11 @@ import {
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/app/services/dataService';
 import type { KanbanAlert } from '@/app/contexts/DashboardContext';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 interface Props {
   accessToken?: string;
@@ -30,26 +35,26 @@ interface Props {
 const TYPE_CONFIG = {
   new_submission: {
     icon: Zap,
-    color: '#8B5CF6',
-    bg: 'bg-[#8B5CF6]/10',
-    border: 'border-[#8B5CF6]/25',
-    dot: 'bg-[#8B5CF6]',
+    color: brand.accent,
+    bg: 'bg-cortex-accent/10',
+    border: 'border-cortex-accent/25',
+    dot: 'bg-cortex-accent',
     label: 'New',
   },
   status_change: {
     icon: CheckCircle2,
-    color: '#06D7F6',
-    bg: 'bg-[#06D7F6]/10',
-    border: 'border-[#06D7F6]/25',
-    dot: 'bg-[#06D7F6]',
+    color: STATUS.info,
+    bg: 'bg-cortex-info/10',
+    border: 'border-cortex-info/25',
+    dot: 'bg-cortex-info',
     label: 'Update',
   },
   urgent: {
     icon: AlertTriangle,
-    color: '#FD4438',
-    bg: 'bg-[#FD4438]/10',
-    border: 'border-[#FD4438]/25',
-    dot: 'bg-[#FD4438]',
+    color: STATUS.danger,
+    bg: 'bg-cortex-danger/10',
+    border: 'border-cortex-danger/25',
+    dot: 'bg-cortex-danger',
     label: 'Urgent',
   },
 };
@@ -61,43 +66,43 @@ const LIVE_KIND_CONFIG: Record<KanbanAlert['kind'], {
 }> = {
   score_low: {
     icon: TrendingDown,
-    color: '#FD4438',
-    bg: 'bg-[#FD4438]/10',
-    border: 'border-[#FD4438]/25',
-    dot: 'bg-[#FD4438]',
+    color: STATUS.danger,
+    bg: 'bg-cortex-danger/10',
+    border: 'border-cortex-danger/25',
+    dot: 'bg-cortex-danger',
     label: 'Critical',
   },
   score_high: {
     icon: TrendingUp,
-    color: '#10B981',
-    bg: 'bg-[#10B981]/10',
-    border: 'border-[#10B981]/25',
-    dot: 'bg-[#10B981]',
+    color: STATUS.success,
+    bg: 'bg-cortex-success/10',
+    border: 'border-cortex-success/25',
+    dot: 'bg-cortex-success',
     label: 'Hot',
   },
   remote_move: {
     icon: Users,
-    color: '#06D7F6',
-    bg: 'bg-[#06D7F6]/10',
-    border: 'border-[#06D7F6]/25',
-    dot: 'bg-[#06D7F6]',
+    color: STATUS.info,
+    bg: 'bg-cortex-info/10',
+    border: 'border-cortex-info/25',
+    dot: 'bg-cortex-info',
     label: 'Sync',
   },
   conflict: {
     icon: AlertTriangle,
-    color: '#FB923C',
-    bg: 'bg-[#FB923C]/10',
-    border: 'border-[#FB923C]/25',
-    dot: 'bg-[#FB923C]',
+    color: STATUS.warning,
+    bg: 'bg-cortex-warning/10',
+    border: 'border-cortex-warning/25',
+    dot: 'bg-cortex-warning',
     label: 'Conflict',
   },
   // 12D: stale escalation — base config; severity overrides applied in LiveAlertRow
   stale_escalation: {
     icon: TimerOff,
-    color: '#D97706',
-    bg: 'bg-[#D97706]/10',
-    border: 'border-[#D97706]/25',
-    dot: 'bg-[#D97706]',
+    color: STATUS.cautionDeep,
+    bg: 'bg-cortex-caution-deep/10',
+    border: 'border-cortex-caution-deep/25',
+    dot: 'bg-cortex-caution-deep',
     label: 'Stale',
   },
 };
@@ -227,10 +232,10 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
       {/* ── Bell Button ── */}
       <button
         onClick={() => setOpen(prev => !prev)}
-        className="p-2 hover:bg-white/5 rounded-lg transition-colors relative"
+        className="p-2 hover:bg-cortex-control rounded-cortex-sm transition-colors relative"
         aria-label="Notifications"
       >
-        <Bell className={`size-5 transition-colors ${open ? 'text-white' : 'text-gray-400'}`} />
+        <Bell className={`size-5 transition-colors ${open ? 'text-white' : 'text-cortex-muted'}`} />
         <AnimatePresence>
           {totalUnread > 0 && (
             <motion.span
@@ -238,7 +243,7 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-[#FD4438] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none"
+              className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-cortex-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none"
             >
               {totalUnread > 9 ? '9+' : totalUnread}
             </motion.span>
@@ -254,15 +259,15 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-12 w-[400px] bg-[#0D0D14] border border-white/15 rounded-2xl shadow-2xl shadow-black/60 z-50 overflow-hidden"
+            className="absolute right-0 top-12 w-[400px] bg-cortex-overlay border border-white/15 rounded-cortex-lg shadow-2xl shadow-black/60 z-50 overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-cortex-default">
               <div className="flex items-center gap-2">
-                <Bell className="size-4 text-[#8B5CF6]" />
+                <Bell className="size-4 text-cortex-accent" />
                 <span className="font-semibold text-white text-sm">Notifications</span>
                 {hasAnything && (
-                  <span className="text-xs text-gray-500 ml-1">
+                  <span className="text-xs text-cortex-muted ml-1">
                     ({notifications.length + liveAlerts.length})
                   </span>
                 )}
@@ -271,16 +276,16 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
                 <button
                   onClick={() => fetchNotifications()}
                   disabled={isLoading}
-                  className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-cortex-control rounded-cortex-sm transition-colors"
                   title="Refresh"
                 >
-                  <RefreshCw className={`size-3.5 text-gray-400 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`size-3.5 text-cortex-muted ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
                 <button
                   onClick={() => setOpen(false)}
-                  className="p-1.5 hover:bg-white/5 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-cortex-control rounded-cortex-sm transition-colors"
                 >
-                  <X className="size-3.5 text-gray-400" />
+                  <X className="size-3.5 text-cortex-muted" />
                 </button>
               </div>
             </div>
@@ -289,8 +294,8 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
             <div className="max-h-[480px] overflow-y-auto">
               {isLoading && !hasAnything ? (
                 <div className="py-12 text-center">
-                  <RefreshCw className="size-6 text-[#8B5CF6] animate-spin mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">Loading…</p>
+                  <RefreshCw className="size-6 text-cortex-accent animate-spin mx-auto mb-3" />
+                  <p className="text-cortex-muted text-sm">Loading…</p>
                 </div>
               ) : !hasAnything ? (
                 <EmptyState />
@@ -300,12 +305,12 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
                   {liveAlerts.length > 0 && (
                     <span className="contents">
                       <div className="flex items-center gap-2 px-2 pt-1 pb-0.5">
-                        <Radio className="size-3 text-[#06D7F6]" />
-                        <span className="text-[11px] font-semibold text-[#06D7F6] uppercase tracking-wider">
+                        <Radio className="size-3 text-cortex-info" />
+                        <span className="text-[11px] font-semibold text-cortex-info uppercase tracking-wider">
                           Live · Kanban
                         </span>
                         {liveUnread > 0 && (
-                          <span className="ml-auto text-[10px] bg-[#06D7F6]/15 text-[#06D7F6] px-1.5 py-0.5 rounded-full font-semibold">
+                          <span className="ml-auto text-[10px] bg-cortex-info/15 text-cortex-info px-1.5 py-0.5 rounded-full font-semibold">
                             {liveUnread} new
                           </span>
                         )}
@@ -320,7 +325,7 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
                   {liveAlerts.length > 0 && notifications.length > 0 && (
                     <div className="flex items-center gap-2 px-2 pt-2 pb-0.5">
                       <div className="flex-1 h-px bg-white/8" />
-                      <span className="text-[11px] text-gray-600 font-semibold uppercase tracking-wider">Server</span>
+                      <span className="text-[11px] text-cortex-faint font-semibold uppercase tracking-wider">Server</span>
                       <div className="flex-1 h-px bg-white/8" />
                     </div>
                   )}
@@ -341,11 +346,11 @@ export function NotificationCenter({ accessToken, onNavigateToSubmission, liveAl
 
             {/* Footer */}
             {hasAnything && (
-              <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between">
-                <span className="text-xs text-gray-600">
+              <div className="px-5 py-3 border-t border-cortex-default flex items-center justify-between">
+                <span className="text-xs text-cortex-faint">
                   {lastFetch ? `Updated ${timeAgo(lastFetch.toISOString())}` : 'Live'}
                 </span>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-cortex-muted">
                   <CheckCheck className="size-3" />
                   All caught up
                 </div>
@@ -367,10 +372,10 @@ function LiveAlertRow({ alert, index }: { alert: KanbanAlert; index: number }) {
 
   // 12D: for stale_escalation, override colour based on severity
   const isCriticalStale = alert.kind === 'stale_escalation' && alert.severity === 'critical';
-  const color  = isCriticalStale ? '#FD4438' : cfg.color;
-  const dotCls = isCriticalStale ? 'bg-[#FD4438]' : cfg.dot;
-  const bgCls  = isCriticalStale ? 'bg-[#FD4438]/10'  : cfg.bg;
-  const bdrCls = isCriticalStale ? 'border-[#FD4438]/25' : cfg.border;
+  const color  = isCriticalStale ? STATUS.danger : cfg.color;
+  const dotCls = isCriticalStale ? 'bg-cortex-danger' : cfg.dot;
+  const bgCls  = isCriticalStale ? 'bg-cortex-danger/10'  : cfg.bg;
+  const bdrCls = isCriticalStale ? 'border-cortex-danger/25' : cfg.border;
   const label  = isCriticalStale ? 'Critical'
                : alert.kind === 'stale_escalation' ? 'Stale · 14d+'
                : cfg.label;
@@ -381,7 +386,7 @@ function LiveAlertRow({ alert, index }: { alert: KanbanAlert; index: number }) {
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.025 }}
       className={`
-        relative flex gap-3 p-3 rounded-xl border
+        relative flex gap-3 p-3 rounded-cortex-md border
         ${bgCls} ${bdrCls}
         ${!alert.read ? 'opacity-100' : 'opacity-55'}
       `}
@@ -393,7 +398,7 @@ function LiveAlertRow({ alert, index }: { alert: KanbanAlert; index: number }) {
 
       {/* Icon */}
       <div
-        className="size-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+        className="size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
         style={{ backgroundColor: `${color}20` }}
       >
         <Icon className="size-4" style={{ color }} />
@@ -410,10 +415,10 @@ function LiveAlertRow({ alert, index }: { alert: KanbanAlert; index: number }) {
             {label}
           </span>
         </div>
-        <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{alert.body}</p>
+        <p className="text-xs text-cortex-muted leading-relaxed line-clamp-2">{alert.body}</p>
         <div className="flex items-center gap-2 mt-1.5">
-          <Clock className="size-3 text-gray-600" />
-          <span className="text-[11px] text-gray-600">{timeAgo(alert.at)}</span>
+          <Clock className="size-3 text-cortex-faint" />
+          <span className="text-[11px] text-cortex-faint">{timeAgo(alert.at)}</span>
         </div>
       </div>
     </motion.div>
@@ -441,7 +446,7 @@ function NotificationRow({
       transition={{ delay: index * 0.03 }}
       onClick={onClick}
       className={`
-        group relative flex gap-3 p-3 rounded-xl border transition-all
+        group relative flex gap-3 p-3 rounded-cortex-md border transition-all
         ${cfg.bg} ${cfg.border}
         ${canNavigate ? 'cursor-pointer hover:brightness-125' : 'cursor-default'}
         ${!n.read ? 'opacity-100' : 'opacity-60'}
@@ -454,7 +459,7 @@ function NotificationRow({
 
       {/* Icon */}
       <div
-        className="size-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+        className="size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
         style={{ backgroundColor: `${cfg.color}20` }}
       >
         <Icon className="size-4" style={{ color: cfg.color }} />
@@ -471,12 +476,12 @@ function NotificationRow({
             {cfg.label}
           </span>
         </div>
-        <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{n.message}</p>
+        <p className="text-xs text-cortex-muted leading-relaxed line-clamp-2">{n.message}</p>
         <div className="flex items-center gap-2 mt-1.5">
-          <Clock className="size-3 text-gray-600" />
-          <span className="text-[11px] text-gray-600">{timeAgo(n.createdAt)}</span>
+          <Clock className="size-3 text-cortex-faint" />
+          <span className="text-[11px] text-cortex-faint">{timeAgo(n.createdAt)}</span>
           {canNavigate && n.submissionId && (
-            <span className="ml-auto text-[11px] text-gray-600 group-hover:text-white transition-colors flex items-center gap-0.5">
+            <span className="ml-auto text-[11px] text-cortex-faint group-hover:text-white transition-colors flex items-center gap-0.5">
               View <ArrowRight className="size-2.5" />
             </span>
           )}
@@ -489,11 +494,11 @@ function NotificationRow({
 function EmptyState() {
   return (
     <div className="py-14 px-6 text-center">
-      <div className="size-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
-        <Bell className="size-6 text-gray-600" />
+      <div className="size-14 rounded-cortex-lg bg-cortex-control flex items-center justify-center mx-auto mb-4">
+        <Bell className="size-6 text-cortex-faint" />
       </div>
       <p className="text-white font-medium text-sm mb-1">All quiet</p>
-      <p className="text-gray-500 text-xs leading-relaxed">
+      <p className="text-cortex-muted text-xs leading-relaxed">
         Notifications appear here when new diagnostics are submitted or statuses change.
       </p>
     </div>

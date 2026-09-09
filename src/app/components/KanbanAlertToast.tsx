@@ -24,6 +24,12 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { KanbanAlert, KanbanAlertKind, KanbanAlertSeverity } from '@/app/contexts/DashboardContext';
+import {
+  border as BORDER,
+  status as STATUS,
+  surface as SURFACE,
+} from '@/app/lib/tokens';
+
 
 // ── Colour config ─────────────────────────────────────────────────────────────
 
@@ -38,24 +44,24 @@ interface ColourSet {
 
 const KIND_COLORS: Record<KanbanAlertKind, ColourSet> = {
   score_low: {
-    hex: '#FD4438', bg: 'rgba(253,68,56,0.07)', bar: '#FD4438',
-    left: '#FD4438', chip: 'rgba(253,68,56,0.15)', label: 'Critical Score',
+    hex: STATUS.danger, bg: `${STATUS.danger}12`, bar: STATUS.danger,
+    left: STATUS.danger, chip: `${STATUS.danger}26`, label: 'Critical Score',
   },
   score_high: {
-    hex: '#10B981', bg: 'rgba(16,185,129,0.07)', bar: '#10B981',
-    left: '#10B981', chip: 'rgba(16,185,129,0.15)', label: 'High Score',
+    hex: STATUS.success, bg: `${STATUS.success}12`, bar: STATUS.success,
+    left: STATUS.success, chip: `${STATUS.success}26`, label: 'High Score',
   },
   remote_move: {
-    hex: '#06D7F6', bg: 'rgba(6,215,246,0.06)', bar: '#06D7F6',
-    left: '#06D7F6', chip: 'rgba(6,215,246,0.12)', label: 'Card Moved',
+    hex: STATUS.info, bg: `${STATUS.info}0F`, bar: STATUS.info,
+    left: STATUS.info, chip: `${STATUS.info}1F`, label: 'Card Moved',
   },
   conflict: {
-    hex: '#FB923C', bg: 'rgba(251,146,60,0.07)', bar: '#FB923C',
-    left: '#FB923C', chip: 'rgba(251,146,60,0.15)', label: 'Conflict',
+    hex: STATUS.warning, bg: `${STATUS.warning}12`, bar: STATUS.warning,
+    left: STATUS.warning, chip: `${STATUS.warning}26`, label: 'Conflict',
   },
   stale_escalation: {
-    hex: '#D97706', bg: 'rgba(217,119,6,0.07)', bar: '#D97706',
-    left: '#D97706', chip: 'rgba(217,119,6,0.15)', label: 'Stale Lead',
+    hex: STATUS.cautionDeep, bg: 'rgba(217,119,6,0.07)', bar: STATUS.cautionDeep,
+    left: STATUS.cautionDeep, chip: 'rgba(217,119,6,0.15)', label: 'Stale Lead',
   },
 };
 
@@ -63,8 +69,8 @@ const KIND_COLORS: Record<KanbanAlertKind, ColourSet> = {
 function resolveColors(kind: KanbanAlertKind, severity: KanbanAlertSeverity): ColourSet {
   if (kind === 'stale_escalation' && severity === 'critical') {
     return {
-      hex: '#FD4438', bg: 'rgba(253,68,56,0.07)', bar: '#FD4438',
-      left: '#FD4438', chip: 'rgba(253,68,56,0.15)', label: 'Silent Lead',
+      hex: STATUS.danger, bg: `${STATUS.danger}12`, bar: STATUS.danger,
+      left: STATUS.danger, chip: `${STATUS.danger}26`, label: 'Silent Lead',
     };
   }
   return KIND_COLORS[kind];
@@ -161,21 +167,21 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
       onMouseLeave={handleMouseLeave}
       style={{
         width:        360,
-        background:   `${colors.bg}`,
+        background:   colors.bg,
         backdropFilter: 'blur(20px)',
-        border:        '1px solid rgba(255,255,255,0.10)',
+        border:        `1px solid ${BORDER.default}`,
         borderLeft:    `4px solid ${colors.left}`,
         borderRadius:  14,
         overflow:      'hidden',
         boxShadow:     '0 8px 40px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)',
-        backgroundColor: '#0D0D1A',
+        backgroundColor: SURFACE.overlay,
       }}
     >
       {/* ── Header row ── */}
       <div className="flex items-start gap-3 px-4 pt-3.5 pb-2">
         {/* Kind icon */}
         <div
-          className="size-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+          className="size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
           style={{ background: `${colors.hex}18`, border: `1px solid ${colors.hex}30` }}
         >
           <Icon className="size-4" style={{ color: colors.hex }} />
@@ -189,7 +195,7 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
             {alert.severity === 'critical' && (
               <span
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: 'rgba(253,68,56,0.2)', color: '#FD4438', border: '1px solid rgba(253,68,56,0.35)' }}
+                style={{ background: `${STATUS.danger}33`, color: STATUS.danger, border: `1px solid ${STATUS.danger}59` }}
               >
                 CRITICAL
               </span>
@@ -197,22 +203,22 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
             {alert.severity === 'warning' && (
               <span
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: 'rgba(217,119,6,0.2)', color: '#D97706', border: '1px solid rgba(217,119,6,0.35)' }}
+                style={{ background: 'rgba(217,119,6,0.2)', color: STATUS.cautionDeep, border: '1px solid rgba(217,119,6,0.35)' }}
               >
                 WARNING
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{alert.body}</p>
+          <p className="text-xs text-cortex-muted leading-relaxed line-clamp-2">{alert.body}</p>
         </div>
 
         {/* Dismiss X */}
         <button
           onClick={() => onDismiss(alert.id)}
-          className="p-1 rounded-lg flex-shrink-0 transition-colors"
-          style={{ color: 'rgba(255,255,255,0.3)' }}
+          className="p-1 rounded-cortex-sm flex-shrink-0 transition-colors"
+          style={{ color: BORDER.default }}
           onMouseEnter={e => (e.currentTarget.style.color = 'white')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+          onMouseLeave={e => (e.currentTarget.style.color = BORDER.default)}
           aria-label="Dismiss"
         >
           <X className="size-3.5" />
@@ -223,7 +229,7 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
       <div className="flex items-center justify-between px-4 pb-3">
         {/* Company chip */}
         <div
-          className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-cortex-sm text-xs font-medium"
           style={{ background: colors.chip, color: colors.hex }}
         >
           <Building2 className="size-3" />
@@ -232,12 +238,12 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
 
         <div className="flex items-center gap-2">
           {/* Timestamp */}
-          <span className="text-[11px] text-gray-600">{timeAgo(alert.at)}</span>
+          <span className="text-[11px] text-cortex-faint">{timeAgo(alert.at)}</span>
 
           {/* View CTA */}
           <button
             onClick={handleView}
-            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all"
+            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-cortex-sm transition-all"
             style={{ background: `${colors.hex}18`, color: colors.hex, border: `1px solid ${colors.hex}30` }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.background = `${colors.hex}28`;
@@ -254,7 +260,7 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
       {/* ── Progress bar ── */}
       <div
         className="h-0.5"
-        style={{ background: 'rgba(255,255,255,0.06)' }}
+        style={{ background: BORDER.default }}
       >
         <div
           style={{
