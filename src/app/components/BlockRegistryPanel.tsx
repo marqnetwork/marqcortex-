@@ -62,6 +62,12 @@ import {
   runConsistencyValidator,
   type ConsistencyResult,
 } from '@/app/core/consistencyValidator';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // FILTER TYPES
@@ -70,10 +76,10 @@ import {
 type StatusFilter = 'all' | BlockStatus;
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string; color: string }[] = [
-  { value: 'all',      label: 'All',      color: '#9CA3AF' },
-  { value: 'draft',    label: 'Draft',    color: '#8B5CF6' },
-  { value: 'approved', label: 'Approved', color: '#10B981' },
-  { value: 'locked',   label: 'Locked',   color: '#70707C' },
+  { value: 'all',      label: 'All',      color: TEXT.muted },
+  { value: 'draft',    label: 'Draft',    color: brand.accent },
+  { value: 'approved', label: 'Approved', color: STATUS.success },
+  { value: 'locked',   label: 'Locked',   color: STATUS.neutral },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -82,18 +88,18 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string; color: string
 
 function ReadyGateStrip({ result }: { result: BlocksGateResult }) {
   const Icon = result.passed ? ShieldCheck : ShieldX;
-  const accentColor = result.passed ? '#10B981' : '#F59E0B';
+  const accentColor = result.passed ? STATUS.success : STATUS.caution;
 
   return (
     <div
-      className="rounded-xl border overflow-hidden"
+      className="rounded-cortex-md border overflow-hidden"
       style={{
         borderColor: `${accentColor}30`,
         background:  `${accentColor}06`,
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/5">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-cortex-subtle">
         <Icon className="size-4 flex-shrink-0" style={{ color: accentColor }} />
         <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: accentColor }}>
           Blocks Ready Gate
@@ -101,13 +107,13 @@ function ReadyGateStrip({ result }: { result: BlocksGateResult }) {
         <span
           className="text-[8px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide"
           style={{
-            background:  result.passed ? '#10B98120' : '#F59E0B20',
-            color:       result.passed ? '#10B981'   : '#F59E0B',
+            background:  result.passed ? `${STATUS.success}20` : `${STATUS.caution}20`,
+            color:       result.passed ? STATUS.success   : STATUS.caution,
           }}
         >
           {result.passed ? 'Cleared' : 'Blocked'}
         </span>
-        <span className="ml-auto text-[9px] text-gray-600">{result.summary}</span>
+        <span className="ml-auto text-[9px] text-cortex-faint">{result.summary}</span>
       </div>
 
       {/* Requirements */}
@@ -115,26 +121,26 @@ function ReadyGateStrip({ result }: { result: BlocksGateResult }) {
         {result.requirements.map(req => (
           <div
             key={req.block_type}
-            className="flex flex-col gap-1 px-3 py-2.5 rounded-xl border"
+            className="flex flex-col gap-1 px-3 py-2.5 rounded-cortex-md border"
             style={{
-              borderColor: req.passed ? '#10B98130' : '#FD443830',
-              background:  req.passed ? '#10B98108' : '#FD443808',
+              borderColor: req.passed ? `${STATUS.success}30` : `${STATUS.danger}30`,
+              background:  req.passed ? `${STATUS.success}08` : `${STATUS.danger}08`,
             }}
           >
             <div className="flex items-center gap-1.5">
               {req.passed
-                ? <CheckCircle2 className="size-3 text-[#10B981] flex-shrink-0" />
-                : <XCircle      className="size-3 text-[#FD4438] flex-shrink-0" />
+                ? <CheckCircle2 className="size-3 text-cortex-success flex-shrink-0" />
+                : <XCircle      className="size-3 text-cortex-danger flex-shrink-0" />
               }
               <span
                 className="text-[8px] font-bold"
-                style={{ color: req.passed ? '#10B981' : '#FD4438' }}
+                style={{ color: req.passed ? STATUS.success : STATUS.danger }}
               >
                 {req.passed ? 'Pass' : 'Fail'}
               </span>
             </div>
-            <div className="text-[9px] text-gray-500 font-medium leading-tight">{req.label}</div>
-            <div className="text-[8px] text-gray-700">
+            <div className="text-[9px] text-cortex-muted font-medium leading-tight">{req.label}</div>
+            <div className="text-[8px] text-cortex-faint">
               {req.approved} / {req.min_count} approved
               {req.total > req.approved && ` (${req.total - req.approved} not yet)`}
             </div>
@@ -143,8 +149,8 @@ function ReadyGateStrip({ result }: { result: BlocksGateResult }) {
       </div>
 
       {!result.passed && (
-        <div className="px-4 pb-3 text-[8px] text-gray-700 flex items-start gap-1.5">
-          <Info className="size-3 flex-shrink-0 mt-0.5 text-gray-600" />
+        <div className="px-4 pb-3 text-[8px] text-cortex-faint flex items-start gap-1.5">
+          <Info className="size-3 flex-shrink-0 mt-0.5 text-cortex-faint" />
           Approve all required blocks above to clear this gate. Later phases (timeline / team / governance) add additional requirements.
         </div>
       )}
@@ -159,32 +165,32 @@ function ReadyGateStrip({ result }: { result: BlocksGateResult }) {
 function ImpactBanner({ impact, onDismiss }: { impact: ChangeImpact; onDismiss: () => void }) {
   return (
     <div
-      className="rounded-xl border overflow-hidden"
-      style={{ background: '#F59E0B08', borderColor: '#F59E0B40' }}
+      className="rounded-cortex-md border overflow-hidden"
+      style={{ background: `${STATUS.caution}08`, borderColor: `${STATUS.caution}40` }}
     >
       <div className="flex items-start gap-3 px-4 py-3">
-        <AlertTriangle className="size-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+        <AlertTriangle className="size-4 text-cortex-caution flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] font-bold text-[#F59E0B] mb-0.5">Change Impact Detected</div>
-          <div className="text-[9px] text-gray-500 leading-relaxed">{impact.trigger_reason}</div>
+          <div className="text-[10px] font-bold text-cortex-caution mb-0.5">Change Impact Detected</div>
+          <div className="text-[9px] text-cortex-muted leading-relaxed">{impact.trigger_reason}</div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {impact.roi_recalc_required && (
-              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#F59E0B20', color: '#F59E0B' }}>
+              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${STATUS.caution}20`, color: STATUS.caution }}>
                 ROI Recalc Required
               </span>
             )}
             {impact.contract_invalidated && (
-              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FD443820', color: '#FD4438' }}>
+              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${STATUS.danger}20`, color: STATUS.danger }}>
                 Contract Invalidated
               </span>
             )}
             {impact.export_blocked && (
-              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#6B728020', color: '#9CA3AF' }}>
+              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${STATUS.neutral}20`, color: TEXT.muted }}>
                 Export Blocked
               </span>
             )}
             {impact.proposal_auto_draft && (
-              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#8B5CF620', color: '#8B5CF6' }}>
+              <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${brand.accent}20`, color: brand.accent }}>
                 Proposal → Draft
               </span>
             )}
@@ -193,7 +199,7 @@ function ImpactBanner({ impact, onDismiss }: { impact: ChangeImpact; onDismiss: 
             Revalidation path: re-run ROI engine → pass Consistency Validator → ready_to_send.
           </div>
         </div>
-        <button onClick={onDismiss} className="flex-shrink-0 text-gray-700 hover:text-white transition-colors">
+        <button onClick={onDismiss} className="flex-shrink-0 text-cortex-faint hover:text-white transition-colors">
           <XCircle className="size-3.5" />
         </button>
       </div>
@@ -213,9 +219,9 @@ function ConsistencyPanel({
   onClose: () => void;
 }) {
   const sectionColors: Record<string, string> = {
-    structural: '#06D7F6',
-    financial:  '#10B981',
-    narrative:  '#8B5CF6',
+    structural: STATUS.info,
+    financial:  STATUS.success,
+    narrative:  brand.accent,
   };
 
   const sectionIcons: Record<string, LucideIcon> = {
@@ -224,16 +230,16 @@ function ConsistencyPanel({
     narrative:  Info,
   };
 
-  const overallColor = result.validation_passed ? '#10B981' : '#FD4438';
+  const overallColor = result.validation_passed ? STATUS.success : STATUS.danger;
   const Icon = result.validation_passed ? ShieldCheck : ShieldX;
 
   return (
     <div
-      className="rounded-xl border overflow-hidden"
+      className="rounded-cortex-md border overflow-hidden"
       style={{ background: `${overallColor}06`, borderColor: `${overallColor}30` }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/5">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-cortex-subtle">
         <Icon className="size-4 flex-shrink-0" style={{ color: overallColor }} />
         <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: overallColor }}>
           Consistency Validator
@@ -244,16 +250,16 @@ function ConsistencyPanel({
         >
           {result.validation_passed ? 'Passed' : `${result.errors.length} Error${result.errors.length !== 1 ? 's' : ''}`}
         </span>
-        <span className="ml-auto text-[8px] text-gray-700 font-mono">
+        <span className="ml-auto text-[8px] text-cortex-faint font-mono">
           {new Date(result.run_at).toLocaleTimeString()} · {result.block_count} blocks
         </span>
-        <button onClick={onClose} className="text-gray-700 hover:text-white transition-colors">
+        <button onClick={onClose} className="text-cortex-faint hover:text-white transition-colors">
           <XCircle className="size-3.5" />
         </button>
       </div>
 
       {/* Section summary row */}
-      <div className="grid grid-cols-3 divide-x divide-white/5 border-b border-white/5">
+      <div className="grid grid-cols-3 divide-x divide-white/5 border-b border-cortex-subtle">
         {(['structural', 'financial', 'narrative'] as const).map(s => {
           const passed = result.summary[s];
           const color  = sectionColors[s];
@@ -261,12 +267,12 @@ function ConsistencyPanel({
           return (
             <div key={s} className="flex flex-col items-center gap-0.5 py-2">
               <div className="flex items-center gap-1">
-                <Ic className="size-3 flex-shrink-0" style={{ color: passed ? color : '#FD4438' }} />
-                <span className="text-[9px] font-bold" style={{ color: passed ? color : '#FD4438' }}>
+                <Ic className="size-3 flex-shrink-0" style={{ color: passed ? color : STATUS.danger }} />
+                <span className="text-[9px] font-bold" style={{ color: passed ? color : STATUS.danger }}>
                   {passed ? 'Pass' : 'Fail'}
                 </span>
               </div>
-              <span className="text-[8px] text-gray-700 capitalize">{s}</span>
+              <span className="text-[8px] text-cortex-faint capitalize">{s}</span>
             </div>
           );
         })}
@@ -277,7 +283,7 @@ function ConsistencyPanel({
         <div className="px-4 py-3 space-y-1.5">
           {result.errors.map((err, i) => (
             <div key={i} className="flex items-start gap-2 text-[9px]">
-              <XCircle className="size-3 text-[#FD4438] flex-shrink-0 mt-0.5" />
+              <XCircle className="size-3 text-cortex-danger flex-shrink-0 mt-0.5" />
               <div>
                 <span
                   className="text-[7px] font-bold uppercase tracking-wide mr-1.5 px-1 py-0.5 rounded"
@@ -288,7 +294,7 @@ function ConsistencyPanel({
                 >
                   {err.section} · {err.type.replace(/_/g, ' ')}
                 </span>
-                <span className="text-gray-500">{err.message}</span>
+                <span className="text-cortex-muted">{err.message}</span>
               </div>
             </div>
           ))}
@@ -298,18 +304,18 @@ function ConsistencyPanel({
       {/* Warnings */}
       {result.warnings.length > 0 && (
         <div className="px-4 pb-3 space-y-1">
-          <div className="text-[8px] font-bold text-gray-700 uppercase tracking-wide">Warnings</div>
+          <div className="text-[8px] font-bold text-cortex-faint uppercase tracking-wide">Warnings</div>
           {result.warnings.map((w, i) => (
             <div key={i} className="flex items-start gap-2 text-[9px]">
-              <AlertTriangle className="size-3 text-[#F59E0B] flex-shrink-0 mt-0.5" />
-              <span className="text-gray-600">{w.message}</span>
+              <AlertTriangle className="size-3 text-cortex-caution flex-shrink-0 mt-0.5" />
+              <span className="text-cortex-faint">{w.message}</span>
             </div>
           ))}
         </div>
       )}
 
       {result.validation_passed && (
-        <div className="px-4 pb-3 flex items-center gap-2 text-[9px] text-[#10B981]">
+        <div className="px-4 pb-3 flex items-center gap-2 text-[9px] text-cortex-success">
           <CheckCircle2 className="size-3.5" />
           All consistency checks passed — proposal is eligible for ready_to_send status.
         </div>
@@ -338,18 +344,18 @@ function SummaryStrip({ states }: { states: BlockState[] }) {
     pending:  states.filter(s => !!s.pending_revision).length,
   };
   const metrics = [
-    { label: 'Total Blocks', value: counts.total,    color: '#9CA3AF' },
-    { label: 'Approved',     value: counts.approved, color: '#10B981' },
-    { label: 'Draft',        value: counts.draft,    color: '#8B5CF6' },
-    { label: 'Locked',       value: counts.locked,   color: '#70707C' },
-    { label: 'Pending Rev.', value: counts.pending,  color: '#F59E0B' },
+    { label: 'Total Blocks', value: counts.total,    color: TEXT.muted },
+    { label: 'Approved',     value: counts.approved, color: STATUS.success },
+    { label: 'Draft',        value: counts.draft,    color: brand.accent },
+    { label: 'Locked',       value: counts.locked,   color: STATUS.neutral },
+    { label: 'Pending Rev.', value: counts.pending,  color: STATUS.caution },
   ];
   return (
-    <div className="flex items-stretch divide-x divide-white/5 bg-black/20 rounded-xl border border-white/8 overflow-hidden">
+    <div className="flex items-stretch divide-x divide-white/5 bg-black/20 rounded-cortex-md border border-white/8 overflow-hidden">
       {metrics.map(m => (
         <div key={m.label} className="flex-1 flex flex-col items-center py-3 gap-0.5">
           <span className="text-lg font-black" style={{ color: m.color }}>{m.value}</span>
-          <span className="text-[8px] uppercase tracking-wide text-gray-700">{m.label}</span>
+          <span className="text-[8px] uppercase tracking-wide text-cortex-faint">{m.label}</span>
         </div>
       ))}
     </div>
@@ -369,15 +375,15 @@ function TypePill({
 }) {
   return (
     <div className="flex items-center gap-1.5 text-[9px]">
-      <span className="text-gray-700 uppercase tracking-wide font-bold">Type</span>
-      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 bg-white/[0.03]">
+      <span className="text-cortex-faint uppercase tracking-wide font-bold">Type</span>
+      <div className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm border border-cortex-default bg-white/[0.03]">
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
-          className="bg-transparent text-[9px] font-bold outline-none cursor-pointer text-gray-400"
+          className="bg-transparent text-[9px] font-bold outline-none cursor-pointer text-cortex-muted"
         >
           {options.map(o => (
-            <option key={o.value} value={o.value} className="bg-[#0D0D18] text-white">
+            <option key={o.value} value={o.value} className="bg-cortex-overlay text-white">
               {o.label}
             </option>
           ))}
@@ -410,13 +416,13 @@ function RegistrySaveIndicator({
   );
 
   if (!persistEnabled) {
-    return pill('#6B7280', <><Cloud className="size-2.5" />Demo</>, 'Demo mode — changes are not persisted');
+    return pill(STATUS.neutral, <><Cloud className="size-2.5" />Demo</>, 'Demo mode — changes are not persisted');
   }
-  if (loading) return pill('#8B5CF6', <><Loader2 className="size-2.5 animate-spin" />Loading</>);
-  if (status === 'saving') return pill('#8B5CF6', <><Loader2 className="size-2.5 animate-spin" />Saving</>);
-  if (status === 'conflict') return pill('#F59E0B', <><AlertTriangle className="size-2.5" />Reloaded</>, 'Another session updated the registry — latest version reloaded');
-  if (status === 'error') return pill('#FD4438', <><XCircle className="size-2.5" />Save failed</>);
-  if (status === 'saved') return pill('#10B981', <><Save className="size-2.5" />Saved{rev != null ? ` · r${rev}` : ''}</>);
+  if (loading) return pill(brand.accent, <><Loader2 className="size-2.5 animate-spin" />Loading</>);
+  if (status === 'saving') return pill(brand.accent, <><Loader2 className="size-2.5 animate-spin" />Saving</>);
+  if (status === 'conflict') return pill(STATUS.caution, <><AlertTriangle className="size-2.5" />Reloaded</>, 'Another session updated the registry — latest version reloaded');
+  if (status === 'error') return pill(STATUS.danger, <><XCircle className="size-2.5" />Save failed</>);
+  if (status === 'saved') return pill(STATUS.success, <><Save className="size-2.5" />Saved{rev != null ? ` · r${rev}` : ''}</>);
   return null;
 }
 
@@ -697,17 +703,17 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
       {/* ── Panel header ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
-          <Layers className="size-4 text-[#06D7F6]" />
+          <Layers className="size-4 text-cortex-info" />
           <span className="text-sm font-bold text-white">Block Registry</span>
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#06D7F6', borderColor: '#06D7F633', background: '#06D7F614' }}
+            style={{ color: STATUS.info, borderColor: `${STATUS.info}33`, background: `${STATUS.info}14` }}
           >
             Foundation
           </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] text-gray-700">
+          <span className="text-[9px] text-cortex-faint">
             {allStates.length} blocks · proposal {proposalId}
           </span>
           <RegistrySaveIndicator
@@ -721,8 +727,8 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
           {/* Validate button */}
           <button
             onClick={handleRunConsistency}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-bold border transition-colors"
-            style={{ background: '#10B98110', borderColor: '#10B98130', color: '#10B981' }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors"
+            style={{ background: `${STATUS.success}10`, borderColor: `${STATUS.success}30`, color: STATUS.success }}
             title="Run Proposal Consistency Validator (phase-p1-implementation.md §3)"
           >
             <ShieldCheck className="size-3" />Validate
@@ -731,11 +737,11 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
           <button
             onClick={() => canUseCopilot(currentRole) && setCopilotOpen(o => !o)}
             disabled={!canUseCopilot(currentRole)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-bold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
-              background:  copilotOpen ? '#06D7F620' : '#06D7F60F',
-              borderColor: copilotOpen ? '#06D7F650' : '#06D7F630',
-              color:       '#06D7F6',
+              background:  copilotOpen ? `${STATUS.info}20` : `${STATUS.info}0F`,
+              borderColor: copilotOpen ? `${STATUS.info}50` : `${STATUS.info}30`,
+              color:       STATUS.info,
             }}
             title={canUseCopilot(currentRole) ? 'Open CORTEX Copilot' : 'Copilot requires Admin or Strategist role'}
           >
@@ -765,10 +771,10 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
       <ReadyGateStrip result={gateResult} />
 
       {/* ── Filter bar ───────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-black/20 rounded-xl border border-white/5">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-black/20 rounded-cortex-md border border-cortex-subtle">
         <div className="flex items-center gap-1.5">
-          <Filter className="size-3 text-gray-700" />
-          <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wide">Filter</span>
+          <Filter className="size-3 text-cortex-faint" />
+          <span className="text-[9px] font-bold text-cortex-faint uppercase tracking-wide">Filter</span>
         </div>
 
         {/* Status pills */}
@@ -777,11 +783,11 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
             <button
               key={o.value}
               onClick={() => setStatusFilter(o.value)}
-              className="px-2.5 py-1 rounded-lg text-[9px] font-bold border transition-colors"
+              className="px-2.5 py-1 rounded-cortex-sm text-[9px] font-bold border transition-colors"
               style={{
-                borderColor: statusFilter === o.value ? `${o.color}50` : '#ffffff10',
+                borderColor: statusFilter === o.value ? `${o.color}50` : `${TEXT.primary}10`,
                 background:  statusFilter === o.value ? `${o.color}15` : 'transparent',
-                color:       statusFilter === o.value ? o.color         : '#6B7280',
+                color:       statusFilter === o.value ? o.color         : STATUS.neutral,
               }}
             >
               {o.label}
@@ -789,13 +795,13 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
           ))}
         </div>
 
-        <div className="h-4 w-px bg-white/5" />
+        <div className="h-4 w-px bg-cortex-control" />
 
         <TypePill value={typeFilter} options={typeOptions} onChange={setTypeFilter} />
 
         <button
           onClick={() => { setStatusFilter('all'); setTypeFilter('all'); }}
-          className="ml-auto flex items-center gap-1 text-[9px] text-gray-700 hover:text-white transition-colors"
+          className="ml-auto flex items-center gap-1 text-[9px] text-cortex-faint hover:text-white transition-colors"
         >
           <RefreshCw className="size-3" />Reset
         </button>
@@ -804,7 +810,7 @@ export function BlockRegistryPanel({ proposalId, onProposalDowngrade }: BlockReg
       {/* ── Block list ────────────────────────────────────────────────────── */}
       <div className="space-y-2.5">
         {filteredStates.length === 0 ? (
-          <div className="text-center py-10 text-[10px] text-gray-700">
+          <div className="text-center py-10 text-[10px] text-cortex-faint">
             No blocks match current filters.
           </div>
         ) : (

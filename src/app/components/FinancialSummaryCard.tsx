@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ProposalDraft, FinancialSummary, Solution } from '@/app/types/cortex-types';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -38,10 +43,10 @@ function fmtPct(n: number): string {
 }
 
 function roiColor(roi: number): string {
-  if (roi >= 200) return '#10B981';
-  if (roi >= 100) return '#06D7F6';
-  if (roi >= 50)  return '#FB923C';
-  return '#FD4438';
+  if (roi >= 200) return STATUS.success;
+  if (roi >= 100) return STATUS.info;
+  if (roi >= 50)  return STATUS.warning;
+  return STATUS.danger;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -49,21 +54,21 @@ function roiColor(roi: number): string {
 // ════════════════════════════════════════════════════════════════════════════════
 
 function StatCard({
-  label, value, sub, color = '#8B5CF6', icon: Icon,
+  label, value, sub, color = brand.accent, icon: Icon,
 }: {
   label: string; value: string; sub?: string;
   color?: string; icon: LucideIcon;
 }) {
   return (
-    <div className="bg-white/[0.025] border border-white/8 rounded-xl px-4 py-3 relative overflow-hidden">
+    <div className="bg-white/[0.025] border border-white/8 rounded-cortex-md px-4 py-3 relative overflow-hidden">
       <div className="absolute inset-0 opacity-5" style={{ background: `radial-gradient(circle at 30% 50%, ${color}, transparent 70%)` }} />
       <div className="relative">
-        <div className="flex items-center gap-1 mb-1.5 text-[9px] font-bold uppercase tracking-wider text-gray-600">
+        <div className="flex items-center gap-1 mb-1.5 text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
           <Icon className="size-2.5" style={{ color }} />
           {label}
         </div>
         <div className="text-xl font-black leading-none" style={{ color }}>{value}</div>
-        {sub && <div className="text-[9px] text-gray-600 mt-1">{sub}</div>}
+        {sub && <div className="text-[9px] text-cortex-faint mt-1">{sub}</div>}
       </div>
     </div>
   );
@@ -74,11 +79,11 @@ function ValidationBadge({
 }: { label: string; ok: boolean; detail?: string }) {
   return (
     <div
-      className="flex items-start gap-2 px-3 py-2 rounded-lg border text-[10px]"
+      className="flex items-start gap-2 px-3 py-2 rounded-cortex-sm border text-[10px]"
       style={{
-        color:       ok ? '#10B981' : '#FD4438',
-        borderColor: ok ? '#10B98130' : '#FD443830',
-        background:  ok ? '#10B98108' : '#FD443808',
+        color:       ok ? STATUS.success : STATUS.danger,
+        borderColor: ok ? `${STATUS.success}30` : `${STATUS.danger}30`,
+        background:  ok ? `${STATUS.success}08` : `${STATUS.danger}08`,
       }}
     >
       {ok
@@ -87,7 +92,7 @@ function ValidationBadge({
       }
       <div>
         <div className="font-bold">{label}</div>
-        {detail && <div className="text-gray-600 text-[9px] mt-0.5">{detail}</div>}
+        {detail && <div className="text-cortex-faint text-[9px] mt-0.5">{detail}</div>}
       </div>
     </div>
   );
@@ -109,20 +114,20 @@ function MonteCarloBar({ fs }: { fs: FinancialSummary }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-[9px] font-bold text-gray-600 uppercase tracking-wider">
+      <div className="flex items-center justify-between text-[9px] font-bold text-cortex-faint uppercase tracking-wider">
         <span className="flex items-center gap-1.5"><Activity className="size-2.5" />Monte Carlo Distribution</span>
-        <span className="text-[9px] text-gray-700 font-normal normal-case">
+        <span className="text-[9px] text-cortex-faint font-normal normal-case">
           {mc.probability_positive_roi}% probability positive ROI
         </span>
       </div>
 
       {/* The bar */}
-      <div className="relative h-3 rounded-full overflow-visible bg-white/5">
+      <div className="relative h-3 rounded-full overflow-visible bg-cortex-control">
         {/* Gradient fill */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
-            background: 'linear-gradient(to right, #FD4438 0%, #FB923C 25%, #06D7F6 60%, #10B981 100%)',
+            background: `linear-gradient(to right, ${STATUS.danger} 0%, ${STATUS.warning} 25%, ${STATUS.info} 60%, ${STATUS.success} 100%)`,
             opacity: 0.6,
           }}
         />
@@ -140,14 +145,14 @@ function MonteCarloBar({ fs }: { fs: FinancialSummary }) {
           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center"
           style={{ left: `${medianPos}%` }}
         >
-          <div className="w-0.5 h-5 bg-[#06D7F6]/80 rounded-full" />
+          <div className="w-0.5 h-5 bg-cortex-info/80 rounded-full" />
         </div>
       </div>
 
       {/* Labels row */}
       <div className="relative h-5">
         {/* P10 */}
-        <span className="absolute left-0 text-[8px] font-mono text-gray-600">
+        <span className="absolute left-0 text-[8px] font-mono text-cortex-faint">
           P10: {fmtPct(mc.p10_roi)}
         </span>
         {/* Mean label */}
@@ -160,14 +165,14 @@ function MonteCarloBar({ fs }: { fs: FinancialSummary }) {
         {/* Median label — only if far enough from mean */}
         {Math.abs(meanPos - medianPos) > 8 && (
           <span
-            className="absolute -translate-x-1/2 text-[8px] font-mono text-[#06D7F6]/70"
+            className="absolute -translate-x-1/2 text-[8px] font-mono text-cortex-info/70"
             style={{ left: `${medianPos}%`, top: 12 }}
           >
             med {fmtPct(mc.median_roi)}
           </span>
         )}
         {/* P90 */}
-        <span className="absolute right-0 text-[8px] font-mono text-gray-600">
+        <span className="absolute right-0 text-[8px] font-mono text-cortex-faint">
           P90: {fmtPct(mc.p90_roi)}
         </span>
       </div>
@@ -178,10 +183,10 @@ function MonteCarloBar({ fs }: { fs: FinancialSummary }) {
 // ── Solution Contribution Table ───────────────────────────────────────────────
 
 const PILLAR_COLORS: Record<string, string> = {
-  workflow:   '#06D7F6',
-  agents:     '#8B5CF6',
-  revenue:    '#10B981',
-  monitoring: '#FB923C',
+  workflow:   STATUS.info,
+  agents:     brand.accent,
+  revenue:    STATUS.success,
+  monitoring: STATUS.warning,
 };
 
 function SolutionContributionTable({ solutions, fs }: {
@@ -194,25 +199,25 @@ function SolutionContributionTable({ solutions, fs }: {
 
   if (!bound.length) {
     return (
-      <div className="text-center py-6 text-xs text-gray-700 italic">
+      <div className="text-center py-6 text-xs text-cortex-faint italic">
         No solutions with financial binding found.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/8">
+    <div className="overflow-hidden rounded-cortex-md border border-white/8">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-4 py-2 bg-white/[0.02] border-b border-white/5">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-4 py-2 bg-white/[0.02] border-b border-cortex-subtle">
         {['Solution', 'Invested', 'Annual Gain', 'ROI Contribution', 'Payback'].map(h => (
-          <div key={h} className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">{h}</div>
+          <div key={h} className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider">{h}</div>
         ))}
       </div>
 
       {/* Rows */}
       {bound.map((sol, i) => {
         const fb    = sol.financial_binding!;
-        const pc    = PILLAR_COLORS[sol.pillar] ?? '#8B5CF6';
+        const pc    = PILLAR_COLORS[sol.pillar] ?? brand.accent;
         const pctBar = fs.investment_total > 0
           ? (fb.investment_allocated / fs.investment_total) * 100
           : 0;
@@ -228,12 +233,12 @@ function SolutionContributionTable({ solutions, fs }: {
               <div className="min-w-0">
                 <div className="text-xs font-bold text-white truncate">{sol.title}</div>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-[8px] font-mono text-gray-600">{sol.solution_id}</span>
+                  <span className="text-[8px] font-mono text-cortex-faint">{sol.solution_id}</span>
                   <span className="size-1 rounded-full" style={{ background: pc }} />
                   <span className="text-[8px] capitalize" style={{ color: pc }}>{sol.pillar}</span>
                 </div>
                 {/* Investment share bar */}
-                <div className="mt-1 h-0.5 bg-white/5 rounded-full w-24 overflow-hidden">
+                <div className="mt-1 h-0.5 bg-cortex-control rounded-full w-24 overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${pctBar}%`, background: pc }} />
                 </div>
               </div>
@@ -241,14 +246,14 @@ function SolutionContributionTable({ solutions, fs }: {
 
             {/* Invested */}
             <div className="text-right">
-              <div className="text-xs font-black font-mono text-[#06D7F6]">{fmt$(fb.investment_allocated)}</div>
-              <div className="text-[8px] text-gray-700">allocated</div>
+              <div className="text-xs font-black font-mono text-cortex-info">{fmt$(fb.investment_allocated)}</div>
+              <div className="text-[8px] text-cortex-faint">allocated</div>
             </div>
 
             {/* Annual Gain */}
             <div className="text-right">
-              <div className="text-xs font-black font-mono text-[#10B981]">{fmt$(fb.annual_gain)}</div>
-              <div className="text-[8px] text-gray-700">annual</div>
+              <div className="text-xs font-black font-mono text-cortex-success">{fmt$(fb.annual_gain)}</div>
+              <div className="text-[8px] text-cortex-faint">annual</div>
             </div>
 
             {/* ROI Contribution */}
@@ -259,25 +264,25 @@ function SolutionContributionTable({ solutions, fs }: {
               >
                 {fmtPct(fb.roi_contribution_percentage)}
               </div>
-              <div className="text-[8px] text-gray-700">of total</div>
+              <div className="text-[8px] text-cortex-faint">of total</div>
             </div>
 
             {/* Payback */}
             <div className="text-right">
-              <div className="text-xs font-bold text-[#FB923C] font-mono">{fb.payback_month}mo</div>
-              <div className="text-[8px] text-gray-700">payback</div>
+              <div className="text-xs font-bold text-cortex-warning font-mono">{fb.payback_month}mo</div>
+              <div className="text-[8px] text-cortex-faint">payback</div>
             </div>
           </div>
         );
       })}
 
       {/* Totals row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-4 py-3 items-center bg-white/[0.025] border-t border-white/10">
-        <div className="text-[9px] font-black text-gray-500 uppercase tracking-wider">Portfolio Total</div>
-        <div className="text-right text-xs font-black font-mono text-[#06D7F6]">{fmt$(totalInvested)}</div>
-        <div className="text-right text-xs font-black font-mono text-[#10B981]">{fmt$(totalGain)}</div>
-        <div className="text-right text-[9px] font-black text-gray-600">100%</div>
-        <div className="text-right text-[9px] font-bold text-gray-600">{fs.payback_month}mo avg</div>
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 px-4 py-3 items-center bg-white/[0.025] border-t border-cortex-default">
+        <div className="text-[9px] font-black text-cortex-muted uppercase tracking-wider">Portfolio Total</div>
+        <div className="text-right text-xs font-black font-mono text-cortex-info">{fmt$(totalInvested)}</div>
+        <div className="text-right text-xs font-black font-mono text-cortex-success">{fmt$(totalGain)}</div>
+        <div className="text-right text-[9px] font-black text-cortex-faint">100%</div>
+        <div className="text-right text-[9px] font-bold text-cortex-faint">{fs.payback_month}mo avg</div>
       </div>
     </div>
   );
@@ -303,20 +308,20 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
 
   if (!fs) {
     return (
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
-          <BarChart3 className="size-4 text-[#10B981]" />
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-cortex-subtle">
+          <BarChart3 className="size-4 text-cortex-success" />
           <span className="text-sm font-bold text-white">Financial Summary</span>
           <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }}>
+            style={{ color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }}>
             Phase 3
           </span>
-          <Lock className="size-3 text-gray-700 ml-1" />
+          <Lock className="size-3 text-cortex-faint ml-1" />
         </div>
         <div className="p-5 text-center py-10 space-y-2">
-          <BarChart3 className="size-8 text-gray-700 mx-auto" />
-          <p className="text-sm font-bold text-gray-600">Financial summary not yet populated</p>
-          <p className="text-xs text-gray-700 max-w-sm mx-auto">
+          <BarChart3 className="size-8 text-cortex-faint mx-auto" />
+          <p className="text-sm font-bold text-cortex-faint">Financial summary not yet populated</p>
+          <p className="text-xs text-cortex-faint max-w-sm mx-auto">
             The financial summary is auto-populated from the ROI engine after Phase 2 is approved.
             Manual edits are blocked. Run the ROI engine to generate and lock this section.
           </p>
@@ -326,24 +331,24 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
   }
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       {/* ── Card header ── */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold text-white">
-          <BarChart3 className="size-4 text-[#10B981]" />
+          <BarChart3 className="size-4 text-cortex-success" />
           Financial Summary
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }}
+            style={{ color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }}
           >
             Phase 3
           </span>
-          <span className="text-[9px] text-gray-600 font-normal">
+          <span className="text-[9px] text-cortex-faint font-normal">
             {fs.portfolio_version_id} · {fs.scenario}
           </span>
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-gray-700 flex items-center gap-1">
+          <span className="text-[9px] text-cortex-faint flex items-center gap-1">
             <Lock className="size-2.5" />Read-Only — ROI engine source
           </span>
         </div>
@@ -352,7 +357,7 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
       <div className="p-5 space-y-6">
         {/* ── §1 Board-level overview ── */}
         <div className="space-y-3">
-          <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">
+          <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider">
             Board-Level Financial Overview
           </div>
 
@@ -362,7 +367,7 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
               label="Total Investment"
               value={fmt$(fs.investment_total)}
               sub={`${fs.currency} · ${fs.scenario}`}
-              color="#06D7F6"
+              color={STATUS.info}
               icon={DollarSign}
             />
             <StatCard
@@ -376,14 +381,14 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
               label="True Payback"
               value={`${fs.payback_month} months`}
               sub="Investment recovery point"
-              color="#FB923C"
+              color={STATUS.warning}
               icon={Calendar}
             />
             <StatCard
               label="Net Present Value"
               value={fmt$(fs.npv)}
               sub="Discounted over 12 months"
-              color="#8B5CF6"
+              color={brand.accent}
               icon={BarChart3}
             />
           </div>
@@ -394,29 +399,29 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
               label="IRR (Annual)"
               value={fmtPct(fs.irr_annual)}
               sub={`${fmtPct(fs.irr_monthly)} monthly`}
-              color="#10B981"
+              color={STATUS.success}
               icon={CirclePercent}
             />
-            <div className="bg-white/[0.025] border border-white/8 rounded-xl px-4 py-3">
-              <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <Activity className="size-2.5 text-[#06D7F6]" />Risk Band
+            <div className="bg-white/[0.025] border border-white/8 rounded-cortex-md px-4 py-3">
+              <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Activity className="size-2.5 text-cortex-info" />Risk Band
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-lg font-black font-mono text-[#FD4438]">
+                <span className="text-lg font-black font-mono text-cortex-danger">
                   {fmtPct(fs.monte_carlo.p10_roi)}
                 </span>
-                <ChevronRight className="size-3 text-gray-600" />
-                <span className="text-lg font-black font-mono text-[#10B981]">
+                <ChevronRight className="size-3 text-cortex-faint" />
+                <span className="text-lg font-black font-mono text-cortex-success">
                   {fmtPct(fs.monte_carlo.p90_roi)}
                 </span>
               </div>
-              <div className="text-[9px] text-gray-600 mt-0.5">P10 pessimistic → P90 optimistic</div>
+              <div className="text-[9px] text-cortex-faint mt-0.5">P10 pessimistic → P90 optimistic</div>
             </div>
             <StatCard
               label="Prob. Positive ROI"
               value={fmtPct(fs.monte_carlo.probability_positive_roi)}
               sub={`Mean ROI: ${fmtPct(fs.monte_carlo.mean_roi)}`}
-              color="#10B981"
+              color={STATUS.success}
               icon={Shield}
             />
           </div>
@@ -427,16 +432,16 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
 
         {/* ── §3 Solution contribution table ── */}
         <div className="space-y-2">
-          <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
-            <Zap className="size-2.5 text-[#8B5CF6]" />Solution Financial Contribution
+          <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-2">
+            <Zap className="size-2.5 text-cortex-accent" />Solution Financial Contribution
           </div>
           <SolutionContributionTable solutions={solutions} fs={fs} />
         </div>
 
         {/* ── §4 Validation badges ── */}
         <div className="space-y-2">
-          <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
-            <Shield className="size-2.5 text-[#06D7F6]" />Phase 3 Validation Status
+          <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-2">
+            <Shield className="size-2.5 text-cortex-info" />Phase 3 Validation Status
           </div>
           <div className="grid grid-cols-2 gap-2">
             <ValidationBadge
@@ -472,10 +477,10 @@ export function FinancialSummaryCard({ draft }: FinancialSummaryCardProps) {
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[9px] text-gray-700 leading-relaxed border-t border-white/5 pt-3">
+        <p className="text-[9px] text-cortex-faint leading-relaxed border-t border-cortex-subtle pt-3">
           All projections are confidence-weighted, dependency-validated, and conservatively modeled.
           Numbers are auto-populated from the ROI engine and locked to portfolio version{' '}
-          <span className="font-mono text-gray-600">{fs.portfolio_version_id}</span>.
+          <span className="font-mono text-cortex-faint">{fs.portfolio_version_id}</span>.
           If the ROI model is recalculated, the proposal status resets to Draft and Phase 3 gate must be re-run.
         </p>
       </div>

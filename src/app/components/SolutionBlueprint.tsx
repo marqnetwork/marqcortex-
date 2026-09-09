@@ -22,6 +22,12 @@ import {
 // duration_weeks / solution_ids / string deliverables), which this file
 // previously named by mistake while reading every field off BlueprintPhase.
 import type { SolutionBlueprint as SolutionBlueprintType, BlueprintPhase, BlueprintKPI, BlueprintRisk } from '@/app/types/cortex-types';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -33,16 +39,16 @@ interface SolutionBlueprintProps {
 // ── Phase colors ──────────────────────────────────────────────────────────────
 
 const PHASE_COLORS = [
-  { primary: '#8B5CF6', bg: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.3)' },
-  { primary: '#3B82F6', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)' },
-  { primary: '#06D7F6', bg: 'rgba(6,215,246,0.12)', border: 'rgba(6,215,246,0.3)' },
-  { primary: '#10B981', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
+  { primary: brand.accent, bg: `${brand.accent}1F`, border: `${brand.accent}4C` },
+  { primary: brand.accentAlt, bg: `${brand.accentAlt}1F`, border: `${brand.accentAlt}4C` },
+  { primary: STATUS.info, bg: `${STATUS.info}1F`, border: `${STATUS.info}4C` },
+  { primary: STATUS.success, bg: `${STATUS.success}1F`, border: `${STATUS.success}4C` },
 ];
 
 const RISK_COLORS = {
-  high: { bg: 'rgba(253,68,56,0.12)', text: '#FD4438', border: 'rgba(253,68,56,0.3)' },
-  medium: { bg: 'rgba(251,146,60,0.12)', text: '#FB923C', border: 'rgba(251,146,60,0.3)' },
-  low: { bg: 'rgba(16,185,129,0.12)', text: '#10B981', border: 'rgba(16,185,129,0.3)' },
+  high: { bg: `${STATUS.danger}1F`, text: STATUS.danger, border: `${STATUS.danger}4C` },
+  medium: { bg: `${STATUS.warning}1F`, text: STATUS.warning, border: `${STATUS.warning}4C` },
+  low: { bg: `${STATUS.success}1F`, text: STATUS.success, border: `${STATUS.success}4C` },
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -62,12 +68,12 @@ export function SolutionBlueprintView({ blueprint, companyName }: SolutionBluepr
   return (
     <div className="space-y-6">
       {/* Executive Summary */}
-      <div className="bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/20 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/20 rounded-cortex-md p-6">
         <div className="flex items-start gap-3 mb-4">
-          <Target className="size-6 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
+          <Target className="size-6 text-cortex-accent flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="text-lg font-bold text-white mb-2">Executive Summary</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">{blueprint.executiveSummary}</p>
+            <p className="text-sm text-cortex-secondary leading-relaxed">{blueprint.executiveSummary}</p>
           </div>
         </div>
       </div>
@@ -78,10 +84,10 @@ export function SolutionBlueprintView({ blueprint, companyName }: SolutionBluepr
           <button
             key={sec.id}
             onClick={() => setActiveSection(sec.id)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all ${
+            className={`px-3 py-2 rounded-cortex-sm text-sm font-medium flex items-center gap-1.5 transition-all ${
               activeSection === sec.id
-                ? 'bg-[#8B5CF6] text-white'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                ? 'bg-cortex-accent text-white'
+                : 'bg-cortex-control text-cortex-muted hover:bg-cortex-control-hover hover:text-white'
             }`}
           >
             <sec.icon className="size-3.5" />
@@ -119,12 +125,12 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <Calendar className="size-5 text-[#8B5CF6]" />
+        <Calendar className="size-5 text-cortex-accent" />
         Phased Implementation Roadmap
       </h3>
 
       {/* Timeline visual */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <div className="flex items-center gap-2 mb-6">
           {phases.map((phase, idx) => {
             const color = PHASE_COLORS[idx % PHASE_COLORS.length];
@@ -140,7 +146,7 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                   />
                 </div>
                 {idx < phases.length - 1 && (
-                  <ArrowRight className="size-4 text-gray-600 flex-shrink-0" />
+                  <ArrowRight className="size-4 text-cortex-faint flex-shrink-0" />
                 )}
               </div>
             );
@@ -155,7 +161,7 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                   Phase {idx + 1}
                 </div>
                 <div className="text-sm font-semibold text-white">{phase.name}</div>
-                <div className="text-[11px] text-gray-500">{phase.duration}</div>
+                <div className="text-[11px] text-cortex-muted">{phase.duration}</div>
               </div>
             );
           })}
@@ -170,12 +176,12 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
         return (
           <div
             key={idx}
-            className="rounded-xl overflow-hidden"
+            className="rounded-cortex-md overflow-hidden"
             style={{ backgroundColor: color.bg, border: `1px solid ${color.border}` }}
           >
             <button
               onClick={() => setExpandedPhase(isExpanded ? -1 : idx)}
-              className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-cortex-control transition-colors"
             >
               <div className="flex items-center gap-4">
                 <div
@@ -186,10 +192,10 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                 </div>
                 <div className="text-left">
                   <div className="font-bold text-white">{phase.name}</div>
-                  <div className="text-xs text-gray-400">{phase.duration} &middot; {phase.deliverables.length} deliverables</div>
+                  <div className="text-xs text-cortex-muted">{phase.duration} &middot; {phase.deliverables.length} deliverables</div>
                 </div>
               </div>
-              {isExpanded ? <ChevronDown className="size-5 text-gray-400" /> : <ChevronRight className="size-5 text-gray-400" />}
+              {isExpanded ? <ChevronDown className="size-5 text-cortex-muted" /> : <ChevronRight className="size-5 text-cortex-muted" />}
             </button>
 
             <AnimatePresence>
@@ -204,10 +210,10 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                   <div className="px-6 pb-5 space-y-5">
                     {/* Objectives */}
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Objectives</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Objectives</div>
                       <ul className="space-y-1.5">
                         {phase.objectives.map((obj, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                          <li key={i} className="flex items-start gap-2 text-sm text-cortex-secondary">
                             <CheckCircle2 className="size-4 flex-shrink-0 mt-0.5" style={{ color: color.primary }} />
                             {obj}
                           </li>
@@ -217,12 +223,12 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
 
                     {/* Deliverables */}
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Deliverables</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Deliverables</div>
                       <div className="space-y-2">
                         {phase.deliverables.map((del, i) => (
-                          <div key={i} className="bg-black/30 rounded-lg p-3">
+                          <div key={i} className="bg-cortex-sunken rounded-cortex-sm p-3">
                             <div className="text-sm font-semibold text-white mb-1">{del.item}</div>
-                            <div className="text-xs text-gray-400">{del.description}</div>
+                            <div className="text-xs text-cortex-muted">{del.description}</div>
                           </div>
                         ))}
                       </div>
@@ -230,17 +236,17 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
 
                     {/* Milestones */}
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Milestones</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Milestones</div>
                       <div className="flex flex-wrap gap-2">
                         {phase.milestones.map((ms, i) => (
                           <div
                             key={i}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-cortex-sm text-xs"
+                            style={{ backgroundColor: BORDER.subtle, border: `1px solid ${BORDER.default}` }}
                           >
                             <Clock className="size-3" style={{ color: color.primary }} />
                             <span className="font-bold" style={{ color: color.primary }}>{ms.day}</span>
-                            <span className="text-gray-300">{ms.milestone}</span>
+                            <span className="text-cortex-secondary">{ms.milestone}</span>
                           </div>
                         ))}
                       </div>
@@ -249,20 +255,20 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                     {/* Team + Risks */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Team Required</div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Team Required</div>
                         <div className="flex flex-wrap gap-1.5">
                           {phase.teamRequired.map((role, i) => (
-                            <span key={i} className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300">
+                            <span key={i} className="px-2 py-1 rounded-full bg-cortex-control border border-cortex-default text-xs text-cortex-secondary">
                               {role}
                             </span>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Risks Mitigated</div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Risks Mitigated</div>
                         <div className="flex flex-wrap gap-1.5">
                           {phase.risksMitigated.map((risk, i) => (
-                            <span key={i} className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                            <span key={i} className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: `${STATUS.success}1F`, color: STATUS.success, border: `1px solid ${STATUS.success}4C` }}>
                               {risk}
                             </span>
                           ))}
@@ -271,9 +277,9 @@ function RoadmapSection({ phases }: { phases: BlueprintPhase[] }) {
                     </div>
 
                     {phase.linkedBottleneck && (
-                      <div className="text-xs text-gray-500 flex items-center gap-1 pt-2 border-t border-white/5">
-                        <Zap className="size-3 text-[#06D7F6]" />
-                        Addresses Core Problem: <span className="text-[#06D7F6] font-semibold">{phase.linkedBottleneck}</span>
+                      <div className="text-xs text-cortex-muted flex items-center gap-1 pt-2 border-t border-cortex-subtle">
+                        <Zap className="size-3 text-cortex-info" />
+                        Addresses Core Problem: <span className="text-cortex-info font-semibold">{phase.linkedBottleneck}</span>
                       </div>
                     )}
                   </div>
@@ -293,18 +299,18 @@ function DeliverablesSection({ phases }: { phases: BlueprintPhase[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <FileText className="size-5 text-[#3B82F6]" />
+        <FileText className="size-5 text-cortex-accent-alt" />
         Complete Deliverables Matrix
       </h3>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10">
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Phase</th>
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Deliverable</th>
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Description</th>
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Timeline</th>
+            <tr className="border-b border-cortex-default">
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Phase</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Deliverable</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Description</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Timeline</th>
             </tr>
           </thead>
           <tbody>
@@ -314,7 +320,7 @@ function DeliverablesSection({ phases }: { phases: BlueprintPhase[] }) {
                 return (
                   <tr
                     key={`${phaseIdx}-${delIdx}`}
-                    className="border-b border-white/5 hover:bg-white/3 transition-colors"
+                    className="border-b border-cortex-subtle hover:bg-white/3 transition-colors"
                   >
                     {delIdx === 0 ? (
                       <td
@@ -326,8 +332,8 @@ function DeliverablesSection({ phases }: { phases: BlueprintPhase[] }) {
                       </td>
                     ) : null}
                     <td className="px-4 py-3 text-sm font-medium text-white">{del.item}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400 max-w-xs">{del.description}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{phase.duration}</td>
+                    <td className="px-4 py-3 text-xs text-cortex-muted max-w-xs">{del.description}</td>
+                    <td className="px-4 py-3 text-xs text-cortex-muted">{phase.duration}</td>
                   </tr>
                 );
               })
@@ -345,25 +351,25 @@ function KPISection({ kpis, companyName }: { kpis: BlueprintKPI[]; companyName: 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <BarChart3 className="size-5 text-[#10B981]" />
+        <BarChart3 className="size-5 text-cortex-success" />
         Success KPIs for {companyName}
       </h3>
 
       <div className="grid grid-cols-1 gap-3">
         {kpis.map((kpi, idx) => (
-          <div key={idx} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+          <div key={idx} className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="text-sm font-bold text-white mb-1">{kpi.metric}</div>
-                <div className="text-xs text-gray-500">Measured via: {kpi.measurementMethod}</div>
+                <div className="text-xs text-cortex-muted">Measured via: {kpi.measurementMethod}</div>
               </div>
-              <TrendingUp className="size-5 text-[#10B981]" />
+              <TrendingUp className="size-5 text-cortex-success" />
             </div>
             <div className="grid grid-cols-4 gap-4">
-              <KPICell label="Baseline" value={kpi.baseline} color="#6B7280" />
-              <KPICell label="30-Day Target" value={kpi.target30} color="#FB923C" />
-              <KPICell label="60-Day Target" value={kpi.target60} color="#3B82F6" />
-              <KPICell label="90-Day Target" value={kpi.target90} color="#10B981" />
+              <KPICell label="Baseline" value={kpi.baseline} color={STATUS.neutral} />
+              <KPICell label="30-Day Target" value={kpi.target30} color={STATUS.warning} />
+              <KPICell label="60-Day Target" value={kpi.target60} color={brand.accentAlt} />
+              <KPICell label="90-Day Target" value={kpi.target90} color={STATUS.success} />
             </div>
           </div>
         ))}
@@ -375,7 +381,7 @@ function KPISection({ kpis, companyName }: { kpis: BlueprintKPI[]; companyName: 
 function KPICell({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="text-center">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted mb-1">{label}</div>
       <div className="text-lg font-bold" style={{ color }}>{value}</div>
     </div>
   );
@@ -387,25 +393,25 @@ function ResourceSection({ resources, phases }: { resources: SolutionBlueprintTy
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <Users className="size-5 text-[#06D7F6]" />
+        <Users className="size-5 text-cortex-info" />
         Resource Allocation Plan
       </h3>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10">
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Role</th>
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Allocation</th>
-              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Active During</th>
+            <tr className="border-b border-cortex-default">
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Role</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Allocation</th>
+              <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-cortex-muted">Active During</th>
             </tr>
           </thead>
           <tbody>
             {resources.map((res, idx) => (
-              <tr key={idx} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+              <tr key={idx} className="border-b border-cortex-subtle hover:bg-white/3 transition-colors">
                 <td className="px-4 py-3 text-sm font-medium text-white">{res.role}</td>
-                <td className="px-4 py-3 text-sm text-gray-300">{res.allocation}</td>
-                <td className="px-4 py-3 text-xs text-gray-400">{res.phase}</td>
+                <td className="px-4 py-3 text-sm text-cortex-secondary">{res.allocation}</td>
+                <td className="px-4 py-3 text-xs text-cortex-muted">{res.phase}</td>
               </tr>
             ))}
           </tbody>
@@ -421,7 +427,7 @@ function RiskSection({ risks }: { risks: BlueprintRisk[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <Shield className="size-5 text-[#FB923C]" />
+        <Shield className="size-5 text-cortex-warning" />
         Risk Register & Mitigation
       </h3>
 
@@ -430,7 +436,7 @@ function RiskSection({ risks }: { risks: BlueprintRisk[] }) {
           const probColor = RISK_COLORS[risk.probability];
           const impactColor = RISK_COLORS[risk.impact];
           return (
-            <div key={idx} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+            <div key={idx} className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="size-5 flex-shrink-0 mt-0.5" style={{ color: impactColor.text }} />
@@ -446,11 +452,11 @@ function RiskSection({ risks }: { risks: BlueprintRisk[] }) {
                     </div>
                   </div>
                 </div>
-                <span className="text-xs text-gray-500">Owner: {risk.owner}</span>
+                <span className="text-xs text-cortex-muted">Owner: {risk.owner}</span>
               </div>
-              <div className="bg-[#10B981]/10 border border-[#10B981]/20 rounded-lg p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#10B981] mb-1">Mitigation Strategy</div>
-                <p className="text-xs text-gray-300">{risk.mitigation}</p>
+              <div className="bg-cortex-success/10 border border-cortex-success/20 rounded-cortex-sm p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-cortex-success mb-1">Mitigation Strategy</div>
+                <p className="text-xs text-cortex-secondary">{risk.mitigation}</p>
               </div>
             </div>
           );
@@ -466,36 +472,36 @@ function FinancialSection({ investment }: { investment: SolutionBlueprintType['i
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-bold flex items-center gap-2">
-        <DollarSign className="size-5 text-[#10B981]" />
+        <DollarSign className="size-5 text-cortex-success" />
         Investment & ROI Summary
       </h3>
 
       {/* Total investment */}
-      <div className="bg-gradient-to-br from-[#10B981]/10 to-[#3B82F6]/10 border border-[#10B981]/20 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-cortex-success/10 to-cortex-accent-alt/10 border border-cortex-success/20 rounded-cortex-md p-6">
         <div className="grid grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Total Investment</div>
-            <div className="text-3xl font-bold text-[#10B981]">{investment.totalRange}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Total Investment</div>
+            <div className="text-3xl font-bold text-cortex-success">{investment.totalRange}</div>
           </div>
           <div className="text-center">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Payback Period</div>
-            <div className="text-3xl font-bold text-[#3B82F6]">{investment.paybackPeriod}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">Payback Period</div>
+            <div className="text-3xl font-bold text-cortex-accent-alt">{investment.paybackPeriod}</div>
           </div>
           <div className="text-center">
-            <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">12-Month ROI</div>
-            <div className="text-3xl font-bold text-[#8B5CF6]">{investment.roiTimeline}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-2">12-Month ROI</div>
+            <div className="text-3xl font-bold text-cortex-accent">{investment.roiTimeline}</div>
           </div>
         </div>
       </div>
 
       {/* Phase breakdown */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
-        <div className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">Cost Breakdown by Phase</div>
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
+        <div className="text-xs font-bold uppercase tracking-wider text-cortex-muted mb-4">Cost Breakdown by Phase</div>
         <div className="space-y-3">
           {investment.breakdownByPhase.map((item, idx) => {
             const color = PHASE_COLORS[idx % PHASE_COLORS.length];
             return (
-              <div key={idx} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              <div key={idx} className="flex items-center justify-between py-2 border-b border-cortex-subtle last:border-0">
                 <div className="flex items-center gap-3">
                   <div className="size-3 rounded-full" style={{ backgroundColor: color.primary }} />
                   <span className="text-sm font-medium text-white">{item.phase}</span>
