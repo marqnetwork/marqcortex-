@@ -378,7 +378,7 @@ export const manifest: SystemManifest = {
       domain: 'PORTAL',
       filePath: 'src/app/components/ClientPortal.tsx',
       description: 'The 8-tab client portal shell. Tab order is fixed: Status → Solution → Readiness Report → Schedule a Call → Proposal → Messages → Your Assessment → Strategic Report.',
-      dependencies: ['MQC-COMP-011', 'MQC-COMP-012', 'MQC-COMP-013', 'MQC-COMP-014', 'MQC-COMP-016', 'MQC-COMP-018', 'MQC-COMP-015', 'MQC-COMP-011', 'MQC-HOOK-004'],
+      dependencies: ['MQC-COMP-011', 'MQC-COMP-012', 'MQC-COMP-013', 'MQC-COMP-014', 'MQC-COMP-016', 'MQC-COMP-018', 'MQC-COMP-015', 'MQC-HOOK-004'],
       dependents: ['MQC-PAGE-009'],
       notes: 'Tab order is a product decision — do not reorder without explicit instruction.',
     },
