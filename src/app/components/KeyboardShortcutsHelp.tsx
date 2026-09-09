@@ -19,6 +19,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useEscapeKey, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { SHORTCUT_DESTINATIONS } from '@/app/core/navigationModel';
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean;
@@ -58,27 +59,15 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
         icon: Search,
       },
     ],
+    // Ch. 21.4 — the fourth surface onto the same destinations. Derived from
+    // the navigation model, so it can never again describe a different
+    // accelerator table than the one the layout actually registers.
     'Navigation': [
-      {
-        keys: `${mod} 1`,
-        description: 'Go to Dashboard',
-        icon: LayoutDashboard,
-      },
-      {
-        keys: `${mod} 2`,
-        description: 'Go to CORTEX',
-        icon: Brain,
-      },
-      {
-        keys: `${mod} 3`,
-        description: 'Go to Team',
-        icon: Users,
-      },
-      {
-        keys: `${mod} 4`,
-        description: 'Go to Settings',
-        icon: Settings,
-      },
+      ...SHORTCUT_DESTINATIONS.map(destination => ({
+        keys: `${mod} ${destination.shortcutDigit}`,
+        description: `Go to ${destination.label}`,
+        icon: destination.icon,
+      })),
       {
         keys: `${mod} B`,
         description: 'Toggle sidebar',
@@ -144,12 +133,17 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-4xl bg-[#0A0A0F] border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
+          // Declared as a dialog. It already closes on Escape; what it lacked
+          // was any way for assistive technology to know it had opened.
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keyboard shortcuts"
+          className="w-full max-w-4xl bg-cortex-canvas border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+              <div className="size-10 rounded-xl bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
                 <Command className="size-5 text-white" />
               </div>
               <div>
@@ -179,7 +173,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
                       return (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-3 bg-black/40 border border-white/10 rounded-lg hover:border-[#8B5CF6]/30 transition-colors"
+                          className="flex items-center justify-between p-3 bg-black/40 border border-white/10 rounded-lg hover:border-cortex-accent/30 transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             {Icon && <Icon className="size-4 text-gray-400" />}
@@ -201,8 +195,8 @@ export function KeyboardShortcutsHelp({ isOpen, onClose }: KeyboardShortcutsHelp
           <div className="px-6 py-4 border-t border-white/10 bg-black/40">
             <div className="flex items-center justify-between text-sm text-gray-400">
               <div className="flex items-center gap-2">
-                <div className="size-6 rounded bg-[#8B5CF6]/20 flex items-center justify-center">
-                  <span className="text-xs font-bold text-[#8B5CF6]">💡</span>
+                <div className="size-6 rounded bg-cortex-accent/20 flex items-center justify-center">
+                  <span className="text-xs font-bold text-cortex-accent">💡</span>
                 </div>
                 <span>
                   Press <kbd className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded mx-1">ESC</kbd> to close

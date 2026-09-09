@@ -19,7 +19,7 @@
  * Architecture note: production → pre-computed aggregate table (spec §3).
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useId } from 'react';
 import {
   ComposedChart, BarChart, Bar, Line, LineChart,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -52,20 +52,22 @@ import {
 import type { ObjectionType } from '@/app/types/cortex-types';
 import * as dataService from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { asArray } from '@/app/lib/payload';
+import { brand, status, text, border } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // COLOURS
 // ════════════════════════════════════════════════════════════════════════════════
 
 const C = {
-  purple:  '#8B5CF6',
-  blue:    '#3B82F6',
-  cyan:    '#06D7F6',
-  green:   '#10B981',
-  orange:  '#FB923C',
-  red:     '#FD4438',
-  amber:   '#F59E0B',
-  gray:    '#70707C',
+  purple:  brand.accent,
+  blue:    brand.accentAlt,
+  cyan:    status.info,
+  green:   status.success,
+  orange:  status.warning,
+  red:     status.danger,
+  amber:   status.caution,
+  gray:    status.neutral,
 } as const;
 
 const OBJECTION_COLORS: Record<ObjectionType, string> = {
@@ -89,12 +91,12 @@ function fmtUSD(n: number) {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0D0D18] border border-white/10 rounded-xl p-3 text-[9px] shadow-2xl space-y-1.5">
+    <div className="bg-cortex-overlay border border-cortex-default rounded-cortex-md p-3 text-[9px] shadow-2xl space-y-1.5">
       <div className="font-bold text-white mb-1">{label}</div>
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2">
           <div className="size-2 rounded-full flex-shrink-0" style={{ background: p.color ?? p.fill }} />
-          <span className="text-gray-500">{p.name}:</span>
+          <span className="text-cortex-muted">{p.name}:</span>
           <span className="font-bold ml-auto pl-2" style={{ color: p.color ?? p.fill }}>
             {typeof p.value === 'number' && p.unit === '$'
               ? fmtUSD(p.value)
@@ -139,30 +141,36 @@ function FilterPill({
   displayMap?: Record<string, string>;
 }) {
   const isActive = value !== 'all';
+  // The label was a `<span>` beside the `<select>`, so all five filters were
+  // announced as unnamed combo boxes — a screen-reader user could hear the
+  // options but not which dimension they filtered. `useId` ties the two
+  // together, and the visible text is now a real `<label>`.
+  const selectId = useId();
   return (
     <div className="relative">
       <div className="flex items-center gap-1.5 text-[9px]">
-        <span className="text-gray-700 uppercase tracking-wide font-bold whitespace-nowrap">{label}</span>
+        <label htmlFor={selectId} className="text-cortex-faint uppercase tracking-wide font-bold whitespace-nowrap">{label}</label>
         <div
-          className="flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer"
+          className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm border cursor-pointer"
           style={{
-            borderColor: isActive ? `${C.purple}40` : '#ffffff10',
+            borderColor: isActive ? `${C.purple}40` : `${text.primary}10`,
             background:  isActive ? `${C.purple}10` : 'transparent',
           }}
         >
           <select
+            id={selectId}
             value={value}
             onChange={e => onChange(e.target.value)}
             className="bg-transparent text-[9px] font-bold outline-none cursor-pointer pr-4"
-            style={{ color: isActive ? C.purple : '#9CA3AF' }}
+            style={{ color: isActive ? C.purple : text.muted }}
           >
             {options.map(o => (
-              <option key={o} value={o} className="bg-[#0D0D18] text-white">
+              <option key={o} value={o} className="bg-cortex-overlay text-white">
                 {displayMap ? (displayMap[o] ?? o) : (o === 'all' ? 'All' : o)}
               </option>
             ))}
           </select>
-          <ChevronDown className="size-2.5 text-gray-600 flex-shrink-0 -ml-3 pointer-events-none" />
+          <ChevronDown className="size-2.5 text-cortex-faint flex-shrink-0 -ml-3 pointer-events-none" />
         </div>
       </div>
     </div>
@@ -186,10 +194,10 @@ function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 px-5 py-3 bg-black/40 backdrop-blur border-b border-white/5 sticky top-0 z-20">
+    <div className="flex flex-wrap items-center gap-3 px-5 py-3 bg-cortex-raised backdrop-blur border-b border-cortex-subtle sticky top-0 z-20">
       <div className="flex items-center gap-2 mr-1">
-        <Filter className="size-3.5 text-gray-600" />
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Filters</span>
+        <Filter className="size-3.5 text-cortex-faint" />
+        <span className="text-[10px] font-bold text-cortex-muted uppercase tracking-wider">Filters</span>
         {activeCount > 0 && (
           <span
             className="text-[8px] px-1.5 py-0.5 rounded-full font-black"
@@ -206,11 +214,11 @@ function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
           <button
             key={dr.id}
             onClick={() => set('dateRange', dr.id as DashboardFilters['dateRange'])}
-            className="px-2.5 py-1 rounded-lg text-[9px] font-bold border transition-colors"
+            className="px-2.5 py-1 rounded-cortex-sm text-[9px] font-bold border transition-colors"
             style={{
-              borderColor: filters.dateRange === dr.id ? `${C.cyan}40` : '#ffffff10',
+              borderColor: filters.dateRange === dr.id ? `${C.cyan}40` : `${text.primary}10`,
               background:  filters.dateRange === dr.id ? `${C.cyan}12`  : 'transparent',
-              color:       filters.dateRange === dr.id ? C.cyan          : '#6B7280',
+              color:       filters.dateRange === dr.id ? C.cyan          : status.neutral,
             }}
           >
             {dr.label}
@@ -218,7 +226,7 @@ function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
         ))}
       </div>
 
-      <div className="h-4 w-px bg-white/5" />
+      <div className="h-4 w-px bg-cortex-control" />
 
       <FilterPill label="Industry"   value={filters.industry}     options={opts.industries}  onChange={v => set('industry', v)} />
       <FilterPill label="Owner"      value={filters.owner}        options={opts.owners}      onChange={v => set('owner', v)} />
@@ -237,7 +245,7 @@ function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
 
       <button
         onClick={onReset}
-        className="ml-auto flex items-center gap-1.5 px-2 py-1 text-[9px] text-gray-600 hover:text-white transition-colors"
+        className="ml-auto flex items-center gap-1.5 px-2 py-1 text-[9px] text-cortex-faint hover:text-white transition-colors"
       >
         <RefreshCw className="size-3" />Reset
       </button>
@@ -257,8 +265,8 @@ function KPITileCard({ tile }: { tile: KPITile }) {
   const trend_color = hasDelta ? (isGood ? C.green : C.red) : C.gray;
 
   return (
-    <div className="flex-1 min-w-[130px] flex flex-col gap-1.5 px-4 py-3.5 bg-black/30 border border-white/8 rounded-xl">
-      <div className="text-[8px] font-bold uppercase tracking-widest text-gray-600">{tile.label}</div>
+    <div className="flex-1 min-w-[130px] flex flex-col gap-1.5 px-4 py-3.5 bg-cortex-sunken border border-white/8 rounded-cortex-md">
+      <div className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint">{tile.label}</div>
       <div className="text-xl font-black text-white leading-none">{tile.value}</div>
       {hasDelta ? (
         <div className="flex items-center gap-1 text-[9px] font-bold" style={{ color: trend_color }}>
@@ -268,12 +276,12 @@ function KPITileCard({ tile }: { tile: KPITile }) {
           }
           {tile.delta_pct! >= 0 ? '+' : ''}{tile.delta_pct}%
           {tile.delta_abs && (
-            <span className="font-normal text-gray-700 ml-0.5">({tile.delta_abs})</span>
+            <span className="font-normal text-cortex-faint ml-0.5">({tile.delta_abs})</span>
           )}
-          <span className="font-normal text-gray-700">MoM</span>
+          <span className="font-normal text-cortex-faint">MoM</span>
         </div>
       ) : (
-        <div className="flex items-center gap-1 text-[9px] text-gray-700">
+        <div className="flex items-center gap-1 text-[9px] text-cortex-faint">
           <Minus className="size-2.5" /> No prior period
         </div>
       )}
@@ -285,8 +293,8 @@ function LeadershipStrip({ tiles }: { tiles: KPITile[] }) {
   return (
     <div className="px-5 pt-5 pb-1">
       <div className="flex items-center gap-2 mb-3">
-        <Zap className="size-3.5 text-[#F59E0B]" />
-        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Leadership Snapshot</span>
+        <Zap className="size-3.5 text-cortex-caution" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-cortex-muted">Leadership Snapshot</span>
         <span className="text-[8px] px-1.5 py-0.5 rounded border border-amber-500/20 bg-amber-500/8 text-amber-500 uppercase tracking-wide font-bold">
           Live
         </span>
@@ -312,8 +320,8 @@ function PanelShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-black/30 border border-white/8 rounded-xl overflow-hidden flex flex-col">
-      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/5">
+    <div className="bg-cortex-sunken border border-white/8 rounded-cortex-md overflow-hidden flex flex-col">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-cortex-subtle">
         <Icon className="size-3.5 flex-shrink-0" style={{ color: accent }} />
         <span className="text-[11px] font-bold text-white">{title}</span>
         {badge && (
@@ -339,10 +347,10 @@ function MetricRow({
 }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-white/[0.04] last:border-0">
-      <span className="text-[9px] text-gray-600">{label}</span>
+      <span className="text-[9px] text-cortex-faint">{label}</span>
       <div className="text-right">
         <span className="text-[11px] font-bold" style={{ color }}>{value}</span>
-        {sub && <div className="text-[8px] text-gray-700">{sub}</div>}
+        {sub && <div className="text-[8px] text-cortex-faint">{sub}</div>}
       </div>
     </div>
   );
@@ -371,28 +379,28 @@ function RevenuePanel({ snapshots }: { snapshots: ReturnType<typeof filterSnapsh
         ].map(m => (
           <div
             key={m.label}
-            className="px-2.5 py-2 rounded-lg bg-black/20 border border-white/5"
+            className="px-2.5 py-2 rounded-cortex-sm bg-black/20 border border-cortex-subtle"
           >
-            <div className="text-[7px] uppercase tracking-wide text-gray-700 mb-0.5">{m.label}</div>
+            <div className="text-[7px] uppercase tracking-wide text-cortex-faint mb-0.5">{m.label}</div>
             <div className="text-sm font-black" style={{ color: m.color }}>{m.value}</div>
           </div>
         ))}
       </div>
 
       {/* Pipeline funnel chart */}
-      <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-2">Deal Pipeline Funnel</div>
+      <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">Deal Pipeline Funnel</div>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart
           data={chartData}
           layout="vertical"
           margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 8, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} />
           <YAxis
             type="category"
             dataKey="stage"
-            tick={{ fontSize: 8, fill: '#9CA3AF' }}
+            tick={{ fontSize: 8, fill: text.muted }}
             tickLine={false}
             axisLine={false}
             width={70}
@@ -414,7 +422,7 @@ function RevenuePanel({ snapshots }: { snapshots: ReturnType<typeof filterSnapsh
       </ResponsiveContainer>
 
       {/* Formula note */}
-      <div className="mt-2 text-[8px] text-gray-700 border-t border-white/5 pt-2">
+      <div className="mt-2 text-[8px] text-cortex-faint border-t border-cortex-subtle pt-2">
         close_rate = won_stages / proposals_sent &nbsp;·&nbsp;
         sales_cycle = avg(signed − sent) days
       </div>
@@ -466,12 +474,12 @@ function ProposalPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnaps
       </div>
 
       {/* Conversion funnel */}
-      <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-2">Conversion Funnel</div>
+      <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">Conversion Funnel</div>
       <ResponsiveContainer width="100%" height={110}>
         <BarChart data={funnelData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 8, fill: '#9CA3AF' }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 8, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 8, fill: text.muted }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey="count" name="Deals" radius={[3, 3, 0, 0]} maxBarSize={40}>
             {funnelData.map((_, i) => (
@@ -488,14 +496,14 @@ function ProposalPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnaps
       {/* Objection rate by industry */}
       {data.objection_by_industry.length > 0 && (
         <span className="contents">
-          <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mt-4 mb-2">
+          <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mt-4 mb-2">
             Objection Rate by Industry
           </div>
           <div className="space-y-1.5">
             {data.objection_by_industry.slice(0, 5).map(r => (
               <div key={r.industry} className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-600 w-20 truncate flex-shrink-0">{r.industry}</span>
-                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <span className="text-[8px] text-cortex-faint w-20 truncate flex-shrink-0">{r.industry}</span>
+                <div className="flex-1 h-1.5 bg-cortex-control rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
@@ -515,7 +523,7 @@ function ProposalPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnaps
         </span>
       )}
 
-      <div className="mt-3 text-[8px] text-gray-700 border-t border-white/5 pt-2">
+      <div className="mt-3 text-[8px] text-cortex-faint border-t border-cortex-subtle pt-2">
         Friction signals. Derived from engagement_metrics + crm_activity_log.
       </div>
     </PanelShell>
@@ -548,8 +556,8 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
           { label: 'Forecast Accuracy',      value: data.tracked_deals > 0 ? `${data.forecast_accuracy_pct}%` : 'N/A', color: accuracyColor },
           { label: 'Avg Payback Deviation',  value: data.tracked_deals > 0 ? `+${data.avg_payback_deviation_mo}mo` : 'N/A', color: data.avg_payback_deviation_mo <= 0.5 ? C.green : C.amber },
         ].map(m => (
-          <div key={m.label} className="px-2.5 py-2 rounded-lg bg-black/20 border border-white/5">
-            <div className="text-[7px] uppercase tracking-wide text-gray-700 mb-0.5">{m.label}</div>
+          <div key={m.label} className="px-2.5 py-2 rounded-cortex-sm bg-black/20 border border-cortex-subtle">
+            <div className="text-[7px] uppercase tracking-wide text-cortex-faint mb-0.5">{m.label}</div>
             <div className="text-sm font-black" style={{ color: m.color }}>{m.value}</div>
           </div>
         ))}
@@ -557,11 +565,11 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
 
       {/* Tracked deals badge */}
       <div
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg mb-4 text-[9px]"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm mb-4 text-[9px]"
         style={{ background: `${C.purple}08`, border: `1px solid ${C.purple}20` }}
       >
         <Activity className="size-3 flex-shrink-0" style={{ color: C.purple }} />
-        <span className="text-gray-500">
+        <span className="text-cortex-muted">
           <span className="font-bold text-white">{data.tracked_deals}</span> deals with actuals tracked&nbsp;·&nbsp;
           forecast_accuracy = actual_roi / projected_roi
         </span>
@@ -570,21 +578,21 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
       {/* Industry breakdown chart */}
       {chartData.length > 0 ? (
         <span className="contents">
-          <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-2">
+          <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">
             Projected vs Actual ROI by Industry
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={chartData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
-              <XAxis dataKey="industry" tick={{ fontSize: 7, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
+              <XAxis dataKey="industry" tick={{ fontSize: 7, fill: status.neutral }} tickLine={false} axisLine={false} />
               <YAxis
-                tick={{ fontSize: 8, fill: '#6B7280' }}
+                tick={{ fontSize: 8, fill: status.neutral }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={v => `${v}%`}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Legend iconSize={7} wrapperStyle={{ fontSize: 8, color: '#6B7280', paddingTop: 6 }} />
+              <Legend iconSize={7} wrapperStyle={{ fontSize: 8, color: status.neutral, paddingTop: 6 }} />
               <Bar dataKey="Projected" fill={`${C.blue}40`}  stroke={C.blue}  strokeWidth={1} radius={[2, 2, 0, 0]} maxBarSize={18} />
               <Bar dataKey="Actual"    fill={`${C.green}40`} stroke={C.green} strokeWidth={1} radius={[2, 2, 0, 0]} maxBarSize={18} />
             </BarChart>
@@ -596,27 +604,27 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
               const ac = r.accuracy_pct >= 100 ? C.green : r.accuracy_pct >= 85 ? C.amber : C.red;
               return (
                 <div key={r.industry} className="flex items-center gap-2 text-[8px]">
-                  <span className="w-20 text-gray-600 truncate flex-shrink-0">{r.industry}</span>
-                  <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                  <span className="w-20 text-cortex-faint truncate flex-shrink-0">{r.industry}</span>
+                  <div className="flex-1 h-1 bg-cortex-control rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{ width: `${Math.min(r.accuracy_pct, 110)}%`, background: ac }}
                     />
                   </div>
                   <span className="font-black w-10 text-right" style={{ color: ac }}>{r.accuracy_pct}%</span>
-                  <span className="text-gray-700 w-10 text-right">{r.deal_count}d</span>
+                  <span className="text-cortex-faint w-10 text-right">{r.deal_count}d</span>
                 </div>
               );
             })}
           </div>
         </span>
       ) : (
-        <div className="text-center py-8 text-[10px] text-gray-700">
+        <div className="text-center py-8 text-[10px] text-cortex-faint">
           No actuals tracked in this period — expand date range to see ROI accuracy.
         </div>
       )}
 
-      <div className="mt-3 text-[8px] text-gray-700 border-t border-white/5 pt-2">
+      <div className="mt-3 text-[8px] text-cortex-faint border-t border-cortex-subtle pt-2">
         payback_delta = actual_payback − projected_payback &nbsp;·&nbsp; Spec §6 realization factors update per industry.
       </div>
     </PanelShell>
@@ -653,8 +661,8 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
           { label: 'Price Obj %',       value: `${data.price_objection_pct}%`, color: C.amber },
           { label: 'Risk Obj %',        value: `${data.risk_objection_pct}%`, color: C.red },
         ].map(m => (
-          <div key={m.label} className="px-2 py-2 rounded-lg bg-black/20 border border-white/5 text-center">
-            <div className="text-[7px] uppercase tracking-wide text-gray-700 mb-0.5">{m.label}</div>
+          <div key={m.label} className="px-2 py-2 rounded-cortex-sm bg-black/20 border border-cortex-subtle text-center">
+            <div className="text-[7px] uppercase tracking-wide text-cortex-faint mb-0.5">{m.label}</div>
             <div className="text-sm font-black" style={{ color: m.color }}>{m.value}</div>
           </div>
         ))}
@@ -663,14 +671,14 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
       {/* Frequency bar chart */}
       {chartData.length > 0 ? (
         <span className="contents">
-          <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-2">
+          <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">
             Objection Frequency by Type
           </div>
           <ResponsiveContainer width="100%" height={110}>
             <BarChart data={chartData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 7, fill: '#9CA3AF' }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 8, fill: '#6B7280' }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 7, fill: text.muted }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="Count" radius={[3, 3, 0, 0]} maxBarSize={36}>
                 {chartData.map((entry, i) => (
@@ -681,21 +689,21 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
           </ResponsiveContainer>
         </span>
       ) : (
-        <div className="text-center py-4 text-[10px] text-gray-700">No objections in this period.</div>
+        <div className="text-center py-4 text-[10px] text-cortex-faint">No objections in this period.</div>
       )}
 
       {/* Close rate by objection type + resolve time */}
       {data.by_type.length > 0 && (
         <div className="mt-4">
-          <div className="text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-2">
+          <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">
             Close Rate & Avg Resolution Time
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[8px]">
               <thead>
-                <tr className="border-b border-white/5">
+                <tr className="border-b border-cortex-subtle">
                   {['Type', 'Deals', 'Close Rate', 'Avg Resolve', 'Freq %'].map(h => (
-                    <th key={h} className="text-left py-1.5 pr-2 text-gray-700 font-bold uppercase tracking-wide whitespace-nowrap">
+                    <th key={h} className="text-left py-1.5 pr-2 text-cortex-faint font-bold uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -716,14 +724,14 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
                           {r.label}
                         </span>
                       </td>
-                      <td className="py-1.5 pr-2 text-gray-400">{r.count}</td>
+                      <td className="py-1.5 pr-2 text-cortex-muted">{r.count}</td>
                       <td className="py-1.5 pr-2 font-black" style={{ color: crClr }}>
                         {r.close_rate_pct !== null ? `${r.close_rate_pct}%` : '—'}
                       </td>
-                      <td className="py-1.5 pr-2 text-gray-500">
+                      <td className="py-1.5 pr-2 text-cortex-muted">
                         {r.avg_resolve_days !== null ? `${r.avg_resolve_days}d` : '—'}
                       </td>
-                      <td className="py-1.5 text-gray-600">{r.frequency_pct}%</td>
+                      <td className="py-1.5 text-cortex-faint">{r.frequency_pct}%</td>
                     </tr>
                   );
                 })}
@@ -733,7 +741,7 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
         </div>
       )}
 
-      <div className="mt-3 text-[8px] text-gray-700 border-t border-white/5 pt-2">
+      <div className="mt-3 text-[8px] text-cortex-faint border-t border-cortex-subtle pt-2">
         Where deals stall. Derived from objection_detected.type + crm_activity_log.
       </div>
     </PanelShell>
@@ -762,11 +770,11 @@ function DoneChecklist({
   ];
 
   return (
-    <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-white/5">
+    <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-cortex-subtle">
       {items.map(item => (
         <div
           key={item.label}
-          className="flex items-center gap-1.5 text-[8px] px-2.5 py-1 rounded-lg border"
+          className="flex items-center gap-1.5 text-[8px] px-2.5 py-1 rounded-cortex-sm border"
           style={{
             borderColor: item.done ? `${C.green}20` : `${C.red}20`,
             background:  item.done ? `${C.green}06` : `${C.red}06`,
@@ -812,7 +820,8 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
         if (cancelled) return;
         // Live snapshots are authoritative — apply them even when empty rather
         // than falling back to MOCK_SNAPSHOTS, which would fabricate revenue.
-        setSnapshots(res.snapshots);
+        // Narrowed before it becomes state — see `@/app/lib/payload`.
+        setSnapshots(asArray(res.snapshots));
         setLoadState('ready');
       } catch (err) {
         if (cancelled) return;
@@ -841,7 +850,7 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
   );
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#0A0A0F]">
+    <div className="flex flex-col h-full overflow-hidden bg-cortex-canvas">
       {/* Filter bar — sticky */}
       <FilterBar
         filters={filters}
@@ -855,22 +864,22 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
             <h1 className="text-lg font-black text-white flex items-center gap-2.5">
-              <BarChart3 className="size-5 text-[#10B981]" />
+              <BarChart3 className="size-5 text-cortex-success" />
               Revenue Intelligence Dashboard
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-                style={{ color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }}
+                style={{ color: status.success, borderColor: `${status.success}33`, background: `${status.success}14` }}
               >
                 Phase 8
               </span>
             </h1>
-            <p className="text-[10px] text-gray-600 mt-0.5">
+            <p className="text-[10px] text-cortex-faint mt-0.5">
               {filtered.length} deal{filtered.length !== 1 ? 's' : ''} in view
               &nbsp;·&nbsp;Math decides every metric &nbsp;·&nbsp;
               Architecture: nightly aggregation in production (spec §3)
             </p>
           </div>
-          <div className="flex items-center gap-2 text-[9px] text-gray-700">
+          <div className="flex items-center gap-2 text-[9px] text-cortex-faint">
             <Activity className="size-3" />
             {new Date('2026-03-02').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
           </div>
@@ -883,29 +892,29 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
         {filtered.length === 0 ? (
           loadState === 'loading' ? (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-              <Activity className="size-8 text-gray-700 animate-pulse" />
-              <div className="text-sm font-bold text-gray-600">Loading revenue snapshots…</div>
+              <Activity className="size-8 text-cortex-faint animate-pulse" />
+              <div className="text-sm font-bold text-cortex-faint">Loading revenue snapshots…</div>
             </div>
           ) : loadState === 'error' ? (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-              <Filter className="size-8 text-[#FD4438]/60" />
-              <div className="text-sm font-bold text-gray-500">Couldn't load revenue data</div>
-              <div className="text-[10px] text-gray-700">The snapshot service is unavailable. No data is shown rather than estimated figures.</div>
+              <Filter className="size-8 text-cortex-danger/60" />
+              <div className="text-sm font-bold text-cortex-muted">Couldn't load revenue data</div>
+              <div className="text-[10px] text-cortex-faint">The snapshot service is unavailable. No data is shown rather than estimated figures.</div>
             </div>
           ) : snapshots.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-              <BarChart3 className="size-8 text-gray-700" />
-              <div className="text-sm font-bold text-gray-600">No deal data yet</div>
-              <div className="text-[10px] text-gray-700">Revenue intelligence appears here once diagnostics, proposals, and outcomes are recorded.</div>
+              <BarChart3 className="size-8 text-cortex-faint" />
+              <div className="text-sm font-bold text-cortex-faint">No deal data yet</div>
+              <div className="text-[10px] text-cortex-faint">Revenue intelligence appears here once diagnostics, proposals, and outcomes are recorded.</div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-              <Filter className="size-8 text-gray-700" />
-              <div className="text-sm font-bold text-gray-600">No deals match current filters</div>
-              <div className="text-[10px] text-gray-700">Adjust date range or clear filters to see data.</div>
+              <Filter className="size-8 text-cortex-faint" />
+              <div className="text-sm font-bold text-cortex-faint">No deals match current filters</div>
+              <div className="text-[10px] text-cortex-faint">Adjust date range or clear filters to see data.</div>
               <button
                 onClick={() => setFilters(DEFAULT_FILTERS)}
-                className="mt-2 px-4 py-2 text-[10px] font-bold rounded-lg border border-white/10 text-gray-400 hover:text-white transition-colors"
+                className="mt-2 px-4 py-2 text-[10px] font-bold rounded-cortex-sm border border-cortex-default text-cortex-muted hover:text-white transition-colors"
               >
                 Reset Filters
               </button>

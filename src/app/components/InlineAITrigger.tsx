@@ -13,6 +13,8 @@ import React from 'react';
 import { Sparkles, Zap, MessageSquare, Bot, ArrowRight } from 'lucide-react';
 import { useGlobalAIChat, type ChatSectionContext } from '@/app/contexts/GlobalAIChatContext';
 import type { AIChatLeadContext } from '@/app/services/dataService';
+import { brand } from '@/app/lib/tokens';
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,7 +60,7 @@ export function InlineAITrigger({
   leadContext,
   variant = 'pill',
   icon = 'sparkles',
-  colors = ['#8B5CF6', '#3B82F6'],
+  colors = [brand.accent, brand.accentAlt],
   className = '',
 }: InlineAITriggerProps) {
   const { openChat } = useGlobalAIChat();

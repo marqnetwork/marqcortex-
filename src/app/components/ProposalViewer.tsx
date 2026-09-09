@@ -185,9 +185,10 @@ export function ProposalViewer({ submissionId, clientName, companyName, clientAu
               <AnnotationPanelToggle />
             </div>
           </div>
-          <h1 className="text-2xl font-black text-white mb-2">
+          {/* `h2` — the portal header owns the document's `h1`. */}
+          <h2 className="text-2xl font-black text-white mb-2">
             AI Readiness & Operations Diagnostic Proposal
-          </h1>
+          </h2>
           <p className="text-gray-400 text-sm mb-5">
             Prepared for {proposal.company_name || companyName} ·{' '}
             {proposal.generated_date

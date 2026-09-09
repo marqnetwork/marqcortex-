@@ -32,6 +32,7 @@ import {
   Users, Rocket, Star, Activity, Eye, Lock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import {brand, status, text, border, surface, text as TEXT } from '@/app/lib/tokens';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -227,13 +228,13 @@ function buildDemoReportData(companyName: string, industry: string): ReportData 
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const PURPLE = '#8B5CF6';
-const BLUE = '#3B82F6';
-const CYAN = '#06D7F6';
-const GREEN = '#10B981';
-const ORANGE = '#FB923C';
-const RED = '#FD4438';
-const COLORS = [PURPLE, BLUE, CYAN, GREEN, ORANGE, '#EC4899'];
+const PURPLE = brand.accent;
+const BLUE = brand.accentAlt;
+const CYAN = status.info;
+const GREEN = status.success;
+const ORANGE = status.warning;
+const RED = status.danger;
+const COLORS = [PURPLE, BLUE, CYAN, GREEN, ORANGE, brand.accentTertiary];
 
 const SECTIONS = [
   { id: 'summary', label: 'Executive Summary' },
@@ -289,30 +290,31 @@ export function ClientReportDashboard({
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white" ref={reportRef}>
+    <div className="min-h-screen bg-cortex-canvas text-white" ref={reportRef}>
       {/* ── Sticky Navigation Bar ────────────────────────────────────────── */}
-      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-xl border-b border-white/10 print:hidden">
+      <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-xl border-b border-cortex-default print:hidden">
         <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="size-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+              <div className="size-9 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
                 <Brain className="size-5 text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-white">{data.companyName}</h1>
-                <p className="text-xs text-gray-500">Strategic Analysis Report &middot; {data.generatedDate}</p>
+                {/* `h2` — the portal header owns the document's `h1`. */}
+                <h2 className="text-sm font-bold text-white">{data.companyName}</h2>
+                <p className="text-xs text-cortex-muted">Strategic Analysis Report &middot; {data.generatedDate}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {onBack && (
-                <button onClick={onBack} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+                <button onClick={onBack} className="px-3 py-1.5 text-xs text-cortex-muted hover:text-white hover:bg-cortex-control rounded-cortex-sm transition-colors">
                   Back to Portal
                 </button>
               )}
-              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-300 transition-colors">
+              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-sm text-cortex-secondary transition-colors">
                 <Printer className="size-3.5" /> Print / PDF
               </button>
-              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#8B5CF6] hover:bg-[#7C3AED] rounded-lg text-white font-medium transition-colors">
+              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cortex-accent hover:bg-cortex-accent/85 rounded-cortex-sm text-white font-medium transition-colors">
                 <Download className="size-3.5" /> Export
               </button>
             </div>
@@ -323,10 +325,10 @@ export function ClientReportDashboard({
               <button
                 key={s.id}
                 onClick={() => scrollTo(s.id)}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`whitespace-nowrap px-3 py-1.5 rounded-cortex-sm text-xs font-medium transition-all ${
                   activeSection === s.id
-                    ? 'bg-[#8B5CF6] text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    ? 'bg-cortex-accent text-white'
+                    : 'text-cortex-muted hover:text-white hover:bg-cortex-control'
                 }`}
               >
                 {s.label}
@@ -351,15 +353,15 @@ export function ClientReportDashboard({
           {/* Summary narrative */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            className="mt-6 bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/5 border border-[#8B5CF6]/20 rounded-2xl p-6"
+            className="mt-6 bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/5 border border-cortex-accent/20 rounded-cortex-lg p-6"
           >
-            <p className="text-gray-300 leading-relaxed">
+            <p className="text-cortex-secondary leading-relaxed">
               Our diagnostic analysis of <strong className="text-white">{data.companyName}</strong> ({data.industry}) identified{' '}
-              <strong className="text-[#8B5CF6]">{data.recommendations.length} high-priority transformation opportunities</strong> across{' '}
+              <strong className="text-cortex-accent">{data.recommendations.length} high-priority transformation opportunities</strong> across{' '}
               {data.departments.filter(d => d.qualifies).length} qualifying departments.
-              The recommended portfolio delivers a projected <strong className="text-[#10B981]">{data.portfolioROI}% ROI</strong> within 12 months
+              The recommended portfolio delivers a projected <strong className="text-cortex-success">{data.portfolioROI}% ROI</strong> within 12 months
               on a total investment of <strong className="text-white">${Math.round(data.totalInvestment / 1000)}K</strong>,
-              with expected payback in <strong className="text-[#06D7F6]">{data.paybackMonths} months</strong>.
+              with expected payback in <strong className="text-cortex-info">{data.paybackMonths} months</strong>.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
               <MiniStat label="Departments Scanned" value="7" />
@@ -375,22 +377,22 @@ export function ClientReportDashboard({
           <SectionHeader icon={Layers} title="Department Analysis" subtitle="7-department operational scan with priority scoring" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* Radar Chart */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Opportunity Radar</h4>
               <ResponsiveContainer width="100%" height={320}>
                 <RadarChart data={radarData}>
                   <PolarGrid stroke="rgba(255,255,255,0.08)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fill: '#6B7280', fontSize: 10 }} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: text.muted, fontSize: 11 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fill: status.neutral, fontSize: 10 }} />
                   <Radar name="Impact" dataKey="Impact" stroke={PURPLE} fill={PURPLE} fillOpacity={0.2} />
                   <Radar name="Feasibility" dataKey="Feasibility" stroke={CYAN} fill={CYAN} fillOpacity={0.15} />
                   <Radar name="Priority" dataKey="Priority" stroke={GREEN} fill={GREEN} fillOpacity={0.1} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#9CA3AF' }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: text.muted }} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
             {/* Department priority bar chart */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Priority Ranking</h4>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart
@@ -399,15 +401,15 @@ export function ClientReportDashboard({
                   margin={{ left: 10, right: 20 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis type="number" domain={[0, 10]} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" width={120} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                  <XAxis type="number" domain={[0, 10]} tick={{ fill: text.muted, fontSize: 11 }} />
+                  <YAxis type="category" dataKey="label" width={120} tick={{ fill: text.muted, fontSize: 11 }} />
                   <Tooltip
-                    contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }}
-                    labelStyle={{ color: '#fff' }}
+                    contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }}
+                    labelStyle={{ color: TEXT.primary }}
                   />
                   <Bar key="bar-priority" dataKey="computedPriority" name="Priority Score" radius={[0, 6, 6, 0]}>
                     {[...data.departments].sort((a, b) => b.computedPriority - a.computedPriority).map((d, idx) => (
-                      <Cell key={`dept-cell-${d.department}`} fill={d.qualifies ? COLORS[idx % COLORS.length] : '#374151'} />
+                      <Cell key={`dept-cell-${d.department}`} fill={d.qualifies ? COLORS[idx % COLORS.length] : border.strong} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -443,27 +445,27 @@ export function ClientReportDashboard({
           <SectionHeader icon={DollarSign} title="ROI & Financial Projections" subtitle="Conservative, risk-adjusted return analysis" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* ROI by recommendation */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">ROI by Initiative</h4>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={data.recommendations.map(r => ({ name: r.departmentLabel, ROI: r.roiPercent, Investment: parseInt(r.investment.replace(/[^0-9]/g, '')) }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
+                  <XAxis dataKey="name" tick={{ fill: text.muted, fontSize: 11 }} />
+                  <YAxis tick={{ fill: text.muted, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
                   <Bar key="bar-roi" dataKey="ROI" name="ROI %" fill={GREEN} radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             {/* Scenario comparison */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Scenario Analysis</h4>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={data.scenarioComparison}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="scenario" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
+                  <XAxis dataKey="scenario" tick={{ fill: text.muted, fontSize: 11 }} />
+                  <YAxis tick={{ fill: text.muted, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
                   <Bar key="bar-scenario-roi" dataKey="roi" name="ROI %" fill={PURPLE} radius={[6, 6, 0, 0]} />
                   <Bar key="bar-scenario-npv" dataKey="npv" name="NPV ($)" fill={BLUE} radius={[6, 6, 0, 0]} />
                 </BarChart>
@@ -472,7 +474,7 @@ export function ClientReportDashboard({
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-gray-500 border-b border-white/5">
+                    <tr className="text-cortex-muted border-b border-cortex-subtle">
                       <th className="text-left py-2 font-medium">Scenario</th>
                       <th className="text-right py-2 font-medium">ROI</th>
                       <th className="text-right py-2 font-medium">NPV</th>
@@ -481,7 +483,7 @@ export function ClientReportDashboard({
                   </thead>
                   <tbody>
                     {data.scenarioComparison.map(s => (
-                      <tr key={s.scenario} className="border-b border-white/5">
+                      <tr key={s.scenario} className="border-b border-cortex-subtle">
                         <td className="py-2 text-white font-medium">{s.scenario}</td>
                         <td className="py-2 text-right text-green-400">{s.roi}%</td>
                         <td className="py-2 text-right text-blue-400">${Math.round((s.npv ?? 0) / 1000)}K</td>
@@ -496,7 +498,7 @@ export function ClientReportDashboard({
 
           {/* Capital Allocation Pie */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Capital Allocation</h4>
               <div className="flex items-center gap-6">
                 <ResponsiveContainer width="50%" height={220}>
@@ -513,23 +515,23 @@ export function ClientReportDashboard({
                         <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="space-y-2 flex-1">
                   {data.capitalAllocations.map((a, idx) => (
                     <div key={a.department} className="flex items-center gap-2 text-xs">
                       <div className="size-2.5 rounded-full" style={{ background: COLORS[idx % COLORS.length] }} />
-                      <span className="text-gray-400 flex-1">{a.department}</span>
+                      <span className="text-cortex-muted flex-1">{a.department}</span>
                       <span className="text-white font-medium">{a.percent}%</span>
-                      <span className="text-gray-500">{a.cost}</span>
+                      <span className="text-cortex-muted">{a.cost}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
             {/* Impact Curve */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Execution Impact Curve</h4>
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={data.recommendations.map((r, i) => ({
@@ -538,9 +540,9 @@ export function ClientReportDashboard({
                   cumGain: data.recommendations.slice(0, i + 1).reduce((s, x) => s + parseInt(x.gain12mo.replace(/[^0-9]/g, '')), 0),
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="step" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
+                  <XAxis dataKey="step" tick={{ fill: text.muted, fontSize: 11 }} />
+                  <YAxis tick={{ fill: text.muted, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
                   <Area key="area-cumgain" type="monotone" dataKey="cumGain" name="Cumulative Gain ($K)" stroke={GREEN} fill={GREEN} fillOpacity={0.15} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -557,22 +559,22 @@ export function ClientReportDashboard({
             ))}
           </div>
           {/* Execution order */}
-          <div className="mt-6 bg-black/40 border border-white/10 rounded-2xl p-6">
+          <div className="mt-6 bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
             <h4 className="text-sm font-bold text-white mb-3">Recommended Execution Sequence</h4>
             <div className="flex items-center gap-3 flex-wrap">
               {data.executionOrder.map((id, idx) => {
                 const rec = data.recommendations.find(r => r.id === id);
                 return (
                   <span key={id} className="contents">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-xl">
-                      <span className="size-6 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] flex items-center justify-center text-xs font-bold">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-cortex-control border border-cortex-default rounded-cortex-md">
+                      <span className="size-6 rounded-full bg-cortex-accent/20 text-cortex-accent flex items-center justify-center text-xs font-bold">
                         {idx + 1}
                       </span>
                       <span className="text-xs text-white font-medium">{rec?.departmentLabel ?? id}</span>
-                      <span className="text-xs text-gray-500">{rec?.executionDays}d</span>
+                      <span className="text-xs text-cortex-muted">{rec?.executionDays}d</span>
                     </div>
                     {idx < data.executionOrder.length - 1 && (
-                      <ArrowRight className="size-4 text-gray-600 flex-shrink-0" />
+                      <ArrowRight className="size-4 text-cortex-faint flex-shrink-0" />
                     )}
                   </span>
                 );
@@ -586,7 +588,7 @@ export function ClientReportDashboard({
           <SectionHeader icon={Shield} title="Risk & Confidence Profile" subtitle="Risk-adjusted analysis across all initiatives" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* Confidence scores */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Confidence & Feasibility</h4>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={data.recommendations.map(r => ({
@@ -595,9 +597,9 @@ export function ClientReportDashboard({
                   Feasibility: r.feasibilityScore * 10,
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
+                  <XAxis dataKey="name" tick={{ fill: text.muted, fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tick={{ fill: text.muted, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }} />
                   <Bar key="bar-confidence" dataKey="Confidence" fill={PURPLE} radius={[6, 6, 0, 0]} />
                   <Bar key="bar-feasibility" dataKey="Feasibility" fill={CYAN} radius={[6, 6, 0, 0]} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -605,20 +607,20 @@ export function ClientReportDashboard({
               </ResponsiveContainer>
             </div>
             {/* Risk heat map */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6">
+            <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
               <h4 className="text-sm font-bold text-white mb-4">Risk Register</h4>
               <div className="space-y-3 max-h-[260px] overflow-y-auto pr-2">
                 {data.recommendations.flatMap(r => r.risks.map(risk => ({
                   ...risk, initiative: r.departmentLabel,
                 }))).map((risk, idx) => (
-                  <div key={idx} className="flex items-start gap-3 text-xs p-3 bg-white/3 rounded-xl border border-white/5">
+                  <div key={idx} className="flex items-start gap-3 text-xs p-3 bg-white/3 rounded-cortex-md border border-cortex-subtle">
                     <div className={`size-2.5 rounded-full flex-shrink-0 mt-1 ${
                       risk.probability === 'high' ? 'bg-red-400' : risk.probability === 'medium' ? 'bg-orange-400' : 'bg-green-400'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <div className="text-white font-medium">{risk.risk}</div>
-                      <div className="text-gray-500 mt-0.5">{risk.initiative} &middot; {risk.probability} prob &middot; {risk.impact} impact</div>
-                      <div className="text-gray-400 mt-1">{risk.mitigation}</div>
+                      <div className="text-cortex-muted mt-0.5">{risk.initiative} &middot; {risk.probability} prob &middot; {risk.impact} impact</div>
+                      <div className="text-cortex-muted mt-1">{risk.mitigation}</div>
                     </div>
                   </div>
                 ))}
@@ -630,17 +632,17 @@ export function ClientReportDashboard({
         {/* §7 — CASH FLOW */}
         <section id="report-cashflow">
           <SectionHeader icon={Activity} title="Cash Flow Projection" subtitle="12-month investment vs. gain timeline with cumulative net position" />
-          <div className="mt-6 bg-black/40 border border-white/10 rounded-2xl p-6">
+          <div className="mt-6 bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6">
             {/* ComposedChart required so <Area> and <Line> can coexist;
                 AreaChart only accepts Area children and would duplicate recharts
                 internal keys when given a Line component. */}
             <ResponsiveContainer width="100%" height={360}>
               <ComposedChart data={data.cashFlow}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} tickFormatter={v => `$${Math.round(v / 1000)}K`} />
+                <XAxis dataKey="month" tick={{ fill: text.muted, fontSize: 11 }} />
+                <YAxis tick={{ fill: text.muted, fontSize: 11 }} tickFormatter={v => `$${Math.round(v / 1000)}K`} />
                 <Tooltip
-                  contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }}
+                  contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }}
                   formatter={(value: number) => [`$${Math.round(value / 1000)}K`, '']}
                 />
                 <Area key="area-gain" type="monotone" dataKey="gain" name="Gain" stroke={GREEN} fill={GREEN} fillOpacity={0.15} />
@@ -652,13 +654,13 @@ export function ClientReportDashboard({
             {/* Break-even indicator */}
             <div className="mt-4 flex items-center justify-center gap-6 text-xs">
               <div className="flex items-center gap-2">
-                <div className="size-2.5 rounded-full bg-[#8B5CF6]" />
-                <span className="text-gray-400">Break-even projected at</span>
+                <div className="size-2.5 rounded-full bg-cortex-accent" />
+                <span className="text-cortex-muted">Break-even projected at</span>
                 <span className="text-white font-bold">Month {data.cashFlow.findIndex(p => p.cumulative >= 0) + 1 || '6'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="size-2.5 rounded-full bg-[#10B981]" />
-                <span className="text-gray-400">Month 12 net position:</span>
+                <div className="size-2.5 rounded-full bg-cortex-success" />
+                <span className="text-cortex-muted">Month 12 net position:</span>
                 <span className="text-green-400 font-bold">${Math.round((data.cashFlow[11]?.cumulative ?? 0) / 1000)}K</span>
               </div>
             </div>
@@ -691,22 +693,22 @@ export function ClientReportDashboard({
           {/* CTA */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="mt-8 bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/10 border border-[#8B5CF6]/30 rounded-2xl p-8 text-center"
+            className="mt-8 bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/10 border border-cortex-accent/30 rounded-cortex-lg p-8 text-center"
           >
             <h3 className="text-2xl font-bold text-white mb-2">Ready to move forward?</h3>
-            <p className="text-gray-400 mb-6 max-w-lg mx-auto">
+            <p className="text-cortex-muted mb-6 max-w-lg mx-auto">
               Let's discuss your report findings and map out the first 90 days together.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={onScheduleCall}
-                className="px-6 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:opacity-90 text-white rounded-xl font-semibold transition-all inline-flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:opacity-90 text-white rounded-cortex-md font-semibold transition-all inline-flex items-center gap-2"
               >
                 Schedule Discovery Call <ArrowRight className="size-4" />
               </button>
               <button
                 onClick={handlePrint}
-                className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-medium transition-all inline-flex items-center gap-2"
+                className="px-6 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-white rounded-cortex-md font-medium transition-all inline-flex items-center gap-2"
               >
                 <Download className="size-4" /> Download Report
               </button>
@@ -715,12 +717,12 @@ export function ClientReportDashboard({
         </section>
 
         {/* Footer */}
-        <div className="text-center py-8 border-t border-white/5">
+        <div className="text-center py-8 border-t border-cortex-subtle">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Brain className="size-4 text-[#8B5CF6]" />
+            <Brain className="size-4 text-cortex-accent" />
             <span className="text-xs font-bold text-white">MARQ Cortex</span>
           </div>
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-cortex-faint">
             This report was generated using deterministic analysis. Math decides priority. &middot; Confidential
           </p>
         </div>
@@ -736,12 +738,12 @@ export function ClientReportDashboard({
 function SectionHeader({ icon: Icon, title, subtitle }: { icon: LucideIcon; title: string; subtitle: string }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
-      <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/10 flex items-center justify-center border border-[#8B5CF6]/20 flex-shrink-0">
-        <Icon className="size-5 text-[#8B5CF6]" />
+      <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/10 flex items-center justify-center border border-cortex-accent/20 flex-shrink-0">
+        <Icon className="size-5 text-cortex-accent" />
       </div>
       <div>
         <h2 className="text-xl font-bold text-white">{title}</h2>
-        <p className="text-sm text-gray-500">{subtitle}</p>
+        <p className="text-sm text-cortex-muted">{subtitle}</p>
       </div>
     </motion.div>
   );
@@ -752,7 +754,7 @@ function MetricCard({ label, value, trend, color, icon: Icon }: {
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-      className="bg-black/40 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-5 hover:border-cortex-strong transition-colors"
     >
       <div className="flex items-center justify-between mb-3">
         <Icon className="size-5" style={{ color }} />
@@ -760,33 +762,33 @@ function MetricCard({ label, value, trend, color, icon: Icon }: {
         {trend === 'down' && <TrendingUp className="size-4 text-cyan-400 rotate-180" />}
       </div>
       <div className="text-2xl font-bold text-white">{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+      <div className="text-xs text-cortex-muted mt-1">{label}</div>
     </motion.div>
   );
 }
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="text-center py-2 px-3 bg-white/3 rounded-xl">
+    <div className="text-center py-2 px-3 bg-white/3 rounded-cortex-md">
       <div className="text-lg font-bold text-white">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-xs text-cortex-muted">{label}</div>
     </div>
   );
 }
 
 function DepartmentCard({ dept }: { dept: DepartmentScore }) {
   return (
-    <div className={`p-4 rounded-xl border transition-all ${
+    <div className={`p-4 rounded-cortex-md border transition-all ${
       dept.qualifies
-        ? 'bg-[#8B5CF6]/5 border-[#8B5CF6]/20 hover:border-[#8B5CF6]/40'
-        : 'bg-white/2 border-white/5 opacity-60'
+        ? 'bg-cortex-accent/5 border-cortex-accent/20 hover:border-cortex-accent/40'
+        : 'bg-white/2 border-cortex-subtle opacity-60'
     }`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-white">{dept.label}</span>
         {dept.qualifies ? (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] font-medium">Qualifies</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-cortex-accent/20 text-cortex-accent font-medium">Qualifies</span>
         ) : (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-gray-500 font-medium">Below Threshold</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-cortex-control text-cortex-muted font-medium">Below Threshold</span>
         )}
       </div>
       <div className="grid grid-cols-2 gap-2 mt-3">
@@ -796,7 +798,7 @@ function DepartmentCard({ dept }: { dept: DepartmentScore }) {
         <ScoreBar label="Risk" value={dept.riskExposure} max={10} color={RED} />
       </div>
       <div className="mt-2 text-right">
-        <span className="text-xs text-gray-500">Priority: </span>
+        <span className="text-xs text-cortex-muted">Priority: </span>
         <span className="text-sm font-bold text-white">{dept.computedPriority.toFixed(1)}</span>
       </div>
     </div>
@@ -807,10 +809,10 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
   return (
     <div>
       <div className="flex items-center justify-between text-xs mb-0.5">
-        <span className="text-gray-500">{label}</span>
+        <span className="text-cortex-muted">{label}</span>
         <span className="text-white font-medium">{value.toFixed(1)}</span>
       </div>
-      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-cortex-control rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${(value / max) * 100}%`, background: color }} />
       </div>
     </div>
@@ -823,18 +825,18 @@ function RecommendationCard({ rec, rank, expanded, onToggle }: {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: rank * 0.05 }}
-      className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden hover:border-white/15 transition-colors"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden hover:border-white/15 transition-colors"
     >
       <button onClick={onToggle} className="w-full text-left p-5 flex items-start gap-4">
-        <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+        <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
           {rank}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="text-sm font-bold text-white">{rec.problemTitle}</h4>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6]">{rec.departmentLabel}</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-cortex-accent/20 text-cortex-accent">{rec.departmentLabel}</span>
           </div>
-          <p className="text-xs text-gray-400 mt-1 line-clamp-2">{rec.whyFirst}</p>
+          <p className="text-xs text-cortex-muted mt-1 line-clamp-2">{rec.whyFirst}</p>
           {/* Quick stats row */}
           <div className="flex items-center gap-4 mt-3 text-xs">
             <span className="flex items-center gap-1 text-green-400"><TrendingUp className="size-3" />{rec.roiPercent}% ROI</span>
@@ -843,39 +845,39 @@ function RecommendationCard({ rec, rank, expanded, onToggle }: {
             <span className="flex items-center gap-1 text-purple-400"><Shield className="size-3" />{rec.confidenceScore}% conf</span>
           </div>
         </div>
-        {expanded ? <ChevronUp className="size-5 text-gray-400 flex-shrink-0" /> : <ChevronDown className="size-5 text-gray-400 flex-shrink-0" />}
+        {expanded ? <ChevronUp className="size-5 text-cortex-muted flex-shrink-0" /> : <ChevronDown className="size-5 text-cortex-muted flex-shrink-0" />}
       </button>
 
       {expanded && (
-        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="border-t border-white/5 p-5 space-y-4">
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="border-t border-cortex-subtle p-5 space-y-4">
           {/* Why now / Why first */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-3 bg-white/3 rounded-xl">
+            <div className="p-3 bg-white/3 rounded-cortex-md">
               <div className="text-xs font-bold text-orange-400 mb-1">Why Now</div>
-              <p className="text-xs text-gray-300">{rec.whyNow}</p>
+              <p className="text-xs text-cortex-secondary">{rec.whyNow}</p>
             </div>
-            <div className="p-3 bg-white/3 rounded-xl">
+            <div className="p-3 bg-white/3 rounded-cortex-md">
               <div className="text-xs font-bold text-purple-400 mb-1">Why First</div>
-              <p className="text-xs text-gray-300">{rec.whyFirst}</p>
+              <p className="text-xs text-cortex-secondary">{rec.whyFirst}</p>
             </div>
           </div>
           {/* Financial summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="text-center p-3 bg-white/3 rounded-xl">
+            <div className="text-center p-3 bg-white/3 rounded-cortex-md">
               <div className="text-lg font-bold text-white">{rec.investment}</div>
-              <div className="text-xs text-gray-500">Investment</div>
+              <div className="text-xs text-cortex-muted">Investment</div>
             </div>
-            <div className="text-center p-3 bg-white/3 rounded-xl">
+            <div className="text-center p-3 bg-white/3 rounded-cortex-md">
               <div className="text-lg font-bold text-green-400">{rec.gain12mo}</div>
-              <div className="text-xs text-gray-500">12-Month Gain</div>
+              <div className="text-xs text-cortex-muted">12-Month Gain</div>
             </div>
-            <div className="text-center p-3 bg-white/3 rounded-xl">
+            <div className="text-center p-3 bg-white/3 rounded-cortex-md">
               <div className="text-lg font-bold text-purple-400">{rec.roiPercent}%</div>
-              <div className="text-xs text-gray-500">ROI</div>
+              <div className="text-xs text-cortex-muted">ROI</div>
             </div>
-            <div className="text-center p-3 bg-white/3 rounded-xl">
+            <div className="text-center p-3 bg-white/3 rounded-cortex-md">
               <div className="text-lg font-bold text-cyan-400">{rec.paybackMonths} mo</div>
-              <div className="text-xs text-gray-500">Payback</div>
+              <div className="text-xs text-cortex-muted">Payback</div>
             </div>
           </div>
           {/* Phases */}
@@ -883,15 +885,15 @@ function RecommendationCard({ rec, rank, expanded, onToggle }: {
             <div className="text-xs font-bold text-white mb-2">Execution Phases</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {rec.phases.map((phase, idx) => (
-                <div key={idx} className="flex items-start gap-2 p-2 bg-white/3 rounded-lg">
-                  <div className="size-5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">
+                <div key={idx} className="flex items-start gap-2 p-2 bg-white/3 rounded-cortex-sm">
+                  <div className="size-5 rounded-full bg-cortex-accent/20 text-cortex-accent flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">
                     {idx + 1}
                   </div>
                   <div>
-                    <div className="text-xs text-white font-medium">{phase.title} <span className="text-gray-500">({phase.durationDays}d)</span></div>
+                    <div className="text-xs text-white font-medium">{phase.title} <span className="text-cortex-muted">({phase.durationDays}d)</span></div>
                     <ul className="mt-1 space-y-0.5">
                       {phase.objectives.map((o, oIdx) => (
-                        <li key={oIdx} className="text-xs text-gray-400 flex items-start gap-1">
+                        <li key={oIdx} className="text-xs text-cortex-muted flex items-start gap-1">
                           <CheckCircle2 className="size-3 text-green-400 flex-shrink-0 mt-0.5" /> {o}
                         </li>
                       ))}
@@ -906,12 +908,12 @@ function RecommendationCard({ rec, rank, expanded, onToggle }: {
             <div>
               <div className="text-xs font-bold text-white mb-2">Risks & Mitigations</div>
               {rec.risks.map((risk, rIdx) => (
-                <div key={rIdx} className="flex items-start gap-2 text-xs p-2 bg-white/3 rounded-lg mb-1">
+                <div key={rIdx} className="flex items-start gap-2 text-xs p-2 bg-white/3 rounded-cortex-sm mb-1">
                   <AlertTriangle className={`size-3.5 flex-shrink-0 mt-0.5 ${risk.probability === 'high' ? 'text-red-400' : risk.probability === 'medium' ? 'text-orange-400' : 'text-green-400'}`} />
                   <div>
                     <span className="text-white font-medium">{risk.risk}</span>
-                    <span className="text-gray-500"> &middot; {risk.probability}/{risk.impact}</span>
-                    <div className="text-gray-400 mt-0.5">{risk.mitigation}</div>
+                    <span className="text-cortex-muted"> &middot; {risk.probability}/{risk.impact}</span>
+                    <div className="text-cortex-muted mt-0.5">{risk.mitigation}</div>
                   </div>
                 </div>
               ))}
@@ -930,13 +932,13 @@ function TimelineCard({ rec, index }: { rec: Recommendation; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}
-      className="bg-black/40 border border-white/10 rounded-2xl p-5"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-5"
     >
       <div className="flex items-center gap-3 mb-3">
-        <div className="size-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center text-white text-xs font-bold">{index + 1}</div>
+        <div className="size-8 rounded-cortex-sm bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center text-white text-xs font-bold">{index + 1}</div>
         <div>
           <h4 className="text-sm font-bold text-white">{rec.departmentLabel}</h4>
-          <p className="text-xs text-gray-500">{rec.executionDays} days total</p>
+          <p className="text-xs text-cortex-muted">{rec.executionDays} days total</p>
         </div>
       </div>
       {/* Gantt bars */}
@@ -948,12 +950,12 @@ function TimelineCard({ rec, index }: { rec: Recommendation; index: number }) {
           return (
             <div key={pIdx} className="relative">
               <div className="flex items-center justify-between text-xs mb-0.5">
-                <span className="text-gray-400">{phase.title}</span>
-                <span className="text-gray-600">{phase.durationDays}d</span>
+                <span className="text-cortex-muted">{phase.title}</span>
+                <span className="text-cortex-faint">{phase.durationDays}d</span>
               </div>
-              <div className="h-6 bg-white/5 rounded-lg overflow-hidden relative">
+              <div className="h-6 bg-cortex-control rounded-cortex-sm overflow-hidden relative">
                 <div
-                  className="h-full rounded-lg flex items-center px-2"
+                  className="h-full rounded-cortex-sm flex items-center px-2"
                   style={{
                     marginLeft: `${startPct}%`,
                     width: `${widthPct}%`,
@@ -978,16 +980,16 @@ function NextStepCard({ step, title, description, icon: Icon }: {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: step * 0.1 }}
-      className="bg-black/40 border border-white/10 rounded-2xl p-6 hover:border-[#8B5CF6]/30 transition-colors"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-6 hover:border-cortex-accent/30 transition-colors"
     >
       <div className="flex items-center gap-3 mb-3">
-        <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/10 flex items-center justify-center border border-[#8B5CF6]/20">
-          <Icon className="size-5 text-[#8B5CF6]" />
+        <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/10 flex items-center justify-center border border-cortex-accent/20">
+          <Icon className="size-5 text-cortex-accent" />
         </div>
-        <span className="size-6 rounded-full bg-[#8B5CF6] text-white flex items-center justify-center text-xs font-bold">{step}</span>
+        <span className="size-6 rounded-full bg-cortex-accent text-white flex items-center justify-center text-xs font-bold">{step}</span>
       </div>
       <h4 className="text-sm font-bold text-white mb-1">{title}</h4>
-      <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+      <p className="text-xs text-cortex-muted leading-relaxed">{description}</p>
     </motion.div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Search, DollarSign, Wrench, Zap, Target, CheckCircle2,
   XCircle, Lock, Eye, Heart, AlertTriangle,
 } from 'lucide-react';
+import { brand, status } from '@/app/lib/tokens';
 
 interface LandingPageProps {
   onStartDiagnostic: () => void;
@@ -14,11 +15,14 @@ interface LandingPageProps {
 }
 
 const FONT = { fontFamily: 'Inter' } as const;
-const PURPLE = '#8B5CF6';
-const BLUE = '#3B82F6';
-const CYAN = '#06D7F6';
-const ORANGE = '#FB923C';
-const RED = '#FD4438';
+// The five colours the funnel's entry page used to spell out for itself. Same
+// five, read from the token layer the console already speaks.
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const CYAN   = status.info;
+const ORANGE = status.warning;
+const RED    = status.danger;
+const GREEN  = status.success;
 
 export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLogin }: LandingPageProps) {
   const howItWorksRef = useRef<HTMLDivElement>(null);
@@ -30,21 +34,21 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
   return (
     <div className="min-h-screen bg-black text-white">
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-[#1a1a1a]" role="banner">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-cortex-canvas/80 backdrop-blur-xl border-b border-cortex-default" role="banner">
         <nav className="max-w-7xl mx-auto px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between" aria-label="Main navigation">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] rounded-lg flex items-center justify-center">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-cortex-accent to-cortex-accent-alt rounded-cortex-sm flex items-center justify-center">
               <BarChart3 size={20} className="text-white sm:hidden" />
               <BarChart3 size={24} className="text-white hidden sm:block" />
             </div>
             <span className="text-xl sm:text-2xl font-bold tracking-tight" style={FONT}>
-              MARQ <span className="text-[#8B5CF6]">Cortex</span>
+              MARQ <span className="text-cortex-accent">Cortex</span>
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={onClientLogin}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-[#F5F5FF] hover:text-white transition-colors text-sm"
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-cortex-primary hover:text-white transition-colors text-sm"
               style={FONT}
             >
               <LogIn size={16} />
@@ -52,7 +56,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             </button>
             <button
               onClick={onTeamLogin}
-              className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-lg font-medium hover:opacity-90 transition-opacity text-sm"
+              className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-sm font-medium hover:opacity-90 transition-opacity text-sm"
               style={FONT}
             >
               <Shield size={16} />
@@ -85,8 +89,8 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             transition={{ duration: 0.7 }}
             className="text-center"
           >
-            <div className="inline-block mb-8 px-5 py-2.5 bg-[#1a1a1a] border border-[#8B5CF6]/40 rounded-full">
-              <span className="text-xs sm:text-sm font-semibold text-[#8B5CF6] tracking-wide uppercase" style={FONT}>
+            <div className="inline-block mb-8 px-5 py-2.5 bg-cortex-control border border-cortex-accent/40 rounded-full">
+              <span className="text-xs sm:text-sm font-semibold text-cortex-accent tracking-wide uppercase" style={FONT}>
                 AI Operations Diagnostic
               </span>
             </div>
@@ -95,18 +99,18 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-[1.1] tracking-tight"
               style={FONT}
             >
-              <span className="bg-gradient-to-r from-[#F5F5FF] via-white to-[#F5F5FF] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-primary via-white to-cortex-primary bg-clip-text text-transparent">
                 Your Business Doesn't Need
               </span>
               <br />
-              <span className="bg-gradient-to-r from-[#F5F5FF] via-white to-[#F5F5FF] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-primary via-white to-cortex-primary bg-clip-text text-transparent">
                 More Tools.{' '}
               </span>
-              <span className="bg-gradient-to-r from-[#8B5CF6] to-[#06D7F6] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-accent to-cortex-info bg-clip-text text-transparent">
                 It Needs
               </span>
               <br />
-              <span className="bg-gradient-to-r from-[#8B5CF6] via-[#3B82F6] to-[#06D7F6] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-accent via-cortex-accent-alt to-cortex-info bg-clip-text text-transparent">
                 AI-Driven Operations.
               </span>
             </h1>
@@ -115,7 +119,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="text-lg sm:text-xl md:text-2xl text-[#A0A0B0] mb-4 leading-relaxed max-w-3xl mx-auto"
+              className="text-lg sm:text-xl md:text-2xl text-cortex-muted mb-4 leading-relaxed max-w-3xl mx-auto"
               style={FONT}
             >
               MARQ Cortex installs AI systems that reduce manual work, remove bottlenecks, and scale revenue — without hiring more people.
@@ -125,7 +129,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-sm sm:text-base text-[#70707C] mb-10 sm:mb-12 font-medium"
+              className="text-sm sm:text-base text-cortex-neutral mb-10 sm:mb-12 font-medium"
               style={FONT}
             >
               Built for growth-stage companies between $1M–$50M.
@@ -141,7 +145,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 whileHover={{ scale: 1.04, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={onStartDiagnostic}
-                className="inline-flex items-center gap-3 px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl text-base sm:text-lg font-bold hover:shadow-2xl hover:shadow-[#8B5CF6]/40 transition-all"
+                className="inline-flex items-center gap-3 px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md text-base sm:text-lg font-bold hover:shadow-2xl hover:shadow-cortex-accent/40 transition-all"
                 style={FONT}
               >
                 Get Your AI Readiness Score
@@ -152,7 +156,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={scrollToHowItWorks}
-                className="inline-flex items-center gap-2 px-6 py-4 text-[#A0A0B0] hover:text-white transition-colors text-base font-medium"
+                className="inline-flex items-center gap-2 px-6 py-4 text-cortex-muted hover:text-white transition-colors text-base font-medium"
                 style={FONT}
               >
                 See How It Works
@@ -164,7 +168,19 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.2 AUTHORITY STRIP ───────────────────────────────────────── */}
-      <section className="py-10 sm:py-14 px-4 sm:px-8 border-y border-[#1a1a1a] bg-[#050508]">
+      {/* `overflow-x-clip` on every band, and on the seven below it.
+          Several sections enter with `initial={{ x: -20 }}`, which places the
+          element 20px outside the viewport until its `whileInView` fires. With
+          nothing clipping that, the DOCUMENT grew horizontally: at 390px the
+          page scrolled 394px wide, so a phone could swipe the whole layout
+          sideways off its own left edge. The hero and the closing CTA already
+          clipped; these did not.
+
+          `overflow-x-clip` rather than `overflow-x-hidden` because `hidden`
+          creates a scroll container, which would break `position: sticky`
+          inside these bands and steal the scroll anchoring. `clip` cuts the
+          overflow without either side effect. */}
+      <section className="py-10 sm:py-14 px-4 sm:px-8 border-y border-cortex-default bg-cortex-canvas overflow-x-clip">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-8">
             {[
@@ -182,20 +198,20 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 className="text-center"
               >
                 <div className="w-1 h-8 mx-auto mb-3 rounded-full" style={{ backgroundColor: item.color }} />
-                <p className="text-sm sm:text-base font-semibold text-[#F5F5FF]" style={FONT}>
+                <p className="text-sm sm:text-base font-semibold text-cortex-primary" style={FONT}>
                   {item.label}
                 </p>
               </motion.div>
             ))}
           </div>
-          <p className="text-center text-sm sm:text-base text-[#70707C] font-medium" style={FONT}>
+          <p className="text-center text-sm sm:text-base text-cortex-neutral font-medium" style={FONT}>
             Built for operators who care about structure, not hype.
           </p>
         </div>
       </section>
 
       {/* ── 1.3 PROBLEM SECTION ───────────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -205,9 +221,9 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
           >
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 tracking-tight" style={FONT}>
               Growth Shouldn't Feel This{' '}
-              <span className="bg-gradient-to-r from-[#FD4438] to-[#FB923C] bg-clip-text text-transparent">Messy.</span>
+              <span className="bg-gradient-to-r from-cortex-danger to-cortex-warning bg-clip-text text-transparent">Messy.</span>
             </h2>
-            <p className="text-lg sm:text-xl text-[#A0A0B0]" style={FONT}>
+            <p className="text-lg sm:text-xl text-cortex-muted" style={FONT}>
               Revenue is growing. But internally, things are slowing down.
             </p>
           </motion.div>
@@ -226,10 +242,10 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                className="flex items-center gap-4 py-3 px-5 bg-[#FD4438]/5 border border-[#FD4438]/15 rounded-xl"
+                className="flex items-center gap-4 py-3 px-5 bg-cortex-danger/5 border border-cortex-danger/15 rounded-cortex-md"
               >
-                <AlertTriangle size={18} className="text-[#FD4438] flex-shrink-0" />
-                <p className="text-base sm:text-lg text-[#E0E0EA]" style={FONT}>{line}</p>
+                <AlertTriangle size={18} className="text-cortex-danger flex-shrink-0" />
+                <p className="text-base sm:text-lg text-cortex-secondary" style={FONT}>{line}</p>
               </motion.div>
             ))}
           </div>
@@ -240,10 +256,10 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             viewport={{ once: true }}
             className="mt-12 text-center"
           >
-            <p className="text-lg sm:text-xl text-[#70707C] mb-2" style={FONT}>
+            <p className="text-lg sm:text-xl text-cortex-neutral mb-2" style={FONT}>
               Hiring hasn't solved the problem.
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-[#FB923C]" style={FONT}>
+            <p className="text-xl sm:text-2xl font-bold text-cortex-warning" style={FONT}>
               It's just made the chaos more expensive.
             </p>
           </motion.div>
@@ -251,7 +267,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.4 OPERATIONAL SYMPTOMS GRID ─────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-cortex-canvas overflow-x-clip">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {[
@@ -298,17 +314,17 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                className="p-7 bg-gradient-to-br from-[#111115] to-[#0A0A0E] border border-[#1E1E24] rounded-2xl hover:border-opacity-60 transition-all group"
+                className="p-7 bg-gradient-to-br from-cortex-overlay to-cortex-canvas border border-cortex-default rounded-cortex-lg hover:border-opacity-60 transition-all group"
                 style={{ borderColor: `${card.color}30` }}
               >
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform"
+                  className="w-12 h-12 rounded-cortex-md flex items-center justify-center mb-5 group-hover:scale-110 transition-transform"
                   style={{ background: `linear-gradient(135deg, ${card.color}20, ${card.color}08)` }}
                 >
                   <span style={{ color: card.color }}>{card.icon}</span>
                 </div>
-                <h3 className="text-lg font-bold mb-2 text-[#F5F5FF]" style={FONT}>{card.title}</h3>
-                <p className="text-[#70707C] leading-relaxed text-sm sm:text-base" style={FONT}>{card.desc}</p>
+                <h3 className="text-lg font-bold mb-2 text-cortex-primary" style={FONT}>{card.title}</h3>
+                <p className="text-cortex-neutral leading-relaxed text-sm sm:text-base" style={FONT}>{card.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -317,7 +333,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center mt-10 text-base sm:text-lg font-semibold text-[#FB923C]"
+            className="text-center mt-10 text-base sm:text-lg font-semibold text-cortex-warning"
             style={FONT}
           >
             Hidden cost: time, payroll, opportunity.
@@ -326,7 +342,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.5 POSITIONING SECTION ───────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -337,7 +353,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 tracking-tight" style={FONT}>
               We Don't Sell AI Tools.{' '}
               <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-[#8B5CF6] to-[#06D7F6] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-accent to-cortex-info bg-clip-text text-transparent">
                 We Install AI Infrastructure.
               </span>
             </h2>
@@ -357,15 +373,15 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 'We are not a generic dev firm.',
               ].map((line, i) => (
                 <div key={i} className="flex items-center gap-3 py-2">
-                  <XCircle size={18} className="text-[#FD4438] flex-shrink-0" />
-                  <p className="text-base sm:text-lg text-[#A0A0B0]" style={FONT}>{line}</p>
+                  <XCircle size={18} className="text-cortex-danger flex-shrink-0" />
+                  <p className="text-base sm:text-lg text-cortex-muted" style={FONT}>{line}</p>
                 </div>
               ))}
 
               <div className="pt-4">
                 <p className="text-xl sm:text-2xl font-bold text-white" style={FONT}>
                   MARQ Cortex is an{' '}
-                  <span className="bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-cortex-accent to-cortex-accent-alt bg-clip-text text-transparent">
                     AI Operations partner.
                   </span>
                 </p>
@@ -378,8 +394,8 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   'We measure time saved and cost reduced.',
                 ].map((line, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <CheckCircle2 size={18} className="text-[#10B981] flex-shrink-0" />
-                    <p className="text-base sm:text-lg text-[#E0E0EA]" style={FONT}>{line}</p>
+                    <CheckCircle2 size={18} className="text-cortex-success flex-shrink-0" />
+                    <p className="text-base sm:text-lg text-cortex-secondary" style={FONT}>{line}</p>
                   </div>
                 ))}
               </div>
@@ -390,9 +406,9 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="p-8 bg-gradient-to-br from-[#111115] to-[#0A0A0E] border border-[#8B5CF6]/20 rounded-2xl"
+              className="p-8 bg-gradient-to-br from-cortex-overlay to-cortex-canvas border border-cortex-accent/20 rounded-cortex-lg"
             >
-              <p className="text-xs font-bold uppercase tracking-widest text-[#8B5CF6] mb-6" style={FONT}>
+              <p className="text-xs font-bold uppercase tracking-widest text-cortex-accent mb-6" style={FONT}>
                 Our Method
               </p>
               <div className="space-y-5">
@@ -401,26 +417,26 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   { step: 'Transform', icon: <Wrench size={20} />, color: BLUE },
                   { step: 'Build', icon: <Layers size={20} />, color: CYAN },
                   { step: 'Automate', icon: <Zap size={20} />, color: ORANGE },
-                  { step: 'Optimize', icon: <Target size={20} />, color: '#10B981' },
+                  { step: 'Optimize', icon: <Target size={20} />, color: GREEN },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-4">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                      className="w-10 h-10 rounded-cortex-sm flex items-center justify-center flex-shrink-0"
                       style={{ background: `${item.color}18` }}
                     >
                       <span style={{ color: item.color }}>{item.icon}</span>
                     </div>
                     <div className="flex-1 flex items-center gap-3">
-                      <span className="text-base font-bold text-[#F5F5FF]" style={FONT}>{item.step}</span>
-                      {i < 4 && <ArrowRight size={14} className="text-[#70707C]" />}
+                      <span className="text-base font-bold text-cortex-primary" style={FONT}>{item.step}</span>
+                      {i < 4 && <ArrowRight size={14} className="text-cortex-neutral" />}
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-8 pt-6 border-t border-[#242424] space-y-1">
-                <p className="text-sm text-[#70707C]" style={FONT}>No experiments.</p>
-                <p className="text-sm text-[#70707C]" style={FONT}>No random deliverables.</p>
-                <p className="text-sm font-semibold text-[#F5F5FF]" style={FONT}>Structured transformation.</p>
+              <div className="mt-8 pt-6 border-t border-cortex-default space-y-1">
+                <p className="text-sm text-cortex-neutral" style={FONT}>No experiments.</p>
+                <p className="text-sm text-cortex-neutral" style={FONT}>No random deliverables.</p>
+                <p className="text-sm font-semibold text-cortex-primary" style={FONT}>Structured transformation.</p>
               </div>
             </motion.div>
           </div>
@@ -428,7 +444,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.6 DIAGNOSTIC INTRODUCTION ───────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-cortex-canvas overflow-x-clip">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -437,11 +453,11 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
           >
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight" style={FONT}>
               Before Installing AI,{' '}
-              <span className="bg-gradient-to-r from-[#06D7F6] to-[#3B82F6] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-info to-cortex-accent-alt bg-clip-text text-transparent">
                 We Diagnose.
               </span>
             </h2>
-            <p className="text-lg sm:text-xl text-[#A0A0B0] mb-12 max-w-2xl mx-auto" style={FONT}>
+            <p className="text-lg sm:text-xl text-cortex-muted mb-12 max-w-2xl mx-auto" style={FONT}>
               The AI Operations Diagnostic identifies:
             </p>
           </motion.div>
@@ -460,10 +476,10 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                className={`flex items-center gap-4 py-4 px-5 bg-[#06D7F6]/5 border border-[#06D7F6]/15 rounded-xl ${i === 4 ? 'sm:col-span-2 sm:max-w-sm sm:mx-auto' : ''}`}
+                className={`flex items-center gap-4 py-4 px-5 bg-cortex-info/5 border border-cortex-info/15 rounded-cortex-md ${i === 4 ? 'sm:col-span-2 sm:max-w-sm sm:mx-auto' : ''}`}
               >
-                <span className="text-[#06D7F6] flex-shrink-0">{item.icon}</span>
-                <p className="text-sm sm:text-base text-[#E0E0EA]" style={FONT}>{item.text}</p>
+                <span className="text-cortex-info flex-shrink-0">{item.icon}</span>
+                <p className="text-sm sm:text-base text-cortex-secondary" style={FONT}>{item.text}</p>
               </motion.div>
             ))}
           </div>
@@ -473,10 +489,10 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
           >
-            <p className="text-base sm:text-lg text-[#70707C] mb-2" style={FONT}>
+            <p className="text-base sm:text-lg text-cortex-neutral mb-2" style={FONT}>
               This isn't a quiz.
             </p>
-            <p className="text-xl sm:text-2xl font-bold text-[#06D7F6]" style={FONT}>
+            <p className="text-xl sm:text-2xl font-bold text-cortex-info" style={FONT}>
               It's an operational X-ray.
             </p>
           </motion.div>
@@ -484,7 +500,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.7 HOW IT WORKS ──────────────────────────────────────────── */}
-      <section ref={howItWorksRef} className="py-20 sm:py-28 px-4 sm:px-8">
+      <section ref={howItWorksRef} className="py-20 sm:py-28 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -526,7 +542,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                 className="flex gap-6 sm:gap-8 items-start"
               >
                 <div
-                  className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl font-extrabold"
+                  className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-cortex-lg flex items-center justify-center text-2xl sm:text-3xl font-extrabold"
                   style={{
                     ...FONT,
                     background: `linear-gradient(135deg, ${item.color}20, ${item.color}05)`,
@@ -537,10 +553,10 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   {item.step}
                 </div>
                 <div className="flex-1 pt-2 sm:pt-4">
-                  <h3 className="text-xl sm:text-2xl font-bold mb-2 text-[#F5F5FF]" style={FONT}>
+                  <h3 className="text-xl sm:text-2xl font-bold mb-2 text-cortex-primary" style={FONT}>
                     {item.title}
                   </h3>
-                  <p className="text-[#70707C] text-base sm:text-lg leading-relaxed" style={FONT}>
+                  <p className="text-cortex-neutral text-base sm:text-lg leading-relaxed" style={FONT}>
                     {item.desc}
                   </p>
                 </div>
@@ -552,12 +568,12 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="mt-12 p-6 bg-[#111115] border border-[#242424] rounded-2xl text-center"
+            className="mt-12 p-6 bg-cortex-overlay border border-cortex-default rounded-cortex-lg text-center"
           >
-            <p className="text-base sm:text-lg text-[#A0A0B0] mb-1" style={FONT}>
+            <p className="text-base sm:text-lg text-cortex-muted mb-1" style={FONT}>
               If there's a fit, you'll be invited to book a readiness call.
             </p>
-            <p className="text-sm text-[#70707C]" style={FONT}>
+            <p className="text-sm text-cortex-neutral" style={FONT}>
               No pressure. No generic pitch.
             </p>
           </motion.div>
@@ -565,7 +581,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.8 WHO THIS IS FOR ───────────────────────────────────────── */}
-      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-[#050508]">
+      <section className="py-20 sm:py-28 px-4 sm:px-8 bg-cortex-canvas overflow-x-clip">
         <div className="max-w-5xl mx-auto">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -583,13 +599,13 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="p-8 bg-gradient-to-br from-[#10B981]/5 to-transparent border border-[#10B981]/20 rounded-2xl"
+              className="p-8 bg-gradient-to-br from-cortex-success/5 to-transparent border border-cortex-success/20 rounded-cortex-lg"
             >
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-[#10B981]/15 flex items-center justify-center">
-                  <CheckCircle2 size={22} className="text-[#10B981]" />
+                <div className="w-10 h-10 rounded-cortex-sm bg-cortex-success/15 flex items-center justify-center">
+                  <CheckCircle2 size={22} className="text-cortex-success" />
                 </div>
-                <h3 className="text-xl font-bold text-[#10B981]" style={FONT}>Built For</h3>
+                <h3 className="text-xl font-bold text-cortex-success" style={FONT}>Built For</h3>
               </div>
               <div className="space-y-4">
                 {[
@@ -599,8 +615,8 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   'Teams of 8–50 employees',
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <CheckCircle2 size={16} className="text-[#10B981] mt-1 flex-shrink-0" />
-                    <p className="text-base text-[#E0E0EA]" style={FONT}>{item}</p>
+                    <CheckCircle2 size={16} className="text-cortex-success mt-1 flex-shrink-0" />
+                    <p className="text-base text-cortex-secondary" style={FONT}>{item}</p>
                   </div>
                 ))}
               </div>
@@ -612,13 +628,13 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="p-8 bg-gradient-to-br from-[#FD4438]/5 to-transparent border border-[#FD4438]/20 rounded-2xl"
+              className="p-8 bg-gradient-to-br from-cortex-danger/5 to-transparent border border-cortex-danger/20 rounded-cortex-lg"
             >
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-[#FD4438]/15 flex items-center justify-center">
-                  <XCircle size={22} className="text-[#FD4438]" />
+                <div className="w-10 h-10 rounded-cortex-sm bg-cortex-danger/15 flex items-center justify-center">
+                  <XCircle size={22} className="text-cortex-danger" />
                 </div>
-                <h3 className="text-xl font-bold text-[#FD4438]" style={FONT}>Not Built For</h3>
+                <h3 className="text-xl font-bold text-cortex-danger" style={FONT}>Not Built For</h3>
               </div>
               <div className="space-y-4">
                 {[
@@ -627,8 +643,8 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   'Very early-stage startups',
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <XCircle size={16} className="text-[#FD4438] mt-1 flex-shrink-0" />
-                    <p className="text-base text-[#A0A0B0]" style={FONT}>{item}</p>
+                    <XCircle size={16} className="text-cortex-danger mt-1 flex-shrink-0" />
+                    <p className="text-base text-cortex-muted" style={FONT}>{item}</p>
                   </div>
                 ))}
               </div>
@@ -639,7 +655,7 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center mt-10 text-base sm:text-lg font-medium text-[#70707C]"
+            className="text-center mt-10 text-base sm:text-lg font-medium text-cortex-neutral"
             style={FONT}
           >
             We work best where structure matters.
@@ -648,14 +664,14 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </section>
 
       {/* ── 1.9 COMPLIANCE & TRUST ────────────────────────────────────── */}
-      <section className="py-16 sm:py-20 px-4 sm:px-8">
+      <section className="py-16 sm:py-20 px-4 sm:px-8 overflow-x-clip">
         <div className="max-w-4xl mx-auto">
-          <div className="p-8 sm:p-10 bg-gradient-to-br from-[#111115] to-[#0A0A0E] border border-[#242424] rounded-2xl">
+          <div className="p-8 sm:p-10 bg-gradient-to-br from-cortex-overlay to-cortex-canvas border border-cortex-default rounded-cortex-lg">
             <div className="flex items-center gap-3 mb-8">
-              <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/15 flex items-center justify-center">
-                <Lock size={22} className="text-[#3B82F6]" />
+              <div className="w-10 h-10 rounded-cortex-sm bg-cortex-accent-alt/15 flex items-center justify-center">
+                <Lock size={22} className="text-cortex-accent-alt" />
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-[#F5F5FF]" style={FONT}>
+              <h3 className="text-xl sm:text-2xl font-bold text-cortex-primary" style={FONT}>
                 Compliance & Trust
               </h3>
             </div>
@@ -673,15 +689,15 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.08 }}
-                  className="flex items-center gap-3 py-3 px-4 bg-[#3B82F6]/5 border border-[#3B82F6]/15 rounded-xl"
+                  className="flex items-center gap-3 py-3 px-4 bg-cortex-accent-alt/5 border border-cortex-accent-alt/15 rounded-cortex-md"
                 >
-                  <span className="text-[#3B82F6] flex-shrink-0">{item.icon}</span>
-                  <p className="text-sm sm:text-base text-[#E0E0EA]" style={FONT}>{item.text}</p>
+                  <span className="text-cortex-accent-alt flex-shrink-0">{item.icon}</span>
+                  <p className="text-sm sm:text-base text-cortex-secondary" style={FONT}>{item.text}</p>
                 </motion.div>
               ))}
             </div>
 
-            <p className="text-sm sm:text-base text-[#70707C] font-medium" style={FONT}>
+            <p className="text-sm sm:text-base text-cortex-neutral font-medium" style={FONT}>
               AI should increase control, not introduce risk.
             </p>
           </div>
@@ -704,21 +720,21 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight leading-tight" style={FONT}>
               Your Operations Are Already{' '}
               <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-[#FB923C] to-[#FD4438] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cortex-warning to-cortex-danger bg-clip-text text-transparent">
                 Costing More Than You Think.
               </span>
             </h2>
 
             <div className="max-w-2xl mx-auto space-y-3 mb-8">
-              <p className="text-lg sm:text-xl text-[#A0A0B0]" style={FONT}>
+              <p className="text-lg sm:text-xl text-cortex-muted" style={FONT}>
                 The longer manual systems remain,
               </p>
-              <p className="text-lg sm:text-xl text-[#A0A0B0]" style={FONT}>
+              <p className="text-lg sm:text-xl text-cortex-muted" style={FONT}>
                 the more expensive growth becomes.
               </p>
             </div>
 
-            <p className="text-base sm:text-lg text-[#70707C] mb-2" style={FONT}>
+            <p className="text-base sm:text-lg text-cortex-neutral mb-2" style={FONT}>
               Stop adding people to broken workflows.
             </p>
             <p className="text-lg sm:text-xl font-bold text-white mb-12" style={FONT}>
@@ -729,14 +745,14 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
               whileHover={{ scale: 1.04, y: -3 }}
               whileTap={{ scale: 0.97 }}
               onClick={onStartDiagnostic}
-              className="inline-flex items-center gap-3 px-10 sm:px-12 py-5 sm:py-6 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl text-lg sm:text-xl font-bold hover:shadow-2xl hover:shadow-[#8B5CF6]/50 transition-all"
+              className="inline-flex items-center gap-3 px-10 sm:px-12 py-5 sm:py-6 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md text-lg sm:text-xl font-bold hover:shadow-2xl hover:shadow-cortex-accent/50 transition-all"
               style={FONT}
             >
               Get Your AI Readiness Score
               <ArrowRight size={24} />
             </motion.button>
 
-            <p className="mt-5 text-sm text-[#70707C]" style={FONT}>
+            <p className="mt-5 text-sm text-cortex-neutral" style={FONT}>
               Executive-level diagnostic. Built for serious operators.
             </p>
           </motion.div>
@@ -745,8 +761,8 @@ export default function LandingPage({ onStartDiagnostic, onTeamLogin, onClientLo
       </main>
 
       {/* ── FOOTER ─────────────────────────────────────────────────────── */}
-      <footer className="py-10 sm:py-12 px-4 sm:px-8 border-t border-[#1a1a1a]" role="contentinfo">
-        <div className="max-w-7xl mx-auto text-center text-[#70707C]" style={FONT}>
+      <footer className="py-10 sm:py-12 px-4 sm:px-8 border-t border-cortex-default" role="contentinfo">
+        <div className="max-w-7xl mx-auto text-center text-cortex-neutral" style={FONT}>
           <p>&copy; 2026 MARQ Cortex. All rights reserved.</p>
         </div>
       </footer>

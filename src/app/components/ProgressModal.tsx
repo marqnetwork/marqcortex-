@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Zap, Check, Clock, FileText, Target } from 'lucide-react';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 interface ProgressModalProps {
   isOpen: boolean;
@@ -37,6 +38,16 @@ export default function ProgressModal({ isOpen, onClose, milestone, darkMode = f
   const totalQuestions = 14;
   const progressPercent = milestone;
 
+  // This appears MID-DIAGNOSTIC, over a form the user is part-way through, and
+  // it appeared with no dialog role, no focus management and no Escape. Somebody
+  // filling in question seven was interrupted by something they could Tab
+  // straight past, back into the form underneath the overlay.
+  const { dialogProps } = useDialogBehavior({
+    open: isOpen,
+    onClose,
+    label: `You are ${milestone}% through the diagnostic`,
+  });
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -53,15 +64,17 @@ export default function ProgressModal({ isOpen, onClose, milestone, darkMode = f
               backdropFilter: 'blur(12px)',
             }}
             onClick={onClose}
+            aria-hidden="true"
           />
 
           {/* Modal Card */}
           <motion.div
+            {...dialogProps}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
-            className={`relative w-[640px] h-[520px] rounded-[24px] ${
+            className={`relative w-[640px] h-[520px] rounded-[24px] outline-none ${
               darkMode ? 'bg-[#161B26]' : 'bg-white'
             }`}
             style={{
@@ -102,13 +115,14 @@ export default function ProgressModal({ isOpen, onClose, milestone, darkMode = f
             {/* Close Button */}
             <button
               onClick={onClose}
+              aria-label="Close and keep going"
               className={`absolute top-5 right-5 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
                 darkMode
                   ? 'text-[#9AA4BF] hover:bg-[#1F2937]'
                   : 'text-[#9AA4BF] hover:bg-[#F5F5F5]'
               }`}
             >
-              <X size={20} />
+              <X size={20} aria-hidden="true" />
             </button>
 
             {/* Content Container */}

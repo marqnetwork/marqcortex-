@@ -16,6 +16,8 @@
  */
 
 import type { ProposalSnapshot, SnapshotContent } from './snapshotEngine';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -194,7 +196,7 @@ function buildExecutiveBriefSection(c: SnapshotContent): ExportSection {
 // §3 Diagnosis Summary
 function buildDiagnosisSection(c: SnapshotContent): ExportSection {
   const sev: Record<string, string> = {
-    critical: '#FD4438', high: '#FB923C', medium: '#F59E0B', low: '#6B7280',
+    critical: STATUS.danger, high: STATUS.warning, medium: STATUS.caution, low: STATUS.neutral,
   };
   const content: ExportSectionContent[] = [
     { type: 'paragraph', text: `${c.diagnosis_blocks.length} confirmed bottlenecks identified across the organisation.` },
@@ -202,7 +204,7 @@ function buildDiagnosisSection(c: SnapshotContent): ExportSection {
   ];
   for (const dx of c.diagnosis_blocks) {
     content.push({ type: 'heading',   text: `${dx.title}` });
-    content.push({ type: 'tag_row',   tags: [{ label: dx.severity.toUpperCase(), color: sev[dx.severity] ?? '#6B7280' }, { label: `Confidence ${dx.confidence}%`, color: '#06D7F6' }] });
+    content.push({ type: 'tag_row',   tags: [{ label: dx.severity.toUpperCase(), color: sev[dx.severity] ?? STATUS.neutral }, { label: `Confidence ${dx.confidence}%`, color: STATUS.info }] });
     content.push({ type: 'paragraph', text: dx.description });
     for (const op of dx.operational_impact) {
       content.push({ type: 'bullet', text: op });
@@ -245,7 +247,7 @@ function buildTimelineSection(c: SnapshotContent): ExportSection {
       if (p.duration) content.push({ type: 'kv_row', label: 'Duration',    value: p.duration });
       if (p.owner)    content.push({ type: 'kv_row', label: 'Owner',       value: p.owner });
       if (p.outcomes) content.push({ type: 'kv_row', label: 'Outcomes',    value: Array.isArray(p.outcomes) ? p.outcomes.join(', ') : p.outcomes });
-      if (p.governance_checkpoint) content.push({ type: 'kv_row', label: 'Governance Checkpoint', value: p.governance_checkpoint, accent: '#F59E0B' });
+      if (p.governance_checkpoint) content.push({ type: 'kv_row', label: 'Governance Checkpoint', value: p.governance_checkpoint, accent: STATUS.caution });
       content.push({ type: 'divider' });
     }
   }
@@ -267,10 +269,10 @@ function buildFinancialSection(c: SnapshotContent): ExportSection {
 
     content.push({
       type: 'metric_row', metrics: [
-        { label: 'Total Investment', value: fmtCurrency(inv),           accent: '#8B5CF6' },
-        { label: 'Payback Period',   value: payback ? `${payback} mo`  : 'N/A', accent: '#06D7F6' },
-        { label: 'ROI (12-month)',   value: roi     ? `${fmt(roi)}%`   : 'N/A', accent: '#10B981' },
-        { label: 'Net Present Value',value: fmtCurrency(npv),           accent: '#F59E0B' },
+        { label: 'Total Investment', value: fmtCurrency(inv),           accent: brand.accent },
+        { label: 'Payback Period',   value: payback ? `${payback} mo`  : 'N/A', accent: STATUS.info },
+        { label: 'ROI (12-month)',   value: roi     ? `${fmt(roi)}%`   : 'N/A', accent: STATUS.success },
+        { label: 'Net Present Value',value: fmtCurrency(npv),           accent: STATUS.caution },
       ],
     });
     content.push({ type: 'divider' });
@@ -313,9 +315,9 @@ function buildNextStepsSection(c: SnapshotContent, snap: ProposalSnapshot): Expo
     id: 'next_steps', order: 8, title: 'Next Steps', subtitle: 'Acceptance process · signature block',
     content: [
       { type: 'heading',   text: ns?.offer_name ?? 'Engagement Offer' },
-      { type: 'kv_row',    label: 'Investment',  value: price,             accent: '#10B981' },
+      { type: 'kv_row',    label: 'Investment',  value: price,             accent: STATUS.success },
       { type: 'kv_row',    label: 'Duration',    value: ns?.duration ?? 'N/A' },
-      { type: 'kv_row',    label: 'Primary CTA', value: ns?.primary_cta   ?? 'N/A', accent: '#06D7F6' },
+      { type: 'kv_row',    label: 'Primary CTA', value: ns?.primary_cta   ?? 'N/A', accent: STATUS.info },
       { type: 'kv_row',    label: 'Secondary CTA', value: ns?.secondary_cta ?? 'N/A' },
       { type: 'divider' },
       { type: 'heading',   text: 'Acceptance' },

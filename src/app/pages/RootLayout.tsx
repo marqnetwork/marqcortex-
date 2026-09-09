@@ -9,6 +9,8 @@ import { Outlet, useNavigation } from 'react-router';
 import { AppProvider } from '@/app/contexts/AppContext';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { OfflineBanner } from '@/app/components/OfflineBanner';
+import {status as STATUS, surface as SURFACE, brand } from '@/app/lib/tokens';
+
 
 function NavigationAwareOutlet() {
   const navigation = useNavigation();
@@ -20,13 +22,13 @@ function NavigationAwareOutlet() {
       <div
         style={{
           minHeight: '100vh',
-          background: '#0A0A0F',
+          background: SURFACE.canvas,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '12px',
           fontFamily: 'Inter, -apple-system, sans-serif',
-          color: '#6B7280',
+          color: STATUS.neutral,
           fontSize: '14px',
         }}
       >
@@ -35,7 +37,7 @@ function NavigationAwareOutlet() {
             width: '20px',
             height: '20px',
             border: '2px solid rgba(139,92,246,0.2)',
-            borderTop: '2px solid #8B5CF6',
+            borderTop: `2px solid ${brand.accent}`,
             borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
           }}

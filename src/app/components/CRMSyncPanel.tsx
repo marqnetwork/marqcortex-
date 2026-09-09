@@ -27,6 +27,13 @@ import {
   STAGE_CFG,
   CRM_ACTIVITY_LABELS,
 } from '@/app/core/crmEngine';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -82,8 +89,8 @@ function PipelineStrip({ stage }: { stage: CRMStage }) {
                   style={{
                     width:      isCurrent ? 22 : 14,
                     height:     isCurrent ? 22 : 14,
-                    background: isCurrent ? cfg.color : isPast ? '#10B981' : isNext ? '#ffffff10' : '#ffffff06',
-                    border:     isCurrent ? `2px solid ${cfg.color}` : isPast ? '2px solid #10B981' : '1px solid #ffffff12',
+                    background: isCurrent ? cfg.color : isPast ? STATUS.success : isNext ? `${TEXT.primary}10` : `${TEXT.primary}06`,
+                    border:     isCurrent ? `2px solid ${cfg.color}` : isPast ? `2px solid ${STATUS.success}` : `1px solid ${TEXT.primary}12`,
                     boxShadow:  isCurrent ? `0 0 8px ${cfg.color}50` : undefined,
                   }}
                 >
@@ -93,7 +100,7 @@ function PipelineStrip({ stage }: { stage: CRMStage }) {
                 <span
                   className="text-[7px] font-bold uppercase tracking-wide text-center"
                   style={{
-                    color:    isCurrent ? cfg.color : isPast ? '#6EE7B7' : '#374151',
+                    color:    isCurrent ? cfg.color : isPast ? STATUS.successLight : BORDER.strong,
                     minWidth: 44,
                     maxWidth: 52,
                     lineHeight: 1.2,
@@ -105,7 +112,7 @@ function PipelineStrip({ stage }: { stage: CRMStage }) {
               {i < mainTrack.length - 1 && (
                 <div
                   className="h-px flex-1 mx-0.5 min-w-[10px]"
-                  style={{ background: (isPast && !isLost) ? '#10B981' : '#ffffff08' }}
+                  style={{ background: (isPast && !isLost) ? STATUS.success : `${TEXT.primary}08` }}
                 />
               )}
             </span>
@@ -116,11 +123,11 @@ function PipelineStrip({ stage }: { stage: CRMStage }) {
       {/* Closed Lost branch */}
       {isLost && (
         <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-          style={{ borderColor: '#FD443820', background: '#FD443808' }}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-cortex-sm border"
+          style={{ borderColor: `${STATUS.danger}20`, background: `${STATUS.danger}08` }}
         >
-          <X className="size-3 text-[#FD4438] flex-shrink-0" />
-          <span className="text-[9px] font-bold text-[#FD4438]">CLOSED LOST — Pipeline exited</span>
+          <X className="size-3 text-cortex-danger flex-shrink-0" />
+          <span className="text-[9px] font-bold text-cortex-danger">CLOSED LOST — Pipeline exited</span>
         </div>
       )}
     </div>
@@ -136,15 +143,15 @@ function DealCard({ deal, draft }: { deal: CRMDeal; draft: ProposalDraft }) {
 
   return (
     <div
-      className="flex items-start gap-4 px-4 py-4 rounded-xl border"
+      className="flex items-start gap-4 px-4 py-4 rounded-cortex-md border"
       style={{ borderColor: `${cfg.color}20`, background: `${cfg.color}06` }}
     >
       {/* Left — deal meta */}
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-black text-white">{deal.deal_id}</span>
-          <span className="text-[9px] text-gray-500">·</span>
-          <span className="text-[11px] font-semibold text-gray-300">{draft.client.company_name}</span>
+          <span className="text-[9px] text-cortex-muted">·</span>
+          <span className="text-[11px] font-semibold text-cortex-secondary">{draft.client.company_name}</span>
           <span
             className="text-[9px] px-2 py-0.5 rounded-full font-bold border"
             style={{ color: cfg.color, borderColor: `${cfg.color}30`, background: `${cfg.color}12` }}
@@ -152,7 +159,7 @@ function DealCard({ deal, draft }: { deal: CRMDeal; draft: ProposalDraft }) {
             {cfg.label}
           </span>
         </div>
-        <div className="flex items-center gap-4 flex-wrap text-[9px] text-gray-600">
+        <div className="flex items-center gap-4 flex-wrap text-[9px] text-cortex-faint">
           <span className="flex items-center gap-1">
             <User className="size-2.5" />{deal.owner_user_id}
           </span>
@@ -168,7 +175,7 @@ function DealCard({ deal, draft }: { deal: CRMDeal; draft: ProposalDraft }) {
           </span>
           {deal.contract_id && (
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="size-2.5 text-[#10B981]" />
+              <CheckCircle2 className="size-2.5 text-cortex-success" />
               Contract: {deal.contract_id}
             </span>
           )}
@@ -183,7 +190,7 @@ function DealCard({ deal, draft }: { deal: CRMDeal; draft: ProposalDraft }) {
         >
           {Math.round(deal.close_probability * 100)}%
         </div>
-        <div className="text-[8px] text-gray-700 uppercase tracking-wide">close</div>
+        <div className="text-[8px] text-cortex-faint uppercase tracking-wide">close</div>
       </div>
     </div>
   );
@@ -194,22 +201,22 @@ function DealCard({ deal, draft }: { deal: CRMDeal; draft: ProposalDraft }) {
 // ════════════════════════════════════════════════════════════════════════════════
 
 const ACTIVITY_COLORS: Record<string, string> = {
-  deal_created:          '#8B5CF6',
-  diagnostic_started:    '#8B5CF6',
-  diagnostic_completed:  '#A78BFA',
-  proposal_created:      '#06D7F6',
-  proposal_ready_to_send:'#06D7F6',
-  proposal_sent:         '#3B82F6',
-  proposal_viewed:       '#10B981',
-  objection_detected:    '#FB923C',
-  proposal_approved:     '#F59E0B',
-  proposal_rejected:     '#FD4438',
-  contract_generated:    '#F59E0B',
-  contract_sent:         '#F59E0B',
-  contract_signed:       '#10B981',
-  onboarding_started:    '#10B981',
-  implementation_started:'#10B981',
-  project_completed:     '#10B981',
+  deal_created:          brand.accent,
+  diagnostic_started:    brand.accent,
+  diagnostic_completed:  brand.accentLight,
+  proposal_created:      STATUS.info,
+  proposal_ready_to_send:STATUS.info,
+  proposal_sent:         brand.accentAlt,
+  proposal_viewed:       STATUS.success,
+  objection_detected:    STATUS.warning,
+  proposal_approved:     STATUS.caution,
+  proposal_rejected:     STATUS.danger,
+  contract_generated:    STATUS.caution,
+  contract_sent:         STATUS.caution,
+  contract_signed:       STATUS.success,
+  onboarding_started:    STATUS.success,
+  implementation_started:STATUS.success,
+  project_completed:     STATUS.success,
 };
 
 function ActivityTimeline({ deal }: { deal: CRMDeal }) {
@@ -220,7 +227,7 @@ function ActivityTimeline({ deal }: { deal: CRMDeal }) {
   return (
     <div className="space-y-1.5">
       {sorted.map((act, i) => {
-        const color = ACTIVITY_COLORS[act.type] ?? '#6B7280';
+        const color = ACTIVITY_COLORS[act.type] ?? STATUS.neutral;
         const label = CRM_ACTIVITY_LABELS[act.type] ?? act.type;
         const isLast = i === sorted.length - 1;
 
@@ -232,21 +239,21 @@ function ActivityTimeline({ deal }: { deal: CRMDeal }) {
                 className="size-2 rounded-full flex-shrink-0 mt-1"
                 style={{ background: color, boxShadow: `0 0 4px ${color}60` }}
               />
-              {!isLast && <div className="w-px flex-1 min-h-[16px]" style={{ background: '#ffffff08' }} />}
+              {!isLast && <div className="w-px flex-1 min-h-[16px]" style={{ background: `${TEXT.primary}08` }} />}
             </div>
             {/* Content */}
             <div className="pb-3 flex-1 min-w-0">
               <div className="flex items-start gap-2 flex-wrap">
-                <span className="text-[10px] font-semibold text-gray-200 leading-tight flex-1">{label}</span>
-                <span className="text-[9px] text-gray-700 flex-shrink-0">{fmtDate(act.created_at)}</span>
+                <span className="text-[10px] font-semibold text-cortex-secondary leading-tight flex-1">{label}</span>
+                <span className="text-[9px] text-cortex-faint flex-shrink-0">{fmtDate(act.created_at)}</span>
               </div>
               {Object.keys(act.payload).length > 0 && (
                 <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                   {Object.entries(act.payload)
                     .filter(([k]) => !['deal_id'].includes(k))
                     .map(([k, v]) => (
-                      <span key={k} className="text-[9px] text-gray-600">
-                        <span className="text-gray-700">{k}:</span>{' '}
+                      <span key={k} className="text-[9px] text-cortex-faint">
+                        <span className="text-cortex-faint">{k}:</span>{' '}
                         <span className="font-mono">{String(v)}</span>
                       </span>
                     ))
@@ -278,10 +285,10 @@ function TaskList({ deal, onToggleTask }: {
 
     return (
       <div
-        className="flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-all"
+        className="flex items-start gap-3 px-3 py-2.5 rounded-cortex-sm border transition-all"
         style={{
-          borderColor: isDone ? '#ffffff08' : overdue ? '#FD443820' : '#ffffff0a',
-          background:  isDone ? 'transparent' : overdue ? '#FD443806' : '#ffffff02',
+          borderColor: isDone ? `${TEXT.primary}08` : overdue ? `${STATUS.danger}20` : `${TEXT.primary}0a`,
+          background:  isDone ? 'transparent' : overdue ? `${STATUS.danger}06` : `${TEXT.primary}02`,
           opacity:     isDone ? 0.5 : 1,
         }}
       >
@@ -290,31 +297,31 @@ function TaskList({ deal, onToggleTask }: {
           className="mt-0.5 flex-shrink-0"
         >
           {isDone
-            ? <CheckCircle2 className="size-3.5 text-[#10B981]" />
-            : <Circle className="size-3.5 text-gray-600 hover:text-gray-300 transition-colors" />
+            ? <CheckCircle2 className="size-3.5 text-cortex-success" />
+            : <Circle className="size-3.5 text-cortex-faint hover:text-cortex-secondary transition-colors" />
           }
         </button>
         <div className="flex-1 min-w-0">
           <div
             className="text-[10px] font-semibold leading-tight"
             style={{
-              color:           isDone ? '#374151' : '#D1D5DB',
+              color:           isDone ? BORDER.strong : TEXT.secondary,
               textDecoration:  isDone ? 'line-through' : 'none',
             }}
           >
             {t.task_type}
           </div>
           {t.notes && (
-            <div className="text-[9px] text-gray-600 mt-0.5 leading-snug truncate">{t.notes}</div>
+            <div className="text-[9px] text-cortex-faint mt-0.5 leading-snug truncate">{t.notes}</div>
           )}
         </div>
         <div className="flex-shrink-0 flex items-center gap-1.5">
-          <span className="text-[9px] text-gray-600">
-            <span className="text-gray-700">{t.assigned_to}</span>
+          <span className="text-[9px] text-cortex-faint">
+            <span className="text-cortex-faint">{t.assigned_to}</span>
           </span>
           <span
             className="text-[9px] font-bold"
-            style={{ color: isDone ? '#374151' : overdue ? '#FD4438' : '#F59E0B' }}
+            style={{ color: isDone ? BORDER.strong : overdue ? STATUS.danger : STATUS.caution }}
           >
             {isDone ? 'Done' : dueLabel}
           </span>
@@ -326,12 +333,12 @@ function TaskList({ deal, onToggleTask }: {
   return (
     <div className="space-y-1.5">
       {open.length === 0 && done.length === 0 && (
-        <div className="text-center py-4 text-gray-600 text-[10px]">No tasks for this deal.</div>
+        <div className="text-center py-4 text-cortex-faint text-[10px]">No tasks for this deal.</div>
       )}
       {open.map(t => <TaskRow key={t.task_id} t={t} />)}
       {done.length > 0 && (
         <span className="contents">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-gray-700 pt-2">Completed</div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint pt-2">Completed</div>
           {done.map(t => <TaskRow key={t.task_id} t={t} />)}
         </span>
       )}
@@ -362,18 +369,18 @@ function StageFilter({
     <div className="space-y-2">
       <button
         onClick={() => onChange('all')}
-        className="text-[9px] px-2.5 py-1 rounded-lg font-bold border transition-colors"
+        className="text-[9px] px-2.5 py-1 rounded-cortex-sm font-bold border transition-colors"
         style={{
-          borderColor: selected === 'all' ? '#8B5CF6' : '#ffffff10',
-          background:  selected === 'all' ? '#8B5CF614' : 'transparent',
-          color:       selected === 'all' ? '#8B5CF6' : '#6B7280',
+          borderColor: selected === 'all' ? brand.accent : `${TEXT.primary}10`,
+          background:  selected === 'all' ? `${brand.accent}14` : 'transparent',
+          color:       selected === 'all' ? brand.accent : STATUS.neutral,
         }}
       >
         All Stages
       </button>
       {groups.map(g => (
         <div key={g.label} className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-[8px] font-bold uppercase tracking-wider text-gray-700 w-full">{g.label}</span>
+          <span className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint w-full">{g.label}</span>
           {g.stages.map(s => {
             const cfg = STAGE_CFG[s];
             const active = selected === s;
@@ -383,9 +390,9 @@ function StageFilter({
                 onClick={() => onChange(s)}
                 className="text-[9px] px-2 py-0.5 rounded font-bold border transition-colors"
                 style={{
-                  borderColor: active ? cfg.color : '#ffffff10',
+                  borderColor: active ? cfg.color : `${TEXT.primary}10`,
                   background:  active ? `${cfg.color}14` : 'transparent',
-                  color:       active ? cfg.color : '#6B7280',
+                  color:       active ? cfg.color : STATUS.neutral,
                 }}
               >
                 {cfg.short}
@@ -448,22 +455,22 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
   ];
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold text-white">
-          <BarChart3 className="size-4" style={{ color: '#06D7F6' }} />
+          <BarChart3 className="size-4" style={{ color: STATUS.info }} />
           §10 CRM Sync Layer
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#06D7F6', borderColor: '#06D7F633', background: '#06D7F614' }}
+            style={{ color: STATUS.info, borderColor: `${STATUS.info}33`, background: `${STATUS.info}14` }}
           >
             Phase 7
           </span>
           {overdueTasks.length > 0 && (
             <span
               className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border"
-              style={{ color: '#FD4438', borderColor: '#FD443833', background: '#FD443814' }}
+              style={{ color: STATUS.danger, borderColor: `${STATUS.danger}33`, background: `${STATUS.danger}14` }}
             >
               {overdueTasks.length} overdue
             </span>
@@ -474,11 +481,11 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
           {/* Filter toggle */}
           <button
             onClick={() => setShowFilter(f => !f)}
-            className="flex items-center gap-1 px-2 py-1.5 text-[9px] font-bold rounded-lg border transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors"
             style={{
-              borderColor: showFilter ? '#06D7F6' : '#ffffff10',
-              color:       showFilter ? '#06D7F6' : '#6B7280',
-              background:  showFilter ? '#06D7F610' : 'transparent',
+              borderColor: showFilter ? STATUS.info : `${TEXT.primary}10`,
+              color:       showFilter ? STATUS.info : STATUS.neutral,
+              background:  showFilter ? `${STATUS.info}10` : 'transparent',
             }}
           >
             <Filter className="size-2.5" />Filter
@@ -487,12 +494,12 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
           {/* Sync button */}
           <button
             onClick={handleSync}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-lg border transition-colors text-gray-500 hover:text-white border-white/10 hover:border-white/20"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors text-cortex-muted hover:text-white border-cortex-default hover:border-cortex-strong"
           >
             <RefreshCw className="size-2.5" />Sync
           </button>
 
-          <span className="text-[9px] text-gray-700">
+          <span className="text-[9px] text-cortex-faint">
             {lastSynced}
           </span>
         </div>
@@ -502,18 +509,18 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
 
         {/* Filter panel */}
         {showFilter && (
-          <div className="bg-black/20 border border-white/6 rounded-xl p-4">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 mb-3 flex items-center gap-2">
+          <div className="bg-black/20 border border-white/6 rounded-cortex-md p-4">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint mb-3 flex items-center gap-2">
               <Filter className="size-3" />Stage Filter
             </div>
             <StageFilter selected={stageFilter} onChange={setStageFilter} />
             {stageFilter !== 'all' && (
               <div
-                className="mt-3 px-3 py-2 rounded-lg text-[9px] border"
+                className="mt-3 px-3 py-2 rounded-cortex-sm text-[9px] border"
                 style={{
-                  borderColor: filterMatch ? '#10B98120' : '#FD443820',
-                  background:  filterMatch ? '#10B98106' : '#FD443806',
-                  color:       filterMatch ? '#10B981' : '#FD4438',
+                  borderColor: filterMatch ? `${STATUS.success}20` : `${STATUS.danger}20`,
+                  background:  filterMatch ? `${STATUS.success}06` : `${STATUS.danger}06`,
+                  color:       filterMatch ? STATUS.success : STATUS.danger,
                 }}
               >
                 {filterMatch
@@ -530,7 +537,7 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
 
         {/* Pipeline strip */}
         <div className="space-y-2">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
             CRM Pipeline — 14 Canonical Stages
           </div>
           <PipelineStrip stage={deal.stage} />
@@ -538,13 +545,13 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
 
         {/* Event → Stage mapping info strip */}
         <div
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-cortex-sm border"
           style={{ borderColor: `${cfg.color}20`, background: `${cfg.color}06` }}
         >
           <Zap className="size-3 flex-shrink-0" style={{ color: cfg.color }} />
-          <div className="flex-1 text-[9px] text-gray-500 leading-snug">
-            <span className="font-bold text-gray-300">Auto-mapped:</span>{' '}
-            Proposal status <span className="font-mono text-gray-400">
+          <div className="flex-1 text-[9px] text-cortex-muted leading-snug">
+            <span className="font-bold text-cortex-secondary">Auto-mapped:</span>{' '}
+            Proposal status <span className="font-mono text-cortex-muted">
               {draft.status}
             </span> → CRM stage{' '}
             <span className="font-bold" style={{ color: cfg.color }}>{cfg.label}</span>
@@ -561,11 +568,11 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex items-center gap-1.5 px-3 py-2 text-[9px] font-bold rounded-lg border transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-[9px] font-bold rounded-cortex-sm border transition-colors"
               style={{
-                borderColor: tab === t.id ? '#06D7F6' : '#ffffff10',
-                background:  tab === t.id ? '#06D7F610' : 'transparent',
-                color:       tab === t.id ? '#06D7F6' : '#6B7280',
+                borderColor: tab === t.id ? STATUS.info : `${TEXT.primary}10`,
+                background:  tab === t.id ? `${STATUS.info}10` : 'transparent',
+                color:       tab === t.id ? STATUS.info : STATUS.neutral,
               }}
             >
               <t.icon className="size-3" />{t.label}
@@ -577,7 +584,7 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
         {tab === 'pipeline' && (
           <div className="space-y-3">
             {/* Stage breakdown — all 14 stages with current highlighted */}
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
               Full Stage Breakdown
             </div>
             <div className="grid grid-cols-2 gap-1.5">
@@ -591,28 +598,28 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
                 return (
                   <div
                     key={s}
-                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg border transition-all"
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-cortex-sm border transition-all"
                     style={{
-                      borderColor: active ? `${c.color}30` : '#ffffff06',
+                      borderColor: active ? `${c.color}30` : `${TEXT.primary}06`,
                       background:  active ? `${c.color}10` : 'transparent',
                     }}
                   >
                     <div
                       className="size-2 rounded-full flex-shrink-0"
                       style={{
-                        background: active ? c.color : isPast ? '#10B981' : '#374151',
+                        background: active ? c.color : isPast ? STATUS.success : BORDER.strong,
                         boxShadow:  active ? `0 0 5px ${c.color}80` : undefined,
                       }}
                     />
                     <span
                       className="text-[9px] font-semibold leading-tight flex-1 truncate"
-                      style={{ color: active ? c.color : isPast ? '#6EE7B7' : '#374151' }}
+                      style={{ color: active ? c.color : isPast ? STATUS.successLight : BORDER.strong }}
                     >
                       {c.label}
                     </span>
                     <span
                       className="text-[9px] font-black flex-shrink-0"
-                      style={{ color: active ? c.color : '#374151' }}
+                      style={{ color: active ? c.color : BORDER.strong }}
                     >
                       {Math.round(c.close_probability * 100)}%
                     </span>
@@ -625,7 +632,7 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
 
         {tab === 'activity' && (
           <div className="space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint flex items-center gap-2">
               <History className="size-3" />Activity Trail — {deal.activity.length} events
             </div>
             <ActivityTimeline deal={deal} />
@@ -634,11 +641,11 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
 
         {tab === 'tasks' && (
           <div className="space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint flex items-center gap-2">
               <ListChecks className="size-3" />
               Auto-Created Tasks — {openTasks.length} open
               {overdueTasks.length > 0 && (
-                <span className="text-[#FD4438] font-bold">{overdueTasks.length} overdue</span>
+                <span className="text-cortex-danger font-bold">{overdueTasks.length} overdue</span>
               )}
             </div>
             <TaskList deal={deal} onToggleTask={handleToggleTask} />
@@ -646,9 +653,9 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
         )}
 
         {/* Done checklist */}
-        <div className="border-t border-white/5 pt-4 space-y-2">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-2">
-            <CheckCircle2 className="size-3 text-[#10B981]" />
+        <div className="border-t border-cortex-subtle pt-4 space-y-2">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint flex items-center gap-2">
+            <CheckCircle2 className="size-3 text-cortex-success" />
             Phase 7 Sync Status
           </div>
           <div className="grid grid-cols-1 gap-1">
@@ -664,8 +671,8 @@ export function CRMSyncPanel({ draft }: CRMSyncPanelProps) {
                 key={item.label}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded text-[9px]"
                 style={{
-                  background:  item.done ? '#10B98106' : '#FD443806',
-                  color:       item.done ? '#10B981' : '#FD4438',
+                  background:  item.done ? `${STATUS.success}06` : `${STATUS.danger}06`,
+                  color:       item.done ? STATUS.success : STATUS.danger,
                 }}
               >
                 {item.done

@@ -39,6 +39,8 @@ import {
 } from '@/app/utils/diagnosticEngine';
 import { runCortexEngine } from '@/app/core';
 import { createInitialPortfolioState } from '@/app/core/versionEngine';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ============================================================================
 // MAIN GENERATOR
@@ -581,7 +583,7 @@ function buildROIEstimate(sub: Submission): ROIEstimate {
       scenarios: [
         {
           name: 'Conservative',
-          color: '#3B82F6',
+          color: brand.accentAlt,
           totalInvestment,
           year1Return: Math.round((costConservative + revConservative) * 12 * 0.85),
           roi: Math.round(((costConservative + revConservative) * 12 * 0.85 / totalInvestment - 1) * 100),
@@ -590,7 +592,7 @@ function buildROIEstimate(sub: Submission): ROIEstimate {
         },
         {
           name: 'Expected',
-          color: '#8B5CF6',
+          color: brand.accent,
           totalInvestment,
           year1Return: cumulative,
           roi: Math.round((cumulative / totalInvestment - 1) * 100),
@@ -599,7 +601,7 @@ function buildROIEstimate(sub: Submission): ROIEstimate {
         },
         {
           name: 'Aggressive',
-          color: '#10B981',
+          color: STATUS.success,
           totalInvestment,
           year1Return: Math.round((costAggressive + revAggressive) * 12 * 0.95),
           roi: Math.round(((costAggressive + revAggressive) * 12 * 0.95 / totalInvestment - 1) * 100),

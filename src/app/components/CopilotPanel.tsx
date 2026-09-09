@@ -35,6 +35,32 @@ import {
 import type { AIAction } from '@/app/core/aiAssistEngine';
 import { AI_ACTION_LABELS } from '@/app/core/aiAssistEngine';
 import { useApp } from '@/app/contexts/AppContext';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  text as TEXT,
+  surface as SURFACE,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT         = brand.accent;
+const K_BORDER_DEFAULT = BORDER.default;
+const K_OVERLAY        = SURFACE.overlay;
+const K_CAUTION        = STATUS.caution;
+const K_DANGER         = STATUS.danger;
+const K_INFO           = STATUS.info;
+const K_NEUTRAL        = STATUS.neutral;
+const K_SUCCESS        = STATUS.success;
+const K_TEXT_MUTED     = TEXT.muted;
+const K_TEXT_PRIMARY   = TEXT.primary;
+const K_WARNING        = STATUS.warning;
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -52,10 +78,10 @@ const QUICK_ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
 };
 
 const ACTION_COLORS: Record<AIAction, string> = {
-  ai_improve:  '#8B5CF6',
-  ai_expand:   '#06D7F6',
-  ai_simplify: '#F59E0B',
-  fix_issues:  '#FB923C',
+  ai_improve:  K_ACCENT,
+  ai_expand:   K_INFO,
+  ai_simplify: K_CAUTION,
+  fix_issues:  K_WARNING,
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -78,7 +104,7 @@ function BlockTypeBadge({ blockType }: { blockType: string }) {
   return (
     <span
       className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex-shrink-0"
-      style={{ background: '#ffffff10', color: '#9CA3AF' }}
+      style={{ background: `${K_TEXT_PRIMARY}10`, color: K_TEXT_MUTED }}
     >
       {BLOCK_TYPE_LABELS[blockType as any] ?? blockType}
     </span>
@@ -88,16 +114,16 @@ function BlockTypeBadge({ blockType }: { blockType: string }) {
 function ROIRecalcBanner() {
   return (
     <div
-      className="flex items-start gap-2.5 px-3 py-3 rounded-xl border text-[9px]"
-      style={{ background: '#F59E0B08', borderColor: '#F59E0B40' }}
+      className="flex items-start gap-2.5 px-3 py-3 rounded-cortex-md border text-[9px]"
+      style={{ background: `${K_CAUTION}08`, borderColor: `${K_CAUTION}40` }}
     >
-      <ShieldAlert className="size-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+      <ShieldAlert className="size-4 text-cortex-caution flex-shrink-0 mt-0.5" />
       <div>
-        <div className="font-bold text-[#F59E0B] mb-0.5">ROI Recalc Required</div>
-        <div className="text-gray-500 leading-relaxed">
+        <div className="font-bold text-cortex-caution mb-0.5">ROI Recalc Required</div>
+        <div className="text-cortex-muted leading-relaxed">
           This patch touches solution or timeline blocks. The ROI engine should be
           re-run before proceeding to the proposal gate. Numbers in the ROI
-          Snapshot block are <strong className="text-gray-400">not</strong> changed
+          Snapshot block are <strong className="text-cortex-muted">not</strong> changed
           by this patch — only narrative content is updated.
         </div>
       </div>
@@ -131,7 +157,7 @@ function IdleStep({
     <div className="space-y-4">
       {/* Context scope selector */}
       <div>
-        <label className="text-[8px] font-bold uppercase tracking-widest text-gray-700 block mb-1.5">
+        <label className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint block mb-1.5">
           Context Scope
         </label>
         <div className="flex gap-1.5 flex-wrap">
@@ -139,11 +165,11 @@ function IdleStep({
             <button
               key={s}
               onClick={() => onScope(s)}
-              className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold border transition-colors"
+              className="px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors"
               style={{
-                borderColor: scope === s ? '#06D7F650' : '#ffffff10',
-                background:  scope === s ? '#06D7F615' : 'transparent',
-                color:       scope === s ? '#06D7F6'   : '#6B7280',
+                borderColor: scope === s ? `${K_INFO}50` : `${K_TEXT_PRIMARY}10`,
+                background:  scope === s ? `${K_INFO}15` : 'transparent',
+                color:       scope === s ? K_INFO   : K_NEUTRAL,
               }}
             >
               {PATCH_SCOPE_LABELS[s]}
@@ -154,7 +180,7 @@ function IdleStep({
 
       {/* Quick command chips */}
       <div>
-        <label className="text-[8px] font-bold uppercase tracking-widest text-gray-700 block mb-1.5">
+        <label className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint block mb-1.5">
           Quick Commands
         </label>
         <div className="flex flex-wrap gap-1.5">
@@ -164,7 +190,7 @@ function IdleStep({
               <button
                 key={cmd.label}
                 onClick={() => onQuickCommand(cmd.input, cmd.scope)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-bold border transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors"
                 style={{
                   background:  `${cmd.color}0F`,
                   borderColor: `${cmd.color}30`,
@@ -181,7 +207,7 @@ function IdleStep({
 
       {/* Input */}
       <div>
-        <label className="text-[8px] font-bold uppercase tracking-widest text-gray-700 block mb-1.5">
+        <label className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint block mb-1.5">
           What do you want to change?
         </label>
         <textarea
@@ -189,11 +215,11 @@ function IdleStep({
           onChange={e => onUserInput(e.target.value)}
           placeholder="e.g. Rewrite all solution blocks in boardroom tone and add integration points…"
           rows={4}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white resize-none focus:outline-none focus:border-[#06D7F6]/50 placeholder:text-gray-700 leading-relaxed"
+          className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-md px-3 py-2.5 text-xs text-white resize-none focus:outline-none focus:border-cortex-info/50 placeholder:text-cortex-faint leading-relaxed"
         />
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-[8px] text-gray-800">Min 10 characters · No silent edits</span>
-          <span className="text-[8px]" style={{ color: canInterpret ? '#10B981' : '#6B7280' }}>
+          <span className="text-[8px]" style={{ color: canInterpret ? K_SUCCESS : K_NEUTRAL }}>
             {userInput.length} chars
           </span>
         </div>
@@ -203,11 +229,11 @@ function IdleStep({
       <button
         onClick={onInterpret}
         disabled={!canInterpret}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-cortex-md text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         style={{
-          background:   canInterpret ? 'linear-gradient(135deg, #06D7F620, #8B5CF620)' : '#ffffff08',
-          border:       canInterpret ? '1px solid #06D7F640'                           : '1px solid #ffffff10',
-          color:        canInterpret ? '#06D7F6'                                        : '#6B7280',
+          background:   canInterpret ? `linear-gradient(135deg, ${K_INFO}20, ${K_ACCENT}20)` : `${K_TEXT_PRIMARY}08`,
+          border:       canInterpret ? `1px solid ${K_INFO}40`                           : `1px solid ${K_TEXT_PRIMARY}10`,
+          color:        canInterpret ? K_INFO                                        : K_NEUTRAL,
         }}
       >
         <Sparkles className="size-4" />
@@ -218,7 +244,7 @@ function IdleStep({
       {/* Safety footer */}
       <div className="flex items-start gap-1.5 text-[8px] text-gray-800 leading-relaxed">
         <Info className="size-3 flex-shrink-0 mt-0.5" />
-        Copilot generates a <strong className="text-gray-600">patch plan first</strong> — no edits are applied until you review and approve. All changes become pending revisions.
+        Copilot generates a <strong className="text-cortex-faint">patch plan first</strong> — no edits are applied until you review and approve. All changes become pending revisions.
       </div>
     </div>
   );
@@ -243,21 +269,21 @@ function PlanReadyStep({
     <div className="space-y-4">
       {/* Plan header */}
       <div
-        className="flex items-start gap-3 px-4 py-3 rounded-xl border"
-        style={{ background: '#06D7F608', borderColor: '#06D7F630' }}
+        className="flex items-start gap-3 px-4 py-3 rounded-cortex-md border"
+        style={{ background: `${K_INFO}08`, borderColor: `${K_INFO}30` }}
       >
-        <ListChecks className="size-4 text-[#06D7F6] flex-shrink-0 mt-0.5" />
+        <ListChecks className="size-4 text-cortex-info flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] font-bold text-[#06D7F6] mb-0.5">Patch Plan Ready</div>
-          <div className="text-[9px] text-gray-500">
-            <span className="font-mono text-gray-600">{plan.patch_id}</span>
+          <div className="text-[10px] font-bold text-cortex-info mb-0.5">Patch Plan Ready</div>
+          <div className="text-[9px] text-cortex-muted">
+            <span className="font-mono text-cortex-faint">{plan.patch_id}</span>
             {' · '}{plan.intent_label}
           </div>
-          <div className="text-[8px] text-gray-700 mt-0.5 italic">"{plan.user_input.slice(0, 80)}{plan.user_input.length > 80 ? '…' : ''}"</div>
+          <div className="text-[8px] text-cortex-faint mt-0.5 italic">"{plan.user_input.slice(0, 80)}{plan.user_input.length > 80 ? '…' : ''}"</div>
         </div>
         <div className="text-right flex-shrink-0">
           <div className="text-base font-black text-white">{plan.targets.length}</div>
-          <div className="text-[7px] text-gray-700 uppercase tracking-wide">targets</div>
+          <div className="text-[7px] text-cortex-faint uppercase tracking-wide">targets</div>
         </div>
       </div>
 
@@ -266,11 +292,11 @@ function PlanReadyStep({
 
       {/* Targets list */}
       <div>
-        <div className="text-[8px] font-bold uppercase tracking-widest text-gray-700 mb-2">
+        <div className="text-[8px] font-bold uppercase tracking-widest text-cortex-faint mb-2">
           Planned Changes ({plan.targets.length})
         </div>
         {plan.targets.length === 0 ? (
-          <div className="text-center py-6 text-[10px] text-gray-700">
+          <div className="text-center py-6 text-[10px] text-cortex-faint">
             No targetable blocks found for this request.
           </div>
         ) : (
@@ -278,17 +304,17 @@ function PlanReadyStep({
             {plan.targets.map(t => (
               <div
                 key={t.block_id}
-                className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border"
-                style={{ background: '#ffffff04', borderColor: '#ffffff08' }}
+                className="flex items-start gap-2.5 px-3 py-2.5 rounded-cortex-md border"
+                style={{ background: `${K_TEXT_PRIMARY}04`, borderColor: `${K_TEXT_PRIMARY}08` }}
               >
-                <ChevronRight className="size-3 text-[#06D7F6] flex-shrink-0 mt-0.5" />
+                <ChevronRight className="size-3 text-cortex-info flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                     <BlockTypeBadge blockType={t.block_type} />
                     <ActionBadge action={t.action} />
                   </div>
                   <div className="text-[10px] font-bold text-white truncate">{t.title}</div>
-                  <div className="text-[8px] text-gray-600 mt-0.5">{t.rationale}</div>
+                  <div className="text-[8px] text-cortex-faint mt-0.5">{t.rationale}</div>
                 </div>
                 <span className="text-[7px] font-mono text-gray-800 flex-shrink-0 mt-0.5">{t.block_id}</span>
               </div>
@@ -302,7 +328,7 @@ function PlanReadyStep({
         <div>
           <button
             onClick={() => setShowSkipped(s => !s)}
-            className="flex items-center gap-1.5 text-[8px] text-gray-700 hover:text-gray-500 transition-colors"
+            className="flex items-center gap-1.5 text-[8px] text-cortex-faint hover:text-cortex-muted transition-colors"
           >
             {showSkipped ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
             {plan.skipped.length} blocks skipped
@@ -310,10 +336,10 @@ function PlanReadyStep({
           {showSkipped && (
             <div className="mt-1.5 space-y-0.5">
               {plan.skipped.map(s => (
-                <div key={s.block_id} className="flex items-start gap-2 px-2 py-1.5 rounded text-[8px]" style={{ background: '#ffffff04' }}>
-                  <XCircle className="size-3 text-gray-700 flex-shrink-0 mt-0.5" />
+                <div key={s.block_id} className="flex items-start gap-2 px-2 py-1.5 rounded text-[8px]" style={{ background: `${K_TEXT_PRIMARY}04` }}>
+                  <XCircle className="size-3 text-cortex-faint flex-shrink-0 mt-0.5" />
                   <div>
-                    <span className="text-gray-500">{s.title}</span>
+                    <span className="text-cortex-muted">{s.title}</span>
                     <span className="text-gray-800 ml-1.5">— {s.reason}</span>
                   </div>
                 </div>
@@ -327,9 +353,9 @@ function PlanReadyStep({
       <div className="flex items-start gap-1.5 text-[8px] text-gray-800 leading-relaxed">
         <Info className="size-3 flex-shrink-0 mt-0.5" />
         <span>
-          All patches respect: <strong className="text-gray-600">no ROI number changes</strong> ·
-          {' '}<strong className="text-gray-600">no invented facts</strong> ·
-          {' '}<strong className="text-gray-600">no guarantee language</strong> ·
+          All patches respect: <strong className="text-cortex-faint">no ROI number changes</strong> ·
+          {' '}<strong className="text-cortex-faint">no invented facts</strong> ·
+          {' '}<strong className="text-cortex-faint">no guarantee language</strong> ·
           boardroom tone enforced.
         </span>
       </div>
@@ -339,11 +365,11 @@ function PlanReadyStep({
         <button
           onClick={onApply}
           disabled={plan.targets.length === 0}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-cortex-md text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
-            background: plan.targets.length > 0 ? '#10B98120' : '#ffffff08',
-            border:     plan.targets.length > 0 ? '1px solid #10B98140' : '1px solid #ffffff10',
-            color:      plan.targets.length > 0 ? '#10B981' : '#6B7280',
+            background: plan.targets.length > 0 ? `${K_SUCCESS}20` : `${K_TEXT_PRIMARY}08`,
+            border:     plan.targets.length > 0 ? `1px solid ${K_SUCCESS}40` : `1px solid ${K_TEXT_PRIMARY}10`,
+            color:      plan.targets.length > 0 ? K_SUCCESS : K_NEUTRAL,
           }}
         >
           <Zap className="size-3.5" />
@@ -351,7 +377,7 @@ function PlanReadyStep({
         </button>
         <button
           onClick={onCancel}
-          className="px-4 py-3 rounded-xl text-[11px] font-bold border border-white/10 text-gray-600 hover:text-white hover:border-white/20 transition-colors"
+          className="px-4 py-3 rounded-cortex-md text-[11px] font-bold border border-cortex-default text-cortex-faint hover:text-white hover:border-cortex-strong transition-colors"
         >
           Cancel
         </button>
@@ -439,18 +465,18 @@ function ReviewQueueStep({
     <div className="space-y-4">
       {/* Summary header */}
       <div
-        className="flex items-center gap-3 px-4 py-3 rounded-xl border"
-        style={{ background: allDone ? '#10B98108' : '#06D7F608', borderColor: allDone ? '#10B98130' : '#06D7F630' }}
+        className="flex items-center gap-3 px-4 py-3 rounded-cortex-md border"
+        style={{ background: allDone ? `${K_SUCCESS}08` : `${K_INFO}08`, borderColor: allDone ? `${K_SUCCESS}30` : `${K_INFO}30` }}
       >
         {allDone
-          ? <CheckCircle2 className="size-4 text-[#10B981] flex-shrink-0" />
-          : <ListChecks   className="size-4 text-[#06D7F6] flex-shrink-0" />
+          ? <CheckCircle2 className="size-4 text-cortex-success flex-shrink-0" />
+          : <ListChecks   className="size-4 text-cortex-info flex-shrink-0" />
         }
         <div className="flex-1">
-          <div className="text-[10px] font-bold" style={{ color: allDone ? '#10B981' : '#06D7F6' }}>
+          <div className="text-[10px] font-bold" style={{ color: allDone ? K_SUCCESS : K_INFO }}>
             {allDone ? 'Review Complete' : 'Review Queue'}
           </div>
-          <div className="text-[8px] text-gray-600 mt-0.5">
+          <div className="text-[8px] text-cortex-faint mt-0.5">
             {batchResult.applied.length} applied · {batchResult.failed.length} failed ·{' '}
             {acceptedCount} accepted · {rejectedCount} rejected · {pending.length} pending
             <span className="ml-2 font-mono text-gray-800">{batchResult.patch_id}</span>
@@ -464,16 +490,16 @@ function ReviewQueueStep({
       {/* Failures */}
       {batchResult.failed.length > 0 && (
         <div
-          className="px-3 py-2.5 rounded-xl border space-y-1"
-          style={{ background: '#FD443808', borderColor: '#FD443830' }}
+          className="px-3 py-2.5 rounded-cortex-md border space-y-1"
+          style={{ background: `${K_DANGER}08`, borderColor: `${K_DANGER}30` }}
         >
-          <div className="text-[8px] font-bold text-[#FD4438] flex items-center gap-1.5 mb-1">
+          <div className="text-[8px] font-bold text-cortex-danger flex items-center gap-1.5 mb-1">
             <AlertCircle className="size-3" />
             {batchResult.failed.length} patch{batchResult.failed.length !== 1 ? 'es' : ''} failed
           </div>
           {batchResult.failed.map((f, i) => (
-            <div key={i} className="text-[8px] text-gray-600 pl-4">
-              <span className="text-gray-400 font-bold">{f.target.title}</span>: {f.error}
+            <div key={i} className="text-[8px] text-cortex-faint pl-4">
+              <span className="text-cortex-muted font-bold">{f.target.title}</span>: {f.error}
             </div>
           ))}
           <div className="text-[7px] text-gray-800 pt-1">
@@ -488,8 +514,8 @@ function ReviewQueueStep({
           <button
             onClick={acceptAll}
             disabled={acceptAllDisabled}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{ background: '#10B98115', borderColor: '#10B98140', color: '#10B981' }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ background: `${K_SUCCESS}15`, borderColor: `${K_SUCCESS}40`, color: K_SUCCESS }}
             title={batchResult.failed.length > 0 ? 'Disabled: batch has failures' : 'Accept all pending revisions'}
           >
             <Check className="size-3" />Accept All
@@ -497,15 +523,15 @@ function ReviewQueueStep({
           <button
             onClick={acceptSelected}
             disabled={selected.size === 0}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold border border-white/10 text-gray-500 hover:text-white hover:border-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-cortex-sm text-[9px] font-bold border border-cortex-default text-cortex-muted hover:text-white hover:border-cortex-strong transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <CheckSquare className="size-3" />Accept Selected ({selected.size})
           </button>
           <button
             onClick={rejectAll}
             disabled={pending.length === 0}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold border transition-colors disabled:opacity-30"
-            style={{ background: '#FD443812', borderColor: '#FD443840', color: '#FD4438' }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-colors disabled:opacity-30"
+            style={{ background: `${K_DANGER}12`, borderColor: `${K_DANGER}40`, color: K_DANGER }}
           >
             <X className="size-3" />Reject All
           </button>
@@ -516,10 +542,10 @@ function ReviewQueueStep({
       <div className="space-y-3">
         {Array.from(grouped.entries()).map(([blockType, entries]) => (
           <div key={blockType}>
-            <div className="text-[8px] font-black uppercase tracking-widest text-gray-700 mb-1.5 flex items-center gap-1">
+            <div className="text-[8px] font-black uppercase tracking-widest text-cortex-faint mb-1.5 flex items-center gap-1">
               <span
                 className="size-1.5 rounded-full inline-block"
-                style={{ background: '#9CA3AF' }}
+                style={{ background: K_TEXT_MUTED }}
               />
               {BLOCK_TYPE_LABELS[blockType as any] ?? blockType}
               <span className="ml-1 text-gray-800">({entries.length})</span>
@@ -533,32 +559,32 @@ function ReviewQueueStep({
                 return (
                   <div
                     key={revision.revision_id}
-                    className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all"
+                    className="flex items-start gap-2.5 px-3 py-2.5 rounded-cortex-md border transition-all"
                     style={{
-                      borderColor: status === 'accepted' ? '#10B98130'
-                        : status === 'rejected'          ? '#FD443830'
-                        : isSelected                     ? '#06D7F630'
-                        : '#ffffff08',
-                      background:  status === 'accepted' ? '#10B98108'
-                        : status === 'rejected'          ? '#FD443808'
-                        : isSelected                     ? '#06D7F608'
-                        : '#ffffff03',
+                      borderColor: status === 'accepted' ? `${K_SUCCESS}30`
+                        : status === 'rejected'          ? `${K_DANGER}30`
+                        : isSelected                     ? `${K_INFO}30`
+                        : `${K_TEXT_PRIMARY}08`,
+                      background:  status === 'accepted' ? `${K_SUCCESS}08`
+                        : status === 'rejected'          ? `${K_DANGER}08`
+                        : isSelected                     ? `${K_INFO}08`
+                        : `${K_TEXT_PRIMARY}03`,
                     }}
                   >
                     {/* Checkbox */}
                     {isPending && (
                       <button
                         onClick={() => toggleSelect(revision.revision_id)}
-                        className="flex-shrink-0 mt-0.5 text-gray-700 hover:text-[#06D7F6] transition-colors"
+                        className="flex-shrink-0 mt-0.5 text-cortex-faint hover:text-cortex-info transition-colors"
                       >
                         {isSelected
-                          ? <CheckSquare className="size-3.5 text-[#06D7F6]" />
+                          ? <CheckSquare className="size-3.5 text-cortex-info" />
                           : <Square      className="size-3.5" />
                         }
                       </button>
                     )}
-                    {status === 'accepted' && <CheckCircle2 className="size-3.5 text-[#10B981] flex-shrink-0 mt-0.5" />}
-                    {status === 'rejected' && <XCircle      className="size-3.5 text-[#FD4438] flex-shrink-0 mt-0.5" />}
+                    {status === 'accepted' && <CheckCircle2 className="size-3.5 text-cortex-success flex-shrink-0 mt-0.5" />}
+                    {status === 'rejected' && <XCircle      className="size-3.5 text-cortex-danger flex-shrink-0 mt-0.5" />}
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
@@ -566,7 +592,7 @@ function ReviewQueueStep({
                         <ActionBadge action={target.action} />
                         <span className="text-[9px] font-bold text-white truncate">{target.title}</span>
                       </div>
-                      <div className="text-[8px] text-gray-600 leading-relaxed">{revision.diff_summary}</div>
+                      <div className="text-[8px] text-cortex-faint leading-relaxed">{revision.diff_summary}</div>
                       <div className="text-[7px] text-gray-800 font-mono mt-0.5">{revision.revision_id}</div>
                     </div>
 
@@ -576,7 +602,7 @@ function ReviewQueueStep({
                         <button
                           onClick={() => doAccept(revision.block_id, revision.revision_id)}
                           className="flex items-center gap-0.5 px-2 py-1 rounded text-[8px] font-bold transition-colors"
-                          style={{ background: '#10B98118', color: '#10B981' }}
+                          style={{ background: `${K_SUCCESS}18`, color: K_SUCCESS }}
                           title="Accept this revision"
                         >
                           <CheckCircle2 className="size-2.5" />OK
@@ -584,7 +610,7 @@ function ReviewQueueStep({
                         <button
                           onClick={() => doReject(revision.block_id, revision.revision_id)}
                           className="flex items-center gap-0.5 px-2 py-1 rounded text-[8px] font-bold transition-colors"
-                          style={{ background: '#FD443812', color: '#FD4438' }}
+                          style={{ background: `${K_DANGER}12`, color: K_DANGER }}
                           title="Reject this revision"
                         >
                           <XCircle className="size-2.5" />No
@@ -594,7 +620,7 @@ function ReviewQueueStep({
                     {status && (
                       <span
                         className="text-[7px] font-black uppercase tracking-wide flex-shrink-0"
-                        style={{ color: status === 'accepted' ? '#10B981' : '#FD4438' }}
+                        style={{ color: status === 'accepted' ? K_SUCCESS : K_DANGER }}
                       >
                         {status}
                       </span>
@@ -610,7 +636,7 @@ function ReviewQueueStep({
       {/* New request button */}
       <button
         onClick={onReset}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-bold border border-white/10 text-gray-600 hover:text-white hover:border-white/20 transition-colors"
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-cortex-md text-[10px] font-bold border border-cortex-default text-cortex-faint hover:text-white hover:border-cortex-strong transition-colors"
       >
         <RefreshCw className="size-3" />New Request
       </button>
@@ -637,11 +663,11 @@ function ApplyingStep({
       <div className="flex items-center justify-center">
         <div className="relative size-16">
           <svg className="size-16 -rotate-90" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="28" fill="none" stroke="#ffffff10" strokeWidth="4" />
+            <circle cx="32" cy="32" r="28" fill="none" stroke={K_BORDER_DEFAULT} strokeWidth="4" />
             <circle
               cx="32" cy="32" r="28"
               fill="none"
-              stroke="#06D7F6"
+              stroke={K_INFO}
               strokeWidth="4"
               strokeDasharray={`${2 * Math.PI * 28}`}
               strokeDashoffset={`${2 * Math.PI * 28 * (1 - pct / 100)}`}
@@ -656,11 +682,11 @@ function ApplyingStep({
       </div>
       <div className="text-center space-y-1">
         <div className="text-xs font-bold text-white">Applying Patches…</div>
-        <div className="text-[9px] text-gray-600">
+        <div className="text-[9px] text-cortex-faint">
           {completed} of {total} complete
         </div>
         {currentTitle && (
-          <div className="text-[8px] text-gray-700 italic truncate px-4">
+          <div className="text-[8px] text-cortex-faint italic truncate px-4">
             Processing: "{currentTitle}"
           </div>
         )}
@@ -681,13 +707,13 @@ function InterpretingStep({ userInput }: { userInput: string }) {
     <div className="space-y-4 py-4">
       <div className="flex items-center justify-center">
         <div className="relative">
-          <Bot className="size-12 text-[#06D7F6]" />
-          <Loader2 className="size-5 text-[#06D7F6] animate-spin absolute -bottom-1 -right-1" />
+          <Bot className="size-12 text-cortex-info" />
+          <Loader2 className="size-5 text-cortex-info animate-spin absolute -bottom-1 -right-1" />
         </div>
       </div>
       <div className="text-center space-y-1">
         <div className="text-xs font-bold text-white">Interpreting Request…</div>
-        <div className="text-[8px] text-gray-700 italic px-4 line-clamp-2">
+        <div className="text-[8px] text-cortex-faint italic px-4 line-clamp-2">
           "{userInput}"
         </div>
       </div>
@@ -805,45 +831,50 @@ export function CopilotPanel({
     review:        '3 · Review Queue',
   };
 
+  // A side drawer over a backdrop that takes the interaction — a modal dialog.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Proposal copilot' });
+
   return (
     <span className="contents">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 z-40"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-full z-50 flex flex-col"
+        {...dialogProps}
+        className="fixed top-0 right-0 h-full z-50 flex flex-col outline-none"
         style={{
           width: 'min(480px, 100vw)',
-          background: '#0D0D1E',
-          borderLeft: '1px solid rgba(255,255,255,0.08)',
+          background: K_OVERLAY,
+          borderLeft: `1px solid ${K_BORDER_DEFAULT}`,
           boxShadow: '-16px 0 60px rgba(0,0,0,0.6)',
         }}
       >
         {/* Header */}
         <div
-          className="flex items-center gap-3 px-5 py-4 border-b border-white/5 flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #06D7F608, #8B5CF608)' }}
+          className="flex items-center gap-3 px-5 py-4 border-b border-cortex-subtle flex-shrink-0"
+          style={{ background: `linear-gradient(135deg, ${K_INFO}08, ${K_ACCENT}08)` }}
         >
-          <Bot className="size-5 text-[#06D7F6] flex-shrink-0" />
+          <Bot className="size-5 text-cortex-info flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-black text-white tracking-tight">CORTEX Copilot</div>
-            <div className="text-[8px] text-gray-600 uppercase tracking-widest">
+            <div className="text-[8px] text-cortex-faint uppercase tracking-widest">
               Global Patch Engine · {stepLabels[step]}
             </div>
           </div>
           <span
             className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border flex-shrink-0"
-            style={{ color: '#06D7F6', borderColor: '#06D7F640', background: '#06D7F610' }}
+            style={{ color: K_INFO, borderColor: `${K_INFO}40`, background: `${K_INFO}10` }}
           >
             Phase C
           </span>
           <button
             onClick={onClose}
-            className="flex-shrink-0 text-gray-600 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"
+            className="flex-shrink-0 text-cortex-faint hover:text-white transition-colors p-1 rounded-cortex-sm hover:bg-cortex-control"
           >
             <X className="size-4" />
           </button>
@@ -852,14 +883,14 @@ export function CopilotPanel({
         {/* Error banner */}
         {error && (
           <div
-            className="flex items-start gap-2 mx-4 mt-3 px-3 py-2.5 rounded-xl border text-[9px] flex-shrink-0"
-            style={{ background: '#FD443810', borderColor: '#FD443840' }}
+            className="flex items-start gap-2 mx-4 mt-3 px-3 py-2.5 rounded-cortex-md border text-[9px] flex-shrink-0"
+            style={{ background: `${K_DANGER}10`, borderColor: `${K_DANGER}40` }}
           >
-            <TriangleAlert className="size-3.5 text-[#FD4438] flex-shrink-0 mt-0.5" />
-            <div className="flex-1 text-gray-400">
-              <span className="font-bold text-[#FD4438]">Error: </span>{error}
+            <TriangleAlert className="size-3.5 text-cortex-danger flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-cortex-muted">
+              <span className="font-bold text-cortex-danger">Error: </span>{error}
             </div>
-            <button onClick={() => setError(null)} className="text-gray-600 hover:text-white">
+            <button onClick={() => setError(null)} className="text-cortex-faint hover:text-white">
               <X className="size-3" />
             </button>
           </div>
@@ -909,7 +940,7 @@ export function CopilotPanel({
         </div>
 
         {/* Governance footer */}
-        <div className="px-4 py-3 border-t border-white/5 flex-shrink-0">
+        <div className="px-4 py-3 border-t border-cortex-subtle flex-shrink-0">
           <div className="text-[7px] text-gray-800 leading-relaxed">
             No silent edits · Revisions never auto-applied · Full patch_id → revision audit trail ·
             Fact lock + coherence + jargon validators enforced on every revision.

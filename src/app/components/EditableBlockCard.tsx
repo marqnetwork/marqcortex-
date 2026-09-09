@@ -48,6 +48,29 @@ import {
   ROLE_LABELS,
   ROLE_COLORS,
 } from '@/app/core/roleEngine';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT       = brand.accent;
+const K_ACCENT_ALT   = brand.accentAlt;
+const K_CAUTION      = STATUS.caution;
+const K_DANGER       = STATUS.danger;
+const K_INFO         = STATUS.info;
+const K_NEUTRAL      = STATUS.neutral;
+const K_SUCCESS      = STATUS.success;
+const K_TEXT_FAINT   = TEXT.faint;
+const K_TEXT_MUTED   = TEXT.muted;
+const K_TEXT_PRIMARY = TEXT.primary;
+const K_WARNING      = STATUS.warning;
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -81,8 +104,8 @@ function ContentPreview({ content, format }: {
   if (format === 'rich_text') {
     const text = (content.text as string) ?? '';
     return (
-      <p className="text-[10px] text-gray-500 leading-relaxed line-clamp-3">
-        {text || <em className="text-gray-700">No content yet.</em>}
+      <p className="text-[10px] text-cortex-muted leading-relaxed line-clamp-3">
+        {text || <em className="text-cortex-faint">No content yet.</em>}
       </p>
     );
   }
@@ -91,14 +114,14 @@ function ContentPreview({ content, format }: {
     <div className="flex flex-wrap gap-x-4 gap-y-0.5">
       {entries.slice(0, 8).map(([k, v]) => (
         <div key={k} className="text-[9px]">
-          <span className="text-gray-700 uppercase tracking-wide">{k.replace(/_/g, ' ')}: </span>
-          <span className="text-gray-400 font-medium">
+          <span className="text-cortex-faint uppercase tracking-wide">{k.replace(/_/g, ' ')}: </span>
+          <span className="text-cortex-muted font-medium">
             {Array.isArray(v) ? `[${(v as unknown[]).length} items]` : String(v)}
           </span>
         </div>
       ))}
       {entries.length > 8 && (
-        <span className="text-[8px] text-gray-700">+{entries.length - 8} more</span>
+        <span className="text-[8px] text-cortex-faint">+{entries.length - 8} more</span>
       )}
     </div>
   );
@@ -145,19 +168,19 @@ function SideBySideDiff({
     return (
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <div className="text-[8px] font-black uppercase tracking-widest text-gray-700 mb-1.5 flex items-center gap-1">
+          <div className="text-[8px] font-black uppercase tracking-widest text-cortex-faint mb-1.5 flex items-center gap-1">
             <span className="size-1.5 rounded-full bg-gray-600 inline-block" />Current
           </div>
-          <div className="bg-black/30 rounded-lg p-2.5 text-[10px] text-gray-600 leading-relaxed min-h-[80px]">
+          <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-[10px] text-cortex-faint leading-relaxed min-h-[80px]">
             {currentText || <em>Empty</em>}
           </div>
         </div>
         <div>
-          <div className="text-[8px] font-black uppercase tracking-widest text-[#06D7F6] mb-1.5 flex items-center gap-1">
-            <span className="size-1.5 rounded-full bg-[#06D7F6] inline-block" />Proposed
+          <div className="text-[8px] font-black uppercase tracking-widest text-cortex-info mb-1.5 flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-cortex-info inline-block" />Proposed
           </div>
-          <div className="bg-black/30 rounded-lg p-2.5 text-[10px] text-white leading-relaxed min-h-[80px] border border-[#06D7F6]/20">
-            {proposedText || <em className="text-gray-700">Empty</em>}
+          <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-[10px] text-white leading-relaxed min-h-[80px] border border-cortex-info/20">
+            {proposedText || <em className="text-cortex-faint">Empty</em>}
           </div>
         </div>
       </div>
@@ -172,19 +195,19 @@ function SideBySideDiff({
         <div
           key={d.key}
           className="grid grid-cols-[120px_1fr_1fr] gap-1.5 px-2 py-1 rounded text-[9px]"
-          style={{ background: d.changed ? '#06D7F610' : 'transparent' }}
+          style={{ background: d.changed ? `${K_INFO}10` : 'transparent' }}
         >
           <span
             className="font-bold uppercase tracking-wide truncate"
-            style={{ color: d.changed ? '#06D7F6' : '#4B5563' }}
+            style={{ color: d.changed ? K_INFO : K_TEXT_FAINT }}
           >
             {d.key.replace(/_/g, ' ')}
             {d.changed && ' ✦'}
           </span>
-          <span className="text-gray-700 truncate">{stringify(d.current)}</span>
+          <span className="text-cortex-faint truncate">{stringify(d.current)}</span>
           <span
             className="truncate font-medium"
-            style={{ color: d.changed ? '#10B981' : '#6B7280' }}
+            style={{ color: d.changed ? K_SUCCESS : K_NEUTRAL }}
           >
             {stringify(d.proposed)}
           </span>
@@ -216,32 +239,32 @@ function RichTextEditor({
         onChange={e => setText(e.target.value)}
         rows={6}
         placeholder="Write block content…"
-        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white resize-y focus:outline-none focus:border-[#8B5CF6]/60 placeholder:text-gray-700 leading-relaxed"
+        className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2.5 text-xs text-white resize-y focus:outline-none focus:border-cortex-accent/60 placeholder:text-cortex-faint leading-relaxed"
       />
       <div>
-        <label className="block text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-1">
-          Change Summary <span className="text-[#FD4438]">*</span>{' '}
+        <label className="block text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-1">
+          Change Summary <span className="text-cortex-danger">*</span>{' '}
           <em className="font-normal text-gray-800">(min 10 chars — no silent edits)</em>
         </label>
         <input
           value={diffSummary}
           onChange={e => setDiffSummary(e.target.value)}
           placeholder="Describe what changed and why…"
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[10px] text-white focus:outline-none focus:border-[#8B5CF6]/60 placeholder:text-gray-700"
+          className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-[10px] text-white focus:outline-none focus:border-cortex-accent/60 placeholder:text-cortex-faint"
         />
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={() => isValid && onSave(text, diffSummary)}
           disabled={!isValid}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: isValid ? '#8B5CF620' : '#ffffff10', color: isValid ? '#8B5CF6' : '#6B7280' }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: isValid ? `${K_ACCENT}20` : `${K_TEXT_PRIMARY}10`, color: isValid ? K_ACCENT : K_NEUTRAL }}
         >
           <Save className="size-3" />Propose Revision
         </button>
         <button
           onClick={onCancel}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] text-gray-600 hover:text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] text-cortex-faint hover:text-white transition-colors"
         >
           <X className="size-3" />Cancel
         </button>
@@ -282,35 +305,35 @@ function StructuredJsonEditor({
         onChange={e => handleJsonChange(e.target.value)}
         rows={8}
         spellCheck={false}
-        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-[10px] text-[#06D7F6] font-mono resize-y focus:outline-none focus:border-[#8B5CF6]/60 leading-relaxed"
-        style={{ borderColor: jsonError ? '#FD443840' : undefined }}
+        className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2.5 text-[10px] text-cortex-info font-mono resize-y focus:outline-none focus:border-cortex-accent/60 leading-relaxed"
+        style={{ borderColor: jsonError ? `${K_DANGER}40` : undefined }}
       />
       {jsonError && (
-        <div className="text-[8px] text-[#FD4438] flex items-center gap-1">
+        <div className="text-[8px] text-cortex-danger flex items-center gap-1">
           <AlertTriangle className="size-2.5" />{jsonError}
         </div>
       )}
       <div>
-        <label className="block text-[8px] font-bold uppercase tracking-wider text-gray-700 mb-1">
-          Change Summary <span className="text-[#FD4438]">*</span>
+        <label className="block text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-1">
+          Change Summary <span className="text-cortex-danger">*</span>
         </label>
         <input
           value={diffSummary}
           onChange={e => setDiffSummary(e.target.value)}
           placeholder="Describe what changed and why…"
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[10px] text-white focus:outline-none focus:border-[#8B5CF6]/60 placeholder:text-gray-700"
+          className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-[10px] text-white focus:outline-none focus:border-cortex-accent/60 placeholder:text-cortex-faint"
         />
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={handleSave}
           disabled={!isValid}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all disabled:opacity-40"
-          style={{ background: isValid ? '#8B5CF620' : '#ffffff10', color: isValid ? '#8B5CF6' : '#6B7280' }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-all disabled:opacity-40"
+          style={{ background: isValid ? `${K_ACCENT}20` : `${K_TEXT_PRIMARY}10`, color: isValid ? K_ACCENT : K_NEUTRAL }}
         >
           <Save className="size-3" />Propose Revision
         </button>
-        <button onClick={onCancel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] text-gray-600 hover:text-white transition-colors">
+        <button onClick={onCancel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] text-cortex-faint hover:text-white transition-colors">
           <X className="size-3" />Cancel
         </button>
       </div>
@@ -330,10 +353,10 @@ const AI_ACTION_ICONS: Record<AIAction, React.FC<{ className?: string }>> = {
 };
 
 const AI_ACTION_COLORS: Record<AIAction, string> = {
-  ai_improve:  '#8B5CF6',
-  ai_expand:   '#06D7F6',
-  ai_simplify: '#F59E0B',
-  fix_issues:  '#FB923C',
+  ai_improve:  K_ACCENT,
+  ai_expand:   K_INFO,
+  ai_simplify: K_CAUTION,
+  fix_issues:  K_WARNING,
 };
 
 function AIActionButtons({
@@ -369,7 +392,7 @@ function AIActionButtons({
   if (isContractClause) {
     return (
       <span
-        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] border border-white/5 text-gray-700"
+        className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[8px] border border-cortex-subtle text-cortex-faint"
         title="Contract clauses: AI suggestions visible to admin only"
       >
         <Bot className="size-3" />Admin AI only
@@ -381,7 +404,7 @@ function AIActionButtons({
   if (rolePermissionDenied) {
     return (
       <span
-        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] border border-white/5 text-gray-700"
+        className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[8px] border border-cortex-subtle text-cortex-faint"
         title={`${roleLabel ?? 'This role'}: no AI access for this block type`}
       >
         <Shield className="size-3" />{roleLabel} · no AI
@@ -393,7 +416,7 @@ function AIActionButtons({
     const color = AI_ACTION_COLORS[loadingAction];
     return (
       <span
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-bold border"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-cortex-sm text-[9px] font-bold border"
         style={{ background: `${color}15`, borderColor: `${color}40`, color }}
       >
         <Loader2 className="size-3 animate-spin" />
@@ -418,11 +441,11 @@ function AIActionButtons({
               : 'Loading…'
               : AI_ACTION_DESCRIPTIONS[action]
             }
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[9px] font-bold border transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             style={{
               background:  `${color}0F`,
               borderColor: `${color}30`,
-              color:        disabled ? '#6B7280' : color,
+              color:        disabled ? K_NEUTRAL : color,
             }}
           >
             <Icon className="size-2.5" />
@@ -453,20 +476,20 @@ function RevisionReviewPanel({
   if (!pending_revision) return null;
 
   const isHuman = pending_revision.created_by_type === 'human';
-  const authorColor = isHuman ? '#3B82F6' : '#8B5CF6';
+  const authorColor = isHuman ? K_ACCENT_ALT : K_ACCENT;
 
   return (
     <div
-      className="rounded-xl border overflow-hidden"
-      style={{ borderColor: '#F59E0B30', background: '#F59E0B04' }}
+      className="rounded-cortex-md border overflow-hidden"
+      style={{ borderColor: `${K_CAUTION}30`, background: `${K_CAUTION}04` }}
     >
       {/* Review header */}
-      <div className="flex items-start gap-3 px-4 py-3 border-b border-white/5">
-        <Hourglass className="size-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 px-4 py-3 border-b border-cortex-subtle">
+        <Hourglass className="size-4 text-cortex-caution flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] font-bold text-[#F59E0B] mb-0.5">Review changes</div>
-          <div className="text-[9px] text-gray-400">{pending_revision.diff_summary}</div>
-          <div className="flex items-center gap-2 text-[8px] text-gray-700 mt-1">
+          <div className="text-[10px] font-bold text-cortex-caution mb-0.5">Review changes</div>
+          <div className="text-[9px] text-cortex-muted">{pending_revision.diff_summary}</div>
+          <div className="flex items-center gap-2 text-[8px] text-cortex-faint mt-1">
             {isHuman ? <User className="size-2.5" /> : <Bot className="size-2.5" />}
             <span style={{ color: authorColor }}>{isHuman ? 'Human' : 'AI'}</span>
             · {pending_revision.created_by}
@@ -477,21 +500,21 @@ function RevisionReviewPanel({
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={onAccept}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors"
-            style={{ background: '#10B98120', color: '#10B981', border: '1px solid #10B98140' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-colors"
+            style={{ background: `${K_SUCCESS}20`, color: K_SUCCESS, border: `1px solid ${K_SUCCESS}40` }}
           >
             <CheckCircle2 className="size-3" />Accept
           </button>
           <button
             onClick={onEditManually}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-colors border border-cortex-default text-cortex-muted hover:text-white hover:border-cortex-strong"
           >
             <Edit3 className="size-3" />Edit
           </button>
           <button
             onClick={onReject}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors"
-            style={{ background: '#FD443818', color: '#FD4438', border: '1px solid #FD443840' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold transition-colors"
+            style={{ background: `${K_DANGER}18`, color: K_DANGER, border: `1px solid ${K_DANGER}40` }}
           >
             <XCircle className="size-3" />Reject
           </button>
@@ -500,7 +523,7 @@ function RevisionReviewPanel({
 
       {/* Side-by-side diff — spec §6 */}
       <div className="px-4 pt-3 pb-4 space-y-2">
-        <div className="flex items-center gap-1.5 text-[8px] font-bold text-gray-700 uppercase tracking-wide">
+        <div className="flex items-center gap-1.5 text-[8px] font-bold text-cortex-faint uppercase tracking-wide">
           <ArrowLeftRight className="size-3" />Side-by-side diff
         </div>
         <SideBySideDiff block={block} proposedContent={pending_revision.proposed_content} />
@@ -515,25 +538,25 @@ function RevisionReviewPanel({
 
 function ROISnapshotView({ content }: { content: Record<string, unknown> }) {
   const metrics = [
-    { label: 'ROI',         value: `${content.roi_percentage ?? '—'}%`,       color: '#10B981' },
-    { label: 'Investment',  value: `$${((content.investment_total as number ?? 0) / 1_000).toFixed(0)}K`, color: '#3B82F6' },
-    { label: 'Annual Gain', value: `$${((content.annual_gain as number ?? 0) / 1_000).toFixed(0)}K`,     color: '#10B981' },
-    { label: 'Payback',     value: `Mo. ${content.payback_month ?? '—'}`,      color: '#F59E0B' },
-    { label: 'Confidence',  value: `${content.confidence_score ?? '—'}%`,      color: '#8B5CF6' },
-    { label: 'Scenario',    value: String(content.scenario ?? '—'),            color: '#06D7F6' },
+    { label: 'ROI',         value: `${content.roi_percentage ?? '—'}%`,       color: K_SUCCESS },
+    { label: 'Investment',  value: `$${((content.investment_total as number ?? 0) / 1_000).toFixed(0)}K`, color: K_ACCENT_ALT },
+    { label: 'Annual Gain', value: `$${((content.annual_gain as number ?? 0) / 1_000).toFixed(0)}K`,     color: K_SUCCESS },
+    { label: 'Payback',     value: `Mo. ${content.payback_month ?? '—'}`,      color: K_CAUTION },
+    { label: 'Confidence',  value: `${content.confidence_score ?? '—'}%`,      color: K_ACCENT },
+    { label: 'Scenario',    value: String(content.scenario ?? '—'),            color: K_INFO },
   ];
   return (
     <div>
       <div className="grid grid-cols-3 gap-1.5 mb-2">
         {metrics.map(m => (
-          <div key={m.label} className="px-2 py-2 rounded-lg bg-black/20 border border-white/5 text-center">
-            <div className="text-[7px] uppercase tracking-wide text-gray-700 mb-0.5">{m.label}</div>
+          <div key={m.label} className="px-2 py-2 rounded-cortex-sm bg-black/20 border border-cortex-subtle text-center">
+            <div className="text-[7px] uppercase tracking-wide text-cortex-faint mb-0.5">{m.label}</div>
             <div className="text-sm font-black" style={{ color: m.color }}>{m.value}</div>
           </div>
         ))}
       </div>
-      <div className="flex items-start gap-1.5 text-[8px] text-gray-700">
-        <Info className="size-3 flex-shrink-0 mt-0.5 text-[#8B5CF6]" />
+      <div className="flex items-start gap-1.5 text-[8px] text-cortex-faint">
+        <Info className="size-3 flex-shrink-0 mt-0.5 text-cortex-accent" />
         <span>{content._note as string}</span>
       </div>
     </div>
@@ -554,8 +577,8 @@ function ApproveBlockButton({ blockState, onApprove, roleCanApprove }: {
   return (
     <button
       onClick={onApprove}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-      style={{ background: '#10B98112', borderColor: '#10B98140', color: '#10B981' }}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-[10px] font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ background: `${K_SUCCESS}12`, borderColor: `${K_SUCCESS}40`, color: K_SUCCESS }}
       disabled={!roleCanApprove}
       title={!roleCanApprove ? 'Your role cannot approve this block type' : 'Approve this block'}
     >
@@ -571,14 +594,14 @@ function ApproveBlockButton({ blockState, onApprove, roleCanApprove }: {
 function AIErrorNotice({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div
-      className="flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[9px]"
-      style={{ background: '#FD443810', borderColor: '#FD443840' }}
+      className="flex items-start gap-2 px-3 py-2.5 rounded-cortex-md border text-[9px]"
+      style={{ background: `${K_DANGER}10`, borderColor: `${K_DANGER}40` }}
     >
-      <TriangleAlert className="size-3.5 text-[#FD4438] flex-shrink-0 mt-0.5" />
-      <div className="flex-1 text-gray-400">
-        <span className="font-bold text-[#FD4438]">AI assist failed: </span>{message}
+      <TriangleAlert className="size-3.5 text-cortex-danger flex-shrink-0 mt-0.5" />
+      <div className="flex-1 text-cortex-muted">
+        <span className="font-bold text-cortex-danger">AI assist failed: </span>{message}
       </div>
-      <button onClick={onDismiss} className="text-gray-600 hover:text-white">
+      <button onClick={onDismiss} className="text-cortex-faint hover:text-white">
         <X className="size-3" />
       </button>
     </div>
@@ -675,24 +698,24 @@ export function EditableBlockCard({
 
   return (
     <div
-      className="rounded-xl border overflow-hidden transition-all"
+      className="rounded-cortex-md border overflow-hidden transition-all"
       style={{
-        borderColor: hasPending ? '#F59E0B40' : isLocked ? '#70707C30' : statusCfg.border,
-        background:  isLocked ? '#ffffff03' : 'transparent',
+        borderColor: hasPending ? `${K_CAUTION}40` : isLocked ? `${K_NEUTRAL}30` : statusCfg.border,
+        background:  isLocked ? `${K_TEXT_PRIMARY}03` : 'transparent',
       }}
     >
       {/* ── HEADER ── */}
       <div
         className="flex items-center gap-2 px-4 py-3 cursor-pointer flex-wrap"
         style={{
-          background: hasPending ? '#F59E0B08' : isLocked ? '#ffffff04' : '#ffffff06',
+          background: hasPending ? `${K_CAUTION}08` : isLocked ? `${K_TEXT_PRIMARY}04` : `${K_TEXT_PRIMARY}06`,
         }}
         onClick={() => !editing && setExpanded(e => !e)}
       >
         {/* Type badge */}
         <span
           className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex-shrink-0"
-          style={{ background: '#ffffff10', color: '#9CA3AF' }}
+          style={{ background: `${K_TEXT_PRIMARY}10`, color: K_TEXT_MUTED }}
         >
           {BLOCK_TYPE_LABELS[block.block_type]}
         </span>
@@ -714,7 +737,7 @@ export function EditableBlockCard({
         {hasPending && (
           <span
             className="text-[8px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-            style={{ background: '#F59E0B20', color: '#F59E0B' }}
+            style={{ background: `${K_CAUTION}20`, color: K_CAUTION }}
           >
             Pending
           </span>
@@ -730,7 +753,7 @@ export function EditableBlockCard({
           {block.source === 'mixed' && <Zap  className="size-2.5" />}
           {block.source}
         </span>
-        <span className="text-[8px] font-mono text-gray-700 flex-shrink-0">v{block.version}</span>
+        <span className="text-[8px] font-mono text-cortex-faint flex-shrink-0">v{block.version}</span>
 
         {/* Controls */}
         <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
@@ -751,11 +774,11 @@ export function EditableBlockCard({
           {canEdit && (
             <button
               onClick={() => { setEditing(e => !e); setExpanded(true); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[9px] font-bold border transition-colors"
               style={{
-                background:  editing ? '#8B5CF620' : 'transparent',
-                borderColor: editing ? '#8B5CF640' : '#ffffff15',
-                color:       editing ? '#8B5CF6'   : '#9CA3AF',
+                background:  editing ? `${K_ACCENT}20` : 'transparent',
+                borderColor: editing ? `${K_ACCENT}40` : `${K_TEXT_PRIMARY}15`,
+                color:       editing ? K_ACCENT   : K_TEXT_MUTED,
               }}
             >
               <Edit3 className="size-3" />Edit
@@ -765,7 +788,7 @@ export function EditableBlockCard({
           {/* Role: no edit access indicator (when not locked/reference) */}
           {!canEdit && !isLocked && !isReference && !pending_revision && !roleCanEdit && (
             <span
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] border border-white/5"
+              className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[8px] border border-cortex-subtle"
               style={{ color: roleColor }}
               title={getPermissionDeniedReason(userRole, block.block_type)}
             >
@@ -775,7 +798,7 @@ export function EditableBlockCard({
 
           {/* Reference eye */}
           {isReference && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] text-gray-700 border border-white/5" title="Reference block (§9)">
+            <span className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[9px] text-cortex-faint border border-cortex-subtle" title="Reference block (§9)">
               <Eye className="size-3" />Ref
             </span>
           )}
@@ -783,7 +806,7 @@ export function EditableBlockCard({
           {/* Lock indicator */}
           {isLocked && !isReference && (
             <span
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] text-gray-700 border border-white/5"
+              className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[9px] text-cortex-faint border border-cortex-subtle"
               title={lock ? `Locked: ${LOCK_REASON_LABELS[lock.lock_reason]}` : 'Locked'}
             >
               <Lock className="size-3" />
@@ -794,7 +817,7 @@ export function EditableBlockCard({
           {/* History — always visible */}
           <button
             onClick={() => onOpenHistory(block.block_id)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border border-white/10 text-gray-600 hover:text-white hover:border-white/20 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm text-[9px] font-bold border border-cortex-default text-cortex-faint hover:text-white hover:border-cortex-strong transition-colors"
           >
             <History className="size-3" />History
           </button>
@@ -802,8 +825,8 @@ export function EditableBlockCard({
 
         {!editing && (
           expanded
-            ? <ChevronUp   className="size-3.5 text-gray-700 flex-shrink-0" />
-            : <ChevronDown className="size-3.5 text-gray-700 flex-shrink-0" />
+            ? <ChevronUp   className="size-3.5 text-cortex-faint flex-shrink-0" />
+            : <ChevronDown className="size-3.5 text-cortex-faint flex-shrink-0" />
         )}
       </div>
 
@@ -828,12 +851,12 @@ export function EditableBlockCard({
           {/* Lock notice */}
           {isLocked && lock && (
             <div
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-[9px]"
-              style={{ background: '#70707C10', border: '1px solid #70707C20' }}
+              className="flex items-center gap-2 px-3 py-2 rounded-cortex-sm text-[9px]"
+              style={{ background: `${K_NEUTRAL}10`, border: `1px solid ${K_NEUTRAL}20` }}
             >
-              <Shield className="size-3 text-gray-600 flex-shrink-0" />
-              <span className="text-gray-600">
-                Locked by <strong className="text-gray-500">{lock.locked_by}</strong> · {LOCK_REASON_LABELS[lock.lock_reason]}
+              <Shield className="size-3 text-cortex-faint flex-shrink-0" />
+              <span className="text-cortex-faint">
+                Locked by <strong className="text-cortex-muted">{lock.locked_by}</strong> · {LOCK_REASON_LABELS[lock.lock_reason]}
               </span>
               {!lock.unlock_allowed && (
                 <span className="ml-auto text-[8px] text-red-600 font-bold uppercase">unlock_allowed: false</span>
@@ -844,12 +867,12 @@ export function EditableBlockCard({
           {/* ROI reference notice */}
           {isReference && (
             <div
-              className="flex items-start gap-2 px-3 py-2 rounded-lg text-[9px]"
-              style={{ background: '#8B5CF610', border: '1px solid #8B5CF630' }}
+              className="flex items-start gap-2 px-3 py-2 rounded-cortex-sm text-[9px]"
+              style={{ background: `${K_ACCENT}10`, border: `1px solid ${K_ACCENT}30` }}
             >
-              <Info className="size-3 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
-              <span className="text-gray-500">
-                <strong className="text-[#8B5CF6]">ROI Protection (§9):</strong> Numbers come from the ROI engine. Edit <em>roi_summary_narrative</em> to change the narrative.
+              <Info className="size-3 text-cortex-accent flex-shrink-0 mt-0.5" />
+              <span className="text-cortex-muted">
+                <strong className="text-cortex-accent">ROI Protection (§9):</strong> Numbers come from the ROI engine. Edit <em>roi_summary_narrative</em> to change the narrative.
               </span>
             </div>
           )}
@@ -866,7 +889,14 @@ export function EditableBlockCard({
               block.content_format === 'rich_text' ? (
                 <RichTextEditor
                   initialText={currentText}
-                  onSave={handleSave}
+                  /* RichTextEditor yields the raw TEXT; handleSave forwards its
+                     first argument to onEdit as the block's whole CONTENT record.
+                     Passing handleSave directly replaced `{ text: '...' }` with a
+                     bare string, so `block.content.text` went undefined and the
+                     block rendered "Empty" after every rich-text edit. Re-wrap
+                     the text into the content record, keeping sibling keys. */
+                  onSave={(text, diffSummary) =>
+                    handleSave({ ...editorInitialContent, text }, diffSummary)}
                   onCancel={() => { setEditing(false); setEditInitial(null); }}
                 />
               ) : (
@@ -881,7 +911,7 @@ export function EditableBlockCard({
 
           {/* Footer */}
           {!editing && (
-            <div className="flex items-center justify-between pt-1 border-t border-white/5">
+            <div className="flex items-center justify-between pt-1 border-t border-cortex-subtle">
               <div className="text-[8px] text-gray-800 font-mono flex items-center gap-2">
                 <FileText className="size-2.5" />
                 {block.block_id} · {block.current_revision_id} · {timeAgo(block.updated_at)}

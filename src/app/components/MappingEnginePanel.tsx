@@ -31,6 +31,21 @@ import type { MappingPipelineResult, PipelineStepLog } from '@/app/core/mappingE
 import type { ProposalSnapshot } from '@/app/core/snapshotEngine';
 import { generateVersionHash } from '@/app/core/snapshotEngine';
 import { BRAND } from '@/app/utils/designTokens';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT_LIGHT  = brand.accentLight;
+const K_BORDER_STRONG = BORDER.strong;
+const K_SUCCESS_LIGHT = STATUS.successLight;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMO SNAPSHOT (ExampleCo seed — used when no live snapshot exists)
@@ -123,8 +138,8 @@ const STEPS: StepMeta[] = [
   { n: 4, fn: 'mapDeliverablestoTasks',    label: 'Tasks',                 input: 'milestones[] × workstreams[]', output: 'Task[] + role assignments',  icon: List,       color: BRAND.green,  rule: 'Role assigned by verb: Build→Engineer, Validate→QA, Deploy→Ops' },
   { n: 5, fn: 'generateGates',             label: 'Governance Gates',      input: 'milestones[] + assumptions', output: 'Gate[] (4 checkpoints)',       icon: Shield,     color: BRAND.orange, rule: 'Milestone cannot complete if its required gate is not passed' },
   { n: 6, fn: 'captureBaselineLock',       label: 'Baseline Lock',         input: 'roi_snapshot',               output: 'BaselineLock (immutable anchor)', icon: Lock,    color: BRAND.red,    rule: 'ROI actuals never modify projected ROI — baseline is read-only' },
-  { n: 7, fn: 'copyScopeBoundaries',       label: 'Scope Boundaries',      input: 'scope_boundaries (frozen)',  output: 'ScopeBoundary + integrations', icon: Target,    color: '#A78BFA',    rule: 'Scope changes after snapshot trigger a change order, not an edit' },
-  { n: 8, fn: 'buildDependencyGraph',      label: 'Dependency Graph',      input: 'tasks + milestones + gates', output: 'DAG + critical path',         icon: Network,    color: '#34D399',    rule: 'Cannot deploy before build; cannot optimize before deploy' },
+  { n: 7, fn: 'copyScopeBoundaries',       label: 'Scope Boundaries',      input: 'scope_boundaries (frozen)',  output: 'ScopeBoundary + integrations', icon: Target,    color: K_ACCENT_LIGHT,    rule: 'Scope changes after snapshot trigger a change order, not an edit' },
+  { n: 8, fn: 'buildDependencyGraph',      label: 'Dependency Graph',      input: 'tasks + milestones + gates', output: 'DAG + critical path',         icon: Network,    color: K_SUCCESS_LIGHT,    rule: 'Cannot deploy before build; cannot optimize before deploy' },
 ];
 
 type PipelineTab = 'workstreams' | 'milestones' | 'tasks' | 'gates' | 'baseline' | 'scope' | 'graph' | 'log';
@@ -137,7 +152,7 @@ function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { bg: string; text: string; dot: string }> = {
     complete:     { bg: 'bg-emerald-500/10',  text: 'text-emerald-400',  dot: 'bg-emerald-400'  },
     in_progress:  { bg: 'bg-blue-500/10',     text: 'text-blue-400',     dot: 'bg-blue-400'     },
-    not_started:  { bg: 'bg-gray-500/10',     text: 'text-gray-400',     dot: 'bg-gray-500'     },
+    not_started:  { bg: 'bg-gray-500/10',     text: 'text-cortex-muted',     dot: 'bg-gray-500'     },
     blocked:      { bg: 'bg-red-500/10',      text: 'text-red-400',      dot: 'bg-red-400'      },
     passed:       { bg: 'bg-emerald-500/10',  text: 'text-emerald-400',  dot: 'bg-emerald-400'  },
     pending:      { bg: 'bg-amber-500/10',    text: 'text-amber-400',    dot: 'bg-amber-400'    },
@@ -157,7 +172,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PriorityBadge({ p }: { p: string }) {
-  const c = p === 'high' || p === 'critical' ? 'text-red-400' : p === 'medium' ? 'text-amber-400' : 'text-gray-500';
+  const c = p === 'high' || p === 'critical' ? 'text-red-400' : p === 'medium' ? 'text-amber-400' : 'text-cortex-muted';
   return <span className={`text-[10px] font-bold uppercase ${c}`}>{p}</span>;
 }
 
@@ -224,22 +239,22 @@ export function MappingEnginePanel() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#0A0A0F] text-white overflow-auto">
+    <div className="flex flex-col h-full bg-cortex-canvas text-white overflow-auto">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="px-6 pt-6 pb-4 border-b border-white/10">
+      <div className="px-6 pt-6 pb-4 border-b border-cortex-default">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="size-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/20">
+              <div className="size-9 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center shadow-lg shadow-cortex-accent/20">
                 <GitBranch className="size-4 text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white tracking-tight">Mapping Engine</h1>
-                <p className="text-xs text-gray-500 font-mono">proposal_snapshot → execution_blueprint</p>
+                <p className="text-xs text-cortex-muted font-mono">proposal_snapshot → execution_blueprint</p>
               </div>
             </div>
-            <p className="text-sm text-gray-400 max-w-2xl mt-2">
+            <p className="text-sm text-cortex-muted max-w-2xl mt-2">
               Deterministic 8-step pipeline. Every workstream, milestone, task, gate, baseline lock, scope boundary,
               and dependency graph is generated by math from an immutable proposal snapshot — no LLM involved.
             </p>
@@ -249,7 +264,7 @@ export function MappingEnginePanel() {
             {result && (
               <button
                 onClick={reset}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-cortex-sm text-sm text-cortex-muted hover:text-white hover:bg-cortex-control border border-cortex-default transition-colors"
               >
                 <RefreshCw className="size-3.5" />
                 Reset
@@ -258,12 +273,12 @@ export function MappingEnginePanel() {
             <button
               onClick={running ? reset : runPipeline}
               disabled={false}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-cortex-md text-sm font-semibold transition-all ${
                 running
                   ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20'
                   : result
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-default'
-                  : 'bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white hover:opacity-90 shadow-lg shadow-[#8B5CF6]/20'
+                  : 'bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white hover:opacity-90 shadow-lg shadow-cortex-accent/20'
               }`}
             >
               {running ? (
@@ -278,15 +293,15 @@ export function MappingEnginePanel() {
         </div>
 
         {/* Snapshot badge */}
-        <div className="flex items-center gap-3 mt-4 p-3 bg-white/3 rounded-xl border border-white/8">
-          <div className="size-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-3 mt-4 p-3 bg-white/3 rounded-cortex-md border border-white/8">
+          <div className="size-8 rounded-cortex-sm bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
             <Database className="size-3.5 text-purple-400" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">
               {(DEMO_SNAPSHOT.content_snapshot.executive_brief as any)?.title ?? DEMO_SNAPSHOT.proposal_id}
             </p>
-            <p className="text-[11px] text-gray-500 font-mono">
+            <p className="text-[11px] text-cortex-muted font-mono">
               {DEMO_SNAPSHOT.proposal_snapshot_id} · v{DEMO_SNAPSHOT.version_number} · {DEMO_SNAPSHOT.version_hash} · status: {DEMO_SNAPSHOT.status}
             </p>
           </div>
@@ -329,7 +344,7 @@ export function MappingEnginePanel() {
                         ? 'bg-emerald-500/15 border border-emerald-500/40'
                         : stepActive
                         ? 'border-2 border-white/40'
-                        : 'bg-white/3 border border-white/10'
+                        : 'bg-white/3 border border-cortex-default'
                     }`}
                     style={stepActive ? { borderColor: step.color, backgroundColor: `${step.color}18` } : {}}
                   >
@@ -343,16 +358,16 @@ export function MappingEnginePanel() {
                     )}
                     {stepPassed
                       ? <CheckCircle2 className="size-4 text-emerald-400" />
-                      : <Icon className={`size-4 ${stepActive ? '' : 'text-gray-600'}`} style={stepActive ? { color: step.color } : {}} />
+                      : <Icon className={`size-4 ${stepActive ? '' : 'text-cortex-faint'}`} style={stepActive ? { color: step.color } : {}} />
                     }
                   </div>
 
                   {/* Label */}
                   <div className="text-center">
-                    <p className={`text-[10px] font-bold uppercase tracking-wide ${stepPassed ? 'text-emerald-400' : stepActive ? 'text-white' : 'text-gray-600'}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-wide ${stepPassed ? 'text-emerald-400' : stepActive ? 'text-white' : 'text-cortex-faint'}`}>
                       {step.n}
                     </p>
-                    <p className={`text-[10px] leading-tight text-center max-w-[72px] ${stepPassed ? 'text-gray-300' : stepActive ? 'text-gray-200' : 'text-gray-600'}`}>
+                    <p className={`text-[10px] leading-tight text-center max-w-[72px] ${stepPassed ? 'text-cortex-secondary' : stepActive ? 'text-cortex-secondary' : 'text-cortex-faint'}`}>
                       {step.label}
                     </p>
                   </div>
@@ -363,10 +378,10 @@ export function MappingEnginePanel() {
                   <div className="flex-shrink-0 flex items-center pt-2 mx-0.5">
                     <motion.div
                       className="h-px w-5"
-                      style={{ background: STEPS[i + 1] ? (activeStep > i && activeStep !== -1 ? BRAND.green : '#374151') : '#374151' }}
+                      style={{ background: STEPS[i + 1] ? (activeStep > i && activeStep !== -1 ? BRAND.green : K_BORDER_STRONG) : K_BORDER_STRONG }}
                       animate={{ opacity: 1 }}
                     />
-                    <ChevronRight className={`size-3 -ml-1 ${activeStep > i && activeStep !== -1 ? 'text-emerald-500' : 'text-gray-600'}`} />
+                    <ChevronRight className={`size-3 -ml-1 ${activeStep > i && activeStep !== -1 ? 'text-emerald-500' : 'text-cortex-faint'}`} />
                   </div>
                 )}
               </span>
@@ -382,7 +397,7 @@ export function MappingEnginePanel() {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="mt-3 flex items-center gap-3 p-3 rounded-xl border"
+              className="mt-3 flex items-center gap-3 p-3 rounded-cortex-md border"
               style={{ backgroundColor: `${STEPS[activeStep].color}08`, borderColor: `${STEPS[activeStep].color}25` }}
             >
               <div className="size-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STEPS[activeStep].color}20` }}>
@@ -392,13 +407,13 @@ export function MappingEnginePanel() {
                 <p className="text-xs font-semibold text-white">
                   Step {STEPS[activeStep].n}: <span className="font-mono">{STEPS[activeStep].fn}()</span>
                 </p>
-                <p className="text-[11px] text-gray-400">
-                  Input: <span className="font-mono text-gray-300">{STEPS[activeStep].input}</span>
-                  <span className="mx-2 text-gray-600">→</span>
-                  Output: <span className="font-mono text-gray-300">{STEPS[activeStep].output}</span>
+                <p className="text-[11px] text-cortex-muted">
+                  Input: <span className="font-mono text-cortex-secondary">{STEPS[activeStep].input}</span>
+                  <span className="mx-2 text-cortex-faint">→</span>
+                  Output: <span className="font-mono text-cortex-secondary">{STEPS[activeStep].output}</span>
                 </p>
               </div>
-              <p className="text-[11px] text-gray-500 italic flex-shrink-0 max-w-[220px] text-right">
+              <p className="text-[11px] text-cortex-muted italic flex-shrink-0 max-w-[220px] text-right">
                 "{STEPS[activeStep].rule}"
               </p>
             </motion.div>
@@ -411,13 +426,13 @@ export function MappingEnginePanel() {
             <motion.div
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-3 flex items-center gap-4 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20"
+              className="mt-3 flex items-center gap-4 p-3 bg-emerald-500/5 rounded-cortex-md border border-emerald-500/20"
             >
               <CheckCircle2 className="size-4 text-emerald-400 flex-shrink-0" />
               <p className="text-xs font-semibold text-emerald-300 flex-1">
                 Pipeline completed in {elapsed}ms — {result.project.execution_id}
               </p>
-              <div className="flex items-center gap-3 text-[11px] text-gray-400">
+              <div className="flex items-center gap-3 text-[11px] text-cortex-muted">
                 <span className="text-white font-semibold">{result.project.workstreams.length}</span> workstreams
                 <span className="text-white font-semibold">{result.project.milestones.length}</span> milestones
                 <span className="text-white font-semibold">{result.project.tasks.length}</span> tasks
@@ -446,18 +461,18 @@ export function MappingEnginePanel() {
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
                     disabled={t.disabled}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-xs font-medium transition-all ${
                       activeTab === t.id
-                        ? 'bg-[#8B5CF6]/20 text-[#A78BFA] border border-[#8B5CF6]/30'
+                        ? 'bg-cortex-accent/20 text-cortex-accent-light border border-cortex-accent/30'
                         : t.disabled
-                        ? 'text-gray-600 cursor-not-allowed'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        ? 'text-cortex-faint cursor-not-allowed'
+                        : 'text-cortex-muted hover:text-white hover:bg-cortex-control'
                     }`}
                   >
                     <Icon className="size-3" />
                     {t.label}
                     {t.count != null && (
-                      <span className="bg-white/10 text-gray-300 rounded px-1 py-0.5 text-[9px] font-bold">
+                      <span className="bg-cortex-control-hover text-cortex-secondary rounded px-1 py-0.5 text-[9px] font-bold">
                         {t.count}
                       </span>
                     )}
@@ -510,11 +525,11 @@ export function MappingEnginePanel() {
       {/* ── Empty state ─────────────────────────────────────────────────────── */}
       {!result && !running && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-          <div className="size-16 rounded-2xl bg-white/3 border border-white/10 flex items-center justify-center mb-2">
-            <GitBranch className="size-7 text-gray-600" />
+          <div className="size-16 rounded-cortex-lg bg-white/3 border border-cortex-default flex items-center justify-center mb-2">
+            <GitBranch className="size-7 text-cortex-faint" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-200">Pipeline ready to run</h3>
-          <p className="text-sm text-gray-500 max-w-sm">
+          <h3 className="text-lg font-semibold text-cortex-secondary">Pipeline ready to run</h3>
+          <p className="text-sm text-cortex-muted max-w-sm">
             Press "Run Pipeline" to execute all 8 mapping steps against the ExampleCo snapshot.
             The full execution blueprint — workstreams, milestones, tasks, gates, baseline lock,
             scope boundaries, and dependency graph — will be generated in under a second.
@@ -523,12 +538,12 @@ export function MappingEnginePanel() {
             {STEPS.map(s => {
               const Icon = s.icon;
               return (
-                <div key={s.n} className="p-3 bg-white/3 rounded-xl border border-white/8 hover:border-white/15 transition-colors">
+                <div key={s.n} className="p-3 bg-white/3 rounded-cortex-md border border-white/8 hover:border-white/15 transition-colors">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Icon className="size-3.5" style={{ color: s.color }} />
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Step {s.n}</span>
+                    <span className="text-[10px] font-bold text-cortex-muted uppercase tracking-wide">Step {s.n}</span>
                   </div>
-                  <p className="text-[11px] font-semibold text-gray-200">{s.label}</p>
+                  <p className="text-[11px] font-semibold text-cortex-secondary">{s.label}</p>
                 </div>
               );
             })}
@@ -546,7 +561,7 @@ export function MappingEnginePanel() {
 function SectionTitle({ icon: Icon, title, color = BRAND.purple }: { icon: LucideIcon, title: string, color?: string }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      <div className="size-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}18` }}>
+      <div className="size-6 rounded-cortex-sm flex items-center justify-center" style={{ backgroundColor: `${color}18` }}>
         <Icon className="size-3.5" style={{ color }} />
       </div>
       <h3 className="text-sm font-semibold text-white">{title}</h3>
@@ -565,16 +580,16 @@ function WorkstreamsTab({ ws }: { ws: any[] }) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className="p-4 bg-white/3 rounded-xl border border-white/10 hover:border-white/20 transition-colors"
+            className="p-4 bg-white/3 rounded-cortex-md border border-cortex-default hover:border-cortex-strong transition-colors"
           >
             <div className="flex items-start justify-between gap-2 mb-2">
               <p className="text-sm font-semibold text-white leading-snug">{w.title}</p>
               <StatusBadge status={w.status} />
             </div>
-            <p className="text-xs text-gray-400 mb-3 leading-relaxed line-clamp-2">{w.scope_summary}</p>
+            <p className="text-xs text-cortex-muted mb-3 leading-relaxed line-clamp-2">{w.scope_summary}</p>
             <div className="flex flex-wrap gap-2 text-[11px]">
               <span className="flex items-center gap-1 text-blue-400"><Users className="size-3" />{w.owner_role}</span>
-              <span className="flex items-center gap-1 text-gray-400"><Clock className="size-3" />Wk {w.start_week}–{w.end_week}</span>
+              <span className="flex items-center gap-1 text-cortex-muted"><Clock className="size-3" />Wk {w.start_week}–{w.end_week}</span>
               <span className="flex items-center gap-1 text-purple-400"><Hash className="size-3" />{w.solution_type}</span>
             </div>
           </motion.div>
@@ -602,12 +617,12 @@ function MilestonesTab({ ms }: { ms: any[] }) {
               <div className={`size-8 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
                 m.status === 'complete'    ? 'bg-emerald-500/15 border-emerald-500/50' :
                 m.status === 'in_progress' ? 'bg-blue-500/15 border-blue-500/50' :
-                'bg-white/5 border-white/15'
+                'bg-cortex-control border-white/15'
               }`}>
                 {m.status === 'complete' ? (
                   <CheckCircle2 className="size-3.5 text-emerald-400" />
                 ) : (
-                  <span className="text-xs font-bold text-gray-400">P{m.phase_number}</span>
+                  <span className="text-xs font-bold text-cortex-muted">P{m.phase_number}</span>
                 )}
               </div>
               {i < ms.length - 1 && (
@@ -616,12 +631,12 @@ function MilestonesTab({ ms }: { ms: any[] }) {
             </div>
 
             <div className="flex-1 pb-4">
-              <div className="p-4 bg-white/3 rounded-xl border border-white/10 hover:border-white/20 transition-colors">
+              <div className="p-4 bg-white/3 rounded-cortex-md border border-cortex-default hover:border-cortex-strong transition-colors">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <p className="text-sm font-semibold text-white">{m.title}</p>
                   <StatusBadge status={m.status} />
                 </div>
-                <div className="flex flex-wrap gap-3 text-[11px] text-gray-400 mt-1.5">
+                <div className="flex flex-wrap gap-3 text-[11px] text-cortex-muted mt-1.5">
                   <span className="flex items-center gap-1"><Clock className="size-3" />{m.duration}</span>
                   {m.governance_checkpoint && (
                     <span className="flex items-center gap-1 text-amber-400"><Flag className="size-3" />{m.governance_checkpoint}</span>
@@ -654,7 +669,7 @@ function TasksTab({ tasks, milestones }: { tasks: any[]; milestones: any[] }) {
       <div className="space-y-4">
         {Object.entries(grouped).map(([msTitle, msTasks], gi) => (
           <div key={msTitle}>
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+            <h4 className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-2 flex items-center gap-2">
               <Calendar className="size-3 text-cyan-400" />
               {msTitle}
             </h4>
@@ -665,21 +680,21 @@ function TasksTab({ tasks, milestones }: { tasks: any[]; milestones: any[] }) {
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: (gi * 0.1) + (i * 0.04) }}
-                  className="flex items-center gap-3 p-3 bg-white/2 rounded-lg border border-white/8 hover:border-white/15 transition-colors"
+                  className="flex items-center gap-3 p-3 bg-white/2 rounded-cortex-sm border border-white/8 hover:border-white/15 transition-colors"
                 >
                   <div className={`size-5 rounded-full flex-shrink-0 flex items-center justify-center border ${
                     t.status === 'complete'    ? 'bg-emerald-500/15 border-emerald-500/40' :
                     t.status === 'in_progress' ? 'bg-blue-500/15 border-blue-500/40' :
-                    'bg-white/5 border-white/10'
+                    'bg-cortex-control border-cortex-default'
                   }`}>
                     {t.status === 'complete' && <CheckCircle2 className="size-3 text-emerald-400" />}
                   </div>
-                  <p className={`flex-1 text-xs ${t.status === 'complete' ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
+                  <p className={`flex-1 text-xs ${t.status === 'complete' ? 'text-cortex-muted line-through' : 'text-cortex-secondary'}`}>
                     {t.title}
                   </p>
                   <span className="text-[11px] text-blue-400 font-medium flex-shrink-0">{t.assigned_role}</span>
                   <PriorityBadge p={t.priority} />
-                  <span className="text-[10px] text-gray-600 font-mono flex-shrink-0 hidden md:block">
+                  <span className="text-[10px] text-cortex-faint font-mono flex-shrink-0 hidden md:block">
                     {new Date(t.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                   </span>
                 </motion.div>
@@ -710,10 +725,10 @@ function GatesTab({ gates, milestones }: { gates: any[]; milestones: any[] }) {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07 }}
-              className="p-4 bg-white/3 rounded-xl border border-white/10 hover:border-white/20 transition-colors"
+              className="p-4 bg-white/3 rounded-cortex-md border border-cortex-default hover:border-cortex-strong transition-colors"
             >
               <div className="flex items-start gap-3">
-                <div className={`size-8 rounded-lg flex items-center justify-center flex-shrink-0 ${g.status === 'passed' ? 'bg-emerald-500/15' : 'bg-amber-500/10'}`}>
+                <div className={`size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0 ${g.status === 'passed' ? 'bg-emerald-500/15' : 'bg-amber-500/10'}`}>
                   <Icon className={`size-4 ${g.status === 'passed' ? 'text-emerald-400' : 'text-amber-400'}`} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -721,8 +736,8 @@ function GatesTab({ gates, milestones }: { gates: any[]; milestones: any[] }) {
                     <p className="text-sm font-semibold text-white truncate">{g.title}</p>
                     <StatusBadge status={g.status} />
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">{g.description}</p>
-                  <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500">
+                  <p className="text-xs text-cortex-muted leading-relaxed">{g.description}</p>
+                  <div className="flex items-center gap-3 mt-2 text-[11px] text-cortex-muted">
                     <span>Phase: {msMap[g.milestone_id] ?? '—'}</span>
                     <span className="uppercase font-semibold text-purple-400">{g.type}</span>
                     {g.passed_by && <span className="text-emerald-400">by {g.passed_by}</span>}
@@ -738,7 +753,7 @@ function GatesTab({ gates, milestones }: { gates: any[]; milestones: any[] }) {
 }
 
 function BaselineTab({ bl }: { bl: any }) {
-  if (!bl) return <p className="text-sm text-gray-500">No baseline lock generated.</p>;
+  if (!bl) return <p className="text-sm text-cortex-muted">No baseline lock generated.</p>;
   const metrics = [
     { label: 'Total Investment',       value: `$${((bl.metrics_snapshot.total_investment ?? 0) / 1000).toFixed(0)}K`,       icon: TrendingUp, color: BRAND.blue   },
     { label: 'Monthly Cost (Before)',  value: `$${((bl.metrics_snapshot.monthly_cost_before ?? 0) / 1000).toFixed(0)}K/mo`,  icon: BarChart2,  color: BRAND.orange },
@@ -751,7 +766,7 @@ function BaselineTab({ bl }: { bl: any }) {
   return (
     <div>
       <SectionTitle icon={Lock} title="Baseline Lock — Step 6: immutable ROI anchor, never editable without change order" color={BRAND.red} />
-      <div className="p-3 mb-4 bg-amber-500/5 rounded-xl border border-amber-500/20 flex items-center gap-2">
+      <div className="p-3 mb-4 bg-amber-500/5 rounded-cortex-md border border-amber-500/20 flex items-center gap-2">
         <Lock className="size-3.5 text-amber-400 flex-shrink-0" />
         <p className="text-xs text-amber-300">
           This baseline is <strong>immutable</strong>. ROI actuals are compared against it — they never modify it.
@@ -762,17 +777,17 @@ function BaselineTab({ bl }: { bl: any }) {
         {metrics.map(m => {
           const Icon = m.icon;
           return (
-            <div key={m.label} className="p-4 bg-white/3 rounded-xl border border-white/10">
+            <div key={m.label} className="p-4 bg-white/3 rounded-cortex-md border border-cortex-default">
               <div className="flex items-center gap-2 mb-2">
                 <Icon className="size-3.5" style={{ color: m.color }} />
-                <p className="text-[11px] text-gray-400 uppercase tracking-wide font-semibold">{m.label}</p>
+                <p className="text-[11px] text-cortex-muted uppercase tracking-wide font-semibold">{m.label}</p>
               </div>
               <p className="text-xl font-black text-white">{m.value}</p>
             </div>
           );
         })}
       </div>
-      <div className="text-xs text-gray-600 font-mono">
+      <div className="text-xs text-cortex-faint font-mono">
         Baseline ID: {bl.baseline_id} · Quality: {bl.baseline_quality} · Captured: {new Date(bl.captured_at).toLocaleString()}
       </div>
     </div>
@@ -780,44 +795,44 @@ function BaselineTab({ bl }: { bl: any }) {
 }
 
 function ScopeTab({ scope }: { scope: any }) {
-  if (!scope) return <p className="text-sm text-gray-500">No scope boundaries.</p>;
+  if (!scope) return <p className="text-sm text-cortex-muted">No scope boundaries.</p>;
   return (
     <div>
-      <SectionTitle icon={Target} title="Scope Boundaries — Step 7: frozen from snapshot, changes require change order" color="#A78BFA" />
+      <SectionTitle icon={Target} title="Scope Boundaries — Step 7: frozen from snapshot, changes require change order" color={K_ACCENT_LIGHT} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/15">
+        <div className="p-4 bg-emerald-500/5 rounded-cortex-md border border-emerald-500/15">
           <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
             <CheckCircle2 className="size-3.5" /> Included ({scope.scope_included?.length ?? 0})
           </h4>
           <ul className="space-y-2">
             {(scope.scope_included ?? []).map((item: string, i: number) => (
-              <li key={i} className="text-xs text-gray-300 flex items-start gap-2">
+              <li key={i} className="text-xs text-cortex-secondary flex items-start gap-2">
                 <span className="size-1.5 rounded-full bg-emerald-500/60 flex-shrink-0 mt-1.5" />
                 {item}
               </li>
             ))}
           </ul>
         </div>
-        <div className="p-4 bg-red-500/5 rounded-xl border border-red-500/15">
+        <div className="p-4 bg-red-500/5 rounded-cortex-md border border-red-500/15">
           <h4 className="text-xs font-bold text-red-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
             <AlertCircle className="size-3.5" /> Excluded ({scope.scope_excluded?.length ?? 0})
           </h4>
           <ul className="space-y-2">
             {(scope.scope_excluded ?? []).map((item: string, i: number) => (
-              <li key={i} className="text-xs text-gray-300 flex items-start gap-2">
+              <li key={i} className="text-xs text-cortex-secondary flex items-start gap-2">
                 <span className="size-1.5 rounded-full bg-red-500/60 flex-shrink-0 mt-1.5" />
                 {item}
               </li>
             ))}
           </ul>
         </div>
-        <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/15">
+        <div className="p-4 bg-blue-500/5 rounded-cortex-md border border-blue-500/15">
           <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
             <Network className="size-3.5" /> Integration Points ({scope.integration_points?.length ?? 0})
           </h4>
           <ul className="space-y-2">
             {(scope.integration_points ?? []).map((item: string, i: number) => (
-              <li key={i} className="text-xs text-gray-300 flex items-start gap-2">
+              <li key={i} className="text-xs text-cortex-secondary flex items-start gap-2">
                 <span className="size-1.5 rounded-full bg-blue-500/60 flex-shrink-0 mt-1.5" />
                 {item}
               </li>
@@ -828,7 +843,7 @@ function ScopeTab({ scope }: { scope: any }) {
               <p className="text-[11px] font-bold text-blue-300 uppercase tracking-wide mb-2">Assumptions</p>
               <ul className="space-y-1.5">
                 {(scope.assumptions ?? []).map((a: string, i: number) => (
-                  <li key={i} className="text-[11px] text-gray-400">{a}</li>
+                  <li key={i} className="text-[11px] text-cortex-muted">{a}</li>
                 ))}
               </ul>
             </div>
@@ -855,9 +870,9 @@ function GraphTab({ graph }: { graph: any }) {
 
   return (
     <div>
-      <SectionTitle icon={Network} title={`Dependency Graph — Step 8: ${nodes.length} nodes · ${edges.length} edges · ${critPath.length} on critical path`} color="#34D399" />
+      <SectionTitle icon={Network} title={`Dependency Graph — Step 8: ${nodes.length} nodes · ${edges.length} edges · ${critPath.length} on critical path`} color={K_SUCCESS_LIGHT} />
       {violations.length > 0 && (
-        <div className="mb-4 p-3 bg-red-500/8 rounded-xl border border-red-500/20">
+        <div className="mb-4 p-3 bg-red-500/8 rounded-cortex-md border border-red-500/20">
           <p className="text-xs font-semibold text-red-400 mb-1.5">⚠ {violations.length} dependency violation{violations.length > 1 ? 's' : ''} detected</p>
           {violations.map((v: any, i: number) => (
             <p key={i} className="text-[11px] text-red-300">{v.message ?? JSON.stringify(v)}</p>
@@ -865,7 +880,7 @@ function GraphTab({ graph }: { graph: any }) {
         </div>
       )}
       {critPath.length > 0 && (
-        <div className="mb-4 p-3 bg-cyan-500/5 rounded-xl border border-cyan-500/20">
+        <div className="mb-4 p-3 bg-cyan-500/5 rounded-cortex-md border border-cyan-500/20">
           <p className="text-xs font-semibold text-cyan-400 mb-2">Critical Path ({critPath.length} nodes)</p>
           <div className="flex items-center gap-1.5 flex-wrap">
             {critPath.map((id: string, i: number) => {
@@ -891,16 +906,16 @@ function GraphTab({ graph }: { graph: any }) {
             </h4>
             <div className="space-y-1.5">
               {(grouped[type] ?? []).slice(0, 12).map((n: any) => (
-                <div key={n.id} className="flex items-center gap-2 p-2 bg-white/2 rounded-lg border border-white/8">
+                <div key={n.id} className="flex items-center gap-2 p-2 bg-white/2 rounded-cortex-sm border border-white/8">
                   <span className="size-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: typeColor[type] }} />
-                  <span className="text-[11px] text-gray-300 flex-1 truncate">{n.label ?? n.id}</span>
+                  <span className="text-[11px] text-cortex-secondary flex-1 truncate">{n.label ?? n.id}</span>
                   {critPath.includes(n.id) && (
                     <span className="text-[9px] font-bold text-cyan-400 flex-shrink-0">CRIT</span>
                   )}
                 </div>
               ))}
               {(grouped[type]?.length ?? 0) > 12 && (
-                <p className="text-[11px] text-gray-600 pl-2">+{(grouped[type]?.length ?? 0) - 12} more…</p>
+                <p className="text-[11px] text-cortex-faint pl-2">+{(grouped[type]?.length ?? 0) - 12} more…</p>
               )}
             </div>
           </div>
@@ -916,15 +931,15 @@ function StepLogTab({ log, elapsed }: { log: PipelineStepLog[]; elapsed: number 
   return (
     <div>
       <SectionTitle icon={Activity} title={`Step Execution Log — pipeline completed in ${elapsed}ms`} color={BRAND.purple} />
-      <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div className="rounded-cortex-md border border-cortex-default overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-white/3 border-b border-white/10">
-              <th className="text-left px-4 py-2.5 text-gray-400 font-semibold uppercase tracking-wide">Step</th>
-              <th className="text-left px-4 py-2.5 text-gray-400 font-semibold uppercase tracking-wide">Function</th>
-              <th className="text-left px-4 py-2.5 text-gray-400 font-semibold uppercase tracking-wide hidden md:table-cell">Input</th>
-              <th className="text-left px-4 py-2.5 text-gray-400 font-semibold uppercase tracking-wide hidden lg:table-cell">Output</th>
-              <th className="text-right px-4 py-2.5 text-gray-400 font-semibold uppercase tracking-wide w-32">Count / Time</th>
+            <tr className="bg-white/3 border-b border-cortex-default">
+              <th className="text-left px-4 py-2.5 text-cortex-muted font-semibold uppercase tracking-wide">Step</th>
+              <th className="text-left px-4 py-2.5 text-cortex-muted font-semibold uppercase tracking-wide">Function</th>
+              <th className="text-left px-4 py-2.5 text-cortex-muted font-semibold uppercase tracking-wide hidden md:table-cell">Input</th>
+              <th className="text-left px-4 py-2.5 text-cortex-muted font-semibold uppercase tracking-wide hidden lg:table-cell">Output</th>
+              <th className="text-right px-4 py-2.5 text-cortex-muted font-semibold uppercase tracking-wide w-32">Count / Time</th>
             </tr>
           </thead>
           <tbody>
@@ -934,7 +949,7 @@ function StepLogTab({ log, elapsed }: { log: PipelineStepLog[]; elapsed: number 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.04 }}
-                className="border-b border-white/5 last:border-0 hover:bg-white/2 transition-colors"
+                className="border-b border-cortex-subtle last:border-0 hover:bg-white/2 transition-colors"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -947,21 +962,21 @@ function StepLogTab({ log, elapsed }: { log: PipelineStepLog[]; elapsed: number 
                 <td className="px-4 py-3">
                   <code className="text-purple-300 font-mono">{s.name}()</code>
                 </td>
-                <td className="px-4 py-3 text-gray-400 hidden md:table-cell font-mono">{s.input}</td>
-                <td className="px-4 py-3 text-gray-300 hidden lg:table-cell font-mono">{s.output}</td>
+                <td className="px-4 py-3 text-cortex-muted hidden md:table-cell font-mono">{s.input}</td>
+                <td className="px-4 py-3 text-cortex-secondary hidden lg:table-cell font-mono">{s.output}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex flex-col items-end gap-1">
                     {s.count != null && (
                       <span className="text-white font-bold">{s.count}</span>
                     )}
                     <div className="flex items-center gap-1.5">
-                      <div className="h-1 bg-white/5 rounded-full w-16 overflow-hidden">
+                      <div className="h-1 bg-cortex-control rounded-full w-16 overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-full"
+                          className="h-full bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-full"
                           style={{ width: `${((s.duration ?? 0) / maxDuration) * 100}%` }}
                         />
                       </div>
-                      <span className="text-gray-500 font-mono w-10 text-right">{s.duration}ms</span>
+                      <span className="text-cortex-muted font-mono w-10 text-right">{s.duration}ms</span>
                     </div>
                   </div>
                 </td>
@@ -970,7 +985,7 @@ function StepLogTab({ log, elapsed }: { log: PipelineStepLog[]; elapsed: number 
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-gray-600 mt-3 font-mono">
+      <p className="text-[11px] text-cortex-faint mt-3 font-mono">
         Total: {elapsed}ms · {log.length} steps · 0 failures · Source: runMappingPipeline() @ mappingEngine.ts
       </p>
     </div>

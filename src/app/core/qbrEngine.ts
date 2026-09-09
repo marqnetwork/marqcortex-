@@ -32,6 +32,11 @@ import {
   VARIANCE_TAG_LABELS,
   buildCumulativeActuals,
 } from './roiActualsEngine';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -57,11 +62,11 @@ export const QBR_STATUS_LABELS: Record<QBRStatus, string> = {
 };
 
 export const QBR_STATUS_COLORS: Record<QBRStatus, string> = {
-  draft:                  '#6B7280',
-  internal_review:        '#06D7F6',
-  shared:                 '#8B5CF6',
-  accepted:               '#10B981',
-  opportunity_converted:  '#F59E0B',
+  draft:                  STATUS.neutral,
+  internal_review:        STATUS.info,
+  shared:                 brand.accent,
+  accepted:               STATUS.success,
+  opportunity_converted:  STATUS.caution,
 };
 
 export type QBRStatusAction =
@@ -193,9 +198,9 @@ export interface QBROpportunity {
 }
 
 export const CONFIDENCE_COLORS: Record<'low' | 'medium' | 'high', string> = {
-  low:    '#6B7280',
-  medium: '#F59E0B',
-  high:   '#10B981',
+  low:    STATUS.neutral,
+  medium: STATUS.caution,
+  high:   STATUS.success,
 };
 
 // ── Expansion Path ────────────────────────────────────────────────────────────────

@@ -12,6 +12,12 @@ import {
   Clock, Package, Hash, CheckCircle2, Camera,
 } from 'lucide-react';
 import type { ProposalSnapshot } from '@/app/core/snapshotEngine';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ROW
@@ -27,15 +33,15 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
 
   return (
     <div
-      className="rounded-xl border overflow-hidden transition-colors"
-      style={{ borderColor: '#10B98130', background: '#10B98106' }}
+      className="rounded-cortex-md border overflow-hidden transition-colors"
+      style={{ borderColor: `${STATUS.success}30`, background: `${STATUS.success}06` }}
     >
       {/* Main row */}
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Version badge */}
         <div
-          className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm"
-          style={{ background: '#10B98120', color: '#10B981' }}
+          className="flex-shrink-0 w-10 h-10 rounded-cortex-sm flex items-center justify-center font-black text-sm"
+          style={{ background: `${STATUS.success}20`, color: STATUS.success }}
         >
           v{snap.version_number}
         </div>
@@ -47,25 +53,25 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
             {/* Immutable badge */}
             <span
               className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-              style={{ background: '#10B98120', color: '#10B981' }}
+              style={{ background: `${STATUS.success}20`, color: STATUS.success }}
             >
               <Lock className="inline size-2 mr-0.5" />Immutable
             </span>
             {snap.triggered_by_export && (
               <span
                 className="text-[7px] font-bold uppercase px-1.5 py-0.5 rounded-full"
-                style={{ background: '#06D7F620', color: '#06D7F6' }}
+                style={{ background: `${STATUS.info}20`, color: STATUS.info }}
               >
                 {snap.triggered_by_export.replace(/_/g, ' ')}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            <span className="text-[8px] text-gray-700 flex items-center gap-1">
+            <span className="text-[8px] text-cortex-faint flex items-center gap-1">
               <Clock className="size-2.5" />
               {new Date(snap.created_at).toLocaleString()}
             </span>
-            <span className="text-[8px] text-gray-700 flex items-center gap-1">
+            <span className="text-[8px] text-cortex-faint flex items-center gap-1">
               <Package className="size-2.5" />
               {blockCount} block{blockCount !== 1 ? 's' : ''}
             </span>
@@ -79,7 +85,7 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded(e => !e)}
-          className="flex-shrink-0 p-1.5 rounded-lg text-gray-700 hover:text-white hover:bg-white/5 transition-colors"
+          className="flex-shrink-0 p-1.5 rounded-cortex-sm text-cortex-faint hover:text-white hover:bg-cortex-control transition-colors"
           title="Expand snapshot details"
         >
           {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -88,23 +94,23 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
+        <div className="px-4 pb-4 space-y-3 border-t border-cortex-subtle pt-3">
           {/* Section counts */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'Blocks',        value: blockCount, color: '#9CA3AF' },
-              { label: 'Diagnoses',     value: diagCount,  color: '#FD4438' },
-              { label: 'Solutions',     value: solCount,   color: '#06D7F6' },
-              { label: 'Contract Items',value: conCount,   color: '#8B5CF6' },
-              { label: 'ROI Snapshots', value: snap.content_snapshot.assumptions_snapshot.length, color: '#10B981' },
+              { label: 'Blocks',        value: blockCount, color: TEXT.muted },
+              { label: 'Diagnoses',     value: diagCount,  color: STATUS.danger },
+              { label: 'Solutions',     value: solCount,   color: STATUS.info },
+              { label: 'Contract Items',value: conCount,   color: brand.accent },
+              { label: 'ROI Snapshots', value: snap.content_snapshot.assumptions_snapshot.length, color: STATUS.success },
             ].map(m => (
               <div
                 key={m.label}
-                className="flex flex-col items-center py-2 rounded-lg border"
+                className="flex flex-col items-center py-2 rounded-cortex-sm border"
                 style={{ borderColor: `${m.color}20`, background: `${m.color}08` }}
               >
                 <span className="text-base font-black" style={{ color: m.color }}>{m.value}</span>
-                <span className="text-[7px] uppercase tracking-wide text-gray-700">{m.label}</span>
+                <span className="text-[7px] uppercase tracking-wide text-cortex-faint">{m.label}</span>
               </div>
             ))}
           </div>
@@ -112,8 +118,8 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
           {/* Executive brief preview */}
           {snap.content_snapshot.executive_brief?.title && (
             <div className="space-y-1">
-              <div className="text-[8px] font-bold text-gray-700 uppercase tracking-wide">Frozen Executive Brief</div>
-              <div className="text-[9px] text-gray-500 italic leading-relaxed line-clamp-2">
+              <div className="text-[8px] font-bold text-cortex-faint uppercase tracking-wide">Frozen Executive Brief</div>
+              <div className="text-[9px] text-cortex-muted italic leading-relaxed line-clamp-2">
                 "{snap.content_snapshot.executive_brief.strategic_context}"
               </div>
             </div>
@@ -122,22 +128,22 @@ function SnapshotRow({ snap }: { snap: ProposalSnapshot }) {
           {/* Next step offer */}
           {snap.content_snapshot.next_step_offer?.price && (
             <div className="flex items-center gap-4 text-[9px]">
-              <span className="text-gray-700">Engagement Price:</span>
-              <span className="font-black text-[#10B981]">
+              <span className="text-cortex-faint">Engagement Price:</span>
+              <span className="font-black text-cortex-success">
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: snap.content_snapshot.next_step_offer.currency ?? 'USD',
                   maximumFractionDigits: 0,
                 }).format(snap.content_snapshot.next_step_offer.price)}
               </span>
-              <span className="text-gray-700">· {snap.content_snapshot.next_step_offer.duration}</span>
+              <span className="text-cortex-faint">· {snap.content_snapshot.next_step_offer.duration}</span>
             </div>
           )}
 
           {/* Created by */}
           <div className="text-[8px] text-gray-800 flex items-center gap-1.5">
-            <CheckCircle2 className="size-2.5 text-[#10B981]" />
-            Snapshot created by <span className="font-mono text-gray-600">{snap.created_by}</span>
+            <CheckCircle2 className="size-2.5 text-cortex-success" />
+            Snapshot created by <span className="font-mono text-cortex-faint">{snap.created_by}</span>
             · Cannot be modified after creation.
           </div>
         </div>
@@ -160,15 +166,15 @@ export function SnapshotHistoryPanel({ proposalId, snapshots }: SnapshotHistoryP
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <Camera className="size-4 text-[#10B981]" />
+        <Camera className="size-4 text-cortex-success" />
         <span className="text-sm font-bold text-white">Snapshot History</span>
         <span
           className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-          style={{ color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }}
+          style={{ color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }}
         >
           {snapshots.length} snapshot{snapshots.length !== 1 ? 's' : ''}
         </span>
-        <span className="ml-auto text-[8px] text-gray-700 flex items-center gap-1">
+        <span className="ml-auto text-[8px] text-cortex-faint flex items-center gap-1">
           <GitBranch className="size-2.5" />proposal {proposalId}
         </span>
       </div>
@@ -176,11 +182,11 @@ export function SnapshotHistoryPanel({ proposalId, snapshots }: SnapshotHistoryP
       {/* Empty state */}
       {snapshots.length === 0 ? (
         <div
-          className="rounded-xl border border-white/5 py-8 flex flex-col items-center gap-2"
-          style={{ background: '#ffffff04' }}
+          className="rounded-cortex-md border border-cortex-subtle py-8 flex flex-col items-center gap-2"
+          style={{ background: `${TEXT.primary}04` }}
         >
           <Camera className="size-8 text-gray-800" />
-          <div className="text-[10px] text-gray-700 font-medium">No snapshots yet</div>
+          <div className="text-[10px] text-cortex-faint font-medium">No snapshots yet</div>
           <div className="text-[9px] text-gray-800 text-center max-w-xs leading-relaxed">
             A snapshot is created automatically when the proposal is exported (status → sent).
             Each snapshot is immutable — full audit trail.
@@ -196,7 +202,7 @@ export function SnapshotHistoryPanel({ proposalId, snapshots }: SnapshotHistoryP
 
       {/* Governance note */}
       <div className="text-[8px] text-gray-800 px-1 flex items-start gap-1.5 leading-relaxed">
-        <Lock className="size-3 flex-shrink-0 mt-0.5 text-gray-700" />
+        <Lock className="size-3 flex-shrink-0 mt-0.5 text-cortex-faint" />
         All snapshots are immutable records. Engagements, CRM tracking, and follow-ups reference
         snapshot_id — not the live proposal. Exports always pull from snapshot, not live blocks.
       </div>

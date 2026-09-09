@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import { BRAND } from '@/app/utils/designTokens';
 import type { Submission } from '@/app/services/dataService';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 interface SolutionItem {
   problem: string;
@@ -250,29 +255,29 @@ export function ClientSolutionView({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl border border-white/10"
-        style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.10), rgba(6,215,246,0.08))' }}
+        className="relative overflow-hidden rounded-cortex-lg border border-cortex-default"
+        style={{ background: `linear-gradient(135deg, ${brand.accent}26, ${brand.accentAlt}1A, ${STATUS.info}14)` }}
       >
         <div className="p-8 md:p-10">
           <div className="flex items-center gap-3 mb-4">
-            <div className="size-12 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/25">
+            <div className="size-12 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center shadow-lg shadow-cortex-accent/25">
               <Lightbulb className="size-6 text-white" />
             </div>
             <div>
-              <span className="text-xs font-bold text-[#8B5CF6] uppercase tracking-wider">Your Solutions</span>
+              <span className="text-xs font-bold text-cortex-accent uppercase tracking-wider">Your Solutions</span>
               <h2 className="text-2xl font-bold text-white leading-tight">What We Recommend & Why</h2>
             </div>
           </div>
-          <p className="text-gray-300 text-lg leading-relaxed max-w-2xl">
+          <p className="text-cortex-secondary text-lg leading-relaxed max-w-2xl">
             Based on our diagnostic of <span className="text-white font-semibold">{companyName}</span>, 
             here's what we found and — in plain English — what we'd do about it and why.
           </p>
-          <p className="text-gray-500 text-sm mt-3">
+          <p className="text-cortex-muted text-sm mt-3">
             No jargon. No buzzwords. Just clear problems and clear fixes.
           </p>
         </div>
         {/* Decorative glow */}
-        <div className="absolute -top-20 -right-20 size-60 bg-[#8B5CF6]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 size-60 bg-cortex-accent/10 rounded-full blur-3xl pointer-events-none" />
       </motion.div>
 
       {/* How to read this section */}
@@ -280,13 +285,13 @@ export function ClientSolutionView({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-black/40 border border-white/10 rounded-xl p-5"
+        className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-5"
       >
         <div className="flex items-center gap-3 mb-3">
-          <AlertCircle className="size-4 text-[#06D7F6]" />
+          <AlertCircle className="size-4 text-cortex-info" />
           <span className="text-sm font-semibold text-white">How to Read This</span>
         </div>
-        <p className="text-gray-400 text-sm leading-relaxed">
+        <p className="text-cortex-muted text-sm leading-relaxed">
           Each card below shows <span className="text-white">what the problem is</span> in everyday language, 
           <span className="text-white"> what we'd do to fix it</span>, and 
           <span className="text-white"> why this particular approach makes sense</span> for your business. 
@@ -306,19 +311,19 @@ export function ClientSolutionView({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 + idx * 0.08 }}
-              className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors"
+              className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden hover:border-cortex-strong transition-colors"
             >
               {/* Solution header */}
               <div className="flex items-center gap-4 px-6 pt-6 pb-4">
                 <div
-                  className="size-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                  className="size-11 rounded-cortex-md flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: `${iconColor}20`, border: `1px solid ${iconColor}30` }}
                 >
                   <Icon className="size-5" style={{ color: iconColor }} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Solution {idx + 1}</span>
+                    <span className="text-xs font-bold text-cortex-muted uppercase tracking-wider">Solution {idx + 1}</span>
                   </div>
                   <h3 className="text-lg font-bold text-white">{item.solution}</h3>
                 </div>
@@ -326,40 +331,40 @@ export function ClientSolutionView({
 
               <div className="px-6 pb-6 space-y-5">
                 {/* THE PROBLEM */}
-                <div className="bg-[#FD4438]/8 border border-[#FD4438]/20 rounded-xl p-5">
+                <div className="bg-cortex-danger/8 border border-cortex-danger/20 rounded-cortex-md p-5">
                   <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="size-4 text-[#FD4438]" />
-                    <span className="text-xs font-bold text-[#FD4438] uppercase tracking-wider">The Problem</span>
+                    <AlertCircle className="size-4 text-cortex-danger" />
+                    <span className="text-xs font-bold text-cortex-danger uppercase tracking-wider">The Problem</span>
                   </div>
-                  <p className="text-sm font-semibold text-gray-300 mb-2">{item.problem}</p>
-                  <p className="text-sm text-gray-400 leading-relaxed">{item.problemPlain}</p>
+                  <p className="text-sm font-semibold text-cortex-secondary mb-2">{item.problem}</p>
+                  <p className="text-sm text-cortex-muted leading-relaxed">{item.problemPlain}</p>
                 </div>
 
                 {/* THE SOLUTION */}
-                <div className="bg-[#10B981]/8 border border-[#10B981]/20 rounded-xl p-5">
+                <div className="bg-cortex-success/8 border border-cortex-success/20 rounded-cortex-md p-5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Wrench className="size-4 text-[#10B981]" />
-                    <span className="text-xs font-bold text-[#10B981] uppercase tracking-wider">What We'll Do</span>
+                    <Wrench className="size-4 text-cortex-success" />
+                    <span className="text-xs font-bold text-cortex-success uppercase tracking-wider">What We'll Do</span>
                   </div>
-                  <p className="text-sm text-gray-300 leading-relaxed">{item.solutionPlain}</p>
+                  <p className="text-sm text-cortex-secondary leading-relaxed">{item.solutionPlain}</p>
                 </div>
 
                 {/* WHY THIS SOLUTION */}
-                <div className="bg-[#8B5CF6]/8 border border-[#8B5CF6]/20 rounded-xl p-5">
+                <div className="bg-cortex-accent/8 border border-cortex-accent/20 rounded-cortex-md p-5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Brain className="size-4 text-[#8B5CF6]" />
-                    <span className="text-xs font-bold text-[#8B5CF6] uppercase tracking-wider">Why This Approach</span>
+                    <Brain className="size-4 text-cortex-accent" />
+                    <span className="text-xs font-bold text-cortex-accent uppercase tracking-wider">Why This Approach</span>
                   </div>
-                  <p className="text-sm text-gray-300 leading-relaxed">{item.whyThisSolution}</p>
+                  <p className="text-sm text-cortex-secondary leading-relaxed">{item.whyThisSolution}</p>
                 </div>
 
                 {/* EXPECTED OUTCOME */}
-                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3.5">
-                  <div className="size-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center gap-3 bg-cortex-control border border-cortex-default rounded-cortex-md px-5 py-3.5">
+                  <div className="size-8 rounded-cortex-sm bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0">
                     <TrendingUp className="size-4 text-white" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Expected Outcome</span>
+                    <span className="text-xs font-bold text-cortex-muted uppercase tracking-wider">Expected Outcome</span>
                     <p className="text-sm font-semibold text-white">{item.expectedOutcome}</p>
                   </div>
                 </div>
@@ -374,19 +379,19 @@ export function ClientSolutionView({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="bg-black/40 border border-white/10 rounded-2xl p-8"
+        className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-8"
       >
         <div className="flex items-center gap-3 mb-4">
-          <Sparkles className="size-5 text-[#8B5CF6]" />
+          <Sparkles className="size-5 text-cortex-accent" />
           <h3 className="text-lg font-bold text-white">The Big Picture</h3>
         </div>
-        <p className="text-gray-300 leading-relaxed mb-4">
+        <p className="text-cortex-secondary leading-relaxed mb-4">
           These solutions aren't about replacing your team with technology — they're about 
           <span className="text-white font-semibold"> freeing your people to do the work that actually matters</span>. 
           Every automation we recommend exists to remove busywork, reduce mistakes, and give you 
           clearer visibility into what's really going on in your business.
         </p>
-        <p className="text-gray-400 text-sm">
+        <p className="text-cortex-muted text-sm">
           We don't believe in automating everything. Some things need a human touch. 
           The solutions above focus specifically on the areas where automation makes a clear, measurable difference for {companyName}.
         </p>
@@ -402,32 +407,32 @@ export function ClientSolutionView({
         {onViewReport && (
           <button
             onClick={onViewReport}
-            className="flex items-center justify-between p-5 rounded-xl border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 transition-all text-left group cursor-pointer"
+            className="flex items-center justify-between p-5 rounded-cortex-md border border-cortex-default bg-cortex-control hover:border-cortex-strong hover:bg-cortex-control-hover transition-all text-left group cursor-pointer"
           >
             <div>
               <div className="font-bold text-white mb-1 flex items-center gap-2">
-                <Target className="size-4 text-[#8B5CF6]" />
+                <Target className="size-4 text-cortex-accent" />
                 View Detailed Report
               </div>
-              <p className="text-sm text-gray-400">See the full technical analysis behind these solutions</p>
+              <p className="text-sm text-cortex-muted">See the full technical analysis behind these solutions</p>
             </div>
-            <ArrowRight className="size-5 text-[#8B5CF6] flex-shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="size-5 text-cortex-accent flex-shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         )}
 
         {onScheduleCall && (
           <button
             onClick={onScheduleCall}
-            className="flex items-center justify-between p-5 rounded-xl border border-[#8B5CF6]/30 bg-gradient-to-br from-[#8B5CF6]/15 to-[#3B82F6]/10 hover:border-[#8B5CF6]/50 transition-all text-left group cursor-pointer"
+            className="flex items-center justify-between p-5 rounded-cortex-md border border-cortex-accent/30 bg-gradient-to-br from-cortex-accent/15 to-cortex-accent-alt/10 hover:border-cortex-accent/50 transition-all text-left group cursor-pointer"
           >
             <div>
               <div className="font-bold text-white mb-1 flex items-center gap-2">
-                <Sparkles className="size-4 text-[#06D7F6]" />
+                <Sparkles className="size-4 text-cortex-info" />
                 Let's Talk About This
               </div>
-              <p className="text-sm text-gray-400">Book a 30-min call to walk through these solutions together</p>
+              <p className="text-sm text-cortex-muted">Book a 30-min call to walk through these solutions together</p>
             </div>
-            <ArrowRight className="size-5 text-[#06D7F6] flex-shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="size-5 text-cortex-info flex-shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         )}
       </motion.div>

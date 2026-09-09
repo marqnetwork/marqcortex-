@@ -25,6 +25,7 @@ import { Download, ArrowRight, CheckCircle2, Sparkles, Mail, Phone, Globe, User 
 // It is dynamically imported inside downloadPDF() so jsPDF bytes are only
 // fetched when the user actually triggers a PDF download — not on first parse.
 import { saveLead } from '@/app/services/dataService';
+import { brand } from '@/app/lib/tokens';
 
 interface LeadMagnetCaptureProps {
   onComplete: (contactInfo: ContactInfo) => void;
@@ -94,7 +95,10 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
+    // `<main>` rather than a bare `<div>`: this is a whole route, and it was
+    // the only one in the funnel with no main landmark for a screen reader to
+    // jump to.
+    <main className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -106,14 +110,14 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center size-20 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] mb-6"
+            className="inline-flex items-center justify-center size-20 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt mb-6"
           >
             <Sparkles className="size-10 text-white" />
           </motion.div>
           
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Get Your Free{' '}
-            <span className="bg-gradient-to-r from-[#8B5CF6] via-[#3B82F6] to-[#06D7F6] text-transparent bg-clip-text">
+            <span className="bg-gradient-to-r from-cortex-accent via-cortex-accent-alt to-cortex-info text-transparent bg-clip-text">
               AI Readiness Guide
             </span>
           </h1>
@@ -126,15 +130,15 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
         {/* Value Props */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <ValueProp
-            icon={<CheckCircle2 className="size-5 text-[#06D7F6]" />}
+            icon={<CheckCircle2 className="size-5 text-cortex-info" />}
             text="Real-world examples"
           />
           <ValueProp
-            icon={<CheckCircle2 className="size-5 text-[#06D7F6]" />}
+            icon={<CheckCircle2 className="size-5 text-cortex-info" />}
             text="Implementation checklist"
           />
           <ValueProp
-            icon={<CheckCircle2 className="size-5 text-[#06D7F6]" />}
+            icon={<CheckCircle2 className="size-5 text-cortex-info" />}
             text="Cost-saving strategies"
           />
         </div>
@@ -145,75 +149,79 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
           onSubmit={handleSubmit}
-          className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8"
+          className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-8"
         >
           <div className="space-y-5">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-name" className="block text-sm font-medium text-white/80 mb-2">
                 Full Name *
               </label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  id="lead-name"
                   placeholder="John Smith"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
+                  className="w-full pl-12 pr-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent transition-colors"
                 />
               </div>
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-email" className="block text-sm font-medium text-white/80 mb-2">
                 Email Address *
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  id="lead-email"
                   placeholder="john@company.com"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
+                  className="w-full pl-12 pr-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent transition-colors"
                 />
               </div>
             </div>
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-phone" className="block text-sm font-medium text-white/80 mb-2">
                 Phone Number
               </label>
               <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  id="lead-phone"
                   placeholder="+1 (555) 123-4567"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
+                  className="w-full pl-12 pr-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent transition-colors"
                 />
               </div>
             </div>
 
             {/* Website */}
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">
+              <label htmlFor="lead-website" className="block text-sm font-medium text-white/80 mb-2">
                 Company Website
               </label>
               <div className="relative">
-                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
                 <input
                   type="url"
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  id="lead-website"
                   placeholder="https://company.com"
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6] transition-colors"
+                  className="w-full pl-12 pr-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent transition-colors"
                 />
               </div>
             </div>
@@ -224,9 +232,9 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-4 p-3 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl"
+              className="mt-4 p-3 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md"
             >
-              <p className="text-sm text-[#FD4438] text-center">{formError}</p>
+              <p className="text-sm text-cortex-danger text-center">{formError}</p>
             </motion.div>
           )}
 
@@ -236,7 +244,7 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
             disabled={isSubmitting}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full mt-8 px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:from-[#7C3AED] hover:to-[#2563EB] text-white rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full mt-8 px-8 py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:from-cortex-accent-deep hover:to-cortex-accent-alt-deep text-white rounded-cortex-md font-semibold text-lg flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <span className="contents">
@@ -270,7 +278,7 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
           </div>
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 }
 
@@ -280,7 +288,7 @@ export function LeadMagnetCapture({ onComplete }: LeadMagnetCaptureProps) {
 
 function DownloadingScreen({ countdown, name }: { countdown: number; name: string }) {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center p-6">
+    <main className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -291,7 +299,7 @@ function DownloadingScreen({ countdown, name }: { countdown: number; name: strin
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', delay: 0.2 }}
-          className="inline-flex items-center justify-center size-24 rounded-full bg-gradient-to-br from-[#06D7F6] to-[#3B82F6] mb-6"
+          className="inline-flex items-center justify-center size-24 rounded-full bg-gradient-to-br from-cortex-info to-cortex-accent-alt mb-6"
         >
           <CheckCircle2 className="size-12 text-white" />
         </motion.div>
@@ -311,31 +319,31 @@ function DownloadingScreen({ countdown, name }: { countdown: number; name: strin
             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
             className="inline-block"
           >
-            <Download className="size-16 text-[#8B5CF6]" />
+            <Download className="size-16 text-cortex-accent" />
           </motion.div>
         </div>
 
         {/* Progress Bar */}
         <div className="max-w-md mx-auto mb-8">
-          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-2 bg-cortex-control-hover rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: '100%' }}
               transition={{ duration: 3 }}
-              className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#06D7F6]"
+              className="h-full bg-gradient-to-r from-cortex-accent to-cortex-info"
             />
           </div>
         </div>
 
         {/* Redirect Message */}
-        <div className="bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 rounded-2xl p-6">
+        <div className="bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 rounded-cortex-lg p-6">
           <p className="text-lg mb-3">
             While you're here, let's personalize your experience...
           </p>
           <p className="text-white/60 mb-4">
             We'll ask you a few quick questions to give you custom recommendations
           </p>
-          <div className="text-3xl font-bold text-[#06D7F6]">
+          <div className="text-3xl font-bold text-cortex-info">
             {countdown}
           </div>
           <p className="text-sm text-white/50 mt-2">
@@ -353,7 +361,7 @@ function DownloadingScreen({ countdown, name }: { countdown: number; name: strin
           </div>
         </div>
       </motion.div>
-    </div>
+    </main>
   );
 }
 
@@ -363,7 +371,7 @@ function DownloadingScreen({ countdown, name }: { countdown: number; name: strin
 
 function ValueProp({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-4 py-3">
+    <div className="flex items-center gap-2 bg-cortex-control border border-cortex-default rounded-cortex-sm px-4 py-3">
       {icon}
       <span className="text-sm font-medium">{text}</span>
     </div>
@@ -373,7 +381,7 @@ function ValueProp({ icon, text }: { icon: React.ReactNode; text: string }) {
 function StatBadge({ label, sublabel }: { label: string; sublabel: string }) {
   return (
     <div className="text-center">
-      <div className="text-lg font-bold text-[#06D7F6]">{label}</div>
+      <div className="text-lg font-bold text-cortex-info">{label}</div>
       <div className="text-xs text-white/50">{sublabel}</div>
     </div>
   );
@@ -382,7 +390,7 @@ function StatBadge({ label, sublabel }: { label: string; sublabel: string }) {
 function CheckItem({ text }: { text: string }) {
   return (
     <div className="flex items-start gap-2">
-      <CheckCircle2 className="size-4 text-[#06D7F6] flex-shrink-0 mt-0.5" />
+      <CheckCircle2 className="size-4 text-cortex-info flex-shrink-0 mt-0.5" />
       <span className="text-sm text-white/70">{text}</span>
     </div>
   );
@@ -403,10 +411,16 @@ async function saveContactInfo(data: Omit<ContactInfo, 'capturedAt'>) {
 }
 
 function downloadPDF() {
-  // Generate a branded AI Readiness Guide PDF
+  // THE DOWNLOADABLE GUIDE.
+  //
+  // A standalone document handed to the reader as a file. It is a LIGHT layout
+  // on white, and none of the console's CSS variables exist wherever it is
+  // opened, so the two brand colours interpolate their token VALUES and the
+  // rest of its palette — the paper greys and tints below — is the document's
+  // own and must not be given dark-console tokens.
   const guideHTML = `
     <div style="font-family:Inter,system-ui,sans-serif;max-width:700px;margin:0 auto;padding:40px;">
-      <div style="background:linear-gradient(135deg,#8B5CF6,#3B82F6);border-radius:16px;padding:60px 40px;text-align:center;color:white;margin-bottom:40px;">
+      <div style="background:linear-gradient(135deg,${brand.accent},${brand.accentAlt});border-radius:16px;padding:60px 40px;text-align:center;color:white;margin-bottom:40px;">
         <div style="font-size:32px;font-weight:800;margin-bottom:8px;">MARQ Cortex</div>
         <div style="font-size:14px;opacity:0.8;margin-bottom:32px;">AI Operations Intelligence</div>
         <div style="font-size:28px;font-weight:700;line-height:1.3;">The AI Readiness Guide</div>
@@ -424,7 +438,7 @@ function downloadPDF() {
       ].map(s => `
         <div style="background:#f8f8fc;border:1px solid #e8e8f0;border-radius:12px;padding:20px;margin-bottom:16px;">
           <div style="display:flex;align-items:flex-start;gap:16px;">
-            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#8B5CF6,#3B82F6);color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">${s.num}</div>
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${brand.accent},${brand.accentAlt});color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0;">${s.num}</div>
             <div>
               <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;">${s.title}</div>
               <div style="color:#666;font-size:14px;line-height:1.6;">${s.desc}</div>

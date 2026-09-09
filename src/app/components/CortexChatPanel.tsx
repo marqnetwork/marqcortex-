@@ -421,8 +421,8 @@ export function CortexChatPanel({
         }}
         className={`fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 ${
           isOpen
-            ? 'bg-[#0A0A0F] border border-[#8B5CF6]/50'
-            : 'bg-gradient-to-br from-[#8B5CF6] to-[#06D7F6]'
+            ? 'bg-cortex-canvas border border-cortex-accent/50'
+            : 'bg-gradient-to-br from-cortex-accent to-cortex-info'
         }`}
       >
         {isOpen ? (
@@ -434,11 +434,11 @@ export function CortexChatPanel({
           <motion.div
             animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="absolute inset-0 rounded-full bg-[#8B5CF6]/30"
+            className="absolute inset-0 rounded-full bg-cortex-accent/30"
           />
         )}
         {!isOpen && (
-          <span className="absolute -top-1 -right-1 size-4 bg-[#06D7F6] rounded-full border-2 border-[#0A0A0F] flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 size-4 bg-cortex-info rounded-full border-2 border-cortex-canvas flex items-center justify-center">
             <span className="text-[8px] font-black text-black">AI</span>
           </span>
         )}
@@ -452,17 +452,17 @@ export function CortexChatPanel({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-24 right-6 w-[420px] max-w-[calc(100vw-3rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-[#0A0A0F] border border-[#8B5CF6]/30 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-6 w-[420px] max-w-[calc(100vw-3rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-cortex-canvas border border-cortex-accent/30 rounded-cortex-lg shadow-2xl z-50 flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#8B5CF6]/20 to-[#06D7F6]/20 border-b border-white/10 p-4 flex-shrink-0">
+            <div className="bg-gradient-to-r from-cortex-accent/20 to-cortex-info/20 border-b border-cortex-default p-4 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#06D7F6] flex items-center justify-center">
+                <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-info flex items-center justify-center">
                   <Brain className="size-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-white text-sm">CORTEX Engine</h3>
-                  <p className="text-[10px] text-gray-400">
+                  <p className="text-[10px] text-cortex-muted">
                     {portfolioState
                       ? `${portfolioState.current_version} · ${portfolioState.outputs.recommendations.length} recs`
                       : 'No portfolio loaded'}
@@ -478,7 +478,7 @@ export function CortexChatPanel({
                   <div
                     className={`size-2 rounded-full ${engineStatus.dotClass} ${engineStatus.pulse ? 'animate-pulse' : ''}`}
                   />
-                  <span className="text-[10px] text-gray-500">{engineStatus.label}</span>
+                  <span className="text-[10px] text-cortex-muted">{engineStatus.label}</span>
                 </div>
               </div>
             </div>
@@ -494,22 +494,22 @@ export function CortexChatPanel({
                   animate={{ opacity: 1 }}
                   className="flex items-center gap-2 px-4 py-2"
                 >
-                  <Loader2 className="size-4 text-[#8B5CF6] animate-spin" />
-                  <span className="text-xs text-gray-500">Running pipeline...</span>
+                  <Loader2 className="size-4 text-cortex-accent animate-spin" />
+                  <span className="text-xs text-cortex-muted">Running pipeline...</span>
                 </motion.div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Quick Actions */}
-            <div className="px-4 py-2 border-t border-white/5 flex-shrink-0">
+            <div className="px-4 py-2 border-t border-cortex-subtle flex-shrink-0">
               <div className="flex gap-1.5 overflow-x-auto pb-1">
                 {quickActions.map(action => (
                   <button
                     key={action.label}
                     onClick={() => sendMessage(action.label.toLowerCase())}
                     disabled={isProcessing}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-white/5 hover:bg-[#8B5CF6]/15 border border-white/10 hover:border-[#8B5CF6]/30 text-gray-400 hover:text-white transition-all whitespace-nowrap disabled:opacity-50"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-cortex-control hover:bg-cortex-accent/15 border border-cortex-default hover:border-cortex-accent/30 text-cortex-muted hover:text-white transition-all whitespace-nowrap disabled:opacity-50"
                   >
                     <action.icon className="size-3" />
                     {action.label}
@@ -519,7 +519,7 @@ export function CortexChatPanel({
             </div>
 
             {/* Input */}
-            <div className="p-3 border-t border-white/10 flex-shrink-0">
+            <div className="p-3 border-t border-cortex-default flex-shrink-0">
               <div className="flex gap-2">
                 <input
                   ref={inputRef}
@@ -529,12 +529,12 @@ export function CortexChatPanel({
                   onKeyDown={handleKeyDown}
                   placeholder='Try "set tickets to 350"...'
                   disabled={isProcessing}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#8B5CF6]/50 focus:ring-1 focus:ring-[#8B5CF6]/25 disabled:opacity-50 transition-colors"
+                  className="flex-1 bg-cortex-control border border-cortex-default rounded-cortex-md px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cortex-accent/50 focus:ring-1 focus:ring-cortex-accent/25 disabled:opacity-50 transition-colors"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isProcessing}
-                  className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#06D7F6] flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
+                  className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-info flex items-center justify-center disabled:opacity-30 hover:opacity-90 transition-opacity"
                 >
                   <Send className="size-4 text-white" />
                 </button>
@@ -561,20 +561,20 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+        className={`max-w-[90%] rounded-cortex-md px-3.5 py-2.5 text-sm leading-relaxed ${
           isUser
-            ? 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white'
-            : 'bg-white/[0.04] border border-white/10 text-gray-300'
+            ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-alt text-white'
+            : 'bg-white/[0.04] border border-cortex-default text-cortex-secondary'
         }`}
       >
         {/* Narrative badge */}
         {message.narrative && (
           <div className="flex items-center gap-1.5 mb-2">
-            <Sparkles className="size-3 text-[#06D7F6]" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-[#06D7F6]">
+            <Sparkles className="size-3 text-cortex-info" />
+            <span className="text-[9px] font-black uppercase tracking-wider text-cortex-info">
               {message.narrative.type.replace(/_/g, ' ')}
             </span>
-            <span className="text-[8px] text-gray-600 ml-auto" title={narrativeSourceTitle(message.narrative)}>
+            <span className="text-[8px] text-cortex-faint ml-auto" title={narrativeSourceTitle(message.narrative)}>
               {narrativeSourceLabel(message.narrative)}
             </span>
           </div>
@@ -582,10 +582,10 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 
         {/* Recalc result badge */}
         {message.recalcResult && (
-          <div className={`flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg text-[10px] font-bold ${
+          <div className={`flex items-center gap-1.5 mb-2 px-2 py-1 rounded-cortex-sm text-[10px] font-bold ${
             message.recalcResult.success
-              ? 'bg-[#10B981]/10 text-[#10B981]'
-              : 'bg-[#FD4438]/10 text-[#FD4438]'
+              ? 'bg-cortex-success/10 text-cortex-success'
+              : 'bg-cortex-danger/10 text-cortex-danger'
           }`}>
             {message.recalcResult.success ? (
               <CheckCircle2 className="size-3" />
@@ -604,9 +604,9 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 
         {/* Changed sections pills */}
         {message.recalcResult?.success && message.recalcResult.changedSections.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
+          <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-cortex-subtle">
             {message.recalcResult.changedSections.map(s => (
-              <span key={s} className="text-[8px] px-1.5 py-0.5 rounded bg-[#8B5CF6]/10 text-[#8B5CF6] font-semibold">
+              <span key={s} className="text-[8px] px-1.5 py-0.5 rounded bg-cortex-accent/10 text-cortex-accent font-semibold">
                 {s}
               </span>
             ))}
@@ -625,7 +625,7 @@ function renderContent(text: string) {
       return <strong key={i} className="font-bold text-white">{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i} className="italic text-gray-400">{part.slice(1, -1)}</em>;
+      return <em key={i} className="italic text-cortex-muted">{part.slice(1, -1)}</em>;
     }
     return <span key={i}>{part}</span>;
   });
@@ -677,7 +677,7 @@ function describeEngine(narrative?: { provider?: string; model?: string }): Engi
       ? {
           label: 'Ready',
           title: 'A governed backend is configured. Nothing has been generated yet this session.',
-          dotClass: 'bg-[#10B981]',
+          dotClass: 'bg-cortex-success',
           pulse: false,
         }
       : {
@@ -707,7 +707,7 @@ function describeEngine(narrative?: { provider?: string; model?: string }): Engi
   return {
     label: 'Live',
     title: narrativeSourceTitle(narrative),
-    dotClass: 'bg-[#10B981]',
+    dotClass: 'bg-cortex-success',
     pulse: true,
   };
 }

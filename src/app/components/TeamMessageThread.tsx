@@ -160,28 +160,28 @@ export function TeamMessageThread({
     <div className="flex flex-col h-full min-h-[560px]">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+      <div className="flex items-center justify-between pb-4 border-b border-cortex-default mb-4">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-gradient-to-br from-[#06D7F6]/20 to-[#3B82F6]/20 border border-[#06D7F6]/25 flex items-center justify-center">
-            <MessageSquare className="size-5 text-[#06D7F6]" />
+          <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-info/20 to-cortex-accent-alt/20 border border-cortex-info/25 flex items-center justify-center">
+            <MessageSquare className="size-5 text-cortex-info" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-bold text-white">Client Messages</h2>
               {wasUnread > 0 && (
-                <span className="px-2 py-0.5 bg-[#FD4438] text-white text-[10px] font-bold rounded-full animate-pulse">
+                <span className="px-2 py-0.5 bg-cortex-danger text-white text-[10px] font-bold rounded-full animate-pulse">
                   {wasUnread} new
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-cortex-muted">
               {companyName}{contactName ? ` · ${contactName}` : ''}
             </p>
           </div>
         </div>
         <button
           onClick={() => load(true)}
-          className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          className="p-2 text-cortex-muted hover:text-white hover:bg-cortex-control rounded-cortex-sm transition-colors"
           title="Refresh"
         >
           <RefreshCw className="size-4" />
@@ -190,7 +190,7 @@ export function TeamMessageThread({
 
       {/* ── Error ── */}
       {error && (
-        <div className="mb-3 px-4 py-2.5 bg-[#FD4438]/10 border border-[#FD4438]/25 rounded-xl text-xs text-[#FD4438] flex items-center justify-between">
+        <div className="mb-3 px-4 py-2.5 bg-cortex-danger/10 border border-cortex-danger/25 rounded-cortex-md text-xs text-cortex-danger flex items-center justify-between">
           <span><AlertCircle className="size-3.5 inline mr-1.5" />{error}</span>
           <button onClick={() => setError(null)}><X className="size-3.5" /></button>
         </div>
@@ -212,7 +212,7 @@ export function TeamMessageThread({
           <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0 pb-2">
             {isLoading ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="size-6 text-[#8B5CF6] animate-spin" />
+                <Loader2 className="size-6 text-cortex-accent animate-spin" />
               </div>
             ) : messages.length === 0 ? (
               <TeamEmptyState companyName={companyName} contactName={contactName} />
@@ -227,11 +227,11 @@ export function TeamMessageThread({
                   <div key={msg.id}>
                     {showDateDivider && (
                       <div className="flex items-center gap-3 my-2">
-                        <div className="flex-1 h-px bg-white/5" />
-                        <span className="text-[10px] text-gray-700 px-2">
+                        <div className="flex-1 h-px bg-cortex-control" />
+                        <span className="text-[10px] text-cortex-faint px-2">
                           {new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
-                        <div className="flex-1 h-px bg-white/5" />
+                        <div className="flex-1 h-px bg-cortex-control" />
                       </div>
                     )}
                     <TeamBubble msg={msg} isTeam={isTeam} />
@@ -243,19 +243,19 @@ export function TeamMessageThread({
           </div>
 
           {/* ── Reply box ── */}
-          <div className="mt-4 pt-4 border-t border-white/10">
+          <div className="mt-4 pt-4 border-t border-cortex-default">
             {/* No client messages yet hint */}
             {clientMessages.length === 0 && messages.length === 0 && (
-              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-[#8B5CF6]/8 border border-[#8B5CF6]/15 rounded-xl text-xs text-gray-500">
-                <Inbox className="size-3.5 text-[#8B5CF6]/50 flex-shrink-0" />
+              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-cortex-accent/8 border border-cortex-accent/15 rounded-cortex-md text-xs text-cortex-muted">
+                <Inbox className="size-3.5 text-cortex-accent/50 flex-shrink-0" />
                 No messages yet. The client can send messages from their portal.
               </div>
             )}
 
-            <div className={`relative rounded-2xl border transition-all ${
+            <div className={`relative rounded-cortex-lg border transition-all ${
               draft.length > 0
-                ? 'border-[#8B5CF6]/50 bg-[#8B5CF6]/5'
-                : 'border-white/10 bg-white/3'
+                ? 'border-cortex-accent/50 bg-cortex-accent/5'
+                : 'border-cortex-default bg-white/3'
             }`}>
               <textarea
                 ref={textareaRef}
@@ -264,23 +264,23 @@ export function TeamMessageThread({
                 onKeyDown={handleKeyDown}
                 placeholder={`Reply to ${contactName || companyName}…`}
                 rows={3}
-                className="w-full bg-transparent text-white placeholder:text-gray-700 text-sm resize-none outline-none px-4 pt-3.5 pb-10 leading-relaxed"
+                className="w-full bg-transparent text-white placeholder:text-cortex-faint text-sm resize-none outline-none px-4 pt-3.5 pb-10 leading-relaxed"
               />
               <div className="absolute bottom-3 left-4 right-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {draft.length > 1500 && (
-                    <span className={`text-xs ${charsLeft < 200 ? 'text-[#FD4438]' : 'text-gray-600'}`}>
+                    <span className={`text-xs ${charsLeft < 200 ? 'text-cortex-danger' : 'text-cortex-faint'}`}>
                       {charsLeft}
                     </span>
                   )}
-                  <span className="text-[10px] text-gray-700 flex items-center gap-1">
+                  <span className="text-[10px] text-cortex-faint flex items-center gap-1">
                     <CornerDownLeft className="size-3" />⌘↵ to send
                   </span>
                 </div>
                 <button
                   onClick={handleSend}
                   disabled={!draft.trim() || isSending}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-sm text-xs font-semibold text-white hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isSending
                     ? <Loader2 className="size-3.5 animate-spin" />
@@ -291,7 +291,7 @@ export function TeamMessageThread({
               </div>
             </div>
 
-            <p className="text-[10px] text-gray-700 mt-2 text-center">
+            <p className="text-[10px] text-cortex-faint mt-2 text-center">
               Client will see your reply in their portal on next refresh
             </p>
           </div>
@@ -313,26 +313,26 @@ function TeamBubble({ msg, isTeam }: { msg: Message; isTeam: boolean }) {
       {/* Avatar */}
       <div className={`size-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
         isTeam
-          ? 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white'
-          : 'bg-white/8 border border-white/15 text-gray-300'
+          ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-alt text-white'
+          : 'bg-white/8 border border-white/15 text-cortex-secondary'
       }`}>
         {isTeam ? <Brain className="size-4" /> : <User className="size-4" />}
       </div>
 
       {/* Bubble */}
       <div className={`max-w-[75%] flex flex-col gap-1 ${isTeam ? 'items-end' : 'items-start'}`}>
-        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+        <div className={`px-4 py-3 rounded-cortex-lg text-sm leading-relaxed whitespace-pre-wrap ${
           isTeam
-            ? 'bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] text-white rounded-tr-sm'
-            : 'bg-white/6 border border-white/10 text-gray-200 rounded-tl-sm'
+            ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-deep text-white rounded-tr-sm'
+            : 'bg-white/6 border border-cortex-default text-cortex-secondary rounded-tl-sm'
         }`}>
           {msg.content}
         </div>
-        <div className={`flex items-center gap-2 text-[10px] text-gray-600 ${isTeam ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center gap-2 text-[10px] text-cortex-faint ${isTeam ? 'flex-row-reverse' : ''}`}>
           <span className="font-medium">{isTeam ? msg.authorName : msg.authorName}</span>
           <span>·</span>
           <span>{timeAgo(msg.createdAt)}</span>
-          {isTeam && <CheckCheck className="size-3 text-[#8B5CF6]/40" />}
+          {isTeam && <CheckCheck className="size-3 text-cortex-accent/40" />}
         </div>
       </div>
     </motion.div>
@@ -348,12 +348,12 @@ function TeamEmptyState({ companyName, contactName }: { companyName: string; con
       animate={{ opacity: 1 }}
       className="py-16 flex flex-col items-center gap-4 text-center"
     >
-      <div className="size-16 rounded-2xl bg-white/3 border border-white/8 flex items-center justify-center">
+      <div className="size-16 rounded-cortex-lg bg-white/3 border border-white/8 flex items-center justify-center">
         <Inbox className="size-7 text-white/20" />
       </div>
       <div>
         <h3 className="font-semibold text-white/70 mb-1">No messages yet</h3>
-        <p className="text-gray-600 text-sm max-w-xs leading-relaxed">
+        <p className="text-cortex-faint text-sm max-w-xs leading-relaxed">
           When {contactName || companyName} sends a message from their portal, it will appear here.
           You can also start the conversation proactively.
         </p>

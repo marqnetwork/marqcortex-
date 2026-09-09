@@ -62,29 +62,30 @@ import {
   getSnapshotsByProposal,
   type ProposalSnapshot,
 } from '@/app/core/snapshotEngine';
+import { brand, status, border } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
 // ════════════════════════════════════════════════════════════════════════════════
 
 const SEV_CFG: Record<DiagnosisSeverity, { label: string; color: string; dot: string }> = {
-  critical: { label: 'Critical', color: '#FD4438', dot: 'bg-[#FD4438]' },
-  high:     { label: 'High',     color: '#FB923C', dot: 'bg-[#FB923C]' },
-  medium:   { label: 'Medium',   color: '#F59E0B', dot: 'bg-[#F59E0B]' },
-  low:      { label: 'Low',      color: '#6B7280', dot: 'bg-gray-500'  },
+  critical: { label: 'Critical', color: status.danger, dot: 'bg-cortex-danger' },
+  high:     { label: 'High',     color: status.warning, dot: 'bg-cortex-warning' },
+  medium:   { label: 'Medium',   color: status.caution, dot: 'bg-cortex-caution' },
+  low:      { label: 'Low',      color: status.neutral, dot: 'bg-gray-500'  },
 };
 
 const STATUS_CFG: Record<ProposalDraft['status'], { label: string; color: string; bg: string }> = {
-  draft:            { label: 'Draft',            color: '#8B5CF6', bg: 'bg-[#8B5CF6]/10' },
-  review:           { label: 'Review',           color: '#FB923C', bg: 'bg-[#FB923C]/10' },
-  internal_review:  { label: 'Internal Review',  color: '#06D7F6', bg: 'bg-[#06D7F6]/10' },
-  financial_binding:{ label: 'Financial Binding',color: '#10B981', bg: 'bg-[#10B981]/10' },
-  approved:         { label: 'Approved',          color: '#F59E0B', bg: 'bg-[#F59E0B]/10' },
-  ready_to_send:    { label: 'Ready to Send',     color: '#06D7F6', bg: 'bg-[#06D7F6]/10' },
-  sent:             { label: 'Sent',              color: '#3B82F6', bg: 'bg-[#3B82F6]/10' },
-  viewed:           { label: 'Viewed',            color: '#10B981', bg: 'bg-[#10B981]/10' },
-  rejected:         { label: 'Rejected',          color: '#FD4438', bg: 'bg-[#FD4438]/10' },
-  expired:          { label: 'Expired',           color: '#6B7280', bg: 'bg-gray-700/10'  },
+  draft:            { label: 'Draft',            color: brand.accent, bg: 'bg-cortex-accent/10' },
+  review:           { label: 'Review',           color: status.warning, bg: 'bg-cortex-warning/10' },
+  internal_review:  { label: 'Internal Review',  color: status.info, bg: 'bg-cortex-info/10' },
+  financial_binding:{ label: 'Financial Binding',color: status.success, bg: 'bg-cortex-success/10' },
+  approved:         { label: 'Approved',          color: status.caution, bg: 'bg-cortex-caution/10' },
+  ready_to_send:    { label: 'Ready to Send',     color: status.info, bg: 'bg-cortex-info/10' },
+  sent:             { label: 'Sent',              color: brand.accentAlt, bg: 'bg-cortex-accent-alt/10' },
+  viewed:           { label: 'Viewed',            color: status.success, bg: 'bg-cortex-success/10' },
+  rejected:         { label: 'Rejected',          color: status.danger, bg: 'bg-cortex-danger/10' },
+  expired:          { label: 'Expired',           color: status.neutral, bg: 'bg-gray-700/10'  },
 };
 
 const EVIDENCE_SOURCE_LABELS: Record<
@@ -110,11 +111,11 @@ function bumpVersion(draft: ProposalDraft): ProposalDraft['metadata'] {
 }
 
 function gateScoreColor(passed: number, total: number): string {
-  if (total === 0) return '#6B7280';
+  if (total === 0) return status.neutral;
   const pct = passed / total;
-  if (pct >= 1)    return '#10B981';
-  if (pct >= 0.75) return '#F59E0B';
-  return '#FD4438';
+  if (pct >= 1)    return status.success;
+  if (pct >= 0.75) return status.caution;
+  return status.danger;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -122,7 +123,7 @@ function gateScoreColor(passed: number, total: number): string {
 // ════════════════════════════════════════════════════════════════════════════════
 
 function CardShell({
-  icon: Icon, title, badge, accent = '#8B5CF6', locked = false,
+  icon: Icon, title, badge, accent = brand.accent, locked = false,
   editSlot, children,
 }: {
   icon: LucideIcon;
@@ -134,8 +135,8 @@ function CardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold text-white">
           <Icon className="size-4 flex-shrink-0" style={{ color: accent }} />
           {title}
@@ -148,7 +149,7 @@ function CardShell({
             </span>
           )}
           {locked && (
-            <span className="flex items-center gap-1 text-[9px] text-gray-600 font-normal">
+            <span className="flex items-center gap-1 text-[9px] text-cortex-faint font-normal">
               <Lock className="size-2.5" />read-only
             </span>
           )}
@@ -174,8 +175,8 @@ function EditableText({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">{label}</label>
-        {hint && <span className="text-[9px] text-gray-700">{hint}</span>}
+        <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">{label}</label>
+        {hint && <span className="text-[9px] text-cortex-faint">{hint}</span>}
       </div>
       {multiline ? (
         <textarea
@@ -183,7 +184,7 @@ function EditableText({
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           rows={3}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-[#8B5CF6]/50 placeholder:text-gray-700 leading-relaxed"
+          className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-cortex-accent/50 placeholder:text-cortex-faint leading-relaxed"
         />
       ) : (
         <input
@@ -191,7 +192,7 @@ function EditableText({
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#8B5CF6]/50 placeholder:text-gray-700"
+          className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white focus:outline-none focus:border-cortex-accent/50 placeholder:text-cortex-faint"
         />
       )}
     </div>
@@ -199,7 +200,7 @@ function EditableText({
 }
 
 function StringListEditor({
-  label, items, onChange, accent = '#8B5CF6', placeholder = 'Add item…',
+  label, items, onChange, accent = brand.accent, placeholder = 'Add item…',
 }: {
   label: string; items: string[]; onChange: (items: string[]) => void;
   accent?: string; placeholder?: string;
@@ -214,7 +215,7 @@ function StringListEditor({
 
   return (
     <div className="space-y-1.5">
-      <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">{label}</label>
+      <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">{label}</label>
       <div className="space-y-1">
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-2 group">
@@ -222,11 +223,11 @@ function StringListEditor({
             <input
               value={item}
               onChange={e => update(i, e.target.value)}
-              className="flex-1 bg-transparent text-xs text-gray-300 focus:outline-none focus:text-white border-b border-transparent focus:border-white/10 py-0.5"
+              className="flex-1 bg-transparent text-xs text-cortex-secondary focus:outline-none focus:text-white border-b border-transparent focus:border-cortex-default py-0.5"
             />
             <button
               onClick={() => remove(i)}
-              className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-[#FD4438] transition-all"
+              className="opacity-0 group-hover:opacity-100 text-cortex-faint hover:text-cortex-danger transition-all"
             >
               <Trash2 className="size-3" />
             </button>
@@ -239,11 +240,11 @@ function StringListEditor({
           onChange={e => setNewItem(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder={placeholder}
-          className="flex-1 bg-white/[0.03] border border-white/8 rounded-lg px-2.5 py-1.5 text-[10px] text-white placeholder:text-gray-700 focus:outline-none focus:border-white/20"
+          className="flex-1 bg-white/[0.03] border border-white/8 rounded-cortex-sm px-2.5 py-1.5 text-[10px] text-white placeholder:text-cortex-faint focus:outline-none focus:border-cortex-strong"
         />
         <button
           onClick={add}
-          className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
+          className="px-2.5 py-1.5 rounded-cortex-sm text-[10px] font-bold flex items-center gap-1 transition-colors"
           style={{ background: `${accent}22`, color: accent }}
         >
           <Plus className="size-3" />Add
@@ -279,27 +280,27 @@ function ReadyGatePanel({
 
   return (
     <div
-      className={`border rounded-xl overflow-hidden transition-all ${
+      className={`border rounded-cortex-md overflow-hidden transition-all ${
         result.passed
-          ? 'border-[#10B981]/30 bg-[#10B981]/[0.04]'
-          : 'border-[#FD4438]/20 bg-[#FD4438]/[0.03]'
+          ? 'border-cortex-success/30 bg-cortex-success/[0.04]'
+          : 'border-cortex-danger/20 bg-cortex-danger/[0.03]'
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold">
           {result.passed ? (
             <span className="contents">
-              <ShieldCheck className="size-4 text-[#10B981]" />
-              <span className="text-[#10B981]">All Gate Checks Passed</span>
-              <span className="text-[9px] font-normal text-gray-600">
+              <ShieldCheck className="size-4 text-cortex-success" />
+              <span className="text-cortex-success">All Gate Checks Passed</span>
+              <span className="text-[9px] font-normal text-cortex-faint">
                 — Status transitioning: draft → internal_review
               </span>
             </span>
           ) : (
             <span className="contents">
-              <ShieldX className="size-4 text-[#FD4438]" />
-              <span className="text-[#FD4438]">
+              <ShieldX className="size-4 text-cortex-danger" />
+              <span className="text-cortex-danger">
                 {result.missing.length} Blocker{result.missing.length !== 1 ? 's' : ''} — Status Remains Draft
               </span>
             </span>
@@ -308,11 +309,11 @@ function ReadyGatePanel({
         <div className="flex items-center gap-2">
           <button
             onClick={onRecheck}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:bg-white/10 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-control-hover transition-colors"
           >
             <RefreshCw className="size-3" />Re-check
           </button>
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-400 transition-colors">
+          <button onClick={onClose} className="text-cortex-faint hover:text-cortex-muted transition-colors">
             <X className="size-4" />
           </button>
         </div>
@@ -323,27 +324,27 @@ function ReadyGatePanel({
         {result.passed ? (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl px-4 py-3 text-center">
-                <div className="text-2xl font-black text-[#10B981]">{result.checks_passed}</div>
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Checks Passed</div>
+              <div className="bg-cortex-success/10 border border-cortex-success/20 rounded-cortex-md px-4 py-3 text-center">
+                <div className="text-2xl font-black text-cortex-success">{result.checks_passed}</div>
+                <div className="text-[9px] text-cortex-muted uppercase tracking-wider mt-0.5">Checks Passed</div>
               </div>
-              <div className="bg-black/20 border border-white/8 rounded-xl px-4 py-3 text-center">
+              <div className="bg-black/20 border border-white/8 rounded-cortex-md px-4 py-3 text-center">
                 <div className="text-base font-black text-white font-mono tracking-tight">
                   #{result.version_hash}
                 </div>
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Version Hash</div>
+                <div className="text-[9px] text-cortex-muted uppercase tracking-wider mt-0.5">Version Hash</div>
               </div>
-              <div className="bg-black/20 border border-white/8 rounded-xl px-4 py-3 text-center">
-                <div className="text-xs font-bold text-gray-300 leading-snug">
+              <div className="bg-black/20 border border-white/8 rounded-cortex-md px-4 py-3 text-center">
+                <div className="text-xs font-bold text-cortex-secondary leading-snug">
                   {result.validation_timestamp
                     ? new Date(result.validation_timestamp).toLocaleString()
                     : '—'
                   }
                 </div>
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider mt-0.5">Validated At</div>
+                <div className="text-[9px] text-cortex-muted uppercase tracking-wider mt-0.5">Validated At</div>
               </div>
             </div>
-            <p className="text-[10px] text-[#10B981]/70 flex items-start gap-2 leading-relaxed">
+            <p className="text-[10px] text-cortex-success/70 flex items-start gap-2 leading-relaxed">
               <CheckCircle2 className="size-3.5 flex-shrink-0 mt-0.5" />
               {result.gate === 'phase5_export_ready'
                 ? <span className="contents">Integrity lock cleared. Status → <span className="font-mono font-bold">sent</span>. All 4 gates confirmed, no pending ROI recalculation. Financial fields locked. Hash <span className="font-mono">#{result.version_hash}</span> recorded.</span>
@@ -363,31 +364,31 @@ function ReadyGatePanel({
             {/* Progress bar */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px]">
-                <span className="text-gray-500">Gate readiness</span>
-                <span className="font-bold text-gray-300">
+                <span className="text-cortex-muted">Gate readiness</span>
+                <span className="font-bold text-cortex-secondary">
                   {result.checks_passed} / {result.checks_total} checks
                 </span>
               </div>
-              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-cortex-control rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${result.checks_total > 0 ? (result.checks_passed / result.checks_total) * 100 : 0}%`,
-                    background: 'linear-gradient(90deg, #FD4438, #FB923C)',
+                    background: `linear-gradient(90deg, ${status.danger}, ${status.warning})`,
                   }}
                 />
               </div>
               {(structuralCount > 0 || boardroomCount > 0) && (
-                <div className="flex items-center gap-3 text-[9px] text-gray-600">
+                <div className="flex items-center gap-3 text-[9px] text-cortex-faint">
                   {structuralCount > 0 && (
                     <span className="flex items-center gap-1">
-                      <span className="size-1.5 rounded-full bg-[#FD4438] inline-block" />
+                      <span className="size-1.5 rounded-full bg-cortex-danger inline-block" />
                       {structuralCount} structural
                     </span>
                   )}
                   {boardroomCount > 0 && (
                     <span className="flex items-center gap-1">
-                      <span className="size-1.5 rounded-full bg-[#8B5CF6] inline-block" />
+                      <span className="size-1.5 rounded-full bg-cortex-accent inline-block" />
                       {boardroomCount} boardroom-grade
                     </span>
                   )}
@@ -403,11 +404,11 @@ function ReadyGatePanel({
                 return (
                   <div key={section}>
                     <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="size-3 text-[#FD4438] flex-shrink-0" />
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
+                      <AlertCircle className="size-3 text-cortex-danger flex-shrink-0" />
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-cortex-muted">
                         {GATE_SECTION_LABELS[section]}
                       </span>
-                      <span className="text-[9px] text-[#FD4438] font-bold">
+                      <span className="text-[9px] text-cortex-danger font-bold">
                         ({items.length} issue{items.length !== 1 ? 's' : ''})
                       </span>
                     </div>
@@ -415,25 +416,25 @@ function ReadyGatePanel({
                       {items.map((m, i) => (
                         <div
                           key={i}
-                          className={`flex items-start gap-3 rounded-lg px-3 py-2 border ${
+                          className={`flex items-start gap-3 rounded-cortex-sm px-3 py-2 border ${
                             m.layer === 'boardroom'
-                              ? 'bg-[#8B5CF6]/[0.04] border-[#8B5CF6]/15'
-                              : 'bg-[#FD4438]/[0.04] border-[#FD4438]/10'
+                              ? 'bg-cortex-accent/[0.04] border-cortex-accent/15'
+                              : 'bg-cortex-danger/[0.04] border-cortex-danger/10'
                           }`}
                         >
                           <span
                             className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider flex-shrink-0 mt-0.5 ${
                               m.layer === 'boardroom'
-                                ? 'text-[#8B5CF6] bg-[#8B5CF6]/10'
-                                : 'text-[#FD4438] bg-[#FD4438]/10'
+                                ? 'text-cortex-accent bg-cortex-accent/10'
+                                : 'text-cortex-danger bg-cortex-danger/10'
                             }`}
                           >
                             {m.layer === 'boardroom' ? '§§' : '§'}
                           </span>
-                          <span className="font-mono text-[9px] text-gray-500 flex-shrink-0 mt-0.5 min-w-[160px] max-w-[180px] truncate">
+                          <span className="font-mono text-[9px] text-cortex-muted flex-shrink-0 mt-0.5 min-w-[160px] max-w-[180px] truncate">
                             {m.path}
                           </span>
-                          <span className="text-[10px] text-gray-400 leading-relaxed">{m.reason}</span>
+                          <span className="text-[10px] text-cortex-muted leading-relaxed">{m.reason}</span>
                         </div>
                       ))}
                     </div>
@@ -443,13 +444,13 @@ function ReadyGatePanel({
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-4 text-[9px] text-gray-700 border-t border-white/5 pt-3">
+            <div className="flex items-center gap-4 text-[9px] text-cortex-faint border-t border-cortex-subtle pt-3">
               <span className="flex items-center gap-1.5">
-                <span className="text-[#FD4438] font-bold">§</span>
+                <span className="text-cortex-danger font-bold">§</span>
                 Structural — field-level rule
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="text-[#8B5CF6] font-bold">§§</span>
+                <span className="text-cortex-accent font-bold">§§</span>
                 Boardroom-grade — institutional standard
               </span>
             </div>
@@ -489,29 +490,29 @@ function ProposalMetaStrip({
   const isReadyToSend     = draft.status === 'ready_to_send';
 
   return (
-    <div className="bg-black/30 border border-white/8 rounded-xl px-5 py-3.5 flex items-center justify-between gap-4 flex-wrap">
+    <div className="bg-cortex-sunken border border-white/8 rounded-cortex-md px-5 py-3.5 flex items-center justify-between gap-4 flex-wrap">
       {/* Left: ID + status + version */}
       <div className="flex items-center gap-3">
-        <span className="text-xs font-mono font-bold text-gray-400">{draft.proposal_id}</span>
+        <span className="text-xs font-mono font-bold text-cortex-muted">{draft.proposal_id}</span>
         <span
           className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${statusCfg.bg}`}
           style={{ color: statusCfg.color }}
         >
           {statusCfg.label}
         </span>
-        <span className="text-[9px] text-gray-600 font-mono">v{draft.metadata.version}</span>
+        <span className="text-[9px] text-cortex-faint font-mono">v{draft.metadata.version}</span>
       </div>
 
       {/* Centre: Client + Linkage */}
-      <div className="flex items-center gap-4 text-[10px] text-gray-500">
+      <div className="flex items-center gap-4 text-[10px] text-cortex-muted">
         <span className="flex items-center gap-1">
-          <span className="font-bold text-gray-300">{draft.client.company_name}</span>
+          <span className="font-bold text-cortex-secondary">{draft.client.company_name}</span>
           <span>·</span>
           <span>{draft.client.industry}</span>
           <span>·</span>
           <span>{draft.client.region}</span>
         </span>
-        <span className="flex items-center gap-1.5 text-[9px] text-gray-600">
+        <span className="flex items-center gap-1.5 text-[9px] text-cortex-faint">
           <Link2 className="size-2.5" />
           <span className="font-mono">{draft.linkage.diagnostic_id}</span>
           <span>·</span>
@@ -523,7 +524,7 @@ function ProposalMetaStrip({
       <div className="flex items-center gap-3">
         {/* Live gate score pill */}
         <span
-          className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-lg border"
+          className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-cortex-sm border"
           style={{
             color:        scoreColor,
             borderColor:  `${scoreColor}30`,
@@ -538,10 +539,10 @@ function ProposalMetaStrip({
         {isDraft && (
           <button
             onClick={onMarkInternalReview}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-[10px] font-bold transition-all ${
               allPassed
-                ? 'bg-[#10B981] hover:bg-[#059669] text-white shadow-lg shadow-[#10B981]/20'
-                : 'bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/25 hover:border-[#8B5CF6]/40'
+                ? 'bg-cortex-success hover:bg-cortex-success-deep text-white shadow-lg shadow-cortex-success/20'
+                : 'bg-cortex-accent/10 hover:bg-cortex-accent/20 text-cortex-accent border border-cortex-accent/25 hover:border-cortex-accent/40'
             }`}
           >
             <ShieldCheck className="size-3.5" />
@@ -553,7 +554,7 @@ function ProposalMetaStrip({
         {isInternalReview && onAdvanceToFinancialBinding && (
           <button
             onClick={onAdvanceToFinancialBinding}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold bg-[#06D7F6]/10 hover:bg-[#06D7F6]/20 text-[#06D7F6] border border-[#06D7F6]/25 hover:border-[#06D7F6]/40 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-[10px] font-bold bg-cortex-info/10 hover:bg-cortex-info/20 text-cortex-info border border-cortex-info/25 hover:border-cortex-info/40 transition-all"
           >
             <ShieldCheck className="size-3.5" />
             Advance to Financial Binding
@@ -564,7 +565,7 @@ function ProposalMetaStrip({
         {isFinancialBinding && onAdvanceToApproved && (
           <button
             onClick={onAdvanceToApproved}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/25 hover:border-[#10B981]/40 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-[10px] font-bold bg-cortex-success/10 hover:bg-cortex-success/20 text-cortex-success border border-cortex-success/25 hover:border-cortex-success/40 transition-all"
           >
             <ShieldCheck className="size-3.5" />
             Approve Proposal
@@ -575,7 +576,7 @@ function ProposalMetaStrip({
         {isApproved && onAdvanceToSent && (
           <button
             onClick={onAdvanceToSent}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold bg-[#06D7F6]/10 hover:bg-[#06D7F6]/20 text-[#06D7F6] border border-[#06D7F6]/25 hover:border-[#06D7F6]/40 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-cortex-sm text-[10px] font-bold bg-cortex-info/10 hover:bg-cortex-info/20 text-cortex-info border border-cortex-info/25 hover:border-cortex-info/40 transition-all"
           >
             <Send className="size-3.5" />
             Ready to Send
@@ -584,7 +585,7 @@ function ProposalMetaStrip({
 
         {/* Phase 5 badge — ready_to_send status */}
         {isReadyToSend && (
-          <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20">
+          <span className="flex items-center gap-1.5 px-3 py-2 rounded-cortex-sm text-[10px] font-bold bg-cortex-success/10 text-cortex-success border border-cortex-success/20">
             <ShieldCheck className="size-3.5" />Export Ready ↓
           </span>
         )}
@@ -595,7 +596,7 @@ function ProposalMetaStrip({
         {!isDraft && !isInternalReview && !isFinancialBinding && !isApproved && !isReadyToSend && (
           <button
             onClick={onMarkInternalReview}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors bg-white/[0.02] hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-cortex-muted hover:text-white border border-cortex-default hover:border-cortex-strong rounded-cortex-sm transition-colors bg-white/[0.02] hover:bg-cortex-control"
           >
             <RefreshCw className="size-3" />Re-validate
           </button>
@@ -642,13 +643,13 @@ function ExecutiveBriefCard({
         <span className="contents">
           <button
             onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/25 text-[#10B981] text-[10px] font-bold rounded-lg hover:bg-[#10B981]/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-success/10 border border-cortex-success/25 text-cortex-success text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-success/20 transition-colors"
           >
             <Check className="size-3" />Save
           </button>
           <button
             onClick={handleCancel}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:bg-white/10 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-control-hover transition-colors"
           >
             <X className="size-3" />Cancel
           </button>
@@ -656,7 +657,7 @@ function ExecutiveBriefCard({
       ) : (
         <button
           onClick={() => setEditing(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6] transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:border-cortex-accent/40 hover:text-cortex-accent transition-colors"
         >
           <Edit3 className="size-3" />Edit
         </button>
@@ -668,12 +669,12 @@ function ExecutiveBriefCard({
   const ebContent = `Title: ${eb0.title}. Strategic context: ${eb0.strategic_context ?? ''}. Why now: ${eb0.why_now ?? ''}. Success vision: ${eb0.what_success_looks_like ?? ''}.`;
 
   return (
-    <CardShell icon={Target} title="Executive Brief" badge="Editable" accent="#8B5CF6" editSlot={editSlot}>
+    <CardShell icon={Target} title="Executive Brief" badge="Editable" accent={brand.accent} editSlot={editSlot}>
       {/* AI Apply banner */}
       {appliedBanner && (
-        <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 rounded-lg animate-pulse">
-          <CheckCircle2 className="size-3.5 text-[#8B5CF6] flex-shrink-0" />
-          <p className="text-[11px] text-[#8B5CF6] font-semibold">
+        <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-cortex-accent/10 border border-cortex-accent/30 rounded-cortex-sm animate-pulse">
+          <CheckCircle2 className="size-3.5 text-cortex-accent flex-shrink-0" />
+          <p className="text-[11px] text-cortex-accent font-semibold">
             AI content applied to Strategic Context — review and save when ready.
           </p>
         </div>
@@ -730,7 +731,7 @@ function ExecutiveBriefCard({
             onChange={v => setLocal(l => ({ ...l, positioning_statement: v }))}
             placeholder="Our one-line pitch…"
           />
-          <p className="text-[9px] text-gray-700 flex items-center gap-1.5">
+          <p className="text-[9px] text-cortex-faint flex items-center gap-1.5">
             <Info className="size-2.5" />
             Gate requires ≥ 600 total words across brief, ≥ 2 quantified statements, no vague phrases.
           </p>
@@ -739,22 +740,22 @@ function ExecutiveBriefCard({
         <div className="space-y-4">
           <h3 className="text-base font-black text-white leading-tight">{eb.title}</h3>
           {[
-            { label: 'Strategic Context',       value: eb.strategic_context,       color: '#06D7F6' },
-            { label: 'Why Now',                 value: eb.why_now,                 color: '#FB923C' },
-            { label: 'What Success Looks Like', value: eb.what_success_looks_like, color: '#10B981' },
+            { label: 'Strategic Context',       value: eb.strategic_context,       color: status.info },
+            { label: 'Why Now',                 value: eb.why_now,                 color: status.warning },
+            { label: 'What Success Looks Like', value: eb.what_success_looks_like, color: status.success },
           ].map(f => (
             <div key={f.label} className="space-y-1">
               <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: f.color }}>
                 {f.label}
               </div>
-              <p className="text-xs text-gray-300 leading-relaxed">
-                {f.value || <span className="text-gray-600 italic">Not filled in — click Edit to add content</span>}
+              <p className="text-xs text-cortex-secondary leading-relaxed">
+                {f.value || <span className="text-cortex-faint italic">Not filled in — click Edit to add content</span>}
               </p>
             </div>
           ))}
           {eb.positioning_statement && (
-            <div className="border-l-2 border-[#8B5CF6] pl-3">
-              <p className="text-xs italic text-[#A78BFA] leading-relaxed">"{eb.positioning_statement}"</p>
+            <div className="border-l-2 border-cortex-accent pl-3">
+              <p className="text-xs italic text-cortex-accent-light leading-relaxed">"{eb.positioning_statement}"</p>
             </div>
           )}
         </div>
@@ -784,8 +785,8 @@ function DiagnosisBlockCard({
 
   return (
     <div
-      className={`border rounded-xl overflow-hidden transition-colors ${
-        open ? 'border-white/10' : 'border-white/5'
+      className={`border rounded-cortex-md overflow-hidden transition-colors ${
+        open ? 'border-cortex-default' : 'border-cortex-subtle'
       } bg-black/20`}
     >
       {/* Row header */}
@@ -801,30 +802,30 @@ function DiagnosisBlockCard({
           >
             {sevCfg.label}
           </span>
-          <span className="text-[9px] text-gray-600 font-mono flex-shrink-0">
+          <span className="text-[9px] text-cortex-faint font-mono flex-shrink-0">
             {block.confidence}% conf.
           </span>
           {open
-            ? <ChevronDown className="size-3.5 text-gray-600 flex-shrink-0" />
-            : <ChevronRight className="size-3.5 text-gray-600 flex-shrink-0" />
+            ? <ChevronDown className="size-3.5 text-cortex-faint flex-shrink-0" />
+            : <ChevronRight className="size-3.5 text-cortex-faint flex-shrink-0" />
           }
         </button>
         <button
           onClick={() => { setEditing(e => !e); setOpen(true); }}
-          className="text-[9px] text-gray-600 hover:text-[#8B5CF6] transition-colors px-1.5 py-1 rounded hover:bg-[#8B5CF6]/10 flex-shrink-0"
+          className="text-[9px] text-cortex-faint hover:text-cortex-accent transition-colors px-1.5 py-1 rounded hover:bg-cortex-accent/10 flex-shrink-0"
         >
           {editing ? 'View' : <Edit3 className="size-3" />}
         </button>
         <button
           onClick={onRemove}
-          className="text-[9px] text-gray-700 hover:text-[#FD4438] transition-colors px-1 py-1 rounded hover:bg-[#FD4438]/10 flex-shrink-0"
+          className="text-[9px] text-cortex-faint hover:text-cortex-danger transition-colors px-1 py-1 rounded hover:bg-cortex-danger/10 flex-shrink-0"
         >
           <Trash2 className="size-3" />
         </button>
       </div>
 
       {open && (
-        <div className="border-t border-white/5 px-4 py-4">
+        <div className="border-t border-cortex-subtle px-4 py-4">
           {editing ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -835,17 +836,17 @@ function DiagnosisBlockCard({
                   hint={`${local.title.length} / 8 min chars`}
                 />
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">Severity</label>
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">Severity</label>
                   <div className="flex gap-1">
                     {(['critical', 'high', 'medium', 'low'] as DiagnosisSeverity[]).map(s => (
                       <button
                         key={s}
                         onClick={() => setLocal(l => ({ ...l, severity: s }))}
-                        className="flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all border"
+                        className="flex-1 py-1.5 rounded-cortex-sm text-[9px] font-bold transition-all border"
                         style={{
-                          color:       local.severity === s ? SEV_CFG[s].color : '#6B7280',
+                          color:       local.severity === s ? SEV_CFG[s].color : status.neutral,
                           background:  local.severity === s ? `${SEV_CFG[s].color}14` : 'transparent',
-                          borderColor: local.severity === s ? `${SEV_CFG[s].color}33` : '#ffffff10',
+                          borderColor: local.severity === s ? `${SEV_CFG[s].color}33` : border.default,
                         }}
                       >
                         {SEV_CFG[s].label}
@@ -864,7 +865,7 @@ function DiagnosisBlockCard({
                   hint={`${local.description.length} / 200 min chars`}
                 />
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-gray-600">
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint">
                     Confidence (0–100)
                   </label>
                   <div className="flex items-center gap-2">
@@ -874,16 +875,16 @@ function DiagnosisBlockCard({
                       max={100}
                       value={local.confidence}
                       onChange={e => setLocal(l => ({ ...l, confidence: Number(e.target.value) }))}
-                      className="flex-1 accent-[#8B5CF6]"
+                      className="flex-1 accent-cortex-accent"
                     />
                     <span
                       className="text-xs font-bold font-mono w-8 text-right"
-                      style={{ color: local.confidence >= 70 ? '#10B981' : '#FD4438' }}
+                      style={{ color: local.confidence >= 70 ? status.success : status.danger }}
                     >
                       {local.confidence}
                     </span>
                   </div>
-                  <p className="text-[9px] text-gray-700">Gate requires ≥ 70</p>
+                  <p className="text-[9px] text-cortex-faint">Gate requires ≥ 70</p>
                 </div>
               </div>
 
@@ -892,14 +893,14 @@ function DiagnosisBlockCard({
                   label="Operational Impact (min 2, ≥ 30 chars each)"
                   items={local.operational_impact}
                   onChange={v => setLocal(l => ({ ...l, operational_impact: v }))}
-                  accent="#FB923C"
+                  accent={status.warning}
                   placeholder="Add impact item…"
                 />
                 <StringListEditor
                   label="Financial Impact (min 2, ≥ 30 chars each)"
                   items={local.financial_impact}
                   onChange={v => setLocal(l => ({ ...l, financial_impact: v }))}
-                  accent="#10B981"
+                  accent={status.success}
                   placeholder="Add impact item…"
                 />
               </div>
@@ -907,13 +908,13 @@ function DiagnosisBlockCard({
               <div className="flex gap-2 justify-end pt-1">
                 <button
                   onClick={handleCancel}
-                  className="px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-white border border-white/10 rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-[10px] font-bold text-cortex-muted hover:text-white border border-cortex-default rounded-cortex-sm transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-3 py-1.5 text-[10px] font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/25 rounded-lg hover:bg-[#10B981]/20 transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 text-[10px] font-bold text-cortex-success bg-cortex-success/10 border border-cortex-success/25 rounded-cortex-sm hover:bg-cortex-success/20 transition-colors flex items-center gap-1"
                 >
                   <Check className="size-3" />Save Block
                 </button>
@@ -921,16 +922,16 @@ function DiagnosisBlockCard({
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-gray-300 leading-relaxed">{block.description}</p>
+              <p className="text-xs text-cortex-secondary leading-relaxed">{block.description}</p>
 
               <div className="grid grid-cols-2 gap-3">
                 {block.operational_impact.length > 0 && (
                   <div>
-                    <div className="text-[9px] font-bold text-[#FB923C] uppercase mb-1">Operational Impact</div>
+                    <div className="text-[9px] font-bold text-cortex-warning uppercase mb-1">Operational Impact</div>
                     <ul className="space-y-0.5">
                       {block.operational_impact.map((imp, i) => (
-                        <li key={i} className="text-[10px] text-gray-400 flex items-start gap-1.5">
-                          <span className="size-1 rounded-full bg-[#FB923C] mt-1.5 flex-shrink-0" />{imp}
+                        <li key={i} className="text-[10px] text-cortex-muted flex items-start gap-1.5">
+                          <span className="size-1 rounded-full bg-cortex-warning mt-1.5 flex-shrink-0" />{imp}
                         </li>
                       ))}
                     </ul>
@@ -938,11 +939,11 @@ function DiagnosisBlockCard({
                 )}
                 {block.financial_impact.length > 0 && (
                   <div>
-                    <div className="text-[9px] font-bold text-[#10B981] uppercase mb-1">Financial Impact</div>
+                    <div className="text-[9px] font-bold text-cortex-success uppercase mb-1">Financial Impact</div>
                     <ul className="space-y-0.5">
                       {block.financial_impact.map((imp, i) => (
-                        <li key={i} className="text-[10px] text-gray-400 flex items-start gap-1.5">
-                          <span className="size-1 rounded-full bg-[#10B981] mt-1.5 flex-shrink-0" />{imp}
+                        <li key={i} className="text-[10px] text-cortex-muted flex items-start gap-1.5">
+                          <span className="size-1 rounded-full bg-cortex-success mt-1.5 flex-shrink-0" />{imp}
                         </li>
                       ))}
                     </ul>
@@ -951,16 +952,16 @@ function DiagnosisBlockCard({
               </div>
 
               {block.evidence.length > 0 && (
-                <div className="border-t border-white/5 pt-3">
-                  <div className="text-[9px] font-bold text-gray-600 uppercase mb-2">Evidence</div>
+                <div className="border-t border-cortex-subtle pt-3">
+                  <div className="text-[9px] font-bold text-cortex-faint uppercase mb-2">Evidence</div>
                   <div className="space-y-1">
                     {block.evidence.map((ev, i) => (
                       <div key={i} className="flex items-start gap-2 text-[10px]">
-                        <span className="px-1.5 py-0.5 rounded bg-white/5 text-gray-600 font-mono text-[9px] flex-shrink-0">
+                        <span className="px-1.5 py-0.5 rounded bg-cortex-control text-cortex-faint font-mono text-[9px] flex-shrink-0">
                           {EVIDENCE_SOURCE_LABELS[ev.source]}
                         </span>
-                        <span className="font-mono text-gray-500 flex-shrink-0">{ev.ref}</span>
-                        {ev.note && <span className="text-gray-500 leading-relaxed">{ev.note}</span>}
+                        <span className="font-mono text-cortex-muted flex-shrink-0">{ev.ref}</span>
+                        {ev.note && <span className="text-cortex-muted leading-relaxed">{ev.note}</span>}
                       </div>
                     ))}
                   </div>
@@ -1024,20 +1025,20 @@ function DiagnosisCard({
       icon={AlertTriangle}
       title={`Confirmed Diagnosis (${blocks.length})`}
       badge="Editable"
-      accent="#FD4438"
+      accent={status.danger}
       editSlot={
         <div className="flex items-center gap-2">
           {dirty && (
             <button
               onClick={saveAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/25 text-[#10B981] text-[10px] font-bold rounded-lg hover:bg-[#10B981]/20 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-success/10 border border-cortex-success/25 text-cortex-success text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-success/20 transition-colors"
             >
               <Check className="size-3" />Save All
             </button>
           )}
           <button
             onClick={addBlock}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:border-[#FD4438]/30 hover:text-[#FD4438] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:border-cortex-danger/30 hover:text-cortex-danger transition-colors"
           >
             <Plus className="size-3" />Add Block
           </button>
@@ -1047,9 +1048,9 @@ function DiagnosisCard({
       <div className="space-y-3">
         {/* AI Apply banner */}
         {aiAppliedIdx !== null && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-lg">
-            <CheckCircle2 className="size-3.5 text-[#FD4438] flex-shrink-0" />
-            <p className="text-[11px] text-[#FD4438] font-semibold">
+          <div className="flex items-center gap-2 px-3 py-2 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-sm">
+            <CheckCircle2 className="size-3.5 text-cortex-danger flex-shrink-0" />
+            <p className="text-[11px] text-cortex-danger font-semibold">
               AI content applied to Block 1 description — review and save when ready.
             </p>
           </div>
@@ -1075,11 +1076,11 @@ function DiagnosisCard({
           />
         ))}
         {blocks.length === 0 && (
-          <div className="text-center py-8 text-gray-600 text-xs">
+          <div className="text-center py-8 text-cortex-faint text-xs">
             No diagnosis blocks yet. Gate requires ≥ 3 — click "Add Block" to begin.
           </div>
         )}
-        <p className="text-[9px] text-gray-700 flex items-center gap-1.5 pt-1">
+        <p className="text-[9px] text-cortex-faint flex items-center gap-1.5 pt-1">
           <Info className="size-2.5" />
           Gate requires ≥ 3 blocks; each needs ≥ 8-char title, ≥ 200-char description, 2 impact items each (≥ 30 chars), 1 evidence item, confidence ≥ 70, and at least 1 High or Critical block.
         </p>
@@ -1111,19 +1112,19 @@ function ScopeCard({
       icon={Shield}
       title="Scope Boundaries"
       badge="Editable"
-      accent="#3B82F6"
+      accent={brand.accentAlt}
       editSlot={
         editing ? (
           <div className="flex items-center gap-2">
             <button
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/25 text-[#10B981] text-[10px] font-bold rounded-lg hover:bg-[#10B981]/20 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-success/10 border border-cortex-success/25 text-cortex-success text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-success/20 transition-colors"
             >
               <Check className="size-3" />Save
             </button>
             <button
               onClick={handleCancel}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:bg-cortex-control-hover transition-colors"
             >
               <X className="size-3" />Cancel
             </button>
@@ -1131,7 +1132,7 @@ function ScopeCard({
         ) : (
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:border-[#3B82F6]/40 hover:text-[#3B82F6] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:border-cortex-accent-alt/40 hover:text-cortex-accent-alt transition-colors"
           >
             <Edit3 className="size-3" />Edit
           </button>
@@ -1145,25 +1146,25 @@ function ScopeCard({
               label="✓ Included (min 3)"
               items={local.included}
               onChange={v => setLocal(l => ({ ...l, included: v }))}
-              accent="#10B981"
+              accent={status.success}
               placeholder="Add included item…"
             />
             <StringListEditor
               label="✗ Excluded (min 2)"
               items={local.excluded}
               onChange={v => setLocal(l => ({ ...l, excluded: v }))}
-              accent="#FD4438"
+              accent={status.danger}
               placeholder="Add excluded item…"
             />
             <StringListEditor
               label="Assumptions (min 2)"
               items={local.assumptions}
               onChange={v => setLocal(l => ({ ...l, assumptions: v }))}
-              accent="#F59E0B"
+              accent={status.caution}
               placeholder="Add assumption…"
             />
           </div>
-          <p className="text-[9px] text-gray-700 flex items-center gap-1.5">
+          <p className="text-[9px] text-cortex-faint flex items-center gap-1.5">
             <Info className="size-2.5" />
             Gate requires excluded scope to explicitly block legal/medical/financial advisory and fully autonomous AI.
           </p>
@@ -1171,37 +1172,37 @@ function ScopeCard({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <div className="text-[9px] font-bold text-[#10B981] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-[9px] font-bold text-cortex-success uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <CheckCircle2 className="size-3" />Included
             </div>
             <ul className="space-y-1.5">
               {s.included.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                  <span className="size-1.5 rounded-full bg-[#10B981] mt-1 flex-shrink-0" />{item}
+                <li key={i} className="flex items-start gap-2 text-xs text-cortex-secondary">
+                  <span className="size-1.5 rounded-full bg-cortex-success mt-1 flex-shrink-0" />{item}
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <div className="text-[9px] font-bold text-[#FD4438] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-[9px] font-bold text-cortex-danger uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <X className="size-3" />Excluded
             </div>
             <ul className="space-y-1.5">
               {s.excluded.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                  <span className="size-1.5 rounded-full bg-[#FD4438]/50 mt-1 flex-shrink-0" />{item}
+                <li key={i} className="flex items-start gap-2 text-xs text-cortex-muted">
+                  <span className="size-1.5 rounded-full bg-cortex-danger/50 mt-1 flex-shrink-0" />{item}
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <div className="text-[9px] font-bold text-[#F59E0B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-[9px] font-bold text-cortex-caution uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Info className="size-3" />Assumptions
             </div>
             <ul className="space-y-1.5">
               {s.assumptions.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                  <span className="size-1.5 rounded-full bg-[#F59E0B]/50 mt-1 flex-shrink-0" />{item}
+                <li key={i} className="flex items-start gap-2 text-xs text-cortex-muted">
+                  <span className="size-1.5 rounded-full bg-cortex-caution/50 mt-1 flex-shrink-0" />{item}
                 </li>
               ))}
             </ul>
@@ -1237,23 +1238,23 @@ function NextStepOfferCard({
   const offer = draft.next_step_offer;
 
   return (
-    <CardShell icon={Zap} title="Next Step Offer" accent="#FB923C">
+    <CardShell icon={Zap} title="Next Step Offer" accent={status.warning}>
       <div className="space-y-5">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {/* Price — editable */}
-          <div className="bg-gradient-to-br from-[#10B981]/10 to-[#06D7F6]/10 border border-[#10B981]/20 rounded-xl px-4 py-3">
-            <div className="text-[9px] font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
+          <div className="bg-gradient-to-br from-cortex-success/10 to-cortex-info/10 border border-cortex-success/20 rounded-cortex-md px-4 py-3">
+            <div className="text-[9px] font-bold text-cortex-faint uppercase mb-1 flex items-center gap-1">
               Price
               <button
                 onClick={() => { setEditingPrice(e => !e); setPriceInput(String(offer.price)); }}
-                className="text-[#8B5CF6] hover:text-[#A78BFA] transition-colors ml-1"
+                className="text-cortex-accent hover:text-cortex-accent-light transition-colors ml-1"
               >
                 <Edit3 className="size-2.5" />
               </button>
             </div>
             {editingPrice ? (
               <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 text-sm">$</span>
+                <span className="text-cortex-muted text-sm">$</span>
                 <input
                   type="number"
                   value={priceInput}
@@ -1265,45 +1266,45 @@ function NextStepOfferCard({
                   className="w-full bg-transparent text-base font-black text-white focus:outline-none"
                   autoFocus
                 />
-                <button onClick={handleSavePrice} className="text-[#10B981]">
+                <button onClick={handleSavePrice} className="text-cortex-success">
                   <Check className="size-3" />
                 </button>
               </div>
             ) : (
-              <div className="text-xl font-black text-[#10B981]">
+              <div className="text-xl font-black text-cortex-success">
                 ${offer.price.toLocaleString()}{' '}
-                <span className="text-[10px] font-normal text-gray-500">{offer.currency}</span>
+                <span className="text-[10px] font-normal text-cortex-muted">{offer.currency}</span>
               </div>
             )}
           </div>
 
           {/* Duration */}
-          <div className="bg-white/[0.025] border border-white/8 rounded-xl px-4 py-3">
-            <div className="text-[9px] font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
-              <Clock className="size-2.5" />Duration <Lock className="size-2.5 ml-1 text-gray-700" />
+          <div className="bg-white/[0.025] border border-white/8 rounded-cortex-md px-4 py-3">
+            <div className="text-[9px] font-bold text-cortex-faint uppercase mb-1 flex items-center gap-1">
+              <Clock className="size-2.5" />Duration <Lock className="size-2.5 ml-1 text-cortex-faint" />
             </div>
-            <div className="text-sm font-black text-[#06D7F6]">{offer.duration}</div>
+            <div className="text-sm font-black text-cortex-info">{offer.duration}</div>
           </div>
 
           {/* Offer name */}
-          <div className="bg-white/[0.025] border border-white/8 rounded-xl px-4 py-3 col-span-2">
-            <div className="text-[9px] font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
-              Offer Name <Lock className="size-2.5 ml-1 text-gray-700" />
+          <div className="bg-white/[0.025] border border-white/8 rounded-cortex-md px-4 py-3 col-span-2">
+            <div className="text-[9px] font-bold text-cortex-faint uppercase mb-1 flex items-center gap-1">
+              Offer Name <Lock className="size-2.5 ml-1 text-cortex-faint" />
             </div>
             <div className="text-sm font-bold text-white">{offer.offer_name}</div>
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 pt-1">
-          <button className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#6D28D9] text-white text-sm font-bold rounded-xl hover:from-[#7C3AED] hover:to-[#5B21B6] transition-all shadow-lg shadow-[#8B5CF6]/20">
+          <button className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-deep text-white text-sm font-bold rounded-cortex-md hover:from-cortex-accent-deep hover:to-cortex-accent-deep/80 transition-all shadow-lg shadow-cortex-accent/20">
             <CheckCircle2 className="size-4" />{offer.primary_cta}
           </button>
-          <button className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-white/5 border border-white/10 text-gray-300 text-sm font-semibold rounded-xl hover:bg-white/10 hover:border-white/20 transition-all">
+          <button className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-cortex-control border border-cortex-default text-cortex-secondary text-sm font-semibold rounded-cortex-md hover:bg-cortex-control-hover hover:border-cortex-strong transition-all">
             <Send className="size-4" />{offer.secondary_cta}
           </button>
         </div>
 
-        <p className="text-[9px] text-gray-700 flex items-center gap-1.5">
+        <p className="text-[9px] text-cortex-faint flex items-center gap-1.5">
           <Lock className="size-2.5" />
           Offer name, duration, and CTAs are system-defined for Phase 1. Price is editable.
           All edits create a new proposal version.
@@ -1621,21 +1622,21 @@ export function ProposalDraftEditor({ initialDraft, onDraftChange, submissionId,
       {/* §15 Execution Dashboard launch — visible once proposal is sent */}
       {(draft.status === 'sent' || draft.status === 'viewed' || draft.status === 'approved') && (
         <div
-          className="rounded-xl border px-5 py-4 flex items-center gap-4"
-          style={{ borderColor: '#06D7F625', background: '#06D7F608' }}
+          className="rounded-cortex-md border px-5 py-4 flex items-center gap-4"
+          style={{ borderColor: `${status.info}25`, background: `${status.info}08` }}
         >
-          <LayoutDashboard className="size-5 text-[#06D7F6] flex-shrink-0" />
+          <LayoutDashboard className="size-5 text-cortex-info flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-[11px] font-bold text-white">Execution Dashboard Ready</div>
-            <div className="text-[9px] text-gray-600 mt-0.5 leading-relaxed">
+            <div className="text-[9px] text-cortex-faint mt-0.5 leading-relaxed">
               Proposal is {draft.status}. Launch the Execution Blueprint Engine to manage workstreams,
               milestones, tasks, gates, and live ROI tracking — all derived from the immutable snapshot.
             </div>
           </div>
           <button
             onClick={() => window.open('/team/execution', '_blank')}
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold border transition-colors"
-            style={{ borderColor: '#06D7F630', color: '#06D7F6', background: '#06D7F614' }}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-cortex-md text-[10px] font-bold border transition-colors"
+            style={{ borderColor: `${status.info}30`, color: status.info, background: `${status.info}14` }}
           >
             <LayoutDashboard className="size-3.5" />
             Launch Execution
@@ -1645,7 +1646,7 @@ export function ProposalDraftEditor({ initialDraft, onDraftChange, submissionId,
       )}
 
       {/* Version / audit footer */}
-      <div className="flex items-center justify-between text-[9px] text-gray-700 px-1">
+      <div className="flex items-center justify-between text-[9px] text-cortex-faint px-1">
         <span className="flex items-center gap-1.5">
           <GitBranch className="size-2.5" />
           Proposal v{draft.metadata.version} · Every card save increments version

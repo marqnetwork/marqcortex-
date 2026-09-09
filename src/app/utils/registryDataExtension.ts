@@ -709,6 +709,15 @@ export const EXTENSION_REGISTRY: RegistryNode[] = [
 // For use in RegistryViewer alongside the original TYPE_META
 // ============================================================================
 
+/**
+ * A CATEGORICAL LEGEND, not the status vocabulary.
+ *
+ * Seven node kinds in the registry's symbol map, each needing a colour that is
+ * distinguishable from the other six at badge size. None of them means good or
+ * bad — a FUNCTION is not healthier than a SPEC — so pointing them at status
+ * tokens would attach meaning that is not there, and the light steps the token
+ * layer declares (five) cannot supply seven distinct tints anyway.
+ */
 export const EXTENDED_TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
   FN:  { label: 'FUNCTION', color: '#E879F9', bg: 'rgba(232,121,249,0.12)' },
   STY: { label: 'STYLE',    color: '#67E8F9', bg: 'rgba(103,232,249,0.12)' },

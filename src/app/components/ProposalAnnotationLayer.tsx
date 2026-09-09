@@ -12,7 +12,7 @@
 
 import {
   createContext, useContext, useState, useEffect, useRef, useCallback,
-  type ReactNode,
+  type ReactNode, useId,
 } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -24,9 +24,21 @@ import {
   type ProposalAnnotation,
 } from '@/app/services/dataService';
 import { generateAnnotatedProposalHTML } from '@/app/utils/proposalExport';
+import { asArray } from '@/app/lib/payload';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
+import { brand, status, border, surface } from '@/app/lib/tokens';
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 
+/**
+ * The highlighter palette.
+ *
+ * Deliberately NOT the status vocabulary: these are tints chosen so the text
+ * underneath a highlight stays readable, and they carry no good/bad meaning.
+ * The token layer has no tint scale to express them yet — see the checkpoint's
+ * note on that decision — so they stay declared here, together, rather than
+ * half of them pointing at status colours that mean something else.
+ */
 export const ANNOT_COLORS: { id: string; hex: string; bg: string; border: string }[] = [
   { id: 'amber',  hex: '#FBBF24', bg: 'rgba(251,191,36,0.22)',  border: 'rgba(251,191,36,0.55)'  },
   { id: 'green',  hex: '#34D399', bg: 'rgba(52,211,153,0.18)',  border: 'rgba(52,211,153,0.50)'  },
@@ -180,7 +192,7 @@ export function AnnotatableText({
                   onMouseLeave={() => setHoveredId(null)}
                 >
                   <div
-                    className="rounded-xl p-3 text-xs"
+                    className="rounded-cortex-md p-3 text-xs"
                     style={{
                       background: '#141420',
                       border:     `1px solid ${col.border}`,
@@ -196,7 +208,7 @@ export function AnnotatableText({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-white truncate">{ann.author}</div>
-                        <div className="flex items-center gap-1 text-gray-500">
+                        <div className="flex items-center gap-1 text-cortex-muted">
                           <Clock className="size-2.5" />
                           {timeAgo(ann.createdAt)}
                         </div>
@@ -207,7 +219,7 @@ export function AnnotatableText({
                       />
                     </div>
                     {ann.comment && (
-                      <p className="text-gray-300 leading-relaxed">{ann.comment}</p>
+                      <p className="text-cortex-secondary leading-relaxed">{ann.comment}</p>
                     )}
                   </div>
                   {/* Arrow */}
@@ -279,7 +291,8 @@ export function AnnotationProvider({
     setIsLoading(true);
     try {
       const res = await getProposalAnnotations(submissionId);
-      setAnnotations(res.annotations);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setAnnotations(asArray(res.annotations));
     } catch (err) {
       console.error('Load annotations error:', err);
     } finally {
@@ -415,7 +428,7 @@ export function AnnotationProvider({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.92 }}
             transition={{ duration: 0.13 }}
-            className="fixed z-[9999] flex items-center gap-1 px-2 py-1.5 rounded-xl"
+            className="fixed z-[9999] flex items-center gap-1 px-2 py-1.5 rounded-cortex-md"
             style={{
               left:      toolbar.x,
               top:       toolbar.y - 52,
@@ -444,8 +457,8 @@ export function AnnotationProvider({
             {/* Annotate button */}
             <button
               onClick={() => openForm(toolbar)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: '#8B5CF6', color: '#fff' }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-cortex-sm text-xs font-semibold transition-all"
+              style={{ background: brand.accent, color: '#fff' }}
             >
               <Highlighter className="size-3" />
               Annotate
@@ -477,21 +490,21 @@ export function AnnotationProvider({
             {/* Header */}
             <div className="flex items-center justify-between px-4 pt-3.5 pb-2 border-b border-white/8">
               <div className="flex items-center gap-2">
-                <Highlighter className="size-3.5 text-[#8B5CF6]" />
+                <Highlighter className="size-3.5 text-cortex-accent" />
                 <span className="text-sm font-semibold text-white">New Annotation</span>
               </div>
               <button
                 onClick={() => setForm(null)}
-                className="p-1 hover:bg-white/8 rounded-lg transition-colors"
+                className="p-1 hover:bg-white/8 rounded-cortex-sm transition-colors"
               >
-                <X className="size-3.5 text-gray-400" />
+                <X className="size-3.5 text-cortex-muted" />
               </button>
             </div>
 
             <div className="px-4 py-3 space-y-3">
               {/* Selected text preview */}
               <div
-                className="text-xs text-gray-400 px-2.5 py-2 rounded-lg leading-relaxed line-clamp-2 italic"
+                className="text-xs text-cortex-muted px-2.5 py-2 rounded-cortex-sm leading-relaxed line-clamp-2 italic"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
               >
                 "{form.text.length > 80 ? form.text.slice(0, 80) + '…' : form.text}"
@@ -499,7 +512,7 @@ export function AnnotationProvider({
 
               {/* Colour palette */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-gray-500 mr-1">Colour</span>
+                <span className="text-[11px] text-cortex-muted mr-1">Colour</span>
                 {ANNOT_COLORS.map(col => (
                   <button
                     key={col.id}
@@ -517,18 +530,18 @@ export function AnnotationProvider({
 
               {/* Author */}
               <div>
-                <label className="text-[11px] text-gray-500 mb-1 block">Your name</label>
+                <label className="text-[11px] text-cortex-muted mb-1 block">Your name</label>
                 <input
                   type="text"
                   value={author}
                   onChange={e => setAuthor(e.target.value)}
                   placeholder="e.g. Sarah Chen"
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600 outline-none transition-colors"
+                  className="w-full px-3 py-2 rounded-cortex-sm text-sm text-white placeholder-gray-600 outline-none transition-colors"
                   style={{
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}
-                  onFocus={e => (e.target.style.borderColor = '#8B5CF6')}
+                  onFocus={e => (e.target.style.borderColor = brand.accent)}
                   onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                   autoFocus
                 />
@@ -536,29 +549,29 @@ export function AnnotationProvider({
 
               {/* Comment */}
               <div>
-                <label className="text-[11px] text-gray-500 mb-1 block">Comment <span className="text-gray-600">(optional)</span></label>
+                <label className="text-[11px] text-cortex-muted mb-1 block">Comment <span className="text-cortex-faint">(optional)</span></label>
                 <textarea
                   value={comment}
                   onChange={e => setComment(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
                   placeholder="Add a note about this section…"
                   rows={3}
-                  className="w-full px-3 py-2 rounded-lg text-sm text-white placeholder-gray-600 resize-none outline-none transition-colors"
+                  className="w-full px-3 py-2 rounded-cortex-sm text-sm text-white placeholder-gray-600 resize-none outline-none transition-colors"
                   style={{
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}
-                  onFocus={e => (e.target.style.borderColor = '#8B5CF6')}
+                  onFocus={e => (e.target.style.borderColor = brand.accent)}
                   onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                 />
-                <p className="text-[10px] text-gray-600 mt-1">⌘ Enter to save</p>
+                <p className="text-[10px] text-cortex-faint mt-1">⌘ Enter to save</p>
               </div>
 
               {/* Submit */}
               <button
                 onClick={handleSubmit}
                 disabled={isSaving || !author.trim()}
-                className="w-full py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2 rounded-cortex-md text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #8B5CF6, #3B82F6)', color: '#fff' }}
               >
                 {isSaving
@@ -579,11 +592,11 @@ export function AnnotationProvider({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9998] flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9998] flex items-center gap-2 px-4 py-2.5 rounded-cortex-md text-sm font-semibold"
             style={{
-              background: 'rgba(16,185,129,0.15)',
-              border:     '1px solid rgba(16,185,129,0.35)',
-              color:      '#10B981',
+              background: `${status.success}26`,
+              border:     `1px solid ${status.success}59`,
+              color:      status.success,
               backdropFilter: 'blur(12px)',
             }}
           >
@@ -607,6 +620,18 @@ export function AnnotationProvider({
 
 // ── Annotation panel (slide-in right) ─────────────────────────────────────────
 
+/**
+ * The annotations drawer.
+ *
+ * It is a dialog by behaviour and was not one by declaration: no `role`, no
+ * `aria-modal`, no focus moved in or restored, no Escape, and a close button
+ * with no accessible name at all. Tab walked straight out of it into the
+ * proposal underneath, which the drawer was covering.
+ *
+ * It keeps its own shape — a right-hand slide-in, not a centred `Modal` — so
+ * it takes the four behaviours from `useDialogBehavior` rather than the
+ * `Modal` chrome, which is exactly the case that hook exists for.
+ */
 function AnnotationPanel({
   annotations,
   isLoading,
@@ -622,6 +647,8 @@ function AnnotationPanel({
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { setHoveredId } = useAnnotations();
+  const titleId = useId();
+  const { dialogProps } = useDialogBehavior({ open, onClose, labelledBy: titleId });
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -649,8 +676,9 @@ function AnnotationPanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-40"
-            style={{ background: 'rgba(0,0,0,0.35)' }}
+            style={{ background: `color-mix(in srgb, ${surface.canvas} 65%, transparent)` }}
             onClick={onClose}
+            aria-hidden="true"
           />
 
           {/* Panel */}
@@ -659,25 +687,22 @@ function AnnotationPanel({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="fixed right-0 top-0 h-full w-[340px] z-50 flex flex-col"
-            style={{
-              background:   '#0E0E1A',
-              borderLeft:   '1px solid rgba(255,255,255,0.1)',
-              boxShadow:    '-16px 0 48px rgba(0,0,0,0.6)',
-            }}
+            {...dialogProps}
+            className="fixed right-0 top-0 h-full w-[340px] z-50 flex flex-col bg-cortex-overlay border-l border-cortex-default"
+            style={{ boxShadow: '-16px 0 48px rgba(0,0,0,0.6)' }}
           >
             {/* Panel header */}
             <div
               className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ borderBottom: `1px solid ${border.default}` }}
             >
               <div className="flex items-center gap-2">
-                <MessageSquare className="size-4 text-[#8B5CF6]" />
-                <span className="font-bold text-white text-sm">Annotations</span>
+                <MessageSquare className="size-4 text-cortex-accent" aria-hidden="true" />
+                <h2 id={titleId} className="font-bold text-cortex-primary text-sm">Annotations</h2>
                 {annotations.length > 0 && (
                   <span
                     className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(139,92,246,0.2)', color: '#A78BFA' }}
+                    style={{ background: `${brand.accent}33`, color: brand.accent }}
                   >
                     {annotations.length}
                   </span>
@@ -685,9 +710,10 @@ function AnnotationPanel({
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 hover:bg-white/8 rounded-lg transition-colors"
+                aria-label="Close annotations"
+                className="p-1.5 hover:bg-cortex-control rounded-cortex-sm transition-colors"
               >
-                <X className="size-4 text-gray-400" />
+                <X className="size-4 text-cortex-muted" aria-hidden="true" />
               </button>
             </div>
 
@@ -695,19 +721,19 @@ function AnnotationPanel({
             <div className="flex-1 overflow-y-auto py-2">
               {isLoading ? (
                 <div className="flex items-center justify-center py-16">
-                  <Loader2 className="size-6 text-[#8B5CF6] animate-spin" />
+                  <Loader2 className="size-6 text-cortex-accent animate-spin" />
                 </div>
               ) : annotations.length === 0 ? (
                 <div className="py-16 px-6 text-center">
                   <div
-                    className="size-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                    className="size-14 rounded-cortex-lg flex items-center justify-center mx-auto mb-4"
                     style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}
                   >
-                    <Highlighter className="size-6 text-[#8B5CF6]/50" />
+                    <Highlighter className="size-6 text-cortex-accent/50" />
                   </div>
                   <p className="text-white font-medium text-sm mb-1">No annotations yet</p>
-                  <p className="text-gray-500 text-xs leading-relaxed">
-                    Select any text in the proposal and click <strong className="text-gray-400">Annotate</strong> to add your notes.
+                  <p className="text-cortex-muted text-xs leading-relaxed">
+                    Select any text in the proposal and click <strong className="text-cortex-muted">Annotate</strong> to add your notes.
                   </p>
                 </div>
               ) : (
@@ -721,7 +747,7 @@ function AnnotationPanel({
                         initial={{ opacity: 0, x: 16 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 16 }}
-                        className="group rounded-xl p-3 cursor-pointer transition-colors"
+                        className="group rounded-cortex-md p-3 cursor-pointer transition-colors"
                         style={{
                           background: 'rgba(255,255,255,0.03)',
                           border:     `1px solid rgba(255,255,255,0.07)`,
@@ -740,7 +766,7 @@ function AnnotationPanel({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-semibold text-white truncate">{ann.author}</div>
-                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                            <div className="flex items-center gap-1 text-[10px] text-cortex-muted">
                               <Clock className="size-2.5" />
                               {timeAgo(ann.createdAt)}
                             </div>
@@ -756,19 +782,19 @@ function AnnotationPanel({
                           <button
                             onClick={e => { e.stopPropagation(); handleDelete(ann.id); }}
                             disabled={deletingId === ann.id}
-                            className="p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-[#FD4438]/15"
+                            className="p-1 rounded-cortex-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-cortex-danger/15"
                             title="Delete annotation"
                           >
                             {deletingId === ann.id
-                              ? <Loader2 className="size-3 text-gray-500 animate-spin" />
-                              : <Trash2 className="size-3 text-gray-500 hover:text-[#FD4438]" />
+                              ? <Loader2 className="size-3 text-cortex-muted animate-spin" />
+                              : <Trash2 className="size-3 text-cortex-muted hover:text-cortex-danger" />
                             }
                           </button>
                         </div>
 
                         {/* Selected text */}
                         <div
-                          className="text-[11px] italic text-gray-400 px-2 py-1.5 rounded-lg mb-2 leading-relaxed line-clamp-2"
+                          className="text-[11px] italic text-cortex-muted px-2 py-1.5 rounded-cortex-sm mb-2 leading-relaxed line-clamp-2"
                           style={{ background: col.bg, borderLeft: `3px solid ${col.hex}` }}
                         >
                           "{ann.selectedText.length > 80 ? ann.selectedText.slice(0, 80) + '…' : ann.selectedText}"
@@ -776,11 +802,11 @@ function AnnotationPanel({
 
                         {/* Comment */}
                         {ann.comment && (
-                          <p className="text-xs text-gray-300 leading-relaxed">{ann.comment}</p>
+                          <p className="text-xs text-cortex-secondary leading-relaxed">{ann.comment}</p>
                         )}
 
                         {/* Scroll hint */}
-                        <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 mt-2 text-[10px] text-cortex-faint opacity-0 group-hover:opacity-100 transition-opacity">
                           <ChevronRight className="size-3" />
                           Click to jump to highlight
                         </div>
@@ -793,7 +819,7 @@ function AnnotationPanel({
 
             {/* Panel footer */}
             <div
-              className="px-5 py-3 text-[11px] text-gray-600 flex-shrink-0"
+              className="px-5 py-3 text-[11px] text-cortex-faint flex-shrink-0"
               style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
             >
               Select text in the proposal to add annotations
@@ -814,7 +840,7 @@ export function AnnotationPanelToggle() {
   return (
     <button
       onClick={() => setPanelOpen(!panelOpen)}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+      className="flex items-center gap-2 px-3 py-2 rounded-cortex-md text-xs font-semibold transition-all"
       style={{
         background: panelOpen ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.05)',
         border:     panelOpen ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.1)',
@@ -830,7 +856,7 @@ export function AnnotationPanelToggle() {
       {unread > 0 && (
         <span
           className="size-4 rounded-full flex items-center justify-center text-[9px] font-bold"
-          style={{ background: '#8B5CF6', color: '#fff' }}
+          style={{ background: brand.accent, color: '#fff' }}
         >
           {unread > 9 ? '9+' : unread}
         </span>
@@ -877,11 +903,11 @@ export function ExportAnnotationsButton({
     <button
       onClick={handleExport}
       disabled={!proposal || isGenerating}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      className="flex items-center gap-2 px-3 py-2 rounded-cortex-md text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
       style={{
-        background: 'rgba(6,215,246,0.08)',
-        border:     '1px solid rgba(6,215,246,0.25)',
-        color:      '#06D7F6',
+        background: `${status.info}14`,
+        border:     `1px solid ${status.info}40`,
+        color:      status.info,
       }}
       onMouseEnter={e => {
         if (!proposal || isGenerating) return;

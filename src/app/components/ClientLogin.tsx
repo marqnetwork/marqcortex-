@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Brain, ArrowLeft, LogIn, Mail, Sparkles, CheckCircle2, Loader2, Shield, Lock } from 'lucide-react';
 import { verifyClientEmail, DEMO_CLIENTS } from '@/app/services/dataService';
 import { BRAND, GRADIENTS } from '@/app/utils/designTokens';
+import { text } from '@/app/lib/tokens';
 
 interface ClientLoginProps {
   onLogin: (submissionId: string, email: string, companyName: string, sessionToken?: string | null) => void;
@@ -39,7 +40,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center px-8 relative overflow-hidden">
+    <div className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center px-8 relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Floating Orbs — unified purple/blue brand */}
@@ -109,7 +110,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           onClick={onBack}
           whileHover={{ x: -4 }}
           whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-cortex-muted hover:text-white transition-colors"
         >
           <ArrowLeft size={20} />
           Back to Home
@@ -129,7 +130,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 shadow-2xl"
+            className="inline-flex items-center justify-center w-20 h-20 rounded-cortex-lg mb-6 shadow-2xl"
             style={{
               background: GRADIENTS.primaryButton,
               boxShadow: `0 20px 60px ${BRAND.purpleGlow}`,
@@ -143,7 +144,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="text-5xl font-bold mb-3 bg-clip-text text-transparent"
-            style={{ backgroundImage: `linear-gradient(135deg, #F5F5FF, ${BRAND.purple})` }}
+            style={{ backgroundImage: `linear-gradient(135deg, ${text.primary}, ${BRAND.purple})` }}
           >
             Client Portal
           </motion.h1>
@@ -152,7 +153,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-gray-500 text-lg"
+            className="text-cortex-muted text-lg"
           >
             Access your diagnostic results & insights
           </motion.p>
@@ -168,29 +169,34 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
         >
           {/* Email Field */}
           <div>
-            <label className="block text-sm font-semibold text-gray-200 mb-2">
+            {/* The label was styled text with no `htmlFor`, so it named the
+                field on screen and to nobody else: a screen-reader user reached
+                an edit box announced only by its placeholder, which vanishes as
+                soon as they start typing. */}
+            <label htmlFor="client-login-email" className="block text-sm font-semibold text-cortex-secondary mb-2">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-cortex-muted" size={20} aria-hidden="true" />
               <motion.input
+                id="client-login-email"
                 whileFocus={{ scale: 1.01 }}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 required
-                className="w-full pl-12 pr-4 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-white placeholder:text-gray-600 focus:border-[#8B5CF6] focus:outline-none transition-all"
+                className="w-full pl-12 pr-4 py-4 bg-cortex-control border-2 border-cortex-default rounded-cortex-md text-white placeholder:text-cortex-faint focus:border-cortex-accent focus:outline-none transition-all"
               />
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-cortex-muted">
               Use:&nbsp;
               {DEMO_CLIENTS.map((c) => (
                 <button
                   key={c.email}
                   type="button"
                   onClick={() => setEmail(c.email)}
-                  className="text-[#8B5CF6] hover:text-white font-mono bg-[#8B5CF6]/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                  className="text-cortex-accent hover:text-white font-mono bg-cortex-accent/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
                 >
                   {c.email}
                 </button>
@@ -203,7 +209,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             type="submit"
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-4 rounded-xl text-lg font-bold flex items-center justify-center gap-2 transition-all relative overflow-hidden group"
+            className="w-full py-4 rounded-cortex-md text-lg font-bold flex items-center justify-center gap-2 transition-all relative overflow-hidden group"
             style={{
               background: GRADIENTS.primaryButton,
               boxShadow: `0 10px 40px ${BRAND.purpleGlow}`,
@@ -227,9 +233,9 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl"
+              className="p-4 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md"
             >
-              <p className="text-sm text-[#FD4438] text-center font-medium">
+              <p className="text-sm text-cortex-danger text-center font-medium">
                 {error}
               </p>
             </motion.div>
@@ -241,14 +247,14 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="mt-6 p-5 bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 rounded-xl"
+          className="mt-6 p-5 bg-cortex-accent/10 border border-cortex-accent/20 rounded-cortex-md"
         >
-          <p className="text-xs font-semibold text-[#8B5CF6] mb-2 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-cortex-accent mb-2 uppercase tracking-wider">
             Demo Email Addresses
           </p>
           <div className="space-y-1 text-sm">
             {DEMO_CLIENTS.map((c) => (
-              <p key={c.email} className="text-gray-300">&bull; {c.email} <span className="text-gray-600">— {c.companyName}</span></p>
+              <p key={c.email} className="text-cortex-secondary">&bull; {c.email} <span className="text-cortex-faint">— {c.companyName}</span></p>
             ))}
           </div>
         </motion.div>
@@ -258,17 +264,17 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="mt-8 p-6 bg-white/3 backdrop-blur-sm border border-white/10 rounded-xl"
+          className="mt-8 p-6 bg-white/3 backdrop-blur-sm border border-cortex-default rounded-cortex-md"
         >
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="text-[#8B5CF6]" size={20} />
+            <div className="w-10 h-10 rounded-cortex-sm bg-cortex-accent/15 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="text-cortex-accent" size={20} />
             </div>
             <div>
               <p className="text-sm font-semibold text-white mb-1">
                 First time here?
               </p>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-cortex-muted leading-relaxed">
                 Complete a diagnostic assessment first, and we'll send you a secure link to access your personalized results and recommendations.
               </p>
             </div>
@@ -282,7 +288,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           transition={{ delay: 0.7 }}
           className="mt-6 space-y-3"
         >
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-cortex-muted uppercase tracking-wider">
             How it works
           </p>
           <div className="space-y-2">
@@ -296,10 +302,10 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.8 + index * 0.1 }}
-                className="flex items-center gap-3 text-sm text-gray-500"
+                className="flex items-center gap-3 text-sm text-cortex-muted"
               >
-                <div className="w-6 h-6 rounded-full bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 size={14} className="text-[#8B5CF6]" />
+                <div className="w-6 h-6 rounded-full bg-cortex-accent/15 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 size={14} className="text-cortex-accent" />
                 </div>
                 {step}
               </motion.div>
@@ -314,11 +320,11 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           transition={{ delay: 0.9 }}
           className="mt-8 text-center"
         >
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-cortex-muted">
             Didn't receive your results?{' '}
             <a
               href="mailto:support@marqcortex.com"
-              className="text-[#8B5CF6] hover:text-[#A78BFA] transition-colors font-medium"
+              className="text-cortex-accent hover:text-cortex-accent-light transition-colors font-medium"
             >
               Contact support
             </a>
@@ -330,7 +336,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-600"
+          className="mt-6 flex items-center justify-center gap-2 text-xs text-cortex-faint"
         >
           <Lock size={12} />
           <span>Your data is protected with enterprise-grade security</span>

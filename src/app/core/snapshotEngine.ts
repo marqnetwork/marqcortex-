@@ -126,20 +126,31 @@ export function createProposalSnapshot(
   userId:      string,
   triggeredBy?: string,
 ): ProposalSnapshot {
+  // schema §5 names the link columns `entity_type` / `entity_id`. This filter
+  // read `linked_entity_*`, which exists on no BlockLink — every comparison was
+  // `undefined === 'proposal'`, so the snapshot froze ZERO blocks on every send.
   const proposalBlocks = blockStates.filter(
-    s => s.links.some(l => l.linked_entity_type === 'proposal' && l.linked_entity_id === draft.proposal_id),
+    s => s.links.some(l => l.entity_type === 'proposal' && l.entity_id === draft.proposal_id),
   );
 
-  const frozenBlocks: FrozenBlock[] = proposalBlocks.map(s => ({
-    block_id:     s.block.block_id,
-    block_type:   s.block.block_type,
-    label:        s.block.label,
-    content:      { ...s.block.content },
-    status:       s.block.status,
-    version:      s.block.version,
-    approved_by:  s.block.approved_by,
-    approved_at:  s.block.approved_at,
-  }));
+  const frozenBlocks: FrozenBlock[] = proposalBlocks.map(s => {
+    // schema §4 keeps approval on the revision, never on the block. The frozen
+    // record reports the approval of the revision the block is currently
+    // rendering — `current_revision_id`, the one §4 sets on accept.
+    const currentRevision = s.revisions.find(
+      r => r.revision_id === s.block.current_revision_id,
+    );
+    return {
+      block_id:     s.block.block_id,
+      block_type:   s.block.block_type,
+      label:        s.block.title,
+      content:      { ...s.block.content },
+      status:       s.block.status,
+      version:      s.block.version,
+      approved_by:  currentRevision?.approved_by ?? undefined,
+      approved_at:  currentRevision?.approved_at ?? undefined,
+    };
+  });
 
   const assumptionsBlocks = proposalBlocks
     .filter(s => s.block.block_type === 'roi_financial_snapshot')

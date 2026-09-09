@@ -31,6 +31,14 @@
  *   a key can never drift again.
  */
 
+// Relative, with an explicit extension, and deliberately so: this module is
+// imported directly by the Node test suites under `--experimental-strip-types`,
+// which resolves no Vite alias. A `@/` specifier here is erased when it is
+// type-only and fails to resolve when it is not — and this one is not.
+import { normalizeTeamRole, type TeamRole } from './teamRole.ts';
+
+export type { TeamRole };
+
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 /** Canonical team session record — see `TeamSession`. */
@@ -66,6 +74,17 @@ export interface TeamUser {
   id: string;
   email: string;
   name: string;
+
+  /**
+   * What the server resolved this account's authority to be.
+   *
+   * DISPLAY AND AFFORDANCE ONLY — see `@/app/lib/teamRole`. Every rule that
+   * matters is enforced server-side against `app_metadata.team_role`, which a
+   * signed-in caller cannot write. Required rather than optional because
+   * `normalizeTeamRole` always yields a role: a session that carried none
+   * resolves to `viewer`, the least privileged, rather than to "unknown".
+   */
+  teamRole: TeamRole;
 }
 
 /**
@@ -124,12 +143,21 @@ export function parseTeamSession(raw: string | null | undefined): TeamSession | 
   return { accessToken, user: normaliseTeamUser(user) };
 }
 
-/** Keep only a fully-formed user; a partial record is treated as absent. */
-function normaliseTeamUser(user: unknown): TeamUser | null {
+/**
+ * Keep only a fully-formed user; a partial record is treated as absent.
+ *
+ * Identity is all-or-nothing: without id, email and name there is no user.
+ * The role is not part of that test — a session stored by a bundle that
+ * predates `teamRole`, or one whose role the server no longer issues,
+ * resolves to `viewer` rather than being thrown away with the identity.
+ */
+export function normaliseTeamUser(user: unknown): TeamUser | null {
   if (!user || typeof user !== 'object') return null;
-  const { id, email, name } = user as { id?: unknown; email?: unknown; name?: unknown };
+  const { id, email, name, teamRole } = user as {
+    id?: unknown; email?: unknown; name?: unknown; teamRole?: unknown;
+  };
   if (typeof id !== 'string' || typeof email !== 'string' || typeof name !== 'string') return null;
-  return { id, email, name };
+  return { id, email, name, teamRole: normalizeTeamRole(teamRole) };
 }
 
 // ── Client session ────────────────────────────────────────────────────────────

@@ -37,9 +37,12 @@ import {
   Sparkles,
   Flag,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ClipboardCheck
 } from 'lucide-react';
+import { EmptyState, NoResultsState } from '@/app/components/EmptyState';
 import { FEATURES } from '@/config/features';
+import { brand, status } from '@/app/lib/tokens';
 
 interface QualityScore {
   overall: number;
@@ -103,14 +106,14 @@ export function ReviewerDashboard() {
   const stats = calculateStats(submissions);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Header */}
-      <div className="border-b border-white/10 bg-black/40 backdrop-blur-xl sticky top-0 z-20">
+      <div className="border-b border-cortex-default bg-cortex-raised backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-[1800px] mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                <Shield className="size-8 text-[#8B5CF6]" />
+                <Shield className="size-8 text-cortex-accent" />
                 Quality Command Center
               </h1>
               <p className="text-white/60">
@@ -121,7 +124,7 @@ export function ReviewerDashboard() {
             {/* Live Status */}
             <div className="flex items-center gap-4">
               <LiveStatusIndicator submissions={submissions} />
-              <button className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-2">
+              <button className="px-4 py-2 rounded-cortex-md bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default transition-all flex items-center gap-2">
                 <Download className="size-4" />
                 Export Report
               </button>
@@ -134,34 +137,34 @@ export function ReviewerDashboard() {
               label="Today's Submissions"
               value={stats.todayCount}
               change={stats.todayChange}
-              icon={<FileText className="size-5 text-[#8B5CF6]" />}
+              icon={<FileText className="size-5 text-cortex-accent" />}
             />
             <StatCard
               label="Auto-Approved"
               value={`${stats.autoApprovedPercent}%`}
               subtext={`${stats.autoApprovedCount} submissions`}
-              icon={<CheckCircle2 className="size-5 text-[#06D7F6]" />}
+              icon={<CheckCircle2 className="size-5 text-cortex-info" />}
               trend="up"
             />
             <StatCard
               label="Avg Quality Score"
               value={stats.avgQualityScore}
               subtext="Out of 100"
-              icon={<Target className="size-5 text-[#8B5CF6]" />}
+              icon={<Target className="size-5 text-cortex-accent" />}
               trend={stats.qualityTrend}
             />
             <StatCard
               label="Avg Review Time"
               value={stats.avgReviewTime}
               subtext="Was 20 min"
-              icon={<Clock className="size-5 text-[#06D7F6]" />}
+              icon={<Clock className="size-5 text-cortex-info" />}
               trend="down"
             />
             <StatCard
               label="Needing Review"
               value={stats.needsReviewCount}
               urgent={stats.needsReviewCount > 5}
-              icon={<AlertTriangle className="size-5 text-[#FB923C]" />}
+              icon={<AlertTriangle className="size-5 text-cortex-warning" />}
             />
           </div>
         </div>
@@ -174,13 +177,18 @@ export function ReviewerDashboard() {
             {/* Filters & Search */}
             <div className="flex items-center gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-white/40" aria-hidden="true" />
+                {/* A placeholder is not a name: it is absent from the
+                    accessibility tree in some browsers and disappears the
+                    moment the user types. The search box was announced as
+                    "edit text, blank". */}
                 <input
                   type="text"
+                  aria-label="Search submissions by company name"
                   placeholder="Search by company name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6]/50"
+                  className="w-full pl-12 pr-4 py-3 bg-cortex-raised border border-cortex-default rounded-cortex-md text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent/50"
                 />
               </div>
 
@@ -235,11 +243,25 @@ export function ReviewerDashboard() {
                 ))}
               </AnimatePresence>
 
+              {/* An empty queue and a filter that excludes everything are
+                  different situations with different next actions. This said
+                  "No submissions match your filters" for both, so a reviewer
+                  opening an empty queue was sent to fix filters they had never
+                  set. */}
               {filteredSubmissions.length === 0 && (
-                <div className="text-center py-16 text-white/40">
-                  <Filter className="size-12 mx-auto mb-4 opacity-30" />
-                  <p>No submissions match your filters</p>
-                </div>
+                submissions.length === 0 ? (
+                  <EmptyState
+                    icon={ClipboardCheck}
+                    title="No submissions to review"
+                    body="Completed diagnostics arrive here for quality review. Nothing is waiting."
+                  />
+                ) : (
+                  <NoResultsState
+                    noun="submissions"
+                    totalCount={submissions.length}
+                    onClear={() => { setFilter('all'); setSearchQuery(''); }}
+                  />
+                )
               )}
             </div>
           </div>
@@ -278,22 +300,22 @@ function SubmissionCard({
     'auto-approved': {
       label: 'Auto-Approved',
       icon: <CheckCircle2 className="size-4" />,
-      color: 'text-[#06D7F6] bg-[#06D7F6]/20 border-[#06D7F6]/30'
+      color: 'text-cortex-info bg-cortex-info/20 border-cortex-info/30'
     },
     'needs-review': {
       label: 'Needs Review',
       icon: <Eye className="size-4" />,
-      color: 'text-[#FB923C] bg-[#FB923C]/20 border-[#FB923C]/30'
+      color: 'text-cortex-warning bg-cortex-warning/20 border-cortex-warning/30'
     },
     'needs-revision': {
       label: 'Needs Revision',
       icon: <AlertTriangle className="size-4" />,
-      color: 'text-[#FD4438] bg-[#FD4438]/20 border-[#FD4438]/30'
+      color: 'text-cortex-danger bg-cortex-danger/20 border-cortex-danger/30'
     },
     'not-a-fit': {
       label: 'Not a Fit',
       icon: <XCircle className="size-4" />,
-      color: 'text-white/40 bg-white/5 border-white/10'
+      color: 'text-white/40 bg-cortex-control border-cortex-default'
     }
   };
 
@@ -304,8 +326,8 @@ function SubmissionCard({
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       onClick={onClick}
-      className={`w-full bg-black/40 backdrop-blur-xl border rounded-xl p-5 text-left transition-all ${
-        isSelected ? 'border-[#8B5CF6] bg-[#8B5CF6]/10' : 'border-white/10 hover:border-white/20'
+      className={`w-full bg-cortex-raised backdrop-blur-xl border rounded-cortex-md p-5 text-left transition-all ${
+        isSelected ? 'border-cortex-accent bg-cortex-accent/10' : 'border-cortex-default hover:border-cortex-strong'
       }`}
     >
       <div className="flex items-start justify-between mb-4">
@@ -313,7 +335,7 @@ function SubmissionCard({
           <div className="flex items-center gap-3 mb-2">
             <h3 className="font-bold text-lg">{submission.companyName}</h3>
             {submission.flags.length > 0 && (
-              <span className="size-5 rounded-full bg-[#FB923C]/20 text-[#FB923C] flex items-center justify-center text-xs font-bold">
+              <span className="size-5 rounded-full bg-cortex-warning/20 text-cortex-warning flex items-center justify-center text-xs font-bold">
                 {submission.flags.length}
               </span>
             )}
@@ -339,7 +361,7 @@ function SubmissionCard({
             {submission.qualityScore.overall}/100
           </span>
         </div>
-        <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+        <div className="h-2 bg-cortex-raised rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${submission.qualityScore.overall}%` }}
@@ -355,17 +377,17 @@ function SubmissionCard({
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4">
         <QuickStat
-          icon={<Sparkles className="size-4 text-[#8B5CF6]" />}
+          icon={<Sparkles className="size-4 text-cortex-accent" />}
           label="Live Insights"
           value={submission.liveInsights}
         />
         <QuickStat
-          icon={<Target className="size-4 text-[#06D7F6]" />}
+          icon={<Target className="size-4 text-cortex-info" />}
           label="Readiness"
           value={`${submission.readinessScore}%`}
         />
         <QuickStat
-          icon={<Activity className="size-4 text-[#FB923C]" />}
+          icon={<Activity className="size-4 text-cortex-warning" />}
           label="Patterns"
           value={submission.patternsDetected.length}
         />
@@ -373,9 +395,9 @@ function SubmissionCard({
 
       {/* Flags */}
       {submission.flags.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-white/10">
+        <div className="mt-4 pt-4 border-t border-cortex-default">
           <div className="flex items-start gap-2">
-            <Flag className="size-4 text-[#FB923C] flex-shrink-0 mt-0.5" />
+            <Flag className="size-4 text-cortex-warning flex-shrink-0 mt-0.5" />
             <div className="text-sm text-white/70">
               {submission.flags.slice(0, 2).join(' • ')}
               {submission.flags.length > 2 && ` +${submission.flags.length - 2} more`}
@@ -401,7 +423,7 @@ function SubmissionDetailPanel({
   return (
     <div className="sticky top-32 space-y-4">
       {/* Header */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-xl font-bold mb-2">{submission.companyName}</h3>
@@ -418,7 +440,7 @@ function SubmissionDetailPanel({
         </div>
 
         {/* Overall Score */}
-        <div className="text-center py-6 border-y border-white/10">
+        <div className="text-center py-6 border-y border-cortex-default">
           <div className="text-sm text-white/60 mb-2">Quality Score</div>
           <div className="text-5xl font-bold mb-2" style={{ color: getScoreColor(submission.qualityScore.overall) }}>
             {submission.qualityScore.overall}
@@ -428,9 +450,9 @@ function SubmissionDetailPanel({
       </div>
 
       {/* Quality Breakdown */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h4 className="font-semibold mb-4 flex items-center gap-2">
-          <BarChart3 className="size-5 text-[#8B5CF6]" />
+          <BarChart3 className="size-5 text-cortex-accent" />
           Quality Breakdown
         </h4>
         <div className="space-y-3">
@@ -446,16 +468,16 @@ function SubmissionDetailPanel({
       </div>
 
       {/* Patterns Detected */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h4 className="font-semibold mb-4 flex items-center gap-2">
-          <Sparkles className="size-5 text-[#06D7F6]" />
+          <Sparkles className="size-5 text-cortex-info" />
           Patterns Detected
         </h4>
         <div className="flex flex-wrap gap-2">
           {submission.patternsDetected.map((pattern, idx) => (
             <span
               key={idx}
-              className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 text-sm"
+              className="px-3 py-1.5 rounded-full bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 text-sm"
             >
               {pattern}
             </span>
@@ -465,15 +487,15 @@ function SubmissionDetailPanel({
 
       {/* Flags */}
       {submission.flags.length > 0 && (
-        <div className="bg-gradient-to-br from-[#FB923C]/20 to-[#FD4438]/20 border border-[#FB923C]/30 rounded-xl p-6">
+        <div className="bg-gradient-to-br from-cortex-warning/20 to-cortex-danger/20 border border-cortex-warning/30 rounded-cortex-md p-6">
           <h4 className="font-semibold mb-4 flex items-center gap-2">
-            <Flag className="size-5 text-[#FB923C]" />
+            <Flag className="size-5 text-cortex-warning" />
             Attention Required
           </h4>
           <div className="space-y-2">
             {submission.flags.map((flag, idx) => (
               <div key={idx} className="flex items-start gap-2 text-sm text-white/80">
-                <AlertCircle className="size-4 text-[#FB923C] flex-shrink-0 mt-0.5" />
+                <AlertCircle className="size-4 text-cortex-warning flex-shrink-0 mt-0.5" />
                 {flag}
               </div>
             ))}
@@ -486,7 +508,7 @@ function SubmissionDetailPanel({
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="px-4 py-3 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white font-semibold flex items-center justify-center gap-2"
+          className="px-4 py-3 rounded-cortex-md bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white font-semibold flex items-center justify-center gap-2"
         >
           <CheckCircle2 className="size-4" />
           Approve
@@ -494,7 +516,7 @@ function SubmissionDetailPanel({
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold flex items-center justify-center gap-2"
+          className="px-4 py-3 rounded-cortex-md bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default text-white font-semibold flex items-center justify-center gap-2"
         >
           <Eye className="size-4" />
           Full Review
@@ -512,9 +534,9 @@ function AnalyticsPanel({ stats }: { stats: any }) {
   return (
     <div className="sticky top-32 space-y-4">
       {/* Quality Trends */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h4 className="font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="size-5 text-[#06D7F6]" />
+          <TrendingUp className="size-5 text-cortex-info" />
           Quality Trends
         </h4>
         <div className="space-y-4">
@@ -546,23 +568,23 @@ function AnalyticsPanel({ stats }: { stats: any }) {
       </div>
 
       {/* Top Patterns */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h4 className="font-semibold mb-4 flex items-center gap-2">
-          <Activity className="size-5 text-[#8B5CF6]" />
+          <Activity className="size-5 text-cortex-accent" />
           Top Patterns (24h)
         </h4>
         <div className="space-y-3">
-          <PatternBar label="Manual-Heavy" count={34} total={50} color="#FB923C" />
-          <PatternBar label="Scale Stress" count={28} total={50} color="#8B5CF6" />
-          <PatternBar label="Tool Chaos" count={21} total={50} color="#06D7F6" />
-          <PatternBar label="Decision Bottleneck" count={18} total={50} color="#3B82F6" />
+          <PatternBar label="Manual-Heavy" count={34} total={50} color={status.warning} />
+          <PatternBar label="Scale Stress" count={28} total={50} color={brand.accent} />
+          <PatternBar label="Tool Chaos" count={21} total={50} color={status.info} />
+          <PatternBar label="Decision Bottleneck" count={18} total={50} color={brand.accentAlt} />
         </div>
       </div>
 
       {/* Team Performance */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h4 className="font-semibold mb-4 flex items-center gap-2">
-          <Users className="size-5 text-[#06D7F6]" />
+          <Users className="size-5 text-cortex-info" />
           Team Performance
         </h4>
         <div className="space-y-3">
@@ -613,7 +635,7 @@ function StatCard({
   urgent?: boolean;
 }) {
   return (
-    <div className={`bg-black/40 backdrop-blur-xl border rounded-xl p-4 ${urgent ? 'border-[#FB923C]/50 animate-pulse' : 'border-white/10'}`}>
+    <div className={`bg-cortex-raised backdrop-blur-xl border rounded-cortex-md p-4 ${urgent ? 'border-cortex-warning/50 animate-pulse' : 'border-cortex-default'}`}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-white/60">{label}</span>
         {icon}
@@ -621,7 +643,7 @@ function StatCard({
       <div className="text-2xl font-bold mb-1">{value}</div>
       {subtext && <div className="text-xs text-white/50">{subtext}</div>}
       {change && (
-        <div className={`text-xs mt-2 flex items-center gap-1 ${trend === 'up' ? 'text-[#06D7F6]' : trend === 'down' ? 'text-[#FD4438]' : 'text-white/50'}`}>
+        <div className={`text-xs mt-2 flex items-center gap-1 ${trend === 'up' ? 'text-cortex-info' : trend === 'down' ? 'text-cortex-danger' : 'text-white/50'}`}>
           {trend === 'up' ? <TrendingUp className="size-3" /> : trend === 'down' ? <TrendingDown className="size-3" /> : null}
           {change} vs yesterday
         </div>
@@ -644,17 +666,17 @@ function FilterButton({
   color?: 'purple' | 'cyan' | 'orange' | 'red';
 }) {
   const colors = {
-    purple: 'border-[#8B5CF6] bg-[#8B5CF6]/20 text-[#8B5CF6]',
-    cyan: 'border-[#06D7F6] bg-[#06D7F6]/20 text-[#06D7F6]',
-    orange: 'border-[#FB923C] bg-[#FB923C]/20 text-[#FB923C]',
-    red: 'border-[#FD4438] bg-[#FD4438]/20 text-[#FD4438]'
+    purple: 'border-cortex-accent bg-cortex-accent/20 text-cortex-accent',
+    cyan: 'border-cortex-info bg-cortex-info/20 text-cortex-info',
+    orange: 'border-cortex-warning bg-cortex-warning/20 text-cortex-warning',
+    red: 'border-cortex-danger bg-cortex-danger/20 text-cortex-danger'
   };
 
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-xl border font-semibold transition-all ${
-        active ? colors[color] : 'border-white/10 bg-black/20 text-white/60 hover:bg-white/5'
+      className={`px-4 py-2 rounded-cortex-md border font-semibold transition-all ${
+        active ? colors[color] : 'border-cortex-default bg-black/20 text-white/60 hover:bg-cortex-control'
       }`}
     >
       {label} <span className="ml-1.5 opacity-70">({count})</span>
@@ -683,7 +705,7 @@ function CheckpointScore({ label, score }: { label: string; score: number }) {
           {score}/10
         </span>
       </div>
-      <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-cortex-raised rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-1000"
           style={{
@@ -712,7 +734,7 @@ function TrendMetric({
       <span className="text-sm text-white/70">{label}</span>
       <div className="text-right">
         <div className="text-sm font-semibold">{value}</div>
-        <div className={`text-xs ${positive ? 'text-[#06D7F6]' : 'text-[#FD4438]'}`}>
+        <div className={`text-xs ${positive ? 'text-cortex-info' : 'text-cortex-danger'}`}>
           {change}
         </div>
       </div>
@@ -727,7 +749,7 @@ function PatternBar({ label, count, total, color }: { label: string; count: numb
         <span className="text-sm text-white/70">{label}</span>
         <span className="text-sm font-semibold">{count}</span>
       </div>
-      <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+      <div className="h-2 bg-cortex-raised rounded-full overflow-hidden">
         <div
           className="h-full rounded-full"
           style={{
@@ -754,9 +776,9 @@ function TeamMember({
   isAI?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg bg-white/5">
+    <div className="flex items-center justify-between p-3 rounded-cortex-sm bg-cortex-control">
       <div className="flex items-center gap-3">
-        <div className={`size-10 rounded-full flex items-center justify-center ${isAI ? 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6]' : 'bg-white/10'}`}>
+        <div className={`size-10 rounded-full flex items-center justify-center ${isAI ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-alt' : 'bg-cortex-control-hover'}`}>
           {isAI ? <Zap className="size-5 text-white" /> : <Users className="size-5 text-white/60" />}
         </div>
         <div>
@@ -766,7 +788,7 @@ function TeamMember({
       </div>
       <div className="text-right">
         <div className="text-sm font-semibold">{avgTime}</div>
-        <div className="text-xs text-[#06D7F6]">{accuracy}% accurate</div>
+        <div className="text-xs text-cortex-info">{accuracy}% accurate</div>
       </div>
     </div>
   );
@@ -776,11 +798,11 @@ function LiveStatusIndicator({ submissions }: { submissions: Submission[] }) {
   const needsReview = submissions.filter(s => s.status === 'needs-review').length;
   
   return (
-    <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-black/40 border border-white/10">
+    <div className="flex items-center gap-3 px-4 py-2 rounded-cortex-md bg-cortex-raised border border-cortex-default">
       <motion.div
         animate={{ scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }}
         transition={{ duration: 2, repeat: Infinity }}
-        className="size-2 rounded-full bg-[#06D7F6]"
+        className="size-2 rounded-full bg-cortex-info"
       />
       <div>
         <div className="text-xs text-white/60">Live Status</div>
@@ -797,10 +819,10 @@ function LiveStatusIndicator({ submissions }: { submissions: Submission[] }) {
 // ============================================================================
 
 function getScoreColor(score: number): string {
-  if (score >= 90) return '#06D7F6';
-  if (score >= 75) return '#8B5CF6';
-  if (score >= 60) return '#FB923C';
-  return '#FD4438';
+  if (score >= 90) return status.info;
+  if (score >= 75) return brand.accent;
+  if (score >= 60) return status.warning;
+  return status.danger;
 }
 
 function formatTime(timestamp: string): string {

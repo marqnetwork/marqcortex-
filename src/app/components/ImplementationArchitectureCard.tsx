@@ -32,23 +32,30 @@ import type {
   GovernanceCheckpointType,
   TeamMember,
 } from '@/app/types/cortex-types';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
 // ════════════════════════════════════════════════════════════════════════════════
 
 const PHASE_COLORS: Record<number, string> = {
-  1: '#06D7F6',
-  2: '#8B5CF6',
-  3: '#FB923C',
+  1: STATUS.info,
+  2: brand.accent,
+  3: STATUS.warning,
 };
-function phaseColor(n: number): string { return PHASE_COLORS[n] ?? '#6B7280'; }
+function phaseColor(n: number): string { return PHASE_COLORS[n] ?? STATUS.neutral; }
 
 const CHECKPOINT_CFG: Record<GovernanceCheckpointType, { label: string; color: string; Icon: LucideIcon }> = {
-  internal_validation: { label: 'Internal Validation', color: '#06D7F6', Icon: CheckCircle2 },
-  client_review:       { label: 'Client Review',       color: '#8B5CF6', Icon: UserCheck   },
-  sign_off:            { label: 'Sign-Off',             color: '#10B981', Icon: Check       },
-  roi_recheck:         { label: 'ROI Recheck',          color: '#FB923C', Icon: RefreshCw   },
+  internal_validation: { label: 'Internal Validation', color: STATUS.info, Icon: CheckCircle2 },
+  client_review:       { label: 'Client Review',       color: brand.accent, Icon: UserCheck   },
+  sign_off:            { label: 'Sign-Off',             color: STATUS.success, Icon: Check       },
+  roi_recheck:         { label: 'ROI Recheck',          color: STATUS.warning, Icon: RefreshCw   },
 };
 
 const INTEGRATION_SECTIONS: {
@@ -57,11 +64,11 @@ const INTEGRATION_SECTIONS: {
   color: string;
   Icon: LucideIcon;
 }[] = [
-  { key: 'systems_affected',      label: 'Systems Affected',      color: '#06D7F6', Icon: Layers   },
-  { key: 'data_sources',          label: 'Data Sources',          color: '#8B5CF6', Icon: Database },
-  { key: 'automation_tools',      label: 'Automation Tools',      color: '#10B981', Icon: Settings },
-  { key: 'ai_models_used',        label: 'AI Models Used',        color: '#FB923C', Icon: Bot      },
-  { key: 'security_considerations', label: 'Security Controls',   color: '#FD4438', Icon: Shield   },
+  { key: 'systems_affected',      label: 'Systems Affected',      color: STATUS.info, Icon: Layers   },
+  { key: 'data_sources',          label: 'Data Sources',          color: brand.accent, Icon: Database },
+  { key: 'automation_tools',      label: 'Automation Tools',      color: STATUS.success, Icon: Settings },
+  { key: 'ai_models_used',        label: 'AI Models Used',        color: STATUS.warning, Icon: Bot      },
+  { key: 'security_considerations', label: 'Security Controls',   color: STATUS.danger, Icon: Shield   },
 ];
 
 const GOVERNANCE_FLAGS: {
@@ -80,7 +87,7 @@ const GOVERNANCE_FLAGS: {
 // SHARED PRIMITIVES
 // ════════════════════════════════════════════════════════════════════════════════
 
-function MiniLabel({ children, color = '#6B7280' }: { children: React.ReactNode; color?: string }) {
+function MiniLabel({ children, color = STATUS.neutral }: { children: React.ReactNode; color?: string }) {
   return (
     <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color }}>
       {children}
@@ -101,7 +108,7 @@ function PhaseChip({ n }: { n: number }) {
 }
 
 function StringListEditor({
-  items, onChange, accent = '#8B5CF6', placeholder = 'Add item…',
+  items, onChange, accent = brand.accent, placeholder = 'Add item…',
 }: {
   items: string[]; onChange: (v: string[]) => void;
   accent?: string; placeholder?: string;
@@ -118,9 +125,9 @@ function StringListEditor({
           <input
             value={item}
             onChange={e => update(i, e.target.value)}
-            className="flex-1 bg-transparent text-[10px] text-gray-300 focus:outline-none focus:text-white border-b border-transparent focus:border-white/10 py-0.5"
+            className="flex-1 bg-transparent text-[10px] text-cortex-secondary focus:outline-none focus:text-white border-b border-transparent focus:border-cortex-default py-0.5"
           />
-          <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-[#FD4438] transition-all">
+          <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 text-cortex-faint hover:text-cortex-danger transition-all">
             <Trash2 className="size-2.5" />
           </button>
         </div>
@@ -131,7 +138,7 @@ function StringListEditor({
           onChange={e => setNewItem(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder={placeholder}
-          className="flex-1 bg-white/[0.03] border border-white/8 rounded px-2 py-1 text-[10px] text-white placeholder:text-gray-700 focus:outline-none focus:border-white/20"
+          className="flex-1 bg-white/[0.03] border border-white/8 rounded px-2 py-1 text-[10px] text-white placeholder:text-cortex-faint focus:outline-none focus:border-cortex-strong"
         />
         <button
           onClick={add}
@@ -164,7 +171,7 @@ function MilestoneRow({
 
   if (editing) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+      <div className="rounded-cortex-sm border border-cortex-default bg-white/[0.03] p-3 space-y-2">
         <div className="grid grid-cols-[auto_1fr_1fr] gap-2 items-start">
           {/* Week */}
           <div className="space-y-1">
@@ -173,7 +180,7 @@ function MilestoneRow({
               type="number" min={1} max={52}
               value={local.week}
               onChange={e => setLocal(l => ({ ...l, week: Number(e.target.value) }))}
-              className="w-10 bg-white/[0.04] border border-white/10 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-white/25 text-center"
+              className="w-10 bg-white/[0.04] border border-cortex-default rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-white/25 text-center"
             />
           </div>
           {/* Title */}
@@ -183,7 +190,7 @@ function MilestoneRow({
               value={local.title}
               onChange={e => setLocal(l => ({ ...l, title: e.target.value }))}
               placeholder="Milestone title…"
-              className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-white/25"
+              className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-white/25"
             />
           </div>
           {/* Owner */}
@@ -193,7 +200,7 @@ function MilestoneRow({
               value={local.owner}
               onChange={e => setLocal(l => ({ ...l, owner: e.target.value }))}
               placeholder="Role / name…"
-              className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-white/25"
+              className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-white/25"
             />
           </div>
         </div>
@@ -208,13 +215,13 @@ function MilestoneRow({
           />
         </div>
         {/* Save / Remove */}
-        <div className="flex justify-between pt-1 border-t border-white/5">
-          <button onClick={onRemove} className="text-[9px] text-gray-700 hover:text-[#FD4438] transition-colors flex items-center gap-1">
+        <div className="flex justify-between pt-1 border-t border-cortex-subtle">
+          <button onClick={onRemove} className="text-[9px] text-cortex-faint hover:text-cortex-danger transition-colors flex items-center gap-1">
             <Trash2 className="size-2.5" />Remove milestone
           </button>
           <button
             onClick={() => onUpdate(local)}
-            className="text-[9px] font-bold text-[#10B981] hover:text-white transition-colors flex items-center gap-1 px-2.5 py-1 bg-[#10B981]/10 rounded border border-[#10B981]/25"
+            className="text-[9px] font-bold text-cortex-success hover:text-white transition-colors flex items-center gap-1 px-2.5 py-1 bg-cortex-success/10 rounded border border-cortex-success/25"
           >
             <Check className="size-2.5" />Save
           </button>
@@ -236,12 +243,12 @@ function MilestoneRow({
         <div className="text-xs font-bold text-white">{milestone.title}</div>
         <div className="flex items-center gap-1 mt-0.5">
           <UserCheck className="size-2.5" style={{ color }} />
-          <span className="text-[9px] text-gray-500">{milestone.owner}</span>
+          <span className="text-[9px] text-cortex-muted">{milestone.owner}</span>
         </div>
         {milestone.deliverables.length > 0 && (
           <ul className="mt-1.5 space-y-0.5">
             {milestone.deliverables.map((d, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-[9px] text-gray-500">
+              <li key={i} className="flex items-start gap-1.5 text-[9px] text-cortex-muted">
                 <span className="size-1 rounded-full mt-1 flex-shrink-0" style={{ background: color }} />
                 {d}
               </li>
@@ -262,7 +269,7 @@ function GovernanceChip({ checkpoint }: { checkpoint: GovernanceCheckpoint }) {
   const { Icon } = cfg;
   return (
     <div
-      className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg border text-[9px]"
+      className="flex items-start gap-2 px-2.5 py-1.5 rounded-cortex-sm border text-[9px]"
       style={{ color: cfg.color, borderColor: `${cfg.color}33`, background: `${cfg.color}0A` }}
     >
       <Icon className="size-2.5 flex-shrink-0 mt-0.5" />
@@ -272,7 +279,7 @@ function GovernanceChip({ checkpoint }: { checkpoint: GovernanceCheckpoint }) {
           <span className="ml-1 text-[8px] uppercase tracking-wider opacity-60">required</span>
         )}
         {checkpoint.description && (
-          <div className="text-gray-600 mt-0.5">{checkpoint.description}</div>
+          <div className="text-cortex-faint mt-0.5">{checkpoint.description}</div>
         )}
       </div>
     </div>
@@ -349,7 +356,7 @@ function PhaseCard({
   };
 
   return (
-    <div className="border rounded-xl overflow-hidden transition-colors bg-black/20" style={{ borderColor: `${color}33` }}>
+    <div className="border rounded-cortex-md overflow-hidden transition-colors bg-black/20" style={{ borderColor: `${color}33` }}>
       {/* ── Phase header ── */}
       <button
         onClick={() => setOpen(o => !o)}
@@ -366,13 +373,13 @@ function PhaseCard({
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold text-white">{phase.title}</div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[9px] text-gray-600 flex items-center gap-1">
+            <span className="text-[9px] text-cortex-faint flex items-center gap-1">
               <Clock className="size-2.5" />{phase.duration_weeks}w
             </span>
-            <span className="text-[9px] text-gray-600 flex items-center gap-1">
+            <span className="text-[9px] text-cortex-faint flex items-center gap-1">
               <Milestone className="size-2.5" />{local.milestones.length} milestones
             </span>
-            <span className="text-[9px] text-gray-600 flex items-center gap-1">
+            <span className="text-[9px] text-cortex-faint flex items-center gap-1">
               <Shield className="size-2.5" />{local.governance_checkpoints.length} checkpoints
             </span>
             {/* Linked solution chips */}
@@ -389,8 +396,8 @@ function PhaseCard({
         </div>
 
         {open
-          ? <ChevronDown  className="size-3.5 text-gray-600 flex-shrink-0" />
-          : <ChevronRight className="size-3.5 text-gray-600 flex-shrink-0" />
+          ? <ChevronDown  className="size-3.5 text-cortex-faint flex-shrink-0" />
+          : <ChevronRight className="size-3.5 text-cortex-faint flex-shrink-0" />
         }
       </button>
 
@@ -428,11 +435,11 @@ function PhaseCard({
           {/* Governance checkpoints */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <MiniLabel color="#10B981">Governance Checkpoints</MiniLabel>
+              <MiniLabel color={STATUS.success}>Governance Checkpoints</MiniLabel>
               {editing && !addingCp && (
                 <button
                   onClick={() => setAddingCp(true)}
-                  className="text-[9px] font-bold flex items-center gap-0.5 px-2 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] transition-colors"
+                  className="text-[9px] font-bold flex items-center gap-0.5 px-2 py-0.5 rounded bg-cortex-success/10 text-cortex-success transition-colors"
                 >
                   <Plus className="size-2.5" />Add
                 </button>
@@ -448,7 +455,7 @@ function PhaseCard({
                   {editing && (
                     <button
                       onClick={() => removeCheckpoint(idx)}
-                      className="text-gray-700 hover:text-[#FD4438] transition-colors pt-1.5"
+                      className="text-cortex-faint hover:text-cortex-danger transition-colors pt-1.5"
                     >
                       <Trash2 className="size-2.5" />
                     </button>
@@ -458,14 +465,14 @@ function PhaseCard({
 
               {/* Add checkpoint inline form */}
               {editing && addingCp && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                <div className="rounded-cortex-sm border border-cortex-default bg-white/[0.03] p-3 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <MiniLabel color="#10B981">Type</MiniLabel>
+                      <MiniLabel color={STATUS.success}>Type</MiniLabel>
                       <select
                         value={newCpType}
                         onChange={e => setNewCpType(e.target.value as GovernanceCheckpointType)}
-                        className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+                        className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none"
                       >
                         <option value="internal_validation">Internal Validation</option>
                         <option value="client_review">Client Review</option>
@@ -479,13 +486,13 @@ function PhaseCard({
                         value={newCpDesc}
                         onChange={e => setNewCpDesc(e.target.value)}
                         placeholder="Checkpoint detail…"
-                        className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+                        className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none"
                       />
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end">
-                    <button onClick={() => setAddingCp(false)} className="text-[9px] text-gray-600 hover:text-white px-2 py-1">Cancel</button>
-                    <button onClick={addCheckpoint} className="text-[9px] font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/25 px-2 py-1 rounded flex items-center gap-1">
+                    <button onClick={() => setAddingCp(false)} className="text-[9px] text-cortex-faint hover:text-white px-2 py-1">Cancel</button>
+                    <button onClick={addCheckpoint} className="text-[9px] font-bold text-cortex-success bg-cortex-success/10 border border-cortex-success/25 px-2 py-1 rounded flex items-center gap-1">
                       <Plus className="size-2.5" />Add
                     </button>
                   </div>
@@ -513,14 +520,14 @@ function TeamMemberRow({
 
   if (editing) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+      <div className="rounded-cortex-sm border border-cortex-default bg-white/[0.03] p-3 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <MiniLabel color={accent}>Role</MiniLabel>
             <input
               value={local.role}
               onChange={e => setLocal(l => ({ ...l, role: e.target.value }))}
-              className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+              className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none"
               placeholder="Role title…"
             />
           </div>
@@ -533,7 +540,7 @@ function TeamMemberRow({
                 setLocal(l => ({ ...l, involvement_phase: phases }));
               }}
               placeholder="1,2,3"
-              className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+              className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none"
             />
           </div>
         </div>
@@ -542,17 +549,17 @@ function TeamMemberRow({
           <input
             value={local.responsibility}
             onChange={e => setLocal(l => ({ ...l, responsibility: e.target.value }))}
-            className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-[10px] text-white focus:outline-none"
+            className="w-full bg-white/[0.04] border border-cortex-default rounded px-2 py-1 text-[10px] text-white focus:outline-none"
             placeholder="What this person does…"
           />
         </div>
-        <div className="flex justify-between pt-1 border-t border-white/5">
-          <button onClick={onRemove} className="text-[9px] text-gray-700 hover:text-[#FD4438] flex items-center gap-1">
+        <div className="flex justify-between pt-1 border-t border-cortex-subtle">
+          <button onClick={onRemove} className="text-[9px] text-cortex-faint hover:text-cortex-danger flex items-center gap-1">
             <Trash2 className="size-2.5" />Remove
           </button>
           <button
             onClick={() => onUpdate(local)}
-            className="text-[9px] font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/25 px-2.5 py-1 rounded flex items-center gap-1"
+            className="text-[9px] font-bold text-cortex-success bg-cortex-success/10 border border-cortex-success/25 px-2.5 py-1 rounded flex items-center gap-1"
           >
             <Check className="size-2.5" />Save
           </button>
@@ -567,7 +574,7 @@ function TeamMemberRow({
         <span className="size-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: accent }} />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold text-white">{member.role}</div>
-          <div className="text-[9px] text-gray-500 mt-0.5 leading-relaxed">{member.responsibility}</div>
+          <div className="text-[9px] text-cortex-muted mt-0.5 leading-relaxed">{member.responsibility}</div>
           <div className="flex items-center gap-1 mt-1">
             {member.involvement_phase.map(p => <PhaseChip key={p} n={p} />)}
           </div>
@@ -603,14 +610,14 @@ function TeamColumn({
   };
 
   return (
-    <div className="flex-1 min-w-0 bg-white/[0.02] border border-white/8 rounded-xl overflow-hidden">
+    <div className="flex-1 min-w-0 bg-white/[0.02] border border-white/8 rounded-cortex-md overflow-hidden">
       {/* Column header */}
-      <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between"
+      <div className="px-4 py-2.5 border-b border-cortex-subtle flex items-center justify-between"
         style={{ background: `${accent}0A` }}>
         <div className="flex items-center gap-2">
           <Users className="size-3" style={{ color: accent }} />
           <span className="text-[10px] font-bold" style={{ color: accent }}>{title}</span>
-          <span className="text-[9px] text-gray-600">({local.length} members)</span>
+          <span className="text-[9px] text-cortex-faint">({local.length} members)</span>
         </div>
         {editing && (
           <button
@@ -634,7 +641,7 @@ function TeamColumn({
           />
         ))}
         {local.length === 0 && (
-          <p className="text-[10px] text-gray-700 italic py-3 text-center">No members added</p>
+          <p className="text-[10px] text-cortex-faint italic py-3 text-center">No members added</p>
         )}
       </div>
     </div>
@@ -690,17 +697,17 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
 
   if (!localPlan) {
     return (
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5">
-          <GitBranch className="size-4 text-[#FB923C]" />
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-cortex-subtle">
+          <GitBranch className="size-4 text-cortex-warning" />
           <span className="text-sm font-bold text-white">Implementation Architecture</span>
           <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#FB923C', borderColor: '#FB923C33', background: '#FB923C14' }}>Phase 4</span>
+            style={{ color: STATUS.warning, borderColor: `${STATUS.warning}33`, background: `${STATUS.warning}14` }}>Phase 4</span>
         </div>
         <div className="p-10 text-center space-y-2">
-          <GitBranch className="size-8 text-gray-700 mx-auto" />
-          <p className="text-sm font-bold text-gray-600">Implementation plan not yet defined</p>
-          <p className="text-xs text-gray-700 max-w-sm mx-auto">
+          <GitBranch className="size-8 text-cortex-faint mx-auto" />
+          <p className="text-sm font-bold text-cortex-faint">Implementation plan not yet defined</p>
+          <p className="text-xs text-cortex-faint max-w-sm mx-auto">
             The implementation plan defines WHO, WHEN, HOW, and WHAT SYSTEMS are involved.
             Required for Phase 4 gate and final proposal export.
           </p>
@@ -710,23 +717,23 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
   }
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       {/* ── Card header ── */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold text-white">
-          <GitBranch className="size-4 text-[#FB923C]" />
+          <GitBranch className="size-4 text-cortex-warning" />
           Implementation Architecture
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#FB923C', borderColor: '#FB923C33', background: '#FB923C14' }}
+            style={{ color: STATUS.warning, borderColor: `${STATUS.warning}33`, background: `${STATUS.warning}14` }}
           >
             Phase 4
           </span>
-          <span className="text-[9px] text-gray-600 font-normal">
+          <span className="text-[9px] text-cortex-faint font-normal">
             {allPhases.length} phases · {totalWeeks} weeks total
           </span>
         </span>
-        <span className="text-[9px] text-gray-700 flex items-center gap-1">
+        <span className="text-[9px] text-cortex-faint flex items-center gap-1">
           <Download className="size-2.5" />Export gate target
         </span>
       </div>
@@ -736,15 +743,15 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
         {/* ══ SECTION 1: IMPLEMENTATION ROADMAP ══ */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Milestone className="size-2.5 text-[#06D7F6]" />Implementation Roadmap
+            <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-1.5">
+              <Milestone className="size-2.5 text-cortex-info" />Implementation Roadmap
             </div>
             <button
               onClick={() => setEditingRoadmap(e => !e)}
               className="text-[9px] font-bold flex items-center gap-1 px-2 py-1 rounded border transition-colors"
               style={editingRoadmap
-                ? { color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }
-                : { color: '#6B7280', borderColor: '#ffffff10', background: 'transparent' }
+                ? { color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }
+                : { color: STATUS.neutral, borderColor: `${TEXT.primary}10`, background: 'transparent' }
               }
             >
               {editingRoadmap ? <span className="contents"><Check className="size-2.5" />Done</span> : <span className="contents"><Edit3 className="size-2.5" />Edit Phases</span>}
@@ -767,15 +774,15 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
         {/* ══ SECTION 2: TEAM & RESPONSIBILITY MATRIX ══ */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="size-2.5 text-[#8B5CF6]" />Team & Responsibility Matrix
+            <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="size-2.5 text-cortex-accent" />Team & Responsibility Matrix
             </div>
             <button
               onClick={() => setEditingTeam(e => !e)}
               className="text-[9px] font-bold flex items-center gap-1 px-2 py-1 rounded border transition-colors"
               style={editingTeam
-                ? { color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }
-                : { color: '#6B7280', borderColor: '#ffffff10', background: 'transparent' }
+                ? { color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }
+                : { color: STATUS.neutral, borderColor: `${TEXT.primary}10`, background: 'transparent' }
               }
             >
               {editingTeam ? <span className="contents"><Check className="size-2.5" />Done</span> : <span className="contents"><Edit3 className="size-2.5" />Edit Team</span>}
@@ -786,7 +793,7 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
             <TeamColumn
               title="MARQ Cortex Team"
               members={localPlan.team_structure?.cortex_team ?? []}
-              accent="#8B5CF6"
+              accent={brand.accent}
               editing={editingTeam}
               onUpdateMembers={members => save({
                 ...localPlan,
@@ -796,7 +803,7 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
             <TeamColumn
               title="Client Team Required"
               members={localPlan.team_structure?.client_team_required ?? []}
-              accent="#06D7F6"
+              accent={STATUS.info}
               editing={editingTeam}
               onUpdateMembers={members => save({
                 ...localPlan,
@@ -809,15 +816,15 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
         {/* ══ SECTION 3: TECHNICAL ARCHITECTURE OVERVIEW ══ */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="size-2.5 text-[#10B981]" />Technical Architecture Overview
+            <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="size-2.5 text-cortex-success" />Technical Architecture Overview
             </div>
             <button
               onClick={() => setEditingIntegration(e => !e)}
               className="text-[9px] font-bold flex items-center gap-1 px-2 py-1 rounded border transition-colors"
               style={editingIntegration
-                ? { color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }
-                : { color: '#6B7280', borderColor: '#ffffff10', background: 'transparent' }
+                ? { color: STATUS.success, borderColor: `${STATUS.success}33`, background: `${STATUS.success}14` }
+                : { color: STATUS.neutral, borderColor: `${TEXT.primary}10`, background: 'transparent' }
               }
             >
               {editingIntegration ? <span className="contents"><Check className="size-2.5" />Done</span> : <span className="contents"><Edit3 className="size-2.5" />Edit Architecture</span>}
@@ -828,7 +835,7 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
             {INTEGRATION_SECTIONS.map(({ key, label, color, Icon }) => {
               const items = localPlan.integration_architecture?.[key] ?? [];
               return (
-                <div key={key} className="bg-white/[0.02] border border-white/8 rounded-xl p-3">
+                <div key={key} className="bg-white/[0.02] border border-white/8 rounded-cortex-md p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon className="size-3" style={{ color }} />
                     <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
@@ -850,13 +857,13 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
                   ) : (
                     <ul className="space-y-1">
                       {items.map((item, i) => (
-                        <li key={i} className="flex items-start gap-1.5 text-[9px] text-gray-500">
+                        <li key={i} className="flex items-start gap-1.5 text-[9px] text-cortex-muted">
                           <span className="size-1 rounded-full mt-1.5 flex-shrink-0" style={{ background: color }} />
                           {item}
                         </li>
                       ))}
                       {items.length === 0 && (
-                        <li className="text-[9px] text-gray-700 italic">Not yet defined</li>
+                        <li className="text-[9px] text-cortex-faint italic">Not yet defined</li>
                       )}
                     </ul>
                   )}
@@ -868,9 +875,9 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
 
         {/* ══ SECTION 4: GOVERNANCE CONTROLS ══ */}
         <div className="space-y-3">
-          <div className="text-[9px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-            <Shield className="size-2.5 text-[#10B981]" />Governance Controls
-            <span className="text-gray-700 font-normal normal-case">— toggleable, required for Phase 4 gate</span>
+          <div className="text-[9px] font-bold text-cortex-faint uppercase tracking-wider flex items-center gap-1.5">
+            <Shield className="size-2.5 text-cortex-success" />Governance Controls
+            <span className="text-cortex-faint font-normal normal-case">— toggleable, required for Phase 4 gate</span>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -880,26 +887,26 @@ export function ImplementationArchitectureCard({ draft, onSave }: Implementation
                 <button
                   key={key}
                   onClick={() => toggleGovernanceControl(key)}
-                  className="flex items-start gap-3 p-3 rounded-xl border text-left transition-all"
+                  className="flex items-start gap-3 p-3 rounded-cortex-md border text-left transition-all"
                   style={{
-                    borderColor: active ? `${active ? '#10B981' : '#6B7280'}30` : '#ffffff0A',
-                    background:  active ? '#10B98108' : 'transparent',
+                    borderColor: active ? `${active ? STATUS.success : STATUS.neutral}30` : `${TEXT.primary}0A`,
+                    background:  active ? `${STATUS.success}08` : 'transparent',
                   }}
                 >
                   <div
                     className="flex-shrink-0 size-6 rounded-full flex items-center justify-center mt-0.5 transition-colors"
                     style={{
-                      background: active ? '#10B98120' : 'rgba(255,255,255,0.04)',
-                      color:      active ? '#10B981' : '#4B5563',
+                      background: active ? `${STATUS.success}20` : BORDER.subtle,
+                      color:      active ? STATUS.success : TEXT.faint,
                     }}
                   >
                     {active ? <Lock className="size-3" /> : <Unlock className="size-3" />}
                   </div>
                   <div>
-                    <div className="text-[10px] font-bold" style={{ color: active ? '#10B981' : '#6B7280' }}>
+                    <div className="text-[10px] font-bold" style={{ color: active ? STATUS.success : STATUS.neutral }}>
                       {label}
                     </div>
-                    <div className="text-[9px] text-gray-700 mt-0.5 leading-relaxed">{description}</div>
+                    <div className="text-[9px] text-cortex-faint mt-0.5 leading-relaxed">{description}</div>
                   </div>
                 </button>
               );

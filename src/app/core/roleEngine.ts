@@ -18,6 +18,8 @@
  */
 
 import type { BlockType } from './blockEngine';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // ROLE ENUM
@@ -34,11 +36,11 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
-  admin:      '#FD4438',
-  strategist: '#8B5CF6',
-  finance:    '#10B981',
-  sales:      '#F59E0B',
-  viewer:     '#6B7280',
+  admin:      STATUS.danger,
+  strategist: brand.accent,
+  finance:    STATUS.success,
+  sales:      STATUS.caution,
+  viewer:     STATUS.neutral,
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {

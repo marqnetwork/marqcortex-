@@ -200,7 +200,11 @@ describe('legacy team keys are never used as an active source', () => {
 
 // ── 3. Team session record — behavioural ──────────────────────────────────────
 
-const user = { id: 'u-1', email: 'lead@marqcortex.com', name: 'Avery Stone' };
+// A team identity now includes the role the server resolved for the account.
+// `teamRole` is never optional on a restored user: a record that carried none
+// resolves to `viewer`, the least privileged role, rather than to "unknown" —
+// see `tests/features/teamRoleVocabulary.test.ts` for that boundary in full.
+const user = { id: 'u-1', email: 'lead@marqcortex.com', name: 'Avery Stone', teamRole: 'consultant' } as const;
 
 describe('team session record round-trips', () => {
   it('preserves token and user', () => {
@@ -428,7 +432,15 @@ describe('authenticated team UI', () => {
       'src/app/components/TeamMessageThread.tsx',
     ]) {
       const text = read(rel);
-      assert.ok(text.includes('const { teamUser } = useApp();'), `${rel} sources identity from context`);
+      // Matched as a destructuring of `useApp()` that includes `teamUser`,
+      // rather than as one exact string: a component may legitimately also
+      // take `teamRole` from the same call, and pinning the literal made
+      // adding a second field look like a regression in the identity source.
+      assert.match(
+        text,
+        /const \{[^}]*\bteamUser\b[^}]*\} = useApp\(\);/,
+        `${rel} sources identity from context`,
+      );
       assert.ok(text.includes('teamUser?.name'), `${rel} reads the authenticated name`);
       assert.equal(storageAccesses(text).length, 0, `${rel} must not touch storage`);
     }

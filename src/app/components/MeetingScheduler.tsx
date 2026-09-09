@@ -150,65 +150,65 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', delay: 0.15 }}
-            className="inline-flex items-center justify-center size-20 rounded-full bg-gradient-to-br from-[#10B981] to-[#06D7F6] mb-6"
+            className="inline-flex items-center justify-center size-20 rounded-full bg-gradient-to-br from-cortex-success to-cortex-info mb-6"
           >
             <CheckCircle2 className="size-10 text-white" />
           </motion.div>
 
           <h2 className="text-3xl font-bold text-white mb-2">You're All Set!</h2>
-          <p className="text-gray-400 text-lg mb-8">
+          <p className="text-cortex-muted text-lg mb-8">
             Your readiness call is confirmed, {clientData.name.split(' ')[0]}
           </p>
 
           {/* Meeting card */}
-          <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 mb-8 text-left">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
-              <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+          <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-8 mb-8 text-left">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-cortex-default">
+              <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
                 <Brain className="size-5 text-white" />
               </div>
               <div>
                 <h3 className="font-bold text-white">MARQ Cortex Readiness Call</h3>
-                <p className="text-xs text-gray-500">AI Operations Discovery Session</p>
+                <p className="text-xs text-cortex-muted">AI Operations Discovery Session</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <MeetingDetail
-                icon={<Calendar className="size-5 text-[#8B5CF6]" />}
+                icon={<Calendar className="size-5 text-cortex-accent" />}
                 label="Date"
                 value={selectedDate.toLocaleDateString('en-US', {
                   weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
                 })}
               />
               <MeetingDetail
-                icon={<Clock className="size-5 text-[#06D7F6]" />}
+                icon={<Clock className="size-5 text-cortex-info" />}
                 label="Time"
                 value={`${selectedTime} (PST)`}
               />
               <MeetingDetail
-                icon={<Video className="size-5 text-[#FB923C]" />}
+                icon={<Video className="size-5 text-cortex-warning" />}
                 label="Duration"
                 value="45 minutes"
               />
               <MeetingDetail
-                icon={<MapPin className="size-5 text-[#10B981]" />}
+                icon={<MapPin className="size-5 text-cortex-success" />}
                 label="Location"
                 value="Zoom (link sent via email)"
               />
             </div>
 
             {/* Attendees */}
-            <div className="mt-6 pt-5 border-t border-white/10">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Your MARQ Cortex Team</p>
+            <div className="mt-6 pt-5 border-t border-cortex-default">
+              <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-3">Your MARQ Cortex Team</p>
               <div className="flex gap-4">
                 {demoMeeting.attendees.map((a, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <div className="size-9 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center text-xs font-bold text-white">
+                    <div className="size-9 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center text-xs font-bold text-white">
                       {a.avatar}
                     </div>
                     <div>
                       <p className="text-sm font-medium text-white">{a.name}</p>
-                      <p className="text-xs text-gray-500">{a.role}</p>
+                      <p className="text-xs text-cortex-muted">{a.role}</p>
                     </div>
                   </div>
                 ))}
@@ -217,27 +217,27 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
           </div>
 
           {/* Agenda preview */}
-          <div className="bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/20 rounded-2xl p-6 mb-8 text-left">
+          <div className="bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/20 rounded-cortex-lg p-6 mb-8 text-left">
             <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-              <FileText className="size-4 text-[#8B5CF6]" />
+              <FileText className="size-4 text-cortex-accent" />
               Call Agenda
             </h3>
             <div className="space-y-3">
               {demoMeeting.agenda.map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <div className="size-6 rounded-full bg-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-[#8B5CF6]">{i + 1}</span>
+                  <div className="size-6 rounded-full bg-cortex-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-cortex-accent">{i + 1}</span>
                   </div>
-                  <p className="text-sm text-gray-300">{item}</p>
+                  <p className="text-sm text-cortex-secondary">{item}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* What to prepare */}
-          <div className="bg-black/30 border border-white/10 rounded-2xl p-6 text-left">
+          <div className="bg-cortex-sunken border border-cortex-default rounded-cortex-lg p-6 text-left">
             <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-              <Sparkles className="size-4 text-[#06D7F6]" />
+              <Sparkles className="size-4 text-cortex-info" />
               How to Prepare
             </h3>
             <div className="space-y-3">
@@ -248,8 +248,8 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                 'No preparation required on your end — we come to you with the analysis',
               ].map((tip, i) => (
                 <div key={i} className="flex items-start gap-3 text-sm">
-                  <CheckCircle2 className="size-4 text-[#06D7F6] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-400">{tip}</span>
+                  <CheckCircle2 className="size-4 text-cortex-info flex-shrink-0 mt-0.5" />
+                  <span className="text-cortex-muted">{tip}</span>
                 </div>
               ))}
             </div>
@@ -269,12 +269,12 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring' }}
-          className="inline-flex items-center justify-center size-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] mb-4"
+          className="inline-flex items-center justify-center size-16 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt mb-4"
         >
           <Calendar className="size-8 text-white" />
         </motion.div>
         <h2 className="text-3xl font-bold text-white mb-3">Schedule Your Readiness Call</h2>
-        <p className="text-gray-400 text-lg">
+        <p className="text-cortex-muted text-lg">
           Pick a date and time that works for you
         </p>
       </div>
@@ -282,17 +282,17 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
       {/* What to Expect */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <ExpectCard
-          icon={<Clock className="size-6 text-[#06D7F6]" />}
+          icon={<Clock className="size-6 text-cortex-info" />}
           title="45 Minutes"
           description="Focused discussion on your report"
         />
         <ExpectCard
-          icon={<Video className="size-6 text-[#8B5CF6]" />}
+          icon={<Video className="size-6 text-cortex-accent" />}
           title="Video Call"
           description="Zoom link sent after booking"
         />
         <ExpectCard
-          icon={<MessageSquare className="size-6 text-[#FB923C]" />}
+          icon={<MessageSquare className="size-6 text-cortex-warning" />}
           title="No Pressure"
           description="Just exploring what's possible"
         />
@@ -301,7 +301,7 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
       {/* Calendar + time slots */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Calendar */}
-        <div className="lg:col-span-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+        <div className="lg:col-span-3 bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-6">
           {/* Month nav */}
           <div className="flex items-center justify-between mb-5">
             <button
@@ -313,9 +313,10 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     : { ...prev, month: m };
                 })
               }
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              aria-label="Previous month"
+              className="p-2 text-cortex-muted hover:text-white hover:bg-cortex-control rounded-cortex-sm transition-colors"
             >
-              <ChevronLeft className="size-5" />
+              <ChevronLeft className="size-5" aria-hidden="true" />
             </button>
             <h3 className="font-bold text-white text-lg">
               {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
@@ -329,16 +330,17 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     : { ...prev, month: m };
                 })
               }
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              aria-label="Next month"
+              className="p-2 text-cortex-muted hover:text-white hover:bg-cortex-control rounded-cortex-sm transition-colors"
             >
-              <ChevronRight className="size-5" />
+              <ChevronRight className="size-5" aria-hidden="true" />
             </button>
           </div>
 
           {/* Day headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {DAY_NAMES.map(d => (
-              <div key={d} className="text-center text-xs font-semibold text-gray-600 py-1">
+              <div key={d} className="text-center text-xs font-semibold text-cortex-faint py-1">
                 {d}
               </div>
             ))}
@@ -362,17 +364,17 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     setSelectedDate(new Date(viewMonth.year, viewMonth.month, day));
                     setSelectedTime(null);
                   }}
-                  className={`aspect-square rounded-xl flex items-center justify-center text-sm font-medium transition-all relative ${
+                  className={`aspect-square rounded-cortex-md flex items-center justify-center text-sm font-medium transition-all relative ${
                     selected
-                      ? 'bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] text-white shadow-lg shadow-[#8B5CF6]/30'
+                      ? 'bg-gradient-to-br from-cortex-accent to-cortex-accent-alt text-white shadow-lg shadow-cortex-accent/30'
                       : selectable
-                      ? 'text-gray-300 hover:bg-white/10 hover:text-white cursor-pointer'
-                      : 'text-gray-700 cursor-not-allowed'
+                      ? 'text-cortex-secondary hover:bg-cortex-control-hover hover:text-white cursor-pointer'
+                      : 'text-cortex-faint cursor-not-allowed'
                   }`}
                 >
                   {day}
                   {todayMark && !selected && (
-                    <span className="absolute bottom-1 size-1 rounded-full bg-[#06D7F6]" />
+                    <span className="absolute bottom-1 size-1 rounded-full bg-cortex-info" />
                   )}
                 </button>
               );
@@ -380,12 +382,12 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/10 text-xs text-gray-500">
+          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-cortex-default text-xs text-cortex-muted">
             <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#06D7F6]" /> Today
+              <span className="size-2 rounded-full bg-cortex-info" /> Today
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#8B5CF6]" /> Selected
+              <span className="size-2 rounded-full bg-cortex-accent" /> Selected
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-gray-700" /> Unavailable
@@ -394,48 +396,48 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
         </div>
 
         {/* Time slots */}
-        <div className="lg:col-span-2 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+        <div className="lg:col-span-2 bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-6">
           {!selectedDate ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-              <Calendar className="size-10 text-gray-600 mb-3" />
-              <p className="text-gray-500 text-sm">Select a date to see available times</p>
+              <Calendar className="size-10 text-cortex-faint mb-3" />
+              <p className="text-cortex-muted text-sm">Select a date to see available times</p>
             </div>
           ) : (
             <span className="contents">
               <h4 className="font-bold text-white mb-1">
                 {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </h4>
-              <p className="text-xs text-gray-500 mb-5">{slots.length} slots available · Pacific Time (PST)</p>
+              <p className="text-xs text-cortex-muted mb-5">{slots.length} slots available · Pacific Time (PST)</p>
 
               {slots.length === 0 ? (
                 <div className="text-center py-8">
-                  <Clock className="size-8 text-gray-600 mx-auto mb-2" />
-                  <p className="text-gray-500 text-sm">No slots available on this day</p>
-                  <p className="text-gray-600 text-xs mt-1">Try a weekday</p>
+                  <Clock className="size-8 text-cortex-faint mx-auto mb-2" />
+                  <p className="text-cortex-muted text-sm">No slots available on this day</p>
+                  <p className="text-cortex-faint text-xs mt-1">Try a weekday</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                   {/* Morning label */}
                   {slots.some(s => s.includes('AM')) && (
-                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider pt-1">Morning</p>
+                    <p className="text-[10px] font-bold text-cortex-faint uppercase tracking-wider pt-1">Morning</p>
                   )}
                   {slots.filter(s => s.includes('AM')).map(slot => (
                     <button
                       key={slot}
                       onClick={() => setSelectedTime(slot)}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
+                      className={`w-full text-left px-4 py-3 rounded-cortex-md text-sm font-medium transition-all border ${
                         selectedTime === slot
-                          ? 'bg-[#8B5CF6]/20 border-[#8B5CF6]/50 text-white'
-                          : 'border-white/8 text-gray-300 hover:bg-white/5 hover:border-white/15'
+                          ? 'bg-cortex-accent/20 border-cortex-accent/50 text-white'
+                          : 'border-white/8 text-cortex-secondary hover:bg-cortex-control hover:border-white/15'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2">
-                          <Clock className="size-3.5 text-gray-500" />
+                          <Clock className="size-3.5 text-cortex-muted" />
                           {slot}
                         </span>
                         {selectedTime === slot && (
-                          <CheckCircle2 className="size-4 text-[#8B5CF6]" />
+                          <CheckCircle2 className="size-4 text-cortex-accent" />
                         )}
                       </div>
                     </button>
@@ -443,25 +445,25 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
 
                   {/* Afternoon label */}
                   {slots.some(s => s.includes('PM')) && (
-                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider pt-3">Afternoon</p>
+                    <p className="text-[10px] font-bold text-cortex-faint uppercase tracking-wider pt-3">Afternoon</p>
                   )}
                   {slots.filter(s => s.includes('PM')).map(slot => (
                     <button
                       key={slot}
                       onClick={() => setSelectedTime(slot)}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
+                      className={`w-full text-left px-4 py-3 rounded-cortex-md text-sm font-medium transition-all border ${
                         selectedTime === slot
-                          ? 'bg-[#8B5CF6]/20 border-[#8B5CF6]/50 text-white'
-                          : 'border-white/8 text-gray-300 hover:bg-white/5 hover:border-white/15'
+                          ? 'bg-cortex-accent/20 border-cortex-accent/50 text-white'
+                          : 'border-white/8 text-cortex-secondary hover:bg-cortex-control hover:border-white/15'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2">
-                          <Clock className="size-3.5 text-gray-500" />
+                          <Clock className="size-3.5 text-cortex-muted" />
                           {slot}
                         </span>
                         {selectedTime === slot && (
-                          <CheckCircle2 className="size-4 text-[#8B5CF6]" />
+                          <CheckCircle2 className="size-4 text-cortex-accent" />
                         )}
                       </div>
                     </button>
@@ -476,14 +478,14 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="mt-5 pt-5 border-t border-white/10"
+                    className="mt-5 pt-5 border-t border-cortex-default"
                   >
-                    <div className="text-xs text-gray-500 mb-3 text-center">
+                    <div className="text-xs text-cortex-muted mb-3 text-center">
                       {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {selectedTime} PST · 45 min
                     </div>
                     <button
                       onClick={handleConfirm}
-                      className="w-full py-3.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                      className="w-full py-3.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white rounded-cortex-md font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
                     >
                       <CheckCircle2 className="size-4" />
                       Confirm Booking
@@ -497,10 +499,10 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
       </div>
 
       {/* Help Text */}
-      <div className="mt-6 text-center text-sm text-gray-500">
+      <div className="mt-6 text-center text-sm text-cortex-muted">
         <p>
           Can't find a time that works?{' '}
-          <a href="mailto:team@marqcortex.com" className="text-[#06D7F6] hover:underline">
+          <a href="mailto:team@marqcortex.com" className="text-cortex-info hover:underline">
             Contact us
           </a>{' '}
           to schedule manually.
@@ -514,12 +516,12 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
 
 function ExpectCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6 text-center">
-      <div className="inline-flex items-center justify-center size-12 rounded-xl bg-white/5 mb-3">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6 text-center">
+      <div className="inline-flex items-center justify-center size-12 rounded-cortex-md bg-cortex-control mb-3">
         {icon}
       </div>
       <h3 className="font-bold text-white mb-2">{title}</h3>
-      <p className="text-sm text-gray-400">{description}</p>
+      <p className="text-sm text-cortex-muted">{description}</p>
     </div>
   );
 }
@@ -529,7 +531,7 @@ function MeetingDetail({ icon, label, value }: { icon: React.ReactNode; label: s
     <div className="flex items-start gap-3">
       <div className="mt-0.5">{icon}</div>
       <div>
-        <div className="text-xs text-gray-500 mb-0.5">{label}</div>
+        <div className="text-xs text-cortex-muted mb-0.5">{label}</div>
         <div className="text-sm font-semibold text-white">{value}</div>
       </div>
     </div>

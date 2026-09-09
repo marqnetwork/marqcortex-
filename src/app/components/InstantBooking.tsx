@@ -14,10 +14,11 @@
  * EXPECTED IMPACT: Time to call 24h → 4h (-83%)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Zap, Clock, TrendingUp, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
 import { createBooking } from '@/app/services/dataService';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
 
 interface InstantBookingProps {
   contactInfo: {
@@ -74,18 +75,18 @@ export function InstantBookingOffer({ contactInfo, submissionId, onBooked }: Ins
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden bg-gradient-to-br from-[#8B5CF6]/20 via-[#3B82F6]/20 to-[#06D7F6]/20 border-2 border-[#8B5CF6]/40 rounded-2xl p-8 mb-8"
+        className="relative overflow-hidden bg-gradient-to-br from-cortex-accent/20 via-cortex-accent-alt/20 to-cortex-info/20 border-2 border-cortex-accent/40 rounded-cortex-lg p-8 mb-8"
       >
         {/* Animated Background */}
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-0 right-0 size-32 bg-[#8B5CF6]/30 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-0 left-0 size-32 bg-[#06D7F6]/30 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-0 right-0 size-32 bg-cortex-accent/30 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-0 left-0 size-32 bg-cortex-info/30 rounded-full blur-3xl animate-pulse delay-1000" />
         </div>
 
         <div className="relative">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FB923C]/30 to-[#FD4438]/30 border border-[#FB923C]/40 rounded-full mb-4">
-            <Zap className="size-4 text-[#FB923C]" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cortex-warning/30 to-cortex-danger/30 border border-cortex-warning/40 rounded-full mb-4">
+            <Zap className="size-4 text-cortex-warning" />
             <span className="text-sm font-bold text-white">Limited Time Offer</span>
           </div>
 
@@ -95,25 +96,25 @@ export function InstantBookingOffer({ contactInfo, submissionId, onBooked }: Ins
           </h3>
 
           <p className="text-lg text-white/80 mb-6">
-            Book in the next 10 minutes and get <strong className="text-[#06D7F6]">priority processing</strong>
+            Book in the next 10 minutes and get <strong className="text-cortex-info">priority processing</strong>
           </p>
 
           {/* Benefits Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <PriorityBenefit
-              icon={<Zap className="size-5 text-[#FB923C]" />}
+              icon={<Zap className="size-5 text-cortex-warning" />}
               title="Express Report"
               description="Guaranteed in 4 hours"
               highlight="vs 24+ hours"
             />
             <PriorityBenefit
-              icon={<TrendingUp className="size-5 text-[#10B981]" />}
+              icon={<TrendingUp className="size-5 text-cortex-success" />}
               title="Priority Review"
               description="Moved to top of queue"
               highlight="Skip the line"
             />
             <PriorityBenefit
-              icon={<Sparkles className="size-5 text-[#8B5CF6]" />}
+              icon={<Sparkles className="size-5 text-cortex-accent" />}
               title="Best Time Slots"
               description="Access to premium times"
               highlight="Limited spots"
@@ -125,7 +126,7 @@ export function InstantBookingOffer({ contactInfo, submissionId, onBooked }: Ins
             onClick={handleBookNow}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:from-[#7C3AED] hover:to-[#2563EB] text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl"
+            className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:from-cortex-accent-deep hover:to-cortex-accent-alt-deep text-white rounded-cortex-md font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-xl"
           >
             <Calendar className="size-5" />
             Book My Priority Call Now
@@ -141,7 +142,7 @@ export function InstantBookingOffer({ contactInfo, submissionId, onBooked }: Ins
               {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="size-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] border-2 border-[#0A0A0F] flex items-center justify-center text-xs font-bold"
+                  className="size-8 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt border-2 border-cortex-canvas flex items-center justify-center text-xs font-bold"
                 >
                   {String.fromCharCode(64 + i)}
                 </div>
@@ -191,6 +192,7 @@ function InstantBookingModal({
 }: InstantBookingModalProps) {
   const availableSlots = getNextAvailableSlots();
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Book a strategy call' });
 
   return (
     <motion.div
@@ -200,17 +202,21 @@ function InstantBookingModal({
       onClick={onClose}
       className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
     >
+      {/* A booking sheet with a date grid, a time grid and two actions — so a
+          keyboard user had a lot to Tab through, and could Tab straight out of
+          it into the page behind. It declares itself and holds focus now. */}
       <motion.div
+        {...dialogProps}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-[#0A0A0F] border border-[#8B5CF6]/30 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="relative bg-cortex-canvas border border-cortex-accent/30 rounded-cortex-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto outline-none"
       >
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-3">
-            <div className="size-12 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+            <div className="size-12 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
               <Zap className="size-6 text-white" />
             </div>
             <div>
@@ -219,9 +225,9 @@ function InstantBookingModal({
             </div>
           </div>
           
-          <div className="bg-gradient-to-r from-[#10B981]/20 to-[#06D7F6]/20 border border-[#10B981]/30 rounded-xl p-4">
+          <div className="bg-gradient-to-r from-cortex-success/20 to-cortex-info/20 border border-cortex-success/30 rounded-cortex-md p-4">
             <p className="text-sm text-white/80">
-              ⚡ <strong>Special Offer:</strong> Book now and your report will be ready <strong className="text-[#10B981]">before your call</strong>
+              ⚡ <strong>Special Offer:</strong> Book now and your report will be ready <strong className="text-cortex-success">before your call</strong>
             </p>
           </div>
         </div>
@@ -233,10 +239,10 @@ function InstantBookingModal({
             <button
               key={slot.iso}
               onClick={() => setSelectedSlot(slot.iso)}
-              className={`w-full text-left px-4 py-3 border rounded-xl transition-all ${
+              className={`w-full text-left px-4 py-3 border rounded-cortex-md transition-all ${
                 selectedSlot === slot.iso
-                  ? 'bg-[#8B5CF6]/30 border-[#8B5CF6] ring-2 ring-[#8B5CF6]/50'
-                  : 'bg-white/5 border-white/10 hover:border-[#8B5CF6]/50'
+                  ? 'bg-cortex-accent/30 border-cortex-accent ring-2 ring-cortex-accent/50'
+                  : 'bg-cortex-control border-cortex-default hover:border-cortex-accent/50'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -245,8 +251,8 @@ function InstantBookingModal({
                   <p className="text-sm text-white/60">{slot.displayTime}</p>
                 </div>
                 {slot.isPriority && (
-                  <div className="px-3 py-1 bg-[#FB923C]/30 border border-[#FB923C]/40 rounded-full">
-                    <p className="text-xs font-bold text-[#FB923C]">PRIORITY</p>
+                  <div className="px-3 py-1 bg-cortex-warning/30 border border-cortex-warning/40 rounded-full">
+                    <p className="text-xs font-bold text-cortex-warning">PRIORITY</p>
                   </div>
                 )}
               </div>
@@ -256,9 +262,9 @@ function InstantBookingModal({
 
         {/* Booking error */}
         {bookingError && (
-          <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl bg-[#FD4438]/10 border border-[#FD4438]/30">
-            <AlertCircle className="size-4 text-[#FD4438] flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-[#FD4438]">{bookingError}</p>
+          <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-cortex-md bg-cortex-danger/10 border border-cortex-danger/30">
+            <AlertCircle className="size-4 text-cortex-danger flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-cortex-danger">{bookingError}</p>
           </div>
         )}
 
@@ -266,14 +272,14 @@ function InstantBookingModal({
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl font-semibold transition-all"
+            className="flex-1 px-6 py-3 bg-cortex-control-hover hover:bg-white/20 border border-cortex-strong text-white rounded-cortex-md font-semibold transition-all"
           >
             Cancel
           </button>
           <button
             onClick={() => selectedSlot && onTimeSelected(selectedSlot)}
             disabled={!selectedSlot || isBooking}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:from-[#7C3AED] hover:to-[#2563EB] text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 px-6 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:from-cortex-accent-deep hover:to-cortex-accent-alt-deep text-white rounded-cortex-md font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isBooking ? (
               <span className="contents">
@@ -314,9 +320,9 @@ function PriorityBenefit({
   highlight: string;
 }) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-4">
       <div className="flex items-start gap-3 mb-2">
-        <div className="size-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+        <div className="size-10 rounded-cortex-sm bg-cortex-control-hover flex items-center justify-center flex-shrink-0">
           {icon}
         </div>
         <div>
@@ -325,7 +331,7 @@ function PriorityBenefit({
         </div>
       </div>
       <div className="pl-13">
-        <span className="text-xs px-2 py-1 bg-[#06D7F6]/20 border border-[#06D7F6]/30 rounded-full text-[#06D7F6] font-semibold">
+        <span className="text-xs px-2 py-1 bg-cortex-info/20 border border-cortex-info/30 rounded-full text-cortex-info font-semibold">
           {highlight}
         </span>
       </div>
@@ -336,7 +342,11 @@ function PriorityBenefit({
 function CountdownTimer({ minutes }: { minutes: number }) {
   const [timeLeft, setTimeLeft] = useState(minutes * 60);
 
-  useState(() => {
+  // This was `useState`, not `useEffect`. A lazy useState initialiser runs once
+  // and its return value becomes STATE, so the returned teardown was never a
+  // cleanup and the second argument was ignored: the interval was never cleared,
+  // and it went on calling setTimeLeft after the component unmounted.
+  useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
@@ -349,10 +359,10 @@ function CountdownTimer({ minutes }: { minutes: number }) {
 
   return (
     <div className="mt-4 flex items-center justify-center gap-2">
-      <Clock className="size-4 text-[#FB923C]" />
+      <Clock className="size-4 text-cortex-warning" />
       <p className="text-sm text-white/70">
         Offer expires in{' '}
-        <strong className="text-[#FB923C] font-mono">
+        <strong className="text-cortex-warning font-mono">
           {mins}:{secs.toString().padStart(2, '0')}
         </strong>
       </p>

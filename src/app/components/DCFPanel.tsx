@@ -35,6 +35,7 @@ import type {
   PortfolioROIModel, PortfolioState, RecalcResult,
   DCFModel, DCFProjectionEntry, IRRModel, IRRFailure,
 } from '@/app/core/types';
+import { brand, status, text, border } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -73,13 +74,13 @@ function paybackLabel(month: number | null): string {
 function DCFTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0D0D1A] border border-white/10 rounded-xl p-3 text-xs shadow-2xl min-w-[200px]">
-      <div className="font-bold text-white mb-2 border-b border-white/10 pb-1">{label}</div>
+    <div className="bg-cortex-overlay border border-cortex-default rounded-cortex-md p-3 text-xs shadow-2xl min-w-[200px]">
+      <div className="font-bold text-white mb-2 border-b border-cortex-default pb-1">{label}</div>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-4 py-0.5">
           <div className="flex items-center gap-1.5">
             <div className="size-2 rounded-full" style={{ backgroundColor: p.color }} />
-            <span className="text-gray-400">{p.name}</span>
+            <span className="text-cortex-muted">{p.name}</span>
           </div>
           <span className="font-mono font-bold" style={{ color: p.color }}>
             {fmt$(p.value)}
@@ -110,109 +111,109 @@ function FinanceKPIStrip({
   const npvPositive = dcf.npv >= 0;
   const irrOk = irrResult && isIRRModel(irrResult);
   const irrHigh = irrOk && irrResult.irr_percent_annual > 300;
-  const irrColor = irrOk ? (irrHigh ? '#FB923C' : '#06D7F6') : '#6B7280';
+  const irrColor = irrOk ? (irrHigh ? status.warning : status.info) : status.neutral;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {/* NPV */}
-      <div className={`rounded-xl p-4 border ${npvPositive ? 'bg-[#10B981]/8 border-[#10B981]/20' : 'bg-[#FD4438]/8 border-[#FD4438]/20'}`}>
+      <div className={`rounded-cortex-md p-4 border ${npvPositive ? 'bg-cortex-success/8 border-cortex-success/20' : 'bg-cortex-danger/8 border-cortex-danger/20'}`}>
         <div className="flex items-center gap-2 mb-2">
           {npvPositive
-            ? <TrendingUp className="size-4 text-[#10B981]" />
-            : <TrendingDown className="size-4 text-[#FD4438]" />}
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Net Present Value</span>
+            ? <TrendingUp className="size-4 text-cortex-success" />
+            : <TrendingDown className="size-4 text-cortex-danger" />}
+          <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">Net Present Value</span>
         </div>
-        <div className={`text-2xl font-black ${npvPositive ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+        <div className={`text-2xl font-black ${npvPositive ? 'text-cortex-success' : 'text-cortex-danger'}`}>
           {fmt$(dcf.npv)}
         </div>
-        <div className="text-[10px] text-gray-600 mt-1">
+        <div className="text-[10px] text-cortex-faint mt-1">
           {npvPositive ? 'Project adds economic value' : 'Project destroys value at this rate'}
         </div>
       </div>
 
       {/* Discount Rate */}
-      <div className="bg-[#8B5CF6]/8 border border-[#8B5CF6]/20 rounded-xl p-4">
+      <div className="bg-cortex-accent/8 border border-cortex-accent/20 rounded-cortex-md p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Percent className="size-4 text-[#8B5CF6]" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Discount Rate</span>
+          <Percent className="size-4 text-cortex-accent" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">Discount Rate</span>
         </div>
-        <div className="text-2xl font-black text-[#8B5CF6]">{dcf.discount_rate_percent}%</div>
-        <div className="text-[10px] text-gray-600 mt-1">
+        <div className="text-2xl font-black text-cortex-accent">{dcf.discount_rate_percent}%</div>
+        <div className="text-[10px] text-cortex-faint mt-1">
           r_monthly = {(dcf.r_monthly * 100).toFixed(4)}%
         </div>
       </div>
 
       {/* IRR — §8 Display Logic */}
-      <div className={`rounded-xl p-4 border ${
+      <div className={`rounded-cortex-md p-4 border ${
         irrOk
-          ? irrHigh ? 'bg-[#FB923C]/8 border-[#FB923C]/20' : 'bg-[#06D7F6]/8 border-[#06D7F6]/20'
-          : 'bg-white/[0.03] border-white/10'
+          ? irrHigh ? 'bg-cortex-warning/8 border-cortex-warning/20' : 'bg-cortex-info/8 border-cortex-info/20'
+          : 'bg-white/[0.03] border-cortex-default'
       }`}>
         <div className="flex items-center gap-2 mb-2">
           <Activity className="size-4" style={{ color: irrColor }} />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">IRR Annual</span>
-          <span className="text-[8px] px-1 py-0.5 rounded font-bold bg-[#06D7F6]/10 text-[#06D7F6]">v2</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">IRR Annual</span>
+          <span className="text-[8px] px-1 py-0.5 rounded font-bold bg-cortex-info/10 text-cortex-info">v2</span>
         </div>
         {irrOk ? (
           <span className="contents">
             <div className="text-2xl font-black" style={{ color: irrColor }}>
               {irrResult.irr_percent_annual.toFixed(1)}%
             </div>
-            <div className="text-[10px] text-gray-600 mt-1">
+            <div className="text-[10px] text-cortex-faint mt-1">
               {irrResult.irr_percent_monthly.toFixed(2)}%/mo · {irrResult.iterations_used} iter
-              {irrHigh && <span className="ml-1 text-[#FB923C] font-bold">⚠ HIGH</span>}
+              {irrHigh && <span className="ml-1 text-cortex-warning font-bold">⚠ HIGH</span>}
             </div>
           </span>
         ) : irrResult ? (
           <span className="contents">
-            <div className="text-sm font-bold text-gray-500 mt-1">Undefined</div>
-            <div className="text-[9px] text-gray-600 mt-1 leading-tight line-clamp-2">
+            <div className="text-sm font-bold text-cortex-muted mt-1">Undefined</div>
+            <div className="text-[9px] text-cortex-faint mt-1 leading-tight line-clamp-2">
               {(irrResult as IRRFailure).status.replace(/_/g, ' ')}
             </div>
           </span>
         ) : (
-          <div className="text-sm text-gray-600 mt-2">Not computed</div>
+          <div className="text-sm text-cortex-faint mt-2">Not computed</div>
         )}
       </div>
 
       {/* Nominal Payback */}
-      <div className={`rounded-xl p-4 border transition-all cursor-pointer ${
+      <div className={`rounded-cortex-md p-4 border transition-all cursor-pointer ${
         paybackMode === 'nominal'
-          ? 'bg-[#06D7F6]/10 border-[#06D7F6]/30 ring-1 ring-[#06D7F6]/20'
-          : 'bg-white/[0.03] border-white/10 opacity-70 hover:opacity-100'
+          ? 'bg-cortex-info/10 border-cortex-info/30 ring-1 ring-cortex-info/20'
+          : 'bg-white/[0.03] border-cortex-default opacity-70 hover:opacity-100'
       }`} onClick={onTogglePayback}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Clock className="size-4 text-[#06D7F6]" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Nominal Payback</span>
+            <Clock className="size-4 text-cortex-info" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">Nominal Payback</span>
           </div>
           {paybackMode === 'nominal' && (
-            <span className="text-[9px] font-bold text-[#06D7F6] bg-[#06D7F6]/10 px-1.5 py-0.5 rounded">ACTIVE</span>
+            <span className="text-[9px] font-bold text-cortex-info bg-cortex-info/10 px-1.5 py-0.5 rounded">ACTIVE</span>
           )}
         </div>
-        <div className="text-2xl font-black text-[#06D7F6]">{paybackLabel(nominalPayback)}</div>
-        <div className="text-[10px] text-gray-600 mt-1">Raw cumulative cash flow</div>
+        <div className="text-2xl font-black text-cortex-info">{paybackLabel(nominalPayback)}</div>
+        <div className="text-[10px] text-cortex-faint mt-1">Raw cumulative cash flow</div>
       </div>
 
       {/* Discounted Payback */}
-      <div className={`rounded-xl p-4 border transition-all cursor-pointer ${
+      <div className={`rounded-cortex-md p-4 border transition-all cursor-pointer ${
         paybackMode === 'discounted'
-          ? 'bg-[#FB923C]/10 border-[#FB923C]/30 ring-1 ring-[#FB923C]/20'
-          : 'bg-white/[0.03] border-white/10 opacity-70 hover:opacity-100'
+          ? 'bg-cortex-warning/10 border-cortex-warning/30 ring-1 ring-cortex-warning/20'
+          : 'bg-white/[0.03] border-cortex-default opacity-70 hover:opacity-100'
       }`} onClick={onTogglePayback}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <DollarSign className="size-4 text-[#FB923C]" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Discounted Payback</span>
+            <DollarSign className="size-4 text-cortex-warning" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">Discounted Payback</span>
           </div>
           {paybackMode === 'discounted' && (
-            <span className="text-[9px] font-bold text-[#FB923C] bg-[#FB923C]/10 px-1.5 py-0.5 rounded">ACTIVE</span>
+            <span className="text-[9px] font-bold text-cortex-warning bg-cortex-warning/10 px-1.5 py-0.5 rounded">ACTIVE</span>
           )}
         </div>
-        <div className="text-2xl font-black text-[#FB923C]">
+        <div className="text-2xl font-black text-cortex-warning">
           {paybackLabel(dcf.discounted_payback_month)}
         </div>
-        <div className="text-[10px] text-gray-600 mt-1">Time-value-adjusted (§5B)</div>
+        <div className="text-[10px] text-cortex-faint mt-1">Time-value-adjusted (§5B)</div>
       </div>
     </div>
   );
@@ -283,20 +284,20 @@ function DiscountRateSlider({
   const pct = ((localRate - 0) / (40 - 0)) * 100;
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Percent className="size-4 text-[#8B5CF6]" />
+          <Percent className="size-4 text-cortex-accent" />
           <h4 className="text-sm font-bold text-white">Discount Rate (WACC / Hurdle Rate)</h4>
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] font-bold uppercase">
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-accent/10 text-cortex-accent font-bold uppercase">
             finance_v1_dcf §1
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-xl font-black text-[#8B5CF6]">
+        <div className="flex items-center gap-1.5 text-xl font-black text-cortex-accent">
           {localRate}%
           {localRate !== currentRate && (
-            <span className="text-[10px] font-normal text-gray-500 ml-1">(was {currentRate}%)</span>
+            <span className="text-[10px] font-normal text-cortex-muted ml-1">(was {currentRate}%)</span>
           )}
         </div>
       </div>
@@ -308,16 +309,16 @@ function DiscountRateSlider({
             key={p.value}
             onClick={() => handleSliderChange(p.value)}
             title={p.note}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-cortex-sm text-xs font-bold transition-all ${
               localRate === p.value
-                ? 'bg-[#8B5CF6] text-white'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                ? 'bg-cortex-accent text-white'
+                : 'bg-cortex-control text-cortex-muted hover:bg-cortex-control-hover hover:text-white'
             }`}
           >
             {p.label}
           </button>
         ))}
-        <span className="text-[10px] text-gray-600 self-center ml-1">Preset rates</span>
+        <span className="text-[10px] text-cortex-faint self-center ml-1">Preset rates</span>
       </div>
 
       {/* Slider */}
@@ -331,10 +332,10 @@ function DiscountRateSlider({
           onChange={e => handleSliderChange(Number(e.target.value))}
           className="w-full h-2 rounded-full appearance-none cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #8B5CF6 ${pct}%, rgba(255,255,255,0.1) ${pct}%)`,
+            background: `linear-gradient(to right, ${brand.accent} ${pct}%, ${border.default} ${pct}%)`,
           }}
         />
-        <div className="flex justify-between text-[10px] text-gray-600 mt-1">
+        <div className="flex justify-between text-[10px] text-cortex-faint mt-1">
           <span>0% (no discount)</span>
           <span>20% (VC hurdle)</span>
           <span>40% (max)</span>
@@ -346,10 +347,10 @@ function DiscountRateSlider({
         <button
           onClick={handleApply}
           disabled={!canApply || isApplying}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-cortex-sm text-sm font-bold transition-all ${
             canApply
-              ? 'bg-[#8B5CF6] hover:bg-[#7C3AED] text-white'
-              : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+              ? 'bg-cortex-accent hover:bg-cortex-accent/85 text-white'
+              : 'bg-gray-800 text-cortex-faint cursor-not-allowed'
           }`}
         >
           {isApplying
@@ -360,13 +361,13 @@ function DiscountRateSlider({
         {localRate !== currentRate && !isApplying && (
           <button
             onClick={() => { setLocalRate(currentRate); setLastResult(null); }}
-            className="text-xs text-gray-500 hover:text-white underline"
+            className="text-xs text-cortex-muted hover:text-white underline"
           >
             Reset to {currentRate}%
           </button>
         )}
         {lastResult && (
-          <span className={`text-xs font-medium flex items-center gap-1 ${lastResult.success ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+          <span className={`text-xs font-medium flex items-center gap-1 ${lastResult.success ? 'text-cortex-success' : 'text-cortex-danger'}`}>
             {lastResult.success
               ? <span className="contents"><CheckCircle2 className="size-3.5" /> Recalculated → {lastResult.new_version}</span>
               : <span className="contents"><AlertTriangle className="size-3.5" /> {lastResult.summary}</span>
@@ -376,8 +377,8 @@ function DiscountRateSlider({
       </div>
 
       {/* Governance note */}
-      <p className="text-[10px] text-gray-700 mt-3">
-        <strong className="text-gray-600">§7 Governance:</strong> Changing this triggers finance_v1_dcf recalculation only.
+      <p className="text-[10px] text-cortex-faint mt-3">
+        <strong className="text-cortex-faint">§7 Governance:</strong> Changing this triggers finance_v1_dcf recalculation only.
         It does not re-run ROI math, confidence scoring, or gain assumptions. Math decides present value. Not storytelling.
       </p>
     </div>
@@ -417,32 +418,32 @@ function DCFWaterfallChart({
   const discountedBELine = dcf.discounted_payback_month ? `M${dcf.discounted_payback_month}` : null;
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
       <div className="flex items-center justify-between mb-1">
         <h4 className="text-base font-bold text-white flex items-center gap-2">
-          <TrendingDown className="size-5 text-[#8B5CF6]" />
+          <TrendingDown className="size-5 text-cortex-accent" />
           DCF Waterfall — Net vs Discounted Cash Flow
         </h4>
         <div className="flex items-center gap-3 text-[10px]">
           <span className="flex items-center gap-1.5">
-            <div className="size-2.5 rounded-sm bg-[#10B981]" />
-            <span className="text-gray-400">+Net CF</span>
+            <div className="size-2.5 rounded-sm bg-cortex-success" />
+            <span className="text-cortex-muted">+Net CF</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <div className="size-2.5 rounded-sm bg-[#FD4438]" />
-            <span className="text-gray-400">−Net CF</span>
+            <div className="size-2.5 rounded-sm bg-cortex-danger" />
+            <span className="text-cortex-muted">−Net CF</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <div className="w-5 h-px bg-[#06D7F6]" />
-            <span className="text-gray-400">Cumulative Nominal</span>
+            <div className="w-5 h-px bg-cortex-info" />
+            <span className="text-cortex-muted">Cumulative Nominal</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <div className="w-5 h-px bg-[#FB923C] border-dashed border-t" />
-            <span className="text-gray-400">Cumulative Discounted</span>
+            <div className="w-5 h-px bg-cortex-warning border-dashed border-t" />
+            <span className="text-cortex-muted">Cumulative Discounted</span>
           </span>
         </div>
       </div>
-      <p className="text-[10px] text-gray-500 mb-5">
+      <p className="text-[10px] text-cortex-muted mb-5">
         Bars: monthly undiscounted net cash flow · Lines: running cumulative (nominal vs time-value-adjusted) ·
         §3: DCF(n) = Net_CF(n) / (1 + r_monthly)^n
       </p>
@@ -451,19 +452,19 @@ function DCFWaterfallChart({
         <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 5, left: 20 }}>
           <defs>
             <linearGradient id="discountLineGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FB923C" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#FB923C" stopOpacity={0.3} />
+              <stop offset="0%" stopColor={status.warning} stopOpacity={0.8} />
+              <stop offset="100%" stopColor={status.warning} stopOpacity={0.3} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
           <XAxis
             dataKey="name"
-            tick={{ fill: '#6B7280', fontSize: 11 }}
+            tick={{ fill: status.neutral, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: '#6B7280', fontSize: 11 }}
+            tick={{ fill: status.neutral, fontSize: 11 }}
             tickFormatter={v => fmt$(v)}
             axisLine={false}
             tickLine={false}
@@ -477,10 +478,10 @@ function DCFWaterfallChart({
           {nominalBELine && paybackMode === 'nominal' && (
             <ReferenceLine
               x={nominalBELine}
-              stroke="#06D7F6"
+              stroke={status.info}
               strokeDasharray="5 5"
               strokeWidth={1.5}
-              label={{ value: `Nominal BE`, fill: '#06D7F6', fontSize: 10, position: 'top' }}
+              label={{ value: `Nominal BE`, fill: status.info, fontSize: 10, position: 'top' }}
             />
           )}
 
@@ -488,10 +489,10 @@ function DCFWaterfallChart({
           {discountedBELine && paybackMode === 'discounted' && (
             <ReferenceLine
               x={discountedBELine}
-              stroke="#FB923C"
+              stroke={status.warning}
               strokeDasharray="5 5"
               strokeWidth={1.5}
-              label={{ value: `DCF BE`, fill: '#FB923C', fontSize: 10, position: 'top' }}
+              label={{ value: `DCF BE`, fill: status.warning, fontSize: 10, position: 'top' }}
             />
           )}
 
@@ -505,7 +506,7 @@ function DCFWaterfallChart({
             {chartData.map(entry => (
               <Cell
                 key={`cell-${entry.month}`}
-                fill={entry.net_cashflow >= 0 ? '#10B981' : '#FD4438'}
+                fill={entry.net_cashflow >= 0 ? status.success : status.danger}
                 fillOpacity={0.75}
               />
             ))}
@@ -516,10 +517,10 @@ function DCFWaterfallChart({
             type="monotone"
             dataKey="cumulative_nominal"
             name="Cumulative Nominal"
-            stroke="#06D7F6"
+            stroke={status.info}
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: '#06D7F6' }}
+            activeDot={{ r: 4, fill: status.info }}
           />
 
           {/* Cumulative discounted line */}
@@ -527,26 +528,26 @@ function DCFWaterfallChart({
             type="monotone"
             dataKey="cumulative_discounted"
             name="Cumulative Discounted"
-            stroke="#FB923C"
+            stroke={status.warning}
             strokeWidth={2}
             strokeDasharray="6 3"
             dot={false}
-            activeDot={{ r: 4, fill: '#FB923C' }}
+            activeDot={{ r: 4, fill: status.warning }}
           />
         </ComposedChart>
       </ResponsiveContainer>
 
       {/* Spread callout */}
       {nominalPayback !== null && dcf.discounted_payback_month !== null && (
-        <div className="mt-4 flex items-center gap-3 px-4 py-2.5 bg-white/[0.03] border border-white/5 rounded-lg">
-          <Info className="size-4 text-[#8B5CF6] flex-shrink-0" />
-          <span className="text-[11px] text-gray-400">
+        <div className="mt-4 flex items-center gap-3 px-4 py-2.5 bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm">
+          <Info className="size-4 text-cortex-accent flex-shrink-0" />
+          <span className="text-[11px] text-cortex-muted">
             Time-value spread:{' '}
             <strong className="text-white">
               {Math.max(0, dcf.discounted_payback_month - nominalPayback)} month{Math.abs(dcf.discounted_payback_month - nominalPayback) !== 1 ? 's' : ''}
             </strong>{' '}
             longer payback when discounted at{' '}
-            <strong className="text-[#8B5CF6]">{dcf.discount_rate_percent}% annual</strong>.
+            <strong className="text-cortex-accent">{dcf.discount_rate_percent}% annual</strong>.
             {dcf.discounted_payback_month > nominalPayback
               ? ' Discounting reveals the true cost of waiting for returns.'
               : ' Discounting has negligible payback impact at this rate.'}
@@ -576,30 +577,30 @@ function DCFTable({
   const visible = collapsed ? entries.slice(0, 6) : entries;
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       <div
-        className="flex items-center justify-between px-5 py-3 border-b border-white/5 cursor-pointer hover:bg-white/[0.02]"
+        className="flex items-center justify-between px-5 py-3 border-b border-cortex-subtle cursor-pointer hover:bg-white/[0.02]"
         onClick={() => setCollapsed(c => !c)}
       >
         <h4 className="text-sm font-bold text-white flex items-center gap-2">
-          <DollarSign className="size-4 text-[#FB923C]" />
+          <DollarSign className="size-4 text-cortex-warning" />
           Monthly DCF Projection Table
-          <span className="text-[10px] font-normal text-gray-500">({entries.length} months)</span>
+          <span className="text-[10px] font-normal text-cortex-muted">({entries.length} months)</span>
         </h4>
-        <button className="text-gray-500">
+        <button className="text-cortex-muted">
           {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
         </button>
       </div>
 
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/5">
-            <th className="text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Month</th>
-            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Net CF</th>
-            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Discounted CF</th>
-            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Cum. Nominal</th>
-            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Cum. Discounted</th>
-            <th className="text-center px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Status</th>
+          <tr className="border-b border-cortex-subtle">
+            <th className="text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Month</th>
+            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Net CF</th>
+            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Discounted CF</th>
+            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Cum. Nominal</th>
+            <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Cum. Discounted</th>
+            <th className="text-center px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -616,37 +617,37 @@ function DCFTable({
                 className={`border-b border-white/[0.03] text-xs transition-colors ${
                   activeHighlight
                     ? paybackMode === 'nominal'
-                      ? 'bg-[#06D7F6]/8 border-[#06D7F6]/15'
-                      : 'bg-[#FB923C]/8 border-[#FB923C]/15'
+                      ? 'bg-cortex-info/8 border-cortex-info/15'
+                      : 'bg-cortex-warning/8 border-cortex-warning/15'
                     : 'hover:bg-white/[0.015]'
                 }`}
               >
                 <td className="px-4 py-2.5 font-medium text-white">
                   M{entry.month}
                   {isNominalBE && (
-                    <span className="ml-1.5 text-[9px] font-bold text-[#06D7F6] bg-[#06D7F6]/10 px-1 py-0.5 rounded">NOMINAL BE</span>
+                    <span className="ml-1.5 text-[9px] font-bold text-cortex-info bg-cortex-info/10 px-1 py-0.5 rounded">NOMINAL BE</span>
                   )}
                   {isDiscountedBE && (
-                    <span className="ml-1.5 text-[9px] font-bold text-[#FB923C] bg-[#FB923C]/10 px-1 py-0.5 rounded">DCF BE</span>
+                    <span className="ml-1.5 text-[9px] font-bold text-cortex-warning bg-cortex-warning/10 px-1 py-0.5 rounded">DCF BE</span>
                   )}
                 </td>
-                <td className={`px-4 py-2.5 text-right font-mono ${entry.net_cashflow >= 0 ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                <td className={`px-4 py-2.5 text-right font-mono ${entry.net_cashflow >= 0 ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                   {fmt$(entry.net_cashflow)}
                 </td>
-                <td className={`px-4 py-2.5 text-right font-mono ${entry.discounted_cashflow >= 0 ? 'text-[#10B981]/80' : 'text-[#FD4438]/80'}`}>
+                <td className={`px-4 py-2.5 text-right font-mono ${entry.discounted_cashflow >= 0 ? 'text-cortex-success/80' : 'text-cortex-danger/80'}`}>
                   {fmt$(entry.discounted_cashflow)}
                 </td>
-                <td className={`px-4 py-2.5 text-right font-mono ${cumNominal >= 0 ? 'text-white' : 'text-gray-500'}`}>
+                <td className={`px-4 py-2.5 text-right font-mono ${cumNominal >= 0 ? 'text-white' : 'text-cortex-muted'}`}>
                   {fmt$(Math.round(cumNominal))}
                 </td>
-                <td className={`px-4 py-2.5 text-right font-mono font-bold ${entry.cumulative_discounted >= 0 ? 'text-[#FB923C]' : 'text-gray-500'}`}>
+                <td className={`px-4 py-2.5 text-right font-mono font-bold ${entry.cumulative_discounted >= 0 ? 'text-cortex-warning' : 'text-cortex-muted'}`}>
                   {fmt$(entry.cumulative_discounted)}
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   {entry.cumulative_discounted >= 0 ? (
-                    <CheckCircle2 className="size-3.5 text-[#10B981] mx-auto" />
+                    <CheckCircle2 className="size-3.5 text-cortex-success mx-auto" />
                   ) : (
-                    <div className="size-3.5 rounded-full border border-white/10 mx-auto" />
+                    <div className="size-3.5 rounded-full border border-cortex-default mx-auto" />
                   )}
                 </td>
               </tr>
@@ -657,7 +658,7 @@ function DCFTable({
 
       {collapsed && entries.length > 6 && (
         <button
-          className="w-full py-2.5 text-[11px] text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] transition-colors border-t border-white/5 text-center"
+          className="w-full py-2.5 text-[11px] text-cortex-muted hover:text-cortex-secondary hover:bg-white/[0.02] transition-colors border-t border-cortex-subtle text-center"
           onClick={() => setCollapsed(false)}
         >
           Show all {entries.length} months ↓
@@ -677,25 +678,25 @@ function MethodNotes({ notes, version }: { notes: string[]; version: string }) {
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 w-full text-left py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors"
+        className="flex items-center gap-2 w-full text-left py-2 px-3 rounded-cortex-sm hover:bg-white/[0.03] transition-colors"
       >
-        {open ? <ChevronDown className="size-4 text-gray-500" /> : <ChevronRight className="size-4 text-gray-500" />}
-        <Info className="size-4 text-[#8B5CF6]" />
-        <span className="text-sm font-semibold text-gray-400">DCF Method Notes</span>
-        <span className="text-[10px] text-gray-600 ml-1">({notes.length} entries · {version})</span>
+        {open ? <ChevronDown className="size-4 text-cortex-muted" /> : <ChevronRight className="size-4 text-cortex-muted" />}
+        <Info className="size-4 text-cortex-accent" />
+        <span className="text-sm font-semibold text-cortex-muted">DCF Method Notes</span>
+        <span className="text-[10px] text-cortex-faint ml-1">({notes.length} entries · {version})</span>
       </button>
       {open && (
-        <div className="bg-black/30 border border-white/5 rounded-xl p-4 mt-1">
+        <div className="bg-cortex-sunken border border-cortex-subtle rounded-cortex-md p-4 mt-1">
           <div className="space-y-2">
             {notes.map((note, idx) => (
-              <div key={idx} className="flex items-start gap-2.5 text-[11px] text-gray-400">
-                <Zap className="size-3 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
+              <div key={idx} className="flex items-start gap-2.5 text-[11px] text-cortex-muted">
+                <Zap className="size-3 text-cortex-accent flex-shrink-0 mt-0.5" />
                 {note}
               </div>
             ))}
           </div>
-          <div className="mt-3 text-[9px] text-gray-700">
-            <strong className="text-gray-600">§7 Governance:</strong> DCF uses validated net monthly cash flow only.
+          <div className="mt-3 text-[9px] text-cortex-faint">
+            <strong className="text-cortex-faint">§7 Governance:</strong> DCF uses validated net monthly cash flow only.
             No re-run of ROI math. No modification of gain assumptions. No effect on confidence score.
           </div>
         </div>
@@ -716,11 +717,11 @@ function StaleBanner({ portfolioState }: { portfolioState?: PortfolioState }) {
   if (!latest?.finance_recalc_required) return null;
 
   return (
-    <div className="flex items-start gap-3 px-4 py-3 bg-[#FB923C]/8 border border-[#FB923C]/20 rounded-xl">
-      <AlertTriangle className="size-4 text-[#FB923C] flex-shrink-0 mt-0.5" />
+    <div className="flex items-start gap-3 px-4 py-3 bg-cortex-warning/8 border border-cortex-warning/20 rounded-cortex-md">
+      <AlertTriangle className="size-4 text-cortex-warning flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-[#FB923C]">DCF Stale — Recalculation Required</div>
-        <p className="text-[11px] text-gray-400 mt-0.5">
+        <div className="text-xs font-bold text-cortex-warning">DCF Stale — Recalculation Required</div>
+        <p className="text-[11px] text-cortex-muted mt-0.5">
           A discount rate, gain, investment, or timeline change was detected in{' '}
           <strong className="text-white">{latest.version}</strong>. The NPV and discounted payback
           shown may not reflect the latest assumptions. Apply & Recalculate to refresh.
@@ -728,7 +729,7 @@ function StaleBanner({ portfolioState }: { portfolioState?: PortfolioState }) {
       </div>
       <button
         onClick={() => setDismissed(true)}
-        className="text-[10px] text-gray-600 hover:text-white underline flex-shrink-0"
+        className="text-[10px] text-cortex-faint hover:text-white underline flex-shrink-0"
       >
         Dismiss
       </button>
@@ -744,12 +745,12 @@ function PaybackToggle({ mode, onToggle }: { mode: PaybackMode; onToggle: () => 
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-xs font-medium text-gray-300"
+      className="flex items-center gap-2 px-3 py-1.5 rounded-cortex-sm bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default transition-all text-xs font-medium text-cortex-secondary"
       title="Toggle between nominal and discounted payback view"
     >
       {mode === 'nominal'
-        ? <ToggleLeft className="size-4 text-[#06D7F6]" />
-        : <ToggleRight className="size-4 text-[#FB923C]" />
+        ? <ToggleLeft className="size-4 text-cortex-info" />
+        : <ToggleRight className="size-4 text-cortex-warning" />
       }
       <span>{mode === 'nominal' ? 'Nominal' : 'Discounted'} Payback</span>
     </button>
@@ -763,12 +764,12 @@ function PaybackToggle({ mode, onToggle }: { mode: PaybackMode; onToggle: () => 
 // ════════════════════════════════════════════════════════════════════════════════
 
 const SENSITIVITY_RATES = [
-  { rate: 6,  label: '6%',  note: 'Conservative / risk-free proxy',  color: '#10B981' },
-  { rate: 8,  label: '8%',  note: 'Low-cost capital',                color: '#06D7F6' },
-  { rate: 10, label: '10%', note: 'Standard WACC',                   color: '#3B82F6' },
-  { rate: 12, label: '12%', note: 'Default (finance_v1_dcf §1)',     color: '#8B5CF6' },
-  { rate: 15, label: '15%', note: 'Growth-stage hurdle',             color: '#FB923C' },
-  { rate: 20, label: '20%', note: 'VC / high-risk hurdle',           color: '#FD4438' },
+  { rate: 6,  label: '6%',  note: 'Conservative / risk-free proxy',  color: status.success },
+  { rate: 8,  label: '8%',  note: 'Low-cost capital',                color: status.info },
+  { rate: 10, label: '10%', note: 'Standard WACC',                   color: brand.accentAlt },
+  { rate: 12, label: '12%', note: 'Default (finance_v1_dcf §1)',     color: brand.accent },
+  { rate: 15, label: '15%', note: 'Growth-stage hurdle',             color: status.warning },
+  { rate: 20, label: '20%', note: 'VC / high-risk hurdle',           color: status.danger },
 ];
 
 function DCFSensitivityTable({
@@ -799,22 +800,22 @@ function DCFSensitivityTable({
   const maxAbsNPV = Math.max(...rows.map(r => Math.abs(r.npv ?? 0)), 1);
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       <button
-        className="flex items-center justify-between w-full px-5 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+        className="flex items-center justify-between w-full px-5 py-3 border-b border-cortex-subtle hover:bg-white/[0.02] transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <h4 className="text-sm font-bold text-white flex items-center gap-2">
-          <Zap className="size-4 text-[#FB923C]" />
+          <Zap className="size-4 text-cortex-warning" />
           Rate Sensitivity Surface
-          <span className="text-[10px] font-normal text-gray-500">
+          <span className="text-[10px] font-normal text-cortex-muted">
             — NPV at {SENSITIVITY_RATES.length} preset rates
           </span>
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#FB923C]/10 text-[#FB923C] font-bold uppercase">
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-warning/10 text-cortex-warning font-bold uppercase">
             Pure read · no mutation
           </span>
         </h4>
-        <span className="text-gray-500">
+        <span className="text-cortex-muted">
           {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
         </span>
       </button>
@@ -822,23 +823,23 @@ function DCFSensitivityTable({
       {open && (
         <span className="contents">
           <div className="px-5 pt-3 pb-1">
-            <p className="text-[10px] text-gray-500">
+            <p className="text-[10px] text-cortex-muted">
               All six DCF runs use the identical validated portfolio cashflow ({cashflow?.monthly_projection?.length ?? 0} months).
               Only the discount rate changes. No ROI math is modified.{' '}
-              <span className="text-[#8B5CF6] font-semibold">Highlighted row = current active rate.</span>
+              <span className="text-cortex-accent font-semibold">Highlighted row = current active rate.</span>
             </p>
           </div>
 
           {/* Table */}
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-white/5">
-                <th className="text-left   px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Rate</th>
-                <th className="text-left   px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Scenario</th>
-                <th className="text-right  px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">NPV</th>
-                <th className="text-center px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">DCF Payback</th>
-                <th className="text-left   px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600 w-36">NPV Bar</th>
-                <th className="text-center px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">Verdict</th>
+              <tr className="border-b border-cortex-subtle">
+                <th className="text-left   px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Rate</th>
+                <th className="text-left   px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Scenario</th>
+                <th className="text-right  px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">NPV</th>
+                <th className="text-center px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">DCF Payback</th>
+                <th className="text-left   px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint w-36">NPV Bar</th>
+                <th className="text-center px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-cortex-faint">Verdict</th>
               </tr>
             </thead>
             <tbody>
@@ -849,7 +850,7 @@ function DCFSensitivityTable({
                     key={row.rate}
                     className={`border-b border-white/[0.03] transition-colors ${
                       row.isActive
-                        ? 'bg-[#8B5CF6]/8 border-[#8B5CF6]/15'
+                        ? 'bg-cortex-accent/8 border-cortex-accent/15'
                         : 'hover:bg-white/[0.015]'
                     }`}
                   >
@@ -859,7 +860,7 @@ function DCFSensitivityTable({
                         <div className="size-2 rounded-full flex-shrink-0" style={{ backgroundColor: row.color }} />
                         <span
                           className="text-sm font-black"
-                          style={{ color: row.isActive ? row.color : '#D1D5DB' }}
+                          style={{ color: row.isActive ? row.color : text.secondary }}
                         >
                           {row.label}
                         </span>
@@ -872,40 +873,40 @@ function DCFSensitivityTable({
                     </td>
 
                     {/* Scenario note */}
-                    <td className="px-3 py-2.5 text-[10px] text-gray-500">{row.note}</td>
+                    <td className="px-3 py-2.5 text-[10px] text-cortex-muted">{row.note}</td>
 
                     {/* NPV */}
                     <td className="px-3 py-2.5 text-right">
                       {row.npv !== null ? (
                         <span
                           className="font-mono font-bold text-xs"
-                          style={{ color: row.isPositive ? '#10B981' : '#FD4438' }}
+                          style={{ color: row.isPositive ? status.success : status.danger }}
                         >
                           {fmt$(row.npv)}
                         </span>
                       ) : (
-                        <span className="text-gray-600 text-[10px]">—</span>
+                        <span className="text-cortex-faint text-[10px]">—</span>
                       )}
                     </td>
 
                     {/* DCF Payback */}
                     <td className="px-3 py-2.5 text-center text-[10px]">
                       {row.dcfPayback !== null ? (
-                        <span className="font-mono text-gray-300">M{row.dcfPayback}</span>
+                        <span className="font-mono text-cortex-secondary">M{row.dcfPayback}</span>
                       ) : (
-                        <span className="text-gray-600 italic">not reached</span>
+                        <span className="text-cortex-faint italic">not reached</span>
                       )}
                     </td>
 
                     {/* NPV Horizontal Bar */}
                     <td className="px-3 py-2.5">
                       {row.npv !== null && (
-                        <div className="relative h-4 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div className="relative h-4 w-full bg-cortex-control rounded-full overflow-hidden">
                           <div
                             className="absolute top-0 h-full rounded-full transition-all duration-500"
                             style={{
                               width: `${Math.max(4, barPct)}%`,
-                              backgroundColor: row.isPositive ? (row.color) : '#FD4438',
+                              backgroundColor: row.isPositive ? (row.color) : status.danger,
                               opacity: row.isActive ? 1 : 0.55,
                             }}
                           />
@@ -921,16 +922,16 @@ function DCFSensitivityTable({
                     {/* Verdict */}
                     <td className="px-5 py-2.5 text-center">
                       {row.npv === null ? (
-                        <span className="text-[9px] text-gray-600">n/a</span>
+                        <span className="text-[9px] text-cortex-faint">n/a</span>
                       ) : row.isPositive ? (
                         <div className="flex items-center justify-center gap-1">
-                          <CheckCircle2 className="size-3.5 text-[#10B981]" />
-                          <span className="text-[9px] text-[#10B981] font-bold">Positive</span>
+                          <CheckCircle2 className="size-3.5 text-cortex-success" />
+                          <span className="text-[9px] text-cortex-success font-bold">Positive</span>
                         </div>
                       ) : (
                         <div className="flex items-center justify-center gap-1">
-                          <AlertTriangle className="size-3.5 text-[#FD4438]" />
-                          <span className="text-[9px] text-[#FD4438] font-bold">Negative</span>
+                          <AlertTriangle className="size-3.5 text-cortex-danger" />
+                          <span className="text-[9px] text-cortex-danger font-bold">Negative</span>
                         </div>
                       )}
                     </td>
@@ -941,7 +942,7 @@ function DCFSensitivityTable({
           </table>
 
           {/* Summary callout */}
-          <div className="px-5 py-3 border-t border-white/5">
+          <div className="px-5 py-3 border-t border-cortex-subtle">
             {(() => {
               const positiveRates = rows.filter(r => r.isPositive && r.npv !== null);
               const negativeRates = rows.filter(r => !r.isPositive && r.npv !== null);
@@ -950,8 +951,8 @@ function DCFSensitivityTable({
                 : null;
 
               return (
-                <div className="flex items-start gap-2.5 text-[11px] text-gray-400">
-                  <Info className="size-4 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2.5 text-[11px] text-cortex-muted">
+                  <Info className="size-4 text-cortex-accent flex-shrink-0 mt-0.5" />
                   <span>
                     {positiveRates.length === SENSITIVITY_RATES.length
                       ? `Project maintains positive NPV across all ${SENSITIVITY_RATES.length} tested rates — strong value creation profile.`
@@ -985,32 +986,32 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
   const [open, setOpen] = useState(true);
   const isSuccess = irrResult && isIRRModel(irrResult);
   const isHighReturn = isSuccess && irrResult.irr_percent_annual > 300;
-  const statusColor = !irrResult ? '#6B7280' : isSuccess ? (isHighReturn ? '#FB923C' : '#06D7F6') : '#FD4438';
+  const statusColor = !irrResult ? status.neutral : isSuccess ? (isHighReturn ? status.warning : status.info) : status.danger;
   const statusBg = !irrResult
-    ? 'bg-white/[0.03] border-white/10'
+    ? 'bg-white/[0.03] border-cortex-default'
     : isSuccess
-      ? isHighReturn ? 'bg-[#FB923C]/8 border-[#FB923C]/20' : 'bg-[#06D7F6]/8 border-[#06D7F6]/20'
-      : 'bg-[#FD4438]/8 border-[#FD4438]/20';
+      ? isHighReturn ? 'bg-cortex-warning/8 border-cortex-warning/20' : 'bg-cortex-info/8 border-cortex-info/20'
+      : 'bg-cortex-danger/8 border-cortex-danger/20';
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       <button
-        className="flex items-center justify-between w-full px-5 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+        className="flex items-center justify-between w-full px-5 py-3 border-b border-cortex-subtle hover:bg-white/[0.02] transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <h4 className="text-sm font-bold text-white flex items-center gap-2">
-          <Activity className="size-4 text-[#06D7F6]" />
+          <Activity className="size-4 text-cortex-info" />
           Internal Rate of Return (IRR)
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#06D7F6]/10 text-[#06D7F6] font-bold uppercase">
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-info/10 text-cortex-info font-bold uppercase">
             finance_v2_dcf_irr
           </span>
           {isHighReturn && (
-            <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#FB923C]/10 text-[#FB923C] font-bold animate-pulse">
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-warning/10 text-cortex-warning font-bold animate-pulse">
               HIGH RETURN
             </span>
           )}
         </h4>
-        <span className="text-gray-500">
+        <span className="text-cortex-muted">
           {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
         </span>
       </button>
@@ -1018,7 +1019,7 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
       {open && (
         <div className="p-5 space-y-4">
           {/* Status banner */}
-          <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${statusBg}`}>
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-cortex-md border ${statusBg}`}>
             {isSuccess
               ? <CheckCircle2 className="size-5 flex-shrink-0 mt-0.5" style={{ color: statusColor }} />
               : <AlertTriangle className="size-5 flex-shrink-0 mt-0.5" style={{ color: statusColor }} />
@@ -1033,7 +1034,7 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
                 }
               </div>
               {isSuccess && (
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <p className="text-[11px] text-cortex-muted mt-0.5">
                   Binary search converged in{' '}
                   <strong className="text-white">{irrResult.iterations_used}</strong>{' '}
                   iteration{irrResult.iterations_used !== 1 ? 's' : ''} · tolerance{' '}
@@ -1041,7 +1042,7 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
                 </p>
               )}
               {!isSuccess && irrResult && (
-                <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                <p className="text-[11px] text-cortex-muted mt-0.5 leading-relaxed">
                   {(irrResult as IRRFailure).reason}
                 </p>
               )}
@@ -1050,11 +1051,11 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
 
           {/* §8: High-return warning */}
           {isHighReturn && (
-            <div className="flex items-start gap-3 px-4 py-3 bg-[#FB923C]/5 border border-[#FB923C]/20 rounded-xl">
-              <AlertTriangle className="size-4 text-[#FB923C] flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-[#FB923C] font-medium">
+            <div className="flex items-start gap-3 px-4 py-3 bg-cortex-warning/5 border border-cortex-warning/20 rounded-cortex-md">
+              <AlertTriangle className="size-4 text-cortex-warning flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-cortex-warning font-medium">
                 High return — check realism assumptions.{' '}
-                <span className="font-normal text-gray-400">
+                <span className="font-normal text-cortex-muted">
                   IRR of {isSuccess ? irrResult.irr_percent_annual.toFixed(1) : '—'}% exceeds 300%.
                   This is within the solver range (0–500%) but warrants review of gain estimates, investment size, and timeline assumptions.
                 </span>
@@ -1068,13 +1069,13 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
               {[
                 { label: 'IRR Annual',   value: `${irrResult.irr_percent_annual.toFixed(2)}%`,   color: statusColor, note: 'True internal rate of return' },
                 { label: 'IRR Monthly',  value: `${irrResult.irr_percent_monthly.toFixed(4)}%`,  color: statusColor, note: 'irr_annual / 12' },
-                { label: 'Solver',       value: irrResult.irr_solver_method.replace('_', ' '),   color: '#8B5CF6',   note: '§3: stable, deterministic' },
-                { label: 'Iterations',   value: String(irrResult.iterations_used),               color: '#10B981',   note: `Tolerance: ${irrResult.tolerance}` },
+                { label: 'Solver',       value: irrResult.irr_solver_method.replace('_', ' '),   color: brand.accent,   note: '§3: stable, deterministic' },
+                { label: 'Iterations',   value: String(irrResult.iterations_used),               color: status.success,   note: `Tolerance: ${irrResult.tolerance}` },
               ].map(item => (
-                <div key={item.label} className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 mb-1">{item.label}</div>
+                <div key={item.label} className="bg-white/[0.03] border border-white/[0.06] rounded-cortex-sm p-3">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint mb-1">{item.label}</div>
                   <div className="text-base font-black" style={{ color: item.color }}>{item.value}</div>
-                  <div className="text-[9px] text-gray-600 mt-1">{item.note}</div>
+                  <div className="text-[9px] text-cortex-faint mt-1">{item.note}</div>
                 </div>
               ))}
             </div>
@@ -1083,15 +1084,15 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
           {/* §8: Solver audit trail */}
           {isSuccess && irrResult.notes.length > 0 && (
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-gray-600 mb-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-cortex-faint mb-2">
                 Solver Audit Trail
               </div>
               <div className="space-y-1.5">
                 {irrResult.notes.map((note, idx) => (
                   <div key={idx} className={`flex items-start gap-2 text-[11px] ${
-                    note.startsWith('⚠') ? 'text-[#FB923C]' : 'text-gray-400'
+                    note.startsWith('⚠') ? 'text-cortex-warning' : 'text-cortex-muted'
                   }`}>
-                    <Zap className={`size-3 flex-shrink-0 mt-0.5 ${note.startsWith('⚠') ? 'text-[#FB923C]' : 'text-[#06D7F6]'}`} />
+                    <Zap className={`size-3 flex-shrink-0 mt-0.5 ${note.startsWith('⚠') ? 'text-cortex-warning' : 'text-cortex-info'}`} />
                     {note}
                   </div>
                 ))}
@@ -1101,8 +1102,8 @@ function IRRSection({ irrResult }: { irrResult: IRRModel | IRRFailure | undefine
 
           {/* Governance footer */}
           <div className="pt-2 border-t border-white/[0.04]">
-            <p className="text-[9px] text-gray-700">
-              <strong className="text-gray-600">finance_v2_dcf_irr Governance (§7):</strong>{' '}
+            <p className="text-[9px] text-cortex-faint">
+              <strong className="text-cortex-faint">finance_v2_dcf_irr Governance (§7):</strong>{' '}
               IRR uses the identical validated net cash flows as DCF — no re-run of ROI math, no modification of
               gains or confidence. Solver: binary search · Bounds: 0%–500% annual ·
               Tolerance: {isSuccess ? irrResult.tolerance : '0.0001'} · Max iterations: 100.
@@ -1143,13 +1144,13 @@ export function DCFPanel({
   // ── Failure state ─────────────────────────────────────────────────────────
   if (!dcfResult || !isDCFModel(dcfResult)) {
     return (
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6 space-y-4">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="size-5 text-[#FB923C]" />
+          <AlertTriangle className="size-5 text-cortex-warning" />
           <h3 className="text-base font-bold text-white">DCF Analysis — Not Available</h3>
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#FB923C]/10 text-[#FB923C] font-bold">finance_not_calculable</span>
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-warning/10 text-cortex-warning font-bold">finance_not_calculable</span>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-cortex-muted">
           {dcfResult ? `Reason: ${(dcfResult as any).reason ?? 'unknown'}` : 'DCF model has not been computed yet.'}
           {' '}DCF requires a valid portfolio cashflow projection and a discount rate in [0, 40]%.
         </p>
@@ -1174,20 +1175,20 @@ export function DCFPanel({
       {/* ── Panel Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="size-8 rounded-lg bg-[#8B5CF6]/20 flex items-center justify-center">
-            <TrendingDown className="size-4 text-[#8B5CF6]" />
+          <div className="size-8 rounded-cortex-sm bg-cortex-accent/20 flex items-center justify-center">
+            <TrendingDown className="size-4 text-cortex-accent" />
           </div>
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
               Discounted Cash Flow Analysis
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] font-bold uppercase tracking-wider">
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-accent/10 border border-cortex-accent/20 text-cortex-accent font-bold uppercase tracking-wider">
                 {dcf.finance_model_version}
               </span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#06D7F6]/10 border border-[#06D7F6]/20 text-[#06D7F6] font-bold uppercase tracking-wider">
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-cortex-info/10 border border-cortex-info/20 text-cortex-info font-bold uppercase tracking-wider">
                 finance_v2_dcf_irr
               </span>
             </h3>
-            <p className="text-[10px] text-gray-500">
+            <p className="text-[10px] text-cortex-muted">
               NPV · IRR · Discounted Payback · DCF Waterfall · CFO-grade financial modeling
             </p>
           </div>
@@ -1238,9 +1239,9 @@ export function DCFPanel({
       <MethodNotes notes={dcf.method_notes} version={dcf.finance_model_version} />
 
       {/* Governance Footer */}
-      <div className="bg-white/[0.01] border border-white/[0.04] rounded-xl p-3">
-        <p className="text-[9px] text-gray-700">
-          <strong className="text-gray-600">finance_v1_dcf Governance (§7):</strong>{' '}
+      <div className="bg-white/[0.01] border border-white/[0.04] rounded-cortex-md p-3">
+        <p className="text-[9px] text-cortex-faint">
+          <strong className="text-cortex-faint">finance_v1_dcf Governance (§7):</strong>{' '}
           DCF is purely a valuation adjustment layer. Operates on validated net monthly cash flows after
           dependency validation + confidence weighting + gain ramping. Does not re-run ROI math, modify
           gain assumptions, or affect confidence scores.

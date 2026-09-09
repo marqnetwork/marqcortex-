@@ -1,54 +1,55 @@
 /**
- * MARQ CORTEX — Unified Design Tokens
+ * MARQ CORTEX — Design token aliases.
  *
- * Single source of truth for brand colors, gradients, shadows, and spacing
- * used across BOTH team-facing and client-facing surfaces.
+ * WHAT THIS IS NOW
+ *   A compatibility surface over `@/app/lib/tokens`, kept because three
+ *   components import `BRAND` and `GRADIENTS` by these names. It declares no
+ *   colour of its own.
  *
- * Rule: Every component imports from here. No more inline hex codes that drift.
+ * WHAT IT USED TO BE
+ *   A second token module. It called itself the single source of truth and
+ *   spelled out seventeen hex values — the same values `lib/tokens.ts`
+ *   declares, written a second time. Two modules each claiming to be the one
+ *   place a colour is decided is the failure this whole migration exists to
+ *   remove, and it is worse here than in a component: a component with a
+ *   stray hex is one screen adrift, whereas a second TOKEN module hands the
+ *   drift to everything that imports it.
+ *
+ *   Only the twelve names anything actually reads are kept — the sixteen dead
+ *   ones (`purpleDark`, `cyanDark`, seven greys, four surfaces, two borders)
+ *   are gone rather than given token values nobody would consume. New code
+ *   should import `@/app/lib/tokens` directly.
  */
+
+import { brand, status } from '@/app/lib/tokens';
+
+/** Compose an 8-digit hex from a token and an alpha, for the *Glow values. */
+const glow = (hex: string, alpha: number) =>
+  `${hex}${Math.round(alpha * 255).toString(16).padStart(2, '0').toUpperCase()}`;
 
 // ── Brand Palette ─────────────────────────────────────────────────────────────
 
 export const BRAND = {
   /** Primary violet — hero buttons, active tabs, key badges */
-  purple:     '#8B5CF6',
-  purpleDark: '#7C3AED',
-  purpleGlow: 'rgba(139,92,246,0.35)',
+  purple:     brand.accent,
+  purpleGlow: glow(brand.accent, 0.35),
 
   /** Secondary blue — gradients, links, info states */
-  blue:       '#3B82F6',
-  blueDark:   '#2563EB',
-  blueGlow:   'rgba(59,130,246,0.25)',
+  blue:       brand.accentAlt,
+  blueGlow:   glow(brand.accentAlt, 0.25),
 
   /** Accent cyan — highlights, secondary CTAs, data viz */
-  cyan:       '#06D7F6',
-  cyanDark:   '#0891B2',
-  cyanGlow:   'rgba(6,215,246,0.20)',
+  cyan:       status.info,
+  cyanGlow:   glow(status.info, 0.20),
 
   /** Semantic status colors */
-  green:      '#10B981',
-  greenGlow:  'rgba(16,185,129,0.15)',
-  orange:     '#FB923C',
-  orangeGlow: 'rgba(251,146,60,0.18)',
-  red:        '#FD4438',
-  redGlow:    'rgba(253,68,56,0.15)',
+  green:      status.success,
+  greenGlow:  glow(status.success, 0.15),
+  orange:     status.warning,
+  orangeGlow: glow(status.warning, 0.18),
+  red:        status.danger,
+  redGlow:    glow(status.danger, 0.15),
 
-  /** Neutrals — shared across both team & client UIs */
-  gray50:     '#F5F5FF',
-  gray400:    '#9CA3AF',
-  gray500:    '#70707C',
-  gray600:    '#4B5563',
-  gray700:    '#374151',
-  gray800:    '#1F2937',
-  gray900:    '#111827',
-
-  /** Surfaces */
-  bgDeep:     '#0A0A0F',
-  bgCard:     'rgba(0,0,0,0.40)',
-  bgCardHover:'rgba(255,255,255,0.05)',
-  bgOverlay:  'rgba(0,0,0,0.80)',
-  borderSubtle:'rgba(255,255,255,0.10)',
-  borderHover: 'rgba(255,255,255,0.20)',
 } as const;
 
 // ── Gradient presets ──────────────────────────────────────────────────────────

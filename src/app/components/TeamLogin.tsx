@@ -2,11 +2,18 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { teamLogin } from '@/app/services/dataService';
-import { FEATURES } from '@/config/features';
-import type { TeamUser } from '@/app/lib/session';
+import {
+  brand,
+} from '@/app/lib/tokens';
+
 
 interface TeamLoginProps {
-  onLogin: (accessToken: string, user?: TeamUser | null) => void;
+  /**
+   * `user` is the login response's user object, unnarrowed. The session layer
+   * owns what a team identity is (`normaliseTeamUser`), so this component
+   * hands the response through rather than reshaping it on the way.
+   */
+  onLogin: (accessToken: string, user?: unknown) => void;
   onBack: () => void;
 }
 
@@ -23,19 +30,15 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
     setError('');
     setIsLoading(true);
     try {
-      if (FEATURES.BACKEND_INTEGRATION) {
-        const result = await teamLogin(email, password);
-        // The login response already carries the authenticated team member —
-        // hand it to the session alongside the token.
-        onLogin(result.accessToken, result.user ?? null);
-      } else {
-        // Demo mode: accept demo credentials without API call
-        if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
-          onLogin('demo_access_token_12345');
-        } else {
-          throw new Error('Invalid credentials. Use demo credentials shown below.');
-        }
-      }
+      // One login path, both modes. `dataService.teamLogin` already branches on
+      // demo mode and returns the same shape either way — including the user.
+      // This component used to re-implement the demo branch inline and call
+      // `onLogin(token)` with no user at all, so a demo session carried no
+      // identity: the console greeted "Team" and the sidebar had nobody to
+      // name. Deleting the duplicate fixes that and removes a second copy of
+      // the demo credentials from the source.
+      const result = await teamLogin(email, password);
+      onLogin(result.accessToken, result.user ?? null);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
@@ -44,14 +47,14 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center px-8 relative overflow-hidden">
+    <div className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center px-8 relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Floating Orbs */}
         <motion.div
           className="absolute w-96 h-96 rounded-full opacity-20 blur-3xl"
           style={{ 
-            background: 'radial-gradient(circle, #8B5CF6, transparent)',
+            background: `radial-gradient(circle, ${brand.accent}, transparent)`,
             top: '10%',
             left: '10%'
           }}
@@ -64,7 +67,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
         <motion.div
           className="absolute w-96 h-96 rounded-full opacity-20 blur-3xl"
           style={{ 
-            background: 'radial-gradient(circle, #3B82F6, transparent)',
+            background: `radial-gradient(circle, ${brand.accentAlt}, transparent)`,
             bottom: '10%',
             right: '10%'
           }}
@@ -79,7 +82,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
         <div 
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(#8B5CF6 1px, transparent 1px), linear-gradient(90deg, #8B5CF6 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(${brand.accent} 1px, transparent 1px), linear-gradient(90deg, ${brand.accent} 1px, transparent 1px)`,
             backgroundSize: '50px 50px',
           }}
         />
@@ -88,7 +91,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
         {[...Array(15)].map((_, i) => (
           <motion.div
             key={i}
-            className="absolute w-1 h-1 rounded-full bg-[#8B5CF6]"
+            className="absolute w-1 h-1 rounded-full bg-cortex-accent"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -113,7 +116,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
           onClick={onBack}
           whileHover={{ x: -4 }}
           whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 text-[#70707C] hover:text-white transition-colors"
+          className="flex items-center gap-2 text-cortex-neutral hover:text-white transition-colors"
           style={{ fontFamily: 'Inter' }}
           aria-label="Back to home"
         >
@@ -137,7 +140,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] rounded-2xl mb-6 shadow-2xl shadow-[#8B5CF6]/50"
+            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cortex-accent to-cortex-accent-alt rounded-cortex-lg mb-6 shadow-2xl shadow-cortex-accent/50"
           >
             <Shield size={40} className="text-white" />
           </motion.div>
@@ -146,7 +149,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-5xl font-bold mb-3 bg-gradient-to-r from-[#F5F5FF] to-[#8B5CF6] bg-clip-text text-transparent"
+            className="text-5xl font-bold mb-3 bg-gradient-to-r from-cortex-primary to-cortex-accent bg-clip-text text-transparent"
             style={{ fontFamily: 'Inter' }}
           >
             Team Login
@@ -156,7 +159,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-[#70707C] text-lg"
+            className="text-cortex-neutral text-lg"
             style={{ fontFamily: 'Inter' }}
           >
             Access the MARQ Cortex internal dashboard
@@ -173,7 +176,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
         >
           {/* Email Field */}
           <div>
-            <label htmlFor="team-email" className="block text-sm font-semibold text-[#F5F5FF] mb-2" style={{ fontFamily: 'Inter' }}>
+            <label htmlFor="team-email" className="block text-sm font-semibold text-cortex-primary mb-2" style={{ fontFamily: 'Inter' }}>
               Email Address
             </label>
             <motion.input
@@ -185,15 +188,15 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               placeholder="team@company.com"
               required
               autoComplete="email"
-              className="w-full p-4 bg-[#1a1a1a] border-2 border-[#242424] rounded-xl text-white placeholder:text-[#70707C] focus:border-[#8B5CF6] focus:outline-none transition-all"
+              className="w-full p-4 bg-cortex-overlay border-2 border-cortex-strong rounded-cortex-md text-white placeholder:text-cortex-neutral focus:border-cortex-accent focus:outline-none transition-all"
               style={{ fontFamily: 'Inter' }}
             />
-            <p className="mt-1.5 text-xs text-[#70707C] flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
+            <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
               Use:&nbsp;
               <button
                 type="button"
                 onClick={() => setEmail('admin@marqcortex.com')}
-                className="text-[#06D7F6] hover:text-white font-mono bg-[#06D7F6]/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
               >
                 admin@marqcortex.com
               </button>
@@ -202,7 +205,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
 
           {/* Password Field */}
           <div>
-            <label htmlFor="team-password" className="block text-sm font-semibold text-[#F5F5FF] mb-2" style={{ fontFamily: 'Inter' }}>
+            <label htmlFor="team-password" className="block text-sm font-semibold text-cortex-primary mb-2" style={{ fontFamily: 'Inter' }}>
               Password
             </label>
             <div className="relative">
@@ -215,24 +218,24 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
-                className="w-full p-4 pr-12 bg-[#1a1a1a] border-2 border-[#242424] rounded-xl text-white placeholder:text-[#70707C] focus:border-[#8B5CF6] focus:outline-none transition-all"
+                className="w-full p-4 pr-12 bg-cortex-overlay border-2 border-cortex-strong rounded-cortex-md text-white placeholder:text-cortex-neutral focus:border-cortex-accent focus:outline-none transition-all"
                 style={{ fontFamily: 'Inter' }}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#70707C] hover:text-white transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-cortex-neutral hover:text-white transition-colors"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-[#70707C] flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
+            <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
               Use:&nbsp;
               <button
                 type="button"
                 onClick={() => setPassword('CortexAdmin2026!')}
-                className="text-[#06D7F6] hover:text-white font-mono bg-[#06D7F6]/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
               >
                 CortexAdmin2026!
               </button>
@@ -247,7 +250,7 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-5 h-5 rounded-md bg-[#1a1a1a] border-2 border-[#242424] appearance-none checked:bg-gradient-to-br checked:from-[#8B5CF6] checked:to-[#3B82F6] checked:border-[#8B5CF6] cursor-pointer transition-all"
+                  className="w-5 h-5 rounded-md bg-cortex-overlay border-2 border-cortex-strong appearance-none checked:bg-gradient-to-br checked:from-cortex-accent checked:to-cortex-accent-alt checked:border-cortex-accent cursor-pointer transition-all"
                 />
                 {rememberMe && (
                   <motion.svg
@@ -263,13 +266,13 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                   </motion.svg>
                 )}
               </div>
-              <span className="text-[#70707C] group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
+              <span className="text-cortex-neutral group-hover:text-white transition-colors" style={{ fontFamily: 'Inter' }}>
                 Remember me
               </span>
             </label>
             <button
               type="button"
-              className="text-[#8B5CF6] hover:text-[#3B82F6] transition-colors font-medium"
+              className="text-cortex-accent hover:text-cortex-accent-alt transition-colors font-medium"
               style={{ fontFamily: 'Inter' }}
             >
               Forgot password?
@@ -282,11 +285,11 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
             disabled={isLoading}
             whileHover={{ scale: isLoading ? 1 : 1.02, y: isLoading ? 0 : -2 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl text-lg font-bold flex items-center justify-center gap-2 hover:shadow-2xl hover:shadow-[#8B5CF6]/50 transition-all relative overflow-hidden group disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md text-lg font-bold flex items-center justify-center gap-2 hover:shadow-2xl hover:shadow-cortex-accent/50 transition-all relative overflow-hidden group disabled:opacity-70 disabled:cursor-not-allowed"
             style={{ fontFamily: 'Inter' }}
           >
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#8B5CF6]"
+              className="absolute inset-0 bg-gradient-to-r from-cortex-accent-alt to-cortex-accent"
               initial={{ x: '100%' }}
               whileHover={{ x: 0 }}
               transition={{ duration: 0.3 }}
@@ -302,9 +305,9 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl"
+              className="p-4 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md"
             >
-              <p className="text-sm text-[#FD4438] text-center font-medium" style={{ fontFamily: 'Inter' }}>
+              <p className="text-sm text-cortex-danger text-center font-medium" style={{ fontFamily: 'Inter' }}>
                 {error}
               </p>
             </motion.div>
@@ -316,14 +319,14 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="mt-6 p-5 bg-[#06D7F6]/10 border border-[#06D7F6]/30 rounded-xl"
+          className="mt-6 p-5 bg-cortex-info/10 border border-cortex-info/30 rounded-cortex-md"
         >
-          <p className="text-xs font-semibold text-[#06D7F6] mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
+          <p className="text-xs font-semibold text-cortex-info mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
             Demo Credentials
           </p>
           <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
-            <p className="text-[#F5F5FF]"><span className="text-[#70707C]">Email:</span> admin@marqcortex.com</p>
-            <p className="text-[#F5F5FF]"><span className="text-[#70707C]">Password:</span> CortexAdmin2026!</p>
+            <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> admin@marqcortex.com</p>
+            <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> CortexAdmin2026!</p>
           </div>
         </motion.div>
       </motion.div>

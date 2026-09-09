@@ -13,32 +13,68 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserPlus, Mail, Shield, Clock, CheckCircle2, X,
   Edit2, Trash2, Loader2, AlertTriangle, RefreshCw, Copy,
-  ChevronDown, Check, Eye, Crown, Star,
+  ChevronDown, Check, Eye, Crown, Star, Briefcase, LineChart,
 } from 'lucide-react';
+import { EmptyState } from '@/app/components/EmptyState';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
-  getDemoTeamMembers, getDemoTeamFallback,
+  getDemoTeamMembers,
   type TeamMemberRecord,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
+// means showing a roster of people who are not in the workspace.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { useApp } from '@/app/contexts/AppContext';
+import {
+  TEAM_ROLES, assignableRoles, canAdministerTeam, normalizeTeamRole,
+  TEAM_ROLE_LABELS, type TeamRole,
+} from '@/app/lib/teamRole';
+import { LoadingState, ErrorState, Modal } from '@/app/components/ui/cortex';
+import { brand, status } from '@/app/lib/tokens';
+import { asArray } from '@/app/lib/payload';
+
 
 interface Props {
   accessToken?: string;
 }
 
-const ROLE_CONFIG = {
-  admin:    { label: 'Admin',    color: 'text-[#8B5CF6] bg-[#8B5CF6]/10 border-[#8B5CF6]/30', icon: Crown },
-  reviewer: { label: 'Reviewer', color: 'text-[#06D7F6] bg-[#06D7F6]/10 border-[#06D7F6]/30', icon: Star },
-  viewer:   { label: 'Viewer',   color: 'text-white/60 bg-white/5 border-white/15',            icon: Eye },
+/**
+ * Presentation for each of the SIX roles the server issues.
+ *
+ * This map used to hold three. The server has always been able to assign and
+ * return `analyst`, `consultant` and `owner`, and each of them fell through
+ * `ROLE_CONFIG[member.teamRole] || ROLE_CONFIG.viewer` and rendered as a
+ * "Viewer" — a consultant shown to their own team as read-only. Labels come
+ * from the one vocabulary in `@/app/lib/teamRole` so they cannot drift from it.
+ */
+const ROLE_CONFIG: Record<TeamRole, { label: string; color: string; icon: typeof Crown }> = {
+  owner:      { label: TEAM_ROLE_LABELS.owner,      color: 'text-cortex-warning bg-cortex-warning/10 border-cortex-warning/30', icon: Crown       },
+  admin:      { label: TEAM_ROLE_LABELS.admin,      color: 'text-cortex-accent bg-cortex-accent/10 border-cortex-accent/30', icon: Shield      },
+  consultant: { label: TEAM_ROLE_LABELS.consultant, color: 'text-cortex-accent-alt bg-cortex-accent-alt/10 border-cortex-accent-alt/30', icon: Briefcase   },
+  analyst:    { label: TEAM_ROLE_LABELS.analyst,    color: 'text-cortex-success bg-cortex-success/10 border-cortex-success/30', icon: LineChart   },
+  reviewer:   { label: TEAM_ROLE_LABELS.reviewer,   color: 'text-cortex-info bg-cortex-info/10 border-cortex-info/30', icon: Star        },
+  viewer:     { label: TEAM_ROLE_LABELS.viewer,     color: 'text-white/60 bg-cortex-control border-white/15',           icon: Eye         },
 };
 
-const ROLE_PERMS: Record<string, string[]> = {
-  admin:    ['All permissions — full platform access'],
-  reviewer: ['View submissions', 'Manage CORTEX', 'Send proposals', 'Reply to messages', 'Add notes'],
-  viewer:   ['View submissions', 'View reports (read-only)'],
+/** Roles in the order the console presents them — most privileged first. */
+const ROLE_DISPLAY_ORDER: readonly TeamRole[] = [...TEAM_ROLES].reverse();
+
+const ROLE_PERMS: Record<TeamRole, string[]> = {
+  owner:      ['Everything an admin can do', 'Can administer other admins'],
+  admin:      ['All platform access', 'Invite, re-role and remove members'],
+  consultant: ['Own engagements end to end', 'Edit CORTEX, proposals and reports', 'Message clients'],
+  analyst:    ['Work the pipeline', 'Edit CORTEX analysis', 'Add notes'],
+  reviewer:   ['View submissions', 'Manage CORTEX', 'Send proposals', 'Reply to messages', 'Add notes'],
+  viewer:     ['View submissions', 'View reports (read-only)'],
 };
 
 export function TeamManagement({ accessToken }: Props) {
+  // The signed-in member's own role, from the session the server issued.
+  // It decides what this console OFFERS; the server decides what it allows.
+  const { teamRole } = useApp();
+  const assignable = assignableRoles(teamRole);
+  const mayAdminister = canAdministerTeam(teamRole);
+
   const [members, setMembers]         = useState<TeamMemberRecord[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [error, setError]             = useState<string | null>(null);
@@ -70,18 +106,21 @@ export function TeamManagement({ accessToken }: Props) {
       }
 
       const res = await getTeamMembers(accessToken);
-      setMembers(res.members);
+      // Narrowed before it becomes state — see `@/app/lib/payload`.
+      setMembers(asArray<TeamMemberRecord>(res.members));
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load team members:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load team members');
-      } else {
-        // Fall back to demo data
-        const demoMembers: TeamMemberRecord[] = getDemoTeamFallback();
-        setMembers(demoMembers);
-      }
+      // A FAILED LOAD IS NOT A ROSTER.
+      //
+      // This used to substitute `getDemoTeamFallback()` whenever
+      // `SHOW_API_ERRORS` was off — the default — so a failed request showed
+      // the team a list of colleagues who are not in their workspace, with
+      // roles they do not hold, beside controls offering to re-role and remove
+      // them. Every one of those actions would have failed against ids the
+      // server has never seen.
+      setError(err.message || 'The team list could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +162,9 @@ export function TeamManagement({ accessToken }: Props) {
   const stats = {
     total:   members.length,
     active:  members.filter(m => m.status === 'active').length,
-    admins:  members.filter(m => m.teamRole === 'admin').length,
+    // "Administrators" is the server's ADMIN_ROLES set, not the single `admin`
+    // string — an owner administers the team and was not being counted.
+    admins:  members.filter(m => canAdministerTeam(normalizeTeamRole(m.teamRole))).length,
     viewers: members.filter(m => m.teamRole === 'viewer').length,
   };
 
@@ -137,10 +178,10 @@ export function TeamManagement({ accessToken }: Props) {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-cortex-md border text-sm font-medium ${
               toast.type === 'success'
-                ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
-                : 'bg-[#FD4438]/10 border-[#FD4438]/30 text-[#FD4438]'
+                ? 'bg-cortex-success/10 border-cortex-success/30 text-cortex-success'
+                : 'bg-cortex-danger/10 border-cortex-danger/30 text-cortex-danger'
             }`}
           >
             {toast.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
@@ -159,29 +200,41 @@ export function TeamManagement({ accessToken }: Props) {
           <button
             onClick={load}
             disabled={isLoading}
-            className="p-2.5 bg-black/40 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:border-white/20 transition-all"
+            aria-label="Refresh the team list"
+            className="p-2.5 bg-cortex-raised border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white hover:border-cortex-strong transition-all"
           >
-            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold hover:opacity-90 transition-opacity text-sm"
-          >
-            <UserPlus className="size-4" />
-            Invite Member
-          </button>
+          {/* Only an admin or owner may create a member. Offering the button to
+              anybody else produced a modal, a filled-in form and a 403. */}
+          {mayAdminister && (
+            <button
+              onClick={() => setShowInvite(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold hover:opacity-90 transition-opacity text-sm"
+            >
+              <UserPlus className="size-4" />
+              Invite Member
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Stats ── */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* ── Stats ──
+          Counted from the roster, so they are shown only when there IS a
+          roster. A failed load left "Total Members 0 · Active 0 · Admins 0"
+          on screen above the error — four confident zeros about a list the
+          panel had not managed to read. The grid is responsive for the same
+          reason the role cards are: four fixed columns are unreadable on a
+          phone. */}
+      {!error && !isLoading && (
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: Users,        label: 'Total Members', value: stats.total,   color: '#8B5CF6' },
-          { icon: CheckCircle2, label: 'Active',         value: stats.active,  color: '#10B981' },
-          { icon: Crown,        label: 'Admins',         value: stats.admins,  color: '#FB923C' },
-          { icon: Eye,          label: 'Viewers',        value: stats.viewers, color: '#06D7F6' },
+          { icon: Users,        label: 'Total Members', value: stats.total,   color: brand.accent    },
+          { icon: CheckCircle2, label: 'Active',         value: stats.active,  color: status.success  },
+          { icon: Crown,        label: 'Admins',         value: stats.admins,  color: status.warning  },
+          { icon: Eye,          label: 'Viewers',        value: stats.viewers, color: status.info     },
         ].map(s => (
-          <div key={s.label} className="bg-black/40 border border-white/10 rounded-xl p-5">
+          <div key={s.label} className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-white/50">{s.label}</span>
               <s.icon className="size-4" style={{ color: s.color }} />
@@ -190,32 +243,47 @@ export function TeamManagement({ accessToken }: Props) {
           </div>
         ))}
       </div>
-
-      {/* ── Error / loading ── */}
-      {error && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-[#FD4438] text-sm">
-          <AlertTriangle className="size-4 flex-shrink-0" />
-          {error}
-          <button onClick={load} className="ml-auto underline text-xs">Retry</button>
-        </div>
       )}
 
-      {/* ── Team list ── */}
-      <div className="bg-black/40 border border-white/10 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      {/* ── Error ──
+          The shared state, so a failure here announces itself through
+          `role="alert"` rather than being red text that appears silently. */}
+      {error && (
+        <ErrorState
+          title="The team list could not be loaded"
+          detail={error}
+          onRetry={load}
+        />
+      )}
+
+      {/* ── Team list ──
+          Hidden while the load is failing: an EMPTY state below an error reads
+          as "there is nobody here", which is precisely the thing the panel does
+          not know. The error carries the retry; the list returns with it. */}
+      {!error && (
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-cortex-default flex items-center justify-between">
           <h2 className="font-bold text-white">Team Members</h2>
           <span className="text-sm text-white/40">{members.length} member{members.length !== 1 ? 's' : ''}</span>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="size-8 text-[#8B5CF6] animate-spin" />
+          // A bare spinner said nothing to a screen reader and held none of the
+          // space the roster will occupy, so the panel jumped when it arrived.
+          <div className="py-10 px-6">
+            <LoadingState label="Loading your team" rows={4} />
           </div>
         ) : members.length === 0 ? (
-          <div className="py-16 text-center">
-            <Users className="size-12 text-white/20 mx-auto mb-3" />
-            <p className="text-white/40 text-sm">No team members found</p>
-          </div>
+          // "No team members found" describes a search that failed. Nobody
+          // searched: the directory is empty, which is a different statement
+          // and has a next action — the invite, offered only to somebody the
+          // server would actually let perform it.
+          <EmptyState
+            icon={Users}
+            title="No team members yet"
+            body="Team members appear here once they have been invited and have signed in for the first time."
+            action={mayAdminister ? { label: 'Invite a colleague', onClick: () => setShowInvite(true) } : undefined}
+          />
         ) : (
           <div className="divide-y divide-white/8">
             {members.map(member => (
@@ -226,16 +294,21 @@ export function TeamManagement({ accessToken }: Props) {
                 onEdit={() => setEditingId(editingId === member.id ? null : member.id)}
                 onRoleChange={(role) => handleRoleChange(member.id, role)}
                 onRemove={() => setConfirmRemove(member.id)}
+                assignable={assignable}
               />
             ))}
           </div>
         )}
       </div>
 
+      )}
+
       {/* ── Role reference ── */}
-      <div className="grid grid-cols-3 gap-4">
-        {(Object.entries(ROLE_CONFIG) as [string, typeof ROLE_CONFIG['admin']][]).map(([role, cfg]) => (
-          <div key={role} className="bg-black/30 border border-white/8 rounded-xl p-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+        {ROLE_DISPLAY_ORDER.map(role => {
+          const cfg = ROLE_CONFIG[role];
+          return (
+          <div key={role} className="bg-cortex-sunken border border-white/8 rounded-cortex-md p-5">
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold mb-3 ${cfg.color}`}>
               <cfg.icon className="size-3.5" />
               {cfg.label}
@@ -249,7 +322,8 @@ export function TeamManagement({ accessToken }: Props) {
               ))}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Invite modal ── */}
@@ -259,6 +333,7 @@ export function TeamManagement({ accessToken }: Props) {
             onClose={() => setShowInvite(false)}
             onInvite={handleInvite}
             showToast={showToast}
+            assignable={assignable}
           />
         )}
       </AnimatePresence>
@@ -280,15 +355,19 @@ export function TeamManagement({ accessToken }: Props) {
 // ── Member row ──────────────────────────────────────────────────────────────
 
 function MemberRow({
-  member, isEditing, onEdit, onRoleChange, onRemove,
+  member, isEditing, onEdit, onRoleChange, onRemove, assignable,
 }: {
   member: TeamMemberRecord;
   isEditing: boolean;
   onEdit: () => void;
-  onRoleChange: (role: string) => void;
+  onRoleChange: (role: TeamRole) => void;
   onRemove: () => void;
+  assignable: readonly TeamRole[];
 }) {
-  const roleCfg = ROLE_CONFIG[member.teamRole] || ROLE_CONFIG.viewer;
+  // A stored role the console does not recognise resolves to `viewer` rather
+  // than crashing on an undefined config — the same fail-closed default the
+  // server uses.
+  const roleCfg = ROLE_CONFIG[normalizeTeamRole(member.teamRole)];
   const RoleIcon = roleCfg.icon;
   const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -300,7 +379,7 @@ function MemberRow({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {/* Avatar */}
-          <div className="size-11 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+          <div className="size-11 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">{initials}</span>
           </div>
 
@@ -309,7 +388,7 @@ function MemberRow({
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold text-white">{member.name}</span>
               {member.isSelf && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-[#8B5CF6]/20 text-[#8B5CF6] rounded-full font-bold">YOU</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-cortex-accent/20 text-cortex-accent rounded-full font-bold">YOU</span>
               )}
               {/* Role badge */}
               {isEditing ? (
@@ -317,6 +396,7 @@ function MemberRow({
                   current={member.teamRole}
                   disabled={member.isSelf}
                   onChange={onRoleChange}
+                  assignable={assignable}
                 />
               ) : (
                 <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-semibold ${roleCfg.color}`}>
@@ -344,14 +424,16 @@ function MemberRow({
           </div>
         </div>
 
-        {/* Actions */}
-        {!member.isSelf && (
+        {/* Actions — re-roling and removing are administration, so they follow
+            the same rule the server applies. `assignable` is empty for every
+            role that may not administer the team. */}
+        {!member.isSelf && assignable.length > 0 && (
           <div className="flex items-center gap-2">
             <button
               onClick={onEdit}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-cortex-sm transition-colors ${
                 isEditing
-                  ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
+                  ? 'bg-cortex-accent/20 text-cortex-accent'
                   : 'hover:bg-white/8 text-white/40 hover:text-white'
               }`}
               title="Edit role"
@@ -360,7 +442,7 @@ function MemberRow({
             </button>
             <button
               onClick={onRemove}
-              className="p-2 rounded-lg hover:bg-[#FD4438]/10 text-white/30 hover:text-[#FD4438] transition-colors"
+              className="p-2 rounded-cortex-sm hover:bg-cortex-danger/10 text-white/30 hover:text-cortex-danger transition-colors"
               title="Remove member"
             >
               <Trash2 className="size-4" />
@@ -374,21 +456,32 @@ function MemberRow({
 
 // ── Role selector dropdown ──────────────────────────────────────────────────
 
+/**
+ * Offers only the roles the signed-in member may actually assign.
+ *
+ * The server's rule is that a caller may grant a role whose rank is strictly
+ * below their own, and may never change their own role at all. This dropdown
+ * used to list every role it knew to everybody, so a reviewer was invited to
+ * promote somebody to admin and received a 403 for trying. `assignableRoles`
+ * is the same rule read from the same vocabulary — it removes the dead offer,
+ * it does not create the restriction. The server still enforces it.
+ */
 function RoleSelector({
-  current, disabled, onChange,
+  current, disabled, onChange, assignable,
 }: {
   current: string;
   disabled: boolean;
-  onChange: (role: string) => void;
+  onChange: (role: TeamRole) => void;
+  assignable: readonly TeamRole[];
 }) {
   const [open, setOpen] = useState(false);
-  if (disabled) return null;
+  if (disabled || assignable.length === 0) return null;
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-[#8B5CF6]/50 bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 transition-colors font-semibold"
+        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-cortex-accent/50 bg-cortex-accent/10 text-cortex-accent hover:bg-cortex-accent/20 transition-colors font-semibold"
       >
         Change Role
         <ChevronDown className="size-3" />
@@ -399,21 +492,24 @@ function RoleSelector({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            className="absolute top-full left-0 mt-1 z-20 bg-[#0D0D18] border border-white/15 rounded-xl shadow-xl overflow-hidden min-w-40"
+            className="absolute top-full left-0 mt-1 z-20 bg-cortex-overlay border border-white/15 rounded-cortex-md shadow-xl overflow-hidden min-w-40"
           >
-            {(Object.entries(ROLE_CONFIG) as [string, typeof ROLE_CONFIG['admin']][]).map(([role, cfg]) => (
-              <button
-                key={role}
-                onClick={() => { onChange(role); setOpen(false); }}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors text-left ${
-                  role === current ? 'text-white' : 'text-white/60'
-                }`}
-              >
-                <cfg.icon className="size-3.5 flex-shrink-0" style={{ color: role === current ? undefined : undefined }} />
-                {cfg.label}
-                {role === current && <Check className="size-3 ml-auto text-[#8B5CF6]" />}
-              </button>
-            ))}
+            {assignable.map(role => {
+              const cfg = ROLE_CONFIG[role];
+              return (
+                <button
+                  key={role}
+                  onClick={() => { onChange(role); setOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-cortex-control transition-colors text-left ${
+                    role === current ? 'text-white' : 'text-white/60'
+                  }`}
+                >
+                  <cfg.icon className="size-3.5 flex-shrink-0" />
+                  {cfg.label}
+                  {role === current && <Check className="size-3 ml-auto text-cortex-accent" />}
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
@@ -424,15 +520,20 @@ function RoleSelector({
 // ── Invite modal ────────────────────────────────────────────────────────────
 
 function InviteModal({
-  onClose, onInvite, showToast,
+  onClose, onInvite, showToast, assignable,
 }: {
   onClose: () => void;
   onInvite: (p: { name: string; email: string; teamRole: string }) => Promise<string | undefined>;
   showToast: (msg: string, type: 'success' | 'error') => void;
+  /** The roles the signed-in member may grant — never more than the server allows. */
+  assignable: readonly TeamRole[];
 }) {
   const [name, setName]           = useState('');
   const [email, setEmail]         = useState('');
-  const [teamRole, setTeamRole]   = useState('viewer');
+  // `viewer` is always assignable by anyone who may invite at all (it is the
+  // lowest rank), so it is a safe default that never pre-selects a role the
+  // server would refuse.
+  const [teamRole, setTeamRole]   = useState<TeamRole>('viewer');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tempCreds, setTempCreds] = useState<{ email: string; password: string } | null>(null);
   const [copied, setCopied]       = useState(false);
@@ -464,61 +565,60 @@ function InviteModal({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0A0A0F] border border-white/15 rounded-2xl w-full max-w-md shadow-2xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <UserPlus className="size-5 text-[#8B5CF6]" />
-            {tempCreds ? 'Member Created' : 'Invite Team Member'}
-          </h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/8 rounded-lg transition-colors text-white/40 hover:text-white">
-            <X className="size-4" />
-          </button>
-        </div>
+  // The temporary password is shown ONCE and cannot be recovered, so once it is
+  // on screen the dialog stops being dismissible by a click beside it — losing
+  // it to a stray click means the new member cannot sign in. Escape still works.
+  const showingCredentials = tempCreds !== null;
 
-        <div className="p-6 space-y-5">
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      dismissOnBackdrop={!showingCredentials}
+      title={showingCredentials ? 'Member created' : 'Invite a team member'}
+      description={
+        showingCredentials
+          ? 'Share these temporary credentials securely. They are shown once.'
+          : 'They will be created with a temporary password you share with them.'
+      }
+    >
+        <div className="space-y-5">
           {tempCreds ? (
             /* ── Credentials reveal ── */
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 bg-[#10B981]/10 border border-[#10B981]/25 rounded-xl">
-                <CheckCircle2 className="size-5 text-[#10B981] flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-4 bg-cortex-success/10 border border-cortex-success/25 rounded-cortex-md">
+                <CheckCircle2 className="size-5 text-cortex-success flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-[#10B981] text-sm mb-1">Account created successfully!</p>
-                  <p className="text-gray-400 text-xs leading-relaxed">
+                  <p className="font-semibold text-cortex-success text-sm mb-1">Account created successfully!</p>
+                  <p className="text-cortex-muted text-xs leading-relaxed">
                     Share these temporary credentials with {name}. They can log in and change their password.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-sm space-y-2">
+              <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-4 font-mono text-sm space-y-2">
                 <div className="flex justify-between">
                   <span className="text-white/40">Email</span>
                   <span className="text-white">{tempCreds.email}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/40">Password</span>
-                  <span className="text-[#FB923C] font-bold">{tempCreds.password}</span>
+                  <span className="text-cortex-warning font-bold">{tempCreds.password}</span>
                 </div>
               </div>
 
               <button
                 onClick={copyCredentials}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md text-sm font-medium transition-colors"
               >
-                {copied ? <Check className="size-4 text-[#10B981]" /> : <Copy className="size-4" />}
+                {copied ? <Check className="size-4 text-cortex-success" /> : <Copy className="size-4" />}
                 {copied ? 'Copied to clipboard!' : 'Copy credentials'}
               </button>
 
               <button
                 onClick={() => { showToast(`${name} added to the team`, 'success'); onClose(); }}
-                className="w-full py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
+                className="w-full py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold text-sm hover:opacity-90 transition-opacity"
               >
                 Done
               </button>
@@ -533,7 +633,7 @@ function InviteModal({
                   value={name}
                   onChange={e => setName(e.target.value)}
                   placeholder="Jane Doe"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder:text-white/25 focus:border-cortex-accent focus:outline-none text-sm"
                 />
               </div>
 
@@ -544,7 +644,7 @@ function InviteModal({
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="jane@yourcompany.com"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/25 focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white placeholder:text-white/25 focus:border-cortex-accent focus:outline-none text-sm"
                 />
               </div>
 
@@ -552,30 +652,32 @@ function InviteModal({
                 <label className="block text-sm font-semibold text-white mb-2">Role</label>
                 <select
                   value={teamRole}
-                  onChange={e => setTeamRole(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
+                  onChange={e => setTeamRole(normalizeTeamRole(e.target.value))}
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white focus:border-cortex-accent focus:outline-none text-sm"
                 >
-                  <option value="viewer">Viewer — read-only access</option>
-                  <option value="reviewer">Reviewer — can edit and send reports</option>
-                  <option value="admin">Admin — full access</option>
+                  {assignable.map(role => (
+                    <option key={role} value={role}>
+                      {TEAM_ROLE_LABELS[role]} — {ROLE_PERMS[role][0]}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <div className="p-3.5 bg-[#3B82F6]/8 border border-[#3B82F6]/20 rounded-xl text-xs text-gray-400 leading-relaxed">
+              <div className="p-3.5 bg-cortex-accent-alt/8 border border-cortex-accent-alt/20 rounded-cortex-md text-xs text-cortex-muted leading-relaxed">
                 A temporary password will be auto-generated and shown after creation. Share it securely with the new member.
               </div>
 
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-sm transition-colors"
+                  className="flex-1 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md font-semibold text-sm transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !name.trim() || !email.trim()}
-                  className="flex-1 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
                   {isSubmitting ? 'Creating…' : 'Create Account'}
@@ -584,13 +686,22 @@ function InviteModal({
             </span>
           )}
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   );
 }
 
 // ── Confirm remove modal ────────────────────────────────────────────────────
 
+/**
+ * Removing somebody is irreversible, so this dialog is DELIBERATELY not
+ * dismissible by clicking the backdrop — a stray click beside a confirm dialog
+ * should not silently cancel the decision the user came here to make. Escape
+ * still closes it, because that is an intentional keystroke.
+ *
+ * It is the shared `Modal`, so unlike the overlay it replaces it declares
+ * itself as a dialog, moves focus in and back out, traps Tab, and locks the
+ * background scroll.
+ */
 function ConfirmRemoveModal({
   member, onConfirm, onCancel,
 }: {
@@ -606,40 +717,37 @@ function ConfirmRemoveModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0A0A0F] border border-[#FD4438]/30 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
-      >
-        <div className="text-center mb-6">
-          <div className="size-14 rounded-full bg-[#FD4438]/10 flex items-center justify-center mx-auto mb-4">
-            <Trash2 className="size-6 text-[#FD4438]" />
-          </div>
-          <h3 className="text-lg font-bold text-white mb-2">Remove Team Member?</h3>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            <strong className="text-white">{member.name}</strong> ({member.email}) will lose access to CORTEX immediately.
-            This action deletes their Supabase account and cannot be undone.
-          </p>
-        </div>
-        <div className="flex gap-3">
+    <Modal
+      open
+      onClose={onCancel}
+      size="sm"
+      dismissOnBackdrop={false}
+      title="Remove team member?"
+      description={`${member.name} (${member.email}) will lose access to CORTEX immediately. This deletes their Supabase account and cannot be undone.`}
+      footer={
+        <>
           <button
             onClick={onCancel}
-            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-sm transition-colors"
+            className="flex-1 py-3 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md font-semibold text-sm transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handle}
             disabled={isRemoving}
-            className="flex-1 py-3 bg-[#FD4438] hover:bg-[#E03530] text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-cortex-danger hover:bg-cortex-danger/85 text-white rounded-cortex-md font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isRemoving ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            {isRemoving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
             {isRemoving ? 'Removing…' : 'Remove'}
           </button>
+        </>
+      }
+    >
+      <div className="text-center">
+        <div className="size-14 rounded-full bg-cortex-danger/10 flex items-center justify-center mx-auto" aria-hidden="true">
+          <Trash2 className="size-6 text-cortex-danger" />
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </Modal>
   );
 }

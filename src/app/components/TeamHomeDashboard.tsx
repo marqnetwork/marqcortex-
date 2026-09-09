@@ -14,7 +14,7 @@
  *   - "All Leads" tab (embeds FullFeaturedDashboard)
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,24 +29,35 @@ import {
   BellRing, ListChecks, Layers, LineChart, UserCheck,
   Building2, Filter, MessageSquare,
 } from 'lucide-react';
-import { getSubmissions, getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
+import { getSubmissions, getTeamMembers, getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
 import { InlineAITrigger } from '@/app/components/InlineAITrigger';
 import { FEATURES } from '@/config/features';
 import { useApp } from '@/app/contexts/AppContext';
 import type { Submission } from '@/app/services/dataService';
+import {
+  shouldLeadWithOrientation, nextOrientationStep, type OrientationInput,
+} from '@/app/core/orientation';
+import { OrientationPanel } from '@/app/components/OrientationPanel';
+import { LoadingState, ErrorState, Surface } from '@/app/components/ui/cortex';
+import {brand, status, border, surface, text as TEXT } from '@/app/lib/tokens';
+import { canAdministerTeam } from '@/app/lib/teamRole';
+import type { DestinationId } from '@/app/core/navigationModel';
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────
 
-const PURPLE = '#8B5CF6';
-const BLUE   = '#3B82F6';
-const CYAN   = '#06D7F6';
-const GREEN  = '#10B981';
-const ORANGE = '#FB923C';
-const RED    = '#FD4438';
-const GRAY   = '#70707C';
+// The palette this file used to declare as seven hex literals of its own. Same
+// seven colours, read from the token layer, so a change to the product's
+// status vocabulary reaches this dashboard instead of stopping at it.
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const CYAN   = status.info;
+const GREEN  = status.success;
+const ORANGE = status.warning;
+const RED    = status.danger;
+const GRAY   = status.neutral;
 
 // ─────────────────────────────────────────────────────────────
 // DATA HELPERS
@@ -109,8 +120,12 @@ function buildTrendData(subs: Submission[]) {
       .reduce((acc, s) => acc + parseROI(s.roiPotential), 0) / 1_000;
     days.push({ label, count, value: Math.round(value) });
   }
-  // Seed a bit so empty days have plausible data
-  return days.map((d, i) => ({ ...d, count: d.count || (i % 2 === 0 ? 1 : 0), value: d.value || (i % 3 === 0 ? 120 : 0) }));
+  // The chart shows the seven days it actually has. A previous revision padded
+  // empty days with invented counts and values "so empty days have plausible
+  // data" — a trend line drawn from numbers no submission produced, on a
+  // dashboard whose whole purpose is telling the team what is true. A quiet
+  // week now reads as a quiet week.
+  return days;
 }
 
 // Priority actions from submission data
@@ -172,14 +187,21 @@ function buildPriorityActions(subs: Submission[]): PriorityAction[] {
       });
     }
   });
-  // Sort: critical first, then by days descending
-  return actions
-    .sort((a, b) => {
-      const uo = { critical: 0, high: 1, medium: 2 };
-      return (uo[a.urgency] - uo[b.urgency]) || (b.daysAgo - a.daysAgo);
-    })
-    .slice(0, 6);
+  // Sort: critical first, then by days descending.
+  //
+  // The whole backlog is returned, NOT the first six. The panel used to cap
+  // here and then count the capped array — so a team with twenty things needing
+  // attention was told "6 items need attention", and critical items past the
+  // cap were neither shown nor counted. The cap is a display decision and now
+  // lives at the render, where the count can still tell the truth.
+  return actions.sort((a, b) => {
+    const uo = { critical: 0, high: 1, medium: 2 };
+    return (uo[a.urgency] - uo[b.urgency]) || (b.daysAgo - a.daysAgo);
+  });
 }
+
+/** How many priority actions the inbox shows before it says "and N more". */
+const PRIORITY_VISIBLE_LIMIT = 6;
 
 interface ActivityItem {
   id: string;
@@ -241,7 +263,7 @@ export function TeamHomeDashboard({
   onSubmissionSelect,
   accessToken,
 }: Props) {
-  const { teamUser } = useApp();
+  const { teamUser, teamRole } = useApp();
   const [activeTab, setActiveTab] = useState<DashTab>('command');
   const [now] = useState(() => new Date());
 
@@ -254,26 +276,84 @@ export function TeamHomeDashboard({
     () => (backendMode ? [] : getDemoSubmissions()),
   );
 
-  useEffect(() => {
+  // LOADING IS NOT EMPTY.
+  //
+  // Without this flag the panel rendered its computed KPIs the moment it
+  // mounted, which meant a complete grid of zeros — "you have no leads, no
+  // pipeline, nothing needs attention" — for as long as the first request took,
+  // shown with the same confidence as real data. A busy workspace was told it
+  // was empty. The flag starts true only in backend mode, because demo mode has
+  // its data synchronously and has nothing to wait for.
+  const [isLoading, setIsLoading] = useState(backendMode);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadSubmissions = useCallback(async (signal: { cancelled: boolean }) => {
     if (!backendMode) {
       setSubmissions(getDemoSubmissions());
+      setIsLoading(false);
+      setLoadError(null);
       return;
     }
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const result = await getSubmissions(accessToken!);
+      if (!signal.cancelled) setSubmissions(result.submissions ?? []);
+    } catch (err) {
+      if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load submissions', err);
+      if (!signal.cancelled) {
+        // A failed load is NOT an empty workspace, and must not be drawn as
+        // one. The panel says the load failed and offers to retry; it does not
+        // quietly present zero as a measurement.
+        setSubmissions([]);
+        setLoadError(err instanceof Error ? err.message : 'The workspace could not be loaded.');
+      }
+    } finally {
+      if (!signal.cancelled) setIsLoading(false);
+    }
+  }, [backendMode, accessToken]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    void loadSubmissions(signal);
+    return () => { signal.cancelled = true; };
+  }, [loadSubmissions]);
+
+  // Team Pulse showed the seeded roster in EVERY mode, so a live workspace saw
+  // four invented colleagues with invented activity beside its real pipeline.
+  // In backend mode the roster is not loaded on this surface, so it is empty —
+  // and `null` tells the orientation model that the count is unknown rather
+  // than zero, which is the difference between "we do not know" and "you are
+  // alone here".
+  const teamMembers = useMemo(() => (backendMode ? [] : getDemoTeamMembers()), [backendMode]);
+
+  // The roster count exists ONLY to resolve the "bring your team in"
+  // orientation step, and that step is offered only to a role the server lets
+  // administer the team. So it is fetched only when it can change what the user
+  // sees — never as an unconditional extra request on the console's busiest
+  // surface. `null` until it arrives, which the model reads as UNKNOWN and
+  // renders as neither done nor outstanding.
+  const [liveTeamMemberCount, setLiveTeamMemberCount] = useState<number | null>(null);
+  const needsRoster = backendMode && canAdministerTeam(teamRole);
+
+  useEffect(() => {
+    if (!needsRoster) { setLiveTeamMemberCount(null); return; }
     let cancelled = false;
     (async () => {
       try {
-        const result = await getSubmissions(accessToken!);
-        if (!cancelled) setSubmissions(result.submissions ?? []);
+        const result = await getTeamMembers(accessToken!);
+        if (!cancelled) setLiveTeamMemberCount(result.members?.length ?? null);
       } catch (err) {
-        if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load submissions', err);
-        // Backend mode surfaces the real (empty) state rather than demo data.
-        if (!cancelled) setSubmissions([]);
+        if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load the roster', err);
+        // A failed roster load leaves the count UNKNOWN. It must not read as
+        // zero: "you are alone here" is not a claim to make from a failure.
+        if (!cancelled) setLiveTeamMemberCount(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [backendMode, accessToken]);
+  }, [needsRoster, accessToken]);
 
-  const teamMembers  = useMemo(() => getDemoTeamMembers(), []);
+  const teamMemberCount = backendMode ? liveTeamMemberCount : teamMembers.length;
 
   // ── Computed KPIs ──────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -291,6 +371,10 @@ export function TeamHomeDashboard({
 
   const trendData      = useMemo(() => buildTrendData(submissions), [submissions]);
   const priorityItems  = useMemo(() => buildPriorityActions(submissions), [submissions]);
+  const visiblePriorityItems = useMemo(
+    () => priorityItems.slice(0, PRIORITY_VISIBLE_LIMIT),
+    [priorityItems],
+  );
 
   // Recent Activity: live submissions in backend mode, representative feed in demo mode
   const recentActivity = useMemo<ActivityItem[]>(
@@ -329,6 +413,17 @@ export function TeamHomeDashboard({
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  // ── Orientation ─────────────────────────────────────────────────────────────
+  // Derived from the state above — nothing stored, nothing invented.
+  const orientationFacts: OrientationInput = {
+    role: teamRole,
+    isLoading,
+    submissions,
+    teamMemberCount,
+  };
+  const leadWithOrientation = shouldLeadWithOrientation(orientationFacts);
+  const nextStep = nextOrientationStep(orientationFacts);
+
   return (
     <div className="flex flex-col h-full">
       {/* ── Tab bar ── */}
@@ -340,10 +435,10 @@ export function TeamHomeDashboard({
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-cortex-md text-sm font-medium border-b-2 transition-all ${
               activeTab === t.id
-                ? 'border-[#8B5CF6] text-white bg-[#8B5CF6]/8'
-                : 'border-transparent text-gray-400 hover:text-white hover:bg-white/4'
+                ? 'border-cortex-accent text-white bg-cortex-accent/8'
+                : 'border-transparent text-cortex-muted hover:text-white hover:bg-white/4'
             }`}
           >
             <t.icon className="size-4" />
@@ -362,11 +457,50 @@ export function TeamHomeDashboard({
               exit={{ opacity: 0 }}
               className="p-6 space-y-6"
             >
+              {/* ── LOADING ────────────────────────────────────────────────
+                  Shown INSTEAD of the command centre, never alongside it. The
+                  KPI grid computed from an unloaded workspace reads as a
+                  measurement of zero, and there is no way to tell a real zero
+                  from a pending one once it is on the screen. */}
+              {isLoading && (
+                <Surface level="raised" padding="loose">
+                  <LoadingState label="Loading your workspace" rows={5} />
+                </Surface>
+              )}
+
+              {/* ── LOAD FAILURE ──────────────────────────────────────────
+                  A failed request is not an empty workspace. It says so, and
+                  offers the retry rather than presenting zero as a fact. */}
+              {!isLoading && loadError && (
+                <ErrorState
+                  title="This workspace could not be loaded"
+                  detail={loadError}
+                  onRetry={() => { void loadSubmissions({ cancelled: false }); }}
+                />
+              )}
+
+              {/* ── A NEW ORGANIZATION ────────────────────────────────────
+                  Leads with orientation instead of a command centre made of
+                  zeros. `shouldLeadWithOrientation` is true only for a
+                  workspace that has finished loading and is genuinely empty. */}
+              {!isLoading && !loadError && leadWithOrientation && (
+                <OrientationPanel
+                  facts={orientationFacts}
+                  onNavigate={onNavigate}
+                  title={`${greeting}, ${userName}`}
+                  description="Your workspace is ready. Here is how Cortex starts working for you."
+                />
+              )}
+
+              {/* Everything below is the command centre proper, and is shown
+                  only once there is something for it to describe. */}
+              {!isLoading && !loadError && !leadWithOrientation && (
+                <>
               {/* ─────────────────────── HERO BANNER ─────────────────────── */}
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0d0d1e] via-[#0f0f20] to-[#080810] p-6">
+              <div className="relative overflow-hidden rounded-cortex-lg border border-cortex-default bg-gradient-to-br from-cortex-overlay via-cortex-overlay to-cortex-canvas p-6">
                 {/* Ambient glow */}
-                <div className="absolute -top-10 -left-10 size-48 rounded-full bg-[#8B5CF6]/10 blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-10 -right-10 size-48 rounded-full bg-[#3B82F6]/8 blur-3xl pointer-events-none" />
+                <div className="absolute -top-10 -left-10 size-48 rounded-full bg-cortex-accent/10 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-10 -right-10 size-48 rounded-full bg-cortex-accent-alt/8 blur-3xl pointer-events-none" />
 
                 <div className="relative flex items-center justify-between flex-wrap gap-4">
                   {/* Greeting */}
@@ -374,15 +508,32 @@ export function TeamHomeDashboard({
                     <h1 className="text-2xl font-bold text-white mb-1">
                       {greeting}, {userName} 👋
                     </h1>
-                    <p className="text-sm text-gray-400">{formatDate(now)}</p>
+                    <p className="text-sm text-cortex-muted">{formatDate(now)}</p>
+
+                    {/* NEXT-ACTION GUIDANCE.
+                        Orientation does not stop at the empty workspace. While
+                        a step remains, the console names the ONE thing to do
+                        next — §4.9 — and once orientation is finished this
+                        disappears entirely rather than becoming a permanent
+                        banner nobody reads. */}
+                    {nextStep && (
+                      <button
+                        onClick={() => nextStep.target && onNavigate(nextStep.target)}
+                        className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-cortex-pill border border-cortex-accent/40 bg-cortex-accent/10 text-cortex-primary text-[length:var(--cortex-font-size-caption)] font-semibold hover:bg-cortex-accent/20 transition-colors"
+                      >
+                        <Sparkles className="size-3.5 text-cortex-accent" aria-hidden="true" />
+                        Next: {nextStep.title}
+                        <ChevronRight className="size-3.5 text-cortex-muted" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Pulse badges */}
                   <div className="flex items-center gap-3 flex-wrap">
                     {[
-                      { label: `${kpis.newCount} New Leads`,      color: PURPLE, bg: 'bg-[#8B5CF6]/15 border-[#8B5CF6]/30' },
-                      { label: `${kpis.inReview} In Review`,       color: ORANGE, bg: 'bg-[#FB923C]/15 border-[#FB923C]/30' },
-                      { label: `${kpis.highPri} High Priority`,    color: RED,    bg: 'bg-[#FD4438]/15 border-[#FD4438]/30' },
+                      { label: `${kpis.newCount} New Leads`,      color: PURPLE, bg: 'bg-cortex-accent/15 border-cortex-accent/30' },
+                      { label: `${kpis.inReview} In Review`,       color: ORANGE, bg: 'bg-cortex-warning/15 border-cortex-warning/30' },
+                      { label: `${kpis.highPri} High Priority`,    color: RED,    bg: 'bg-cortex-danger/15 border-cortex-danger/30' },
                     ].map(b => (
                       <span key={b.label} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${b.bg}`} style={{ color: b.color }}>
                         <span className="size-1.5 rounded-full animate-pulse inline-block" style={{ background: b.color }} />
@@ -394,12 +545,12 @@ export function TeamHomeDashboard({
                   {/* Health score ring */}
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-xs text-gray-500 mb-0.5">Pipeline Health</p>
-                      <p className="text-2xl font-bold text-[#10B981]">{kpis.avgScore}<span className="text-sm text-gray-400">/100</span></p>
+                      <p className="text-xs text-cortex-muted mb-0.5">Pipeline Health</p>
+                      <p className="text-2xl font-bold text-cortex-success">{kpis.avgScore}<span className="text-sm text-cortex-muted">/100</span></p>
                     </div>
-                    <div className="size-14 rounded-full border-4 border-[#10B981]/30 flex items-center justify-center"
-                      style={{ boxShadow: '0 0 20px #10B98130' }}>
-                      <Activity className="size-6 text-[#10B981]" />
+                    <div className="size-14 rounded-full border-4 border-cortex-success/30 flex items-center justify-center"
+                      style={{ boxShadow: `0 0 20px ${GREEN}30` }}>
+                      <Activity className="size-6 text-cortex-success" />
                     </div>
                   </div>
 
@@ -413,7 +564,7 @@ export function TeamHomeDashboard({
                       sectionContent={`Total leads: ${kpis.total}. Pipeline value: ${formatCurrency(kpis.pipeline)}. Win rate: ${kpis.winRate}%. High priority: ${kpis.highPri}. Average quality score: ${kpis.avgScore}/100.`}
                       quickPrompt={`Give me a concise strategic summary of our current pipeline: ${kpis.total} leads, $${Math.round(kpis.pipeline/1000)}K total value, ${kpis.winRate}% win rate, ${kpis.highPri} high-priority items. What should the team focus on this week?`}
                       icon="sparkles"
-                      colors={['#8B5CF6', '#3B82F6']}
+                      colors={[PURPLE, BLUE]}
                     />
                     <InlineAITrigger
                       label="Prioritise My Day"
@@ -422,7 +573,7 @@ export function TeamHomeDashboard({
                       sectionContent={`${kpis.highPri} high-priority leads. ${kpis.inReview} in review. ${kpis.newCount} new unreviewed.`}
                       quickPrompt={`Based on our pipeline data (${kpis.highPri} high-priority leads, ${kpis.inReview} in review, ${kpis.newCount} new), give me a prioritised action plan for today. Be specific and direct.`}
                       icon="zap"
-                      colors={['#FD4438', '#FB923C']}
+                      colors={[RED, ORANGE]}
                     />
                     <InlineAITrigger
                       label="Win Rate Analysis"
@@ -431,7 +582,7 @@ export function TeamHomeDashboard({
                       sectionContent={`Win rate: ${kpis.winRate}%. Approved: ${kpis.approved}. Total: ${kpis.total}.`}
                       quickPrompt={`Our current win rate is ${kpis.winRate}% (${kpis.approved} of ${kpis.total} leads approved). What are the most likely reasons for this rate, and what are the top 3 actions to improve it?`}
                       icon="arrow"
-                      colors={['#10B981', '#06D7F6']}
+                      colors={[GREEN, CYAN]}
                     />
                   </div>
                 </div>
@@ -500,23 +651,23 @@ export function TeamHomeDashboard({
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="relative overflow-hidden bg-black/40 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-all"
+                    className="relative overflow-hidden bg-cortex-raised border border-cortex-default rounded-cortex-md p-4 hover:border-cortex-strong transition-all"
                   >
                     <div className="absolute top-0 right-0 size-20 rounded-full blur-2xl opacity-20 pointer-events-none"
                       style={{ background: kpi.color, transform: 'translate(30%, -30%)' }} />
                     <div className="flex items-start justify-between mb-3">
-                      <div className="size-8 rounded-lg flex items-center justify-center"
+                      <div className="size-8 rounded-cortex-sm flex items-center justify-center"
                         style={{ background: `${kpi.color}20` }}>
                         <kpi.icon className="size-4" style={{ color: kpi.color }} />
                       </div>
-                      <span className={`flex items-center gap-0.5 text-[10px] font-medium ${kpi.up ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                      <span className={`flex items-center gap-0.5 text-[10px] font-medium ${kpi.up ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                         {kpi.up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                         {kpi.trend}
                       </span>
                     </div>
                     <div className="text-2xl font-bold text-white mb-0.5" style={{ color: kpi.color }}>{kpi.value}</div>
                     <div className="text-xs font-medium text-white/70 mb-0.5">{kpi.label}</div>
-                    <div className="text-[10px] text-gray-500">{kpi.sub}</div>
+                    <div className="text-[10px] text-cortex-muted">{kpi.sub}</div>
                   </motion.div>
                 ))}
               </div>
@@ -525,18 +676,18 @@ export function TeamHomeDashboard({
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
 
                 {/* LEFT: Priority Actions */}
-                <div className="xl:col-span-3 bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="xl:col-span-3 bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                     <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-lg bg-[#FD4438]/15 flex items-center justify-center">
-                        <BellRing className="size-4 text-[#FD4438]" />
+                      <div className="size-8 rounded-cortex-sm bg-cortex-danger/15 flex items-center justify-center">
+                        <BellRing className="size-4 text-cortex-danger" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-white text-sm">Priority Actions</h3>
-                        <p className="text-[10px] text-gray-500">{priorityItems.length} items need attention</p>
+                        <p className="text-[10px] text-cortex-muted">{priorityItems.length} items need attention</p>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 bg-[#FD4438]/20 text-[#FD4438] text-xs font-bold rounded-full">
+                    <span className="px-2 py-0.5 bg-cortex-danger/20 text-cortex-danger text-xs font-bold rounded-full">
                       {priorityItems.filter(a => a.urgency === 'critical').length} critical
                     </span>
                   </div>
@@ -544,23 +695,32 @@ export function TeamHomeDashboard({
                   <div className="divide-y divide-white/5">
                     {priorityItems.length === 0 ? (
                       <div className="flex flex-col items-center py-10 text-center">
-                        <CheckCircle2 className="size-10 text-[#10B981]/40 mb-3" />
+                        <CheckCircle2 className="size-10 text-cortex-success/40 mb-3" />
                         <p className="text-sm font-medium text-white/60">All caught up!</p>
                         <p className="text-xs text-gray-600">No urgent actions required right now</p>
                       </div>
                     ) : (
-                      priorityItems.map((item, i) => (
-                        <motion.div
+                      visiblePriorityItems.map((item, i) => (
+                        // The row itself is the control. The action used to live
+                        // on a button held at opacity-0 until :hover, which made
+                        // the primary action of every priority item unreachable
+                        // on any touch device and invisible to keyboard focus —
+                        // Ch. 21.10 asks for one model across interaction modes,
+                        // and a hover-only affordance is not one.
+                        <motion.button
                           key={item.id}
+                          type="button"
+                          onClick={() => onViewCortex(item.id)}
+                          aria-label={`${item.actionLabel}: ${item.company} — ${item.detail}`}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05 }}
-                          className="flex items-center gap-4 px-5 py-3.5 hover:bg-white/3 transition-all group"
+                          className="w-full text-left flex items-center gap-4 px-5 py-3.5 hover:bg-white/3 focus:bg-cortex-control focus:outline-none focus-visible:ring-1 focus-visible:ring-cortex-accent transition-all group"
                         >
                           {/* Urgency dot */}
                           <div className={`size-2 rounded-full flex-shrink-0 ${
-                            item.urgency === 'critical' ? 'bg-[#FD4438] animate-pulse' :
-                            item.urgency === 'high'     ? 'bg-[#FB923C]' : 'bg-[#8B5CF6]'
+                            item.urgency === 'critical' ? 'bg-cortex-danger animate-pulse' :
+                            item.urgency === 'high'     ? 'bg-cortex-warning' : 'bg-cortex-accent'
                           }`} />
 
                           {/* Content */}
@@ -568,53 +728,62 @@ export function TeamHomeDashboard({
                             <div className="flex items-center gap-2 mb-0.5">
                               <span className="font-semibold text-white text-sm truncate">{item.company}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                item.urgency === 'critical' ? 'bg-[#FD4438]/20 text-[#FD4438]' :
-                                item.urgency === 'high'     ? 'bg-[#FB923C]/20 text-[#FB923C]' :
-                                                              'bg-[#8B5CF6]/20 text-[#8B5CF6]'
+                                item.urgency === 'critical' ? 'bg-cortex-danger/20 text-cortex-danger' :
+                                item.urgency === 'high'     ? 'bg-cortex-warning/20 text-cortex-warning' :
+                                                              'bg-cortex-accent/20 text-cortex-accent'
                               }`}>
                                 {item.urgency}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-400 truncate">{item.detail}</p>
+                            <p className="text-xs text-cortex-muted truncate">{item.detail}</p>
                           </div>
 
                           {/* ROI + Score */}
                           <div className="hidden md:flex flex-col items-end gap-0.5 flex-shrink-0">
-                            <span className="text-xs font-semibold text-[#10B981]">{item.roi}</span>
-                            <span className="text-[10px] text-gray-500">Score {item.score}</span>
+                            <span className="text-xs font-semibold text-cortex-success">{item.roi}</span>
+                            <span className="text-[10px] text-cortex-muted">Score {item.score}</span>
                           </div>
 
-                          {/* CTA */}
-                          <button
-                            onClick={() => onViewCortex(item.id)}
-                            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/30 rounded-lg text-[11px] font-medium text-[#8B5CF6] transition-all opacity-0 group-hover:opacity-100"
+                          {/* CTA — an affordance now, not the control, so it
+                              may not be a nested button. Always visible: it
+                              brightens on hover rather than appearing. */}
+                          <span
+                            aria-hidden="true"
+                            className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-cortex-accent/10 group-hover:bg-cortex-accent/25 border border-cortex-accent/20 group-hover:border-cortex-accent/30 rounded-cortex-sm text-[11px] font-medium text-cortex-accent/70 group-hover:text-cortex-accent transition-all"
                           >
                             {item.actionLabel}
                             <ArrowRight className="size-3" />
-                          </button>
-                        </motion.div>
+                          </span>
+                        </motion.button>
                       ))
                     )}
                   </div>
 
                   {/* Footer */}
-                  <div className="px-5 py-3 border-t border-white/8">
+                  <div className="px-5 py-3 border-t border-white/8 flex items-center justify-between gap-3 flex-wrap">
                     <button
                       onClick={() => onNavigate?.('cortex')}
-                      className="text-xs text-[#8B5CF6] hover:text-[#a78bfa] flex items-center gap-1 transition-colors"
+                      className="text-xs text-cortex-accent hover:text-cortex-accent/80 flex items-center gap-1 transition-colors"
                     >
                       View all leads in CORTEX <ChevronRight className="size-3" />
                     </button>
+                    {/* Say what is not on screen, rather than letting the list
+                        imply the backlog ends here. */}
+                    {priorityItems.length > visiblePriorityItems.length && (
+                      <span className="text-[10px] text-cortex-muted">
+                        {priorityItems.length - visiblePriorityItems.length} more not shown
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* RIGHT: Pipeline + Chart */}
                 <div className="xl:col-span-2 flex flex-col gap-5">
                   {/* Pipeline Funnel */}
-                  <div className="bg-black/40 border border-white/10 rounded-2xl p-5">
+                  <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-5">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="size-7 rounded-lg bg-[#8B5CF6]/15 flex items-center justify-center">
-                        <Layers className="size-3.5 text-[#8B5CF6]" />
+                      <div className="size-7 rounded-cortex-sm bg-cortex-accent/15 flex items-center justify-center">
+                        <Layers className="size-3.5 text-cortex-accent" />
                       </div>
                       <h3 className="font-semibold text-white text-sm">Pipeline Snapshot</h3>
                     </div>
@@ -623,13 +792,13 @@ export function TeamHomeDashboard({
                       {pipelineStages.map(stage => (
                         <div key={stage.label}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-gray-400">{stage.label}</span>
+                            <span className="text-xs text-cortex-muted">{stage.label}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-white">{stage.count}</span>
                               <span className="text-[10px] text-gray-600">{stage.pct}%</span>
                             </div>
                           </div>
-                          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div className="h-2 rounded-full bg-cortex-control overflow-hidden">
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${Math.max(stage.pct, stage.count > 0 ? 8 : 0)}%` }}
@@ -643,20 +812,20 @@ export function TeamHomeDashboard({
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-white/8 flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Total leads in pipeline</span>
+                      <span className="text-[11px] text-cortex-muted">Total leads in pipeline</span>
                       <span className="text-sm font-bold text-white">{kpis.total}</span>
                     </div>
                   </div>
 
                   {/* 7-day Trend */}
-                  <div className="flex-1 bg-black/40 border border-white/10 rounded-2xl p-5">
+                  <div className="flex-1 bg-cortex-raised border border-cortex-default rounded-cortex-lg p-5">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="size-7 rounded-lg bg-[#06D7F6]/15 flex items-center justify-center">
-                        <LineChart className="size-3.5 text-[#06D7F6]" />
+                      <div className="size-7 rounded-cortex-sm bg-cortex-info/15 flex items-center justify-center">
+                        <LineChart className="size-3.5 text-cortex-info" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-white text-sm">7-Day Trend</h3>
-                        <p className="text-[10px] text-gray-500">Submissions this week</p>
+                        <p className="text-[10px] text-cortex-muted">Submissions this week</p>
                       </div>
                     </div>
 
@@ -669,12 +838,12 @@ export function TeamHomeDashboard({
                               <stop offset="95%" stopColor={CYAN} stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
-                          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#666' }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 9, fill: '#666' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
+                          <XAxis dataKey="label" tick={{ fontSize: 9, fill: TEXT.muted }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 9, fill: TEXT.muted }} axisLine={false} tickLine={false} allowDecimals={false} />
                           <Tooltip
-                            contentStyle={{ background: '#0d0d18', border: '1px solid #ffffff20', borderRadius: 8, fontSize: 11 }}
-                            labelStyle={{ color: '#aaa' }}
+                            contentStyle={{ background: surface.overlay, border: `1px solid ${border.strong}`, borderRadius: 8, fontSize: 11 }}
+                            labelStyle={{ color: TEXT.secondary }}
                             itemStyle={{ color: CYAN }}
                           />
                           <Area key="area-count" type="monotone" dataKey="count" stroke={CYAN} strokeWidth={2} fill="url(#thd-trendGrad)" dot={false} />
@@ -689,17 +858,17 @@ export function TeamHomeDashboard({
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
                 {/* Activity Feed */}
-                <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                     <div className="flex items-center gap-2">
-                      <div className="size-7 rounded-lg bg-[#3B82F6]/15 flex items-center justify-center">
-                        <Activity className="size-3.5 text-[#3B82F6]" />
+                      <div className="size-7 rounded-cortex-sm bg-cortex-accent-alt/15 flex items-center justify-center">
+                        <Activity className="size-3.5 text-cortex-accent-alt" />
                       </div>
                       <h3 className="font-semibold text-white text-sm">Recent Activity</h3>
                     </div>
                     <button
                       onClick={() => onNavigate?.('analytics')}
-                      className="text-[10px] text-gray-500 hover:text-[#8B5CF6] flex items-center gap-1 transition-colors"
+                      className="text-[10px] text-cortex-muted hover:text-cortex-accent flex items-center gap-1 transition-colors"
                     >
                       Full log <ChevronRight className="size-3" />
                     </button>
@@ -714,12 +883,12 @@ export function TeamHomeDashboard({
                         transition={{ delay: i * 0.04 }}
                         className="flex items-start gap-3 px-5 py-3 hover:bg-white/2 transition-colors"
                       >
-                        <div className="size-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                        <div className="size-6 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
                           style={{ background: `${item.color}20` }}>
                           <item.icon className="size-3.5" style={{ color: item.color }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-300 leading-snug">{item.text}</p>
+                          <p className="text-xs text-cortex-secondary leading-snug">{item.text}</p>
                           <p className="text-[10px] text-gray-600 mt-0.5">{item.time}</p>
                         </div>
                       </motion.div>
@@ -728,51 +897,55 @@ export function TeamHomeDashboard({
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden">
                   <div className="flex items-center gap-2 px-5 py-4 border-b border-white/8">
-                    <div className="size-7 rounded-lg bg-[#10B981]/15 flex items-center justify-center">
-                      <Zap className="size-3.5 text-[#10B981]" />
+                    <div className="size-7 rounded-cortex-sm bg-cortex-success/15 flex items-center justify-center">
+                      <Zap className="size-3.5 text-cortex-success" />
                     </div>
                     <h3 className="font-semibold text-white text-sm">Quick Actions</h3>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 p-4">
-                    {[
+                    {/* A curated shortcut set, not a second navigation — but the
+                        page ids are typed against the navigation model so a
+                        renamed or mistyped destination is a compile error rather
+                        than a tile that silently does nothing. */}
+                    {([
                       { label: 'CORTEX',        sub: 'AI pipeline',    icon: Brain,     color: PURPLE,  page: 'cortex' },
                       { label: 'Analytics',     sub: 'Charts & data',  icon: BarChart3, color: BLUE,    page: 'analytics' },
                       { label: 'Rev Intel',     sub: 'Revenue data',   icon: TrendingUp,color: GREEN,   page: 'revenue' },
                       { label: 'Reviewer QA',   sub: 'Quality review', icon: Shield,    color: CYAN,    page: 'reviewer' },
                       { label: 'Email Queue',   sub: 'Nurture flow',   icon: Mail,      color: ORANGE,  page: 'emails' },
                       { label: 'Execution',     sub: 'Live projects',  icon: ListChecks,color: PURPLE,  page: 'execution' },
-                    ].map(a => (
+                    ] satisfies { label: string; sub: string; icon: typeof Brain; color: string; page: DestinationId }[]).map(a => (
                       <button
                         key={a.label}
                         onClick={() => onNavigate?.(a.page)}
-                        className="flex flex-col items-start gap-1 p-3 bg-white/3 hover:bg-white/7 border border-white/8 hover:border-white/15 rounded-xl text-left transition-all group"
+                        className="flex flex-col items-start gap-1 p-3 bg-white/3 hover:bg-white/7 border border-white/8 hover:border-white/15 rounded-cortex-md text-left transition-all group"
                       >
-                        <div className="size-7 rounded-lg flex items-center justify-center mb-0.5"
+                        <div className="size-7 rounded-cortex-sm flex items-center justify-center mb-0.5"
                           style={{ background: `${a.color}20` }}>
                           <a.icon className="size-3.5 group-hover:scale-110 transition-transform" style={{ color: a.color }} />
                         </div>
                         <span className="text-xs font-semibold text-white">{a.label}</span>
-                        <span className="text-[10px] text-gray-500">{a.sub}</span>
+                        <span className="text-[10px] text-cortex-muted">{a.sub}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 {/* Team Pulse */}
-                <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
                     <div className="flex items-center gap-2">
-                      <div className="size-7 rounded-lg bg-[#FB923C]/15 flex items-center justify-center">
-                        <Users className="size-3.5 text-[#FB923C]" />
+                      <div className="size-7 rounded-cortex-sm bg-cortex-warning/15 flex items-center justify-center">
+                        <Users className="size-3.5 text-cortex-warning" />
                       </div>
                       <h3 className="font-semibold text-white text-sm">Team Pulse</h3>
                     </div>
                     <button
                       onClick={() => onNavigate?.('team')}
-                      className="text-[10px] text-gray-500 hover:text-[#8B5CF6] flex items-center gap-1 transition-colors"
+                      className="text-[10px] text-cortex-muted hover:text-cortex-accent flex items-center gap-1 transition-colors"
                     >
                       Manage <ChevronRight className="size-3" />
                     </button>
@@ -792,7 +965,7 @@ export function TeamHomeDashboard({
                               style={{ background: `linear-gradient(135deg, ${PURPLE}, ${BLUE})` }}>
                               {initials}
                             </div>
-                            <div className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[#0A0A0F] ${isOnline ? 'bg-[#10B981]' : 'bg-gray-600'}`} />
+                            <div className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-cortex-canvas ${isOnline ? 'bg-cortex-success' : 'bg-gray-600'}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-white truncate">{member.name}</p>
@@ -824,20 +997,20 @@ export function TeamHomeDashboard({
               </div>
 
               {/* ─────────────────────── PIPELINE BAR CHART ─────────────────────── */}
-              <div className="bg-black/40 border border-white/10 rounded-2xl p-5">
+              <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-5">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2">
-                    <div className="size-7 rounded-lg bg-[#8B5CF6]/15 flex items-center justify-center">
-                      <BarChart3 className="size-3.5 text-[#8B5CF6]" />
+                    <div className="size-7 rounded-cortex-sm bg-cortex-accent/15 flex items-center justify-center">
+                      <BarChart3 className="size-3.5 text-cortex-accent" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-white text-sm">Industry ROI Breakdown</h3>
-                      <p className="text-[10px] text-gray-500">Potential value by vertical</p>
+                      <p className="text-[10px] text-cortex-muted">Potential value by vertical</p>
                     </div>
                   </div>
                   <button
                     onClick={() => onNavigate?.('analytics')}
-                    className="text-[11px] text-[#8B5CF6] hover:text-[#a78bfa] flex items-center gap-1 transition-colors"
+                    className="text-[11px] text-cortex-accent hover:text-cortex-accent/80 flex items-center gap-1 transition-colors"
                   >
                     Full analytics <ArrowRight className="size-3" />
                   </button>
@@ -849,13 +1022,13 @@ export function TeamHomeDashboard({
                       data={industryChartData}
                       margin={{ top: 0, right: 4, left: -20, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} unit="K" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: TEXT.muted }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: TEXT.muted }} axisLine={false} tickLine={false} unit="K" />
                       <Tooltip
-                        contentStyle={{ background: '#0d0d18', border: '1px solid #ffffff20', borderRadius: 8, fontSize: 11 }}
+                        contentStyle={{ background: surface.overlay, border: `1px solid ${border.strong}`, borderRadius: 8, fontSize: 11 }}
                         formatter={(v: number) => [`$${v}K`, 'ROI Potential']}
-                        labelStyle={{ color: '#aaa' }}
+                        labelStyle={{ color: TEXT.secondary }}
                       />
                       <Bar key="bar-industry" dataKey="value" radius={[4, 4, 0, 0]}>
                         {[PURPLE, GREEN, ORANGE, BLUE, CYAN, RED].map((c, i) => (
@@ -866,6 +1039,8 @@ export function TeamHomeDashboard({
                   </ResponsiveContainer>
                 </div>
               </div>
+                </>
+              )}
             </motion.div>
           ) : (
             <motion.div

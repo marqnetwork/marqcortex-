@@ -32,6 +32,11 @@
  */
 
 import type { ExecutionProject } from './executionEngine';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES — DATA OBJECTS
@@ -105,14 +110,14 @@ export const VARIANCE_TAG_LABELS: Record<VarianceTag, string> = {
 };
 
 export const VARIANCE_TAG_COLORS: Record<VarianceTag, string> = {
-  adoption_delay:       '#FB923C',
-  stakeholder_blocker:  '#FD4438',
-  data_quality_issue:   '#F59E0B',
-  integration_delay:    '#FB923C',
-  scope_change:         '#8B5CF6',
-  training_required:    '#06D7F6',
-  positive_outlier:     '#10B981',
-  measurement_noise:    '#6B7280',
+  adoption_delay:       STATUS.warning,
+  stakeholder_blocker:  STATUS.danger,
+  data_quality_issue:   STATUS.caution,
+  integration_delay:    STATUS.warning,
+  scope_change:         brand.accent,
+  training_required:    STATUS.info,
+  positive_outlier:     STATUS.success,
+  measurement_noise:    STATUS.neutral,
 };
 
 export const ALL_VARIANCE_TAGS: VarianceTag[] = [
@@ -185,10 +190,10 @@ export interface ROIAlert {
 }
 
 export const ALERT_CFG: Record<ROIAlertType, { label: string; color: string }> = {
-  roi_underperforming: { label: 'ROI Underperforming', color: '#FD4438'  },
-  automation_stagnation: { label: 'Automation Stagnation', color: '#F59E0B' },
-  payback_shifted:     { label: 'Payback Shifted',     color: '#FB923C'  },
-  recurring_blocker:   { label: 'Recurring Blocker',   color: '#8B5CF6'  },
+  roi_underperforming: { label: 'ROI Underperforming', color: STATUS.danger  },
+  automation_stagnation: { label: 'Automation Stagnation', color: STATUS.caution },
+  payback_shifted:     { label: 'Payback Shifted',     color: STATUS.warning  },
+  recurring_blocker:   { label: 'Recurring Blocker',   color: brand.accent  },
 };
 
 /** Full ROI actuals state per execution. */

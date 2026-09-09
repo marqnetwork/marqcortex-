@@ -11,6 +11,7 @@
  * 4. Store the analysis in your database linked to the submission
  */
 
+import { brand, status as STATUS } from '@/app/lib/tokens';
 // Individual question analysis
 export interface QuestionAnalysis {
   questionId: number;
@@ -188,8 +189,8 @@ export const getReadinessLevel = (score: number): 'Low' | 'Medium' | 'High' | 'V
 
 // Helper function to get color coding for scores
 export const getScoreColor = (score: number): string => {
-  if (score >= 75) return '#10B981'; // Green
-  if (score >= 60) return '#3B82F6'; // Blue
-  if (score >= 40) return '#FB923C'; // Orange
-  return '#FD4438'; // Red
+  if (score >= 75) return STATUS.success; // Green
+  if (score >= 60) return brand.accentAlt; // Blue
+  if (score >= 40) return STATUS.warning; // Orange
+  return STATUS.danger; // Red
 };

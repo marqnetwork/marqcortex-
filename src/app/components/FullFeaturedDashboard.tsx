@@ -29,6 +29,18 @@ import { useApp } from '@/app/contexts/AppContext';
 import { SkeletonCardGrid, SkeletonTable } from '@/app/components/Skeletons';
 import { FEATURES } from '@/config/features';
 import { useDebounce } from '@/app/hooks/usePerformance';
+import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, brand, status as STATUS } from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT  = brand.accent;
+const K_DANGER  = STATUS.danger;
+const K_INFO    = STATUS.info;
+const K_SUCCESS = STATUS.success;
+const K_WARNING = STATUS.warning;
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
@@ -36,18 +48,40 @@ const SEED_SUBMISSIONS: Submission[] = getDemoSubmissions();
 
 // ── Status / priority palettes ────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  new:        { bg: 'bg-[#8B5CF6]/10', border: 'border-[#8B5CF6]/40', text: 'text-[#8B5CF6]', dot: 'bg-[#8B5CF6]' },
-  'in-review':{ bg: 'bg-[#FB923C]/10', border: 'border-[#FB923C]/40', text: 'text-[#FB923C]', dot: 'bg-[#FB923C]' },
-  completed:  { bg: 'bg-[#06D7F6]/10', border: 'border-[#06D7F6]/40', text: 'text-[#06D7F6]', dot: 'bg-[#06D7F6]' },
-  approved:   { bg: 'bg-[#10B981]/10', border: 'border-[#10B981]/40', text: 'text-[#10B981]', dot: 'bg-[#10B981]' },
-};
+/**
+ * Status and priority styling, DERIVED from the token layer.
+ *
+ * These were four and three literal Tailwind class sets, and they disagreed
+ * with the rest of the console: `low` priority was drawn in cyan here and in
+ * neutral grey on the analytics panel, which reads as an informational tag on
+ * one screen and as "nothing to see" on the next.
+ *
+ * Tailwind's arbitrary-value classes must be literal at build time, so a class
+ * string cannot be derived from a runtime token. The style is therefore
+ * produced as inline CSS — the same technique the shared `StatusBadge` uses —
+ * with the three surfaces mixed from ONE colour at fixed opacities, so a badge
+ * can never be styled into illegibility by choosing them separately.
+ */
+function tone(colour: string) {
+  return {
+    text: { color: colour },
+    fill: { background: `color-mix(in srgb, ${colour} 10%, transparent)`, color: colour },
+    bordered: {
+      background: `color-mix(in srgb, ${colour} 10%, transparent)`,
+      borderColor: `color-mix(in srgb, ${colour} 40%, transparent)`,
+      color: colour,
+    },
+    dot: { background: colour },
+  };
+}
 
-const PRIORITY_STYLE: Record<string, { bg: string; text: string }> = {
-  high:   { bg: 'bg-[#FD4438]/10', text: 'text-[#FD4438]' },
-  medium: { bg: 'bg-[#FB923C]/10', text: 'text-[#FB923C]' },
-  low:    { bg: 'bg-[#06D7F6]/10', text: 'text-[#06D7F6]' },
-};
+const STATUS_STYLE = Object.fromEntries(
+  Object.entries(SUBMISSION_STATUS_COLOR).map(([key, colour]) => [key, tone(colour as string)]),
+) as Record<string, ReturnType<typeof tone>>;
+
+const PRIORITY_STYLE = Object.fromEntries(
+  Object.entries(PRIORITY_COLOR).map(([key, colour]) => [key, tone(colour as string)]),
+) as Record<string, ReturnType<typeof tone>>;
 
 const STATUSES = ['new', 'in-review', 'completed', 'approved'] as Submission['status'][];
 const PRIORITIES = ['high', 'medium', 'low'] as Submission['priority'][];
@@ -300,7 +334,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
 
       {/* ── Error banner ── */}
       {error && (
-        <div className="p-4 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-sm text-[#FD4438] flex items-center justify-between">
+        <div className="p-4 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md text-sm text-cortex-danger flex items-center justify-between">
           <span>⚠️ {error} — showing demo data</span>
           <button onClick={() => loadSubmissions()} className="underline text-xs">Retry</button>
         </div>
@@ -309,16 +343,16 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
       {/* ── Stats row ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total', value: stats.total,        color: '#8B5CF6', filter: 'All' },
-          { label: 'New',   value: stats.new,           color: '#8B5CF6', filter: 'New' },
-          { label: 'In Review', value: stats.inReview,  color: '#FB923C', filter: 'In Review' },
-          { label: 'Completed', value: stats.completed, color: '#06D7F6', filter: 'Completed' },
-          { label: 'High Priority', value: stats.highPriority, color: '#FD4438', filter: 'High Priority' },
+          { label: 'Total', value: stats.total,        color: K_ACCENT, filter: 'All' },
+          { label: 'New',   value: stats.new,           color: K_ACCENT, filter: 'New' },
+          { label: 'In Review', value: stats.inReview,  color: K_WARNING, filter: 'In Review' },
+          { label: 'Completed', value: stats.completed, color: K_INFO, filter: 'Completed' },
+          { label: 'High Priority', value: stats.highPriority, color: K_DANGER, filter: 'High Priority' },
         ].map(s => (
           <button
             key={s.label}
             onClick={() => setActiveFilter(activeFilter === s.filter ? 'All' : s.filter)}
-            className={`bg-black/40 border rounded-xl p-5 text-left transition-all hover:border-white/20 ${activeFilter === s.filter ? 'border-white/30 bg-white/5' : 'border-white/10'}`}
+            className={`bg-cortex-raised border rounded-cortex-md p-5 text-left transition-all hover:border-cortex-strong ${activeFilter === s.filter ? 'border-white/30 bg-cortex-control' : 'border-cortex-default'}`}
           >
             <div className="text-3xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
             <div className="text-xs text-white/50">{s.label}</div>
@@ -331,17 +365,17 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
 
         {/* Search */}
         <div className="flex-1 min-w-52 relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-cortex-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search company, contact, email, industry…"
-            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder:text-gray-500 focus:border-[#8B5CF6]/50 outline-none transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-cortex-control border border-cortex-default rounded-cortex-md text-white text-sm placeholder:text-cortex-muted focus:border-cortex-accent/50 outline-none transition-colors"
             ref={searchInputRef}
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-cortex-muted hover:text-white">
               <X className="size-3.5" />
             </button>
           )}
@@ -351,7 +385,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
         <div className="relative">
           <button
             onClick={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm border transition-all ${activeFilter !== 'All' ? 'bg-[#8B5CF6]/15 border-[#8B5CF6]/40 text-[#8B5CF6]' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-cortex-md text-sm border transition-all ${activeFilter !== 'All' ? 'bg-cortex-accent/15 border-cortex-accent/40 text-cortex-accent' : 'bg-cortex-control border-cortex-default text-white hover:bg-cortex-control-hover'}`}
           >
             <Filter className="size-4" />
             {activeFilter}
@@ -363,11 +397,11 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="absolute left-0 mt-1.5 w-44 bg-[#0d0d18] border border-white/15 rounded-xl shadow-2xl z-20 overflow-hidden py-1"
+                className="absolute left-0 mt-1.5 w-44 bg-cortex-overlay border border-white/15 rounded-cortex-md shadow-2xl z-20 overflow-hidden py-1"
               >
                 {['All', 'New', 'In Review', 'Completed', 'Converted', 'High Priority', 'Assigned', 'Unassigned'].map(f => (
                   <button key={f} onClick={() => { setActiveFilter(f); setShowFilterMenu(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${activeFilter === f ? 'text-[#8B5CF6] bg-[#8B5CF6]/10' : 'text-gray-300 hover:bg-white/5'}`}>
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${activeFilter === f ? 'text-cortex-accent bg-cortex-accent/10' : 'text-cortex-secondary hover:bg-cortex-control'}`}>
                     {f}
                   </button>
                 ))}
@@ -380,9 +414,9 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
         <div className="relative">
           <button
             onClick={() => { setShowSortMenu(!showSortMenu); setShowFilterMenu(false); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-cortex-control border border-cortex-default rounded-cortex-md text-sm text-white hover:bg-cortex-control-hover transition-all"
           >
-            {sortOrder === 'desc' ? <SortDesc className="size-4 text-gray-400" /> : <SortAsc className="size-4 text-gray-400" />}
+            {sortOrder === 'desc' ? <SortDesc className="size-4 text-cortex-muted" /> : <SortAsc className="size-4 text-cortex-muted" />}
             {sortBy === 'date' ? 'Date' : sortBy === 'score' ? 'Score' : sortBy === 'priority' ? 'Priority' : 'Status'}
             <ChevronDown className="size-3.5" />
           </button>
@@ -392,20 +426,20 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="absolute left-0 mt-1.5 w-48 bg-[#0d0d18] border border-white/15 rounded-xl shadow-2xl z-20 overflow-hidden py-1"
+                className="absolute left-0 mt-1.5 w-48 bg-cortex-overlay border border-white/15 rounded-cortex-md shadow-2xl z-20 overflow-hidden py-1"
               >
-                <div className="px-3 py-1.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Sort By</div>
+                <div className="px-3 py-1.5 text-[10px] font-bold text-cortex-faint uppercase tracking-wider">Sort By</div>
                 {([['date','Date'],['score','Quality Score'],['priority','Priority'],['status','Status']] as [string, string][]).map(([key, label]) => (
                   <button key={key} onClick={() => { setSortBy(key as any); setShowSortMenu(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${sortBy === key ? 'text-[#8B5CF6] bg-[#8B5CF6]/10' : 'text-gray-300 hover:bg-white/5'}`}>
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${sortBy === key ? 'text-cortex-accent bg-cortex-accent/10' : 'text-cortex-secondary hover:bg-cortex-control'}`}>
                     {label}
                   </button>
                 ))}
-                <div className="border-t border-white/10 mt-1 pt-1">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">Direction</div>
+                <div className="border-t border-cortex-default mt-1 pt-1">
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-cortex-faint uppercase tracking-wider">Direction</div>
                   {[['desc','Newest / Highest'],['asc','Oldest / Lowest']].map(([key, label]) => (
                     <button key={key} onClick={() => { setSortOrder(key as any); setShowSortMenu(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${sortOrder === key ? 'text-[#8B5CF6] bg-[#8B5CF6]/10' : 'text-gray-300 hover:bg-white/5'}`}>
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${sortOrder === key ? 'text-cortex-accent bg-cortex-accent/10' : 'text-cortex-secondary hover:bg-cortex-control'}`}>
                       {label}
                     </button>
                   ))}
@@ -416,10 +450,10 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
         </div>
 
         {/* View toggle */}
-        <div className="flex items-center gap-0.5 p-1 bg-white/5 border border-white/10 rounded-xl">
+        <div className="flex items-center gap-0.5 p-1 bg-cortex-control border border-cortex-default rounded-cortex-md">
           {(['list', 'grid'] as const).map(v => (
             <button key={v} onClick={() => setSubmissionsView(v)}
-              className={`p-1.5 rounded-lg transition-all ${submissionsView === v ? 'bg-[#8B5CF6] text-white' : 'text-gray-500 hover:text-white'}`}>
+              className={`p-1.5 rounded-cortex-sm transition-all ${submissionsView === v ? 'bg-cortex-accent text-white' : 'text-cortex-muted hover:text-white'}`}>
               {v === 'list' ? <List className="size-4" /> : <LayoutGrid className="size-4" />}
             </button>
           ))}
@@ -427,13 +461,13 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
 
         {/* Refresh */}
         <button onClick={() => loadSubmissions(true)} disabled={isRefreshing}
-          className="p-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-all">
+          className="p-2.5 bg-cortex-control border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white hover:bg-cortex-control-hover transition-all">
           <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
 
         {/* Export All CSV */}
         <button onClick={() => exportCSV(processed, 'submissions-export.csv')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-all">
+          className="flex items-center gap-2 px-4 py-2.5 bg-cortex-control border border-cortex-default rounded-cortex-md text-sm text-cortex-secondary hover:text-white hover:bg-cortex-control-hover transition-all">
           <Download className="size-4" />
           Export CSV
         </button>
@@ -443,12 +477,12 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
       <div className="flex items-center gap-4">
         {/* Select-all checkbox */}
         {accessToken && (
-          <button onClick={handleSelectAll} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+          <button onClick={handleSelectAll} className="flex items-center gap-2 text-sm text-cortex-muted hover:text-white transition-colors">
             <span className="size-4.5 flex items-center justify-center">
               {allVisibleSelected ? (
-                <CheckSquare className="size-4.5 text-[#8B5CF6]" />
+                <CheckSquare className="size-4.5 text-cortex-accent" />
               ) : someSelected ? (
-                <Minus className="size-4.5 text-[#8B5CF6]" />
+                <Minus className="size-4.5 text-cortex-accent" />
               ) : (
                 <Square className="size-4.5" />
               )}
@@ -460,11 +494,11 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
           Showing {processed.length} of {submissions.length}
           {debouncedSearchQuery && ` for "${debouncedSearchQuery}"`}
           {selectedSubmissions.length > 0 && (
-            <span className="ml-2 text-[#8B5CF6] font-medium">· {selectedSubmissions.length} selected</span>
+            <span className="ml-2 text-cortex-accent font-medium">· {selectedSubmissions.length} selected</span>
           )}
         </span>
         {!accessToken && (
-          <span className="px-2 py-0.5 bg-[#FB923C]/20 border border-[#FB923C]/30 text-[#FB923C] text-xs rounded-full">
+          <span className="px-2 py-0.5 bg-cortex-warning/20 border border-cortex-warning/30 text-cortex-warning text-xs rounded-full">
             Demo Data
           </span>
         )}
@@ -473,7 +507,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
       {/* ── Submissions ── */}
       {processed.length === 0 ? (
         <div className="text-center py-20">
-          <div className="inline-flex items-center justify-center size-20 rounded-full bg-white/5 mb-4">
+          <div className="inline-flex items-center justify-center size-20 rounded-full bg-cortex-control mb-4">
             <Search className="size-10 text-white/20" />
           </div>
           <h3 className="text-xl font-bold text-white mb-2">No submissions found</h3>
@@ -522,17 +556,17 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-3xl w-[calc(100%-3rem)]"
           >
-            <div className="bg-[#0d0d18]/95 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3.5 shadow-2xl shadow-black/60 flex items-center gap-3 flex-wrap">
+            <div className="bg-cortex-overlay/95 backdrop-blur-xl border border-cortex-strong rounded-cortex-lg px-5 py-3.5 shadow-2xl shadow-black/60 flex items-center gap-3 flex-wrap">
 
               {/* Count badge */}
               <div className="flex items-center gap-2 shrink-0">
-                <div className="size-6 rounded-full bg-[#8B5CF6] flex items-center justify-center text-xs font-bold text-white">
+                <div className="size-6 rounded-full bg-cortex-accent flex items-center justify-center text-xs font-bold text-white">
                   {selectedSubmissions.length}
                 </div>
                 <span className="text-sm font-semibold text-white">selected</span>
               </div>
 
-              <div className="w-px h-6 bg-white/10 shrink-0" />
+              <div className="w-px h-6 bg-cortex-control-hover shrink-0" />
 
               {/* Success flash */}
               <AnimatePresence>
@@ -541,7 +575,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0 }}
-                    className="text-[#10B981] text-sm font-medium flex items-center gap-1.5"
+                    className="text-cortex-success text-sm font-medium flex items-center gap-1.5"
                   >
                     <Check className="size-4" /> {bulkSuccess}
                   </motion.span>
@@ -576,7 +610,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                   <button
                     onClick={() => handleBulk({ assignedTo: currentUserName })}
                     disabled={isBulkUpdating}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/30 rounded-lg text-xs font-medium text-[#8B5CF6] transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-accent/15 hover:bg-cortex-accent/25 border border-cortex-accent/30 rounded-cortex-sm text-xs font-medium text-cortex-accent transition-all disabled:opacity-50"
                   >
                     <UserCheck className="size-3.5" />
                     Assign to me
@@ -586,7 +620,7 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                   <button
                     onClick={() => handleBulk({ assignedTo: '' })}
                     disabled={isBulkUpdating}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-sm text-xs font-medium text-cortex-muted hover:text-white transition-all disabled:opacity-50"
                   >
                     <UserX className="size-3.5" />
                     Unassign
@@ -595,18 +629,18 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
                   {/* Export selected */}
                   <button
                     onClick={() => exportCSV(submissions.filter(s => selectedSubmissions.includes(s.id)), 'selected-submissions.csv')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-gray-400 hover:text-white transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-sm text-xs font-medium text-cortex-muted hover:text-white transition-all"
                   >
                     <Download className="size-3.5" />
                     Export ({selectedSubmissions.length})
                   </button>
 
-                  {isBulkUpdating && <Loader2 className="size-4 text-[#8B5CF6] animate-spin" />}
+                  {isBulkUpdating && <Loader2 className="size-4 text-cortex-accent animate-spin" />}
                 </span>
               )}
 
               {/* Clear */}
-              <button onClick={clearSelections} className="ml-auto p-1.5 text-gray-500 hover:text-white transition-colors">
+              <button onClick={clearSelections} className="ml-auto p-1.5 text-cortex-muted hover:text-white transition-colors">
                 <X className="size-4" />
               </button>
             </div>
@@ -632,7 +666,7 @@ function BulkDropdown({ label, icon, items, disabled }: {
       <button
         onClick={() => setOpen(!open)}
         disabled={disabled}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-gray-300 hover:text-white transition-all disabled:opacity-50"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-sm text-xs font-medium text-cortex-secondary hover:text-white transition-all disabled:opacity-50"
       >
         {label} {icon}
       </button>
@@ -642,11 +676,11 @@ function BulkDropdown({ label, icon, items, disabled }: {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="absolute bottom-full left-0 mb-1.5 w-40 bg-[#0d0d18] border border-white/15 rounded-xl shadow-2xl z-50 overflow-hidden py-1"
+            className="absolute bottom-full left-0 mb-1.5 w-40 bg-cortex-overlay border border-white/15 rounded-cortex-md shadow-2xl z-50 overflow-hidden py-1"
           >
             {items.map(item => (
               <button key={item.label} onClick={() => { item.action(); setOpen(false); }}
-                className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-white/8 hover:text-white transition-colors">
+                className="w-full text-left px-4 py-2 text-xs text-cortex-secondary hover:bg-white/8 hover:text-white transition-colors">
                 {item.label}
               </button>
             ))}
@@ -679,10 +713,10 @@ function SubmissionGridCard({
       layout
       whileHover={{ y: -2 }}
       onClick={onViewCortex}
-      className={`relative bg-black/40 border rounded-xl p-5 cursor-pointer transition-all group ${
+      className={`relative bg-cortex-raised border rounded-cortex-md p-5 cursor-pointer transition-all group ${
         isSelected
-          ? 'border-[#8B5CF6]/60 bg-[#8B5CF6]/5 shadow-lg shadow-[#8B5CF6]/10'
-          : 'border-white/10 hover:border-[#8B5CF6]/30'
+          ? 'border-cortex-accent/60 bg-cortex-accent/5 shadow-lg shadow-cortex-accent/10'
+          : 'border-cortex-default hover:border-cortex-accent/30'
       }`}
     >
       {/* Checkbox */}
@@ -692,8 +726,8 @@ function SubmissionGridCard({
           className={`absolute top-3 left-3 z-10 transition-all ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
         >
           {isSelected
-            ? <CheckSquare className="size-4.5 text-[#8B5CF6]" />
-            : <Square className="size-4.5 text-gray-500" />
+            ? <CheckSquare className="size-4.5 text-cortex-accent" />
+            : <Square className="size-4.5 text-cortex-muted" />
           }
         </button>
       )}
@@ -701,24 +735,27 @@ function SubmissionGridCard({
       {/* Header */}
       <div className="flex items-start justify-between mb-3 pl-1">
         <div className="flex-1 min-w-0 pr-2">
-          <h3 className="font-bold text-white text-base truncate group-hover:text-[#8B5CF6] transition-colors">{submission.company}</h3>
+          <h3 className="font-bold text-white text-base truncate group-hover:text-cortex-accent transition-colors">{submission.company}</h3>
           <p className="text-xs text-white/50 truncate">{submission.contact}</p>
         </div>
         {/* Status badge */}
         <div className="relative shrink-0" onClick={e => { e.stopPropagation(); if (canUpdate) setShowStatusMenu(!showStatusMenu); }}>
-          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${st.bg} ${st.border} ${st.text} ${canUpdate ? 'cursor-pointer hover:opacity-80' : ''}`}>
-            {isUpdating ? <Loader2 className="size-3 animate-spin" /> : <span className={`size-1.5 rounded-full ${st.dot}`} />}
+          <span
+            style={st.bordered}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-cortex-pill text-[10px] font-bold border ${canUpdate ? 'cursor-pointer hover:opacity-80' : ''}`}
+          >
+            {isUpdating ? <Loader2 className="size-3 animate-spin" /> : <span className="size-1.5 rounded-full" style={st.dot} />}
             {submission.status.replace('-', ' ').toUpperCase()}
           </span>
           <AnimatePresence>
             {showStatusMenu && canUpdate && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
-                className="absolute right-0 mt-1 w-36 bg-[#0d0d18] border border-white/20 rounded-xl shadow-2xl z-20 overflow-hidden py-1"
+                className="absolute right-0 mt-1 w-36 bg-cortex-overlay border border-cortex-strong rounded-cortex-md shadow-2xl z-20 overflow-hidden py-1"
               >
                 {STATUSES.map(s => (
                   <button key={s} onClick={e => { e.stopPropagation(); onStatusChange(submission.id, s); setShowStatusMenu(false); }}
-                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors ${submission.status === s ? 'text-[#8B5CF6]' : 'text-white'}`}>
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-cortex-control transition-colors ${submission.status === s ? 'text-cortex-accent' : 'text-white'}`}>
                     {s.replace('-', ' ').toUpperCase()}
                   </button>
                 ))}
@@ -743,7 +780,7 @@ function SubmissionGridCard({
           {submission.submittedDate}
         </div>
         {submission.assignedTo && (
-          <div className="flex items-center gap-2 text-xs text-[#8B5CF6]/70">
+          <div className="flex items-center gap-2 text-xs text-cortex-accent/70">
             <UserCircle className="size-3.5 shrink-0" />
             <span className="truncate">{submission.assignedTo}</span>
           </div>
@@ -754,7 +791,7 @@ function SubmissionGridCard({
       <div className="grid grid-cols-3 gap-2 mb-3">
         {[['Q', submission.qualityScore], ['AI', submission.aiScore], ['✓', submission.completionScore]].map(([l, v]) => {
           const score = v as number;
-          const col = score >= 90 ? '#10B981' : score >= 70 ? '#06D7F6' : '#FB923C';
+          const col = score >= 90 ? K_SUCCESS : score >= 70 ? K_INFO : K_WARNING;
           return (
             <div key={l} className="text-center">
               <div className="text-base font-bold" style={{ color: col }}>{score}</div>
@@ -767,10 +804,10 @@ function SubmissionGridCard({
       {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-white/8">
         <div className="flex items-center gap-1.5">
-          <DollarSign className="size-3.5 text-[#10B981]" />
-          <span className="text-xs font-semibold text-[#10B981]">{submission.roiPotential}</span>
+          <DollarSign className="size-3.5 text-cortex-success" />
+          <span className="text-xs font-semibold text-cortex-success">{submission.roiPotential}</span>
         </div>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${pr.bg} ${pr.text}`}>
+        <span style={pr.fill} className="px-2 py-0.5 rounded text-[10px] font-bold">
           {submission.priority.toUpperCase()}
         </span>
       </div>
@@ -778,7 +815,7 @@ function SubmissionGridCard({
       {/* CORTEX button */}
       <button
         onClick={e => { e.stopPropagation(); onViewCortex(); }}
-        className="w-full mt-3 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+        className="w-full mt-3 py-2 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-sm text-xs font-semibold text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
       >
         <Eye className="size-3.5" />
         View in CORTEX
@@ -801,9 +838,9 @@ function SubmissionListView({
   canUpdate: boolean;
 }) {
   return (
-    <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+    <div className="bg-cortex-raised border border-cortex-default rounded-cortex-lg overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_140px_120px_100px_80px_80px_100px] gap-4 px-5 py-3 border-b border-white/8 text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+      <div className="grid grid-cols-[auto_1fr_140px_120px_100px_80px_80px_100px] gap-4 px-5 py-3 border-b border-white/8 text-[10px] font-bold text-cortex-faint uppercase tracking-wider">
         <div className="w-5" />
         <div>Company</div>
         <div>Industry</div>
@@ -819,7 +856,7 @@ function SubmissionListView({
           const isSelected = selectedIds.includes(sub.id);
           const st = STATUS_STYLE[sub.status] ?? STATUS_STYLE.new;
           const pr = PRIORITY_STYLE[sub.priority] ?? PRIORITY_STYLE.medium;
-          const scoreCol = sub.qualityScore >= 90 ? '#10B981' : sub.qualityScore >= 70 ? '#06D7F6' : '#FB923C';
+          const scoreCol = sub.qualityScore >= 90 ? K_SUCCESS : sub.qualityScore >= 70 ? K_INFO : K_WARNING;
 
           return (
             <motion.div
@@ -827,7 +864,7 @@ function SubmissionListView({
               layout
               onClick={() => onViewCortex(sub.id)}
               className={`grid grid-cols-[auto_1fr_140px_120px_100px_80px_80px_100px] gap-4 px-5 py-3.5 cursor-pointer transition-all items-center group ${
-                isSelected ? 'bg-[#8B5CF6]/8 border-l-2 border-[#8B5CF6]' : 'hover:bg-white/3 border-l-2 border-transparent'
+                isSelected ? 'bg-cortex-accent/8 border-l-2 border-cortex-accent' : 'hover:bg-white/3 border-l-2 border-transparent'
               }`}
             >
               {/* Checkbox */}
@@ -838,8 +875,8 @@ function SubmissionListView({
                     className={`transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   >
                     {isSelected
-                      ? <CheckSquare className="size-4 text-[#8B5CF6]" />
-                      : <Square className="size-4 text-gray-600" />
+                      ? <CheckSquare className="size-4 text-cortex-accent" />
+                      : <Square className="size-4 text-cortex-faint" />
                     }
                   </button>
                 )}
@@ -847,15 +884,15 @@ function SubmissionListView({
 
               {/* Company + contact */}
               <div className="min-w-0">
-                <div className="font-semibold text-white text-sm truncate group-hover:text-[#8B5CF6] transition-colors">
+                <div className="font-semibold text-white text-sm truncate group-hover:text-cortex-accent transition-colors">
                   {sub.company}
-                  {sub.assignedTo && <span className="ml-2 text-[10px] text-[#8B5CF6]/60 font-normal">({sub.assignedTo})</span>}
+                  {sub.assignedTo && <span className="ml-2 text-[10px] text-cortex-accent/60 font-normal">({sub.assignedTo})</span>}
                 </div>
-                <div className="text-xs text-gray-600 truncate">{sub.email}</div>
+                <div className="text-xs text-cortex-faint truncate">{sub.email}</div>
               </div>
 
               {/* Industry */}
-              <div className="text-xs text-gray-400 truncate">{sub.industry}</div>
+              <div className="text-xs text-cortex-muted truncate">{sub.industry}</div>
 
               {/* Status badge */}
               <div onClick={e => e.stopPropagation()}>
@@ -869,7 +906,7 @@ function SubmissionListView({
 
               {/* Priority */}
               <div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${pr.bg} ${pr.text}`}>
+                <span style={pr.fill} className="px-2 py-0.5 rounded text-[10px] font-bold">
                   {sub.priority.toUpperCase()}
                 </span>
               </div>
@@ -880,10 +917,10 @@ function SubmissionListView({
               </div>
 
               {/* ROI */}
-              <div className="text-right text-xs text-[#10B981] font-semibold">{sub.roiPotential}</div>
+              <div className="text-right text-xs text-cortex-success font-semibold">{sub.roiPotential}</div>
 
               {/* Date */}
-              <div className="text-right text-xs text-gray-600">{sub.submittedDate}</div>
+              <div className="text-right text-xs text-cortex-faint">{sub.submittedDate}</div>
             </motion.div>
           );
         })}
@@ -904,20 +941,21 @@ function StatusBadgeInline({ submission, onStatusChange, isUpdating, canUpdate }
     <div className="relative">
       <button
         onClick={() => canUpdate && setOpen(!open)}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.bg} ${st.border} ${st.text} ${canUpdate ? 'hover:opacity-80 cursor-pointer' : ''}`}
+        style={st.bordered}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-cortex-pill text-[10px] font-bold border ${canUpdate ? 'hover:opacity-80 cursor-pointer' : ''}`}
       >
-        {isUpdating ? <Loader2 className="size-2.5 animate-spin" /> : <span className={`size-1.5 rounded-full ${st.dot}`} />}
+        {isUpdating ? <Loader2 className="size-2.5 animate-spin" /> : <span className="size-1.5 rounded-full" style={st.dot} />}
         {submission.status.replace('-', ' ').toUpperCase()}
       </button>
       <AnimatePresence>
         {open && canUpdate && (
           <motion.div
             initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
-            className="absolute left-0 mt-1 w-36 bg-[#0d0d18] border border-white/20 rounded-xl shadow-2xl z-30 overflow-hidden py-1"
+            className="absolute left-0 mt-1 w-36 bg-cortex-overlay border border-cortex-strong rounded-cortex-md shadow-2xl z-30 overflow-hidden py-1"
           >
             {STATUSES.map(s => (
               <button key={s} onClick={() => { onStatusChange(submission.id, s); setOpen(false); }}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors ${submission.status === s ? 'text-[#8B5CF6]' : 'text-white'}`}>
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-cortex-control transition-colors ${submission.status === s ? 'text-cortex-accent' : 'text-white'}`}>
                 {s.replace('-', ' ').toUpperCase()}
               </button>
             ))}

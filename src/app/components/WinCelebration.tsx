@@ -15,6 +15,14 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, TrendingUp, DollarSign, Zap, Target, Award, Sparkles, Brain } from 'lucide-react';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  surface as SURFACE,
+} from '@/app/lib/tokens';
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,13 +44,18 @@ interface WinCelebrationProps extends WinCelebrationData {
 
 const AUTO_DISMISS_MS = 6000;
 const CONFETTI_COUNT = 90;
+// Confetti. DECORATIVE, and deliberately wider than the status vocabulary:
+// twelve pieces of paper need twelve distinguishable colours, and two of them
+// — a lighter cyan and a near-white — have no counterpart in a palette built
+// to mean success, danger and caution. They mean nothing here, which is the
+// point.
 const CONFETTI_COLORS = [
-  '#8B5CF6', '#7C3AED',   // purple
-  '#3B82F6', '#2563EB',   // blue
-  '#06D7F6', '#0EA5E9',   // cyan
-  '#10B981', '#059669',   // green
-  '#FB923C', '#F59E0B',   // orange / amber
-  '#EC4899',              // pink
+  brand.accent, brand.accentDeep,   // purple
+  brand.accentAlt, brand.accentAltDeep,   // blue
+  STATUS.info, '#0EA5E9',   // cyan
+  STATUS.success, STATUS.successDeep,   // green
+  STATUS.warning, STATUS.caution,   // orange / amber
+  brand.accentTertiary,              // pink
   '#F1F5F9',              // near-white
 ];
 
@@ -119,6 +132,11 @@ export function WinCelebration({
   conversionRate,
   onClose,
 }: WinCelebrationProps) {
+  // A full-screen celebration with confetti and a dismiss button, over the page
+  // the user was working on. It had no dialog role and no Escape, so it could be
+  // Tabbed straight past into the content it was covering.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Deal won' });
+
   const confettiPieces = useConfetti(CONFETTI_COUNT);
 
   // Animated counters
@@ -192,19 +210,20 @@ export function WinCelebration({
           animate={{ opacity: 1, scale: 1,    y: 0  }}
           exit={{   opacity: 0, scale: 0.92,  y: 16 }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className="relative w-full max-w-[520px] rounded-2xl overflow-hidden"
+          className="relative w-full max-w-[520px] rounded-cortex-lg overflow-hidden"
           style={{
-            background: 'linear-gradient(180deg, #0F1020 0%, #090910 100%)',
-            border: '1.5px solid rgba(16,185,129,0.4)',
-            boxShadow: '0 32px 96px rgba(0,0,0,0.8), 0 0 60px rgba(16,185,129,0.12)',
+            background: `linear-gradient(180deg, ${SURFACE.overlay} 0%, ${SURFACE.canvas} 100%)`,
+            border: `1.5px solid ${STATUS.success}66`,
+            boxShadow: `0 32px 96px rgba(0,0,0,0.8), 0 0 60px ${STATUS.success}1F`,
           }}
+          {...dialogProps}
           onClick={e => e.stopPropagation()}
         >
           {/* Ambient glow rings */}
           <div
             className="absolute -top-16 left-1/2 -translate-x-1/2 size-48 rounded-full pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(16,185,129,0.18) 0%, transparent 70%)',
+              background: `radial-gradient(circle, ${STATUS.success}2E 0%, transparent 70%)`,
               animation: 'win-glow-ring 2.5s ease-out 0.5s forwards',
             }}
           />
@@ -213,8 +232,8 @@ export function WinCelebration({
           <div
             className="relative px-6 pt-6 pb-5"
             style={{
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.14) 0%, transparent 70%)',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: `linear-gradient(135deg, ${STATUS.success}24 0%, transparent 70%)`,
+              borderBottom: `1px solid ${BORDER.default}`,
             }}
           >
             {/* Trophy icon + title */}
@@ -222,23 +241,23 @@ export function WinCelebration({
               <div className="flex items-center gap-3">
                 {/* Pulsing trophy */}
                 <div
-                  className="relative size-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  className="relative size-14 rounded-cortex-lg flex items-center justify-center flex-shrink-0"
                   style={{
-                    background: 'rgba(16,185,129,0.18)',
-                    border: '1.5px solid rgba(16,185,129,0.45)',
+                    background: `${STATUS.success}2E`,
+                    border: `1.5px solid ${STATUS.success}73`,
                     animation: 'win-pulse 1.8s ease-in-out infinite',
                   }}
                 >
-                  <Award className="size-7 text-[#10B981]" />
+                  <Award className="size-7 text-cortex-success" />
                   {/* Sparkle in corner */}
-                  <Sparkles className="absolute -top-1.5 -right-1.5 size-3.5 text-[#F59E0B]" />
+                  <Sparkles className="absolute -top-1.5 -right-1.5 size-3.5 text-cortex-caution" />
                 </div>
 
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
                     <span
                       className="text-[10px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-md"
-                      style={{ background: 'rgba(16,185,129,0.2)', color: '#10B981', border: '1px solid rgba(16,185,129,0.35)' }}
+                      style={{ background: `${STATUS.success}33`, color: STATUS.success, border: `1px solid ${STATUS.success}59` }}
                     >
                       Win Confirmed
                     </span>
@@ -246,7 +265,7 @@ export function WinCelebration({
                   </div>
                   <h2 className="text-xl font-black text-white leading-tight">{companyName}</h2>
                   {industry && (
-                    <p className="text-xs text-gray-500 mt-0.5">{industry}</p>
+                    <p className="text-xs text-cortex-muted mt-0.5">{industry}</p>
                   )}
                 </div>
               </div>
@@ -254,8 +273,8 @@ export function WinCelebration({
               {/* Close button */}
               <button
                 onClick={onClose}
-                className="size-8 rounded-lg flex items-center justify-center text-gray-600 hover:text-white transition-colors flex-shrink-0 mt-0.5"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="size-8 rounded-cortex-sm flex items-center justify-center text-cortex-faint hover:text-white transition-colors flex-shrink-0 mt-0.5"
+                style={{ background: BORDER.subtle, border: `1px solid ${BORDER.default}` }}
               >
                 <X className="size-4" />
               </button>
@@ -266,9 +285,9 @@ export function WinCelebration({
           <div className="px-6 pt-6 pb-4 text-center">
             {dealValue && dealValue > 0 ? (
               <span className="contents">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-1">Deal Value</p>
+                <p className="text-xs font-semibold text-cortex-faint uppercase tracking-widest mb-1">Deal Value</p>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl font-black text-[#10B981]">$</span>
+                  <span className="text-3xl font-black text-cortex-success">$</span>
                   <motion.span
                     className="text-6xl font-black text-white tabular-nums"
                     initial={{ opacity: 0, y: 16 }}
@@ -278,17 +297,17 @@ export function WinCelebration({
                     {animatedDealValue.toLocaleString()}
                   </motion.span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">added to pipeline revenue</p>
+                <p className="text-xs text-cortex-faint mt-1">added to pipeline revenue</p>
               </span>
             ) : (
               <span className="contents">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-2">Outcome</p>
+                <p className="text-xs font-semibold text-cortex-faint uppercase tracking-widest mb-2">Outcome</p>
                 <div
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl"
-                  style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.35)' }}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-cortex-lg"
+                  style={{ background: `${STATUS.success}24`, border: `1px solid ${STATUS.success}59` }}
                 >
-                  <TrendingUp className="size-6 text-[#10B981]" />
-                  <span className="text-3xl font-black text-[#10B981]">Deal Won</span>
+                  <TrendingUp className="size-6 text-cortex-success" />
+                  <span className="text-3xl font-black text-cortex-success">Deal Won</span>
                 </div>
               </span>
             )}
@@ -296,17 +315,17 @@ export function WinCelebration({
 
           {/* ── Stats row ─────────────────────────────────────────────────── */}
           <div
-            className="mx-6 mb-5 grid grid-cols-3 gap-3 rounded-xl p-4"
-            style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}
+            className="mx-6 mb-5 grid grid-cols-3 gap-3 rounded-cortex-md p-4"
+            style={{ background: BORDER.subtle, border: `1px solid ${BORDER.default}` }}
           >
             {/* Total Revenue */}
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <DollarSign className="size-3 text-[#06D7F6]" />
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Revenue</span>
+                <DollarSign className="size-3 text-cortex-info" />
+                <span className="text-[10px] text-cortex-muted uppercase tracking-wider font-semibold">Revenue</span>
               </div>
               <motion.div
-                className="text-lg font-black text-[#06D7F6] tabular-nums"
+                className="text-lg font-black text-cortex-info tabular-nums"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
@@ -314,78 +333,78 @@ export function WinCelebration({
                 {formatRevenue(animatedRevenue)}
               </motion.div>
               {previousRevenue > 0 && (
-                <div className="text-[10px] text-gray-700 mt-0.5">
+                <div className="text-[10px] text-cortex-faint mt-0.5">
                   was {formatRevenue(previousRevenue)}
                 </div>
               )}
             </div>
 
             {/* Conversion Rate */}
-            <div className="text-center border-x" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <div className="text-center border-x" style={{ borderColor: BORDER.default }}>
               <div className="flex items-center justify-center gap-1 mb-1">
-                <Target className="size-3 text-[#FB923C]" />
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Conv. Rate</span>
+                <Target className="size-3 text-cortex-warning" />
+                <span className="text-[10px] text-cortex-muted uppercase tracking-wider font-semibold">Conv. Rate</span>
               </div>
               <motion.div
-                className="text-lg font-black text-[#FB923C] tabular-nums"
+                className="text-lg font-black text-cortex-warning tabular-nums"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
               >
                 {conversionRate !== null ? `${animatedConvRate}%` : '–'}
               </motion.div>
-              <div className="text-[10px] text-gray-700 mt-0.5">of all leads</div>
+              <div className="text-[10px] text-cortex-faint mt-0.5">of all leads</div>
             </div>
 
             {/* Total Wins */}
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
-                <Award className="size-3 text-[#8B5CF6]" />
-                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Total Wins</span>
+                <Award className="size-3 text-cortex-accent" />
+                <span className="text-[10px] text-cortex-muted uppercase tracking-wider font-semibold">Total Wins</span>
               </div>
               <motion.div
-                className="text-lg font-black text-[#8B5CF6] tabular-nums"
+                className="text-lg font-black text-cortex-accent tabular-nums"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7 }}
               >
                 {animatedWins}
               </motion.div>
-              <div className="text-[10px] text-gray-700 mt-0.5">logged</div>
+              <div className="text-[10px] text-cortex-faint mt-0.5">logged</div>
             </div>
           </div>
 
           {/* ── Learning Loop badge ───────────────────────────────────────── */}
           <motion.div
-            className="mx-6 mb-5 flex items-center gap-3 rounded-xl px-4 py-3"
+            className="mx-6 mb-5 flex items-center gap-3 rounded-cortex-md px-4 py-3"
             style={{
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(6,215,246,0.06))',
-              border: '1px solid rgba(139,92,246,0.25)',
+              background: `linear-gradient(135deg, ${brand.accent}1A, ${STATUS.info}0F)`,
+              border: `1px solid ${brand.accent}40`,
             }}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.8, type: 'spring', stiffness: 280, damping: 24 }}
           >
             <div
-              className="size-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.4)' }}
+              className="size-9 rounded-cortex-md flex items-center justify-center flex-shrink-0"
+              style={{ background: `${brand.accent}33`, border: `1px solid ${brand.accent}66` }}
             >
-              <Brain className="size-4 text-[#8B5CF6]" />
+              <Brain className="size-4 text-cortex-accent" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-white">CORTEX Learning Loop Updated</span>
                 {/* Live pulse dot */}
                 <span className="relative flex size-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: '#8B5CF6' }} />
-                  <span className="relative inline-flex rounded-full size-2" style={{ background: '#8B5CF6' }} />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: brand.accent }} />
+                  <span className="relative inline-flex rounded-full size-2" style={{ background: brand.accent }} />
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
+              <p className="text-[11px] text-cortex-muted mt-0.5 leading-relaxed">
                 Win data + deal value ingested · Recommendation accuracy recalculated · Insights panel refreshed
               </p>
             </div>
-            <Zap className="size-4 text-[#8B5CF6] flex-shrink-0 opacity-60" />
+            <Zap className="size-4 text-cortex-accent flex-shrink-0 opacity-60" />
           </motion.div>
 
           {/* ── Auto-dismiss progress bar + hint ─────────────────────────── */}
@@ -393,13 +412,13 @@ export function WinCelebration({
             {/* Progress track */}
             <div
               className="rounded-full overflow-hidden mb-2"
-              style={{ height: '3px', background: 'rgba(255,255,255,0.07)' }}
+              style={{ height: '3px', background: BORDER.default }}
             >
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  background: 'linear-gradient(90deg, #10B981, #8B5CF6)',
-                  boxShadow: '0 0 8px rgba(16,185,129,0.5)',
+                  background: `linear-gradient(90deg, ${STATUS.success}, ${brand.accent})`,
+                  boxShadow: `0 0 8px ${STATUS.success}80`,
                 }}
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
@@ -407,10 +426,10 @@ export function WinCelebration({
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-700">Auto-closing · click backdrop to dismiss</span>
+              <span className="text-[11px] text-cortex-faint">Auto-closing · click backdrop to dismiss</span>
               <button
                 onClick={onClose}
-                className="text-[11px] text-gray-600 hover:text-[#10B981] transition-colors font-medium"
+                className="text-[11px] text-cortex-faint hover:text-cortex-success transition-colors font-medium"
               >
                 Close now →
               </button>

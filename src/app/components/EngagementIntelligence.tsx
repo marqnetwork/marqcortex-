@@ -22,19 +22,27 @@ import {
   BarChart3, Target,
 } from 'lucide-react';
 import { getEngagementAnalytics, type EngagementAnalytics } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
+// means showing invented engagement numbers instead of none.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ── Colours ────────────────────────────────────────────────────────────────
 
-const PURPLE = '#8B5CF6';
-const BLUE   = '#3B82F6';
-const CYAN   = '#06D7F6';
-const ORANGE = '#FB923C';
-const RED    = '#FD4438';
-const GREEN  = '#10B981';
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const CYAN   = STATUS.info;
+const ORANGE = STATUS.warning;
+const RED    = STATUS.danger;
+const GREEN  = STATUS.success;
 
 const NOTE_TYPE_COLOURS: Record<string, string> = {
-  note:    '#9CA3AF',
+  note:    TEXT.muted,
   action:  ORANGE,
   flag:    RED,
   insight: PURPLE,
@@ -183,6 +191,8 @@ export function EngagementIntelligence({ accessToken }: Props) {
       }
 
       const res = await getEngagementAnalytics(accessToken);
+      // A response without the analytics is a failure, not a blank panel.
+      if (!res.engagement) throw new Error('Engagement data was not returned.');
       setData(res.engagement);
       setLastUpdated(new Date());
     } catch (err: any) {
@@ -190,36 +200,19 @@ export function EngagementIntelligence({ accessToken }: Props) {
         console.error('❌ Engagement analytics error:', err);
       }
       
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load engagement data');
-      } else {
-        // Fall back to demo data
-        const demoData: EngagementAnalytics = {
-          reportDelivery: {
-            reportAvailable: 15,
-            totalViewed: 12,
-            totalCTAClicked: 8,
-            totalPDFSaved: 5,
-            totalViews: 34,
-            avgViewsPerViewed: 2.8,
-            viewRate: 80,
-            ctaRate: 67,
-            pdfRate: 42,
-          },
-          notes: {
-            total: 47,
-            submissionsWithNotes: 10,
-            byType: { note: 20, action: 15, flag: 7, insight: 5 },
-            topCommented: [
-              { id: 'demo_1', company: 'Demo Company 1', count: 8 },
-            ],
-          },
-          topEngagedLeads: [],
-          recentActivity: [],
-        };
-        setData(demoData);
-        setLastUpdated(new Date());
-      }
+      // A FAILED LOAD IS NOT A MEASUREMENT.
+      //
+      // This used to substitute a hand-written `EngagementAnalytics` — fifteen
+      // reports available, twelve viewed, eight CTA clicks, an 80% view rate —
+      // whenever `SHOW_API_ERRORS` was off, which is the default. Those are not
+      // placeholder shapes; they are numbers, rendered in the same cards as the
+      // real ones, on a panel whose entire purpose is telling the team how
+      // clients are engaging. A team reading them would have drawn conclusions
+      // about outreach that nothing in their pipeline supported.
+      //
+      // The panel reports the failure instead. There is no number here worth
+      // inventing.
+      setError(err.message || 'Engagement data could not be loaded.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -232,8 +225,8 @@ export function EngagementIntelligence({ accessToken }: Props) {
     return (
       <div className="flex items-center justify-center min-h-80">
         <div className="text-center">
-          <Loader2 className="size-10 text-[#8B5CF6] animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading engagement data…</p>
+          <Loader2 className="size-10 text-cortex-accent animate-spin mx-auto mb-4" />
+          <p className="text-cortex-muted">Loading engagement data…</p>
         </div>
       </div>
     );
@@ -243,12 +236,12 @@ export function EngagementIntelligence({ accessToken }: Props) {
     return (
       <div className="flex items-center justify-center min-h-80">
         <div className="text-center max-w-sm">
-          <AlertTriangle className="size-10 text-[#FD4438] mx-auto mb-4" />
+          <AlertTriangle className="size-10 text-cortex-danger mx-auto mb-4" />
           <p className="text-white font-semibold mb-2">Failed to load engagement analytics</p>
-          <p className="text-gray-500 text-sm mb-5">{error}</p>
+          <p className="text-cortex-muted text-sm mb-5">{error}</p>
           <button
             onClick={() => load()}
-            className="px-5 py-2.5 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-xl text-sm font-medium transition-colors"
+            className="px-5 py-2.5 bg-cortex-accent hover:bg-cortex-accent-deep text-white rounded-cortex-md text-sm font-medium transition-colors"
           >
             Retry
           </button>
@@ -275,10 +268,10 @@ export function EngagementIntelligence({ accessToken }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Activity className="size-5 text-[#8B5CF6]" />
+            <Activity className="size-5 text-cortex-accent" />
             Engagement Intelligence
           </h2>
-          <p className="text-gray-400 text-sm mt-0.5">
+          <p className="text-cortex-muted text-sm mt-0.5">
             {lastUpdated
               ? `Last updated ${lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
               : 'Live data from Phase 3A · 3B · 3C'}
@@ -287,7 +280,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
         <button
           onClick={() => load(true)}
           disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white transition-all text-sm"
         >
           <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
@@ -301,7 +294,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
           { label: '3B Team Notes',    color: ORANGE },
           { label: '3C Client Delivery', color: CYAN },
         ].map(({ label, color }) => (
-          <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div key={label} className="flex items-center gap-1.5 text-xs text-cortex-muted">
             <div className="size-2 rounded-full" style={{ backgroundColor: color }} />
             {label}
           </div>
@@ -352,23 +345,23 @@ export function EngagementIntelligence({ accessToken }: Props) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.06 }}
-              className="bg-black/30 border border-white/8 rounded-xl p-4"
+              className="bg-cortex-sunken border border-white/8 rounded-cortex-md p-4"
             >
               <div className="flex items-center justify-between mb-3">
-                <div className="size-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
+                <div className="size-8 rounded-cortex-sm flex items-center justify-center" style={{ backgroundColor: `${kpi.color}20` }}>
                   <kpi.icon className="size-4" style={{ color: kpi.color }} />
                 </div>
               </div>
               <div className="text-2xl font-black mb-1" style={{ color: kpi.color }}>{kpi.value}</div>
               <div className="text-xs font-semibold text-white mb-1">{kpi.label}</div>
-              <div className="text-xs text-gray-600">{kpi.sub}</div>
+              <div className="text-xs text-cortex-faint">{kpi.sub}</div>
             </motion.div>
           ))}
         </div>
 
         {/* Delivery funnel */}
-        <div className="bg-black/20 border border-white/5 rounded-xl p-5">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">
+        <div className="bg-black/20 border border-cortex-subtle rounded-cortex-md p-5">
+          <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-4">
             Delivery Funnel
           </p>
           <div className="flex items-center gap-0 overflow-x-auto pb-1">
@@ -386,22 +379,22 @@ export function EngagementIntelligence({ accessToken }: Props) {
                 <div key={stage.label} className="flex items-center">
                   <div className="text-center min-w-[96px]">
                     <div
-                      className="rounded-xl px-3 py-3 border text-center mb-2"
+                      className="rounded-cortex-md px-3 py-3 border text-center mb-2"
                       style={{ backgroundColor: `${stage.color}12`, borderColor: `${stage.color}30` }}
                     >
                       <div className="text-2xl font-black" style={{ color: stage.color }}>
                         {stage.count}
                       </div>
                     </div>
-                    <div className="text-[10px] text-gray-500 leading-tight px-1">{stage.label}</div>
+                    <div className="text-[10px] text-cortex-muted leading-tight px-1">{stage.label}</div>
                     {dropPct !== null && (
-                      <div className={`text-[10px] font-semibold mt-0.5 ${dropPct > 40 ? 'text-[#FD4438]' : dropPct > 20 ? 'text-[#FB923C]' : 'text-[#10B981]'}`}>
+                      <div className={`text-[10px] font-semibold mt-0.5 ${dropPct > 40 ? 'text-cortex-danger' : dropPct > 20 ? 'text-cortex-warning' : 'text-cortex-success'}`}>
                         {dropPct > 0 ? `−${dropPct}%` : 'No drop'}
                       </div>
                     )}
                   </div>
                   {i < arr.length - 1 && (
-                    <ArrowRight className="size-4 text-gray-700 flex-shrink-0 mx-1" />
+                    <ArrowRight className="size-4 text-cortex-faint flex-shrink-0 mx-1" />
                   )}
                 </div>
               );
@@ -424,9 +417,9 @@ export function EngagementIntelligence({ accessToken }: Props) {
               { label: 'Avg Notes / Lead',   value: notes.submissionsWithNotes > 0
                   ? (notes.total / notes.submissionsWithNotes).toFixed(1) : '0', color: PURPLE },
             ].map(m => (
-              <div key={m.label} className="bg-black/30 border border-white/8 rounded-xl p-3 text-center">
+              <div key={m.label} className="bg-cortex-sunken border border-white/8 rounded-cortex-md p-3 text-center">
                 <div className="text-2xl font-black mb-0.5" style={{ color: m.color }}>{m.value}</div>
-                <div className="text-[10px] text-gray-500">{m.label}</div>
+                <div className="text-[10px] text-cortex-muted">{m.label}</div>
               </div>
             ))}
           </div>
@@ -450,11 +443,11 @@ export function EngagementIntelligence({ accessToken }: Props) {
                   <Tooltip
                     content={({ active, payload }) =>
                       active && payload?.length ? (
-                        <div className="bg-[#0A0A0F] border border-white/20 rounded-xl px-3 py-2 text-xs">
+                        <div className="bg-cortex-canvas border border-cortex-strong rounded-cortex-md px-3 py-2 text-xs">
                           <span className="capitalize font-bold" style={{ color: payload[0].payload.color }}>
                             {payload[0].name}
                           </span>
-                          <span className="text-gray-300 ml-1">× {payload[0].value}</span>
+                          <span className="text-cortex-secondary ml-1">× {payload[0].value}</span>
                         </div>
                       ) : null
                     }
@@ -471,10 +464,10 @@ export function EngagementIntelligence({ accessToken }: Props) {
                       <Icon className="size-3.5 flex-shrink-0" style={{ color }} />
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-xs capitalize text-gray-300">{type}</span>
+                          <span className="text-xs capitalize text-cortex-secondary">{type}</span>
                           <span className="text-xs font-bold" style={{ color }}>{count}</span>
                         </div>
-                        <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1 bg-cortex-control-hover rounded-full overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.round((count / total) * 100)}%` }}
@@ -490,7 +483,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-24 text-gray-600">
+            <div className="flex flex-col items-center justify-center h-24 text-cortex-faint">
               <MessageSquare className="size-8 opacity-30 mb-2" />
               <p className="text-xs">No notes yet</p>
             </div>
@@ -499,15 +492,15 @@ export function EngagementIntelligence({ accessToken }: Props) {
           {/* Top commented */}
           {notes.topCommented.length > 0 && (
             <div className="mt-5 pt-5 border-t border-white/8">
-              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-3">
+              <p className="text-[10px] font-bold text-cortex-faint uppercase tracking-wider mb-3">
                 Most Discussed Leads
               </p>
               <div className="space-y-2">
                 {notes.topCommented.slice(0, 4).map((item, i) => (
                   <div key={item.id} className="flex items-center gap-3">
-                    <span className="text-gray-700 text-xs w-4">{i + 1}</span>
-                    <span className="flex-1 text-gray-300 text-xs truncate">{item.company}</span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#FB923C]/15 text-[#FB923C]">
+                    <span className="text-cortex-faint text-xs w-4">{i + 1}</span>
+                    <span className="flex-1 text-cortex-secondary text-xs truncate">{item.company}</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-cortex-warning/15 text-cortex-warning">
                       {item.count} notes
                     </span>
                   </div>
@@ -520,7 +513,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
         {/* Top Engaged Leads */}
         <ECard title="Most Engaged Clients" icon={Target}>
           {topEngagedLeads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-gray-600">
+            <div className="flex flex-col items-center justify-center h-40 text-cortex-faint">
               <Eye className="size-8 opacity-30 mb-2" />
               <p className="text-xs">No engagement data yet</p>
             </div>
@@ -532,37 +525,37 @@ export function EngagementIntelligence({ accessToken }: Props) {
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
-                  className="flex items-center gap-3 p-3 bg-black/25 border border-white/6 rounded-xl"
+                  className="flex items-center gap-3 p-3 bg-black/25 border border-white/6 rounded-cortex-md"
                 >
                   {/* Rank */}
-                  <div className="size-6 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-gray-500 flex-shrink-0">
+                  <div className="size-6 rounded-full bg-cortex-control flex items-center justify-center text-[10px] font-bold text-cortex-muted flex-shrink-0">
                     {i + 1}
                   </div>
 
                   {/* Company + industry */}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white truncate">{lead.company}</div>
-                    <div className="text-xs text-gray-600 truncate">{lead.industry}</div>
+                    <div className="text-xs text-cortex-faint truncate">{lead.industry}</div>
                   </div>
 
                   {/* Signal icons */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#06D7F6]/10 text-[10px] font-bold text-[#06D7F6]">
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-cortex-info/10 text-[10px] font-bold text-cortex-info">
                       <Eye className="size-2.5" />
                       {lead.viewCount}
                     </div>
                     {lead.ctaClicked && (
-                      <div className="size-5 rounded bg-[#10B981]/15 flex items-center justify-center" title="CTA clicked">
-                        <Calendar className="size-3 text-[#10B981]" />
+                      <div className="size-5 rounded bg-cortex-success/15 flex items-center justify-center" title="CTA clicked">
+                        <Calendar className="size-3 text-cortex-success" />
                       </div>
                     )}
                     {lead.pdfSaved && (
-                      <div className="size-5 rounded bg-[#8B5CF6]/15 flex items-center justify-center" title="PDF saved">
-                        <Download className="size-3 text-[#8B5CF6]" />
+                      <div className="size-5 rounded bg-cortex-accent/15 flex items-center justify-center" title="PDF saved">
+                        <Download className="size-3 text-cortex-accent" />
                       </div>
                     )}
                     {lead.noteCount > 0 && (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FB923C]/10 text-[10px] font-bold text-[#FB923C]">
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-cortex-warning/10 text-[10px] font-bold text-cortex-warning">
                         <MessageSquare className="size-2.5" />
                         {lead.noteCount}
                       </div>
@@ -572,14 +565,14 @@ export function EngagementIntelligence({ accessToken }: Props) {
                   {/* Engagement score */}
                   <div
                     className="text-xs font-black w-10 text-right flex-shrink-0"
-                    style={{ color: lead.engagementScore >= 50 ? GREEN : lead.engagementScore >= 20 ? ORANGE : '#6B7280' }}
+                    style={{ color: lead.engagementScore >= 50 ? GREEN : lead.engagementScore >= 20 ? ORANGE : STATUS.neutral }}
                   >
                     {lead.engagementScore}
                   </div>
                 </motion.div>
               ))}
               {topEngagedLeads.length > 7 && (
-                <p className="text-xs text-gray-600 text-center pt-1">
+                <p className="text-xs text-cortex-faint text-center pt-1">
                   +{topEngagedLeads.length - 7} more engaged leads
                 </p>
               )}
@@ -593,7 +586,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
       ═══════════════════════════════════════════════════════════════════ */}
       <ECard title="Recent Activity Feed" icon={Activity}>
         {recentActivity.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-600">
+          <div className="flex flex-col items-center justify-center h-32 text-cortex-faint">
             <Clock className="size-8 opacity-30 mb-2" />
             <p className="text-sm">No activity yet — activity appears here as clients engage with reports and team adds notes</p>
           </div>
@@ -601,7 +594,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
           <div className="space-y-0 divide-y divide-white/5">
             {recentActivity.map((event, i) => {
               const Icon  = ACTIVITY_ICONS[event.type]  ?? Activity;
-              const color = ACTIVITY_COLOURS[event.type] ?? '#6B7280';
+              const color = ACTIVITY_COLOURS[event.type] ?? STATUS.neutral;
               const label = ACTIVITY_LABELS[event.type]  ?? event.type;
               return (
                 <motion.div
@@ -613,7 +606,7 @@ export function EngagementIntelligence({ accessToken }: Props) {
                 >
                   {/* Icon */}
                   <div
-                    className="size-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                    className="size-7 rounded-cortex-sm flex items-center justify-center flex-shrink-0 mt-0.5"
                     style={{ backgroundColor: `${color}18` }}
                   >
                     <Icon className="size-3.5" style={{ color }} />
@@ -625,11 +618,11 @@ export function EngagementIntelligence({ accessToken }: Props) {
                       <span className="text-xs font-semibold" style={{ color }}>{label}</span>
                       <span className="text-white text-xs font-medium truncate">{event.company}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">{event.detail}</p>
+                    <p className="text-xs text-cortex-muted mt-0.5 truncate">{event.detail}</p>
                   </div>
 
                   {/* Time */}
-                  <div className="text-[10px] text-gray-700 flex-shrink-0 mt-0.5 whitespace-nowrap">
+                  <div className="text-[10px] text-cortex-faint flex-shrink-0 mt-0.5 whitespace-nowrap">
                     {timeAgo(event.timestamp)}
                   </div>
                 </motion.div>
@@ -655,9 +648,9 @@ function ECard({
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+      className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-lg p-6"
     >
-      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+      <h3 className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-5 flex items-center gap-2">
         <Icon className="size-4" />
         {title}
       </h3>
@@ -671,13 +664,13 @@ function EngagementEmptyState({ onRefresh, isRefreshing }: { onRefresh: () => vo
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-black/40 border border-white/10 rounded-2xl p-12 text-center"
+      className="bg-cortex-raised border border-cortex-default rounded-cortex-lg p-12 text-center"
     >
-      <div className="size-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 flex items-center justify-center mx-auto mb-5">
-        <Activity className="size-8 text-[#8B5CF6]" />
+      <div className="size-16 rounded-cortex-lg bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 flex items-center justify-center mx-auto mb-5">
+        <Activity className="size-8 text-cortex-accent" />
       </div>
       <h3 className="text-xl font-bold text-white mb-2">No Engagement Data Yet</h3>
-      <p className="text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
+      <p className="text-cortex-muted text-sm max-w-md mx-auto mb-6 leading-relaxed">
         Engagement data appears here once clients view their reports, click CTAs, or save PDFs.
         Team notes activity from Phase 3B will also surface here.
       </p>
@@ -688,11 +681,11 @@ function EngagementEmptyState({ onRefresh, isRefreshing }: { onRefresh: () => vo
           { icon: Calendar,       label: 'CTA clicked',    color: GREEN  },
           { icon: MessageSquare,  label: 'Note added',     color: ORANGE },
         ].map(({ icon: Icon, label, color }) => (
-          <div key={label} className="bg-black/30 border border-white/8 rounded-xl p-3 text-center">
-            <div className="size-8 rounded-lg flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: `${color}18` }}>
+          <div key={label} className="bg-cortex-sunken border border-white/8 rounded-cortex-md p-3 text-center">
+            <div className="size-8 rounded-cortex-sm flex items-center justify-center mx-auto mb-2" style={{ backgroundColor: `${color}18` }}>
               <Icon className="size-4" style={{ color }} />
             </div>
-            <div className="text-[10px] text-gray-500">{label}</div>
+            <div className="text-[10px] text-cortex-muted">{label}</div>
           </div>
         ))}
       </div>
@@ -700,7 +693,7 @@ function EngagementEmptyState({ onRefresh, isRefreshing }: { onRefresh: () => vo
       <button
         onClick={onRefresh}
         disabled={isRefreshing}
-        className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-all text-sm mx-auto"
+        className="flex items-center gap-2 px-5 py-2.5 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white transition-all text-sm mx-auto"
       >
         <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         Check for activity

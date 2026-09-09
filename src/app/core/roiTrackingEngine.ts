@@ -27,6 +27,11 @@ import type {
   BaselineMetrics,
   VarianceReasonTag,
 } from '@/app/types/cortex-types';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // RAMP FACTORS — mirrors cashflowEngine §4
@@ -461,13 +466,13 @@ Generated: ${new Date().toLocaleString()} | MARQ Cortex Phase 8 Tracking
 export interface VarianceTagCfg { label: string; color: string; group: 'delay' | 'blocker' | 'positive' }
 
 export const VARIANCE_TAG_CFG: Record<VarianceReasonTag, VarianceTagCfg> = {
-  adoption_delay:              { label: 'Adoption Delay',             color: '#FB923C', group: 'delay'    },
-  data_quality_issue:          { label: 'Data Quality',               color: '#F59E0B', group: 'delay'    },
-  scope_change:                { label: 'Scope Change',               color: '#FB923C', group: 'delay'    },
-  integration_blocker:         { label: 'Integration Blocker',        color: '#FD4438', group: 'blocker'  },
-  stakeholder_bottleneck:      { label: 'Stakeholder Bottleneck',     color: '#FD4438', group: 'blocker'  },
-  tool_limitations:            { label: 'Tool Limitations',           color: '#F59E0B', group: 'blocker'  },
-  model_performance:           { label: 'Model Performance',          color: '#8B5CF6', group: 'blocker'  },
-  underestimated_change_mgmt:  { label: 'Change Mgmt Underestimated', color: '#FB923C', group: 'delay'    },
-  positive_outlier:            { label: 'Positive Outlier',           color: '#10B981', group: 'positive' },
+  adoption_delay:              { label: 'Adoption Delay',             color: STATUS.warning, group: 'delay'    },
+  data_quality_issue:          { label: 'Data Quality',               color: STATUS.caution, group: 'delay'    },
+  scope_change:                { label: 'Scope Change',               color: STATUS.warning, group: 'delay'    },
+  integration_blocker:         { label: 'Integration Blocker',        color: STATUS.danger, group: 'blocker'  },
+  stakeholder_bottleneck:      { label: 'Stakeholder Bottleneck',     color: STATUS.danger, group: 'blocker'  },
+  tool_limitations:            { label: 'Tool Limitations',           color: STATUS.caution, group: 'blocker'  },
+  model_performance:           { label: 'Model Performance',          color: brand.accent, group: 'blocker'  },
+  underestimated_change_mgmt:  { label: 'Change Mgmt Underestimated', color: STATUS.warning, group: 'delay'    },
+  positive_outlier:            { label: 'Positive Outlier',           color: STATUS.success, group: 'positive' },
 };

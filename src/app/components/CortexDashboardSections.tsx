@@ -69,33 +69,46 @@ import { ROITabLayout } from '@/app/components/ROITabLayout';
 import { ProposalDraftEditor } from '@/app/components/ProposalDraftEditor';
 import roiAnalysisJSON from '@/imports/roi-analysis.json';
 import { AIToolbar } from '@/app/components/InlineAITrigger';
+import {brand, status, border, DEPARTMENT_COLOR, text as TEXT } from '@/app/lib/tokens';
+
+// The palette these sections used to spell out as hex literals a hundred times
+// over — in ternaries, score bands, severity maps and chart props. Read from
+// the token layer, so the analysis surface speaks the same colours as the rest
+// of the console.
+const PURPLE = brand.accent;
+const BLUE   = brand.accentAlt;
+const GREEN  = status.success;
+const ORANGE = status.warning;
+const RED    = status.danger;
+const CYAN   = status.info;
+const AMBER  = status.caution;
 
 // ── Colour maps ──────────────────────────────────────────────────────────────
 
 const SEVERITY_COLORS: Record<string, string> = {
-  Critical: '#FD4438', High: '#FB923C', Moderate: '#3B82F6', Low: '#10B981',
-  critical: '#FD4438', high: '#FB923C', medium: '#3B82F6', moderate: '#3B82F6',
+  Critical: RED, High: ORANGE, Moderate: BLUE, Low: GREEN,
+  critical: RED, high: ORANGE, medium: BLUE, moderate: BLUE,
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  Critical: '#FD4438', Immediate: '#FD4438', High: '#FB923C', Moderate: '#3B82F6',
+  Critical: RED, Immediate: RED, High: ORANGE, Moderate: BLUE,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Revenue: '#10B981', Operations: '#8B5CF6', Governance: '#FB923C', Compliance: '#3B82F6',
-  Ops: '#8B5CF6', Risk: '#FD4438',
+  Revenue: GREEN, Operations: PURPLE, Governance: ORANGE, Compliance: BLUE,
+  Ops: PURPLE, Risk: RED,
 };
 
 const RISK_TYPE_COLORS: Record<string, string> = {
-  Scalability: '#FD4438', Data: '#FB923C', Dependency: '#8B5CF6', Compliance: '#3B82F6',
+  Scalability: RED, Data: ORANGE, Dependency: PURPLE, Compliance: BLUE,
 };
 
 const GROWTH_RISK_COLORS: Record<string, string> = {
-  Critical: '#FD4438', Elevated: '#FB923C', Moderate: '#3B82F6', Low: '#10B981',
+  Critical: RED, Elevated: ORANGE, Moderate: BLUE, Low: GREEN,
 };
 
 const READINESS_CAT_COLORS: Record<string, string> = {
-  Manual: '#FD4438', Fragmented: '#FB923C', Transitional: '#3B82F6', Structured: '#10B981',
+  Manual: RED, Fragmented: ORANGE, Transitional: BLUE, Structured: GREEN,
 };
 
 // ============================================================================
@@ -133,7 +146,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
       {d.bottleneckDeepDives && d.bottleneckDeepDives.length > 0 ? (
         <section>
           <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-            <Layers className="size-6 text-[#FD4438]" />
+            <Layers className="size-6 text-cortex-danger" />
             Primary Bottleneck Deep Dive
           </h2>
           <div className="space-y-4">
@@ -150,7 +163,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
       {d.systemicPatterns && d.systemicPatterns.length > 0 && (
         <section>
           <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-            <Network className="size-6 text-[#06D7F6]" />
+            <Network className="size-6 text-cortex-info" />
             Systemic Pattern Detection
           </h2>
           <div className="space-y-3">
@@ -164,7 +177,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
       {/* ─── SECTION D — Operational Pillar Matrix ─── */}
       <section>
         <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-          <BarChart3 className="size-6 text-[#8B5CF6]" />
+          <BarChart3 className="size-6 text-cortex-accent" />
           Operational Pillar Matrix
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -195,16 +208,16 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
       {d.financialModel && (
         <section>
           <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-            <DollarSign className="size-6 text-[#10B981]" />
+            <DollarSign className="size-6 text-cortex-success" />
             Financial &amp; Efficiency Model
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-            <FinancialCard label="Direct Revenue Leakage" value={d.financialModel.directRevenuLeakageFormatted} color="#FD4438" />
-            <FinancialCard label="Hidden Operational Drag" value={d.financialModel.hiddenOperationalDragFormatted} color="#FB923C" />
-            <FinancialCard label="Payroll Misallocation" value={d.financialModel.payrollMisallocationFormatted} color="#8B5CF6" />
-            <FinancialCard label="Opportunity Cost" value={d.financialModel.opportunityCostFormatted} color="#3B82F6" />
-            <FinancialCard label="Compounding Growth Tax" value={d.financialModel.compoundingGrowthTaxFormatted} color="#06D7F6" />
-            <FinancialCard label="Total Annual Impact" value={d.financialModel.totalEstimatedAnnualImpactFormatted} color="#10B981" highlight />
+            <FinancialCard label="Direct Revenue Leakage" value={d.financialModel.directRevenuLeakageFormatted} color={RED} />
+            <FinancialCard label="Hidden Operational Drag" value={d.financialModel.hiddenOperationalDragFormatted} color={ORANGE} />
+            <FinancialCard label="Payroll Misallocation" value={d.financialModel.payrollMisallocationFormatted} color={PURPLE} />
+            <FinancialCard label="Opportunity Cost" value={d.financialModel.opportunityCostFormatted} color={BLUE} />
+            <FinancialCard label="Compounding Growth Tax" value={d.financialModel.compoundingGrowthTaxFormatted} color={CYAN} />
+            <FinancialCard label="Total Annual Impact" value={d.financialModel.totalEstimatedAnnualImpactFormatted} color={GREEN} highlight />
           </div>
         </section>
       )}
@@ -213,7 +226,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
       {d.enhancedRisks && d.enhancedRisks.length > 0 ? (
         <section>
           <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-            <Shield className="size-6 text-[#FB923C]" />
+            <Shield className="size-6 text-cortex-warning" />
             Operational Risk Assessment
           </h2>
           <div className="space-y-4">
@@ -226,7 +239,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
         /* fallback to legacy risk flags */
         <section>
           <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-            <Shield className="size-6 text-[#FB923C]" />
+            <Shield className="size-6 text-cortex-warning" />
             Operational Risk Assessment
           </h2>
           <div className="space-y-3">
@@ -242,12 +255,12 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold flex items-center gap-2">
-              <FileText className="size-6 text-[#06D7F6]" />
+              <FileText className="size-6 text-cortex-info" />
               Full Diagnostic Transcript
             </h2>
             <button
               onClick={() => setShowTranscript(!showTranscript)}
-              className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
+              className="text-sm text-cortex-muted hover:text-white transition-colors flex items-center gap-2 px-3 py-1.5 rounded-cortex-sm bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default"
             >
               {showTranscript ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               {showTranscript ? 'Collapse' : 'Expand'} Transcript
@@ -257,15 +270,15 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
           {/* Filter chips */}
           {showTranscript && (
             <div className="flex items-center gap-2 mb-4">
-              <Filter className="size-4 text-gray-500" />
+              <Filter className="size-4 text-cortex-muted" />
               {['pain', 'risk', 'opportunity', 'strength'].map(f => (
                 <button
                   key={f}
                   onClick={() => setTranscriptFilter(transcriptFilter === f ? null : f)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-all border ${
                     transcriptFilter === f
-                      ? 'bg-white/15 border-white/30 text-white'
-                      : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                      ? 'bg-cortex-control-hover border-cortex-strong text-white'
+                      : 'bg-cortex-control border-cortex-default text-cortex-muted hover:bg-cortex-control-hover'
                   }`}
                 >
                   {f}
@@ -274,7 +287,7 @@ export function DiagnosticSummarySection({ data }: { data: CortexLeadData }) {
               {transcriptFilter && (
                 <button
                   onClick={() => setTranscriptFilter(null)}
-                  className="text-xs text-gray-500 hover:text-gray-300 ml-2 underline"
+                  className="text-xs text-cortex-muted hover:text-cortex-secondary ml-2 underline"
                 >
                   Clear
                 </button>
@@ -323,9 +336,9 @@ function ConfidenceMetric({ label, value, color, highlight }: {
   label: string; value: string; color: string; highlight?: boolean;
 }) {
   return (
-    <div className={`rounded-lg p-3 text-center ${highlight ? 'bg-white/[0.06] border border-white/10' : 'bg-white/[0.03]'}`}>
+    <div className={`rounded-cortex-sm p-3 text-center ${highlight ? 'bg-white/[0.06] border border-cortex-default' : 'bg-white/[0.03]'}`}>
       <div className="text-2xl font-black mb-1" style={{ color }}>{value}</div>
-      <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{label}</div>
+      <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">{label}</div>
     </div>
   );
 }
@@ -334,24 +347,24 @@ function SectionA({ overview, confidenceLayer }: {
   overview: NonNullable<CortexLeadData['diagnostic']['executiveOverview']>;
   confidenceLayer?: ConfidenceLayer;
 }) {
-  const readinessColor = READINESS_CAT_COLORS[overview.readinessCategory] || '#FB923C';
-  const growthColor = GROWTH_RISK_COLORS[overview.growthRiskIndicator] || '#FB923C';
+  const readinessColor = READINESS_CAT_COLORS[overview.readinessCategory] || ORANGE;
+  const growthColor = GROWTH_RISK_COLORS[overview.growthRiskIndicator] || ORANGE;
 
   return (
     <section>
       <h2 className="text-2xl font-bold mb-5 flex items-center gap-2">
-        <Brain className="size-6 text-[#8B5CF6]" />
+        <Brain className="size-6 text-cortex-accent" />
         Executive Diagnostic Overview
       </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* LEFT — Primary Signal Card */}
-        <div className="bg-gradient-to-br from-[#8B5CF6]/15 to-[#3B82F6]/15 border border-[#8B5CF6]/30 rounded-xl p-6 flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-cortex-accent/15 to-cortex-accent-alt/15 border border-cortex-accent/30 rounded-cortex-md p-6 flex flex-col justify-between">
           {/* Score ring */}
           <div className="flex items-center gap-6 mb-6">
             <div className="relative size-24 flex-shrink-0">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke={border.subtle} strokeWidth="10" />
                 <circle
                   cx="50" cy="50" r="42"
                   fill="none"
@@ -368,86 +381,86 @@ function SectionA({ overview, confidenceLayer }: {
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">AI Readiness Score</div>
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-1">AI Readiness Score</div>
               <div className="text-xl font-bold mb-1" style={{ color: readinessColor }}>
                 {overview.readinessCategory}
               </div>
-              <div className="text-xs text-gray-400">Confidence: {overview.confidenceLevel}</div>
+              <div className="text-xs text-cortex-muted">Confidence: {overview.confidenceLevel}</div>
             </div>
           </div>
 
           {/* Growth Risk */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg" style={{ backgroundColor: `${growthColor}12`, border: `1px solid ${growthColor}30` }}>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-cortex-sm" style={{ backgroundColor: `${growthColor}12`, border: `1px solid ${growthColor}30` }}>
             <Activity className="size-5" style={{ color: growthColor }} />
             <div>
-              <div className="text-xs text-gray-400">Growth Risk Indicator</div>
+              <div className="text-xs text-cortex-muted">Growth Risk Indicator</div>
               <div className="text-sm font-bold" style={{ color: growthColor }}>{overview.growthRiskIndicator}</div>
             </div>
           </div>
         </div>
 
         {/* RIGHT — Diagnostic Summary */}
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <div className="space-y-4 mb-5">
             <div>
-              <div className="text-xs font-semibold text-[#FD4438] uppercase tracking-wider mb-1">Primary Bottleneck</div>
+              <div className="text-xs font-semibold text-cortex-danger uppercase tracking-wider mb-1">Primary Bottleneck</div>
               <div className="text-lg font-bold text-white">{overview.primaryBottleneckTheme}</div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-[#FB923C] uppercase tracking-wider mb-1">Secondary Bottleneck</div>
-              <div className="text-base font-semibold text-gray-200">{overview.secondaryBottleneck}</div>
+              <div className="text-xs font-semibold text-cortex-warning uppercase tracking-wider mb-1">Secondary Bottleneck</div>
+              <div className="text-base font-semibold text-cortex-secondary">{overview.secondaryBottleneck}</div>
             </div>
             <div className="flex items-center gap-3">
-              <DollarSign className="size-5 text-[#10B981]" />
+              <DollarSign className="size-5 text-cortex-success" />
               <div>
-                <div className="text-xs text-gray-400">Estimated Annual Impact</div>
-                <div className="text-lg font-bold text-[#10B981]">{overview.estimatedAnnualImpactRange}</div>
+                <div className="text-xs text-cortex-muted">Estimated Annual Impact</div>
+                <div className="text-lg font-bold text-cortex-success">{overview.estimatedAnnualImpactRange}</div>
               </div>
             </div>
           </div>
 
           {/* Summary Narrative */}
-          <div className="pt-4 border-t border-white/10">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Summary</div>
-            <p className="text-sm text-gray-300 leading-relaxed">{overview.summaryNarrative}</p>
+          <div className="pt-4 border-t border-cortex-default">
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Summary</div>
+            <p className="text-sm text-cortex-secondary leading-relaxed">{overview.summaryNarrative}</p>
           </div>
         </div>
       </div>
 
       {/* ── Confidence & Integrity Strip ── */}
       {confidenceLayer && (
-        <div className="mt-5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+        <div className="mt-5 bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Shield className="size-5 text-[#06D7F6]" />
+            <Shield className="size-5 text-cortex-info" />
             <span className="text-sm font-semibold text-white">Confidence & Integrity Layer</span>
-            <span className="ml-auto text-xs text-gray-500">Analysis quality metrics</span>
+            <span className="ml-auto text-xs text-cortex-muted">Analysis quality metrics</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <ConfidenceMetric
               label="AI Confidence"
               value={`${Math.round(confidenceLayer.aiConfidenceScore * 100)}%`}
-              color={confidenceLayer.aiConfidenceScore >= 0.8 ? '#10B981' : confidenceLayer.aiConfidenceScore >= 0.5 ? '#FB923C' : '#FD4438'}
+              color={confidenceLayer.aiConfidenceScore >= 0.8 ? GREEN : confidenceLayer.aiConfidenceScore >= 0.5 ? ORANGE : RED}
               highlight
             />
             <ConfidenceMetric
               label="Signals Detected"
               value={String(confidenceLayer.totalSignalsDetected)}
-              color="#8B5CF6"
+              color={PURPLE}
             />
             <ConfidenceMetric
               label="Corroborated"
               value={String(confidenceLayer.corroboratedPatterns)}
-              color="#3B82F6"
+              color={BLUE}
             />
             <ConfidenceMetric
               label="Contradictions"
               value={String(confidenceLayer.contradictionFlags)}
-              color={confidenceLayer.contradictionFlags > 2 ? '#FD4438' : confidenceLayer.contradictionFlags > 0 ? '#FB923C' : '#10B981'}
+              color={confidenceLayer.contradictionFlags > 2 ? RED : confidenceLayer.contradictionFlags > 0 ? ORANGE : GREEN}
             />
             <ConfidenceMetric
               label="Weak Signals"
               value={String(confidenceLayer.weakSignalFlags)}
-              color={confidenceLayer.weakSignalFlags > 3 ? '#FD4438' : confidenceLayer.weakSignalFlags > 1 ? '#FB923C' : '#10B981'}
+              color={confidenceLayer.weakSignalFlags > 3 ? RED : confidenceLayer.weakSignalFlags > 1 ? ORANGE : GREEN}
             />
           </div>
         </div>
@@ -471,12 +484,12 @@ function BottleneckDeepDiveCard({
 }) {
   const [expanded, setExpanded] = useState(rank === 1); // first one expanded by default
 
-  const prioColor = SEVERITY_COLORS[bn.severity] || '#3B82F6';
-  const catColor = CATEGORY_COLORS[bn.category] || '#8B5CF6';
+  const prioColor = SEVERITY_COLORS[bn.severity] || BLUE;
+  const catColor = CATEGORY_COLORS[bn.category] || PURPLE;
 
   return (
     <div
-      className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden"
+      className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden"
       data-bottleneck={bn.bottleneckId || ''}
     >
       {/* B1 — Header (always visible) */}
@@ -485,7 +498,7 @@ function BottleneckDeepDiveCard({
         className="w-full text-left p-5 flex items-start gap-4 hover:bg-white/[0.02] transition-colors"
       >
         <div
-          className="size-10 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0"
+          className="size-10 rounded-cortex-sm flex items-center justify-center text-lg font-black flex-shrink-0"
           style={{ backgroundColor: `${prioColor}20`, color: prioColor }}
         >
           {rank}
@@ -502,15 +515,15 @@ function BottleneckDeepDiveCard({
               {bn.category}
             </span>
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-              bn.patternStrength >= 8 ? 'bg-[#10B981]/15 text-[#10B981]'
-              : bn.patternStrength >= 4 ? 'bg-[#FB923C]/15 text-[#FB923C]'
-              : 'bg-white/10 text-gray-400'
+              bn.patternStrength >= 8 ? 'bg-cortex-success/15 text-cortex-success'
+              : bn.patternStrength >= 4 ? 'bg-cortex-warning/15 text-cortex-warning'
+              : 'bg-cortex-control-hover text-cortex-muted'
             }`}>
               Strength: {bn.patternStrength}
             </span>
           </div>
         </div>
-        {expanded ? <ChevronDown className="size-5 text-gray-400 flex-shrink-0 mt-1" /> : <ChevronRight className="size-5 text-gray-400 flex-shrink-0 mt-1" />}
+        {expanded ? <ChevronDown className="size-5 text-cortex-muted flex-shrink-0 mt-1" /> : <ChevronRight className="size-5 text-cortex-muted flex-shrink-0 mt-1" />}
       </button>
 
       {/* Expandable body: B2–B6 */}
@@ -523,20 +536,20 @@ function BottleneckDeepDiveCard({
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 space-y-5 border-t border-white/5 pt-5">
+            <div className="px-5 pb-5 space-y-5 border-t border-cortex-subtle pt-5">
               {/* Causal Chain (5-step) */}
               <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Causal Chain</div>
+                <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">Causal Chain</div>
                 <div className="space-y-2">
                   {['Trigger', 'Immediate Effect', 'Secondary Effect', 'Compounding Effect', 'Failure Outcome'].map((step, idx) => (
                     <div key={idx} className="flex items-start gap-3">
                       <div className="mt-1.5 size-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                        style={{ backgroundColor: `${idx >= 3 ? '#FD4438' : idx >= 1 ? '#FB923C' : '#3B82F6'}20`, color: idx >= 3 ? '#FD4438' : idx >= 1 ? '#FB923C' : '#3B82F6' }}>
+                        style={{ backgroundColor: `${idx >= 3 ? RED : idx >= 1 ? ORANGE : BLUE}20`, color: idx >= 3 ? RED : idx >= 1 ? ORANGE : BLUE }}>
                         {idx + 1}
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{step}</span>
-                        <p className="text-sm text-gray-300">{bn.causalChain[idx]}</p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-cortex-muted">{step}</span>
+                        <p className="text-sm text-cortex-secondary">{bn.causalChain[idx]}</p>
                       </div>
                     </div>
                   ))}
@@ -545,28 +558,28 @@ function BottleneckDeepDiveCard({
 
               {/* Evidence Mapping */}
               <div>
-                <div className="text-xs font-semibold text-[#06D7F6] uppercase tracking-wider mb-3">Evidence Mapping</div>
+                <div className="text-xs font-semibold text-cortex-info uppercase tracking-wider mb-3">Evidence Mapping</div>
                 <div className="space-y-3">
                   {bn.evidence.map((ev, idx) => (
-                    <div key={idx} className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
+                    <div key={idx} className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <button
                           onClick={() => onScrollToAnswer(ev.questionId)}
-                          className="px-2 py-0.5 rounded bg-[#06D7F6]/15 text-[#06D7F6] text-xs font-bold hover:bg-[#06D7F6]/25 transition-colors"
+                          className="px-2 py-0.5 rounded bg-cortex-info/15 text-cortex-info text-xs font-bold hover:bg-cortex-info/25 transition-colors"
                         >
                           {ev.questionRef}
                         </button>
-                        <span className="text-xs text-gray-500">Client answer</span>
+                        <span className="text-xs text-cortex-muted">Client answer</span>
                       </div>
-                      <p className="text-sm text-gray-300 italic mb-2">&ldquo;{ev.clientExcerpt}&rdquo;</p>
+                      <p className="text-sm text-cortex-secondary italic mb-2">&ldquo;{ev.clientExcerpt}&rdquo;</p>
                       <div className="flex items-start gap-2 mb-2">
-                        <Brain className="size-4 text-[#8B5CF6] flex-shrink-0 mt-0.5" />
-                        <p className="text-xs text-gray-400">{ev.aiInterpretation}</p>
+                        <Brain className="size-4 text-cortex-accent flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-cortex-muted">{ev.aiInterpretation}</p>
                       </div>
                       {ev.structuralImplication && (
-                        <div className="flex items-start gap-2 pt-2 border-t border-white/5">
-                          <ArrowRight className="size-3.5 text-[#FB923C] flex-shrink-0 mt-0.5" />
-                          <p className="text-xs text-[#FB923C]">{ev.structuralImplication}</p>
+                        <div className="flex items-start gap-2 pt-2 border-t border-cortex-subtle">
+                          <ArrowRight className="size-3.5 text-cortex-warning flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-cortex-warning">{ev.structuralImplication}</p>
                         </div>
                       )}
                     </div>
@@ -576,7 +589,7 @@ function BottleneckDeepDiveCard({
 
               {/* Root Cause Hierarchy (4 levels) */}
               <div>
-                <div className="text-xs font-semibold text-[#FB923C] uppercase tracking-wider mb-3">Root Cause Hierarchy</div>
+                <div className="text-xs font-semibold text-cortex-warning uppercase tracking-wider mb-3">Root Cause Hierarchy</div>
                 <div className="space-y-2">
                   {[
                     { level: 'L1 Symptom', text: bn.rootCauseHierarchy.level_1_symptom },
@@ -584,9 +597,9 @@ function BottleneckDeepDiveCard({
                     { level: 'L3 Architecture Failure', text: bn.rootCauseHierarchy.level_3_architecture_failure },
                     { level: 'L4 Governance Failure', text: bn.rootCauseHierarchy.level_4_governance_failure },
                   ].map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-2.5 rounded-lg" style={{ backgroundColor: `rgba(251,146,60,${0.03 + idx * 0.03})` }}>
-                      <span className="text-[10px] font-bold text-[#FB923C] uppercase tracking-wider whitespace-nowrap mt-0.5">{item.level}</span>
-                      <p className="text-xs text-gray-300">{item.text}</p>
+                    <div key={idx} className="flex items-start gap-3 p-2.5 rounded-cortex-sm" style={{ backgroundColor: `${ORANGE}${Math.round((0.03 + idx * 0.03) * 255).toString(16).padStart(2, '0')}` }}>
+                      <span className="text-[10px] font-bold text-cortex-warning uppercase tracking-wider whitespace-nowrap mt-0.5">{item.level}</span>
+                      <p className="text-xs text-cortex-secondary">{item.text}</p>
                     </div>
                   ))}
                 </div>
@@ -594,7 +607,7 @@ function BottleneckDeepDiveCard({
 
               {/* Stress Simulation */}
               <div>
-                <div className="text-xs font-semibold text-[#FD4438] uppercase tracking-wider mb-3">Stress Simulation</div>
+                <div className="text-xs font-semibold text-cortex-danger uppercase tracking-wider mb-3">Stress Simulation</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: '+20% Volume', value: bn.stressSimulation.growth_20_percent, icon: TrendingUp },
@@ -602,12 +615,12 @@ function BottleneckDeepDiveCard({
                     { label: 'Founder Absence', value: bn.stressSimulation.founder_absence, icon: Target },
                     { label: 'System Failure', value: bn.stressSimulation.system_failure, icon: AlertTriangle },
                   ].map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-lg bg-[#FD4438]/5 border border-[#FD4438]/10">
+                    <div key={idx} className="p-3 rounded-cortex-sm bg-cortex-danger/5 border border-cortex-danger/10">
                       <div className="flex items-center gap-2 mb-1">
-                        <item.icon className="size-3.5 text-[#FD4438]" />
-                        <span className="text-xs font-semibold text-[#FD4438]">{item.label}</span>
+                        <item.icon className="size-3.5 text-cortex-danger" />
+                        <span className="text-xs font-semibold text-cortex-danger">{item.label}</span>
                       </div>
-                      <p className="text-xs text-gray-300">{item.value}</p>
+                      <p className="text-xs text-cortex-secondary">{item.value}</p>
                     </div>
                   ))}
                 </div>
@@ -615,15 +628,15 @@ function BottleneckDeepDiveCard({
 
               {/* Quantified Impact */}
               <div>
-                <div className="text-xs font-semibold text-[#10B981] uppercase tracking-wider mb-3">Quantified Impact</div>
+                <div className="text-xs font-semibold text-cortex-success uppercase tracking-wider mb-3">Quantified Impact</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: 'Revenue Leakage', value: `$${((bn.quantifiedImpact?.revenue_leakage_estimate ?? 0) / 1000).toFixed(0)}K/yr`, color: '#FD4438' },
-                    { label: 'Payroll Inflation', value: `$${((bn.quantifiedImpact?.payroll_inflation_risk ?? 0) / 1000).toFixed(0)}K/yr`, color: '#FB923C' },
-                    { label: 'Time Waste', value: `${bn.quantifiedImpact?.time_waste_hours_per_week ?? 0} hrs/wk`, color: '#8B5CF6' },
-                    { label: 'Growth Ceiling', value: `${bn.quantifiedImpact?.growth_ceiling_percent ?? 0}%`, color: '#3B82F6' },
+                    { label: 'Revenue Leakage', value: `$${((bn.quantifiedImpact?.revenue_leakage_estimate ?? 0) / 1000).toFixed(0)}K/yr`, color: RED },
+                    { label: 'Payroll Inflation', value: `$${((bn.quantifiedImpact?.payroll_inflation_risk ?? 0) / 1000).toFixed(0)}K/yr`, color: ORANGE },
+                    { label: 'Time Waste', value: `${bn.quantifiedImpact?.time_waste_hours_per_week ?? 0} hrs/wk`, color: PURPLE },
+                    { label: 'Growth Ceiling', value: `${bn.quantifiedImpact?.growth_ceiling_percent ?? 0}%`, color: BLUE },
                   ].map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-lg border" style={{ backgroundColor: `${item.color}08`, borderColor: `${item.color}20` }}>
+                    <div key={idx} className="p-3 rounded-cortex-sm border" style={{ backgroundColor: `${item.color}08`, borderColor: `${item.color}20` }}>
                       <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: item.color }}>{item.label}</div>
                       <div className="text-lg font-black" style={{ color: item.color }}>{item.value}</div>
                     </div>
@@ -633,18 +646,18 @@ function BottleneckDeepDiveCard({
 
               {/* Intervention Path */}
               <div>
-                <div className="text-xs font-semibold text-[#10B981] uppercase tracking-wider mb-3">Intervention Path</div>
+                <div className="text-xs font-semibold text-cortex-success uppercase tracking-wider mb-3">Intervention Path</div>
                 <div className="space-y-3">
                   {[
-                    { label: 'Short-Term', text: bn.intervention.short_term, color: '#10B981' },
-                    { label: 'Mid-Term', text: bn.intervention.mid_term, color: '#3B82F6' },
-                    { label: 'Structural Redesign', text: bn.intervention.structural_redesign, color: '#8B5CF6' },
+                    { label: 'Short-Term', text: bn.intervention.short_term, color: GREEN },
+                    { label: 'Mid-Term', text: bn.intervention.mid_term, color: BLUE },
+                    { label: 'Structural Redesign', text: bn.intervention.structural_redesign, color: PURPLE },
                   ].map((item, idx) => (
                     <div key={idx} className="flex items-start gap-3">
                       <div className="mt-1 size-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                       <div>
                         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: item.color }}>{item.label}</span>
-                        <p className="text-sm text-gray-300 mt-0.5">{item.text}</p>
+                        <p className="text-sm text-cortex-secondary mt-0.5">{item.text}</p>
                       </div>
                     </div>
                   ))}
@@ -667,10 +680,10 @@ function PatternCard({
 }: {
   pattern: SystemicPattern;
 }) {
-  const color = SEVERITY_COLORS[pattern.severity] || '#3B82F6';
+  const color = SEVERITY_COLORS[pattern.severity] || BLUE;
 
   return (
-    <div className="p-4 rounded-xl border bg-black/30 backdrop-blur-xl" style={{ borderColor: `${color}25` }}>
+    <div className="p-4 rounded-cortex-md border bg-cortex-sunken backdrop-blur-xl" style={{ borderColor: `${color}25` }}>
       <div className="flex items-start gap-3">
         <GitBranch className="size-5 flex-shrink-0 mt-0.5" style={{ color }} />
         <div className="flex-1">
@@ -678,14 +691,14 @@ function PatternCard({
             <span className="px-2 py-0.5 rounded text-xs font-bold uppercase" style={{ backgroundColor: `${color}15`, color }}>
               {pattern.severity}
             </span>
-            <span className="text-xs text-gray-500">{pattern.signalCount} signals</span>
+            <span className="text-xs text-cortex-muted">{pattern.signalCount} signals</span>
             {pattern.crossDepartmentalPresence && (
-              <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#8B5CF6]/15 text-[#8B5CF6]">Cross-Dept</span>
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-cortex-accent/15 text-cortex-accent">Cross-Dept</span>
             )}
-            <span className="text-xs text-gray-500">{Math.round(pattern.recurrenceProbability * 100)}% recurrence</span>
+            <span className="text-xs text-cortex-muted">{Math.round(pattern.recurrenceProbability * 100)}% recurrence</span>
           </div>
-          <p className="text-sm text-gray-200 font-medium mb-1">{pattern.patternName}</p>
-          <p className="text-xs text-gray-400">{pattern.failureCascadePotential}</p>
+          <p className="text-sm text-cortex-secondary font-medium mb-1">{pattern.patternName}</p>
+          <p className="text-xs text-cortex-muted">{pattern.failureCascadePotential}</p>
         </div>
       </div>
     </div>
@@ -709,12 +722,12 @@ function PillarCard({
   const percentage = (score / 5) * 100;
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold text-white">{label}</div>
-        <span className="text-2xl font-black" style={{ color }}>{score}<span className="text-sm font-normal text-gray-500">/5</span></span>
+        <span className="text-2xl font-black" style={{ color }}>{score}<span className="text-sm font-normal text-cortex-muted">/5</span></span>
       </div>
-      <div className="h-2.5 bg-white/5 rounded-full overflow-hidden mb-3">
+      <div className="h-2.5 bg-cortex-control rounded-full overflow-hidden mb-3">
         <div className="h-full rounded-full transition-all" style={{ width: `${percentage}%`, backgroundColor: color }} />
       </div>
       <div className="text-xs mb-1" style={{ color }}>
@@ -722,16 +735,16 @@ function PillarCard({
       </div>
 
       {interpretation && (
-        <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
-          <p className="text-xs text-gray-400 leading-relaxed">{interpretation.interpretation}</p>
+        <div className="mt-3 pt-3 border-t border-cortex-subtle space-y-2">
+          <p className="text-xs text-cortex-muted leading-relaxed">{interpretation.interpretation}</p>
           <div className="flex items-start gap-2">
-            <AlertTriangle className="size-3 text-[#FB923C] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-[#FB923C]">{interpretation.dominantWeakness}</p>
+            <AlertTriangle className="size-3 text-cortex-warning flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-cortex-warning">{interpretation.dominantWeakness}</p>
           </div>
           {interpretation.automationLeveragePotential && (
             <div className="flex items-start gap-2">
-              <Zap className="size-3 text-[#06D7F6] flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-[#06D7F6]">{interpretation.automationLeveragePotential}</p>
+              <Zap className="size-3 text-cortex-info flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-cortex-info">{interpretation.automationLeveragePotential}</p>
             </div>
           )}
         </div>
@@ -746,8 +759,8 @@ function PillarCard({
 
 function FinancialCard({ label, value, color, highlight }: { label: string; value: string; color: string; highlight?: boolean }) {
   return (
-    <div className={`backdrop-blur-xl border rounded-xl p-5 ${highlight ? 'bg-gradient-to-br from-[#10B981]/10 to-transparent border-[#10B981]/30' : 'bg-black/40 border-white/10'}`}>
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{label}</div>
+    <div className={`backdrop-blur-xl border rounded-cortex-md p-5 ${highlight ? 'bg-gradient-to-br from-cortex-success/10 to-transparent border-cortex-success/30' : 'bg-cortex-raised border-cortex-default'}`}>
+      <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">{label}</div>
       <div className={`font-black ${highlight ? 'text-2xl' : 'text-xl'}`} style={{ color }}>{value}</div>
     </div>
   );
@@ -758,11 +771,11 @@ function FinancialCard({ label, value, color, highlight }: { label: string; valu
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function EnhancedRiskCard({ risk }: { risk: EnhancedRiskFlag }) {
-  const sevColor = SEVERITY_COLORS[risk.severity] || '#3B82F6';
-  const typeColor = RISK_TYPE_COLORS[risk.riskType] || '#3B82F6';
+  const sevColor = SEVERITY_COLORS[risk.severity] || BLUE;
+  const typeColor = RISK_TYPE_COLORS[risk.riskType] || BLUE;
 
   return (
-    <div className="p-5 rounded-xl border bg-black/30 backdrop-blur-xl" style={{ borderColor: `${sevColor}25`, borderLeftWidth: 4, borderLeftColor: sevColor }}>
+    <div className="p-5 rounded-cortex-md border bg-cortex-sunken backdrop-blur-xl" style={{ borderColor: `${sevColor}25`, borderLeftWidth: 4, borderLeftColor: sevColor }}>
       <div className="flex items-start gap-3">
         <Shield className="size-5 flex-shrink-0 mt-0.5" style={{ color: sevColor }} />
         <div className="flex-1">
@@ -773,17 +786,17 @@ function EnhancedRiskCard({ risk }: { risk: EnhancedRiskFlag }) {
             <span className="px-2 py-0.5 rounded text-xs font-semibold" style={{ backgroundColor: `${typeColor}12`, color: typeColor }}>
               {risk.riskType}
             </span>
-            <span className="text-xs text-gray-500">{risk.probabilityPercent}% probability</span>
+            <span className="text-xs text-cortex-muted">{risk.probabilityPercent}% probability</span>
           </div>
-          <p className="text-sm text-gray-300 mb-3">{risk.cascadePath}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-white/5">
+          <p className="text-sm text-cortex-secondary mb-3">{risk.cascadePath}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-cortex-subtle">
             <div className="flex items-start gap-2">
-              <Gauge className="size-3.5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-500"><span className="font-semibold text-gray-400">Trigger:</span> {risk.triggerThreshold}</p>
+              <Gauge className="size-3.5 text-cortex-muted flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-cortex-muted"><span className="font-semibold text-cortex-muted">Trigger:</span> {risk.triggerThreshold}</p>
             </div>
             <div className="flex items-start gap-2">
-              <Clock className="size-3.5 text-gray-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-500"><span className="font-semibold text-gray-400">Time to failure:</span> {risk.timeToFailureEstimate}</p>
+              <Clock className="size-3.5 text-cortex-muted flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-cortex-muted"><span className="font-semibold text-cortex-muted">Time to failure:</span> {risk.timeToFailureEstimate}</p>
             </div>
           </div>
         </div>
@@ -806,7 +819,7 @@ function LegacyCoreProblemsIntro({
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-        <AlertTriangle className="size-6 text-[#FD4438]" />
+        <AlertTriangle className="size-6 text-cortex-danger" />
         Core Problems
       </h2>
       <div className="space-y-4">
@@ -831,49 +844,49 @@ function LegacyCoreProblemCard({
 
   return (
     <div
-      className="bg-gradient-to-br from-[#FD4438]/20 to-[#FB923C]/20 border border-[#FD4438]/30 rounded-xl p-6"
+      className="bg-gradient-to-br from-cortex-danger/20 to-cortex-warning/20 border border-cortex-danger/30 rounded-cortex-md p-6"
       data-bottleneck={problem.bottleneckId || ''}
     >
       <div className="flex items-start gap-4">
-        <div className="size-12 rounded-full bg-[#FD4438] flex items-center justify-center text-xl font-bold flex-shrink-0">
+        <div className="size-12 rounded-full bg-cortex-danger flex items-center justify-center text-xl font-bold flex-shrink-0">
           {rank}
         </div>
         <div className="flex-1">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xl font-bold">{problem.title}</h4>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">Urgency:</span>
-              <span className="text-sm font-bold text-[#FD4438]">{problem.urgencyScore}/10</span>
+              <span className="text-xs text-cortex-muted">Urgency:</span>
+              <span className="text-sm font-bold text-cortex-danger">{problem.urgencyScore}/10</span>
               {problem.editable && (
                 <button
                   onClick={() => setIsEditing(!isEditing)}
-                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                  className="p-1 hover:bg-cortex-control-hover rounded transition-colors"
                 >
-                  <Edit3 className="size-4 text-gray-400" />
+                  <Edit3 className="size-4 text-cortex-muted" />
                 </button>
               )}
             </div>
           </div>
           <div className="space-y-3">
             <div>
-              <div className="text-xs font-semibold text-[#FD4438] mb-1">What&apos;s Broken:</div>
-              <p className="text-sm text-gray-300">{problem.whatsbroken}</p>
+              <div className="text-xs font-semibold text-cortex-danger mb-1">What&apos;s Broken:</div>
+              <p className="text-sm text-cortex-secondary">{problem.whatsbroken}</p>
             </div>
             <div>
-              <div className="text-xs font-semibold text-[#FB923C] mb-1">Why It&apos;s Breaking:</div>
-              <p className="text-sm text-gray-300">{problem.whyBreaking}</p>
+              <div className="text-xs font-semibold text-cortex-warning mb-1">Why It&apos;s Breaking:</div>
+              <p className="text-sm text-cortex-secondary">{problem.whyBreaking}</p>
             </div>
             <div>
-              <div className="text-xs font-semibold text-[#FD4438] mb-1">What Breaks Next:</div>
-              <p className="text-sm text-gray-300">{problem.whatBreaksNext}</p>
+              <div className="text-xs font-semibold text-cortex-danger mb-1">What Breaks Next:</div>
+              <p className="text-sm text-cortex-secondary">{problem.whatBreaksNext}</p>
             </div>
           </div>
           {problem.sourceAnswers && problem.sourceAnswers.length > 0 && (
             <SourceAnswersBadge sourceAnswers={problem.sourceAnswers} onClickAnswer={onScrollToAnswer} />
           )}
           {isEditing && (
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <button className="px-4 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors text-sm font-medium">
+            <div className="mt-4 pt-4 border-t border-cortex-default">
+              <button className="px-4 py-2 bg-cortex-accent hover:bg-cortex-accent/85 text-white rounded-cortex-sm transition-colors text-sm font-medium">
                 Save Changes
               </button>
             </div>
@@ -885,10 +898,10 @@ function LegacyCoreProblemCard({
 }
 
 function LegacyRiskFlagCard({ risk }: { risk: any }) {
-  const color = SEVERITY_COLORS[risk.severity] || '#3B82F6';
+  const color = SEVERITY_COLORS[risk.severity] || BLUE;
   return (
     <div
-      className="p-4 rounded-xl"
+      className="p-4 rounded-cortex-md"
       style={{
         backgroundColor: `${color}08`,
         border: `1px solid ${color}25`,
@@ -904,7 +917,7 @@ function LegacyRiskFlagCard({ risk }: { risk: any }) {
             </span>
             <h4 className="font-semibold">{risk.label}</h4>
           </div>
-          <p className="text-sm text-gray-300">{risk.description}</p>
+          <p className="text-sm text-cortex-secondary">{risk.description}</p>
         </div>
       </div>
     </div>
@@ -915,12 +928,12 @@ function LegacyRiskFlagCard({ risk }: { risk: any }) {
 // 3️⃣ AI RECOMMENDATION ENGINE SECTION — v2 Schema-Locked
 // ============================================================================
 
-const PILLAR_COLORS: Record<string, string> = { consultancy: '#8B5CF6', software: '#3B82F6', growth: '#10B981', operations: '#06D7F6' };
+const PILLAR_COLORS: Record<string, string> = { consultancy: PURPLE, software: BLUE, growth: GREEN, operations: CYAN };
 const IMPACT_TYPE_LABELS: Record<string, string> = { revenue_growth: 'Revenue Growth', cost_reduction: 'Cost Reduction', efficiency: 'Efficiency', risk_reduction: 'Risk Reduction' };
 const RISK_MATRIX_COLORS: Record<string, { bg: string; text: string }> = {
-  high: { bg: 'rgba(253,68,56,0.12)', text: '#FD4438' },
-  medium: { bg: 'rgba(251,146,60,0.12)', text: '#FB923C' },
-  low: { bg: 'rgba(16,185,129,0.12)', text: '#10B981' },
+  high: { bg: `${RED}1F`, text: RED },
+  medium: { bg: `${ORANGE}1F`, text: ORANGE },
+  low: { bg: `${GREEN}1F`, text: GREEN },
 };
 
 export function RecommendationSection({ data, onPortfolioUpdate }: { data: CortexLeadData; onPortfolioUpdate?: (state: import('@/app/core/types').PortfolioState, result: import('@/app/core/types').RecalcResult) => void }) {
@@ -940,7 +953,7 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
 
   // Confidence
   const confPct = v2 ? v2.confidence_model.confidence_score : hasV1 ? Math.round((rec.confidenceScore ?? 0) * 100) : null;
-  const confColor = confPct !== null ? confPct >= 75 ? '#10B981' : confPct >= 50 ? '#FB923C' : '#FD4438' : '#8B5CF6';
+  const confColor = confPct !== null ? confPct >= 75 ? GREEN : confPct >= 50 ? ORANGE : RED : PURPLE;
 
   return (
     <div className="space-y-6">
@@ -956,13 +969,13 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         sectionLabel="AI Recommendation"
         sectionContent={
           v2
-            ? `Problem: ${v2.core_problem.problem_title}. Reasoning: ${v2.core_problem.why_first ?? ''}. Service: ${rec.primaryServiceLabel ?? ''}.`
+            ? `Problem: ${v2.core_problem.problem_title}. Reasoning: ${v2.strategic_decision.why_first ?? ''}. Service: ${rec.primaryServiceLabel ?? ''}.`
             : `Recommended: ${rec.primaryServiceLabel}. Reasoning: ${rec.reasoning ?? ''}.`
         }
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: data.lead?.companySize ?? '',
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
           recommendedService: rec.primaryServiceLabel ?? '',
         }}
@@ -976,38 +989,38 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* A. CORE PROBLEM + SEVERITY + PILLAR IMPACT                          */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 rounded-cortex-md p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">
               {v2 ? 'CORE PROBLEM IDENTIFIED' : 'AI RECOMMENDS'}
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] bg-clip-text text-transparent">
+            <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-cortex-accent to-cortex-accent-alt bg-clip-text text-transparent">
               {v2 ? v2.core_problem.problem_title : rec.primaryServiceLabel}
             </h2>
           </div>
-          <Target className="size-8 text-[#8B5CF6] flex-shrink-0" />
+          <Target className="size-8 text-cortex-accent flex-shrink-0" />
         </div>
 
         {/* Severity + Pillar badges */}
         {v2 && (
           <div className="flex flex-wrap items-center gap-3 mb-5">
             {/* Severity ring */}
-            <div className="flex items-center gap-2 bg-black/40 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 bg-cortex-raised rounded-cortex-sm px-3 py-2">
               <div className="relative size-10">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="40" fill="none" stroke={v2.core_problem.severity_score >= 7 ? '#FD4438' : v2.core_problem.severity_score >= 4 ? '#FB923C' : '#10B981'} strokeWidth="8" strokeLinecap="round"
+                  <circle cx="50" cy="50" r="40" fill="none" stroke={border.subtle} strokeWidth="8" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke={v2.core_problem.severity_score >= 7 ? RED : v2.core_problem.severity_score >= 4 ? ORANGE : GREEN} strokeWidth="8" strokeLinecap="round"
                     strokeDasharray={`${(v2.core_problem.severity_score / 10) * 251} 251`} />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center text-xs font-black text-white">{v2.core_problem.severity_score}</div>
               </div>
-              <div className="text-[10px] font-semibold text-gray-400 uppercase">Severity<br />/10</div>
+              <div className="text-[10px] font-semibold text-cortex-muted uppercase">Severity<br />/10</div>
             </div>
             {/* Pillar badges */}
             {v2.core_problem.pillar_impact.map(p => (
               <span key={p} className="px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider"
-                style={{ backgroundColor: `${PILLAR_COLORS[p] || '#8B5CF6'}20`, color: PILLAR_COLORS[p] || '#8B5CF6', border: `1px solid ${PILLAR_COLORS[p] || '#8B5CF6'}40` }}>
+                style={{ backgroundColor: `${PILLAR_COLORS[p] || PURPLE}20`, color: PILLAR_COLORS[p] || PURPLE, border: `1px solid ${PILLAR_COLORS[p] || PURPLE}40` }}>
                 {p}
               </span>
             ))}
@@ -1023,15 +1036,15 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         {v2 && (
           <div className="grid grid-cols-4 gap-3 mb-5">
             {[
-              { label: 'Impact', value: v2.priority_score.impact_score, color: '#8B5CF6' },
-              { label: 'Feasibility', value: v2.priority_score.feasibility_score, color: '#3B82F6' },
-              { label: 'Risk', value: v2.priority_score.risk_score, color: '#FB923C' },
-              { label: 'Priority', value: v2.priority_score.computed_priority, color: '#10B981' },
+              { label: 'Impact', value: v2.priority_score.impact_score, color: PURPLE },
+              { label: 'Feasibility', value: v2.priority_score.feasibility_score, color: BLUE },
+              { label: 'Risk', value: v2.priority_score.risk_score, color: ORANGE },
+              { label: 'Priority', value: v2.priority_score.computed_priority, color: GREEN },
             ].map(item => (
-              <div key={item.label} className="bg-black/40 rounded-lg p-3 text-center">
-                <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">{item.label}</div>
+              <div key={item.label} className="bg-cortex-raised rounded-cortex-sm p-3 text-center">
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider mb-1">{item.label}</div>
                 <div className="text-xl font-black" style={{ color: item.color }}>{item.value}</div>
-                <div className="w-full bg-white/5 rounded-full h-1.5 mt-2">
+                <div className="w-full bg-cortex-control rounded-full h-1.5 mt-2">
                   <div className="h-full rounded-full" style={{ width: `${(item.value / 10) * 100}%`, backgroundColor: item.color }} />
                 </div>
               </div>
@@ -1042,10 +1055,10 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         {/* Confidence + time to impact strip */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
           {confPct !== null && (
-            <div className="bg-black/40 rounded-lg p-4 flex flex-col items-center justify-center">
+            <div className="bg-cortex-raised rounded-cortex-sm p-4 flex flex-col items-center justify-center">
               <div className="relative size-14 mb-1.5">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke={border.subtle} strokeWidth="8" />
                   <circle cx="50" cy="50" r="40" fill="none" stroke={confColor} strokeWidth="8" strokeLinecap="round"
                     strokeDasharray={`${((confPct ?? 0) / 100) * 251} 251`} />
                 </svg>
@@ -1053,30 +1066,30 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
                   <span className="text-sm font-black" style={{ color: confColor }}>{confPct}%</span>
                 </div>
               </div>
-              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Confidence</div>
+              <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">Confidence</div>
             </div>
           )}
           {(v2 || hasV1) && (
             <span className="contents">
-              <div className="bg-black/40 rounded-lg p-4 text-center flex flex-col justify-center">
-                <TrendingUp className="size-4 text-[#10B981] mx-auto mb-1" />
-                <div className="text-xl font-black text-[#10B981]">+{rec.expectedImpact?.revenueLiftPercent ?? 0}%</div>
-                <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Revenue Lift</div>
+              <div className="bg-cortex-raised rounded-cortex-sm p-4 text-center flex flex-col justify-center">
+                <TrendingUp className="size-4 text-cortex-success mx-auto mb-1" />
+                <div className="text-xl font-black text-cortex-success">+{rec.expectedImpact?.revenueLiftPercent ?? 0}%</div>
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">Revenue Lift</div>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center flex flex-col justify-center">
-                <TrendingDown className="size-4 text-[#06D7F6] mx-auto mb-1" />
-                <div className="text-xl font-black text-[#06D7F6]">-{rec.expectedImpact?.costReductionPercent ?? 0}%</div>
-                <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Cost Reduction</div>
+              <div className="bg-cortex-raised rounded-cortex-sm p-4 text-center flex flex-col justify-center">
+                <TrendingDown className="size-4 text-cortex-info mx-auto mb-1" />
+                <div className="text-xl font-black text-cortex-info">-{rec.expectedImpact?.costReductionPercent ?? 0}%</div>
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">Cost Reduction</div>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center flex flex-col justify-center">
-                <Clock className="size-4 text-[#FB923C] mx-auto mb-1" />
-                <div className="text-xl font-black text-[#FB923C]">{rec.expectedImpact?.timeSavedHoursMonth ?? 0}h</div>
-                <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Hours/Month</div>
+              <div className="bg-cortex-raised rounded-cortex-sm p-4 text-center flex flex-col justify-center">
+                <Clock className="size-4 text-cortex-warning mx-auto mb-1" />
+                <div className="text-xl font-black text-cortex-warning">{rec.expectedImpact?.timeSavedHoursMonth ?? 0}h</div>
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">Hours/Month</div>
               </div>
-              <div className="bg-black/40 rounded-lg p-4 text-center flex flex-col justify-center">
-                <Calendar className="size-4 text-[#3B82F6] mx-auto mb-1" />
-                <div className="text-xl font-black text-[#3B82F6]">{v2?.strategic_decision.expected_time_to_impact_days ?? rec.implementationWindowDays ?? 30}d</div>
-                <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Time to Impact</div>
+              <div className="bg-cortex-raised rounded-cortex-sm p-4 text-center flex flex-col justify-center">
+                <Calendar className="size-4 text-cortex-accent-alt mx-auto mb-1" />
+                <div className="text-xl font-black text-cortex-accent-alt">{v2?.strategic_decision.expected_time_to_impact_days ?? rec.implementationWindowDays ?? 30}d</div>
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">Time to Impact</div>
               </div>
             </span>
           )}
@@ -1085,27 +1098,27 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         {/* Action Buttons */}
         {status === 'pending' && (
           <div className="flex gap-3">
-            <button onClick={handleAccept} className="flex-1 px-4 py-3 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg transition-colors font-semibold flex items-center justify-center gap-2">
+            <button onClick={handleAccept} className="flex-1 px-4 py-3 bg-cortex-success hover:bg-cortex-success/85 text-white rounded-cortex-sm transition-colors font-semibold flex items-center justify-center gap-2">
               <CheckCircle2 className="size-5" /> Accept
             </button>
-            <button className="flex-1 px-4 py-3 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-lg transition-colors font-semibold flex items-center justify-center gap-2">
+            <button className="flex-1 px-4 py-3 bg-cortex-accent-alt hover:bg-cortex-accent-alt/85 text-white rounded-cortex-sm transition-colors font-semibold flex items-center justify-center gap-2">
               <Edit3 className="size-5" /> Modify
             </button>
             <button onClick={() => { const r = prompt('Why are you overriding this recommendation?'); if (r) handleOverride(r); }}
-              className="flex-1 px-4 py-3 bg-[#FD4438] hover:bg-[#DC2626] text-white rounded-lg transition-colors font-semibold flex items-center justify-center gap-2">
+              className="flex-1 px-4 py-3 bg-cortex-danger hover:bg-cortex-danger/85 text-white rounded-cortex-sm transition-colors font-semibold flex items-center justify-center gap-2">
               <XCircle className="size-5" /> Override
             </button>
           </div>
         )}
         {status === 'accepted' && (
-          <div className="p-3 bg-[#10B981]/20 border border-[#10B981]/30 rounded-lg text-[#10B981] font-medium flex items-center gap-2">
+          <div className="p-3 bg-cortex-success/20 border border-cortex-success/30 rounded-cortex-sm text-cortex-success font-medium flex items-center gap-2">
             <CheckCircle2 className="size-5" /> Recommendation Accepted
           </div>
         )}
         {status === 'overridden' && (
-          <div className="p-3 bg-[#FD4438]/20 border border-[#FD4438]/30 rounded-lg">
-            <div className="text-[#FD4438] font-medium flex items-center gap-2 mb-2"><XCircle className="size-5" /> Overridden</div>
-            {overrideReason && <p className="text-sm text-gray-300">Reason: {overrideReason}</p>}
+          <div className="p-3 bg-cortex-danger/20 border border-cortex-danger/30 rounded-cortex-sm">
+            <div className="text-cortex-danger font-medium flex items-center gap-2 mb-2"><XCircle className="size-5" /> Overridden</div>
+            {overrideReason && <p className="text-sm text-cortex-secondary">Reason: {overrideReason}</p>}
           </div>
         )}
       </div>
@@ -1113,26 +1126,26 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* B. STRATEGIC DECISION — Why Now / Why First                          */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Brain className="size-5 text-[#8B5CF6]" />
+          <Brain className="size-5 text-cortex-accent" />
           Strategic Decision
         </h3>
         {v2 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-[#FD4438] uppercase tracking-wider mb-2">WHY NOW</div>
-              <p className="text-gray-300 text-sm leading-relaxed">{v2.strategic_decision.why_now}</p>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-danger uppercase tracking-wider mb-2">WHY NOW</div>
+              <p className="text-cortex-secondary text-sm leading-relaxed">{v2.strategic_decision.why_now}</p>
             </div>
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider mb-2">WHY THIS FIRST</div>
-              <p className="text-gray-300 text-sm leading-relaxed">{v2.strategic_decision.why_first}</p>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-accent uppercase tracking-wider mb-2">WHY THIS FIRST</div>
+              <p className="text-cortex-secondary text-sm leading-relaxed">{v2.strategic_decision.why_first}</p>
             </div>
           </div>
         ) : (
-          <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-            <div className="text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider mb-2">WHY THIS SERVICE FIRST</div>
-            <p className="text-gray-300 leading-relaxed">{rec.reasoning}</p>
+          <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+            <div className="text-xs font-semibold text-cortex-accent uppercase tracking-wider mb-2">WHY THIS SERVICE FIRST</div>
+            <p className="text-cortex-secondary leading-relaxed">{rec.reasoning}</p>
           </div>
         )}
       </div>
@@ -1141,45 +1154,45 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* C. IMPACT PROFILE — Primary metric with 30/60/90d targets           */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {v2 && (
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <BarChart3 className="size-5 text-[#06D7F6]" />
+            <BarChart3 className="size-5 text-cortex-info" />
             Impact Profile
           </h3>
           {/* Impact type badges */}
           <div className="flex flex-wrap gap-2 mb-4">
             {v2.impact_profile.impact_type.map(t => (
-              <span key={t} className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-[#06D7F6]/15 text-[#06D7F6] border border-[#06D7F6]/30">
+              <span key={t} className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-cortex-info/15 text-cortex-info border border-cortex-info/30">
                 {IMPACT_TYPE_LABELS[t] || t}
               </span>
             ))}
           </div>
           {/* Primary metric trajectory */}
-          <div className="bg-white/[0.03] border border-white/5 rounded-lg p-5">
+          <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-sm font-semibold text-white">{v2.impact_profile.primary_metric}</div>
-                <div className="text-xs text-gray-500 uppercase">{v2.impact_profile.unit}</div>
+                <div className="text-xs text-cortex-muted uppercase">{v2.impact_profile.unit}</div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-gray-500">Baseline</div>
-                <div className="text-lg font-black text-gray-400">{v2.impact_profile.baseline_value}</div>
+                <div className="text-xs text-cortex-muted">Baseline</div>
+                <div className="text-lg font-black text-cortex-muted">{v2.impact_profile.baseline_value}</div>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: '30 Days', value: v2.impact_profile.target_value_30d, color: '#3B82F6' },
-                { label: '60 Days', value: v2.impact_profile.target_value_60d, color: '#8B5CF6' },
-                { label: '90 Days', value: v2.impact_profile.target_value_90d, color: '#10B981' },
+                { label: '30 Days', value: v2.impact_profile.target_value_30d, color: BLUE },
+                { label: '60 Days', value: v2.impact_profile.target_value_60d, color: PURPLE },
+                { label: '90 Days', value: v2.impact_profile.target_value_90d, color: GREEN },
               ].map(target => {
                 const baseline = v2.impact_profile.baseline_value;
                 const isLowerBetter = ['hours', 'dollars', 'count', 'tickets'].includes(v2.impact_profile.unit);
                 const pctChange = baseline > 0 ? Math.round(((target.value - baseline) / baseline) * 100) : 0;
                 return (
-                  <div key={target.label} className="bg-black/40 rounded-lg p-3 text-center">
-                    <div className="text-[10px] font-semibold text-gray-500 uppercase">{target.label}</div>
+                  <div key={target.label} className="bg-cortex-raised rounded-cortex-sm p-3 text-center">
+                    <div className="text-[10px] font-semibold text-cortex-muted uppercase">{target.label}</div>
                     <div className="text-xl font-black mt-1" style={{ color: target.color }}>{target.value}</div>
-                    <div className="text-[10px] font-semibold mt-1" style={{ color: isLowerBetter ? (pctChange <= 0 ? '#10B981' : '#FD4438') : (pctChange >= 0 ? '#10B981' : '#FD4438') }}>
+                    <div className="text-[10px] font-semibold mt-1" style={{ color: isLowerBetter ? (pctChange <= 0 ? GREEN : RED) : (pctChange >= 0 ? GREEN : RED) }}>
                       {pctChange >= 0 ? '+' : ''}{pctChange}%
                     </div>
                   </div>
@@ -1194,33 +1207,33 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* D. EXECUTION PLAN — Phased timeline                                 */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {v2 && (
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
-            <Calendar className="size-5 text-[#3B82F6]" />
+            <Calendar className="size-5 text-cortex-accent-alt" />
             Execution Plan
           </h3>
-          <div className="text-xs text-gray-500 mb-5">Total Duration: {v2.execution_plan.total_duration_days} days</div>
+          <div className="text-xs text-cortex-muted mb-5">Total Duration: {v2.execution_plan.total_duration_days} days</div>
           <div className="space-y-4">
             {v2.execution_plan.phases.map((phase, idx) => {
-              const colors = ['#8B5CF6', '#3B82F6', '#06D7F6', '#10B981'];
+              const colors = [PURPLE, BLUE, CYAN, GREEN];
               const c = colors[idx % colors.length];
               return (
-                <div key={phase.phase_id} className="rounded-lg border p-5" style={{ borderColor: `${c}30`, backgroundColor: `${c}08` }}>
+                <div key={phase.phase_id} className="rounded-cortex-sm border p-5" style={{ borderColor: `${c}30`, backgroundColor: `${c}08` }}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div className="size-8 rounded-full flex items-center justify-center text-xs font-black text-white" style={{ backgroundColor: `${c}40` }}>{idx + 1}</div>
                       <div>
                         <div className="font-bold text-white">{phase.title}</div>
-                        <div className="text-xs text-gray-400">{phase.duration_days} days{phase.dependencies.length > 0 && ` · depends on ${phase.dependencies.join(', ')}`}</div>
+                        <div className="text-xs text-cortex-muted">{phase.duration_days} days{phase.dependencies.length > 0 && ` · depends on ${phase.dependencies.join(', ')}`}</div>
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                     <div>
-                      <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Objectives</div>
+                      <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">Objectives</div>
                       <ul className="space-y-1">
                         {phase.objectives.map((obj, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                          <li key={i} className="flex items-start gap-2 text-sm text-cortex-secondary">
                             <ArrowRight className="size-3 flex-shrink-0 mt-1" style={{ color: c }} />
                             {obj}
                           </li>
@@ -1228,11 +1241,11 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
                       </ul>
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Deliverables</div>
+                      <div className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider mb-2">Deliverables</div>
                       <ul className="space-y-1">
                         {phase.deliverables.map((del, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                            <CheckCircle2 className="size-3 flex-shrink-0 mt-1 text-[#10B981]" />
+                          <li key={i} className="flex items-start gap-2 text-sm text-cortex-secondary">
+                            <CheckCircle2 className="size-3 flex-shrink-0 mt-1 text-cortex-success" />
                             {del}
                           </li>
                         ))}
@@ -1250,25 +1263,25 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* E. RESOURCE REQUIREMENTS                                            */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {v2 && v2.resource_requirements.length > 0 && (
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Users className="size-5 text-[#FB923C]" />
+            <Users className="size-5 text-cortex-warning" />
             Resource Requirements
           </h3>
           <div className="space-y-3">
             {v2.resource_requirements.map((r, idx) => (
-              <div key={idx} className="flex items-center gap-4 bg-white/[0.03] border border-white/5 rounded-lg p-4">
+              <div key={idx} className="flex items-center gap-4 bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
                 <div className="flex-1">
                   <div className="font-semibold text-white text-sm">{r.role}</div>
-                  <div className="text-xs text-gray-500">Active: {r.active_phase}</div>
+                  <div className="text-xs text-cortex-muted">Active: {r.active_phase}</div>
                 </div>
                 <div className="w-32">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-gray-500">Allocation</span>
-                    <span className="text-xs font-bold text-[#FB923C]">{r.allocation_percent}%</span>
+                    <span className="text-[10px] text-cortex-muted">Allocation</span>
+                    <span className="text-xs font-bold text-cortex-warning">{r.allocation_percent}%</span>
                   </div>
-                  <div className="w-full bg-white/5 rounded-full h-2">
-                    <div className="h-full rounded-full bg-[#FB923C]" style={{ width: `${r.allocation_percent}%` }} />
+                  <div className="w-full bg-cortex-control rounded-full h-2">
+                    <div className="h-full rounded-full bg-cortex-warning" style={{ width: `${r.allocation_percent}%` }} />
                   </div>
                 </div>
               </div>
@@ -1281,9 +1294,9 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* F. RISK PROFILE                                                     */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {v2 && v2.risk_profile.length > 0 && (
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Shield className="size-5 text-[#FD4438]" />
+            <Shield className="size-5 text-cortex-danger" />
             Risk Profile
           </h3>
           <div className="space-y-3">
@@ -1291,7 +1304,7 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
               const probColor = RISK_MATRIX_COLORS[risk.probability] || RISK_MATRIX_COLORS.low;
               const impColor = RISK_MATRIX_COLORS[risk.impact] || RISK_MATRIX_COLORS.low;
               return (
-                <div key={risk.risk_id} className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
+                <div key={risk.risk_id} className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ backgroundColor: probColor.bg, color: probColor.text }}>
                       P: {risk.probability}
@@ -1300,7 +1313,7 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
                       I: {risk.impact}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-300 mb-1">{risk.mitigation}</div>
+                  <div className="text-sm text-cortex-secondary mb-1">{risk.mitigation}</div>
                 </div>
               );
             })}
@@ -1315,32 +1328,32 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
         <div className="space-y-4">
           {/* Feasibility Scoring (§1) */}
           {v2.feasibility && (
-            <div className={`border rounded-xl p-5 ${v2.feasibility.high_execution_risk ? 'bg-[#FD4438]/5 border-[#FD4438]/20' : 'bg-white/[0.02] border-white/10'}`}>
+            <div className={`border rounded-cortex-md p-5 ${v2.feasibility.high_execution_risk ? 'bg-cortex-danger/5 border-cortex-danger/20' : 'bg-white/[0.02] border-cortex-default'}`}>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Shield className="size-4 text-[#3B82F6]" />
+                  <Shield className="size-4 text-cortex-accent-alt" />
                   Feasibility Score (Execution Reality Check)
                 </h4>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-black" style={{ color: (v2.feasibility.computed_feasibility ?? 0) >= 7 ? '#10B981' : (v2.feasibility.computed_feasibility ?? 0) >= 5 ? '#FB923C' : '#FD4438' }}>
+                  <span className="text-lg font-black" style={{ color: (v2.feasibility.computed_feasibility ?? 0) >= 7 ? GREEN : (v2.feasibility.computed_feasibility ?? 0) >= 5 ? ORANGE : RED }}>
                     {(v2.feasibility.computed_feasibility ?? 0).toFixed(1)}
                   </span>
                   {v2.feasibility.high_execution_risk && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#FD4438]/15 text-[#FD4438] uppercase">High Risk</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cortex-danger/15 text-cortex-danger uppercase">High Risk</span>
                   )}
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: 'Technical', value: v2.feasibility.technical_feasibility, color: '#3B82F6', weight: '×0.3' },
-                  { label: 'Data Readiness', value: v2.feasibility.data_readiness, color: '#10B981', weight: '×0.3' },
-                  { label: 'Org Readiness', value: v2.feasibility.organizational_readiness, color: '#8B5CF6', weight: '×0.25' },
-                  { label: 'Complexity', value: v2.feasibility.change_complexity, color: '#FD4438', weight: '−0.15' },
+                  { label: 'Technical', value: v2.feasibility.technical_feasibility, color: BLUE, weight: '×0.3' },
+                  { label: 'Data Readiness', value: v2.feasibility.data_readiness, color: GREEN, weight: '×0.3' },
+                  { label: 'Org Readiness', value: v2.feasibility.organizational_readiness, color: PURPLE, weight: '×0.25' },
+                  { label: 'Complexity', value: v2.feasibility.change_complexity, color: RED, weight: '−0.15' },
                 ].map(f => (
-                  <div key={f.label} className="bg-black/30 rounded-lg p-2.5 text-center">
-                    <div className="text-[9px] text-gray-500 uppercase mb-1">{f.label} <span className="text-gray-600">{f.weight}</span></div>
+                  <div key={f.label} className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-center">
+                    <div className="text-[9px] text-cortex-muted uppercase mb-1">{f.label} <span className="text-cortex-faint">{f.weight}</span></div>
                     <div className="text-base font-black" style={{ color: f.color }}>{f.value ?? 0}/10</div>
-                    <div className="w-full bg-white/5 rounded-full h-1 mt-1">
+                    <div className="w-full bg-cortex-control rounded-full h-1 mt-1">
                       <div className="h-full rounded-full" style={{ width: `${(f.value ?? 0) * 10}%`, backgroundColor: f.color }} />
                     </div>
                   </div>
@@ -1351,82 +1364,82 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
 
           {/* Evidence Strength (§2) */}
           {v2.evidence_strength && (
-            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-5">
+            <div className="bg-white/[0.02] border border-cortex-default rounded-cortex-md p-5">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <FileCheck className="size-4 text-[#10B981]" />
+                  <FileCheck className="size-4 text-cortex-success" />
                   Evidence Strength
                 </h4>
-                <span className="text-lg font-black" style={{ color: (v2.evidence_strength.computed_evidence ?? 0) >= 3 ? '#10B981' : (v2.evidence_strength.computed_evidence ?? 0) >= 1.5 ? '#FB923C' : '#FD4438' }}>
+                <span className="text-lg font-black" style={{ color: (v2.evidence_strength.computed_evidence ?? 0) >= 3 ? GREEN : (v2.evidence_strength.computed_evidence ?? 0) >= 1.5 ? ORANGE : RED }}>
                   {(v2.evidence_strength.computed_evidence ?? 0).toFixed(1)}
                 </span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <div className="text-[9px] text-gray-500 uppercase">Validated <span className="text-gray-600">×0.4</span></div>
-                  <div className="text-base font-black text-[#10B981]">{v2.evidence_strength.validated_signals ?? 0}</div>
+                <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-center">
+                  <div className="text-[9px] text-cortex-muted uppercase">Validated <span className="text-cortex-faint">×0.4</span></div>
+                  <div className="text-base font-black text-cortex-success">{v2.evidence_strength.validated_signals ?? 0}</div>
                 </div>
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <div className="text-[9px] text-gray-500 uppercase">Cross-Dept <span className="text-gray-600">×0.3</span></div>
-                  <div className="text-base font-black text-[#3B82F6]">{v2.evidence_strength.cross_department_validations ?? 0}</div>
+                <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-center">
+                  <div className="text-[9px] text-cortex-muted uppercase">Cross-Dept <span className="text-cortex-faint">×0.3</span></div>
+                  <div className="text-base font-black text-cortex-accent-alt">{v2.evidence_strength.cross_department_validations ?? 0}</div>
                 </div>
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <div className="text-[9px] text-gray-500 uppercase">Contradictions <span className="text-gray-600">−0.2</span></div>
-                  <div className="text-base font-black" style={{ color: (v2.evidence_strength.contradiction_flags ?? 0) > 0 ? '#FD4438' : '#10B981' }}>{v2.evidence_strength.contradiction_flags ?? 0}</div>
+                <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-center">
+                  <div className="text-[9px] text-cortex-muted uppercase">Contradictions <span className="text-cortex-faint">−0.2</span></div>
+                  <div className="text-base font-black" style={{ color: (v2.evidence_strength.contradiction_flags ?? 0) > 0 ? RED : GREEN }}>{v2.evidence_strength.contradiction_flags ?? 0}</div>
                 </div>
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <div className="text-[9px] text-gray-500 uppercase">Weak Signals <span className="text-gray-600">−0.1</span></div>
-                  <div className="text-base font-black" style={{ color: (v2.evidence_strength.weak_signal_flags ?? 0) > 1 ? '#FB923C' : '#10B981' }}>{v2.evidence_strength.weak_signal_flags ?? 0}</div>
+                <div className="bg-cortex-sunken rounded-cortex-sm p-2.5 text-center">
+                  <div className="text-[9px] text-cortex-muted uppercase">Weak Signals <span className="text-cortex-faint">−0.1</span></div>
+                  <div className="text-base font-black" style={{ color: (v2.evidence_strength.weak_signal_flags ?? 0) > 1 ? ORANGE : GREEN }}>{v2.evidence_strength.weak_signal_flags ?? 0}</div>
                 </div>
               </div>
             </div>
           )}
 
           {/* Confidence Score (§3) — replaces old simple confidence */}
-          <div className="bg-gradient-to-r from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/20 rounded-xl p-5">
+          <div className="bg-gradient-to-r from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/20 rounded-cortex-md p-5">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Gauge className="size-4 text-[#8B5CF6]" />
+                <Gauge className="size-4 text-cortex-accent" />
                 Confidence Score (Final Authority)
               </h4>
-              <span className="text-2xl font-black" style={{ color: v2.confidence_model.confidence_score >= 80 ? '#10B981' : v2.confidence_model.confidence_score >= 60 ? '#FB923C' : '#FD4438' }}>
+              <span className="text-2xl font-black" style={{ color: v2.confidence_model.confidence_score >= 80 ? GREEN : v2.confidence_model.confidence_score >= 60 ? ORANGE : RED }}>
                 {v2.confidence_model.confidence_score}/100
               </span>
             </div>
             {v2.confidence_model.formula_inputs && (
               <div className="flex items-center gap-3 mb-3">
                 {[
-                  { label: 'Priority', value: v2.confidence_model.formula_inputs.priority_component, weight: '×0.4', color: '#FB923C' },
-                  { label: 'Feasibility', value: v2.confidence_model.formula_inputs.feasibility_component, weight: '×0.3', color: '#3B82F6' },
-                  { label: 'Evidence', value: v2.confidence_model.formula_inputs.evidence_component, weight: '×0.3', color: '#10B981' },
+                  { label: 'Priority', value: v2.confidence_model.formula_inputs.priority_component, weight: '×0.4', color: ORANGE },
+                  { label: 'Feasibility', value: v2.confidence_model.formula_inputs.feasibility_component, weight: '×0.3', color: BLUE },
+                  { label: 'Evidence', value: v2.confidence_model.formula_inputs.evidence_component, weight: '×0.3', color: GREEN },
                 ].map((c, i) => (
                   <span key={c.label} className="contents">
-                    {i > 0 && <span className="text-gray-600 text-xs">+</span>}
-                    <div className="bg-black/30 rounded-lg px-3 py-2 text-center flex-1">
-                      <div className="text-[9px] text-gray-500 uppercase">{c.label} <span className="text-gray-600">{c.weight}</span></div>
+                    {i > 0 && <span className="text-cortex-faint text-xs">+</span>}
+                    <div className="bg-cortex-sunken rounded-cortex-sm px-3 py-2 text-center flex-1">
+                      <div className="text-[9px] text-cortex-muted uppercase">{c.label} <span className="text-cortex-faint">{c.weight}</span></div>
                       <div className="text-sm font-black" style={{ color: c.color }}>{c.value}</div>
                     </div>
                   </span>
                 ))}
-                <span className="text-gray-600 text-xs">=</span>
-                <div className="bg-black/30 rounded-lg px-3 py-2 text-center">
-                  <div className="text-[9px] text-gray-500 uppercase">Scaled</div>
+                <span className="text-cortex-faint text-xs">=</span>
+                <div className="bg-cortex-sunken rounded-cortex-sm px-3 py-2 text-center">
+                  <div className="text-[9px] text-cortex-muted uppercase">Scaled</div>
                   <div className="text-sm font-black text-white">{v2.confidence_model.confidence_score}</div>
                 </div>
               </div>
             )}
-            <p className="text-xs text-gray-400 leading-relaxed">{v2.confidence_model.confidence_reasoning}</p>
+            <p className="text-xs text-cortex-muted leading-relaxed">{v2.confidence_model.confidence_reasoning}</p>
           </div>
 
           {/* ROI Eligibility Gate (§4) */}
           {v2.roi_eligibility && (
-            <div className={`border rounded-xl p-5 ${v2.roi_eligibility.is_roi_eligible ? 'bg-[#10B981]/5 border-[#10B981]/20' : 'bg-[#FB923C]/5 border-[#FB923C]/20'}`}>
+            <div className={`border rounded-cortex-md p-5 ${v2.roi_eligibility.is_roi_eligible ? 'bg-cortex-success/5 border-cortex-success/20' : 'bg-cortex-warning/5 border-cortex-warning/20'}`}>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <CheckCircle2 className="size-4" style={{ color: v2.roi_eligibility.is_roi_eligible ? '#10B981' : '#FB923C' }} />
+                  <CheckCircle2 className="size-4" style={{ color: v2.roi_eligibility.is_roi_eligible ? GREEN : ORANGE }} />
                   ROI Eligibility Gate
                 </h4>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${v2.roi_eligibility.is_roi_eligible ? 'bg-[#10B981]/15 text-[#10B981]' : 'bg-[#FB923C]/15 text-[#FB923C]'}`}>
+                <span className={`text-xs font-bold px-2 py-1 rounded ${v2.roi_eligibility.is_roi_eligible ? 'bg-cortex-success/15 text-cortex-success' : 'bg-cortex-warning/15 text-cortex-warning'}`}>
                   {v2.roi_eligibility.is_roi_eligible ? 'ROI CALCULABLE' : 'ROI NOT CALCULABLE YET'}
                 </span>
               </div>
@@ -1439,15 +1452,15 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
                   { label: 'Confidence ≥ 60', pass: v2.roi_eligibility.confidence_above_60 },
                 ].map(g => (
                   <div key={g.label} className="flex items-center gap-1.5 text-[11px]">
-                    <div className={`size-3 rounded-full flex items-center justify-center ${g.pass ? 'bg-[#10B981]/20' : 'bg-[#FD4438]/20'}`}>
-                      {g.pass ? <CheckCircle2 className="size-2 text-[#10B981]" /> : <XCircle className="size-2 text-[#FD4438]" />}
+                    <div className={`size-3 rounded-full flex items-center justify-center ${g.pass ? 'bg-cortex-success/20' : 'bg-cortex-danger/20'}`}>
+                      {g.pass ? <CheckCircle2 className="size-2 text-cortex-success" /> : <XCircle className="size-2 text-cortex-danger" />}
                     </div>
-                    <span className={g.pass ? 'text-gray-400' : 'text-[#FD4438]'}>{g.label}</span>
+                    <span className={g.pass ? 'text-cortex-muted' : 'text-cortex-danger'}>{g.label}</span>
                   </div>
                 ))}
               </div>
               {v2.roi_eligibility.gate_failures.length > 0 && (
-                <div className="mt-2 text-[10px] text-[#FB923C]">
+                <div className="mt-2 text-[10px] text-cortex-warning">
                   Failures: {v2.roi_eligibility.gate_failures.join(' · ')}
                 </div>
               )}
@@ -1460,15 +1473,15 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* H. ASSUMPTIONS                                                      */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {v2 && v2.assumptions_used.length > 0 && (
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Info className="size-5 text-gray-400" />
+            <Info className="size-5 text-cortex-muted" />
             Assumptions
           </h3>
           <ul className="space-y-2">
             {v2.assumptions_used.map((a, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm text-gray-400">
-                <span className="text-gray-600 mt-0.5">-</span>
+              <li key={idx} className="flex items-start gap-2 text-sm text-cortex-muted">
+                <span className="text-cortex-faint mt-0.5">-</span>
                 {a}
               </li>
             ))}
@@ -1480,23 +1493,23 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* I. INVESTMENT SUMMARY                                               */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {rec.investmentSummary && (
-        <div className="bg-gradient-to-r from-[#10B981]/15 to-[#06D7F6]/15 border border-[#10B981]/30 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-cortex-success/15 to-cortex-info/15 border border-cortex-success/30 rounded-cortex-md p-6">
           <h3 className="text-xl font-bold mb-5 flex items-center gap-2">
-            <DollarSign className="size-5 text-[#10B981]" />
+            <DollarSign className="size-5 text-cortex-success" />
             Investment Summary
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-black/40 rounded-lg p-5 text-center">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Estimated Cost</div>
-              <div className="text-2xl font-black text-[#10B981]">{rec.investmentSummary.estimatedCostRange}</div>
+            <div className="bg-cortex-raised rounded-cortex-sm p-5 text-center">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Estimated Cost</div>
+              <div className="text-2xl font-black text-cortex-success">{rec.investmentSummary.estimatedCostRange}</div>
             </div>
-            <div className="bg-black/40 rounded-lg p-5 text-center">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Payback Period</div>
-              <div className="text-2xl font-black text-[#06D7F6]">{rec.investmentSummary.paybackPeriodWeeks}</div>
+            <div className="bg-cortex-raised rounded-cortex-sm p-5 text-center">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">Payback Period</div>
+              <div className="text-2xl font-black text-cortex-info">{rec.investmentSummary.paybackPeriodWeeks}</div>
             </div>
-            <div className="bg-black/40 rounded-lg p-5 text-center">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">12-Month ROI</div>
-              <div className="text-2xl font-black text-[#8B5CF6]">{rec.investmentSummary.roiPercent12Month}</div>
+            <div className="bg-cortex-raised rounded-cortex-sm p-5 text-center">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">12-Month ROI</div>
+              <div className="text-2xl font-black text-cortex-accent">{rec.investmentSummary.roiPercent12Month}</div>
             </div>
           </div>
         </div>
@@ -1507,35 +1520,35 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 90-Day Focus */}
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Zap className="size-5 text-[#06D7F6]" />
+            <Zap className="size-5 text-cortex-info" />
             90-Day Focus
           </h3>
           <div className="space-y-2">
             {rec.focusAreas.map((area, idx) => (
-              <div key={idx} className="flex items-start gap-3 p-2 bg-white/[0.03] border border-white/5 rounded-lg">
-                <div className="flex-shrink-0 size-6 rounded-full bg-[#06D7F6]/15 text-[#06D7F6] flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
-                <span className="text-sm text-gray-300">{area}</span>
+              <div key={idx} className="flex items-start gap-3 p-2 bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm">
+                <div className="flex-shrink-0 size-6 rounded-full bg-cortex-info/15 text-cortex-info flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
+                <span className="text-sm text-cortex-secondary">{area}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* What NOT to do */}
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <XCircle className="size-5 text-[#FD4438]" />
+            <XCircle className="size-5 text-cortex-danger" />
             What NOT to Do Yet
           </h3>
           <div className="space-y-2">
             {rec.notRecommended.map((item, idx) => (
-              <div key={idx} className="p-3 bg-[#FD4438]/8 border border-[#FD4438]/20 rounded-lg">
+              <div key={idx} className="p-3 bg-cortex-danger/8 border border-cortex-danger/20 rounded-cortex-sm">
                 <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="size-3 text-[#FD4438]" />
+                  <AlertTriangle className="size-3 text-cortex-danger" />
                   <span className="font-semibold text-white text-sm">{item.service}</span>
                 </div>
-                <p className="text-xs text-gray-400 pl-5">{item.reason}</p>
+                <p className="text-xs text-cortex-muted pl-5">{item.reason}</p>
               </div>
             ))}
           </div>
@@ -1548,7 +1561,7 @@ export function RecommendationSection({ data, onPortfolioUpdate }: { data: Corte
       {rec.solutionBlueprint && (
         <div>
           <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <Target className="size-6 text-[#8B5CF6]" />
+            <Target className="size-6 text-cortex-accent" />
             Solution Blueprint
           </h3>
           <SolutionBlueprintView blueprint={rec.solutionBlueprint} companyName={data.lead.companyName} />
@@ -1578,63 +1591,63 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
   const [expanded, setExpanded] = useState(false);
   const dt = transparency;
   const DOMAIN_COLORS: Record<string, string> = {
-    operations: '#FB923C', revenue: '#10B981', systems: '#3B82F6',
-    governance: '#8B5CF6', customer_experience: '#06D7F6', data: '#F59E0B',
+    operations: ORANGE, revenue: GREEN, systems: BLUE,
+    governance: PURPLE, customer_experience: CYAN, data: AMBER,
   };
-  const GRADE_COLORS: Record<string, string> = { A: '#10B981', B: '#3B82F6', C: '#FB923C', D: '#FD4438', F: '#FD4438' };
+  const GRADE_COLORS: Record<string, string> = { A: GREEN, B: BLUE, C: ORANGE, D: RED, F: RED };
 
   return (
-    <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/40 border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/40 border border-cortex-default rounded-cortex-md overflow-hidden">
       <button onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between p-5 hover:bg-white/[0.02] transition-colors">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-[#8B5CF6]/20 flex items-center justify-center">
-            <Eye className="size-5 text-[#8B5CF6]" />
+          <div className="size-10 rounded-cortex-sm bg-cortex-accent/20 flex items-center justify-center">
+            <Eye className="size-5 text-cortex-accent" />
           </div>
           <div className="text-left">
             <h3 className="text-lg font-bold text-white">Decision Transparency</h3>
-            <p className="text-xs text-gray-500">Full audit trail — why math chose this priority</p>
+            <p className="text-xs text-cortex-muted">Full audit trail — why math chose this priority</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2">
-            <span className="text-xs text-gray-500">Data Quality:</span>
+            <span className="text-xs text-cortex-muted">Data Quality:</span>
             <span className="text-sm font-bold" style={{ color: GRADE_COLORS[dt.data_quality.quality_grade] }}>
               Grade {dt.data_quality.quality_grade}
             </span>
           </div>
-          <ChevronDown className={`size-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`size-5 text-cortex-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {expanded && (
-        <div className="px-5 pb-6 space-y-5 border-t border-white/5 pt-5">
+        <div className="px-5 pb-6 space-y-5 border-t border-cortex-subtle pt-5">
           {/* Domain Ranking */}
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">DOMAIN SCORING (RANKED)</div>
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">DOMAIN SCORING (RANKED)</div>
             <div className="space-y-2">
               {dt.ranked_domains.map(d => (
                 <div key={d.domain} className="flex items-center gap-3">
                   <div className="w-36 md:w-48 flex items-center gap-2">
-                    {d.is_primary && <Target className="size-3 text-[#8B5CF6] flex-shrink-0" />}
-                    <span className={`text-xs font-semibold truncate ${d.is_primary ? 'text-white' : 'text-gray-400'}`}>
+                    {d.is_primary && <Target className="size-3 text-cortex-accent flex-shrink-0" />}
+                    <span className={`text-xs font-semibold truncate ${d.is_primary ? 'text-white' : 'text-cortex-muted'}`}>
                       {d.rank}. {d.label}
                     </span>
                   </div>
                   <div className="flex-1 flex items-center gap-2">
-                    <div className="flex-1 bg-white/5 rounded-full h-4 overflow-hidden">
+                    <div className="flex-1 bg-cortex-control rounded-full h-4 overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
                         style={{
                           width: `${Math.max(8, d.score)}%`,
-                          backgroundColor: `${DOMAIN_COLORS[d.domain] || '#8B5CF6'}${d.is_primary ? '' : '80'}`,
+                          backgroundColor: `${DOMAIN_COLORS[d.domain] || PURPLE}${d.is_primary ? '' : '80'}`,
                         }}>
                         {d.score >= 15 && <span className="text-[10px] font-bold text-white">{d.score}</span>}
                       </div>
                     </div>
-                    {d.score < 15 && <span className="text-[10px] font-bold text-gray-500 w-6">{d.score}</span>}
+                    {d.score < 15 && <span className="text-[10px] font-bold text-cortex-muted w-6">{d.score}</span>}
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{
-                      backgroundColor: d.severity === 'Critical' ? 'rgba(253,68,56,0.15)' : d.severity === 'High' ? 'rgba(251,146,60,0.15)' : d.severity === 'Moderate' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
-                      color: d.severity === 'Critical' ? '#FD4438' : d.severity === 'High' ? '#FB923C' : d.severity === 'Moderate' ? '#3B82F6' : '#10B981',
+                      backgroundColor: d.severity === 'Critical' ? `${RED}26` : d.severity === 'High' ? `${ORANGE}26` : d.severity === 'Moderate' ? `${BLUE}26` : `${GREEN}26`,
+                      color: d.severity === 'Critical' ? RED : d.severity === 'High' ? ORANGE : d.severity === 'Moderate' ? BLUE : GREEN,
                     }}>{d.severity}</span>
                   </div>
                 </div>
@@ -1643,53 +1656,53 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
           </div>
 
           {/* Score Gap Analysis */}
-          <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">SCORE GAP ANALYSIS</div>
+          <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">SCORE GAP ANALYSIS</div>
             <div className="flex items-center gap-4 mb-3">
               <div className="text-center">
                 <div className="text-2xl font-black" style={{ color: DOMAIN_COLORS[dt.score_gap_analysis.primary_domain] }}>
                   {dt.score_gap_analysis.primary_score}
                 </div>
-                <div className="text-[10px] text-gray-500">Primary</div>
+                <div className="text-[10px] text-cortex-muted">Primary</div>
               </div>
               <div className="flex-1 flex items-center gap-2">
-                <div className="flex-1 h-px bg-white/10" />
-                <div className="px-2 py-1 bg-white/5 rounded text-xs font-bold text-white">
+                <div className="flex-1 h-px bg-cortex-control-hover" />
+                <div className="px-2 py-1 bg-cortex-control rounded text-xs font-bold text-white">
                   {dt.score_gap_analysis.gap_points}pt gap ({dt.score_gap_analysis.gap_percent}%)
                 </div>
-                <div className="flex-1 h-px bg-white/10" />
+                <div className="flex-1 h-px bg-cortex-control-hover" />
               </div>
               <div className="text-center">
-                <div className="text-2xl font-black text-gray-500">{dt.score_gap_analysis.secondary_score}</div>
-                <div className="text-[10px] text-gray-500">Secondary</div>
+                <div className="text-2xl font-black text-cortex-muted">{dt.score_gap_analysis.secondary_score}</div>
+                <div className="text-[10px] text-cortex-muted">Secondary</div>
               </div>
             </div>
             {dt.score_gap_analysis.is_hybrid && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FB923C]/10 border border-[#FB923C]/20 rounded text-xs text-[#FB923C] font-semibold mb-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-cortex-warning/10 border border-cortex-warning/20 rounded text-xs text-cortex-warning font-semibold mb-2">
                 <AlertTriangle className="size-3" /> Hybrid Mode Active
               </div>
             )}
-            <p className="text-xs text-gray-400 leading-relaxed">{dt.score_gap_analysis.gap_interpretation}</p>
+            <p className="text-xs text-cortex-muted leading-relaxed">{dt.score_gap_analysis.gap_interpretation}</p>
           </div>
 
           {/* Confidence Factors */}
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">CONFIDENCE FACTOR BREAKDOWN</div>
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">CONFIDENCE FACTOR BREAKDOWN</div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Data Completeness', ...dt.confidence_factors.data_completeness, color: '#3B82F6' },
-                { label: 'Answer Quality', ...dt.confidence_factors.answer_quality, color: '#8B5CF6' },
-                { label: 'Score Gap Clarity', ...dt.confidence_factors.score_gap_clarity, color: '#10B981' },
-                { label: 'Signal Density', ...dt.confidence_factors.signal_density, color: '#06D7F6' },
+                { label: 'Data Completeness', ...dt.confidence_factors.data_completeness, color: BLUE },
+                { label: 'Answer Quality', ...dt.confidence_factors.answer_quality, color: PURPLE },
+                { label: 'Score Gap Clarity', ...dt.confidence_factors.score_gap_clarity, color: GREEN },
+                { label: 'Signal Density', ...dt.confidence_factors.signal_density, color: CYAN },
               ].map(f => (
-                <div key={f.label} className="bg-black/40 rounded-lg p-3 text-center">
-                  <div className="text-[10px] font-semibold text-gray-500 uppercase mb-1">{f.label}</div>
+                <div key={f.label} className="bg-cortex-raised rounded-cortex-sm p-3 text-center">
+                  <div className="text-[10px] font-semibold text-cortex-muted uppercase mb-1">{f.label}</div>
                   <div className="text-lg font-black" style={{ color: f.color }}>{Math.round(f.value * 100)}%</div>
-                  <div className="flex items-center justify-between mt-1 text-[9px] text-gray-600">
+                  <div className="flex items-center justify-between mt-1 text-[9px] text-cortex-faint">
                     <span>W: {Math.round(f.weight * 100)}%</span>
                     <span>→ {((f.contribution ?? 0) * 100).toFixed(1)}%</span>
                   </div>
-                  <div className="w-full bg-white/5 rounded-full h-1 mt-1">
+                  <div className="w-full bg-cortex-control rounded-full h-1 mt-1">
                     <div className="h-full rounded-full" style={{ width: `${f.value * 100}%`, backgroundColor: f.color }} />
                   </div>
                 </div>
@@ -1700,22 +1713,22 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
           {/* Why Not Others */}
           {dt.why_not_others.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">WHY NOT OTHERS</div>
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">WHY NOT OTHERS</div>
               <div className="space-y-2">
                 {dt.why_not_others.map(w => (
-                  <div key={w.domain} className="flex items-start gap-3 bg-white/[0.02] border border-white/5 rounded-lg p-3">
+                  <div key={w.domain} className="flex items-start gap-3 bg-white/[0.02] border border-cortex-subtle rounded-cortex-sm p-3">
                     <div className="flex-shrink-0 mt-0.5">
-                      <div className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500"
-                        style={{ backgroundColor: `${DOMAIN_COLORS[w.domain] || '#555'}20` }}>
+                      <div className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-cortex-muted"
+                        style={{ backgroundColor: `${DOMAIN_COLORS[w.domain] || TEXT.faint}20` }}>
                         {w.score}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-semibold text-gray-300">{w.label}</span>
-                        <span className="text-[10px] text-gray-600">-{w.delta_from_primary}pts</span>
+                        <span className="text-xs font-semibold text-cortex-secondary">{w.label}</span>
+                        <span className="text-[10px] text-cortex-faint">-{w.delta_from_primary}pts</span>
                       </div>
-                      <p className="text-[11px] text-gray-500 leading-relaxed">{w.reasoning}</p>
+                      <p className="text-[11px] text-cortex-muted leading-relaxed">{w.reasoning}</p>
                     </div>
                   </div>
                 ))}
@@ -1725,22 +1738,22 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
 
           {/* Data Quality + Scoring Formula */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">DATA QUALITY</div>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">DATA QUALITY</div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="text-3xl font-black" style={{ color: GRADE_COLORS[dt.data_quality.quality_grade] }}>
                   {dt.data_quality.quality_grade}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-cortex-muted">
                   <div>{dt.data_quality.questions_answered}/{dt.data_quality.total_questions} questions</div>
                   <div>Avg {dt.data_quality.avg_word_count} words</div>
                   <div>{dt.data_quality.completeness_pct}% complete</div>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-500">{dt.data_quality.quality_interpretation}</p>
+              <p className="text-[11px] text-cortex-muted">{dt.data_quality.quality_interpretation}</p>
             </div>
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">SCORING FORMULA</div>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">SCORING FORMULA</div>
               <div className="space-y-1.5">
                 {[
                   { label: 'Pain Signal Density', weight: dt.scoring_formula.pain_weight },
@@ -1749,13 +1762,13 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
                   { label: 'Cross-Dept Bonus', weight: dt.scoring_formula.cross_dept_weight },
                 ].map(f => (
                   <div key={f.label} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">{f.label}</span>
+                    <span className="text-cortex-muted">{f.label}</span>
                     <span className="font-bold text-white">{Math.round(f.weight * 100)}%</span>
                   </div>
                 ))}
-                <div className="pt-1 border-t border-white/5 flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Industry Adj.</span>
-                  <span className="font-bold text-[#8B5CF6]">{dt.scoring_formula.industry_adjustment_applied ? 'Applied' : 'None'}</span>
+                <div className="pt-1 border-t border-cortex-subtle flex items-center justify-between text-xs">
+                  <span className="text-cortex-muted">Industry Adj.</span>
+                  <span className="font-bold text-cortex-accent">{dt.scoring_formula.industry_adjustment_applied ? 'Applied' : 'None'}</span>
                 </div>
               </div>
             </div>
@@ -1773,56 +1786,48 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
 function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app/core/types').BusinessTransformationPortfolio; primaryDomain?: string }) {
   const [expanded, setExpanded] = useState(false);
   const ptf = portfolio;
-  const DEPT_COLORS: Record<string, string> = {
-    revenue_engine: '#10B981', customer_experience: '#06D7F6', operations_supply_chain: '#FB923C',
-    marketing_acquisition: '#EC4899', finance_unit_economics: '#F59E0B', data_infrastructure: '#3B82F6',
-    talent_process: '#8B5CF6',
-    // Legacy fallbacks
-    operations: '#FB923C', revenue: '#10B981', systems: '#3B82F6',
-    governance: '#8B5CF6', data: '#F59E0B',
-  };
   const DEP_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-    required_before: { bg: 'rgba(253,68,56,0.12)', text: '#FD4438', label: 'Required Before' },
-    enhances: { bg: 'rgba(16,185,129,0.12)', text: '#10B981', label: 'Enhances' },
-    'reduces-risk': { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6', label: 'Reduces Risk' },
-    blocks: { bg: 'rgba(253,68,56,0.12)', text: '#FD4438', label: 'Blocks' },
+    required_before: { bg: `${RED}1F`, text: RED, label: 'Required Before' },
+    enhances: { bg: `${GREEN}1F`, text: GREEN, label: 'Enhances' },
+    'reduces-risk': { bg: `${BLUE}1F`, text: BLUE, label: 'Reduces Risk' },
+    blocks: { bg: `${RED}1F`, text: RED, label: 'Blocks' },
   };
   const SCORE_LABELS = ['Density', 'Impact', 'Automation', 'Risk'];
-  const SCORE_COLORS = ['#FB923C', '#10B981', '#3B82F6', '#FD4438'];
+  const SCORE_COLORS = [ORANGE, GREEN, BLUE, RED];
   const qualifiedCount = ptf.department_scan?.filter(d => d.qualifies).length ?? ptf.recommendations.length;
   const totalCount = ptf.department_scan?.length ?? 7;
 
   return (
-    <div className="bg-gradient-to-br from-[#06D7F6]/5 to-[#3B82F6]/5 border border-[#06D7F6]/20 rounded-xl overflow-hidden">
+    <div className="bg-gradient-to-br from-cortex-info/5 to-cortex-accent-alt/5 border border-cortex-info/20 rounded-cortex-md overflow-hidden">
       <button onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between p-5 hover:bg-white/[0.02] transition-colors">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-lg bg-[#06D7F6]/20 flex items-center justify-center">
-            <Layers className="size-5 text-[#06D7F6]" />
+          <div className="size-10 rounded-cortex-sm bg-cortex-info/20 flex items-center justify-center">
+            <Layers className="size-5 text-cortex-info" />
           </div>
           <div className="text-left">
             <h3 className="text-lg font-bold text-white">Transformation Portfolio</h3>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-cortex-muted">
               {qualifiedCount}/{totalCount} departments qualify · {ptf.capital_allocation_model.total_estimated_investment} · {ptf.execution_sequence_model.total_duration_days}d
             </p>
           </div>
         </div>
-        <ChevronDown className={`size-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`size-5 text-cortex-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
       {expanded && (
-        <div className="px-5 pb-6 space-y-5 border-t border-white/5 pt-5">
+        <div className="px-5 pb-6 space-y-5 border-t border-cortex-subtle pt-5">
           {/* Business Snapshot */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: 'Company', value: ptf.business_snapshot.company, color: '#FFF' },
-              { label: 'Industry', value: ptf.business_snapshot.industry, color: '#FFF' },
-              { label: 'Team', value: `~${ptf.business_snapshot.employee_estimate}`, color: '#3B82F6' },
-              { label: 'Data', value: `${Math.round(ptf.business_snapshot.data_completeness * 100)}%`, color: '#10B981' },
-              { label: 'Signals', value: String(ptf.business_snapshot.total_signals_detected), color: '#8B5CF6' },
+              { label: 'Company', value: ptf.business_snapshot.company, color: TEXT.primary },
+              { label: 'Industry', value: ptf.business_snapshot.industry, color: TEXT.primary },
+              { label: 'Team', value: `~${ptf.business_snapshot.employee_estimate}`, color: BLUE },
+              { label: 'Data', value: `${Math.round(ptf.business_snapshot.data_completeness * 100)}%`, color: GREEN },
+              { label: 'Signals', value: String(ptf.business_snapshot.total_signals_detected), color: PURPLE },
             ].map(item => (
-              <div key={item.label} className="bg-black/30 rounded-lg p-3 text-center">
-                <div className="text-[10px] font-semibold text-gray-500 uppercase">{item.label}</div>
+              <div key={item.label} className="bg-cortex-sunken rounded-cortex-sm p-3 text-center">
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase">{item.label}</div>
                 <div className="text-sm font-bold mt-0.5 truncate" style={{ color: item.color }}>{item.value}</div>
               </div>
             ))}
@@ -1831,21 +1836,21 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
           {/* 7-Department Scan */}
           {ptf.department_scan && ptf.department_scan.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">DEPARTMENT SCAN — 4-SCORE MATRIX</div>
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">DEPARTMENT SCAN — 4-SCORE MATRIX</div>
               <div className="space-y-2">
                 {[...ptf.department_scan].sort((a, b) => b.computed_priority - a.computed_priority).map(dept => {
-                  const c = DEPT_COLORS[dept.department] || '#8B5CF6';
+                  const c = DEPARTMENT_COLOR[dept.department] || PURPLE;
                   const deptScores = [dept.problem_density_score, dept.impact_potential_score, dept.automation_feasibility_score, dept.risk_exposure_score];
                   return (
-                    <div key={dept.department} className={`rounded-lg p-3 border ${dept.qualifies ? 'bg-white/[0.03] border-white/10' : 'bg-white/[0.01] border-white/5 opacity-60'}`}>
+                    <div key={dept.department} className={`rounded-cortex-sm p-3 border ${dept.qualifies ? 'bg-white/[0.03] border-cortex-default' : 'bg-white/[0.01] border-cortex-subtle opacity-60'}`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <div className="size-2 rounded-full" style={{ backgroundColor: c }} />
                           <span className="text-xs font-bold text-white">{dept.label}</span>
                           {dept.qualifies ? (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#10B981]/15 text-[#10B981] uppercase">Qualifies</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cortex-success/15 text-cortex-success uppercase">Qualifies</span>
                           ) : (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-600 uppercase">Below threshold</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cortex-control text-cortex-faint uppercase">Below threshold</span>
                           )}
                         </div>
                         <span className="text-xs font-black" style={{ color: c }}>{(dept.computed_priority ?? 0).toFixed(1)}</span>
@@ -1853,11 +1858,11 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
                       <div className="grid grid-cols-4 gap-2">
                         {deptScores.map((s, i) => (
                           <div key={SCORE_LABELS[i]} className="text-center">
-                            <div className="text-[9px] text-gray-600 mb-0.5">{SCORE_LABELS[i]}</div>
-                            <div className="w-full bg-white/5 rounded-full h-1.5">
+                            <div className="text-[9px] text-cortex-faint mb-0.5">{SCORE_LABELS[i]}</div>
+                            <div className="w-full bg-cortex-control rounded-full h-1.5">
                               <div className="h-full rounded-full" style={{ width: `${s * 10}%`, backgroundColor: SCORE_COLORS[i] }} />
                             </div>
-                            <div className="text-[10px] font-bold mt-0.5" style={{ color: i === 3 ? (s >= 7 ? '#FD4438' : '#10B981') : SCORE_COLORS[i] }}>{s}</div>
+                            <div className="text-[10px] font-bold mt-0.5" style={{ color: i === 3 ? (s >= 7 ? RED : GREEN) : SCORE_COLORS[i] }}>{s}</div>
                           </div>
                         ))}
                       </div>
@@ -1865,34 +1870,34 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
                   );
                 })}
               </div>
-              <div className="mt-2 text-[10px] text-gray-600">Threshold: density ≥ 6 AND impact ≥ 6 · Priority = impact×0.4 + automation×0.3 + density×0.2 - risk×0.1</div>
+              <div className="mt-2 text-[10px] text-cortex-faint">Threshold: density ≥ 6 AND impact ≥ 6 · Priority = impact×0.4 + automation×0.3 + density×0.2 - risk×0.1</div>
             </div>
           )}
 
           {/* Priority Ranking */}
           {ptf.global_priority_ranking.length > 0 && (
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">EXECUTION PRIORITY (RANKED)</div>
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">EXECUTION PRIORITY (RANKED)</div>
             <div className="space-y-2">
               {ptf.global_priority_ranking.map(r => {
                 const rec = ptf.recommendations.find(rc => rc.recommendation_id === r.recommendation_id);
                 const dept = (r as any).department || (r as any).domain || '';
                 const isPrimary = dept === primaryDomain || rec?.core_problem.problem_id === primaryDomain;
-                const c = DEPT_COLORS[dept] || '#8B5CF6';
+                const c = DEPARTMENT_COLOR[dept] || PURPLE;
                 return (
                   <div key={r.recommendation_id}
-                    className={`flex items-center gap-3 rounded-lg p-3 border ${isPrimary ? 'bg-white/[0.04] border-white/10' : 'bg-white/[0.02] border-white/5'}`}>
+                    className={`flex items-center gap-3 rounded-cortex-sm p-3 border ${isPrimary ? 'bg-white/[0.04] border-cortex-default' : 'bg-white/[0.02] border-cortex-subtle'}`}>
                     <div className="size-8 rounded-full flex items-center justify-center text-sm font-black text-white"
                       style={{ backgroundColor: `${c}30` }}>{r.rank}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-white truncate">{rec?.core_problem.problem_title || dept}</span>
-                        {isPrimary && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#8B5CF6]/20 text-[#8B5CF6] uppercase">Primary</span>}
+                        {isPrimary && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cortex-accent/20 text-cortex-accent uppercase">Primary</span>}
                       </div>
-                      <div className="text-[10px] text-gray-500">Severity: {rec?.core_problem.severity_score}/10 · Priority: {r.computed_priority}</div>
+                      <div className="text-[10px] text-cortex-muted">Severity: {rec?.core_problem.severity_score}/10 · Priority: {r.computed_priority}</div>
                     </div>
                     <div className="text-right hidden md:block">
-                      <div className="text-xs font-bold text-gray-300">{r.cumulative_investment_at_rank}</div>
+                      <div className="text-xs font-bold text-cortex-secondary">{r.cumulative_investment_at_rank}</div>
                     </div>
                   </div>
                 );
@@ -1904,17 +1909,17 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
           {/* Cross-Dependencies */}
           {ptf.cross_dependencies.length > 0 && (
             <div>
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">CROSS-DEPENDENCIES</div>
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">CROSS-DEPENDENCIES</div>
               <div className="space-y-2">
                 {ptf.cross_dependencies.map((dep, idx) => {
                   const style = DEP_TYPE_COLORS[dep.dependency_type] || DEP_TYPE_COLORS.enhances;
                   return (
-                    <div key={idx} className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-lg p-3 text-xs">
-                      <span className="font-semibold" style={{ color: DEPT_COLORS[(dep as any).source_department || (dep as any).source_domain] }}>{((dep as any).source_department || (dep as any).source_domain || '').replace(/_/g, ' ')}</span>
+                    <div key={idx} className="flex items-center gap-2 bg-white/[0.02] border border-cortex-subtle rounded-cortex-sm p-3 text-xs">
+                      <span className="font-semibold" style={{ color: DEPARTMENT_COLOR[(dep as any).source_department || (dep as any).source_domain] }}>{((dep as any).source_department || (dep as any).source_domain || '').replace(/_/g, ' ')}</span>
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase" style={{ backgroundColor: style.bg, color: style.text }}>{style.label}</span>
-                      <ArrowRight className="size-3 text-gray-600" />
-                      <span className="font-semibold" style={{ color: DEPT_COLORS[(dep as any).target_department || (dep as any).target_domain] }}>{((dep as any).target_department || (dep as any).target_domain || '').replace(/_/g, ' ')}</span>
-                      <span className="text-gray-500 flex-1 text-[11px] hidden md:inline truncate">— {dep.description}</span>
+                      <ArrowRight className="size-3 text-cortex-faint" />
+                      <span className="font-semibold" style={{ color: DEPARTMENT_COLOR[(dep as any).target_department || (dep as any).target_domain] }}>{((dep as any).target_department || (dep as any).target_domain || '').replace(/_/g, ' ')}</span>
+                      <span className="text-cortex-muted flex-1 text-[11px] hidden md:inline truncate">— {dep.description}</span>
                     </div>
                   );
                 })}
@@ -1924,40 +1929,40 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
 
           {/* Capital Allocation + Efficiency */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">BUDGET ALLOCATION</div>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">BUDGET ALLOCATION</div>
               <div className="space-y-2">
                 {ptf.capital_allocation_model.allocations.map(a => {
                   const deptId = (a as any).department || (a as any).domain || '';
                   return (
                   <div key={a.recommendation_id} className="flex items-center gap-2">
-                    <div className="w-28 text-[11px] font-semibold text-gray-400 truncate">{deptId.replace(/_/g, ' ')}</div>
-                    <div className="flex-1 bg-white/5 rounded-full h-3">
+                    <div className="w-28 text-[11px] font-semibold text-cortex-muted truncate">{deptId.replace(/_/g, ' ')}</div>
+                    <div className="flex-1 bg-cortex-control rounded-full h-3">
                       <div className="h-full rounded-full flex items-center justify-end pr-1.5"
-                        style={{ width: `${Math.max(10, a.percent_of_budget)}%`, backgroundColor: DEPT_COLORS[deptId] || '#8B5CF6' }}>
+                        style={{ width: `${Math.max(10, a.percent_of_budget)}%`, backgroundColor: DEPARTMENT_COLOR[deptId] || PURPLE }}>
                         <span className="text-[8px] font-bold text-white">{a.percent_of_budget}%</span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-400 w-12 text-right">{a.estimated_cost}</span>
+                    <span className="text-[10px] font-bold text-cortex-muted w-12 text-right">{a.estimated_cost}</span>
                   </div>
                   );
                 })}
-                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Total</span>
-                  <span className="text-sm font-black text-[#10B981]">{ptf.capital_allocation_model.total_estimated_investment}</span>
+                <div className="pt-2 border-t border-cortex-subtle flex items-center justify-between">
+                  <span className="text-xs text-cortex-muted">Total</span>
+                  <span className="text-sm font-black text-cortex-success">{ptf.capital_allocation_model.total_estimated_investment}</span>
                 </div>
               </div>
             </div>
-            <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">CAPITAL EFFICIENCY</div>
+            <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+              <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">CAPITAL EFFICIENCY</div>
               <div className="space-y-2">
                 {ptf.capital_allocation_model.capital_efficiency_ranking.map((ce, idx) => {
                   const ceId = (ce as any).department || (ce as any).domain || '';
                   return (
                   <div key={ce.recommendation_id} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-600 w-4">{idx + 1}.</span>
-                      <span className="font-semibold" style={{ color: DEPT_COLORS[ceId] || '#8B5CF6' }}>{ceId.replace(/_/g, ' ')}</span>
+                      <span className="text-cortex-faint w-4">{idx + 1}.</span>
+                      <span className="font-semibold" style={{ color: DEPARTMENT_COLOR[ceId] || PURPLE }}>{ceId.replace(/_/g, ' ')}</span>
                     </div>
                     <span className="font-bold text-white">{(ce.roi_per_dollar ?? 0).toFixed(1)}x</span>
                   </div>
@@ -1968,16 +1973,16 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
           </div>
 
           {/* Execution Sequence */}
-          <div className="bg-white/[0.03] border border-white/5 rounded-lg p-4">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">EXECUTION SEQUENCE</div>
+          <div className="bg-white/[0.03] border border-cortex-subtle rounded-cortex-sm p-4">
+            <div className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-3">EXECUTION SEQUENCE</div>
             <div className="flex items-center gap-2 flex-wrap mb-3">
               {ptf.execution_sequence_model.recommended_execution_order.map((id, idx) => {
                 const rec = ptf.recommendations.find(r => r.recommendation_id === id);
                 const dept = rec?.core_problem.problem_id || '';
-                const c = DEPT_COLORS[dept] || '#8B5CF6';
+                const c = DEPARTMENT_COLOR[dept] || PURPLE;
                 return (
                   <span key={id} className="contents">
-                    {idx > 0 && <ArrowRight className="size-3 text-gray-600" />}
+                    {idx > 0 && <ArrowRight className="size-3 text-cortex-faint" />}
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold"
                       style={{ backgroundColor: `${c}20`, color: c, border: `1px solid ${c}30` }}>
                       {dept.replace(/_/g, ' ')}
@@ -1989,14 +1994,14 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
             {ptf.execution_sequence_model.sequencing_rules_applied && ptf.execution_sequence_model.sequencing_rules_applied.length > 0 && (
               <div className="mb-2 space-y-1">
                 {ptf.execution_sequence_model.sequencing_rules_applied.map((rule, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-[10px] text-gray-400">
-                    <CheckCircle2 className="size-3 text-[#8B5CF6] flex-shrink-0" />
+                  <div key={idx} className="flex items-center gap-2 text-[10px] text-cortex-muted">
+                    <CheckCircle2 className="size-3 text-cortex-accent flex-shrink-0" />
                     {rule}
                   </div>
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-gray-500 leading-relaxed">{ptf.execution_sequence_model.sequence_reasoning}</p>
+            <p className="text-[11px] text-cortex-muted leading-relaxed">{ptf.execution_sequence_model.sequence_reasoning}</p>
           </div>
         </div>
       )}
@@ -2013,12 +2018,6 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
   const [confidence, setConfidence] = useState(data.roiEstimate.confidenceLevel);
   const roi = data.roiModel;
 
-  const DEPT_COLORS: Record<string, string> = {
-    revenue_engine: '#10B981', customer_experience: '#06D7F6', operations_supply_chain: '#FB923C',
-    marketing_acquisition: '#EC4899', finance_unit_economics: '#F59E0B', data_infrastructure: '#3B82F6',
-    talent_process: '#8B5CF6', operations: '#FB923C', revenue: '#10B981', systems: '#3B82F6',
-    governance: '#8B5CF6', data: '#F59E0B',
-  };
 
   // If we have the new ROI model, render the wireframe-compliant layout (roi-wireframe.md)
   if (roi) {
@@ -2032,7 +2031,7 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
           leadContext={{
             companyName: data.lead?.companyName ?? '',
             industry: data.lead?.industry ?? '',
-            companySize: String(data.lead?.employeeEstimate ?? ''),
+            companySize: data.lead?.companySize ?? '',
             primaryPainSignal: data.lead?.primaryPainSignal ?? '',
             roiSummary,
           }}
@@ -2060,46 +2059,46 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
         {/* Legacy panel stack — superseded by ROITabLayout */}
 
         {/* Portfolio Summary */}
-        <div className="bg-gradient-to-r from-[#10B981]/10 to-[#06D7F6]/10 border border-[#10B981]/20 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-cortex-success/10 to-cortex-info/10 border border-cortex-success/20 rounded-cortex-md p-6">
           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <DollarSign className="size-5 text-[#10B981]" />
+            <DollarSign className="size-5 text-cortex-success" />
             Portfolio ROI Summary
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {[
-              { label: 'Total Investment', value: roi.portfolio_totals.total_investment_label, color: '#FFF' },
-              { label: '12-Month Gain', value: `$${Math.round(roi.portfolio_totals.total_adjusted_gain_12mo / 1000)}K`, color: '#10B981' },
-              { label: 'Adjusted ROI', value: `${roi.portfolio_totals.total_adjusted_roi_percent}%`, color: roi.portfolio_totals.total_adjusted_roi_percent >= 100 ? '#10B981' : roi.portfolio_totals.total_adjusted_roi_percent >= 0 ? '#FB923C' : '#FD4438' },
-              { label: 'Payback', value: roi.portfolio_payback_months < 1 ? '<1mo' : `${roi.portfolio_payback_months}mo`, color: '#06D7F6' },
+              { label: 'Total Investment', value: roi.portfolio_totals.total_investment_label, color: TEXT.primary },
+              { label: '12-Month Gain', value: `$${Math.round(roi.portfolio_totals.total_adjusted_gain_12mo / 1000)}K`, color: GREEN },
+              { label: 'Adjusted ROI', value: `${roi.portfolio_totals.total_adjusted_roi_percent}%`, color: roi.portfolio_totals.total_adjusted_roi_percent >= 100 ? GREEN : roi.portfolio_totals.total_adjusted_roi_percent >= 0 ? ORANGE : RED },
+              { label: 'Payback', value: roi.portfolio_payback_months < 1 ? '<1mo' : `${roi.portfolio_payback_months}mo`, color: CYAN },
             ].map(m => (
-              <div key={m.label} className="bg-black/30 rounded-lg p-4 text-center">
-                <div className="text-[10px] font-semibold text-gray-500 uppercase mb-1">{m.label}</div>
+              <div key={m.label} className="bg-cortex-sunken rounded-cortex-sm p-4 text-center">
+                <div className="text-[10px] font-semibold text-cortex-muted uppercase mb-1">{m.label}</div>
                 <div className="text-2xl font-black" style={{ color: m.color }}>{m.value}</div>
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-gray-500 text-center">
+          <div className="text-[10px] text-cortex-muted text-center">
             Risk-adjusted return: ${Math.round(roi.portfolio_totals.risk_adjusted_return / 1000)}K · Formula: Adjusted ROI = Raw ROI × (Confidence / 100)
           </div>
         </div>
 
         {/* §4 — Three-Case Range */}
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
           <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <BarChart3 className="size-5 text-[#8B5CF6]" />
+            <BarChart3 className="size-5 text-cortex-accent" />
             Portfolio Range (3-Case Model)
           </h3>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Low Case', sub: '60% efficiency', gain: roi.portfolio_range.low_case_total, roiPct: roi.portfolio_range.low_case_roi, color: '#FD4438' },
-              { label: 'Mid Case', sub: '80% efficiency', gain: roi.portfolio_range.mid_case_total, roiPct: roi.portfolio_range.mid_case_roi, color: '#FB923C' },
-              { label: 'High Case', sub: '100% efficiency', gain: roi.portfolio_range.high_case_total, roiPct: roi.portfolio_range.high_case_roi, color: '#10B981' },
+              { label: 'Low Case', sub: '60% efficiency', gain: roi.portfolio_range.low_case_total, roiPct: roi.portfolio_range.low_case_roi, color: RED },
+              { label: 'Mid Case', sub: '80% efficiency', gain: roi.portfolio_range.mid_case_total, roiPct: roi.portfolio_range.mid_case_roi, color: ORANGE },
+              { label: 'High Case', sub: '100% efficiency', gain: roi.portfolio_range.high_case_total, roiPct: roi.portfolio_range.high_case_roi, color: GREEN },
             ].map(c => (
-              <div key={c.label} className="bg-white/[0.02] border border-white/5 rounded-lg p-4 text-center">
-                <div className="text-xs font-semibold text-gray-400 uppercase">{c.label}</div>
-                <div className="text-[10px] text-gray-600 mb-2">{c.sub}</div>
+              <div key={c.label} className="bg-white/[0.02] border border-cortex-subtle rounded-cortex-sm p-4 text-center">
+                <div className="text-xs font-semibold text-cortex-muted uppercase">{c.label}</div>
+                <div className="text-[10px] text-cortex-faint mb-2">{c.sub}</div>
                 <div className="text-xl font-black" style={{ color: c.color }}>${Math.round(c.gain / 1000)}K</div>
-                <div className="text-sm font-bold mt-1" style={{ color: c.roiPct >= 0 ? c.color : '#FD4438' }}>{c.roiPct}% ROI</div>
+                <div className="text-sm font-bold mt-1" style={{ color: c.roiPct >= 0 ? c.color : RED }}>{c.roiPct}% ROI</div>
               </div>
             ))}
           </div>
@@ -2109,54 +2108,54 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
         {eligible.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <TrendingUp className="size-5 text-[#10B981]" />
+              <TrendingUp className="size-5 text-cortex-success" />
               Per-Department ROI
             </h3>
             {eligible.map(r => {
-              const c = DEPT_COLORS[r.department] || '#8B5CF6';
+              const c = DEPARTMENT_COLOR[r.department] || PURPLE;
               return (
-                <div key={r.recommendation_id} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+                <div key={r.recommendation_id} className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="size-3 rounded-full" style={{ backgroundColor: c }} />
                       <span className="text-sm font-bold text-white">{r.department.replace(/_/g, ' ')}</span>
                     </div>
-                    <span className="text-lg font-black" style={{ color: r.adjusted_roi_percent >= 100 ? '#10B981' : r.adjusted_roi_percent >= 0 ? '#FB923C' : '#FD4438' }}>
+                    <span className="text-lg font-black" style={{ color: r.adjusted_roi_percent >= 100 ? GREEN : r.adjusted_roi_percent >= 0 ? ORANGE : RED }}>
                       {r.display.adjusted_roi_label}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
                     {[
-                      { label: 'Investment', value: r.display.investment, color: '#FFF' },
-                      { label: '90-Day Gain', value: r.display.gain_90d, color: '#3B82F6' },
-                      { label: '12-Month Gain', value: r.display.gain_12mo, color: '#10B981' },
-                      { label: 'Payback', value: r.display.payback_timeline, color: '#06D7F6' },
-                      { label: 'Conf-Adj ROI', value: r.display.adjusted_roi_label, color: '#8B5CF6' },
+                      { label: 'Investment', value: r.display.investment, color: TEXT.primary },
+                      { label: '90-Day Gain', value: r.display.gain_90d, color: BLUE },
+                      { label: '12-Month Gain', value: r.display.gain_12mo, color: GREEN },
+                      { label: 'Payback', value: r.display.payback_timeline, color: CYAN },
+                      { label: 'Conf-Adj ROI', value: r.display.adjusted_roi_label, color: PURPLE },
                     ].map(f => (
-                      <div key={f.label} className="bg-white/[0.02] rounded-lg p-2 text-center">
-                        <div className="text-[9px] text-gray-600 uppercase">{f.label}</div>
+                      <div key={f.label} className="bg-white/[0.02] rounded-cortex-sm p-2 text-center">
+                        <div className="text-[9px] text-cortex-faint uppercase">{f.label}</div>
                         <div className="text-sm font-bold" style={{ color: f.color }}>{f.value}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-2">
+                  <div className="flex items-center gap-2 text-[10px] text-cortex-muted mb-2">
                     <span>Low: ${Math.round(r.roi_range.low_case.gain / 1000)}K ({r.roi_range.low_case.roi_percent}%)</span><span>·</span>
                     <span>Mid: ${Math.round(r.roi_range.mid_case.gain / 1000)}K ({r.roi_range.mid_case.roi_percent}%)</span><span>·</span>
                     <span>High: ${Math.round(r.roi_range.high_case.gain / 1000)}K ({r.roi_range.high_case.roi_percent}%)</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {r.impact_calculations.revenue_impact && (
-                      <span className="text-[9px] px-2 py-0.5 rounded bg-[#10B981]/10 text-[#10B981]">Revenue: ${Math.round(r.impact_calculations.revenue_impact.projected_gain / 1000)}K</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded bg-cortex-success/10 text-cortex-success">Revenue: ${Math.round(r.impact_calculations.revenue_impact.projected_gain / 1000)}K</span>
                     )}
                     {r.impact_calculations.cost_reduction && (
-                      <span className="text-[9px] px-2 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6]">Cost Savings: ${Math.round(r.impact_calculations.cost_reduction.savings / 1000)}K</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded bg-cortex-accent-alt/10 text-cortex-accent-alt">Cost Savings: ${Math.round(r.impact_calculations.cost_reduction.savings / 1000)}K</span>
                     )}
                     {r.impact_calculations.risk_reduction && (
-                      <span className="text-[9px] px-2 py-0.5 rounded bg-[#8B5CF6]/10 text-[#8B5CF6]">Risk Avoided: ${Math.round(r.impact_calculations.risk_reduction.expected_loss_avoided / 1000)}K</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded bg-cortex-accent/10 text-cortex-accent">Risk Avoided: ${Math.round(r.impact_calculations.risk_reduction.expected_loss_avoided / 1000)}K</span>
                     )}
                   </div>
                   <div className="space-y-0.5">
-                    {r.display.assumptions.map((a, idx) => (<div key={idx} className="text-[9px] text-gray-600">- {a}</div>))}
+                    {r.display.assumptions.map((a, idx) => (<div key={idx} className="text-[9px] text-cortex-faint">- {a}</div>))}
                   </div>
                 </div>
               );
@@ -2167,17 +2166,17 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
         {/* Locked */}
         {locked.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-bold text-gray-400 flex items-center gap-2">
-              <AlertTriangle className="size-4 text-[#FB923C]" />
+            <h4 className="text-sm font-bold text-cortex-muted flex items-center gap-2">
+              <AlertTriangle className="size-4 text-cortex-warning" />
               ROI Not Calculable Yet
             </h4>
             {locked.map(r => (
-              <div key={r.recommendation_id} className="bg-[#FB923C]/5 border border-[#FB923C]/20 rounded-lg p-4 flex items-center justify-between">
+              <div key={r.recommendation_id} className="bg-cortex-warning/5 border border-cortex-warning/20 rounded-cortex-sm p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="size-2 rounded-full" style={{ backgroundColor: DEPT_COLORS[r.department] || '#8B5CF6' }} />
-                  <span className="text-xs font-bold text-gray-400">{r.department.replace(/_/g, ' ')}</span>
+                  <div className="size-2 rounded-full" style={{ backgroundColor: DEPARTMENT_COLOR[r.department] || PURPLE }} />
+                  <span className="text-xs font-bold text-cortex-muted">{r.department.replace(/_/g, ' ')}</span>
                 </div>
-                <span className="text-[10px] text-[#FB923C]">{r.roi_locked_reason}</span>
+                <span className="text-[10px] text-cortex-warning">{r.roi_locked_reason}</span>
               </div>
             ))}
           </div>
@@ -2185,35 +2184,35 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
 
         {/* Execution Impact Curve */}
         {roi.execution_impact_curve.length > 1 && (
-          <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+          <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
             <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <Activity className="size-4 text-[#06D7F6]" />
+              <Activity className="size-4 text-cortex-info" />
               Execution Order Impact Curve
             </h3>
             <div className="space-y-2">
               {roi.execution_impact_curve.map(step => {
-                const sc = DEPT_COLORS[step.department] || '#8B5CF6';
+                const sc = DEPARTMENT_COLOR[step.department] || PURPLE;
                 const maxInv = roi.execution_impact_curve[roi.execution_impact_curve.length - 1].cumulative_investment || 1;
                 const maxGain = roi.execution_impact_curve[roi.execution_impact_curve.length - 1].cumulative_gain_12mo || 1;
                 return (
                   <div key={step.recommendation_id} className="flex items-center gap-3">
                     <div className="size-6 rounded-full flex items-center justify-center text-[10px] font-black text-white" style={{ backgroundColor: `${sc}40` }}>{step.step}</div>
                     <div className="flex-1 space-y-1">
-                      <div className="text-[10px] font-semibold text-gray-400">{step.department.replace(/_/g, ' ')}</div>
+                      <div className="text-[10px] font-semibold text-cortex-muted">{step.department.replace(/_/g, ' ')}</div>
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <div className="text-[8px] text-gray-600 mb-0.5">Investment</div>
-                          <div className="bg-white/5 rounded-full h-2"><div className="h-full rounded-full bg-[#FD4438]" style={{ width: `${Math.max(5, (step.cumulative_investment / maxInv) * 100)}%` }} /></div>
+                          <div className="text-[8px] text-cortex-faint mb-0.5">Investment</div>
+                          <div className="bg-cortex-control rounded-full h-2"><div className="h-full rounded-full bg-cortex-danger" style={{ width: `${Math.max(5, (step.cumulative_investment / maxInv) * 100)}%` }} /></div>
                         </div>
                         <div className="flex-1">
-                          <div className="text-[8px] text-gray-600 mb-0.5">12mo Gain</div>
-                          <div className="bg-white/5 rounded-full h-2"><div className="h-full rounded-full bg-[#10B981]" style={{ width: `${Math.max(5, (step.cumulative_gain_12mo / maxGain) * 100)}%` }} /></div>
+                          <div className="text-[8px] text-cortex-faint mb-0.5">12mo Gain</div>
+                          <div className="bg-cortex-control rounded-full h-2"><div className="h-full rounded-full bg-cortex-success" style={{ width: `${Math.max(5, (step.cumulative_gain_12mo / maxGain) * 100)}%` }} /></div>
                         </div>
                       </div>
                     </div>
                     <div className="text-right w-20">
-                      <div className="text-xs font-black" style={{ color: step.cumulative_roi_percent >= 0 ? '#10B981' : '#FD4438' }}>{step.cumulative_roi_percent}% ROI</div>
-                      <div className="text-[9px] text-gray-600">${Math.round(step.cumulative_investment / 1000)}K → ${Math.round(step.cumulative_gain_12mo / 1000)}K</div>
+                      <div className="text-xs font-black" style={{ color: step.cumulative_roi_percent >= 0 ? GREEN : RED }}>{step.cumulative_roi_percent}% ROI</div>
+                      <div className="text-[9px] text-cortex-faint">${Math.round(step.cumulative_investment / 1000)}K → ${Math.round(step.cumulative_gain_12mo / 1000)}K</div>
                     </div>
                   </div>
                 );
@@ -2224,20 +2223,20 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
 
         {/* Dependency Adjustments */}
         {roi.dependency_adjustments.length > 0 && (
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">DEPENDENCY-SAFE ADJUSTMENTS</h4>
+          <div className="bg-white/[0.02] border border-cortex-subtle rounded-cortex-md p-4">
+            <h4 className="text-xs font-semibold text-cortex-muted uppercase tracking-wider mb-2">DEPENDENCY-SAFE ADJUSTMENTS</h4>
             <div className="space-y-1.5">
               {roi.dependency_adjustments.map((adj, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <span className="font-semibold" style={{ color: DEPT_COLORS[adj.source_department] }}>{adj.source_department.replace(/_/g, ' ')}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#FB923C]/10 text-[#FB923C]">
+                <div key={idx} className="flex items-center gap-2 text-[10px] text-cortex-muted">
+                  <span className="font-semibold" style={{ color: DEPARTMENT_COLOR[adj.source_department] }}>{adj.source_department.replace(/_/g, ' ')}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cortex-warning/10 text-cortex-warning">
                     {adj.adjustment_type === 'efficiency_credit_only' ? 'Efficiency Only' : 'Revenue → Target'}
                   </span>
-                  <ArrowRight className="size-3 text-gray-600" />
-                  <span className="font-semibold" style={{ color: DEPT_COLORS[adj.target_department] }}>{adj.target_department.replace(/_/g, ' ')}</span>
+                  <ArrowRight className="size-3 text-cortex-faint" />
+                  <span className="font-semibold" style={{ color: DEPARTMENT_COLOR[adj.target_department] }}>{adj.target_department.replace(/_/g, ' ')}</span>
                 </div>
               ))}
-              <div className="text-[9px] text-gray-600 mt-1">If A enables B, only B gets full revenue credit. A gets efficiency credit only. Prevents stacking fantasy ROI.</div>
+              <div className="text-[9px] text-cortex-faint mt-1">If A enables B, only B gets full revenue credit. A gets efficiency credit only. Prevents stacking fantasy ROI.</div>
             </div>
           </div>
         )}
@@ -2252,25 +2251,25 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
         <ROIMetricCard label="Hours Saved / Month" conservative={data.roiEstimate.hoursSavedPerMonth.conservative} aggressive={data.roiEstimate.hoursSavedPerMonth.aggressive} unit="hrs" icon={Clock} />
         <ROIMetricCard label="Cost Avoided / Month" conservative={data.roiEstimate.costAvoidedPerMonth.conservative} aggressive={data.roiEstimate.costAvoidedPerMonth.aggressive} unit="$" icon={DollarSign} />
         <ROIMetricCard label="Revenue Leakage Reduced" conservative={data.roiEstimate.revenueLeakageReduced.conservative} aggressive={data.roiEstimate.revenueLeakageReduced.aggressive} unit="$" icon={TrendingUp} />
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-3"><Shield className="size-6 text-[#10B981]" /><div className="text-sm font-semibold text-gray-400">Operational Risk Reduction</div></div>
-          <div className="text-3xl font-bold text-[#10B981] capitalize">{data.roiEstimate.operationalRiskReduction.replace('-', ' ')}</div>
+        <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
+          <div className="flex items-center gap-3 mb-3"><Shield className="size-6 text-cortex-success" /><div className="text-sm font-semibold text-cortex-muted">Operational Risk Reduction</div></div>
+          <div className="text-3xl font-bold text-cortex-success capitalize">{data.roiEstimate.operationalRiskReduction.replace('-', ' ')}</div>
         </div>
       </div>
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-lg font-bold mb-4">Team Notes</h3>
         <div className="mb-4">
-          <label className="text-sm text-gray-400 mb-2 block">Confidence Level</label>
+          <label className="text-sm text-cortex-muted mb-2 block">Confidence Level</label>
           <div className="flex gap-2">
             {(['needs-validation', 'conservative', 'aggressive'] as const).map(level => (
-              <button key={level} onClick={() => setConfidence(level)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${confidence === level ? 'bg-[#8B5CF6] text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+              <button key={level} onClick={() => setConfidence(level)} className={`px-4 py-2 rounded-cortex-sm text-sm font-medium transition-all ${confidence === level ? 'bg-cortex-accent text-white' : 'bg-cortex-control text-cortex-muted hover:bg-cortex-control-hover'}`}>
                 {level.replace('-', ' ').toUpperCase()}
               </button>
             ))}
           </div>
         </div>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full h-32 bg-white/5 border border-white/10 rounded-lg p-3 text-white resize-none focus:outline-none focus:border-[#8B5CF6]" placeholder="Add context, assumptions, or things to validate on call..." />
-        <button className="mt-4 px-4 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors font-medium">Save Notes</button>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full h-32 bg-cortex-control border border-cortex-default rounded-cortex-sm p-3 text-white resize-none focus:outline-none focus:border-cortex-accent" placeholder="Add context, assumptions, or things to validate on call..." />
+        <button className="mt-4 px-4 py-2 bg-cortex-accent hover:bg-cortex-accent/85 text-white rounded-cortex-sm transition-colors font-medium">Save Notes</button>
       </div>
       {data.roiEstimate.monthlyProjections && data.roiEstimate.scenarioComparison && data.roiEstimate.breakEvenAnalysis && data.roiEstimate.editableAssumptions && (
         <EnhancedROIView monthlyProjections={data.roiEstimate.monthlyProjections} scenarioComparison={data.roiEstimate.scenarioComparison} breakEvenAnalysis={data.roiEstimate.breakEvenAnalysis} editableAssumptions={data.roiEstimate.editableAssumptions} companyName={data.lead.companyName} />
@@ -2295,21 +2294,21 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
   const hasFinanceChange = latest.finance_recalc_required;
 
   return (
-    <div className="bg-gradient-to-r from-[#06D7F6]/10 to-[#8B5CF6]/10 border border-[#06D7F6]/30 rounded-xl p-4 relative">
-      <button onClick={() => setDismissed(true)} className="absolute top-2 right-2 text-gray-600 hover:text-white transition-colors">
+    <div className="bg-gradient-to-r from-cortex-info/10 to-cortex-accent/10 border border-cortex-info/30 rounded-cortex-md p-4 relative">
+      <button onClick={() => setDismissed(true)} className="absolute top-2 right-2 text-cortex-faint hover:text-white transition-colors">
         <X className="size-4" />
       </button>
       <div className="flex items-start gap-3">
-        <div className="size-8 rounded-lg bg-[#06D7F6]/20 flex items-center justify-center flex-shrink-0">
-          <RefreshCw className="size-4 text-[#06D7F6]" />
+        <div className="size-8 rounded-cortex-sm bg-cortex-info/20 flex items-center justify-center flex-shrink-0">
+          <RefreshCw className="size-4 text-cortex-info" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-black text-white">{latest.version}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase bg-[#06D7F6]/15 text-[#06D7F6]">
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase bg-cortex-info/15 text-cortex-info">
               {latest.source}
             </span>
-            <span className="text-[10px] text-gray-600">
+            <span className="text-[10px] text-cortex-faint">
               {latest.actor} · {new Date(latest.timestamp).toLocaleString()}
             </span>
           </div>
@@ -2320,11 +2319,11 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
             <div className="space-y-0.5 mb-2">
               {latest.delta_log.map((d, i) => (
                 <div key={i} className="text-[10px] flex items-center gap-1.5">
-                  <span className="text-[#FB923C] font-semibold">{d.path.split('.').pop()?.replace(/_/g, ' ')}</span>
-                  <span className="text-gray-600">{String(d.old)}</span>
-                  <ArrowRight className="size-3 text-gray-600" />
-                  <span className="text-[#10B981] font-semibold">{String(d.new_value)}</span>
-                  {d.reason && <span className="text-gray-700 text-[9px]">({d.reason})</span>}
+                  <span className="text-cortex-warning font-semibold">{d.path.split('.').pop()?.replace(/_/g, ' ')}</span>
+                  <span className="text-cortex-faint">{String(d.old)}</span>
+                  <ArrowRight className="size-3 text-cortex-faint" />
+                  <span className="text-cortex-success font-semibold">{String(d.new_value)}</span>
+                  {d.reason && <span className="text-cortex-faint text-[9px]">({d.reason})</span>}
                 </div>
               ))}
             </div>
@@ -2332,37 +2331,37 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
 
           {/* ── finance_v1_dcf: DCF delta callout ── */}
           {dcf && (
-            <div className="flex flex-wrap items-center gap-3 mb-2 px-3 py-2 bg-[#8B5CF6]/8 border border-[#8B5CF6]/15 rounded-lg">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B5CF6]">DCF</span>
+            <div className="flex flex-wrap items-center gap-3 mb-2 px-3 py-2 bg-cortex-accent/8 border border-cortex-accent/15 rounded-cortex-sm">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-cortex-accent">DCF</span>
               {/* NPV delta */}
               <span className="flex items-center gap-1 text-[10px]">
-                <span className="text-gray-500">NPV</span>
-                <span className="font-mono text-gray-400">${(dcf.npv_old / 1000).toFixed(0)}K</span>
-                <ArrowRight className="size-3 text-gray-600" />
-                <span className={`font-mono font-bold ${dcf.npv_new >= 0 ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                <span className="text-cortex-muted">NPV</span>
+                <span className="font-mono text-cortex-muted">${(dcf.npv_old / 1000).toFixed(0)}K</span>
+                <ArrowRight className="size-3 text-cortex-faint" />
+                <span className={`font-mono font-bold ${dcf.npv_new >= 0 ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                   ${(dcf.npv_new / 1000).toFixed(0)}K
                 </span>
-                <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${dcf.npv_delta >= 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#FD4438]/10 text-[#FD4438]'}`}>
+                <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${dcf.npv_delta >= 0 ? 'bg-cortex-success/10 text-cortex-success' : 'bg-cortex-danger/10 text-cortex-danger'}`}>
                   {dcf.npv_delta >= 0 ? '+' : ''}${(dcf.npv_delta / 1000).toFixed(0)}K
                 </span>
               </span>
               {/* Rate delta */}
               {dcf.discount_rate_old !== dcf.discount_rate_new && (
                 <span className="flex items-center gap-1 text-[10px]">
-                  <span className="text-gray-500">Rate</span>
-                  <span className="font-mono text-gray-400">{dcf.discount_rate_old}%</span>
-                  <ArrowRight className="size-3 text-gray-600" />
-                  <span className="font-mono font-bold text-[#8B5CF6]">{dcf.discount_rate_new}%</span>
+                  <span className="text-cortex-muted">Rate</span>
+                  <span className="font-mono text-cortex-muted">{dcf.discount_rate_old}%</span>
+                  <ArrowRight className="size-3 text-cortex-faint" />
+                  <span className="font-mono font-bold text-cortex-accent">{dcf.discount_rate_new}%</span>
                 </span>
               )}
               {/* Discounted payback delta */}
               {dcf.payback_delta !== null && dcf.payback_delta !== 0 && (
                 <span className="flex items-center gap-1 text-[10px]">
-                  <span className="text-gray-500">DCF Payback</span>
-                  <span className="font-mono text-gray-400">M{dcf.discounted_payback_old ?? '?'}</span>
-                  <ArrowRight className="size-3 text-gray-600" />
-                  <span className="font-mono font-bold text-[#FB923C]">M{dcf.discounted_payback_new ?? '?'}</span>
-                  <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${(dcf.payback_delta ?? 0) <= 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#FB923C]/10 text-[#FB923C]'}`}>
+                  <span className="text-cortex-muted">DCF Payback</span>
+                  <span className="font-mono text-cortex-muted">M{dcf.discounted_payback_old ?? '?'}</span>
+                  <ArrowRight className="size-3 text-cortex-faint" />
+                  <span className="font-mono font-bold text-cortex-warning">M{dcf.discounted_payback_new ?? '?'}</span>
+                  <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${(dcf.payback_delta ?? 0) <= 0 ? 'bg-cortex-success/10 text-cortex-success' : 'bg-cortex-warning/10 text-cortex-warning'}`}>
                     {(dcf.payback_delta ?? 0) >= 0 ? '+' : ''}{dcf.payback_delta}mo
                   </span>
                 </span>
@@ -2378,27 +2377,27 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
             const statusChanged = irr.status_old !== irr.status_new;
             if (!hasIRRDelta && !statusChanged) return null;
             return (
-              <div className="flex flex-wrap items-center gap-3 mb-2 px-3 py-2 bg-[#06D7F6]/5 border border-[#06D7F6]/10 rounded-lg">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-[#06D7F6]">IRR</span>
+              <div className="flex flex-wrap items-center gap-3 mb-2 px-3 py-2 bg-cortex-info/5 border border-cortex-info/10 rounded-cortex-sm">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-cortex-info">IRR</span>
                 {hasIRRDelta && (
                   <span className="flex items-center gap-1 text-[10px]">
-                    <span className="text-gray-500">Annual</span>
-                    <span className="font-mono text-gray-400">{irr.irr_annual_old?.toFixed(1) ?? '—'}%</span>
-                    <ArrowRight className="size-3 text-gray-600" />
-                    <span className={`font-mono font-bold ${(irr.irr_annual_new ?? 0) > 0 ? 'text-[#06D7F6]' : 'text-[#FD4438]'}`}>
+                    <span className="text-cortex-muted">Annual</span>
+                    <span className="font-mono text-cortex-muted">{irr.irr_annual_old?.toFixed(1) ?? '—'}%</span>
+                    <ArrowRight className="size-3 text-cortex-faint" />
+                    <span className={`font-mono font-bold ${(irr.irr_annual_new ?? 0) > 0 ? 'text-cortex-info' : 'text-cortex-danger'}`}>
                       {irr.irr_annual_new?.toFixed(1) ?? '—'}%
                     </span>
-                    <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${(irr.irr_delta ?? 0) >= 0 ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#FD4438]/10 text-[#FD4438]'}`}>
+                    <span className={`text-[9px] px-1 py-0.5 rounded font-bold ${(irr.irr_delta ?? 0) >= 0 ? 'bg-cortex-success/10 text-cortex-success' : 'bg-cortex-danger/10 text-cortex-danger'}`}>
                       {(irr.irr_delta ?? 0) >= 0 ? '+' : ''}{irr.irr_delta?.toFixed(1) ?? '—'}pp
                     </span>
                   </span>
                 )}
                 {statusChanged && (
                   <span className="flex items-center gap-1 text-[10px]">
-                    <span className="text-gray-500">Status</span>
-                    <span className="text-gray-400">{irr.status_old.replace(/_/g, ' ')}</span>
-                    <ArrowRight className="size-3 text-gray-600" />
-                    <span className={`font-bold ${irr.status_new === 'converged' ? 'text-[#10B981]' : 'text-[#FB923C]'}`}>
+                    <span className="text-cortex-muted">Status</span>
+                    <span className="text-cortex-muted">{irr.status_old.replace(/_/g, ' ')}</span>
+                    <ArrowRight className="size-3 text-cortex-faint" />
+                    <span className={`font-bold ${irr.status_new === 'converged' ? 'text-cortex-success' : 'text-cortex-warning'}`}>
                       {irr.status_new.replace(/_/g, ' ')}
                     </span>
                   </span>
@@ -2409,9 +2408,9 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
 
           {/* finance_recalc_required stale notice (no dcf_delta yet) */}
           {hasFinanceChange && !dcf && (
-            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-[#FB923C]/8 border border-[#FB923C]/15 rounded-lg">
-              <AlertTriangle className="size-3 text-[#FB923C] flex-shrink-0" />
-              <span className="text-[10px] text-[#FB923C] font-medium">
+            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-cortex-warning/8 border border-cortex-warning/15 rounded-cortex-sm">
+              <AlertTriangle className="size-3 text-cortex-warning flex-shrink-0" />
+              <span className="text-[10px] text-cortex-warning font-medium">
                 DCF + IRR recalculation flagged — NPV and IRR may be stale. Use the DCF Panel to refresh.
               </span>
             </div>
@@ -2419,9 +2418,9 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
 
           {/* Scenario switch notice */}
           {latest.scenario_switched && latest.scenario_delta_summary && (
-            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-[#8B5CF6]/8 border border-[#8B5CF6]/15 rounded-lg">
-              <Activity className="size-3 text-[#8B5CF6] flex-shrink-0" />
-              <span className="text-[10px] text-[#8B5CF6] font-medium">
+            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-cortex-accent/8 border border-cortex-accent/15 rounded-cortex-sm">
+              <Activity className="size-3 text-cortex-accent flex-shrink-0" />
+              <span className="text-[10px] text-cortex-accent font-medium">
                 Scenario switched: <strong>{latest.scenario_delta_summary.scenario_old}</strong> → <strong>{latest.scenario_delta_summary.scenario_new}</strong>
                 {latest.scenario_delta_summary.roi_old !== null && (
                   <span className="contents"> · ROI: {latest.scenario_delta_summary.roi_old.toFixed(0)}% → {latest.scenario_delta_summary.roi_new.toFixed(0)}%</span>
@@ -2433,9 +2432,9 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
 
           {/* Monte Carlo recalculated notice */}
           {latest.roi_recalculated && !latest.scenario_switched && (
-            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-[#8B5CF6]/8 border border-[#8B5CF6]/15 rounded-lg">
-              <Activity className="size-3 text-[#8B5CF6] flex-shrink-0" />
-              <span className="text-[10px] text-[#8B5CF6] font-medium">
+            <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-cortex-accent/8 border border-cortex-accent/15 rounded-cortex-sm">
+              <Activity className="size-3 text-cortex-accent flex-shrink-0" />
+              <span className="text-[10px] text-cortex-accent font-medium">
                 Monte Carlo re-simulated — probability bands and payback distributions reflect latest portfolio state.
               </span>
             </div>
@@ -2443,14 +2442,14 @@ function WhatChangedBanner({ portfolioState }: { portfolioState: import('@/app/c
 
           {/* Recalculated engines */}
           <div className="flex flex-wrap gap-1">
-            <span className="text-[9px] text-gray-500 mr-1">Recalculated:</span>
+            <span className="text-[9px] text-cortex-muted mr-1">Recalculated:</span>
             {changedEngines.map(engine => (
-              <span key={engine} className="text-[8px] px-1.5 py-0.5 rounded bg-[#8B5CF6]/10 text-[#8B5CF6] font-semibold">
+              <span key={engine} className="text-[8px] px-1.5 py-0.5 rounded bg-cortex-accent/10 text-cortex-accent font-semibold">
                 {engine.replace('cortex_', '')}
               </span>
             ))}
             {hasFinanceChange && (
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#FB923C]/10 text-[#FB923C] font-semibold border border-[#FB923C]/20">
+              <span className="text-[8px] px-1.5 py-0.5 rounded bg-cortex-warning/10 text-cortex-warning font-semibold border border-cortex-warning/20">
                 finance_v1_dcf
               </span>
             )}
@@ -2479,14 +2478,14 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
   const latestRecord = history[0];
   const isApproved = latestRecord?.is_approved || false;
   const confScore = v2.confidence_model?.confidence_score ?? 0;
-  const confColor = confScore >= 80 ? '#10B981' : confScore >= 60 ? '#FB923C' : '#FD4438';
+  const confColor = confScore >= 80 ? GREEN : confScore >= 60 ? ORANGE : RED;
 
   return (
-    <div className="bg-black/30 border border-white/5 rounded-lg p-3 mb-4 space-y-2">
+    <div className="bg-cortex-sunken border border-cortex-subtle rounded-cortex-sm p-3 mb-4 space-y-2">
       {/* Top row: version + confidence + status + last updated */}
       <div className="flex flex-wrap items-center gap-2 text-[10px]">
         {/* Version badge */}
-        <span className={`px-2 py-0.5 rounded font-black uppercase tracking-wider ${isApproved ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30' : 'bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30'}`}>
+        <span className={`px-2 py-0.5 rounded font-black uppercase tracking-wider ${isApproved ? 'bg-cortex-success/15 text-cortex-success border border-cortex-success/30' : 'bg-cortex-accent/15 text-cortex-accent border border-cortex-accent/30'}`}>
           {version} {isApproved && '(LOCKED)'}
         </span>
 
@@ -2496,20 +2495,20 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
         </span>
 
         {/* Calc version */}
-        <span className="px-2 py-0.5 rounded bg-white/5 text-gray-500 font-semibold">
+        <span className="px-2 py-0.5 rounded bg-cortex-control text-cortex-muted font-semibold">
           Calc v{v2.calc_version || 1}
         </span>
 
         {/* Source */}
         {latestRecord && (
-          <span className="text-gray-600">
+          <span className="text-cortex-faint">
             Last: {latestRecord.source} by {latestRecord.actor} · {new Date(latestRecord.timestamp).toLocaleDateString()}
           </span>
         )}
 
         {/* Updated summary */}
         {latestRecord && latestRecord.source !== 'initial' && (
-          <span className="px-2 py-0.5 rounded bg-[#06D7F6]/10 text-[#06D7F6] font-semibold">
+          <span className="px-2 py-0.5 rounded bg-cortex-info/10 text-cortex-info font-semibold">
             {latestRecord.summary.substring(0, 80)}{latestRecord.summary.length > 80 ? '...' : ''}
           </span>
         )}
@@ -2518,20 +2517,20 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
       {/* Collapsible: Assumptions Used */}
       <div>
         <button onClick={() => setShowAssumptions(!showAssumptions)}
-          className="flex items-center gap-1 text-[9px] font-semibold text-gray-500 hover:text-gray-300 uppercase tracking-wider">
+          className="flex items-center gap-1 text-[9px] font-semibold text-cortex-muted hover:text-cortex-secondary uppercase tracking-wider">
           <ChevronRight className={`size-3 transition-transform ${showAssumptions ? 'rotate-90' : ''}`} />
           Assumptions ({v2.assumptions_used?.length || 0})
         </button>
         {showAssumptions && v2.assumptions_used && (
           <div className="mt-1 pl-4 space-y-0.5">
             {v2.assumptions_used.map((a, i) => (
-              <div key={i} className="text-[9px] text-gray-600">- {a}</div>
+              <div key={i} className="text-[9px] text-cortex-faint">- {a}</div>
             ))}
             {portfolioState?.inputs?.assumptions && (
-              <div className="mt-1 pt-1 border-t border-white/5 grid grid-cols-3 gap-1">
+              <div className="mt-1 pt-1 border-t border-cortex-subtle grid grid-cols-3 gap-1">
                 {Object.entries(portfolioState.inputs.assumptions).slice(0, 9).map(([k, v]) => (
-                  <div key={k} className="text-[8px] text-gray-600">
-                    <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span> {typeof v === 'number' && k.includes('percent') ? `${v}%` : typeof v === 'number' && (k.includes('revenue') || k.includes('cost') || k.includes('order')) ? `$${v.toLocaleString()}` : v}
+                  <div key={k} className="text-[8px] text-cortex-faint">
+                    <span className="text-cortex-muted">{k.replace(/_/g, ' ')}:</span> {typeof v === 'number' && k.includes('percent') ? `${v}%` : typeof v === 'number' && (k.includes('revenue') || k.includes('cost') || k.includes('order')) ? `$${v.toLocaleString()}` : v}
                   </div>
                 ))}
               </div>
@@ -2544,19 +2543,19 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
       {history.length > 0 && (
         <div>
           <button onClick={() => setShowDeltaLog(!showDeltaLog)}
-            className="flex items-center gap-1 text-[9px] font-semibold text-gray-500 hover:text-gray-300 uppercase tracking-wider">
+            className="flex items-center gap-1 text-[9px] font-semibold text-cortex-muted hover:text-cortex-secondary uppercase tracking-wider">
             <ChevronRight className={`size-3 transition-transform ${showDeltaLog ? 'rotate-90' : ''}`} />
             Version History ({history.length})
           </button>
           {showDeltaLog && (
             <div className="mt-1 pl-4 space-y-1.5 max-h-48 overflow-y-auto">
               {history.map((record, idx) => (
-                <div key={record.version} className="text-[9px] border-l-2 pl-2 py-0.5" style={{ borderColor: record.is_approved ? '#10B981' : record.source === 'chat' ? '#06D7F6' : '#8B5CF6' }}>
+                <div key={record.version} className="text-[9px] border-l-2 pl-2 py-0.5" style={{ borderColor: record.is_approved ? GREEN : record.source === 'chat' ? CYAN : PURPLE }}>
                   <div className="flex items-center gap-1.5">
                     <span className="font-black text-white">{record.version}</span>
-                    <span className="text-gray-600">{record.source}</span>
-                    <span className="text-gray-700">{new Date(record.timestamp).toLocaleString()}</span>
-                    {record.is_approved && <span className="text-[8px] px-1 py-0 rounded bg-[#10B981]/15 text-[#10B981]">APPROVED</span>}
+                    <span className="text-cortex-faint">{record.source}</span>
+                    <span className="text-cortex-faint">{new Date(record.timestamp).toLocaleString()}</span>
+                    {record.is_approved && <span className="text-[8px] px-1 py-0 rounded bg-cortex-success/15 text-cortex-success">APPROVED</span>}
                     {/* Revert button — only for non-current versions */}
                     {idx > 0 && portfolioState && onPortfolioUpdate && !record.is_approved && (
                       <button
@@ -2569,7 +2568,7 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
                           setTimeout(() => setRevertingTo(null), 500);
                         }}
                         disabled={revertingTo === record.version}
-                        className="ml-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#FB923C]/10 hover:bg-[#FB923C]/20 text-[#FB923C] border border-[#FB923C]/20 hover:border-[#FB923C]/40 transition-all disabled:opacity-50"
+                        className="ml-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-cortex-warning/10 hover:bg-cortex-warning/20 text-cortex-warning border border-cortex-warning/20 hover:border-cortex-warning/40 transition-all disabled:opacity-50"
                         title={`Revert to ${record.version}`}
                       >
                         {revertingTo === record.version ? (
@@ -2581,13 +2580,13 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
                       </button>
                     )}
                   </div>
-                  <div className="text-gray-500">{record.summary}</div>
+                  <div className="text-cortex-muted">{record.summary}</div>
                   {record.delta_log.length > 0 && (
                     <div className="mt-0.5 space-y-0">
                       {record.delta_log.map((d, di) => (
-                        <div key={di} className="text-[8px] text-gray-600">
-                          <span className="text-[#FB923C]">{d.path.split('.').pop()}</span>: {String(d.old)} → <span className="text-[#10B981]">{String(d.new_value)}</span>
-                          {d.reason && <span className="text-gray-700"> ({d.reason})</span>}
+                        <div key={di} className="text-[8px] text-cortex-faint">
+                          <span className="text-cortex-warning">{d.path.split('.').pop()}</span>: {String(d.old)} → <span className="text-cortex-success">{String(d.new_value)}</span>
+                          {d.reason && <span className="text-cortex-faint"> ({d.reason})</span>}
                         </div>
                       ))}
                     </div>
@@ -2595,10 +2594,10 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
                   {/* Recalc flags */}
                   <div className="flex gap-1 mt-0.5 flex-wrap">
                     {Object.entries(record.recalc).filter(([, v]) => v).map(([k]) => (
-                      <span key={k} className="text-[7px] px-1 rounded bg-white/5 text-gray-600">{k}</span>
+                      <span key={k} className="text-[7px] px-1 rounded bg-cortex-control text-cortex-faint">{k}</span>
                     ))}
                     {record.finance_recalc_required && (
-                      <span className="text-[7px] px-1 rounded bg-[#FB923C]/10 text-[#FB923C] border border-[#FB923C]/20 font-bold">finance_v1_dcf</span>
+                      <span className="text-[7px] px-1 rounded bg-cortex-warning/10 text-cortex-warning border border-cortex-warning/20 font-bold">finance_v1_dcf</span>
                     )}
                   </div>
                   {/* IRR delta callout — shows IRR change for this version */}
@@ -2608,23 +2607,23 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
                     const statusChanged = irr.status_old !== irr.status_new;
                     if (!hasIRRDelta && !statusChanged) return null;
                     return (
-                      <div className="mt-1 flex flex-wrap items-center gap-2 px-2 py-1 bg-[#06D7F6]/5 border border-[#06D7F6]/10 rounded text-[8px]">
-                        <span className="font-bold text-[#06D7F6] uppercase tracking-wider">IRR Δ</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 px-2 py-1 bg-cortex-info/5 border border-cortex-info/10 rounded text-[8px]">
+                        <span className="font-bold text-cortex-info uppercase tracking-wider">IRR Δ</span>
                         {hasIRRDelta && (
-                          <span className="flex items-center gap-0.5 text-gray-500">
-                            <span className="font-mono text-gray-400">{irr.irr_annual_old?.toFixed(1) ?? '—'}%</span>
+                          <span className="flex items-center gap-0.5 text-cortex-muted">
+                            <span className="font-mono text-cortex-muted">{irr.irr_annual_old?.toFixed(1) ?? '—'}%</span>
                             →
-                            <span className={`font-mono font-bold ${(irr.irr_annual_new ?? 0) > 0 ? 'text-[#06D7F6]' : 'text-[#FD4438]'}`}>
+                            <span className={`font-mono font-bold ${(irr.irr_annual_new ?? 0) > 0 ? 'text-cortex-info' : 'text-cortex-danger'}`}>
                               {irr.irr_annual_new?.toFixed(1) ?? '—'}%
                             </span>
-                            <span className={`ml-0.5 font-bold ${(irr.irr_delta ?? 0) >= 0 ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                            <span className={`ml-0.5 font-bold ${(irr.irr_delta ?? 0) >= 0 ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                               ({(irr.irr_delta ?? 0) >= 0 ? '+' : ''}{irr.irr_delta?.toFixed(1) ?? '—'}pp)
                             </span>
                           </span>
                         )}
                         {statusChanged && (
-                          <span className="text-gray-600">
-                            {irr.status_old.replace(/_/g, ' ')} → <span className={`font-bold ${irr.status_new === 'converged' ? 'text-[#10B981]' : 'text-[#FB923C]'}`}>{irr.status_new.replace(/_/g, ' ')}</span>
+                          <span className="text-cortex-faint">
+                            {irr.status_old.replace(/_/g, ' ')} → <span className={`font-bold ${irr.status_new === 'converged' ? 'text-cortex-success' : 'text-cortex-warning'}`}>{irr.status_new.replace(/_/g, ' ')}</span>
                           </span>
                         )}
                       </div>
@@ -2632,27 +2631,27 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
                   })()}
                   {/* DCF delta callout — shows NPV/payback change for this version */}
                   {record.dcf_delta_summary && (
-                    <div className="mt-1 flex flex-wrap items-center gap-2 px-2 py-1 bg-[#8B5CF6]/5 border border-[#8B5CF6]/10 rounded text-[8px]">
-                      <span className="font-bold text-[#8B5CF6] uppercase tracking-wider">DCF Δ</span>
-                      <span className="flex items-center gap-0.5 text-gray-500">
-                        NPV <span className="font-mono text-gray-400">${(record.dcf_delta_summary.npv_old / 1000).toFixed(0)}K</span>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 px-2 py-1 bg-cortex-accent/5 border border-cortex-accent/10 rounded text-[8px]">
+                      <span className="font-bold text-cortex-accent uppercase tracking-wider">DCF Δ</span>
+                      <span className="flex items-center gap-0.5 text-cortex-muted">
+                        NPV <span className="font-mono text-cortex-muted">${(record.dcf_delta_summary.npv_old / 1000).toFixed(0)}K</span>
                         →
-                        <span className={`font-mono font-bold ${record.dcf_delta_summary.npv_new >= 0 ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                        <span className={`font-mono font-bold ${record.dcf_delta_summary.npv_new >= 0 ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                           ${(record.dcf_delta_summary.npv_new / 1000).toFixed(0)}K
                         </span>
-                        <span className={`px-0.5 rounded font-bold ${record.dcf_delta_summary.npv_delta >= 0 ? 'text-[#10B981]' : 'text-[#FD4438]'}`}>
+                        <span className={`px-0.5 rounded font-bold ${record.dcf_delta_summary.npv_delta >= 0 ? 'text-cortex-success' : 'text-cortex-danger'}`}>
                           ({record.dcf_delta_summary.npv_delta >= 0 ? '+' : ''}${(record.dcf_delta_summary.npv_delta / 1000).toFixed(0)}K)
                         </span>
                       </span>
                       {record.dcf_delta_summary.discount_rate_old !== record.dcf_delta_summary.discount_rate_new && (
-                        <span className="text-gray-600">
-                          Rate: {record.dcf_delta_summary.discount_rate_old}% → <span className="text-[#8B5CF6] font-bold">{record.dcf_delta_summary.discount_rate_new}%</span>
+                        <span className="text-cortex-faint">
+                          Rate: {record.dcf_delta_summary.discount_rate_old}% → <span className="text-cortex-accent font-bold">{record.dcf_delta_summary.discount_rate_new}%</span>
                         </span>
                       )}
                       {record.dcf_delta_summary.payback_delta !== null && record.dcf_delta_summary.payback_delta !== 0 && (
-                        <span className="text-gray-600">
-                          DCF Payback: M{record.dcf_delta_summary.discounted_payback_old ?? '?'} → <span className="text-[#FB923C] font-bold">M{record.dcf_delta_summary.discounted_payback_new ?? '?'}</span>
-                          <span className={`ml-0.5 font-bold ${record.dcf_delta_summary.payback_delta <= 0 ? 'text-[#10B981]' : 'text-[#FB923C]'}`}>
+                        <span className="text-cortex-faint">
+                          DCF Payback: M{record.dcf_delta_summary.discounted_payback_old ?? '?'} → <span className="text-cortex-warning font-bold">M{record.dcf_delta_summary.discounted_payback_new ?? '?'}</span>
+                          <span className={`ml-0.5 font-bold ${record.dcf_delta_summary.payback_delta <= 0 ? 'text-cortex-success' : 'text-cortex-warning'}`}>
                             ({record.dcf_delta_summary.payback_delta >= 0 ? '+' : ''}{record.dcf_delta_summary.payback_delta}mo)
                           </span>
                         </span>
@@ -2671,22 +2670,22 @@ function VersionMetadataStrip({ v2, portfolioState, onPortfolioUpdate }: {
 
 function ROIMetricCard({ label, conservative, aggressive, unit, icon: Icon }: any) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
       <div className="flex items-center gap-3 mb-4">
-        <Icon className="size-6 text-[#8B5CF6]" />
-        <div className="text-sm font-semibold text-gray-400">{label}</div>
+        <Icon className="size-6 text-cortex-accent" />
+        <div className="text-sm font-semibold text-cortex-muted">{label}</div>
       </div>
       
       <div className="space-y-3">
         <div>
-          <div className="text-xs text-gray-500 mb-1">Conservative</div>
-          <div className="text-2xl font-bold text-[#3B82F6]">
+          <div className="text-xs text-cortex-muted mb-1">Conservative</div>
+          <div className="text-2xl font-bold text-cortex-accent-alt">
             {unit === '$' ? `$${conservative.toLocaleString()}` : `${conservative} ${unit}`}
           </div>
         </div>
         <div>
-          <div className="text-xs text-gray-500 mb-1">Aggressive</div>
-          <div className="text-2xl font-bold text-[#10B981]">
+          <div className="text-xs text-cortex-muted mb-1">Aggressive</div>
+          <div className="text-2xl font-bold text-cortex-success">
             {unit === '$' ? `$${aggressive.toLocaleString()}` : `${aggressive} ${unit}`}
           </div>
         </div>
@@ -2837,9 +2836,9 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
   if (!data.callPrep) {
     return (
       <div className="text-center py-12">
-        <Phone className="size-16 text-gray-600 mx-auto mb-4" />
-        <p className="text-gray-400 mb-4">No call scheduled yet</p>
-        <button className="px-6 py-3 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors font-semibold">
+        <Phone className="size-16 text-cortex-faint mx-auto mb-4" />
+        <p className="text-cortex-muted mb-4">No call scheduled yet</p>
+        <button className="px-6 py-3 bg-cortex-accent hover:bg-cortex-accent/85 text-white rounded-cortex-sm transition-colors font-semibold">
           Generate Call Prep
         </button>
       </div>
@@ -2856,7 +2855,7 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
         leadContext={{
           companyName: data.lead?.companyName ?? '',
           industry: data.lead?.industry ?? '',
-          companySize: String(data.lead?.employeeEstimate ?? ''),
+          companySize: data.lead?.companySize ?? '',
           primaryPainSignal: data.lead?.primaryPainSignal ?? '',
         }}
         actions={[
@@ -2867,11 +2866,11 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
       />
 
       {data.callPrep.scheduledFor && (
-        <div className="bg-gradient-to-r from-[#10B981]/20 to-[#06D7F6]/20 border border-[#10B981]/30 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-cortex-success/20 to-cortex-info/20 border border-cortex-success/30 rounded-cortex-md p-6">
           <div className="flex items-center gap-4">
-            <Calendar className="size-8 text-[#10B981]" />
+            <Calendar className="size-8 text-cortex-success" />
             <div>
-              <div className="text-sm text-gray-400">Call Scheduled</div>
+              <div className="text-sm text-cortex-muted">Call Scheduled</div>
               <div className="text-2xl font-bold text-white">
                 {new Date(data.callPrep.scheduledFor).toLocaleString('en-US', {
                   weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -2882,95 +2881,95 @@ export function CallPrepSection({ data }: { data: CortexLeadData }) {
         </div>
       )}
 
-      <div className="bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl p-6">
+      <div className="bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md p-6">
         <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="size-6 text-[#FD4438]" />
-          <h3 className="text-xl font-bold text-[#FD4438]">DO NOT PITCH YET</h3>
+          <AlertTriangle className="size-6 text-cortex-danger" />
+          <h3 className="text-xl font-bold text-cortex-danger">DO NOT PITCH YET</h3>
         </div>
         <ul className="space-y-2">
           {(data.callPrep.doNotPitchYetWarnings ?? []).map((warning, idx) => (
             <li key={idx} className="flex items-start gap-3">
-              <span className="text-[#FD4438] flex-shrink-0">{'\u26A0\uFE0F'}</span>
-              <span className="text-gray-300">{warning}</span>
+              <span className="text-cortex-danger flex-shrink-0">{'\u26A0\uFE0F'}</span>
+              <span className="text-cortex-secondary">{warning}</span>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <CheckCircle2 className="size-6 text-[#8B5CF6]" />
+          <CheckCircle2 className="size-6 text-cortex-accent" />
           Suggested Agenda
         </h3>
         <ol className="space-y-3">
           {(data.callPrep.suggestedAgenda ?? []).map((item, idx) => (
             <li key={idx} className="flex items-start gap-3">
-              <span className="size-6 rounded-full bg-[#8B5CF6] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+              <span className="size-6 rounded-full bg-cortex-accent text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
                 {idx + 1}
               </span>
-              <span className="text-gray-300 flex-1">{item}</span>
+              <span className="text-cortex-secondary flex-1">{item}</span>
             </li>
           ))}
         </ol>
       </div>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Target className="size-6 text-[#3B82F6]" />
+          <Target className="size-6 text-cortex-accent-alt" />
           Key Questions to Validate
         </h3>
         <ul className="space-y-3">
           {(data.callPrep.keyQuestionsToValidate ?? []).map((question, idx) => (
             <li key={idx} className="flex items-start gap-3">
-              <span className="text-[#3B82F6] flex-shrink-0 font-bold">?</span>
-              <span className="text-gray-300">{question}</span>
+              <span className="text-cortex-accent-alt flex-shrink-0 font-bold">?</span>
+              <span className="text-cortex-secondary">{question}</span>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <AlertTriangle className="size-6 text-[#FB923C]" />
+          <AlertTriangle className="size-6 text-cortex-warning" />
           Expected Objections & Responses
         </h3>
         <div className="space-y-4">
           {(data.callPrep.expectedObjections ?? []).map((obj, idx) => (
-            <div key={idx} className="p-4 bg-white/5 rounded-lg border border-white/10">
-              <div className="font-semibold text-[#FB923C] mb-2">
+            <div key={idx} className="p-4 bg-cortex-control rounded-cortex-sm border border-cortex-default">
+              <div className="font-semibold text-cortex-warning mb-2">
                 Objection: &quot;{obj.objection}&quot;
               </div>
-              <div className="text-sm text-gray-300">
-                <span className="text-[#10B981] font-semibold">Response:</span> {obj.response}
+              <div className="text-sm text-cortex-secondary">
+                <span className="text-cortex-success font-semibold">Response:</span> {obj.response}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="bg-gradient-to-br from-[#10B981]/20 to-[#06D7F6]/20 border border-[#10B981]/30 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-cortex-success/20 to-cortex-info/20 border border-cortex-success/30 rounded-cortex-md p-6">
         <div className="flex items-center gap-3 mb-4">
-          <Lightbulb className="size-6 text-[#10B981]" />
+          <Lightbulb className="size-6 text-cortex-success" />
           <h3 className="text-xl font-bold">Expansion Signals to Listen For</h3>
         </div>
         <ul className="space-y-2">
           {(data.callPrep.expansionSignalsToListenFor ?? []).map((signal, idx) => (
             <li key={idx} className="flex items-start gap-3">
               <span className="flex-shrink-0">{signal.slice(0, 2)}</span>
-              <span className="text-gray-300">{signal.slice(2)}</span>
+              <span className="text-cortex-secondary">{signal.slice(2)}</span>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4">Call Notes</h3>
         <textarea
           defaultValue={data.callPrep.callNotes}
-          className="w-full h-48 bg-white/5 border border-white/10 rounded-lg p-4 text-white resize-none focus:outline-none focus:border-[#8B5CF6]"
+          className="w-full h-48 bg-cortex-control border border-cortex-default rounded-cortex-sm p-4 text-white resize-none focus:outline-none focus:border-cortex-accent"
           placeholder="Take notes during the call..."
         />
-        <button className="mt-4 px-4 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors font-medium">
+        <button className="mt-4 px-4 py-2 bg-cortex-accent hover:bg-cortex-accent/85 text-white rounded-cortex-sm transition-colors font-medium">
           Save Notes
         </button>
       </div>

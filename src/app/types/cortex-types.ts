@@ -16,6 +16,28 @@
  * 4. Updated based on team actions and learning loop
  */
 
+import {
+  brand,
+  status as STATUS,
+  surface as SURFACE,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT       = brand.accent;
+const K_ACCENT_ALT   = brand.accentAlt;
+const K_CANVAS       = SURFACE.canvas;
+const K_DANGER       = STATUS.danger;
+const K_INFO         = STATUS.info;
+const K_NEUTRAL      = STATUS.neutral;
+const K_SUCCESS      = STATUS.success;
+const K_TEXT_PRIMARY = TEXT.primary;
+const K_WARNING      = STATUS.warning;
+
 // ============================================================================
 // LEAD & DIAGNOSTIC DATA
 // ============================================================================
@@ -786,35 +808,35 @@ export interface CortexLeadData {
 
 export const getReadinessColor = (level: ReadinessLevel): string => {
   switch (level) {
-    case 'High': return '#10B981';
-    case 'Medium': return '#FB923C';
-    case 'Low': return '#FD4438';
+    case 'High': return K_SUCCESS;
+    case 'Medium': return K_WARNING;
+    case 'Low': return K_DANGER;
   }
 };
 
 export const getPillarColor = (score: PillarScore): string => {
-  if (score >= 4) return '#10B981';  // Green - stable
-  if (score >= 2) return '#FB923C';  // Yellow - fix soon
-  return '#FD4438';  // Red - urgent
+  if (score >= 4) return K_SUCCESS;  // Green - stable
+  if (score >= 2) return K_WARNING;  // Yellow - fix soon
+  return K_DANGER;  // Red - urgent
 };
 
 export const getStatusColor = (status: LeadStatus): { bg: string; text: string; border: string } => {
   switch (status) {
     case 'new':
-      return { bg: '#8B5CF6', text: '#F5F5FF', border: '#8B5CF6' };
+      return { bg: K_ACCENT, text: K_TEXT_PRIMARY, border: K_ACCENT };
     case 'needs-review':
-      return { bg: '#FB923C', text: '#FFF', border: '#FB923C' };
+      return { bg: K_WARNING, text: K_TEXT_PRIMARY, border: K_WARNING };
     case 'ready-for-call':
-      return { bg: '#3B82F6', text: '#FFF', border: '#3B82F6' };
+      return { bg: K_ACCENT_ALT, text: K_TEXT_PRIMARY, border: K_ACCENT_ALT };
     case 'proposal-sent':
-      return { bg: '#06D7F6', text: '#0A0A0F', border: '#06D7F6' };
+      return { bg: K_INFO, text: K_CANVAS, border: K_INFO };
     case 'converted':
-      return { bg: '#10B981', text: '#FFF', border: '#10B981' };
+      return { bg: K_SUCCESS, text: K_TEXT_PRIMARY, border: K_SUCCESS };
     case 'disqualified':
-      return { bg: '#70707C', text: '#FFF', border: '#70707C' };
+      return { bg: K_NEUTRAL, text: K_TEXT_PRIMARY, border: K_NEUTRAL };
     default:
       // Fallback for any unexpected status values
-      return { bg: '#8B5CF6', text: '#F5F5FF', border: '#8B5CF6' };
+      return { bg: K_ACCENT, text: K_TEXT_PRIMARY, border: K_ACCENT };
   }
 };
 

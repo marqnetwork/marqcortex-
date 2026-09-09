@@ -22,6 +22,24 @@
  * In production: replace store arrays with Supabase queries.
  */
 
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT     = brand.accent;
+const K_ACCENT_ALT = brand.accentAlt;
+const K_INFO       = STATUS.info;
+const K_NEUTRAL    = STATUS.neutral;
+const K_SUCCESS    = STATUS.success;
+const K_TEXT_MUTED = TEXT.muted;
+
 // ════════════════════════════════════════════════════════════════════════════════
 // BLOCK TYPES — locked enum (schema §2)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -996,15 +1014,15 @@ export function checkBlocksReadyGate(states: BlockState[]): BlocksGateResult {
 // ════════════════════════════════════════════════════════════════════════════════
 
 export const STATUS_COLORS: Record<BlockStatus, { bg: string; text: string; border: string; dot: string }> = {
-  draft:    { bg: '#8B5CF620', text: '#8B5CF6', border: '#8B5CF640', dot: '#8B5CF6' },
-  approved: { bg: '#10B98120', text: '#10B981', border: '#10B98140', dot: '#10B981' },
-  locked:   { bg: '#70707C20', text: '#9CA3AF', border: '#70707C40', dot: '#70707C' },
+  draft:    { bg: `${K_ACCENT}20`, text: K_ACCENT, border: `${K_ACCENT}40`, dot: K_ACCENT },
+  approved: { bg: `${K_SUCCESS}20`, text: K_SUCCESS, border: `${K_SUCCESS}40`, dot: K_SUCCESS },
+  locked:   { bg: `${K_NEUTRAL}20`, text: K_TEXT_MUTED, border: `${K_NEUTRAL}40`, dot: K_NEUTRAL },
 };
 
 export const SOURCE_COLORS: Record<BlockSource, string> = {
-  human: '#3B82F6',
-  ai:    '#8B5CF6',
-  mixed: '#06D7F6',
+  human: K_ACCENT_ALT,
+  ai:    K_ACCENT,
+  mixed: K_INFO,
 };
 
 export const CHANGE_TYPE_LABELS: Record<RevisionChangeType, string> = {

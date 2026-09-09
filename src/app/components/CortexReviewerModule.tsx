@@ -195,7 +195,7 @@ export function CortexReviewerModule({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-              <Shield className="size-6 text-[#8B5CF6]" />
+              <Shield className="size-6 text-cortex-accent" />
               Quality Review
             </h2>
             <p className="text-white/60">
@@ -214,16 +214,16 @@ export function CortexReviewerModule({
         </div>
 
         {/* Progress Bar */}
-        <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+        <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-white/70">Review Progress</span>
-            <span className="text-sm font-semibold text-[#06D7F6]">{completionPct}%</span>
+            <span className="text-sm font-semibold text-cortex-info">{completionPct}%</span>
           </div>
-          <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+          <div className="h-2 bg-cortex-raised rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${completionPct}%` }}
-              className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#06D7F6] rounded-full"
+              className="h-full bg-gradient-to-r from-cortex-accent to-cortex-info rounded-full"
             />
           </div>
         </div>
@@ -231,11 +231,11 @@ export function CortexReviewerModule({
 
       {/* Flagged Items Alert */}
       {flaggedItems.length > 0 && (
-        <div className="bg-gradient-to-br from-[#FD4438]/20 to-[#FB923C]/20 border border-[#FD4438]/30 rounded-xl p-4">
+        <div className="bg-gradient-to-br from-cortex-danger/20 to-cortex-warning/20 border border-cortex-danger/30 rounded-cortex-md p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="size-5 text-[#FD4438] flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="size-5 text-cortex-danger flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold mb-2 text-[#FD4438]">
+              <h4 className="font-semibold mb-2 text-cortex-danger">
                 {flaggedItems.length} Item{flaggedItems.length > 1 ? 's' : ''} Require Attention
               </h4>
               <ul className="space-y-1">
@@ -253,7 +253,7 @@ export function CortexReviewerModule({
         <ReviewSection
           title="A. Intake Quality"
           description="Answers are specific, not vague or buzzwords"
-          icon={<FileText className="size-5 text-[#8B5CF6]" />}
+          icon={<FileText className="size-5 text-cortex-accent" />}
           status={checklist.intake_quality.status}
           isExpanded={expandedSection === 'intake'}
           onToggle={() => setExpandedSection(expandedSection === 'intake' ? null : 'intake')}
@@ -276,7 +276,7 @@ export function CortexReviewerModule({
         <ReviewSection
           title="B. Diagnosis Accuracy"
           description="Problems are cross-validated and system-based"
-          icon={<Target className="size-5 text-[#3B82F6]" />}
+          icon={<Target className="size-5 text-cortex-accent-alt" />}
           status={checklist.diagnosis_accuracy.status}
           isExpanded={expandedSection === 'diagnosis'}
           onToggle={() => setExpandedSection(expandedSection === 'diagnosis' ? null : 'diagnosis')}
@@ -299,7 +299,7 @@ export function CortexReviewerModule({
         <ReviewSection
           title="C. Scoring Sanity Check"
           description="Pillar scores are logical and consistent"
-          icon={<TrendingUp className="size-5 text-[#06D7F6]" />}
+          icon={<TrendingUp className="size-5 text-cortex-info" />}
           status={checklist.scoring_sanity.status}
           isExpanded={expandedSection === 'scoring'}
           onToggle={() => setExpandedSection(expandedSection === 'scoring' ? null : 'scoring')}
@@ -322,7 +322,7 @@ export function CortexReviewerModule({
         <ReviewSection
           title="D. Recommendation Control"
           description="First step is appropriate, no overselling"
-          icon={<Shield className="size-5 text-[#FB923C]" />}
+          icon={<Shield className="size-5 text-cortex-warning" />}
           status={checklist.recommendation_control.status}
           isExpanded={expandedSection === 'recommendation'}
           onToggle={() => setExpandedSection(expandedSection === 'recommendation' ? null : 'recommendation')}
@@ -345,7 +345,7 @@ export function CortexReviewerModule({
         <ReviewSection
           title="E. ROI Range Validation"
           description="Ranges are conservative and defensible"
-          icon={<TrendingUp className="size-5 text-[#06D7F6]" />}
+          icon={<TrendingUp className="size-5 text-cortex-info" />}
           status={checklist.roi_validation.status}
           isExpanded={expandedSection === 'roi'}
           onToggle={() => setExpandedSection(expandedSection === 'roi' ? null : 'roi')}
@@ -369,7 +369,7 @@ export function CortexReviewerModule({
           <ReviewSection
             title="F. Report Quality"
             description="Tone is calm, executive, no AI hype"
-            icon={<FileText className="size-5 text-[#8B5CF6]" />}
+            icon={<FileText className="size-5 text-cortex-accent" />}
             status={checklist.report_quality.status}
             isExpanded={expandedSection === 'report'}
             onToggle={() => setExpandedSection(expandedSection === 'report' ? null : 'report')}
@@ -394,7 +394,7 @@ export function CortexReviewerModule({
           <ReviewSection
             title="G. Sales Call Readiness"
             description="Agenda, questions, and objections prepared"
-            icon={<Phone className="size-5 text-[#3B82F6]" />}
+            icon={<Phone className="size-5 text-cortex-accent-alt" />}
             status={checklist.call_readiness.status}
             isExpanded={expandedSection === 'call'}
             onToggle={() => setExpandedSection(expandedSection === 'call' ? null : 'call')}
@@ -419,7 +419,7 @@ export function CortexReviewerModule({
           <ReviewSection
             title="H. Proposal Check"
             description="Scope is finite, pricing anchored"
-            icon={<FileText className="size-5 text-[#06D7F6]" />}
+            icon={<FileText className="size-5 text-cortex-info" />}
             status={checklist.proposal_check.status}
             isExpanded={expandedSection === 'proposal'}
             onToggle={() => setExpandedSection(expandedSection === 'proposal' ? null : 'proposal')}
@@ -442,9 +442,9 @@ export function CortexReviewerModule({
       </div>
 
       {/* Final Decision */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Flag className="size-5 text-[#FB923C]" />
+          <Flag className="size-5 text-cortex-warning" />
           I. Final Decision
         </h3>
         <p className="text-white/60 text-sm mb-6">
@@ -452,8 +452,8 @@ export function CortexReviewerModule({
         </p>
 
         {checklist.final_decision && (
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-[#06D7F6]/30 bg-[#06D7F6]/10 p-4">
-            <CheckCircle2 className="size-5 text-[#06D7F6] flex-shrink-0 mt-0.5" />
+          <div className="mb-6 flex items-start gap-3 rounded-cortex-md border border-cortex-info/30 bg-cortex-info/10 p-4">
+            <CheckCircle2 className="size-5 text-cortex-info flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-semibold text-white">
                 Decision recorded: {DECISION_LABELS[checklist.final_decision.decision]}
@@ -480,13 +480,13 @@ export function CortexReviewerModule({
             whileTap={{ scale: 0.98 }}
             onClick={() => handleFinalDecision('ready-to-send')}
             disabled={completionPct < 100}
-            className={`p-4 rounded-xl border-2 transition-all ${
+            className={`p-4 rounded-cortex-md border-2 transition-all ${
               completionPct >= 100
-                ? 'border-[#06D7F6] bg-[#06D7F6]/10 hover:bg-[#06D7F6]/20 cursor-pointer'
-                : 'border-white/10 bg-black/20 opacity-50 cursor-not-allowed'
+                ? 'border-cortex-info bg-cortex-info/10 hover:bg-cortex-info/20 cursor-pointer'
+                : 'border-cortex-default bg-black/20 opacity-50 cursor-not-allowed'
             }`}
           >
-            <CheckCircle2 className={`size-6 mb-2 mx-auto ${completionPct >= 100 ? 'text-[#06D7F6]' : 'text-white/30'}`} />
+            <CheckCircle2 className={`size-6 mb-2 mx-auto ${completionPct >= 100 ? 'text-cortex-info' : 'text-white/30'}`} />
             <div className="font-semibold mb-1">Ready to Send</div>
             <div className="text-xs text-white/60">All checks passed</div>
           </motion.button>
@@ -495,9 +495,9 @@ export function CortexReviewerModule({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleFinalDecision('needs-revision')}
-            className="p-4 rounded-xl border-2 border-[#FB923C] bg-[#FB923C]/10 hover:bg-[#FB923C]/20 transition-all"
+            className="p-4 rounded-cortex-md border-2 border-cortex-warning bg-cortex-warning/10 hover:bg-cortex-warning/20 transition-all"
           >
-            <Edit3 className="size-6 text-[#FB923C] mb-2 mx-auto" />
+            <Edit3 className="size-6 text-cortex-warning mb-2 mx-auto" />
             <div className="font-semibold mb-1">Needs Revision</div>
             <div className="text-xs text-white/60">Why logged</div>
           </motion.button>
@@ -506,9 +506,9 @@ export function CortexReviewerModule({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleFinalDecision('not-a-fit')}
-            className="p-4 rounded-xl border-2 border-[#FD4438] bg-[#FD4438]/10 hover:bg-[#FD4438]/20 transition-all"
+            className="p-4 rounded-cortex-md border-2 border-cortex-danger bg-cortex-danger/10 hover:bg-cortex-danger/20 transition-all"
           >
-            <XCircle className="size-6 text-[#FD4438] mb-2 mx-auto" />
+            <XCircle className="size-6 text-cortex-danger mb-2 mx-auto" />
             <div className="font-semibold mb-1">Not a Fit</div>
             <div className="text-xs text-white/60">Reason recorded</div>
           </motion.button>
@@ -523,13 +523,13 @@ export function CortexReviewerModule({
       </div>
 
       {/* Reviewer Notes */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-6">
         <h3 className="font-semibold mb-3 flex items-center gap-2">
-          <Edit3 className="size-5 text-[#8B5CF6]" />
+          <Edit3 className="size-5 text-cortex-accent" />
           Reviewer Notes
         </h3>
         <textarea
-          className="w-full h-32 bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-[#8B5CF6]/50 resize-none"
+          className="w-full h-32 bg-cortex-raised border border-cortex-default rounded-cortex-sm px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-cortex-accent/50 resize-none"
           placeholder="Add notes about this review (e.g., specific revisions needed, why not a fit, concerns to discuss...)"
           value={checklist.revision_notes || ''}
           onChange={(e) =>
@@ -567,7 +567,7 @@ function SaveIndicator({
 }) {
   if (!persistEnabled) {
     return (
-      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white/5 text-white/50 border border-white/10">
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-cortex-control text-white/50 border border-cortex-default">
         <Eye className="size-3" />
         Demo — not saved
       </div>
@@ -575,7 +575,7 @@ function SaveIndicator({
   }
   if (isLoading || status === 'saving') {
     return (
-      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30">
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-cortex-accent/15 text-cortex-accent border border-cortex-accent/30">
         <Loader2 className="size-3 animate-spin" />
         {isLoading ? 'Loading…' : 'Saving…'}
       </div>
@@ -583,7 +583,7 @@ function SaveIndicator({
   }
   if (status === 'error') {
     return (
-      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#FD4438]/15 text-[#FD4438] border border-[#FD4438]/30">
+      <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-cortex-danger/15 text-cortex-danger border border-cortex-danger/30">
         <AlertTriangle className="size-3" />
         Save failed
       </div>
@@ -592,7 +592,7 @@ function SaveIndicator({
   if (status === 'saved') {
     return (
       <div
-        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#06D7F6]/15 text-[#06D7F6] border border-[#06D7F6]/30"
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-cortex-info/15 text-cortex-info border border-cortex-info/30"
         title={lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleString()}` : undefined}
       >
         <Save className="size-3" />
@@ -621,10 +621,10 @@ function ReviewSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-cortex-control transition-colors"
       >
         <div className="flex items-center gap-3">
           {icon}
@@ -641,7 +641,7 @@ function ReviewSection({
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
-          className="px-6 pb-4 border-t border-white/10"
+          className="px-6 pb-4 border-t border-cortex-default"
         >
           <div className="pt-4">
             {children}
@@ -672,13 +672,13 @@ function ChecklistItems({
             type="checkbox"
             checked={check.checked}
             onChange={() => onToggle(key)}
-            className="mt-1 size-5 rounded border-2 border-white/20 bg-black/40 checked:bg-[#06D7F6] checked:border-[#06D7F6] cursor-pointer transition-all"
+            className="mt-1 size-5 rounded border-2 border-cortex-strong bg-cortex-raised checked:bg-cortex-info checked:border-cortex-info cursor-pointer transition-all"
           />
           <span className="text-sm text-white/80 group-hover:text-white transition-colors flex-1">
             {labels[key]}
           </span>
           {check.checked && (
-            <CheckCircle2 className="size-5 text-[#06D7F6] flex-shrink-0" />
+            <CheckCircle2 className="size-5 text-cortex-info flex-shrink-0" />
           )}
         </label>
       ))}
@@ -688,7 +688,7 @@ function ChecklistItems({
 
 function ActionNote({ action, children }: { action: string; children: React.ReactNode }) {
   return (
-    <div className="bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/30 rounded-lg p-3">
+    <div className="bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/30 rounded-cortex-sm p-3">
       <p className="text-sm text-white/80 italic">{children}</p>
     </div>
   );
@@ -697,7 +697,7 @@ function ActionNote({ action, children }: { action: string; children: React.Reac
 function SectionStatusBadge({ status }: { status: string }) {
   if (status === 'pass') {
     return (
-      <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#06D7F6]/20 text-[#06D7F6]">
+      <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-cortex-info/20 text-cortex-info">
         <CheckCircle2 className="size-3" />
         Pass
       </div>
@@ -705,14 +705,14 @@ function SectionStatusBadge({ status }: { status: string }) {
   }
   if (status === 'fail') {
     return (
-      <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#FD4438]/20 text-[#FD4438]">
+      <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-cortex-danger/20 text-cortex-danger">
         <XCircle className="size-3" />
         Fail
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#FB923C]/20 text-[#FB923C]">
+    <div className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-cortex-warning/20 text-cortex-warning">
       <AlertTriangle className="size-3" />
       Review
     </div>
@@ -724,27 +724,27 @@ function ReviewStatusBadge({ status }: { status: string }) {
     pass: {
       label: 'Passing',
       icon: <CheckCircle2 className="size-4" />,
-      className: 'bg-[#06D7F6]/20 text-[#06D7F6] border-[#06D7F6]/30'
+      className: 'bg-cortex-info/20 text-cortex-info border-cortex-info/30'
     },
     warning: {
       label: 'Review Needed',
       icon: <AlertTriangle className="size-4" />,
-      className: 'bg-[#FB923C]/20 text-[#FB923C] border-[#FB923C]/30'
+      className: 'bg-cortex-warning/20 text-cortex-warning border-cortex-warning/30'
     },
     flagged: {
       label: 'Flagged',
       icon: <AlertTriangle className="size-4" />,
-      className: 'bg-[#FB923C]/20 text-[#FB923C] border-[#FB923C]/30'
+      className: 'bg-cortex-warning/20 text-cortex-warning border-cortex-warning/30'
     },
     fail: {
       label: 'Failed',
       icon: <XCircle className="size-4" />,
-      className: 'bg-[#FD4438]/20 text-[#FD4438] border-[#FD4438]/30'
+      className: 'bg-cortex-danger/20 text-cortex-danger border-cortex-danger/30'
     },
     incomplete: {
       label: 'Incomplete',
       icon: <AlertTriangle className="size-4" />,
-      className: 'bg-white/10 text-white/60 border-white/20'
+      className: 'bg-cortex-control-hover text-white/60 border-cortex-strong'
     },
   };
 

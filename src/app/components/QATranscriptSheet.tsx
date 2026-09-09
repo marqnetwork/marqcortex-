@@ -22,14 +22,21 @@ import {
 } from 'lucide-react';
 import type { AnnotatedResponse } from '@/app/utils/questionRegistry';
 import { getBottleneckLabel } from '@/app/utils/questionRegistry';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ── Signal colors ─────────────────────────────────────────────────────────────
 
 const SIGNAL_COLORS: Record<string, { bg: string; text: string; border: string; icon: typeof AlertTriangle }> = {
-  pain:        { bg: 'rgba(253,68,56,0.12)',  text: '#FD4438', border: 'rgba(253,68,56,0.3)',  icon: AlertTriangle },
-  risk:        { bg: 'rgba(251,146,60,0.12)', text: '#FB923C', border: 'rgba(251,146,60,0.3)', icon: Shield },
-  opportunity: { bg: 'rgba(16,185,129,0.12)', text: '#10B981', border: 'rgba(16,185,129,0.3)', icon: Zap },
-  strength:    { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6', border: 'rgba(59,130,246,0.3)', icon: TrendingUp },
+  pain:        { bg: `${STATUS.danger}1F`,  text: STATUS.danger, border: `${STATUS.danger}4C`,  icon: AlertTriangle },
+  risk:        { bg: `${STATUS.warning}1F`, text: STATUS.warning, border: `${STATUS.warning}4C`, icon: Shield },
+  opportunity: { bg: `${STATUS.success}1F`, text: STATUS.success, border: `${STATUS.success}4C`, icon: Zap },
+  strength:    { bg: `${brand.accentAlt}1F`, text: brand.accentAlt, border: `${brand.accentAlt}4C`, icon: TrendingUp },
 };
 
 const MATURITY_LABELS = ['', 'Very Low', 'Low', 'Moderate', 'Good', 'Excellent'];
@@ -134,23 +141,23 @@ export function QATranscriptSheet({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold flex items-center gap-2">
-            <FileText className="size-5 text-[#06D7F6]" />
+            <FileText className="size-5 text-cortex-info" />
             Full Q&A Transcript
-            <span className="text-sm font-normal text-gray-400 ml-2">
+            <span className="text-sm font-normal text-cortex-muted ml-2">
               {annotatedResponses.length} responses &middot; {totalSignals} signals detected
             </span>
           </h3>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowSignals(!showSignals)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-cortex-sm text-xs font-medium flex items-center gap-1.5 transition-colors"
               style={{
-                backgroundColor: showSignals ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.05)',
-                border: showSignals ? '1px solid rgba(139,92,246,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                color: showSignals ? '#C4B5FD' : '#9CA3AF',
+                backgroundColor: showSignals ? `${brand.accent}26` : BORDER.subtle,
+                border: showSignals ? `1px solid ${brand.accent}66` : `1px solid ${BORDER.default}`,
+                color: showSignals ? brand.accentLight : TEXT.muted,
               }}
             >
               {showSignals ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
@@ -158,7 +165,7 @@ export function QATranscriptSheet({
             </button>
             <button
               onClick={handleExpandAll}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors"
+              className="px-3 py-1.5 rounded-cortex-sm text-xs font-medium bg-cortex-control border border-cortex-default text-cortex-muted hover:text-white transition-colors"
             >
               {expandAll ? 'Collapse All' : 'Expand All'}
             </button>
@@ -175,11 +182,11 @@ export function QATranscriptSheet({
               <button
                 key={type}
                 onClick={() => setSignalFilter(isActive ? null : type)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm text-xs font-bold uppercase tracking-wider transition-all"
                 style={{
                   backgroundColor: isActive ? colors.bg : 'transparent',
-                  border: `1px solid ${isActive ? colors.border : 'rgba(255,255,255,0.08)'}`,
-                  color: isActive ? colors.text : '#6B7280',
+                  border: `1px solid ${isActive ? colors.border : BORDER.default}`,
+                  color: isActive ? colors.text : STATUS.neutral,
                 }}
               >
                 <colors.icon className="size-3" />
@@ -190,7 +197,7 @@ export function QATranscriptSheet({
           {signalFilter && (
             <button
               onClick={() => setSignalFilter(null)}
-              className="text-xs text-gray-500 hover:text-white transition-colors ml-1"
+              className="text-xs text-cortex-muted hover:text-white transition-colors ml-1"
             >
               Clear filter
             </button>
@@ -199,13 +206,13 @@ export function QATranscriptSheet({
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-cortex-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search questions, answers, or signals..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#8B5CF6]/50"
+            className="w-full pl-10 pr-4 py-2.5 bg-cortex-control border border-cortex-default rounded-cortex-sm text-sm text-white placeholder:text-cortex-muted focus:outline-none focus:border-cortex-accent/50"
           />
         </div>
       </div>
@@ -225,7 +232,7 @@ export function QATranscriptSheet({
       ))}
 
       {Object.keys(filteredGroups).length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-cortex-muted">
           <Filter className="size-8 mx-auto mb-3 opacity-50" />
           <p>No responses match your filter.</p>
         </div>
@@ -257,22 +264,22 @@ function CategorySection({
   const avgMaturity = Math.round(responses.reduce((s, r) => s + r.maturityIndicator, 0) / responses.length);
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-cortex-control transition-colors"
       >
         <div className="flex items-center gap-3">
           {isExpanded
-            ? <ChevronDown className="size-4 text-[#8B5CF6]" />
-            : <ChevronRight className="size-4 text-gray-400" />
+            ? <ChevronDown className="size-4 text-cortex-accent" />
+            : <ChevronRight className="size-4 text-cortex-muted" />
           }
           <h4 className="text-base font-bold text-white">{category}</h4>
-          <span className="text-xs text-gray-500">{responses.length} questions</span>
+          <span className="text-xs text-cortex-muted">{responses.length} questions</span>
         </div>
         <div className="flex items-center gap-4">
           {totalPain > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(253,68,56,0.15)', color: '#FD4438' }}>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${STATUS.danger}26`, color: STATUS.danger }}>
               {totalPain} pain signals
             </span>
           )}
@@ -329,31 +336,31 @@ function AnswerCard({
   return (
     <div
       id={`qa-answer-${response.questionId}`}
-      className="rounded-xl p-4 transition-all"
+      className="rounded-cortex-md p-4 transition-all"
       style={{
-        backgroundColor: isHighlighted ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.03)',
-        border: isHighlighted ? '1px solid rgba(139,92,246,0.5)' : '1px solid rgba(255,255,255,0.06)',
+        backgroundColor: isHighlighted ? `${brand.accent}1F` : BORDER.subtle,
+        border: isHighlighted ? `1px solid ${brand.accent}80` : `1px solid ${BORDER.default}`,
       }}
     >
       {/* Question */}
       <div className="flex items-start gap-3 mb-3">
-        <span className="flex-shrink-0 size-7 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6] flex items-center justify-center text-xs font-bold">
+        <span className="flex-shrink-0 size-7 rounded-full bg-cortex-accent/20 text-cortex-accent flex items-center justify-center text-xs font-bold">
           Q{response.questionId}
         </span>
-        <p className="text-sm font-semibold text-gray-200 leading-relaxed">
+        <p className="text-sm font-semibold text-cortex-secondary leading-relaxed">
           {response.questionText}
         </p>
       </div>
 
       {/* Answer */}
       <div className="ml-10 mb-3">
-        <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-wrap">
+        <p className="text-sm text-cortex-muted leading-relaxed whitespace-pre-wrap">
           {displayAnswer}
         </p>
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-xs text-[#8B5CF6] hover:text-[#A78BFA] mt-1 transition-colors"
+            className="text-xs text-cortex-accent hover:text-cortex-accent-light mt-1 transition-colors"
           >
             {expanded ? 'Show less' : 'Read full answer'}
           </button>
@@ -365,7 +372,7 @@ function AnswerCard({
         {/* Maturity indicator */}
         <div className="flex items-center gap-1 mr-3" title={`Maturity: ${MATURITY_LABELS[response.maturityIndicator]}`}>
           <MaturityDots score={response.maturityIndicator} />
-          <span className="text-[10px] text-gray-500 ml-1">{MATURITY_LABELS[response.maturityIndicator]}</span>
+          <span className="text-[10px] text-cortex-muted ml-1">{MATURITY_LABELS[response.maturityIndicator]}</span>
         </div>
 
         {/* Signal chips */}
@@ -397,12 +404,12 @@ function AnswerCard({
         {/* Bottleneck links */}
         {response.linkedBottlenecks.length > 0 && (
           <div className="flex items-center gap-1 ml-auto">
-            <Link2 className="size-3 text-gray-600" />
+            <Link2 className="size-3 text-cortex-faint" />
             {response.linkedBottlenecks.map(bn => (
               <button
                 key={bn}
                 onClick={() => onBottleneckClick?.(bn)}
-                className="text-[10px] font-medium text-[#06D7F6]/80 hover:text-[#06D7F6] transition-colors flex items-center gap-0.5"
+                className="text-[10px] font-medium text-cortex-info/80 hover:text-cortex-info transition-colors flex items-center gap-0.5"
               >
                 <ArrowRight className="size-2.5" />
                 {getBottleneckLabel(bn)}
@@ -418,7 +425,7 @@ function AnswerCard({
 // ── Maturity Dots ─────────────────────────────────────────────────────────────
 
 function MaturityDots({ score }: { score: 1 | 2 | 3 | 4 | 5 }) {
-  const colors = ['#FD4438', '#FB923C', '#FBBF24', '#10B981', '#10B981'];
+  const colors = [STATUS.danger, STATUS.warning, STATUS.cautionLight, STATUS.success, STATUS.success];
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map(i => (
@@ -426,7 +433,7 @@ function MaturityDots({ score }: { score: 1 | 2 | 3 | 4 | 5 }) {
           key={i}
           className="size-2"
           fill={i <= score ? colors[score - 1] : 'transparent'}
-          stroke={i <= score ? colors[score - 1] : '#4B5563'}
+          stroke={i <= score ? colors[score - 1] : TEXT.faint}
           strokeWidth={1.5}
         />
       ))}
@@ -447,7 +454,7 @@ export function SourceAnswersBadge({
 
   return (
     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+      <span className="text-[10px] font-semibold text-cortex-muted uppercase tracking-wider">
         Based on:
       </span>
       {sourceAnswers.map(qId => (
@@ -456,9 +463,9 @@ export function SourceAnswersBadge({
           onClick={() => onClickAnswer?.(qId)}
           className="px-2 py-0.5 rounded-full text-[10px] font-bold transition-all hover:scale-105"
           style={{
-            backgroundColor: 'rgba(6,215,246,0.12)',
-            color: '#06D7F6',
-            border: '1px solid rgba(6,215,246,0.3)',
+            backgroundColor: `${STATUS.info}1F`,
+            color: STATUS.info,
+            border: `1px solid ${STATUS.info}4C`,
           }}
           title={`Scroll to answer Q${qId}`}
         >

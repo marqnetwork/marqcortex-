@@ -25,9 +25,20 @@ import {
   sendTestEmailRequest, sendWeeklyDigestRequest,
   type PlatformSettings, type SettingsResponse,
 } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+// `shouldShowApiErrors` is deliberately NOT read here. It selects between
+// showing a failure and silently substituting demo data, and on a screen whose
+// values are written back to the server on Save there is no version of that
+// substitution which is safe. A failed load is reported, always.
+import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { LoadingState, ErrorState, Field } from '@/app/components/ui/cortex';
+import { normalizeTeamRole, TEAM_ROLE_LABELS, TEAM_ROLE_DESCRIPTIONS } from '@/app/lib/teamRole';
 import { AIAdministrationConsole } from '@/app/components/AIAdministrationConsole';
 import { OrganizationProviderCredentialsPanel } from '@/app/components/OrganizationProviderCredentialsPanel';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 interface Props {
   accessToken?: string;
@@ -60,6 +71,53 @@ const TABS = [
   { id: 'byok',          label: 'AI Provider Keys',  icon: KeyRound },
 ];
 
+/**
+ * The demo-mode settings.
+ *
+ * Declared ONCE, and against the real `SettingsResponse` shape. There used to
+ * be two copies of this object — one for demo mode and one substituted on a
+ * failed live request — and both had been written against an older, different
+ * `PlatformSettings`: `companyName`, `companyEmail`, `emailNotifications` and
+ * five other fields the server neither sends nor stores, with `brandingName`,
+ * `defaultAssignee`, `autoAssign` and `notificationPrefs` — the fields this
+ * page actually renders — absent entirely.
+ *
+ * The consequence was not cosmetic. `NotificationSettings` initialises its
+ * toggles from `{ ...settings.notificationPrefs }`; spreading `undefined`
+ * yields `{}`, so every notification toggle rendered OFF regardless of the
+ * real configuration, and pressing Save wrote that empty object back.
+ */
+function demoSettings(): SettingsResponse {
+  return {
+    success: true,
+    currentUser: {
+      id: 'demo_user_1',
+      email: 'demo@marqcortex.com',
+      name: 'Demo User',
+      teamRole: 'admin',
+    },
+    platformSettings: {
+      brandingName: 'CORTEX Intelligence',
+      defaultAssignee: 'auto',
+      autoAssign: true,
+      notificationPrefs: {
+        newSubmission: true,
+        reportReady: true,
+        teamActivity: false,
+        weeklyDigest: true,
+        proposalViewed: true,
+        proposalAccepted: true,
+        messageReceived: true,
+      },
+    },
+    health: {
+      submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
+      serverTime: new Date().toISOString(),
+      recentActivity: [],
+    },
+  };
+}
+
 export function SettingsPage({ accessToken }: Props) {
   const [activeTab, setActiveTab]   = useState('profile');
   const [data, setData]             = useState<SettingsResponse | null>(null);
@@ -81,88 +139,30 @@ export function SettingsPage({ accessToken }: Props) {
         if (isVerboseLogging()) {
           console.log('📦 Using demo data for settings (backend disabled)');
         }
-        const demoSettings: SettingsResponse = {
-          success: true,
-          currentUser: {
-            id: 'demo_user_1',
-            email: 'demo@marqcortex.com',
-            name: 'Demo User',
-            teamRole: 'admin',
-          },
-          platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
-              proposalAccepted: true,
-              messageReceived: true,
-            },
-          },
-          health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
-            serverTime: new Date().toISOString(),
-            recentActivity: [],
-          },
-        };
-        setData(demoSettings);
-        setIsLoading(false);
+        setData(demoSettings());
         return;
       }
-
-      const res = await getPlatformSettings(accessToken);
-      setData(res);
+      setData(await getPlatformSettings(accessToken));
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load settings:', err);
       }
-      if (shouldShowApiErrors()) {
-        setError(err.message || 'Failed to load settings');
-      } else {
-        const demoSettings: SettingsResponse = {
-          success: true,
-          currentUser: {
-            id: 'demo_user_1',
-            email: 'demo@marqcortex.com',
-            name: 'Demo User',
-            teamRole: 'admin',
-          },
-          platformSettings: {
-            companyName: 'MARQ Cortex',
-            companyEmail: 'hello@marqcortex.com',
-            reportFromName: 'MARQ Cortex Team',
-            reportFromEmail: 'reports@marqcortex.com',
-            emailDeliveryMethod: 'instant',
-            emailSubjectLine: 'Your Diagnostic Report is Ready',
-            smtpConfigured: false,
-            emailNotifications: {
-              submissionReceived: true,
-              reviewComplete: true,
-              reportReady: true,
-              teamActivity: false,
-              weeklyDigest: true,
-              proposalViewed: true,
-              proposalAccepted: true,
-              messageReceived: true,
-            },
-          },
-          health: {
-            submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
-            serverTime: new Date().toISOString(),
-            recentActivity: [],
-          },
-        };
-        setData(demoSettings);
-      }
+      // A FAILED LOAD IS NOT DATA.
+      //
+      // This used to substitute the demo settings whenever `SHOW_API_ERRORS`
+      // was off, on the reasoning that a seamless screen beats an error. On a
+      // read-only dashboard that is arguable. On the SETTINGS screen it is not:
+      // the panel renders the substituted values into live form controls, and
+      // Save writes whatever those controls hold back to the server. A
+      // transient failure therefore offered the user a form pre-filled with
+      // values that were never theirs, and one click would persist them over
+      // the real configuration.
+      //
+      // The screen now says the load failed and offers the retry, exactly as it
+      // already did when `SHOW_API_ERRORS` was on. Nothing is rendered that
+      // could be saved.
+      setData(null);
+      setError(err?.message || 'Settings could not be loaded.');
     } finally {
       setIsLoading(false);
     }
@@ -184,23 +184,23 @@ export function SettingsPage({ accessToken }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="size-10 text-[#8B5CF6] animate-spin mx-auto mb-4" />
-          <p className="text-white/40 text-sm">Loading settings…</p>
-        </div>
+      <div className="p-6">
+        <LoadingState label="Loading settings" rows={6} />
       </div>
     );
   }
 
-  if (error) {
+  // Rendered when the load failed AND when it produced nothing: the settings
+  // panels take `data.platformSettings` and would otherwise read fields off
+  // `null`. There is no third state where this screen has a form to show.
+  if (error || !data) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-3 p-4 bg-[#FD4438]/10 border border-[#FD4438]/30 rounded-xl text-[#FD4438] text-sm mb-4">
-          <AlertTriangle className="size-4 flex-shrink-0" />
-          {error}
-          <button onClick={() => load()} className="ml-auto underline text-xs">Retry</button>
-        </div>
+        <ErrorState
+          title="Settings could not be loaded"
+          detail={error ?? undefined}
+          onRetry={() => load()}
+        />
       </div>
     );
   }
@@ -215,10 +215,10 @@ export function SettingsPage({ accessToken }: Props) {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-cortex-md border text-sm font-medium ${
               toast.type === 'success'
-                ? 'bg-[#10B981]/10 border-[#10B981]/30 text-[#10B981]'
-                : 'bg-[#FD4438]/10 border-[#FD4438]/30 text-[#FD4438]'
+                ? 'bg-cortex-success/10 border-cortex-success/30 text-cortex-success'
+                : 'bg-cortex-danger/10 border-cortex-danger/30 text-cortex-danger'
             }`}
           >
             {toast.type === 'success' ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
@@ -242,7 +242,7 @@ export function SettingsPage({ accessToken }: Props) {
         </div>
         <button
           onClick={() => load()}
-          className="p-2.5 bg-black/40 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:border-white/20 transition-all"
+          className="p-2.5 bg-cortex-raised border border-cortex-default rounded-cortex-md text-cortex-muted hover:text-white hover:border-cortex-strong transition-all"
           title="Refresh"
         >
           <RefreshCw className="size-4" />
@@ -250,7 +250,7 @@ export function SettingsPage({ accessToken }: Props) {
       </div>
 
       {/* ── Tab bar ── */}
-      <div className="flex gap-1 border-b border-white/10 overflow-x-auto">
+      <div className="flex gap-1 border-b border-cortex-default overflow-x-auto">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -267,7 +267,7 @@ export function SettingsPage({ accessToken }: Props) {
               {isActive && (
                 <motion.div
                   layoutId="settingsTab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6]"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt"
                 />
               )}
             </button>
@@ -325,19 +325,23 @@ function ProfileTab({
   };
 
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const roleLabel = user.teamRole === 'admin' ? 'Administrator' : user.teamRole === 'reviewer' ? 'Reviewer' : 'Viewer';
+  // Six roles, one vocabulary. The nested ternary this replaces knew three,
+  // so an analyst, consultant or owner read their own account details and were
+  // told they were a "Viewer" with read-only access.
+  const role = normalizeTeamRole(user.teamRole);
+  const roleLabel = TEAM_ROLE_LABELS[role];
 
   return (
     <div className="max-w-2xl space-y-5">
       <SettingsCard title="Profile Information" description="Your name is displayed throughout CORTEX and in team activities">
         <div className="flex items-center gap-5 mb-6">
-          <div className="size-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center flex-shrink-0">
+          <div className="size-16 rounded-cortex-lg bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-xl">{initials}</span>
           </div>
           <div>
             <p className="font-bold text-white text-lg">{name}</p>
             <p className="text-white/40 text-sm">{user.email}</p>
-            <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-[#8B5CF6]/15 text-[#8B5CF6] rounded-full border border-[#8B5CF6]/30 font-semibold">
+            <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-cortex-accent/15 text-cortex-accent rounded-full border border-cortex-accent/30 font-semibold">
               {roleLabel}
             </span>
           </div>
@@ -345,23 +349,37 @@ function ProfileTab({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Display Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
-            />
+            {/* `Field` owns the label/control association. Both of these were
+                `<label>` elements with no `htmlFor`, wrapping nothing — styled
+                paragraphs beside unnamed inputs, so a screen reader announced
+                "edit text, blank" and clicking the label focused nothing. */}
+            <Field label="Display Name">
+              {field => (
+                <input
+                  {...field}
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white focus:border-cortex-accent focus:outline-none text-sm"
+                />
+              )}
+            </Field>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">Email Address</label>
-            <input
-              type="email"
-              value={user.email}
-              disabled
-              className="w-full px-4 py-3 bg-white/3 border border-white/6 rounded-xl text-white/40 text-sm cursor-not-allowed"
-            />
-            <p className="text-xs text-white/30 mt-1.5">Email is managed through Supabase Auth and cannot be changed here.</p>
+            <Field
+              label="Email Address"
+              hint="Email is managed through Supabase Auth and cannot be changed here."
+            >
+              {field => (
+                <input
+                  {...field}
+                  type="email"
+                  value={user.email}
+                  disabled
+                  className="w-full px-4 py-3 bg-white/3 border border-white/6 rounded-cortex-md text-white/40 text-sm cursor-not-allowed"
+                />
+              )}
+            </Field>
           </div>
 
           <SaveBtn
@@ -376,7 +394,7 @@ function ProfileTab({
         <div className="space-y-3">
           <InfoRow label="User ID" value={user.id} mono />
           <InfoRow label="Role" value={roleLabel} />
-          <InfoRow label="Access Level" value={user.teamRole === 'admin' ? 'Full platform access' : user.teamRole === 'reviewer' ? 'Edit & send reports' : 'Read-only access'} />
+          <InfoRow label="Access Level" value={TEAM_ROLE_DESCRIPTIONS[role]} />
         </div>
       </SettingsCard>
     </div>
@@ -473,33 +491,33 @@ function NotificationsTab({
     <div className="max-w-2xl space-y-5">
 
       {/* ── Email Delivery Status card ── */}
-      <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6">
         <div className="flex items-start justify-between mb-5">
           <div>
             <h3 className="font-bold text-white mb-1 flex items-center gap-2">
-              <Mail className="size-4 text-[#8B5CF6]" />
+              <Mail className="size-4 text-cortex-accent" />
               Email Delivery
             </h3>
             <p className="text-xs text-white/40">
-              Powered by Resend. Set <code className="text-[#06D7F6] bg-white/5 px-1 py-0.5 rounded text-xs">RESEND_API_KEY</code> in Supabase → Edge Functions → Secrets to activate.
+              Powered by Resend. Set <code className="text-cortex-info bg-cortex-control px-1 py-0.5 rounded text-xs">RESEND_API_KEY</code> in Supabase → Edge Functions → Secrets to activate.
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-5">
           {/* Test email button */}
-          <div className="bg-white/3 border border-white/8 rounded-xl p-4">
+          <div className="bg-white/3 border border-white/8 rounded-cortex-md p-4">
             <p className="font-semibold text-white text-sm mb-1">Send Test Email</p>
             <p className="text-xs text-white/40 mb-3">Verify your Resend key is working — sends to your account email</p>
             <button
               onClick={handleTestEmail}
               disabled={testState === 'sending' || !accessToken}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-cortex-sm font-semibold text-xs transition-all ${
                 testState === 'sent'
-                  ? 'bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981]'
+                  ? 'bg-cortex-success/15 border border-cortex-success/30 text-cortex-success'
                   : testState === 'error'
-                  ? 'bg-[#FD4438]/15 border border-[#FD4438]/30 text-[#FD4438]'
-                  : 'bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/25'
+                  ? 'bg-cortex-danger/15 border border-cortex-danger/30 text-cortex-danger'
+                  : 'bg-cortex-accent/15 border border-cortex-accent/30 text-cortex-accent hover:bg-cortex-accent/25'
               } disabled:opacity-40`}
             >
               {testState === 'sending' ? (
@@ -513,25 +531,25 @@ function NotificationsTab({
               )}
             </button>
             {testState === 'sent' && testResult && (
-              <p className="text-xs text-[#10B981]/70 mt-2">
+              <p className="text-xs text-cortex-success/70 mt-2">
                 {testResult.sent ? `✓ Delivered to ${testResult.to}` : '⚠ Queued (no RESEND_API_KEY set — check server logs)'}
               </p>
             )}
           </div>
 
           {/* Weekly digest trigger */}
-          <div className="bg-white/3 border border-white/8 rounded-xl p-4">
+          <div className="bg-white/3 border border-white/8 rounded-cortex-md p-4">
             <p className="font-semibold text-white text-sm mb-1">Send Weekly Digest</p>
             <p className="text-xs text-white/40 mb-3">Manually trigger this week's performance summary email</p>
             <button
               onClick={handleWeeklyDigest}
               disabled={digestState === 'sending' || !accessToken || !prefs.weeklyDigest}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-cortex-sm font-semibold text-xs transition-all ${
                 digestState === 'sent'
-                  ? 'bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981]'
+                  ? 'bg-cortex-success/15 border border-cortex-success/30 text-cortex-success'
                   : digestState === 'error'
-                  ? 'bg-[#FD4438]/15 border border-[#FD4438]/30 text-[#FD4438]'
-                  : 'bg-[#3B82F6]/15 border border-[#3B82F6]/30 text-[#3B82F6] hover:bg-[#3B82F6]/25'
+                  ? 'bg-cortex-danger/15 border border-cortex-danger/30 text-cortex-danger'
+                  : 'bg-cortex-accent-alt/15 border border-cortex-accent-alt/30 text-cortex-accent-alt hover:bg-cortex-accent-alt/25'
               } disabled:opacity-40`}
               title={!prefs.weeklyDigest ? 'Enable the Weekly Digest toggle below first' : ''}
             >
@@ -551,7 +569,7 @@ function NotificationsTab({
           </div>
         </div>
 
-        <div className="p-3 bg-white/3 rounded-xl border border-white/8 text-xs text-white/40 leading-relaxed">
+        <div className="p-3 bg-white/3 rounded-cortex-md border border-white/8 text-xs text-white/40 leading-relaxed">
           <span className="text-white/60 font-semibold">How it works:</span> Client emails (under review, report ready, proposal sent, team replies) are always delivered. Team alert emails respect the toggles below. Disabling a toggle prevents that specific email from being sent but does not affect in-app notifications.
         </div>
       </div>
@@ -561,12 +579,12 @@ function NotificationsTab({
         <SettingsCard key={group.title} title={group.title} description={group.description}>
           <div className="space-y-3">
             {group.items.map(item => (
-              <div key={item.key} className="flex items-center justify-between p-4 bg-white/3 border border-white/8 rounded-xl">
+              <div key={item.key} className="flex items-center justify-between p-4 bg-white/3 border border-white/8 rounded-cortex-md">
                 <div>
                   <p className="font-semibold text-white text-sm mb-0.5">{item.label}</p>
                   <p className="text-xs text-white/40">{item.description}</p>
                 </div>
-                <Toggle checked={prefs[item.key]} onChange={() => toggle(item.key)} />
+                <Toggle checked={prefs[item.key]} onChange={() => toggle(item.key)} label={item.label} />
               </div>
             ))}
           </div>
@@ -614,7 +632,7 @@ function PlatformTab({
             type="text"
             value={brandingName}
             onChange={e => setBrandingName(e.target.value)}
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
+            className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white focus:border-cortex-accent focus:outline-none text-sm"
           />
           <p className="text-xs text-white/30 mt-1.5">Displayed in the team dashboard header and client portal.</p>
         </div>
@@ -622,12 +640,12 @@ function PlatformTab({
 
       <SettingsCard title="Auto-Assignment" description="Control how new submissions are assigned to team members">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-white/3 border border-white/8 rounded-xl">
+          <div className="flex items-center justify-between p-4 bg-white/3 border border-white/8 rounded-cortex-md">
             <div>
               <p className="font-semibold text-white text-sm mb-0.5">Auto-assign new submissions</p>
               <p className="text-xs text-white/40">Automatically assign incoming submissions to a team member</p>
             </div>
-            <Toggle checked={autoAssign} onChange={() => setAutoAssign(prev => !prev)} />
+            <Toggle checked={autoAssign} onChange={() => setAutoAssign(prev => !prev)} label="Auto-assign new submissions" />
           </div>
 
           {autoAssign && (
@@ -636,7 +654,7 @@ function PlatformTab({
               <select
                 value={defaultAssignee}
                 onChange={e => setDefaultAssignee(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-[#8B5CF6] focus:outline-none text-sm"
+                className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-md text-white focus:border-cortex-accent focus:outline-none text-sm"
               >
                 <option value="auto">Round-robin (auto-balance)</option>
                 <option value="admin">Admin only</option>
@@ -649,7 +667,7 @@ function PlatformTab({
 
       <SettingsCard title="Diagnostic Form" description="Configure the public-facing assessment">
         <div className="space-y-3">
-          <InfoRow label="Form Status" value="Active — accepting submissions" valueColor="#10B981" />
+          <InfoRow label="Form Status" value="Active — accepting submissions" valueColor={STATUS.success} />
           <InfoRow label="Question Types" value="Universal + Industry-specific" />
           <InfoRow label="Routing" value="All submissions → CORTEX Dashboard" />
         </div>
@@ -674,10 +692,10 @@ function HealthTab({
   const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
 
   const statusBreakdown = [
-    { label: 'New',        count: counts.new,          color: '#3B82F6',  pct: pct(counts.new) },
-    { label: 'In Review',  count: counts['in-review'], color: '#FB923C',  pct: pct(counts['in-review']) },
-    { label: 'Completed',  count: counts.completed,    color: '#8B5CF6',  pct: pct(counts.completed) },
-    { label: 'Converted',  count: counts.approved,     color: '#10B981',  pct: pct(counts.approved) },
+    { label: 'New',        count: counts.new,          color: brand.accentAlt,  pct: pct(counts.new) },
+    { label: 'In Review',  count: counts['in-review'], color: STATUS.warning,  pct: pct(counts['in-review']) },
+    { label: 'Completed',  count: counts.completed,    color: brand.accent,  pct: pct(counts.completed) },
+    { label: 'Converted',  count: counts.approved,     color: STATUS.success,  pct: pct(counts.approved) },
   ];
 
   return (
@@ -691,7 +709,7 @@ function HealthTab({
           </span>
           <button
             onClick={onRefresh}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/40 border border-white/10 rounded-lg text-white/50 hover:text-white hover:border-white/20 transition-all text-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-raised border border-cortex-default rounded-cortex-sm text-white/50 hover:text-white hover:border-cortex-strong transition-all text-xs"
           >
             <RefreshCw className="size-3" />
             Refresh
@@ -725,12 +743,12 @@ function HealthTab({
                 />
               )
             ))}
-            {total === 0 && <div className="w-full h-full bg-white/10 rounded-full" />}
+            {total === 0 && <div className="w-full h-full bg-cortex-control-hover rounded-full" />}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {statusBreakdown.map(s => (
-            <div key={s.label} className="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/6">
+            <div key={s.label} className="flex items-center justify-between p-3 bg-black/20 rounded-cortex-md border border-white/6">
               <div className="flex items-center gap-2">
                 <div className="size-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                 <span className="text-sm text-white/60">{s.label}</span>
@@ -745,7 +763,7 @@ function HealthTab({
       <SettingsCard title="Platform Information" description="Current build metadata">
         <div className="space-y-3">
           <InfoRow label="Platform"       value="CORTEX Decision Intelligence" />
-          <InfoRow label="Build Phase"    value="Phase 4D — Settings & Team Management" valueColor="#8B5CF6" />
+          <InfoRow label="Build Phase"    value="Phase 4D — Settings & Team Management" valueColor={brand.accent} />
           <InfoRow label="Version"        value="v4.0.0" />
           <InfoRow label="Backend"        value="Supabase Edge Function (Hono + Deno)" />
           <InfoRow label="Database"       value="PostgreSQL via KV Store (kv_store_324f4fbe)" />
@@ -759,9 +777,9 @@ function HealthTab({
         <SettingsCard title="Recent Platform Events" description="Last 8 system notifications">
           <div className="space-y-2">
             {health.recentActivity.map((event: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-black/20 rounded-xl border border-white/5">
-                <div className="size-7 rounded-full bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Activity className="size-3.5 text-[#8B5CF6]" />
+              <div key={i} className="flex items-start gap-3 p-3 bg-black/20 rounded-cortex-md border border-cortex-subtle">
+                <div className="size-7 rounded-full bg-cortex-accent/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Activity className="size-3.5 text-cortex-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium leading-tight truncate">{event.title}</p>
@@ -789,7 +807,7 @@ function SettingsCard({
   title: string; description: string; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+    <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6">
       <div className="mb-5">
         <h3 className="font-bold text-white mb-1">{title}</h3>
         <p className="text-xs text-white/40">{description}</p>
@@ -799,12 +817,27 @@ function SettingsCard({
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+/**
+ * A switch, declared as one.
+ *
+ * This was a bare `<button>` whose entire state lived in a background colour.
+ * A screen-reader user was told "button" and nothing else — not what it
+ * controls, and not whether the notification it governs is on or off — so the
+ * notification settings were unusable without sight. `role="switch"` plus
+ * `aria-checked` is what makes the state readable, and `aria-label` is what
+ * names it, since the label sits in a sibling element rather than in a
+ * `<label>`.
+ */
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
       onClick={onChange}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-        checked ? 'bg-[#8B5CF6]' : 'bg-white/15'
+      className={`relative w-11 h-6 rounded-cortex-pill transition-colors flex-shrink-0 ${
+        checked ? 'bg-cortex-accent' : 'bg-cortex-strong'
       }`}
     >
       <motion.div
@@ -825,7 +858,7 @@ function SaveBtn({
     <button
       onClick={onClick}
       disabled={isLoading || disabled}
-      className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+      className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt rounded-cortex-md font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
     >
       {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
       {isLoading ? 'Saving…' : label}
@@ -839,7 +872,7 @@ function InfoRow({
   label: string; value: string; mono?: boolean; valueColor?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+    <div className="flex items-center justify-between py-2 border-b border-cortex-subtle last:border-0">
       <span className="text-sm text-white/40">{label}</span>
       <span
         className={`text-sm font-medium ${mono ? 'font-mono text-white/70' : 'text-white'}`}
@@ -857,13 +890,13 @@ function StatusCard({
   icon: React.ComponentType<{ className?: string }>; label: string; status: 'operational' | 'degraded' | 'down';
 }) {
   const cfg = {
-    operational: { color: '#10B981', label: 'Operational', dot: 'bg-[#10B981]' },
-    degraded:    { color: '#FB923C', label: 'Degraded',    dot: 'bg-[#FB923C]' },
-    down:        { color: '#FD4438', label: 'Down',        dot: 'bg-[#FD4438]' },
+    operational: { color: STATUS.success, label: 'Operational', dot: 'bg-cortex-success' },
+    degraded:    { color: STATUS.warning, label: 'Degraded',    dot: 'bg-cortex-warning' },
+    down:        { color: STATUS.danger, label: 'Down',        dot: 'bg-cortex-danger' },
   }[status];
 
   return (
-    <div className="bg-black/40 border border-white/8 rounded-xl p-4">
+    <div className="bg-cortex-raised border border-white/8 rounded-cortex-md p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="size-4 text-white/40" />
         <span className="text-xs text-white/40 leading-tight">{label}</span>

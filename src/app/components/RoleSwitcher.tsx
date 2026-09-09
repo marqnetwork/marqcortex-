@@ -14,6 +14,7 @@ import {
   ROLE_DESCRIPTIONS,
   type UserRole,
 } from '@/app/core/roleEngine';
+import { text, surface } from '@/app/lib/tokens';
 
 const ALL_ROLES: UserRole[] = ['admin', 'strategist', 'finance', 'sales', 'viewer'];
 
@@ -68,8 +69,8 @@ export function RoleSwitcher({ currentRole, onChange, compact = false }: RoleSwi
         <div
           className="absolute right-0 top-full mt-1.5 z-50 rounded-xl border overflow-hidden shadow-2xl"
           style={{
-            background:  '#0D0D1E',
-            borderColor: '#ffffff15',
+            background:  surface.overlay,
+            borderColor: `${text.primary}15`,
             width:       '220px',
           }}
         >
@@ -104,7 +105,7 @@ export function RoleSwitcher({ currentRole, onChange, compact = false }: RoleSwi
                 <div className="flex-1 min-w-0">
                   <div
                     className="text-[10px] font-bold"
-                    style={{ color: isActive ? rColor : '#D1D5DB' }}
+                    style={{ color: isActive ? rColor : text.secondary }}
                   >
                     {ROLE_LABELS[role]}
                   </div>

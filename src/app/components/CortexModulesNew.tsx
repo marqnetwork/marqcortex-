@@ -29,6 +29,7 @@ import {
 import type { CortexLeadData, DecisionLog, NextAction } from '@/app/types/cortex-types';
 import { logOutcome, getOutcome, type OutcomePayload } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { brand, status } from '@/app/lib/tokens';
 
 // ============================================================================
 // MODULE 8 — DECISION LOG
@@ -57,12 +58,12 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
   };
 
   const statusColors: Record<string, string> = {
-    new: '#8B5CF6',
-    'needs-review': '#FB923C',
-    'ready-for-call': '#3B82F6',
-    'proposal-sent': '#06D7F6',
-    converted: '#10B981',
-    disqualified: '#70707C',
+    new: brand.accent,
+    'needs-review': status.warning,
+    'ready-for-call': brand.accentAlt,
+    'proposal-sent': status.info,
+    converted: status.success,
+    disqualified: status.neutral,
   };
 
   return (
@@ -70,16 +71,16 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Clock className="size-6 text-[#8B5CF6]" />
+            <Clock className="size-6 text-cortex-accent" />
             Decision Log
           </h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-cortex-muted text-sm mt-1">
             Full audit trail of every status change, team note, and action taken on this lead.
           </p>
         </div>
         <button
           onClick={() => setShowAddNote(!showAddNote)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-cortex-accent hover:bg-cortex-accent-deep text-white rounded-cortex-sm transition-colors font-medium"
         >
           <Plus className="size-4" />
           Add Note
@@ -92,34 +93,34 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-black/40 border border-[#8B5CF6]/30 rounded-xl p-6"
+            className="bg-cortex-raised border border-cortex-accent/30 rounded-cortex-md p-6"
           >
-            <h3 className="font-bold mb-4 text-[#8B5CF6]">Add Team Note</h3>
+            <h3 className="font-bold mb-4 text-cortex-accent">Add Team Note</h3>
             <div className="space-y-3">
               <input
                 type="text"
                 placeholder="Your name"
                 value={noteAuthor}
                 onChange={e => setNoteAuthor(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#8B5CF6] outline-none transition-colors text-sm"
+                className="w-full px-4 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-accent outline-none transition-colors text-sm"
               />
               <textarea
                 rows={3}
                 placeholder="Add a note, observation, or context about this lead..."
                 value={newNote}
                 onChange={e => setNewNote(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#8B5CF6] outline-none transition-colors text-sm resize-none"
+                className="w-full px-4 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-accent outline-none transition-colors text-sm resize-none"
               />
               <div className="flex gap-3">
                 <button
                   onClick={handleAddNote}
-                  className="px-4 py-2 bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-lg transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-cortex-accent hover:bg-cortex-accent-deep text-white rounded-cortex-sm transition-colors text-sm font-medium"
                 >
                   Save Note
                 </button>
                 <button
                   onClick={() => setShowAddNote(false)}
-                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg transition-colors text-sm"
+                  className="px-4 py-2 bg-cortex-control hover:bg-cortex-control-hover text-cortex-muted rounded-cortex-sm transition-colors text-sm"
                 >
                   Cancel
                 </button>
@@ -130,10 +131,10 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
       </AnimatePresence>
 
       <div className="relative">
-        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-white/10" />
+        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-cortex-control-hover" />
         <div className="space-y-6">
           {logs.map((log, idx) => {
-            const color = statusColors[log.toStatus] || '#8B5CF6';
+            const color = statusColors[log.toStatus] || brand.accent;
             const isNote = log.reason === 'Team note added';
             return (
               <motion.div
@@ -144,7 +145,7 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
                 className="relative flex gap-4 pl-10"
               >
                 <div
-                  className="absolute left-0 size-10 rounded-full flex items-center justify-center border-2 border-[#0A0A0F] z-10"
+                  className="absolute left-0 size-10 rounded-full flex items-center justify-center border-2 border-cortex-canvas z-10"
                   style={{ backgroundColor: `${color}20`, borderColor: color }}
                 >
                   {isNote
@@ -152,24 +153,24 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
                     : <ArrowRight className="size-4" style={{ color }} />
                   }
                 </div>
-                <div className="flex-1 bg-black/40 border border-white/10 rounded-xl p-5">
+                <div className="flex-1 bg-cortex-raised border border-cortex-default rounded-cortex-md p-5">
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <span className="font-semibold text-white">{log.reason}</span>
                       {log.fromStatus !== log.toStatus && (
-                        <span className="ml-2 text-sm text-gray-400">
+                        <span className="ml-2 text-sm text-cortex-muted">
                           {log.fromStatus.replace('-', ' ')} → {log.toStatus.replace('-', ' ')}
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
+                    <span className="text-xs text-cortex-muted whitespace-nowrap ml-4">
                       {new Date(log.timestamp).toLocaleString('en-US', {
                         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
                       })}
                     </span>
                   </div>
-                  {log.notes && <p className="text-sm text-gray-300 mb-2">{log.notes}</p>}
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                  {log.notes && <p className="text-sm text-cortex-secondary mb-2">{log.notes}</p>}
+                  <div className="flex items-center gap-2 text-xs text-cortex-muted">
                     <User className="size-3" />
                     {log.actionTakenBy}
                   </div>
@@ -178,11 +179,11 @@ export function DecisionLogModule({ data }: { data: CortexLeadData }) {
             );
           })}
           <div className="relative flex gap-4 pl-10 opacity-30">
-            <div className="absolute left-0 size-10 rounded-full flex items-center justify-center border-2 border-dashed border-white/20">
-              <Plus className="size-4 text-gray-600" />
+            <div className="absolute left-0 size-10 rounded-full flex items-center justify-center border-2 border-dashed border-cortex-strong">
+              <Plus className="size-4 text-cortex-faint" />
             </div>
-            <div className="flex-1 border border-dashed border-white/10 rounded-xl p-5">
-              <p className="text-sm text-gray-600">Next status change or team note will appear here</p>
+            <div className="flex-1 border border-dashed border-cortex-default rounded-cortex-md p-5">
+              <p className="text-sm text-cortex-faint">Next status change or team note will appear here</p>
             </div>
           </div>
         </div>
@@ -209,10 +210,10 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
   const [newAssignee, setNewAssignee] = useState('');
 
   const priorityConfig = {
-    urgent: { color: '#FD4438', label: 'URGENT', bg: 'bg-[#FD4438]/10 border-[#FD4438]/30' },
-    high:   { color: '#FB923C', label: 'HIGH',   bg: 'bg-[#FB923C]/10 border-[#FB923C]/30' },
-    medium: { color: '#06D7F6', label: 'MEDIUM', bg: 'bg-[#06D7F6]/10 border-[#06D7F6]/30' },
-    low:    { color: '#70707C', label: 'LOW',    bg: 'bg-white/5 border-white/10' },
+    urgent: { color: status.danger, label: 'URGENT', bg: 'bg-cortex-danger/10 border-cortex-danger/30' },
+    high:   { color: status.warning, label: 'HIGH',   bg: 'bg-cortex-warning/10 border-cortex-warning/30' },
+    medium: { color: status.info, label: 'MEDIUM', bg: 'bg-cortex-info/10 border-cortex-info/30' },
+    low:    { color: status.neutral, label: 'LOW',    bg: 'bg-cortex-control border-cortex-default' },
   };
 
   const handleToggle = (idx: number) => {
@@ -247,16 +248,16 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Flag className="size-6 text-[#FB923C]" />
+            <Flag className="size-6 text-cortex-warning" />
             Next Actions
           </h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-cortex-muted text-sm mt-1">
             {pending.length} pending · {completed.length} completed
           </p>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#FB923C] hover:bg-[#ea7c1b] text-white rounded-lg transition-colors font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-cortex-warning hover:bg-[${status.cautionDeep}] text-white rounded-cortex-sm transition-colors font-medium"
         >
           <Plus className="size-4" />
           Add Action
@@ -269,24 +270,24 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-black/40 border border-[#FB923C]/30 rounded-xl p-6"
+            className="bg-cortex-raised border border-cortex-warning/30 rounded-cortex-md p-6"
           >
-            <h3 className="font-bold mb-4 text-[#FB923C]">New Action Item</h3>
+            <h3 className="font-bold mb-4 text-cortex-warning">New Action Item</h3>
             <div className="space-y-3">
               <input
                 type="text"
                 placeholder="Describe the action..."
                 value={newAction}
                 onChange={e => setNewAction(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#FB923C] outline-none transition-colors text-sm"
+                className="w-full px-4 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-warning outline-none transition-colors text-sm"
               />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Priority</label>
+                  <label className="text-xs text-cortex-muted mb-1 block">Priority</label>
                   <select
                     value={newPriority}
                     onChange={e => setNewPriority(e.target.value as typeof newPriority)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:border-[#FB923C] outline-none"
+                    className="w-full px-3 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white text-sm focus:border-cortex-warning outline-none"
                   >
                     <option value="urgent">Urgent</option>
                     <option value="high">High</option>
@@ -295,26 +296,26 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Assigned To</label>
+                  <label className="text-xs text-cortex-muted mb-1 block">Assigned To</label>
                   <input
                     type="text"
                     placeholder="Team member name"
                     value={newAssignee}
                     onChange={e => setNewAssignee(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder:text-gray-500 focus:border-[#FB923C] outline-none"
+                    className="w-full px-3 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white text-sm placeholder:text-cortex-muted focus:border-cortex-warning outline-none"
                   />
                 </div>
               </div>
               <div className="flex gap-3">
                 <button
                   onClick={handleAdd}
-                  className="px-4 py-2 bg-[#FB923C] hover:bg-[#ea7c1b] text-white rounded-lg transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-cortex-warning hover:bg-[${status.cautionDeep}] text-white rounded-cortex-sm transition-colors text-sm font-medium"
                 >
                   Add Action
                 </button>
                 <button
                   onClick={() => setShowAdd(false)}
-                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg transition-colors text-sm"
+                  className="px-4 py-2 bg-cortex-control hover:bg-cortex-control-hover text-cortex-muted rounded-cortex-sm transition-colors text-sm"
                 >
                   Cancel
                 </button>
@@ -335,10 +336,10 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex items-start gap-4 p-5 bg-black/40 border rounded-xl ${p.bg} hover:border-white/20 transition-colors group`}
+                className={`flex items-start gap-4 p-5 bg-cortex-raised border rounded-cortex-md ${p.bg} hover:border-cortex-strong transition-colors group`}
               >
                 <button onClick={() => handleToggle(realIdx)} className="flex-shrink-0 mt-0.5">
-                  <Circle className="size-5 text-gray-500 hover:text-[#10B981] transition-colors" />
+                  <Circle className="size-5 text-cortex-muted hover:text-cortex-success transition-colors" />
                 </button>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium">{action.action}</p>
@@ -350,12 +351,12 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
                       {p.label}
                     </span>
                     {action.assignedTo && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <span className="text-xs text-cortex-muted flex items-center gap-1">
                         <User className="size-3" />{action.assignedTo}
                       </span>
                     )}
                     {action.dueDate && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <span className="text-xs text-cortex-muted flex items-center gap-1">
                         <Clock className="size-3" />
                         {new Date(action.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </span>
@@ -364,7 +365,7 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
                 </div>
                 <button
                   onClick={() => handleDelete(realIdx)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-[#FD4438]"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-cortex-faint hover:text-cortex-danger"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -376,7 +377,7 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
 
       {completed.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h3 className="text-sm font-semibold text-cortex-muted uppercase tracking-wider mb-3">
             Completed ({completed.length})
           </h3>
           <div className="space-y-2">
@@ -385,12 +386,12 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
               return (
                 <div
                   key={realIdx}
-                  className="flex items-center gap-4 p-4 bg-white/3 border border-white/5 rounded-xl opacity-50"
+                  className="flex items-center gap-4 p-4 bg-white/3 border border-cortex-subtle rounded-cortex-md opacity-50"
                 >
                   <button onClick={() => handleToggle(realIdx)}>
-                    <CheckCircle2 className="size-5 text-[#10B981]" />
+                    <CheckCircle2 className="size-5 text-cortex-success" />
                   </button>
-                  <p className="text-gray-400 line-through text-sm flex-1">{action.action}</p>
+                  <p className="text-cortex-muted line-through text-sm flex-1">{action.action}</p>
                 </div>
               );
             })}
@@ -399,7 +400,7 @@ export function NextActionsModule({ data }: { data: CortexLeadData }) {
       )}
 
       {actions.length === 0 && (
-        <div className="text-center py-12 text-gray-600">
+        <div className="text-center py-12 text-cortex-faint">
           <Flag className="size-12 mx-auto mb-3 opacity-30" />
           <p>No actions yet. Add the first action for this lead.</p>
         </div>
@@ -517,7 +518,7 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="size-8 text-[#8B5CF6] animate-spin" />
+        <Loader2 className="size-8 text-cortex-accent animate-spin" />
       </div>
     );
   }
@@ -527,20 +528,20 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <TrendingUp className="size-6 text-[#10B981]" />
+            <TrendingUp className="size-6 text-cortex-success" />
             Outcome & Learning Loop
           </h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-cortex-muted text-sm mt-1">
             Record what happened with this lead. Every outcome trains CORTEX to predict better.
           </p>
         </div>
         {existingOutcome && (
           <div
-            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-cortex-sm text-xs font-bold flex items-center gap-1.5"
             style={{
               background: existingOutcome.didConvert ? 'rgba(16,185,129,0.15)' : 'rgba(253,68,56,0.12)',
               border: `1px solid ${existingOutcome.didConvert ? 'rgba(16,185,129,0.4)' : 'rgba(253,68,56,0.35)'}`,
-              color: existingOutcome.didConvert ? '#10B981' : '#FD4438',
+              color: existingOutcome.didConvert ? status.success : status.danger,
             }}
           >
             {existingOutcome.didConvert ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
@@ -551,15 +552,15 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
       </div>
 
       {/* Conversion Outcome */}
-      <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6">
         <h3 className="font-bold mb-4 text-white">Did this lead convert?</h3>
         <div className="flex gap-4 mb-4">
           <button
             onClick={() => setDidConvert(true)}
-            className={`flex-1 py-3 rounded-xl border-2 font-semibold transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-3 rounded-cortex-md border-2 font-semibold transition-all flex items-center justify-center gap-2 ${
               didConvert === true
-                ? 'bg-[#10B981]/20 border-[#10B981] text-[#10B981]'
-                : 'border-white/10 text-gray-400 hover:border-white/20'
+                ? 'bg-cortex-success/20 border-cortex-success text-cortex-success'
+                : 'border-cortex-default text-cortex-muted hover:border-cortex-strong'
             }`}
           >
             <TrendingUp className="size-4" />
@@ -567,10 +568,10 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
           </button>
           <button
             onClick={() => setDidConvert(false)}
-            className={`flex-1 py-3 rounded-xl border-2 font-semibold transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-3 rounded-cortex-md border-2 font-semibold transition-all flex items-center justify-center gap-2 ${
               didConvert === false
-                ? 'bg-[#FD4438]/20 border-[#FD4438] text-[#FD4438]'
-                : 'border-white/10 text-gray-400 hover:border-white/20'
+                ? 'bg-cortex-danger/20 border-cortex-danger text-cortex-danger'
+                : 'border-cortex-default text-cortex-muted hover:border-cortex-strong'
             }`}
           >
             <TrendingDown className="size-4" />
@@ -581,25 +582,25 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
         <AnimatePresence mode="wait">
           {didConvert === true && (
             <motion.div key="convert" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <label className="text-sm text-gray-400 block mb-2">Deal Value ($)</label>
+              <label className="text-sm text-cortex-muted block mb-2">Deal Value ($)</label>
               <input
                 type="number"
                 placeholder="e.g. 25000"
                 value={conversionValue}
                 onChange={e => setConversionValue(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#10B981] outline-none transition-colors"
+                className="w-full px-4 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-success outline-none transition-colors"
               />
             </motion.div>
           )}
           {didConvert === false && (
             <motion.div key="lost" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <label className="text-sm text-gray-400 block mb-2">Why didn't they convert?</label>
+              <label className="text-sm text-cortex-muted block mb-2">Why didn't they convert?</label>
               <textarea
                 rows={3}
                 placeholder="Budget, timing, wrong fit, went with competitor, no decision..."
                 value={lostReason}
                 onChange={e => setLostReason(e.target.value)}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#FD4438] outline-none transition-colors resize-none"
+                className="w-full px-4 py-2 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-danger outline-none transition-colors resize-none"
               />
             </motion.div>
           )}
@@ -607,39 +608,39 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
       </div>
 
       {/* Recommendation Accuracy */}
-      <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6">
         <h3 className="font-bold mb-2 text-white">Did the AI recommendation work?</h3>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-cortex-muted mb-4">
           Recommended:{' '}
-          <span className="text-[#8B5CF6] font-semibold">{data.recommendation.primaryServiceLabel}</span>
+          <span className="text-cortex-accent font-semibold">{data.recommendation.primaryServiceLabel}</span>
         </p>
         <div className="flex gap-4">
           <button
             onClick={() => setRecommendationWorked(true)}
-            className={`flex-1 py-3 rounded-xl border-2 font-semibold transition-all text-sm ${
+            className={`flex-1 py-3 rounded-cortex-md border-2 font-semibold transition-all text-sm ${
               recommendationWorked === true
-                ? 'bg-[#10B981]/20 border-[#10B981] text-[#10B981]'
-                : 'border-white/10 text-gray-400 hover:border-white/20'
+                ? 'bg-cortex-success/20 border-cortex-success text-cortex-success'
+                : 'border-cortex-default text-cortex-muted hover:border-cortex-strong'
             }`}
           >
             ✓ Correct — it fit perfectly
           </button>
           <button
             onClick={() => setRecommendationWorked(false)}
-            className={`flex-1 py-3 rounded-xl border-2 font-semibold transition-all text-sm ${
+            className={`flex-1 py-3 rounded-cortex-md border-2 font-semibold transition-all text-sm ${
               recommendationWorked === false
-                ? 'bg-[#FD4438]/20 border-[#FD4438] text-[#FD4438]'
-                : 'border-white/10 text-gray-400 hover:border-white/20'
+                ? 'bg-cortex-danger/20 border-cortex-danger text-cortex-danger'
+                : 'border-cortex-default text-cortex-muted hover:border-cortex-strong'
             }`}
           >
             ✗ Wrong — we changed it
           </button>
           <button
             onClick={() => setRecommendationWorked(null)}
-            className={`px-4 py-3 rounded-xl border-2 font-semibold transition-all text-sm ${
+            className={`px-4 py-3 rounded-cortex-md border-2 font-semibold transition-all text-sm ${
               recommendationWorked === null
-                ? 'bg-white/10 border-white/30 text-gray-300'
-                : 'border-white/10 text-gray-500 hover:border-white/20'
+                ? 'bg-cortex-control-hover border-white/30 text-cortex-secondary'
+                : 'border-cortex-default text-cortex-muted hover:border-cortex-strong'
             }`}
           >
             N/A
@@ -648,12 +649,12 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
       </div>
 
       {/* What We Learned */}
-      <div className="bg-black/40 border border-white/10 rounded-xl p-6">
+      <div className="bg-cortex-raised border border-cortex-default rounded-cortex-md p-6">
         <h3 className="font-bold mb-2 text-white flex items-center gap-2">
-          <Lightbulb className="size-5 text-[#FB923C]" />
+          <Lightbulb className="size-5 text-cortex-warning" />
           What did we learn from this lead?
         </h3>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-cortex-muted mb-4">
           This feeds directly into improving CORTEX's scoring and recommendation accuracy.
         </p>
         <textarea
@@ -661,17 +662,17 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
           placeholder="What signals predicted the outcome? What should we have caught earlier? What would we do differently?"
           value={whatLearned}
           onChange={e => setWhatLearned(e.target.value)}
-          className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-gray-500 focus:border-[#FB923C] outline-none transition-colors resize-none text-sm"
+          className="w-full px-4 py-3 bg-cortex-control border border-cortex-default rounded-cortex-sm text-white placeholder:text-cortex-muted focus:border-cortex-warning outline-none transition-colors resize-none text-sm"
         />
       </div>
 
       {/* System Improvement Tags */}
-      <div className="bg-gradient-to-br from-[#8B5CF6]/10 to-[#3B82F6]/10 border border-[#8B5CF6]/20 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-cortex-accent/10 to-cortex-accent-alt/10 border border-cortex-accent/20 rounded-cortex-md p-6">
         <h3 className="font-bold mb-3 text-white flex items-center gap-2">
-          <Brain className="size-5 text-[#8B5CF6]" />
+          <Brain className="size-5 text-cortex-accent" />
           System Improvement Tags
         </h3>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-cortex-muted mb-4">
           Which areas of CORTEX should be updated based on this outcome? These votes aggregate in Learning Insights.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -683,10 +684,10 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
                   prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
                 );
               }}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+              className={`px-3 py-1.5 rounded-cortex-sm text-sm font-medium transition-all border ${
                 improvements.includes(area)
-                  ? 'bg-[#8B5CF6]/30 border-[#8B5CF6] text-[#8B5CF6]'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
+                  ? 'bg-cortex-accent/30 border-cortex-accent text-cortex-accent'
+                  : 'bg-cortex-control border-cortex-default text-cortex-muted hover:border-cortex-strong'
               }`}
             >
               {improvements.includes(area) ? '✓ ' : ''}{area}
@@ -702,14 +703,14 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="px-4 py-3 rounded-xl flex items-center justify-between gap-3"
-            style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.3)', color: '#FCA5A5' }}
+            className="px-4 py-3 rounded-cortex-md flex items-center justify-between gap-3"
+            style={{ background: 'rgba(253,68,56,0.08)', border: '1px solid rgba(253,68,56,0.3)', color: status.dangerLight }}
           >
             <div className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="size-4 text-[#FD4438] flex-shrink-0" />
+              <AlertTriangle className="size-4 text-cortex-danger flex-shrink-0" />
               {saveError}
             </div>
-            <button onClick={() => setSaveError(null)} className="text-gray-500 hover:text-white">✕</button>
+            <button onClick={() => setSaveError(null)} className="text-cortex-muted hover:text-white">✕</button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -719,7 +720,7 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
         <button
           onClick={handleSave}
           disabled={didConvert === null || isSaving}
-          className="px-6 py-3 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:opacity-90 text-white rounded-xl font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-6 py-3 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:opacity-90 text-white rounded-cortex-md font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {isSaving ? (
             <span className="contents"><Loader2 className="size-4 animate-spin" />Saving…</span>
@@ -730,12 +731,12 @@ export function OutcomeModule({ data, submissionId, accessToken }: OutcomeModule
           )}
         </button>
         {!accessToken && (
-          <p className="text-xs text-gray-500">Team login required to persist outcomes.</p>
+          <p className="text-xs text-cortex-muted">Team login required to persist outcomes.</p>
         )}
         {accessToken && didConvert !== null && !saved && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-cortex-muted">
             This outcome will aggregate in{' '}
-            <span className="text-[#10B981]">Learning Insights</span> to improve future predictions.
+            <span className="text-cortex-success">Learning Insights</span> to improve future predictions.
           </p>
         )}
       </div>

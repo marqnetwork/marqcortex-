@@ -48,12 +48,26 @@ export function useKeyboardShortcuts({
     (event: KeyboardEvent) => {
       if (!enabled) return;
 
-      // Don't trigger shortcuts when typing in inputs
+      // Don't trigger shortcuts when typing in inputs.
+      //
+      // ESCAPE IS EXEMPT, and the exemption fixes a real defect. The command
+      // palette focuses its search box the moment it opens — that is the whole
+      // point of it — so its `useEscapeKey` handler hit the guard below and
+      // never fired. The palette, a keyboard-first feature reached with ⌘K,
+      // could not be closed with the keyboard at all: the only way out was
+      // clicking the backdrop.
+      //
+      // Escape is not a typing key. In a text field it means cancel or dismiss,
+      // which is exactly what the guard was suppressing. Every other key keeps
+      // the guard: a bare `d` or `/` firing while somebody types is the thing
+      // it exists to prevent.
       const target = event.target as HTMLElement;
       const isInputField =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable;
+        event.key !== 'Escape' && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        );
 
       for (const shortcut of shortcuts) {
         // Skip if shortcut is disabled

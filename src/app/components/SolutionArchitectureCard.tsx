@@ -31,6 +31,7 @@ import type {
   ProposalDraft, Solution, SolutionPillar,
   ImplementationPhase,
 } from '@/app/types/cortex-types';
+import { brand, status, text } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -39,24 +40,24 @@ import type {
 const PILLAR_CFG: Record<SolutionPillar, {
   label: string; color: string; bg: string; Icon: React.FC<{ className?: string }>;
 }> = {
-  workflow:   { label: 'Workflow',   color: '#06D7F6', bg: 'bg-[#06D7F6]/10',  Icon: Workflow  },
-  agents:     { label: 'Agents',     color: '#8B5CF6', bg: 'bg-[#8B5CF6]/10',  Icon: Bot       },
-  revenue:    { label: 'Revenue',    color: '#10B981', bg: 'bg-[#10B981]/10',  Icon: TrendingUp},
-  monitoring: { label: 'Monitoring', color: '#FB923C', bg: 'bg-[#FB923C]/10',  Icon: Activity  },
+  workflow:   { label: 'Workflow',   color: status.info, bg: 'bg-cortex-info/10',  Icon: Workflow  },
+  agents:     { label: 'Agents',     color: brand.accent, bg: 'bg-cortex-accent/10',  Icon: Bot       },
+  revenue:    { label: 'Revenue',    color: status.success, bg: 'bg-cortex-success/10',  Icon: TrendingUp},
+  monitoring: { label: 'Monitoring', color: status.warning, bg: 'bg-cortex-warning/10',  Icon: Activity  },
 };
 
 const LEVER_CFG = [
-  { key: 'efficiency_gain' as const, label: 'Efficiency Gain',  color: '#06D7F6', Icon: Zap       },
-  { key: 'revenue_uplift'  as const, label: 'Revenue Uplift',   color: '#10B981', Icon: TrendingUp},
-  { key: 'cost_reduction'  as const, label: 'Cost Reduction',   color: '#8B5CF6', Icon: DollarSign},
-  { key: 'risk_mitigation' as const, label: 'Risk Mitigation',  color: '#FB923C', Icon: Shield    },
+  { key: 'efficiency_gain' as const, label: 'Efficiency Gain',  color: status.info, Icon: Zap       },
+  { key: 'revenue_uplift'  as const, label: 'Revenue Uplift',   color: status.success, Icon: TrendingUp},
+  { key: 'cost_reduction'  as const, label: 'Cost Reduction',   color: brand.accent, Icon: DollarSign},
+  { key: 'risk_mitigation' as const, label: 'Risk Mitigation',  color: status.warning, Icon: Shield    },
 ];
 
 const SCOPE_SECTIONS = [
-  { key: 'systems_affected'   as const, label: 'Systems Affected',   Icon: Layers,   color: '#06D7F6' },
-  { key: 'automation_layers'  as const, label: 'Automation Layers',  Icon: GitMerge, color: '#8B5CF6' },
-  { key: 'ai_components'      as const, label: 'AI Components',      Icon: Cpu,      color: '#10B981' },
-  { key: 'integration_points' as const, label: 'Integration Points', Icon: Plug2,    color: '#FB923C' },
+  { key: 'systems_affected'   as const, label: 'Systems Affected',   Icon: Layers,   color: status.info },
+  { key: 'automation_layers'  as const, label: 'Automation Layers',  Icon: GitMerge, color: brand.accent },
+  { key: 'ai_components'      as const, label: 'AI Components',      Icon: Cpu,      color: status.success },
+  { key: 'integration_points' as const, label: 'Integration Points', Icon: Plug2,    color: status.warning },
 ];
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -71,7 +72,7 @@ function bumpVersion(draft: ProposalDraft): ProposalDraft['metadata'] {
   };
 }
 
-function MiniLabel({ children, color = '#6B7280' }: { children: React.ReactNode; color?: string }) {
+function MiniLabel({ children, color = status.neutral }: { children: React.ReactNode; color?: string }) {
   return (
     <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color }}>
       {children}
@@ -85,7 +86,7 @@ function ComplexityDots({ score, max = 5 }: { score: number; max?: number }) {
       {Array.from({ length: max }, (_, i) => (
         <span
           key={i}
-          className={`size-1.5 rounded-full ${i < score ? 'bg-[#FB923C]' : 'bg-white/10'}`}
+          className={`size-1.5 rounded-full ${i < score ? 'bg-cortex-warning' : 'bg-cortex-control-hover'}`}
         />
       ))}
     </span>
@@ -100,14 +101,14 @@ function LeverBar({ value, color, label, Icon }: {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1 text-[9px] font-bold text-gray-500">
+        <span className="flex items-center gap-1 text-[9px] font-bold text-cortex-muted">
           <Icon className="size-2.5" style={{ color }} />{label}
         </span>
         <span className="text-[9px] font-bold font-mono" style={{ color }}>
           {pct > 0 ? `${pct}%` : '—'}
         </span>
       </div>
-      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-1 bg-cortex-control rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, background: color, opacity: pct > 0 ? 1 : 0.2 }}
@@ -120,11 +121,11 @@ function LeverBar({ value, color, label, Icon }: {
 function SmallList({
   items, color, icon: Icon,
 }: { items: string[]; color: string; icon: React.FC<{ className?: string }> }) {
-  if (!items.length) return <span className="text-[10px] text-gray-700 italic">None specified</span>;
+  if (!items.length) return <span className="text-[10px] text-cortex-faint italic">None specified</span>;
   return (
     <ul className="space-y-0.5">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-1.5 text-[10px] text-gray-400">
+        <li key={i} className="flex items-start gap-1.5 text-[10px] text-cortex-muted">
           <span className="size-1 rounded-full mt-1.5 flex-shrink-0" style={{ background: color }} />
           {item}
         </li>
@@ -134,7 +135,7 @@ function SmallList({
 }
 
 function StringListEditor({
-  items, onChange, accent = '#8B5CF6', placeholder = 'Add item…',
+  items, onChange, accent = brand.accent, placeholder = 'Add item…',
 }: {
   items: string[]; onChange: (items: string[]) => void;
   accent?: string; placeholder?: string;
@@ -155,9 +156,9 @@ function StringListEditor({
           <input
             value={item}
             onChange={e => update(i, e.target.value)}
-            className="flex-1 bg-transparent text-[10px] text-gray-300 focus:outline-none focus:text-white border-b border-transparent focus:border-white/10 py-0.5"
+            className="flex-1 bg-transparent text-[10px] text-cortex-secondary focus:outline-none focus:text-white border-b border-transparent focus:border-cortex-default py-0.5"
           />
-          <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-[#FD4438] transition-all">
+          <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 text-cortex-faint hover:text-cortex-danger transition-all">
             <Trash2 className="size-2.5" />
           </button>
         </div>
@@ -168,7 +169,7 @@ function StringListEditor({
           onChange={e => setNewItem(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder={placeholder}
-          className="flex-1 bg-white/[0.03] border border-white/8 rounded px-2 py-1 text-[10px] text-white placeholder:text-gray-700 focus:outline-none focus:border-white/20"
+          className="flex-1 bg-white/[0.03] border border-white/8 rounded px-2 py-1 text-[10px] text-white placeholder:text-cortex-faint focus:outline-none focus:border-cortex-strong"
         />
         <button
           onClick={add}
@@ -217,7 +218,7 @@ function SolutionRow({
     setLocal(l => ({ ...l, financial_levers: { ...l.financial_levers, [key]: v } }));
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-colors bg-black/20 ${open ? 'border-white/10' : 'border-white/5'}`}>
+    <div className={`border rounded-cortex-md overflow-hidden transition-colors bg-black/20 ${open ? 'border-cortex-default' : 'border-cortex-subtle'}`}>
       {/* ── Header row ── */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={() => setOpen(o => !o)} className="flex-1 flex items-center gap-3 text-left min-w-0">
@@ -238,7 +239,7 @@ function SolutionRow({
           {/* Linked diagnosis chips */}
           <span className="flex items-center gap-1 flex-shrink-0">
             {solution.linked_diagnosis_ids.map(id => (
-              <span key={id} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-gray-500">{id}</span>
+              <span key={id} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cortex-control text-cortex-muted">{id}</span>
             ))}
           </span>
 
@@ -246,25 +247,25 @@ function SolutionRow({
           <ComplexityDots score={solution.complexity_score} />
 
           {/* Confidence */}
-          <span className="text-[9px] font-bold font-mono text-gray-500 flex-shrink-0">
+          <span className="text-[9px] font-bold font-mono text-cortex-muted flex-shrink-0">
             {solution.confidence_score}% conf.
           </span>
 
           {open
-            ? <ChevronDown className="size-3.5 text-gray-600 flex-shrink-0" />
-            : <ChevronRight className="size-3.5 text-gray-600 flex-shrink-0" />
+            ? <ChevronDown className="size-3.5 text-cortex-faint flex-shrink-0" />
+            : <ChevronRight className="size-3.5 text-cortex-faint flex-shrink-0" />
           }
         </button>
 
         <button
           onClick={() => { setEditing(e => !e); setOpen(true); }}
-          className="text-[9px] text-gray-600 hover:text-[#8B5CF6] transition-colors px-1.5 py-1 rounded hover:bg-[#8B5CF6]/10 flex-shrink-0"
+          className="text-[9px] text-cortex-faint hover:text-cortex-accent transition-colors px-1.5 py-1 rounded hover:bg-cortex-accent/10 flex-shrink-0"
         >
           {editing ? 'View' : <Edit3 className="size-3" />}
         </button>
         <button
           onClick={onRemove}
-          className="text-[9px] text-gray-700 hover:text-[#FD4438] transition-colors px-1 py-1 rounded hover:bg-[#FD4438]/10 flex-shrink-0"
+          className="text-[9px] text-cortex-faint hover:text-cortex-danger transition-colors px-1 py-1 rounded hover:bg-cortex-danger/10 flex-shrink-0"
         >
           <Trash2 className="size-3" />
         </button>
@@ -272,7 +273,7 @@ function SolutionRow({
 
       {/* ── Expanded body ── */}
       {open && (
-        <div className="border-t border-white/5 px-4 py-4">
+        <div className="border-t border-cortex-subtle px-4 py-4">
           {editing ? (
             /* ─── EDIT MODE ─── */
             <div className="space-y-4">
@@ -283,7 +284,7 @@ function SolutionRow({
                   <input
                     value={local.title}
                     onChange={e => setLocal(l => ({ ...l, title: e.target.value }))}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#8B5CF6]/50"
+                    className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white focus:outline-none focus:border-cortex-accent/50"
                   />
                 </div>
                 <div className="space-y-1">
@@ -295,11 +296,11 @@ function SolutionRow({
                         <button
                           key={p}
                           onClick={() => setLocal(l => ({ ...l, pillar: p }))}
-                          className="flex-1 py-1.5 rounded-lg text-[9px] font-bold border transition-all"
+                          className="flex-1 py-1.5 rounded-cortex-sm text-[9px] font-bold border transition-all"
                           style={{
-                            color:       local.pillar === p ? cfg.color : '#6B7280',
+                            color:       local.pillar === p ? cfg.color : status.neutral,
                             background:  local.pillar === p ? `${cfg.color}14` : 'transparent',
-                            borderColor: local.pillar === p ? `${cfg.color}33` : '#ffffff10',
+                            borderColor: local.pillar === p ? `${cfg.color}33` : `${text.primary}10`,
                           }}
                         >
                           {cfg.label}
@@ -312,22 +313,22 @@ function SolutionRow({
 
               {/* Root problem + system description */}
               <div className="space-y-1">
-                <MiniLabel color="#FB923C">Root Problem Addressed</MiniLabel>
+                <MiniLabel color={status.warning}>Root Problem Addressed</MiniLabel>
                 <textarea
                   value={local.root_problem_addressed}
                   onChange={e => setLocal(l => ({ ...l, root_problem_addressed: e.target.value }))}
                   rows={2}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-[#8B5CF6]/50 placeholder:text-gray-700"
+                  className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-cortex-accent/50 placeholder:text-cortex-faint"
                   placeholder="What specific problem does this solution eliminate?"
                 />
               </div>
               <div className="space-y-1">
-                <MiniLabel color="#06D7F6">System Description</MiniLabel>
+                <MiniLabel color={status.info}>System Description</MiniLabel>
                 <textarea
                   value={local.system_description}
                   onChange={e => setLocal(l => ({ ...l, system_description: e.target.value }))}
                   rows={3}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-[#8B5CF6]/50 placeholder:text-gray-700"
+                  className="w-full bg-white/[0.04] border border-cortex-default rounded-cortex-sm px-3 py-2 text-xs text-white resize-y focus:outline-none focus:border-cortex-accent/50 placeholder:text-cortex-faint"
                   placeholder="Boardroom-level explanation of what this system does and how it changes the operation…"
                 />
               </div>
@@ -342,11 +343,11 @@ function SolutionRow({
                       <button
                         key={b.diagnosis_id}
                         onClick={() => toggleDxLink(b.diagnosis_id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-cortex-sm text-[10px] font-bold border transition-all"
                         style={{
-                          color:       linked ? '#10B981' : '#6B7280',
-                          background:  linked ? '#10B98114' : 'transparent',
-                          borderColor: linked ? '#10B98133' : '#ffffff10',
+                          color:       linked ? status.success : status.neutral,
+                          background:  linked ? `${status.success}14` : 'transparent',
+                          borderColor: linked ? `${status.success}33` : `${text.primary}10`,
                         }}
                       >
                         <span className="font-mono text-[9px]">{b.diagnosis_id}</span>
@@ -367,11 +368,11 @@ function SolutionRow({
                       <button
                         key={n}
                         onClick={() => setComplexity(n)}
-                        className="flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all"
+                        className="flex-1 py-1.5 rounded-cortex-sm text-[10px] font-bold border transition-all"
                         style={{
-                          color:       local.complexity_score === n ? '#FB923C' : '#6B7280',
-                          background:  local.complexity_score === n ? '#FB923C14' : 'transparent',
-                          borderColor: local.complexity_score === n ? '#FB923C33' : '#ffffff10',
+                          color:       local.complexity_score === n ? status.warning : status.neutral,
+                          background:  local.complexity_score === n ? `${status.warning}14` : 'transparent',
+                          borderColor: local.complexity_score === n ? `${status.warning}33` : `${text.primary}10`,
                         }}
                       >
                         {n}
@@ -386,26 +387,26 @@ function SolutionRow({
                       type="range" min={0} max={100}
                       value={local.confidence_score}
                       onChange={e => setLocal(l => ({ ...l, confidence_score: Number(e.target.value) }))}
-                      className="flex-1 accent-[#8B5CF6]"
+                      className="flex-1 accent-cortex-accent"
                     />
                     <span
                       className="text-xs font-bold font-mono w-8 text-right"
-                      style={{ color: local.confidence_score >= 70 ? '#10B981' : '#FD4438' }}
+                      style={{ color: local.confidence_score >= 70 ? status.success : status.danger }}
                     >
                       {local.confidence_score}
                     </span>
                   </div>
-                  <p className="text-[9px] text-gray-700">Gate requires ≥ 70</p>
+                  <p className="text-[9px] text-cortex-faint">Gate requires ≥ 70</p>
                 </div>
               </div>
 
               {/* Implementation scope — 2×2 grid */}
               <div>
-                <MiniLabel color="#8B5CF6">Implementation Scope</MiniLabel>
+                <MiniLabel color={brand.accent}>Implementation Scope</MiniLabel>
                 <div className="grid grid-cols-2 gap-3">
                   {SCOPE_SECTIONS.map(sc => (
                     <div key={sc.key} className="space-y-1">
-                      <div className="text-[9px] font-bold text-gray-600 flex items-center gap-1">
+                      <div className="text-[9px] font-bold text-cortex-faint flex items-center gap-1">
                         <sc.Icon className="size-2.5" style={{ color: sc.color }} />{sc.label}
                       </div>
                       <StringListEditor
@@ -423,11 +424,11 @@ function SolutionRow({
 
               {/* Operational outcomes */}
               <div className="space-y-1">
-                <MiniLabel color="#10B981">Expected Operational Outcomes</MiniLabel>
+                <MiniLabel color={status.success}>Expected Operational Outcomes</MiniLabel>
                 <StringListEditor
                   items={local.expected_operational_outcomes}
                   onChange={v => setLocal(l => ({ ...l, expected_operational_outcomes: v }))}
-                  accent="#10B981"
+                  accent={status.success}
                   placeholder="Add measurable outcome…"
                 />
               </div>
@@ -461,31 +462,31 @@ function SolutionRow({
               {/* Dependencies + risk flags */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <MiniLabel color="#06D7F6">Dependencies</MiniLabel>
+                  <MiniLabel color={status.info}>Dependencies</MiniLabel>
                   <StringListEditor
                     items={local.dependencies}
                     onChange={v => setLocal(l => ({ ...l, dependencies: v }))}
-                    accent="#06D7F6"
+                    accent={status.info}
                     placeholder="Add dependency…"
                   />
                 </div>
                 <div className="space-y-1">
-                  <MiniLabel color="#FD4438">Risk Flags</MiniLabel>
+                  <MiniLabel color={status.danger}>Risk Flags</MiniLabel>
                   <StringListEditor
                     items={local.risk_flags}
                     onChange={v => setLocal(l => ({ ...l, risk_flags: v }))}
-                    accent="#FD4438"
+                    accent={status.danger}
                     placeholder="Add risk flag…"
                   />
                 </div>
               </div>
 
               {/* Save / cancel */}
-              <div className="flex gap-2 justify-end pt-1 border-t border-white/5">
-                <button onClick={handleCancel} className="px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-white border border-white/10 rounded-lg transition-colors">
+              <div className="flex gap-2 justify-end pt-1 border-t border-cortex-subtle">
+                <button onClick={handleCancel} className="px-3 py-1.5 text-[10px] font-bold text-cortex-muted hover:text-white border border-cortex-default rounded-cortex-sm transition-colors">
                   Cancel
                 </button>
-                <button onClick={handleSave} className="px-3 py-1.5 text-[10px] font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/25 rounded-lg hover:bg-[#10B981]/20 transition-colors flex items-center gap-1">
+                <button onClick={handleSave} className="px-3 py-1.5 text-[10px] font-bold text-cortex-success bg-cortex-success/10 border border-cortex-success/25 rounded-cortex-sm hover:bg-cortex-success/20 transition-colors flex items-center gap-1">
                   <Check className="size-3" />Save Solution
                 </button>
               </div>
@@ -499,19 +500,19 @@ function SolutionRow({
                   <div className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: pillarCfg.color }}>
                     Root Problem Addressed
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">{solution.root_problem_addressed}</p>
+                  <p className="text-xs text-cortex-muted leading-relaxed">{solution.root_problem_addressed}</p>
                 </div>
               )}
 
               {/* System description */}
               <div>
-                <MiniLabel color="#06D7F6">System Description</MiniLabel>
-                <p className="text-xs text-gray-300 leading-relaxed">{solution.system_description}</p>
+                <MiniLabel color={status.info}>System Description</MiniLabel>
+                <p className="text-xs text-cortex-secondary leading-relaxed">{solution.system_description}</p>
               </div>
 
               {/* Implementation scope — 2×2 grid */}
               <div>
-                <MiniLabel color="#8B5CF6">Implementation Scope</MiniLabel>
+                <MiniLabel color={brand.accent}>Implementation Scope</MiniLabel>
                 <div className="grid grid-cols-2 gap-4">
                   {SCOPE_SECTIONS.map(sc => (
                     <div key={sc.key}>
@@ -531,11 +532,11 @@ function SolutionRow({
               {/* Operational outcomes */}
               {solution.expected_operational_outcomes.length > 0 && (
                 <div>
-                  <MiniLabel color="#10B981">Expected Operational Outcomes</MiniLabel>
+                  <MiniLabel color={status.success}>Expected Operational Outcomes</MiniLabel>
                   <ul className="space-y-1">
                     {solution.expected_operational_outcomes.map((o, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                        <span className="size-1.5 rounded-full bg-[#10B981] mt-1 flex-shrink-0" />
+                      <li key={i} className="flex items-start gap-2 text-xs text-cortex-secondary">
+                        <span className="size-1.5 rounded-full bg-cortex-success mt-1 flex-shrink-0" />
                         {o}
                       </li>
                     ))}
@@ -546,7 +547,7 @@ function SolutionRow({
               {/* Financial levers */}
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <BarChart3 className="size-3 text-gray-600" />
+                  <BarChart3 className="size-3 text-cortex-faint" />
                   <MiniLabel>Financial Impact Drivers</MiniLabel>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2">
@@ -564,21 +565,21 @@ function SolutionRow({
 
               {/* Dependencies + risk flags */}
               {(solution.dependencies.length > 0 || solution.risk_flags.length > 0) && (
-                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-3">
+                <div className="grid grid-cols-2 gap-4 border-t border-cortex-subtle pt-3">
                   {solution.dependencies.length > 0 && (
                     <div>
-                      <div className="text-[9px] font-bold text-[#06D7F6] uppercase mb-1.5 flex items-center gap-1">
+                      <div className="text-[9px] font-bold text-cortex-info uppercase mb-1.5 flex items-center gap-1">
                         <Package className="size-2.5" />Dependencies
                       </div>
-                      <SmallList items={solution.dependencies} color="#06D7F6" icon={Package} />
+                      <SmallList items={solution.dependencies} color={status.info} icon={Package} />
                     </div>
                   )}
                   {solution.risk_flags.length > 0 && (
                     <div>
-                      <div className="text-[9px] font-bold text-[#FD4438] uppercase mb-1.5 flex items-center gap-1">
+                      <div className="text-[9px] font-bold text-cortex-danger uppercase mb-1.5 flex items-center gap-1">
                         <AlertCircle className="size-2.5" />Risk Flags
                       </div>
-                      <SmallList items={solution.risk_flags} color="#FD4438" icon={AlertCircle} />
+                      <SmallList items={solution.risk_flags} color={status.danger} icon={AlertCircle} />
                     </div>
                   )}
                 </div>
@@ -619,9 +620,9 @@ function PhaseTimeline({
   if (!phases.length) return null;
 
   return (
-    <div className="mt-6 pt-5 border-t border-white/5">
+    <div className="mt-6 pt-5 border-t border-cortex-subtle">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+        <div className="flex items-center gap-2 text-[10px] font-bold text-cortex-muted">
           <Calendar className="size-3" />
           IMPLEMENTATION PHASES · {phases.length} phases · {totalWeeks} weeks total
         </div>
@@ -633,23 +634,23 @@ function PhaseTimeline({
           const isEditing = editingIdx === i;
 
           return (
-            <div key={phase.phase_number} className="bg-black/30 border border-white/8 rounded-xl overflow-hidden">
+            <div key={phase.phase_number} className="bg-cortex-sunken border border-white/8 rounded-cortex-md overflow-hidden">
               {/* Phase header */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-cortex-subtle">
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-black text-white/20 font-mono leading-none">
                     {String(phase.phase_number).padStart(2, '0')}
                   </span>
                   <div>
                     <div className="text-xs font-bold text-white leading-tight">{phase.title}</div>
-                    <div className="text-[9px] text-gray-600 flex items-center gap-1 mt-0.5">
+                    <div className="text-[9px] text-cortex-faint flex items-center gap-1 mt-0.5">
                       <Clock className="size-2" />{phase.duration_weeks} weeks
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => isEditing ? cancelEdit() : startEdit(i)}
-                  className="text-[9px] text-gray-600 hover:text-[#8B5CF6] transition-colors px-1.5 py-1 rounded hover:bg-[#8B5CF6]/10"
+                  className="text-[9px] text-cortex-faint hover:text-cortex-accent transition-colors px-1.5 py-1 rounded hover:bg-cortex-accent/10"
                 >
                   {isEditing ? <X className="size-3" /> : <Edit3 className="size-3" />}
                 </button>
@@ -658,7 +659,7 @@ function PhaseTimeline({
               <div className="p-3 space-y-2.5">
                 {/* Solution assignments */}
                 <div>
-                  <div className="text-[9px] font-bold text-gray-600 uppercase mb-1.5 flex items-center gap-1">
+                  <div className="text-[9px] font-bold text-cortex-faint uppercase mb-1.5 flex items-center gap-1">
                     <Link2 className="size-2.5" />Solutions
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -674,14 +675,14 @@ function PhaseTimeline({
                         </span>
                       );
                     }) : (
-                      <span className="text-[9px] text-gray-700 italic">No solutions assigned</span>
+                      <span className="text-[9px] text-cortex-faint italic">No solutions assigned</span>
                     )}
                   </div>
                 </div>
 
                 {/* Deliverables */}
                 <div>
-                  <div className="text-[9px] font-bold text-gray-600 uppercase mb-1.5 flex items-center gap-1">
+                  <div className="text-[9px] font-bold text-cortex-faint uppercase mb-1.5 flex items-center gap-1">
                     <Flag className="size-2.5" />Deliverables
                   </div>
                   {isEditing && localPhase ? (
@@ -689,12 +690,12 @@ function PhaseTimeline({
                       <StringListEditor
                         items={localPhase.deliverables}
                         onChange={v => setLocalPhase(p => p ? { ...p, deliverables: v } : p)}
-                        accent="#10B981"
+                        accent={status.success}
                         placeholder="Add deliverable…"
                       />
                       <button
                         onClick={() => saveEdit(i)}
-                        className="w-full mt-1 py-1 text-[9px] font-bold text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 rounded-lg hover:bg-[#10B981]/20 transition-colors flex items-center justify-center gap-1"
+                        className="w-full mt-1 py-1 text-[9px] font-bold text-cortex-success bg-cortex-success/10 border border-cortex-success/20 rounded-cortex-sm hover:bg-cortex-success/20 transition-colors flex items-center justify-center gap-1"
                       >
                         <Check className="size-2.5" />Save Phase
                       </button>
@@ -702,12 +703,12 @@ function PhaseTimeline({
                   ) : (
                     <ul className="space-y-0.5">
                       {phase.deliverables.map((d, di) => (
-                        <li key={di} className="flex items-start gap-1.5 text-[10px] text-gray-400">
-                          <span className="size-1 rounded-full bg-[#10B981] mt-1.5 flex-shrink-0" />{d}
+                        <li key={di} className="flex items-start gap-1.5 text-[10px] text-cortex-muted">
+                          <span className="size-1 rounded-full bg-cortex-success mt-1.5 flex-shrink-0" />{d}
                         </li>
                       ))}
                       {phase.deliverables.length === 0 && (
-                        <li className="text-[10px] text-gray-700 italic">No deliverables defined</li>
+                        <li className="text-[10px] text-cortex-faint italic">No deliverables defined</li>
                       )}
                     </ul>
                   )}
@@ -725,14 +726,14 @@ function PhaseTimeline({
             key={p.phase_number}
             className="h-1 rounded-full flex-1 relative"
             style={{
-              background: i === 0 ? '#8B5CF6' : i === 1 ? '#06D7F6' : '#10B981',
+              background: i === 0 ? brand.accent : i === 1 ? status.info : status.success,
               flexGrow: p.duration_weeks,
             }}
             title={`Phase ${p.phase_number}: ${p.duration_weeks} weeks`}
           />
         ))}
       </div>
-      <div className="flex justify-between text-[8px] text-gray-700 mt-1">
+      <div className="flex justify-between text-[8px] text-cortex-faint mt-1">
         <span>Week 1</span>
         <span>Week {totalWeeks}</span>
       </div>
@@ -789,27 +790,27 @@ export function SolutionArchitectureCard({ draft, onSave }: SolutionArchitecture
   };
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+    <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
       {/* Card header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
         <span className="flex items-center gap-2.5 text-sm font-bold text-white">
-          <Bot className="size-4 flex-shrink-0 text-[#8B5CF6]" />
+          <Bot className="size-4 flex-shrink-0 text-cortex-accent" />
           Solution Architecture
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: '#8B5CF6', borderColor: '#8B5CF633', background: '#8B5CF614' }}
+            style={{ color: brand.accent, borderColor: `${brand.accent}33`, background: `${brand.accent}14` }}
           >
             Phase 2
           </span>
           {solutions.length > 0 && (
-            <span className="text-[9px] text-gray-600 font-normal">
+            <span className="text-[9px] text-cortex-faint font-normal">
               {solutions.length} solution{solutions.length !== 1 ? 's' : ''} · {phases.length} phase{phases.length !== 1 ? 's' : ''}
             </span>
           )}
         </span>
         <button
           onClick={addSolution}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[10px] font-bold rounded-lg hover:border-[#8B5CF6]/40 hover:text-[#8B5CF6] transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-cortex-control border border-cortex-default text-cortex-muted text-[10px] font-bold rounded-cortex-sm hover:border-cortex-accent/40 hover:text-cortex-accent transition-colors"
         >
           <Plus className="size-3" />Add Solution
         </button>
@@ -818,9 +819,9 @@ export function SolutionArchitectureCard({ draft, onSave }: SolutionArchitecture
       <div className="p-5">
         {solutions.length === 0 ? (
           <div className="text-center py-10 space-y-2">
-            <Bot className="size-8 text-gray-700 mx-auto" />
-            <p className="text-sm font-bold text-gray-600">No solutions defined yet</p>
-            <p className="text-xs text-gray-700 max-w-xs mx-auto">
+            <Bot className="size-8 text-cortex-faint mx-auto" />
+            <p className="text-sm font-bold text-cortex-faint">No solutions defined yet</p>
+            <p className="text-xs text-cortex-faint max-w-xs mx-auto">
               Phase 2 gate requires ≥ 2 solutions, each mapped to a confirmed diagnosis with measurable financial levers.
             </p>
           </div>
@@ -849,7 +850,7 @@ export function SolutionArchitectureCard({ draft, onSave }: SolutionArchitecture
         )}
 
         {solutions.length > 0 && (
-          <p className="text-[9px] text-gray-700 flex items-center gap-1.5 mt-4 pt-3 border-t border-white/5">
+          <p className="text-[9px] text-cortex-faint flex items-center gap-1.5 mt-4 pt-3 border-t border-cortex-subtle">
             <Info className="size-2.5" />
             Phase 2 gate requires: ≥ 2 solutions, all diagnoses mapped, every solution has financial levers &gt; 0, every solution assigned to a phase, avg confidence ≥ 70.
           </p>

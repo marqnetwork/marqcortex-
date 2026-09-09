@@ -15,10 +15,17 @@
  */
 
 import { useState, useRef, lazy, Suspense } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
+import {
+  DESTINATIONS,
+  destinationLabel,
+  PAGE_PARAM,
+  type DestinationId,
+} from '@/app/core/navigationModel';
+import { LoadingState } from '@/app/components/ui/cortex';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
 // Each import() is its own Vite split point.
@@ -31,24 +38,27 @@ const EmailNurturePanel          = lazy(() => import('@/app/components/EmailNurt
 const RevenueIntelligenceDashboard = lazy(() => import('@/app/components/RevenueIntelligenceDashboard').then(m => ({ default: m.RevenueIntelligenceDashboard })));
 const TeamHomeDashboard          = lazy(() => import('@/app/components/TeamHomeDashboard').then(m => ({ default: m.TeamHomeDashboard })));
 const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEnginePanel').then(m => ({ default: m.MappingEnginePanel })));
+// The AI Control Plane, as a first-class destination. This is the SAME console
+// the Settings "AI" tab mounts, not a copy: Ch. 21.4 wants many paths to one
+// canonical entity. It resolves the operator's role server-side and renders its
+// own unauthorized state, exactly as it does under Settings.
+const AIAdministrationConsole    = lazy(() => import('@/app/components/AIAdministrationConsole').then(m => ({ default: m.AIAdministrationConsole })));
+// Operational awareness (§IV-51 health, §IV-48 KPIs).
+const OperationsPanel            = lazy(() => import('@/app/components/OperationsPanel').then(m => ({ default: m.OperationsPanel })));
 
-// ── Panel skeleton shown while a lazy chunk is loading ────────────────────────
+/**
+ * Shown while a lazily-split panel's chunk is downloading.
+ *
+ * This was a hand-built skeleton with its own hard-coded surface colour, radius
+ * and keyframes — and no accessible name, so a screen-reader user got silence
+ * for the length of the download. It is now the shared `LoadingState`, which
+ * announces the wait and is styled from the token layer like every other
+ * loading surface in the console.
+ */
 function PanelSkeleton() {
   return (
-    <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {[80, 60, 100, 60, 80].map((w, i) => (
-        <div
-          key={i}
-          style={{
-            height: i === 0 ? '40px' : '20px',
-            width: `${w}%`,
-            borderRadius: '8px',
-            background: 'rgba(255,255,255,0.05)',
-            animation: 'pulse 1.5s ease-in-out infinite',
-          }}
-        />
-      ))}
-      <style>{`@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }`}</style>
+    <div className="p-8">
+      <LoadingState label="Loading this section" rows={5} />
     </div>
   );
 }
@@ -66,27 +76,68 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
   );
 }
 
-type PageView = 'dashboard' | 'cortex' | 'team' | 'settings' | 'reviewer' | 'analytics' | 'emails' | 'revenue' | 'execution' | 'mapping' | 'architecture';
+// The navigation model owns the destination list; this alias keeps the local
+// name while the single source of truth stays in one place (Ch. 21.4).
+type PageView = DestinationId;
 
-const TEAM_DASHBOARD_PAGE_KEY = 'teamDashboardPage';
+/**
+ * The destinations this shell renders in place. 'execution' and 'architecture'
+ * are real destinations, but handleNavigate routes them out of the shell, so
+ * they are never a currentPage here. Derived from the model so a destination
+ * added there and rendered here needs no second list to be updated.
+ */
+const ROUTED_AWAY: ReadonlySet<DestinationId> = new Set<DestinationId>([
+  'execution',
+  'architecture',
+]);
+const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
+  DESTINATIONS.map(d => d.id).filter(id => !ROUTED_AWAY.has(id)),
+);
 
-function readInitialPage(): PageView {
-  try {
-    const saved = sessionStorage.getItem(TEAM_DASHBOARD_PAGE_KEY);
-    if (saved) {
-      sessionStorage.removeItem(TEAM_DASHBOARD_PAGE_KEY);
-      return saved as PageView;
-    }
-  } catch {
-    // sessionStorage unavailable — fall back to dashboard
-  }
+/**
+ * RECOVERY FROM A REFRESH.
+ *
+ * The destination named by the URL, or the dashboard.
+ *
+ * The shell used to keep the page in `useState`, seeded from a sessionStorage
+ * key that was read and DELETED in the same breath — so a refresh, a reconnect
+ * or an accidental reload mid-review always dropped the operator back on the
+ * dashboard, losing where they were with no warning. The URL is now the record,
+ * which restores on refresh, survives a shared link and makes Back mean what it
+ * says.
+ *
+ * An unknown value falls back rather than being trusted: the parameter is
+ * user-editable, and a hand-typed `?page=nonsense` must land somewhere real
+ * instead of on the invalid-page error screen.
+ */
+function pageFromParam(raw: string | null): PageView {
+  if (raw && SHELL_PAGES.has(raw as DestinationId)) return raw as PageView;
   return 'dashboard';
 }
 
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state, setCortexState, resetState } = useDashboard();
-  const [currentPage, setCurrentPage] = useState<PageView>(readInitialPage);
+
+  // The URL is the source of truth for which destination is showing, so Back,
+  // Forward, a refresh and a shared link all agree with the sidebar.
+  const currentPage = pageFromParam(searchParams.get(PAGE_PARAM));
+  const setCurrentPage = (page: PageView) => {
+    setSearchParams(
+      previous => {
+        const next = new URLSearchParams(previous);
+        // The dashboard is the shell's root; it needs no parameter, and
+        // carrying one would make two URLs for one place.
+        if (page === 'dashboard') next.delete(PAGE_PARAM);
+        else next.set(PAGE_PARAM, page);
+        return next;
+      },
+      // A destination change is a navigation, so it belongs in history: Back
+      // returns to where the operator came from, which is the whole point.
+      { replace: false },
+    );
+  };
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,32 +178,22 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         
         return breadcrumbs;
         
-      case 'team':
-        return [{ label: 'Team Management' }];
-        
-      case 'settings':
-        return [{ label: 'Settings' }];
-        
-      case 'reviewer':
-        return [{ label: 'Reviewer Dashboard' }];
-        
-      case 'analytics':
-        return [{ label: 'Analytics Dashboard' }];
-        
-      case 'emails':
-        return [{ label: 'Email Nurture Queue' }];
-
-      case 'revenue':
-        return [{ label: 'Revenue Intelligence' }];
-
-      case 'mapping':
-        return [{ label: 'Mapping Engine' }];
-
-      case 'architecture':
-        return [{ label: 'System Architecture' }];
-        
-      default:
+      // Every other page is named once, by the navigation model. These cases
+      // used to be eight hand-written labels that had already drifted from the
+      // sidebar's — the same page was "Reviewer QA" in the sidebar and
+      // "Reviewer Dashboard" in the trail, which is precisely the kind of
+      // small inconsistency that makes a user doubt they are where they think
+      // they are.
+      // The header always renders "Dashboard" as the trail's root, so the home
+      // page adds nothing after it.
+      case 'dashboard':
         return [];
+
+      default:
+        // Ch. 21.12 — orientation is continuous. A destination with no bespoke
+        // trail still says where the operator is, using the same label the
+        // sidebar used to get them here.
+        return [{ label: destinationLabel(currentPage) }];
     }
   };
 
@@ -268,8 +309,22 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         </Suspense>
       )}
 
-      {/* Fallback */}
-      {!['dashboard', 'cortex', 'team', 'settings', 'reviewer', 'analytics', 'emails', 'revenue', 'mapping'].includes(currentPage) && (
+      {currentPage === 'control-plane' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <AIAdministrationConsole key="control-plane-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {currentPage === 'operations' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <OperationsPanel key="operations-page" accessToken={accessToken} />
+        </Suspense>
+      )}
+
+      {/* Fallback. Derived from the destinations this shell actually renders —
+          'execution' and 'architecture' are handled by handleNavigate, which
+          leaves the shell entirely, so they never become currentPage. */}
+      {!SHELL_PAGES.has(currentPage) && (
         <div className="p-6 text-center">
           <div className="text-red-500 text-xl mb-2">⚠️ ERROR</div>
           <div className="text-white">Invalid page: {currentPage}</div>

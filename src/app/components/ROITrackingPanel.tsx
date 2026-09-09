@@ -50,6 +50,10 @@ import {
   VARIANCE_TAG_CFG,
 } from '@/app/core/roiTrackingEngine';
 import type { ProjectedMonth } from '@/app/core/roiTrackingEngine';
+import { useDialogBehavior } from '@/app/components/ui/cortex';
+import { border, brand, status,
+  text as TEXT_TOKEN,
+} from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -62,15 +66,15 @@ function fmtUSD(n: number): string {
 }
 
 function varianceColor(pct: number): string {
-  if (pct >= 0)   return '#10B981';
-  if (pct >= -25) return '#F59E0B';
-  return '#FD4438';
+  if (pct >= 0)   return status.success;
+  if (pct >= -25) return status.caution;
+  return status.danger;
 }
 
 const QUALITY_CFG = {
-  high:   { color: '#10B981', label: 'High'   },
-  medium: { color: '#F59E0B', label: 'Medium' },
-  low:    { color: '#FD4438', label: 'Low'    },
+  high:   { color: status.success, label: 'High'   },
+  medium: { color: status.caution, label: 'Medium' },
+  low:    { color: status.danger, label: 'Low'    },
 } as const;
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -78,7 +82,7 @@ const QUALITY_CFG = {
 // ════════════════════════════════════════════════════════════════════════════════
 
 function SectionShell({
-  icon: Icon, title, badge, accent = '#10B981', defaultOpen = true, children, action,
+  icon: Icon, title, badge, accent = status.success, defaultOpen = true, children, action,
 }: {
   icon:        LucideIcon;
   title:       string;
@@ -90,7 +94,7 @@ function SectionShell({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-black/30 border border-white/8 rounded-xl overflow-hidden">
+    <div className="bg-cortex-sunken border border-white/8 rounded-cortex-md overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setOpen(o => !o)}
@@ -109,7 +113,7 @@ function SectionShell({
         </span>
         <span className="flex items-center gap-2">
           {action}
-          {open ? <ChevronDown className="size-3.5 text-gray-600" /> : <ChevronRight className="size-3.5 text-gray-600" />}
+          {open ? <ChevronDown className="size-3.5 text-cortex-faint" /> : <ChevronRight className="size-3.5 text-cortex-faint" />}
         </span>
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
@@ -142,18 +146,18 @@ function BaselineCard({ draft }: { draft: ProposalDraft }) {
       icon={Target}
       title="Baseline Snapshot"
       badge={`Captured at contract_signed`}
-      accent="#06D7F6"
+      accent={status.info}
     >
       {/* Quality + notes */}
       <div
-        className="flex items-start gap-3 mb-4 px-3 py-2.5 rounded-lg border"
+        className="flex items-start gap-3 mb-4 px-3 py-2.5 rounded-cortex-sm border"
         style={{ borderColor: `${cfg.color}20`, background: `${cfg.color}06` }}
       >
         <div className="flex-shrink-0 flex flex-col items-center gap-0.5 mt-0.5">
           <div className="text-xs font-black" style={{ color: cfg.color }}>{cfg.label}</div>
-          <div className="text-[8px] text-gray-700 uppercase tracking-wide">quality</div>
+          <div className="text-[8px] text-cortex-faint uppercase tracking-wide">quality</div>
         </div>
-        <p className="text-[9px] text-gray-500 leading-relaxed">{bl.notes}</p>
+        <p className="text-[9px] text-cortex-muted leading-relaxed">{bl.notes}</p>
       </div>
 
       {/* Metrics grid */}
@@ -161,18 +165,18 @@ function BaselineCard({ draft }: { draft: ProposalDraft }) {
         {rows.map(r => (
           <div
             key={r.label}
-            className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-black/20 border border-white/5"
+            className="flex items-center gap-2 px-2.5 py-2 rounded-cortex-sm bg-black/20 border border-cortex-subtle"
           >
-            <r.icon className="size-3 text-gray-600 flex-shrink-0" />
+            <r.icon className="size-3 text-cortex-faint flex-shrink-0" />
             <div className="min-w-0">
-              <div className="text-[8px] text-gray-700 truncate">{r.label}</div>
+              <div className="text-[8px] text-cortex-faint truncate">{r.label}</div>
               <div className="text-[10px] font-bold text-white">{r.value}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-3 text-[9px] text-gray-700 flex items-center gap-1.5">
+      <div className="mt-3 text-[9px] text-cortex-faint flex items-center gap-1.5">
         <Activity className="size-2.5" />
         Baseline ID: <span className="font-mono">{bl.baseline_id}</span>
         &nbsp;·&nbsp;Portfolio version: <span className="font-mono">{bl.portfolio_version_id}</span>
@@ -243,17 +247,17 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
   const disabled = !gain || month > maxMonth;
 
   return (
-    <SectionShell icon={Plus} title="Monthly Actuals Input" badge="Manual Entry" accent="#8B5CF6">
+    <SectionShell icon={Plus} title="Monthly Actuals Input" badge="Manual Entry" accent={brand.accent}>
       <div className="space-y-3">
         {/* Period selector */}
         <div className="flex items-center gap-2">
-          <label className="text-[9px] font-bold text-gray-600 uppercase tracking-wide w-24 flex-shrink-0">
+          <label className="text-[9px] font-bold text-cortex-faint uppercase tracking-wide w-24 flex-shrink-0">
             Period
           </label>
           <select
             value={month}
             onChange={e => setMonth(Number(e.target.value))}
-            className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white focus:border-[#8B5CF6]/40 outline-none"
+            className="flex-1 bg-cortex-sunken border border-cortex-default rounded-cortex-sm px-2 py-1.5 text-[10px] text-white focus:border-cortex-accent/40 outline-none"
           >
             {projected.map(p => (
               <option key={p.month} value={p.month}>{p.label} — projected gain {fmtUSD(p.monthly_gain)}</option>
@@ -263,11 +267,11 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
 
         {/* Metric fields */}
         {([
-          ['Actual Monthly Gain ($)',       gain, setGain, '#10B981'],
-          ['Actual Monthly Investment ($)',  inv,  setInv,  '#FD4438'],
+          ['Actual Monthly Gain ($)',       gain, setGain, status.success],
+          ['Actual Monthly Investment ($)',  inv,  setInv,  status.danger],
         ] as [string, string, (v: string) => void, string][]).map(([label, val, setter, accent]) => (
           <div key={label} className="flex items-center gap-2">
-            <label className="text-[9px] font-bold text-gray-600 uppercase tracking-wide w-24 flex-shrink-0 leading-tight">
+            <label className="text-[9px] font-bold text-cortex-faint uppercase tracking-wide w-24 flex-shrink-0 leading-tight">
               {label}
             </label>
             <input
@@ -276,7 +280,7 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
               value={val}
               onChange={e => setter(e.target.value)}
               placeholder="0"
-              className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white font-mono placeholder:text-gray-700 focus:outline-none"
+              className="flex-1 bg-cortex-sunken border border-cortex-default rounded-cortex-sm px-2 py-1.5 text-[10px] text-white font-mono placeholder:text-cortex-faint focus:outline-none"
               style={{ borderColor: val ? `${accent}30` : undefined }}
             />
           </div>
@@ -285,14 +289,14 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
         {/* Net preview */}
         {(gain || inv) && (
           <div
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px]"
+            className="flex items-center gap-2 px-3 py-2 rounded-cortex-sm border text-[10px]"
             style={{
-              borderColor: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? '#10B98120' : '#FD443820',
-              background:  (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? '#10B98108' : '#FD443808',
+              borderColor: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? `${status.success}20` : `${status.danger}20`,
+              background:  (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? `${status.success}08` : `${status.danger}08`,
             }}
           >
-            <span className="text-gray-600">Net this month:</span>
-            <span className="font-bold ml-auto" style={{ color: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? '#10B981' : '#FD4438' }}>
+            <span className="text-cortex-faint">Net this month:</span>
+            <span className="font-bold ml-auto" style={{ color: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? status.success : status.danger }}>
               {fmtUSD(parseFloat(gain || '0') - parseFloat(inv || '0'))}
             </span>
           </div>
@@ -300,7 +304,7 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
 
         {/* Notes */}
         <div className="flex items-start gap-2">
-          <label className="text-[9px] font-bold text-gray-600 uppercase tracking-wide w-24 flex-shrink-0 pt-1.5">
+          <label className="text-[9px] font-bold text-cortex-faint uppercase tracking-wide w-24 flex-shrink-0 pt-1.5">
             Notes
           </label>
           <textarea
@@ -308,18 +312,18 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
             onChange={e => setNotes(e.target.value)}
             placeholder="What drove this period's results?"
             rows={2}
-            className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white placeholder:text-gray-700 resize-none focus:outline-none"
+            className="flex-1 bg-cortex-sunken border border-cortex-default rounded-cortex-sm px-2 py-1.5 text-[10px] text-white placeholder:text-cortex-faint resize-none focus:outline-none"
           />
         </div>
 
         <button
           onClick={handleSubmit}
           disabled={disabled}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold border transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-cortex-sm text-[10px] font-bold border transition-all"
           style={{
-            borderColor: saved ? '#10B981' : disabled ? '#ffffff10' : '#8B5CF640',
-            background:  saved ? '#10B98114' : disabled ? 'transparent' : '#8B5CF614',
-            color:       saved ? '#10B981'  : disabled ? '#374151' : '#8B5CF6',
+            borderColor: saved ? status.success : disabled ? `${TEXT_TOKEN.primary}10` : `${brand.accent}40`,
+            background:  saved ? `${status.success}14` : disabled ? 'transparent' : `${brand.accent}14`,
+            color:       saved ? status.success  : disabled ? border.strong : brand.accent,
             cursor:      disabled ? 'not-allowed' : 'pointer',
           }}
         >
@@ -338,12 +342,12 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#0D0D18] border border-white/10 rounded-xl p-3 shadow-2xl text-[9px] space-y-1.5">
+    <div className="bg-cortex-overlay border border-cortex-default rounded-cortex-md p-3 shadow-2xl text-[9px] space-y-1.5">
       <div className="font-bold text-white mb-1">{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="size-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-gray-500">{p.name}:</span>
+          <span className="text-cortex-muted">{p.name}:</span>
           <span className="font-bold" style={{ color: p.color }}>{fmtUSD(p.value ?? 0)}</span>
         </div>
       ))}
@@ -378,22 +382,22 @@ function ROIChart({
   });
 
   return (
-    <SectionShell icon={BarChart2} title="Projected vs Actual" badge="12-Month View" accent="#3B82F6" defaultOpen>
+    <SectionShell icon={BarChart2} title="Projected vs Actual" badge="12-Month View" accent={brand.accentAlt} defaultOpen>
       <div className="space-y-4">
         {/* Monthly gain bars */}
         <div>
-          <div className="text-[9px] font-bold uppercase tracking-wide text-gray-700 mb-2">Monthly Gain</div>
+          <div className="text-[9px] font-bold uppercase tracking-wide text-cortex-faint mb-2">Monthly Gain</div>
           <ResponsiveContainer width="100%" height={160}>
             <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 9, fill: '#6B7280' }}
+                tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
-                axisLine={{ stroke: '#ffffff10' }}
+                axisLine={{ stroke: `${TEXT_TOKEN.primary}10` }}
               />
               <YAxis
-                tick={{ fontSize: 9, fill: '#6B7280' }}
+                tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={v => `$${(v / 1000).toFixed(0)}k`}
@@ -402,21 +406,21 @@ function ROIChart({
               <Tooltip content={<CustomTooltip />} />
               <Legend
                 iconSize={8}
-                wrapperStyle={{ fontSize: 9, color: '#6B7280', paddingTop: 6 }}
+                wrapperStyle={{ fontSize: 9, color: status.neutral, paddingTop: 6 }}
               />
               <Bar
                 dataKey="projected_gain"
                 name="Projected"
-                fill="#3B82F620"
-                stroke="#3B82F6"
+                fill={`${brand.accentAlt}20`}
+                stroke={brand.accentAlt}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
               />
               <Bar
                 dataKey="actual_gain"
                 name="Actual"
-                fill="#10B98140"
-                stroke="#10B981"
+                fill={`${status.success}40`}
+                stroke={status.success}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
               />
@@ -426,34 +430,34 @@ function ROIChart({
 
         {/* Cumulative line chart */}
         <div>
-          <div className="text-[9px] font-bold uppercase tracking-wide text-gray-700 mb-2">Cumulative Net Value</div>
+          <div className="text-[9px] font-bold uppercase tracking-wide text-cortex-faint mb-2">Cumulative Net Value</div>
           <ResponsiveContainer width="100%" height={140}>
             <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 9, fill: '#6B7280' }}
+                tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
-                axisLine={{ stroke: '#ffffff10' }}
+                axisLine={{ stroke: `${TEXT_TOKEN.primary}10` }}
               />
               <YAxis
-                tick={{ fontSize: 9, fill: '#6B7280' }}
+                tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={v => `$${(v / 1000).toFixed(0)}k`}
                 width={38}
               />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="#ffffff15" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke={border.default} strokeDasharray="4 4" />
               <Legend
                 iconSize={8}
-                wrapperStyle={{ fontSize: 9, color: '#6B7280', paddingTop: 6 }}
+                wrapperStyle={{ fontSize: 9, color: status.neutral, paddingTop: 6 }}
               />
               <Line
                 type="monotone"
                 dataKey="proj_cumulative"
                 name="Proj. Cumulative"
-                stroke="#3B82F6"
+                stroke={brand.accentAlt}
                 strokeWidth={1.5}
                 strokeDasharray="5 3"
                 dot={false}
@@ -462,9 +466,9 @@ function ROIChart({
                 type="monotone"
                 dataKey="act_cumulative"
                 name="Act. Cumulative"
-                stroke="#10B981"
+                stroke={status.success}
                 strokeWidth={2}
-                dot={{ r: 3, fill: '#10B981', strokeWidth: 0 }}
+                dot={{ r: 3, fill: status.success, strokeWidth: 0 }}
                 connectNulls={false}
               />
             </ComposedChart>
@@ -489,9 +493,9 @@ function VarianceLog({
   onUpdateTags: (varId: string, tags: VarianceReasonTag[]) => void;
 }) {
   return (
-    <SectionShell icon={AlertCircle} title="Variance Log" badge={`${variances.length} periods`} accent="#FB923C">
+    <SectionShell icon={AlertCircle} title="Variance Log" badge={`${variances.length} periods`} accent={status.warning}>
       {variances.length === 0 ? (
-        <div className="text-center py-6 text-[10px] text-gray-700">
+        <div className="text-center py-6 text-[10px] text-cortex-faint">
           No variance data yet — add actuals to compute variance.
         </div>
       ) : (
@@ -503,7 +507,7 @@ function VarianceLog({
             return (
               <div
                 key={v.variance_id}
-                className="rounded-xl border overflow-hidden"
+                className="rounded-cortex-md border overflow-hidden"
                 style={{ borderColor: `${vc}18` }}
               >
                 {/* Header row */}
@@ -513,7 +517,7 @@ function VarianceLog({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-[10px] font-bold text-white">{v.period_label}</div>
-                    <div className="text-[9px] text-gray-600">{v.period}</div>
+                    <div className="text-[9px] text-cortex-faint">{v.period}</div>
                   </div>
                   <div className="text-right flex-shrink-0 space-y-0.5">
                     <div className="text-[10px] font-black" style={{ color: vc }}>
@@ -526,17 +530,17 @@ function VarianceLog({
                 </div>
 
                 {/* Proj vs Actual rows */}
-                <div className="px-3 py-2 grid grid-cols-3 gap-2 border-t border-white/5">
+                <div className="px-3 py-2 grid grid-cols-3 gap-2 border-t border-cortex-subtle">
                   {[
-                    { label: 'Proj Gain',   val: v.projected.monthly_gain,   c: '#3B82F6' },
+                    { label: 'Proj Gain',   val: v.projected.monthly_gain,   c: brand.accentAlt },
                     { label: 'Act Gain',    val: v.actual.monthly_gain,      c: vc        },
                     { label: 'Pay Shift',   val: null, shift: v.delta.variance_payback_shift },
                   ].map(r => (
                     <div key={r.label} className="text-center">
-                      <div className="text-[8px] text-gray-700">{r.label}</div>
+                      <div className="text-[8px] text-cortex-faint">{r.label}</div>
                       <div
                         className="text-[10px] font-bold"
-                        style={{ color: r.c ?? (r.shift! >= 0 ? '#FD4438' : '#10B981') }}
+                        style={{ color: r.c ?? (r.shift! >= 0 ? status.danger : status.success) }}
                       >
                         {r.val !== undefined && r.val !== null
                           ? fmtUSD(r.val)
@@ -548,8 +552,8 @@ function VarianceLog({
                 </div>
 
                 {/* Tag selector */}
-                <div className="px-3 pb-3 pt-1 border-t border-white/5">
-                  <div className="text-[8px] font-bold uppercase tracking-wide text-gray-700 mb-2">
+                <div className="px-3 pb-3 pt-1 border-t border-cortex-subtle">
+                  <div className="text-[8px] font-bold uppercase tracking-wide text-cortex-faint mb-2">
                     Variance Reason Tags
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -567,9 +571,9 @@ function VarianceLog({
                           }}
                           className="text-[8px] px-2 py-0.5 rounded font-bold border transition-colors"
                           style={{
-                            borderColor: active ? cfg.color : '#ffffff10',
+                            borderColor: active ? cfg.color : `${TEXT_TOKEN.primary}10`,
                             background:  active ? `${cfg.color}18` : 'transparent',
-                            color:       active ? cfg.color : '#374151',
+                            color:       active ? cfg.color : border.strong,
                           }}
                         >
                           {cfg.label}
@@ -597,19 +601,19 @@ function SolutionAttributionTable({ attribution }: { attribution: ROISolutionAtt
       icon={Activity}
       title="Solution Attribution"
       badge={`${attribution.length} solutions`}
-      accent="#F59E0B"
+      accent={status.caution}
     >
       {attribution.length === 0 ? (
-        <div className="text-center py-6 text-[10px] text-gray-700">
+        <div className="text-center py-6 text-[10px] text-cortex-faint">
           No solutions defined or no actuals yet — add solutions and actuals to see attribution.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-[9px]">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-cortex-subtle">
                 {['Solution', 'Proj Gain', 'Actual Gain', 'Conf-Adj', 'Realization', 'Status'].map(h => (
-                  <th key={h} className="text-left py-2 pr-3 text-gray-700 font-bold uppercase tracking-wide whitespace-nowrap">
+                  <th key={h} className="text-left py-2 pr-3 text-cortex-faint font-bold uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -618,13 +622,13 @@ function SolutionAttributionTable({ attribution }: { attribution: ROISolutionAtt
             <tbody>
               {attribution.map(a => {
                 const rf    = a.realization_factor;
-                const color = rf >= 1.0 ? '#10B981' : rf >= 0.7 ? '#F59E0B' : '#FD4438';
+                const color = rf >= 1.0 ? status.success : rf >= 0.7 ? status.caution : status.danger;
                 return (
-                  <tr key={a.solution_id} className="border-b border-white/5 hover:bg-white/[0.01]">
+                  <tr key={a.solution_id} className="border-b border-cortex-subtle hover:bg-white/[0.01]">
                     <td className="py-2 pr-3 text-white font-semibold max-w-[140px] truncate">{a.solution_title}</td>
-                    <td className="py-2 pr-3 text-gray-400 font-mono">{fmtUSD(a.projected_gain)}</td>
+                    <td className="py-2 pr-3 text-cortex-muted font-mono">{fmtUSD(a.projected_gain)}</td>
                     <td className="py-2 pr-3 font-mono font-bold" style={{ color }}>{fmtUSD(a.actual_gain)}</td>
-                    <td className="py-2 pr-3 font-mono text-gray-500">{fmtUSD(a.confidence_adjusted_actual)}</td>
+                    <td className="py-2 pr-3 font-mono text-cortex-muted">{fmtUSD(a.confidence_adjusted_actual)}</td>
                     <td className="py-2 pr-3">
                       <span
                         className="px-1.5 py-0.5 rounded font-black text-[9px]"
@@ -633,7 +637,7 @@ function SolutionAttributionTable({ attribution }: { attribution: ROISolutionAtt
                         {(rf * 100).toFixed(0)}%
                       </span>
                     </td>
-                    <td className="py-2 text-gray-600 max-w-[120px] truncate">{a.notes}</td>
+                    <td className="py-2 text-cortex-faint max-w-[120px] truncate">{a.notes}</td>
                   </tr>
                 );
               })}
@@ -641,11 +645,11 @@ function SolutionAttributionTable({ attribution }: { attribution: ROISolutionAtt
           </table>
 
           {/* Realization factor legend */}
-          <div className="flex gap-4 mt-3 pt-3 border-t border-white/5">
+          <div className="flex gap-4 mt-3 pt-3 border-t border-cortex-subtle">
             {[
-              { label: '≥ 100% — On target or over', color: '#10B981' },
-              { label: '70–99% — Monitor',           color: '#F59E0B' },
-              { label: '< 70% — Escalate',           color: '#FD4438' },
+              { label: '≥ 100% — On target or over', color: status.success },
+              { label: '70–99% — Monitor',           color: status.caution },
+              { label: '< 70% — Escalate',           color: status.danger },
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1.5 text-[8px]" style={{ color: l.color }}>
                 <div className="size-1.5 rounded-full" style={{ background: l.color }} />
@@ -670,6 +674,11 @@ function QuarterlyModal({
   text:    string;
   onClose: () => void;
 }) {
+  // Declares this overlay as a dialog and gives it the four behaviours it
+  // never had: focus in and back out, a Tab trap, Escape, and a scroll lock.
+  // See `useDialogBehavior` for why the behaviour is separable from `Modal`.
+  const { dialogProps } = useDialogBehavior({ open: true, onClose, label: 'Quarterly ROI review' });
+
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -682,31 +691,31 @@ function QuarterlyModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.80)' }}
     >
-      <div className="w-full max-w-2xl bg-[#0D0D18] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+      <div {...dialogProps} className="w-full max-w-2xl bg-cortex-overlay border border-cortex-default rounded-cortex-lg overflow-hidden shadow-2xl flex flex-col max-h-[80vh] outline-none">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
           <span className="text-sm font-bold text-white flex items-center gap-2">
-            <ClipboardList className="size-4 text-[#10B981]" />
+            <ClipboardList className="size-4 text-cortex-success" />
             Quarterly Review Draft
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={copy}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-lg border transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors"
               style={{
-                borderColor: copied ? '#10B981' : '#ffffff15',
-                color:       copied ? '#10B981' : '#6B7280',
-                background:  copied ? '#10B98110' : 'transparent',
+                borderColor: copied ? status.success : `${TEXT_TOKEN.primary}15`,
+                color:       copied ? status.success : status.neutral,
+                background:  copied ? `${status.success}10` : 'transparent',
               }}
             >
               {copied ? <Check className="size-3" /> : <Download className="size-3" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
             <button onClick={onClose}>
-              <X className="size-4 text-gray-600 hover:text-white transition-colors" />
+              <X className="size-4 text-cortex-faint hover:text-white transition-colors" />
             </button>
           </div>
         </div>
-        <pre className="flex-1 overflow-y-auto p-5 text-[10px] text-gray-300 font-mono leading-relaxed whitespace-pre-wrap">
+        <pre className="flex-1 overflow-y-auto p-5 text-[10px] text-cortex-secondary font-mono leading-relaxed whitespace-pre-wrap">
           {text}
         </pre>
       </div>
@@ -772,15 +781,15 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
         <QuarterlyModal text={quarterlyText} onClose={() => setShowModal(false)} />
       )}
 
-      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden">
+      <div className="bg-cortex-raised backdrop-blur-xl border border-cortex-default rounded-cortex-md overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-cortex-subtle">
           <span className="flex items-center gap-2.5 text-sm font-bold text-white">
-            <TrendingUp className="size-4 text-[#10B981]" />
+            <TrendingUp className="size-4 text-cortex-success" />
             §11 Post-Implementation ROI Tracking
             <span
               className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-              style={{ color: '#10B981', borderColor: '#10B98133', background: '#10B98114' }}
+              style={{ color: status.success, borderColor: `${status.success}33`, background: `${status.success}14` }}
             >
               Phase 8
             </span>
@@ -788,8 +797,8 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
 
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold rounded-lg border transition-colors"
-            style={{ borderColor: '#10B98130', color: '#10B981', background: '#10B98110' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors"
+            style={{ borderColor: `${status.success}30`, color: status.success, background: `${status.success}10` }}
           >
             <ClipboardList className="size-3" />
             Quarterly Review Draft
@@ -800,17 +809,17 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
           {/* KPI strip */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { label: 'Realization Rate', value: `${realizationRate}%`, color: realizationRate >= 90 ? '#10B981' : realizationRate >= 70 ? '#F59E0B' : '#FD4438' },
-              { label: 'Total Actual Gain', value: fmtUSD(totalActualGain), color: '#10B981' },
-              { label: 'Net Value (YTD)',   value: fmtUSD(latestCum),  color: latestCum >= 0 ? '#10B981' : '#FD4438' },
-              { label: 'Periods Tracked',  value: `${actuals.length} / 12`, color: '#06D7F6' },
+              { label: 'Realization Rate', value: `${realizationRate}%`, color: realizationRate >= 90 ? status.success : realizationRate >= 70 ? status.caution : status.danger },
+              { label: 'Total Actual Gain', value: fmtUSD(totalActualGain), color: status.success },
+              { label: 'Net Value (YTD)',   value: fmtUSD(latestCum),  color: latestCum >= 0 ? status.success : status.danger },
+              { label: 'Periods Tracked',  value: `${actuals.length} / 12`, color: status.info },
             ].map(k => (
               <div
                 key={k.label}
-                className="flex flex-col gap-1 px-3 py-2.5 rounded-xl border"
+                className="flex flex-col gap-1 px-3 py-2.5 rounded-cortex-md border"
                 style={{ borderColor: `${k.color}18`, background: `${k.color}06` }}
               >
-                <div className="text-[8px] text-gray-700 uppercase tracking-wide">{k.label}</div>
+                <div className="text-[8px] text-cortex-faint uppercase tracking-wide">{k.label}</div>
                 <div className="text-sm font-black" style={{ color: k.color }}>{k.value}</div>
               </div>
             ))}
@@ -819,16 +828,16 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
           {/* Projected payback reference */}
           {fs && (
             <div
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
-              style={{ borderColor: '#3B82F620', background: '#3B82F606' }}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-cortex-sm border"
+              style={{ borderColor: `${brand.accentAlt}20`, background: `${brand.accentAlt}06` }}
             >
-              <Zap className="size-3 text-[#3B82F6] flex-shrink-0" />
-              <div className="text-[9px] text-gray-500">
-                <span className="font-bold text-gray-300">Projected payback: </span>
+              <Zap className="size-3 text-cortex-accent-alt flex-shrink-0" />
+              <div className="text-[9px] text-cortex-muted">
+                <span className="font-bold text-cortex-secondary">Projected payback: </span>
                 Month {fs.payback_month ?? 'N/A'}&nbsp;·&nbsp;
-                <span className="font-bold text-gray-300">Annual gain (conf-weighted): </span>
+                <span className="font-bold text-cortex-secondary">Annual gain (conf-weighted): </span>
                 {fmtUSD(fs.annual_gain_conf_weighted)}&nbsp;·&nbsp;
-                <span className="font-bold text-gray-300">ROI: </span>
+                <span className="font-bold text-cortex-secondary">ROI: </span>
                 {(fs.roi_percentage ?? 0).toFixed(1)}%
               </div>
             </div>
@@ -851,9 +860,9 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
           <SolutionAttributionTable attribution={attribution} />
 
           {/* Done checklist */}
-          <div className="border-t border-white/5 pt-4 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-2">
-              <CheckCircle2 className="size-3 text-[#10B981]" />Phase 8 Tracking Status
+          <div className="border-t border-cortex-subtle pt-4 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cortex-faint flex items-center gap-2">
+              <CheckCircle2 className="size-3 text-cortex-success" />Phase 8 Tracking Status
             </div>
             <div className="grid grid-cols-1 gap-1">
               {[
@@ -867,8 +876,8 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
                   key={item.label}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded text-[9px]"
                   style={{
-                    background: item.done ? '#10B98106' : '#FD443806',
-                    color:      item.done ? '#10B981'  : '#FD4438',
+                    background: item.done ? `${status.success}06` : `${status.danger}06`,
+                    color:      item.done ? status.success  : status.danger,
                   }}
                 >
                   {item.done

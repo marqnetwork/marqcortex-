@@ -13,6 +13,7 @@ import type {
   CortexLeadData,
   DiagnosticSummary,
   ServiceRecommendation,
+  ServiceType,
   ROIEstimate,
   ProposalData,
   ProposalDraft,
@@ -33,6 +34,8 @@ import type {
 import type { AnnotatedResponse } from '@/app/utils/questionRegistry';
 import { getIndustryBlueprint } from '@/app/utils/industryBlueprints';
 import exampleCoJSON from '@/imports/exampleco-portfolio-diagnostic-1.json';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ============================================================================
 // MOCK LEADS LIST
@@ -1502,8 +1505,14 @@ const getMockDiagnosticSummary = (leadId: string): DiagnosticSummary => {
 // MOCK SERVICE RECOMMENDATION
 // ============================================================================
 
+// `primaryService` is the canonical ServiceType — it keys typed logic such as
+// getServiceLabel, whose switch has no arm for an id outside the union. Three of
+// these arms invented ids ('onboarding-automation', 'founder-leverage-package',
+// 'compliance-systems-audit') that exist nowhere in canon. `primaryServiceLabel`
+// is free text, so the industry-specific framing is kept there; only the id is
+// mapped onto the union. The return type is narrowed so it cannot drift again.
 const getIndustryRecommendationConfig = (industry: string, company: string): {
-  primaryService: string;
+  primaryService: ServiceType;
   primaryServiceLabel: string;
   reasoning: string;
 } => {
@@ -1516,19 +1525,19 @@ const getIndustryRecommendationConfig = (industry: string, company: string): {
       };
     case 'SaaS / Software':
       return {
-        primaryService: 'onboarding-automation',
+        primaryService: 'automation-sprint',
         primaryServiceLabel: 'Onboarding Automation',
         reasoning: 'Manual onboarding is causing churn. Automating the onboarding process can reduce churn by 20-30% in 30 days. This will improve customer satisfaction and retention, leading to higher revenue and faster growth.',
       };
     case 'Agency / Services':
       return {
-        primaryService: 'founder-leverage-package',
+        primaryService: 'founder-leverage',
         primaryServiceLabel: 'Founder Leverage Package',
         reasoning: 'Founder approval bottleneck is slowing down the team. A founder leverage package can reduce the need for founder approval on routine decisions, freeing up the founder to focus on strategic work. This will improve team efficiency and enable faster growth.',
       };
     case 'Healthcare / Medical':
       return {
-        primaryService: 'compliance-systems-audit',
+        primaryService: 'operations-audit',
         primaryServiceLabel: 'Compliance + Systems Audit',
         reasoning: 'Compliance risk with manual patient data handling is a major concern. A compliance and systems audit can identify and mitigate compliance risks, ensuring data integrity and reducing the risk of fines or legal issues. This will improve patient safety and trust in the brand.',
       };
@@ -1795,7 +1804,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
       scenarios: [
         {
           name: 'Conservative',
-          color: '#3B82F6',
+          color: brand.accentAlt,
           totalInvestment: 15000,
           year1Return: 156000,
           roi: 940,
@@ -1804,7 +1813,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
         },
         {
           name: 'Expected',
-          color: '#8B5CF6',
+          color: brand.accent,
           totalInvestment: 15000,
           year1Return: 216000,
           roi: 1340,
@@ -1813,7 +1822,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
         },
         {
           name: 'Aggressive',
-          color: '#10B981',
+          color: STATUS.success,
           totalInvestment: 15000,
           year1Return: 324000,
           roi: 2060,

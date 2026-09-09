@@ -20,6 +20,30 @@ import {
   Radio, Sparkles, Clock, ChevronRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT         = brand.accent;
+const K_ACCENT_ALT     = brand.accentAlt;
+const K_ACCENT_LIGHT   = brand.accentLight;
+const K_BORDER_STRONG  = BORDER.strong;
+const K_BORDER_DEFAULT = BORDER.default;
+const K_BORDER_SUBTLE  = BORDER.subtle;
+const K_INFO           = STATUS.info;
+const K_SUCCESS        = STATUS.success;
+const K_SUCCESS_DEEP   = STATUS.successDeep;
+const K_SUCCESS_LIGHT  = STATUS.successLight;
+const K_TEXT_PRIMARY   = TEXT.primary;
+
 
 // ── Stage definitions ─────────────────────────────────────────────────────────
 
@@ -151,17 +175,17 @@ export function StageTracker({
 
   return (
     <div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.09)' }}
+      className="rounded-cortex-lg overflow-hidden"
+      style={{ background: 'rgba(0,0,0,0.45)', border: `1px solid ${K_BORDER_DEFAULT}` }}
     >
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-6 pt-6 pb-4"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ borderBottom: `1px solid ${K_BORDER_DEFAULT}` }}
       >
         <div>
           <h3 className="text-white font-bold text-base leading-tight">Your Journey</h3>
-          <p className="text-[11px] text-gray-500 mt-0.5">Real-time progress through our engagement process</p>
+          <p className="text-[11px] text-cortex-muted mt-0.5">Real-time progress through our engagement process</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -174,9 +198,9 @@ export function StageTracker({
                 exit={{ opacity: 0, scale: 0.85, x: 10 }}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
                 style={{
-                  background: 'rgba(16,185,129,0.15)',
-                  border:     '1px solid rgba(16,185,129,0.35)',
-                  color:      '#10B981',
+                  background: `${K_SUCCESS}26`,
+                  border:     `1px solid ${K_SUCCESS}59`,
+                  color:      K_SUCCESS,
                 }}
               >
                 <Sparkles className="size-3" />
@@ -189,9 +213,9 @@ export function StageTracker({
           <div
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
             style={{
-              background: 'rgba(6,215,246,0.08)',
-              border:     '1px solid rgba(6,215,246,0.18)',
-              color:      '#06D7F6',
+              background: `${K_INFO}14`,
+              border:     `1px solid ${K_INFO}2E`,
+              color:      K_INFO,
             }}
           >
             {isRefreshing
@@ -199,7 +223,7 @@ export function StageTracker({
               : <Radio className="size-3" style={{ animation: 'live-radio-pulse 2.4s ease-in-out infinite' }} />}
             <span>Live</span>
             {lastUpdated && (
-              <span className="text-[#06D7F6]/60">· <LiveClock iso={lastUpdated} /></span>
+              <span className="text-cortex-info/60">· <LiveClock iso={lastUpdated} /></span>
             )}
           </div>
         </div>
@@ -212,13 +236,13 @@ export function StageTracker({
           {/* Background rail */}
           <div
             className="absolute top-6 left-6 right-6 h-0.5 rounded-full"
-            style={{ background: 'rgba(255,255,255,0.06)' }}
+            style={{ background: `${K_BORDER_DEFAULT}` }}
           />
           {/* Filled rail */}
           <motion.div
             className="absolute top-6 left-6 h-0.5 rounded-full"
             style={{
-              background: 'linear-gradient(90deg, #8B5CF6, #3B82F6, #06D7F6)',
+              background: `linear-gradient(90deg, ${K_ACCENT}, ${K_ACCENT_ALT}, ${K_INFO})`,
               transformOrigin: 'left',
             }}
             initial={false}
@@ -246,19 +270,19 @@ export function StageTracker({
                     width:  48,
                     height: 48,
                     background: isDone
-                      ? 'linear-gradient(135deg, #10B981, #059669)'
+                      ? `linear-gradient(135deg, ${K_SUCCESS}, ${K_SUCCESS_DEEP})`
                       : isActive
-                        ? 'linear-gradient(135deg, #8B5CF6, #3B82F6)'
-                        : 'rgba(255,255,255,0.04)',
+                        ? `linear-gradient(135deg, ${K_ACCENT}, ${K_ACCENT_ALT})`
+                        : `${K_BORDER_SUBTLE}`,
                     border: isDone
-                      ? '2px solid #10B981'
+                      ? `2px solid ${K_SUCCESS}`
                       : isActive
-                        ? '2px solid #8B5CF6'
-                        : '2px solid rgba(255,255,255,0.12)',
+                        ? `2px solid ${K_ACCENT}`
+                        : `2px solid ${K_BORDER_DEFAULT}`,
                     boxShadow: isActive
-                      ? '0 0 0 6px rgba(139,92,246,0.12), 0 0 20px rgba(139,92,246,0.25)'
+                      ? `0 0 0 6px ${K_ACCENT}1F, 0 0 20px ${K_ACCENT}40`
                       : isDone
-                        ? '0 0 0 4px rgba(16,185,129,0.10)'
+                        ? `0 0 0 4px ${K_SUCCESS}1A`
                         : 'none',
                   }}
                   animate={isActive ? { scale: [1, 1.06, 1] } : { scale: 1 }}
@@ -269,14 +293,14 @@ export function StageTracker({
                   ) : isActive ? (
                     <Icon className="size-5 text-white" />
                   ) : (
-                    <Icon className="size-5" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                    <Icon className="size-5" style={{ color: K_BORDER_STRONG }} />
                   )}
 
                   {/* Active pulse ring */}
                   {isActive && (
                     <motion.div
                       className="absolute inset-0 rounded-full"
-                      style={{ border: '2px solid rgba(139,92,246,0.5)' }}
+                      style={{ border: `2px solid ${K_ACCENT}80` }}
                       animate={{ scale: [1, 1.35, 1], opacity: [0.5, 0, 0.5] }}
                       transition={{ duration: 2.4, repeat: Infinity, ease: 'easeOut' }}
                     />
@@ -288,7 +312,7 @@ export function StageTracker({
                   <div
                     className="text-[11px] font-bold leading-tight"
                     style={{
-                      color: isDone ? '#10B981' : isActive ? '#FFFFFF' : 'rgba(255,255,255,0.25)',
+                      color: isDone ? K_SUCCESS : isActive ? K_TEXT_PRIMARY : `${K_BORDER_DEFAULT}`,
                     }}
                   >
                     {stage.shortLabel}
@@ -301,12 +325,12 @@ export function StageTracker({
                       animate={{ opacity: 1, y: 0 }}
                       className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
                       style={{
-                        background: 'rgba(139,92,246,0.2)',
-                        border:     '1px solid rgba(139,92,246,0.4)',
-                        color:      '#C4B5FD',
+                        background: `${K_ACCENT}33`,
+                        border:     `1px solid ${K_ACCENT}66`,
+                        color:      K_ACCENT_LIGHT,
                       }}
                     >
-                      <span className="size-1.5 rounded-full bg-[#8B5CF6] animate-pulse inline-block" />
+                      <span className="size-1.5 rounded-full bg-cortex-accent animate-pulse inline-block" />
                       NOW
                     </motion.div>
                   )}
@@ -314,9 +338,9 @@ export function StageTracker({
                     <div
                       className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold"
                       style={{
-                        background: 'rgba(16,185,129,0.15)',
-                        border:     '1px solid rgba(16,185,129,0.3)',
-                        color:      '#6EE7B7',
+                        background: `${K_SUCCESS}26`,
+                        border:     `1px solid ${K_SUCCESS}4C`,
+                        color:      K_SUCCESS_LIGHT,
                       }}
                     >
                       ✓ Done
@@ -325,7 +349,7 @@ export function StageTracker({
                   {isFuture && (
                     <div
                       className="mt-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px]"
-                      style={{ color: 'rgba(255,255,255,0.18)' }}
+                      style={{ color: K_BORDER_STRONG }}
                     >
                       <Clock className="size-2.5" />
                       {stage.etaMessage}
@@ -366,8 +390,8 @@ export function StageTracker({
 
       {/* ── Bottom bar — step N of M + submission date ───────────────── */}
       <div
-        className="flex items-center justify-between px-6 py-3 text-[11px] text-gray-600"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
+        className="flex items-center justify-between px-6 py-3 text-[11px] text-cortex-faint"
+        style={{ borderTop: `1px solid ${K_BORDER_SUBTLE}` }}
       >
         <span>
           Step <span className="text-white font-semibold">{activeIdx + 1}</span> of{' '}
@@ -402,17 +426,17 @@ function StageDetailCard({
   onSchedule?:  () => void;
 }) {
   const Icon   = stage.icon;
-  const accent = state === 'done' ? '#10B981' : state === 'active' ? '#8B5CF6' : 'rgba(255,255,255,0.25)';
-  const bgAcc  = state === 'done' ? 'rgba(16,185,129,0.06)' : state === 'active' ? 'rgba(139,92,246,0.06)' : 'rgba(255,255,255,0.02)';
+  const accent = state === 'done' ? K_SUCCESS : state === 'active' ? K_ACCENT : `${K_BORDER_DEFAULT}`;
+  const bgAcc  = state === 'done' ? `${K_SUCCESS}0F` : state === 'active' ? `${K_ACCENT}0F` : `${K_BORDER_SUBTLE}`;
 
   return (
     <div
-      className="mx-6 mb-5 rounded-xl p-4"
+      className="mx-6 mb-5 rounded-cortex-md p-4"
       style={{ background: bgAcc, border: `1px solid ${accent}30` }}
     >
       <div className="flex items-start gap-3">
         <div
-          className="size-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          className="size-8 rounded-cortex-sm flex items-center justify-center flex-shrink-0"
           style={{ background: `${accent}18`, border: `1px solid ${accent}30` }}
         >
           <Icon className="size-4" style={{ color: accent }} />
@@ -428,11 +452,11 @@ function StageDetailCard({
               {state === 'done' ? stage.completedMsg : state === 'active' ? 'In Progress' : 'Upcoming'}
             </span>
           </div>
-          <p className="text-xs text-gray-400 leading-relaxed">{stage.description}</p>
+          <p className="text-xs text-cortex-muted leading-relaxed">{stage.description}</p>
 
           {/* Submitted-at for stage 0 */}
           {submittedAt && state === 'done' && (
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-gray-600">
+            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-cortex-faint">
               <Clock className="size-3" />
               {new Date(submittedAt).toLocaleString('en-US', {
                 month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -444,11 +468,11 @@ function StageDetailCard({
           {onViewReport && state !== 'future' && (
             <button
               onClick={onViewReport}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-cortex-sm transition-all"
               style={{
-                background: 'rgba(139,92,246,0.18)',
-                border:     '1px solid rgba(139,92,246,0.35)',
-                color:      '#C4B5FD',
+                background: `${K_ACCENT}2E`,
+                border:     `1px solid ${K_ACCENT}59`,
+                color:      K_ACCENT_LIGHT,
               }}
             >
               View Report <ChevronRight className="size-3" />
@@ -457,11 +481,11 @@ function StageDetailCard({
           {onSchedule && (
             <button
               onClick={onSchedule}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-cortex-sm transition-all"
               style={{
-                background: 'rgba(6,215,246,0.12)',
-                border:     '1px solid rgba(6,215,246,0.25)',
-                color:      '#06D7F6',
+                background: `${K_INFO}1F`,
+                border:     `1px solid ${K_INFO}40`,
+                color:      K_INFO,
               }}
             >
               Book a Call <ChevronRight className="size-3" />

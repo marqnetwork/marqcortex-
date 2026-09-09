@@ -4,16 +4,18 @@
 
 import { useNavigate } from 'react-router';
 import { Home, ArrowLeft, Search, Zap } from 'lucide-react';
+import { brand, status as STATUS } from '@/app/lib/tokens';
 
-const PURPLE = '#8B5CF6';
-const BLUE = '#3B82F6';
-const CYAN = '#06D7F6';
+
+const PURPLE = brand.accent;
+const BLUE = brand.accentAlt;
+const CYAN = STATUS.info;
 
 export function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white flex items-center justify-center px-6 relative overflow-hidden" role="main" aria-label="Page not found">
+    <div className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center px-6 relative overflow-hidden" role="main" aria-label="Page not found">
       {/* Background effects */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div

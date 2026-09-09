@@ -32,6 +32,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useEscapeKey, formatShortcut, isMac } from '@/app/hooks/useKeyboardShortcuts';
+import { DESTINATIONS, NAV_GROUPS } from '@/app/core/navigationModel';
 import type { Submission } from '@/app/services/dataService';
 
 // ============================================================================
@@ -160,7 +161,17 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-2xl bg-[#0A0A0F] border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
+          // The palette manages its own focus (it focuses the search box on
+          // open) and its own keyboard (arrows, Enter), and does it well — so
+          // it keeps that rather than being wrapped in the shared `Modal`,
+          // which would compete for both. What it was missing is the
+          // DECLARATION: without these three attributes a screen reader is
+          // never told a dialog opened, and the page behind stays in the
+          // accessibility tree.
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
+          className="w-full max-w-2xl bg-cortex-canvas border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Search Input */}
           <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
@@ -342,7 +353,7 @@ function CommandGroup({
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                 ${
                   isSelected
-                    ? 'bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30'
+                    ? 'bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30'
                     : 'hover:bg-white/5'
                 }
               `}
@@ -351,7 +362,7 @@ function CommandGroup({
               {CmdIcon && (
                 <CmdIcon
                   className={`size-4 flex-shrink-0 ${
-                    isSelected ? 'text-[#8B5CF6]' : 'text-gray-400'
+                    isSelected ? 'text-cortex-accent' : 'text-gray-400'
                   }`}
                 />
               )}
@@ -366,7 +377,7 @@ function CommandGroup({
                   {cmd.shortcut}
                 </kbd>
               )}
-              {isSelected && <ArrowRight className="size-4 text-[#8B5CF6]" />}
+              {isSelected && <ArrowRight className="size-4 text-cortex-accent" />}
             </motion.button>
           );
         })}
@@ -399,47 +410,28 @@ export function useCommandPaletteCommands({
 }): Command[] {
   return useMemo(
     () => [
-      // Navigation
-      {
-        id: 'nav-dashboard',
-        label: 'Go to Dashboard',
-        description: 'View all submissions',
-        icon: LayoutDashboard,
-        action: () => onNavigate('dashboard'),
+      // Navigation — Ch. 21.4: the palette is a second path to the SAME
+      // destinations, so it is generated from the navigation model rather than
+      // restated here. It previously listed four of the eleven destinations the
+      // sidebar offered, which left seven pages findable only by knowing where
+      // they were — two navigation surfaces describing two different products.
+      // The group label rides along as a keyword so searching an intent
+      // ("operate", "deliver") finds everything filed under it.
+      ...DESTINATIONS.map((destination): Command => ({
+        id: `nav-${destination.id}`,
+        label: `Go to ${destination.label}`,
+        description: destination.description,
+        icon: destination.icon,
+        action: () => onNavigate(destination.id),
         category: 'navigation',
-        keywords: ['home', 'submissions', 'list'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 1`,
-      },
-      {
-        id: 'nav-cortex',
-        label: 'Go to CORTEX',
-        description: 'AI decision intelligence',
-        icon: Brain,
-        action: () => onNavigate('cortex'),
-        category: 'navigation',
-        keywords: ['ai', 'analysis', 'insights'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 2`,
-      },
-      {
-        id: 'nav-team',
-        label: 'Go to Team',
-        description: 'Manage team members',
-        icon: Users,
-        action: () => onNavigate('team'),
-        category: 'navigation',
-        keywords: ['members', 'permissions'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 3`,
-      },
-      {
-        id: 'nav-settings',
-        label: 'Go to Settings',
-        description: 'Configure preferences',
-        icon: Settings,
-        action: () => onNavigate('settings'),
-        category: 'navigation',
-        keywords: ['preferences', 'config'],
-        shortcut: `${isMac() ? '⌘' : 'Ctrl'} 4`,
-      },
+        keywords: [
+          ...destination.keywords,
+          NAV_GROUPS.find(g => g.id === destination.group)?.label.toLowerCase() ?? '',
+        ].filter(Boolean),
+        shortcut: destination.shortcutDigit
+          ? `${isMac() ? '⌘' : 'Ctrl'} ${destination.shortcutDigit}`
+          : undefined,
+      })),
 
       // Actions
       {
