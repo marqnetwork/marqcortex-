@@ -1139,7 +1139,137 @@ Escape; no page errors anywhere.
 5. **The deferred ClientPortal auth cluster** — still the standing 14 type
    errors, still untouched.
 
+
 ---
 
-_Last updated: 2026-09-09, at token-migration closure — 5,000 literals to 712,
-every one classified, Class A empty._
+# CLIENT PORTAL AUTH CLOSURE
+
+Branch `claude/client-portal-auth-closure`, from `7e792423` (main, UI Sprints
+1-8 merged). **This section supersedes every NEXT EXACT TASK list above it.**
+
+## THE DEFECT
+
+`typecheck:web` was **14**, and every one of the fourteen was the same shape: a
+call site passing one argument more than the wrapper declared.
+
+Seven wrappers in `dataService` declared no parameter for the client auth
+context, so JavaScript discarded the argument the components were already
+passing. `api` saw `auth === undefined`, the request went out on the anon key
+with no `?email=`, and `requireClientAccess` answered 401.
+
+**This was a live outage, not a stale annotation.** A client opening their
+portal in live mode got their submission — the one wrapper Task 16 had already
+repaired — and then 401 for their report, their proposal, their messages, their
+engagement log and every engagement event. Invisible in demo mode, where these
+wrappers return before touching `api`; and `api.trackEngagement` swallows its
+own errors by design, so seven of the eight failures were silent even in
+production. Task 16 escalated it for exactly this reason rather than folding it
+into a type cleanup.
+
+## THE REPAIR
+
+Each wrapper accepts `auth?: ClientAuthContext` in the slot its api counterpart
+has always declared, and forwards it. Eighteen lines. No cast, no `any`, no
+suppression — `typecheck:web` reaches **0** because the argument now has
+somewhere to go.
+
+The contract was verified end to end before a line was changed: all eight `api`
+methods already accepted `auth` and already sent it as
+`Authorization: Bearer <sessionToken>` plus an `?email=` fallback; the server's
+`requireClientAccess` binds a token to ONE submission (404 on mismatch), accepts
+the email fallback on reads only, and answers 401 otherwise. GETs take the
+fallback, mutating POSTs do not. No organization header exists anywhere on this
+path.
+
+## LIVE VERIFICATION — PERFORMED
+
+Docker is unavailable in this environment, so the full Supabase stack could not
+boot, and the only linked project is production, which is out of bounds.
+Instead: `requireClientAccess`, `verifyClientToken` and `safeJsonParse` were
+extracted **VERBATIM** from the deployed server source, run under Deno over an
+in-memory kv seeded with two distinct clients, and the real browser was pointed
+at it in live mode (`VITE_BACKEND_INTEGRATION=true`). Nothing production was
+touched. A harness that re-states the guard proves nothing about the guard, so
+the extraction is byte-identical and asserted to be.
+
+| Scenario | Result |
+|---|---|
+| known valid client | 200, browser sends `Bearer client_tokenA` |
+| refresh / deep link | still authorized, still the same client |
+| unknown client | refused; no data request even attempted |
+| second client | sees only their own company, never the first's |
+| another client's real token | 404 on this submission |
+| missing auth | 401 |
+| anon key alone | 401 |
+| email fallback on a POST | 401 — mutations require the token |
+
+**The counterfactual is the proof.** With this change reverted and everything
+else identical, the same journey produces **7x 401 and 2x 200**, and the browser
+is observed sending `Bearer local_anon_key_` for precisely the seven wrappers
+repaired here. With it applied: **9x 200**, all `Bearer client_tokenA`.
+
+## THE CONTRACT TEST
+
+`clientPortalAuthContract` is rewritten to pin the new guarantee rather than the
+old exclusion, and is stronger — 24 assertions to 35. It asserts each wrapper
+declares AND forwards the slot; that none delegates without it; that no unsafe
+escape was used; that the browser sends only a bearer token and an email query,
+with no organization header, tenant claim or service-role key; and that the demo
+gate still stands so live mode has no demo fallback.
+
+Mutation-tested: dropping a forward, removing a slot, or smuggling an
+organization field each fails it.
+
+## CLEANUP
+
+**Done.** `.qa/qa.mjs` removed. The manifest's duplicate dependency fixed —
+`ClientPortal` listed `MQC-COMP-011` twice in one `dependencies` array, the only
+such duplicate in the file, which is what produced the React duplicate-key
+warning on the registry route. Verified gone in the browser.
+
+**Deliberately not done.** `DiagnosticQuestion` and `ProgressModal` are dead in
+that nothing renders them, but deleting them would violate canon: both are
+`status: 'LIVE'` in `system/manifest.ts`, both appear in the registry and
+process maps, and `diagnosticExportStateContracts` and `dialogSemantics` read
+their source. The discrepancy — canon says live, the app never mounts them — is
+a canon-review item, not a cleanup.
+
+## A NEW FINDING: `typecheck:api` IS RED ON MAIN
+
+Deno was absent from this environment, so `npm run typecheck:api` had never been
+run here. Installed it to do the live verification, and ran the boundary:
+**123 errors on clean main**, identical with this change applied — pre-existing
+and untouched. The first is
+`repositories/index.ts` re-exporting `createReportRepository`, which
+`reportRepository.ts` does not export.
+
+The frontend is at zero and the server boundary has never been green in this
+environment. That is now the largest known V1 gap.
+
+## VERIFICATION
+
+`typecheck:web` **0** — from 14.
+
+features **1217** (from 1206) · security **859** · AI **2183** · system **170** ·
+migration **210** · boundaries **107** — all pass. Production build succeeds.
+`clientPortalAuthContract` 35/35, `clientPortalIntegrity` 21/21.
+
+Browser smoke: the client portal refuses an unknown client and admits a known
+one, all eight tabs render, the portal survives a refresh; all eleven console
+destinations render as deep links; the registry's duplicate-key warning is gone;
+no unexpected page errors.
+
+## NEXT EXACT TASK
+
+1. **`typecheck:api` — 123 errors on the server boundary.** The largest V1 gap,
+   and it has been invisible because the toolchain to see it was not installed.
+   Start with the `createReportRepository` export mismatch.
+2. **Canon review**: `DiagnosticQuestion` / `ProgressModal` marked LIVE but never
+   mounted. Wire them up or correct the manifest.
+3. **Design review**: chip-on-own-tint contrast (4.17:1, under AA) and the
+   marketing type ramp (5.28:1, AA, quieter than before).
+
+---
+
+_Last updated: 2026-09-09, at ClientPortal auth closure — typecheck:web 14 to 0,
+live-verified against the real guard, with the counterfactual to prove it._
