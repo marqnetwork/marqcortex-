@@ -978,7 +978,168 @@ and no page errors anywhere.
 
 4. **A merge decision on this branch.** Forty-four commits, no PR opened.
 
+
 ---
 
-_Last updated: 2026-09-08, after UI Sprint 8 — ten surfaces migrated onto the
-token layer, two additions to it, and one dialog that was never declared._
+# UI SPRINT 8 — TOKEN MIGRATION CLOSURE
+
+Branch `claude/marq-cortex-ui-continuity-q1iiy3`. **This section supersedes every
+NEXT EXACT TASK list above it.**
+
+## THE HEADLINE
+
+**Colour literals in `src/app` went from roughly 5,000 to 712, and every one of
+the 712 is classified.** There is no unexplained product styling literal left in
+the repository.
+
+Migrated this session: the system registry, the contract viewer, notifications
+and toasts, the ROI editors, eight analysis and authoring surfaces, eleven
+funnel and account surfaces, the second token module, fifteen engines and domain
+colour maps, and a long tail of thirty-nine files.
+
+## THE CENSUS, CLASSIFIED
+
+Run `python3` over `src/` with comments and doc-strings stripped — prose that
+NAMES a colour is documentation, not styling.
+
+| Class | What | Literals | Files |
+|---|---|---:|---:|
+| **A** | migration debt | **0** | 0 |
+| **B** | intentional semantic / data palette | 35 | 5 |
+| **C** | standalone or export rendering | 204 | 7 |
+| **D** | third-party / vendor requirement | 197 | 2 |
+| **E** | justified exception | 278 | 10 |
+
+**Class A is empty.** Everything that should be a token is a token.
+
+**Class B — palettes that must NOT be tokens.** The highlighter tints in
+`ProposalAnnotationLayer` (readability under a highlight, not status); two
+sequential ramps in `PipelineKanban` and `LearningLoopPanel` (magnitude, where
+only the first step means danger); the confetti in `WinCelebration`; and the
+registry's seven-way symbol legend in `registryDataExtension` (a FUNCTION is not
+healthier than a SPEC). Each carries a comment at the site saying why, and three
+are pinned by tests.
+
+**Class C — CSS variables do not exist there.** `proposalExport`, the sent
+nurture email, the printed contract, the proposal control panel's export, the
+downloadable readiness guide, `pdfExport`, and `main.tsx`'s pre-mount bootstrap
+screen, which is injected before the stylesheet loads. In each, the colours that
+must track the product interpolate token VALUES; the rest is that document's own
+light vocabulary. A `var(--cortex-*)` in any of them renders as nothing — and in
+the email nobody would find out until a customer opened it.
+
+**Class D — vendor.** `imports/Desktop06.tsx` is Figma-exported SVG that is
+regenerated rather than hand-edited, and `ui/chart.tsx` is a vendored shadcn
+primitive.
+
+**Class E — justified.** The token declarations themselves (they are where a
+colour is allowed to be a literal); the shadcn theme layer; a compile-time
+typecheck fixture; the four deferred ClientPortal auth-cluster files, left
+untouched by instruction; and two dead components — `DiagnosticQuestion` and
+`ProgressModal` — which are LIGHT or dual-theme and have no live importer.
+Giving a dark palette to an orphaned light layout would have made it look
+migrated without making it correct.
+
+## ACCESSIBILITY CORRECTION — `text-cortex-neutral`
+
+Fixed centrally. `--cortex-status-neutral` was `#70707C`: 4.04:1 on the canvas
+and 3.95:1 on the overlay, under WCAG AA for body text — and this is the one
+status colour the product also uses as PROSE, twenty-five times across the
+funnel.
+
+Inspected before changing, because it is shared: every class-name use is text
+(`bg-` and `border-` uses are zero), and the other 115 uses are dots and chips
+in status maps, where lightening a grey can only help.
+
+The token moved to **`#7A7A86`** — ten units of lightness, hue relationship kept
+(R=G, B=R+12) — giving **4.66:1 on the canvas and 4.56:1 on the overlay**.
+Measured in Chromium against each element's own painted background: landing
+worst **4.56:1**, diagnostic **4.95:1**. All AA. Across four console pages the
+new value renders forty times and the old one zero times.
+
+Three assertions pinned the old value and now pin the new one; a fourth was
+added that pins the property rather than the value — every text-weight colour
+clearing 4.5:1 on both dark surfaces — so it cannot drift back.
+
+**Not fixed, stated plainly:** where the neutral is chip TEXT on a 12.5% tint of
+itself, contrast is against the tint, not the canvas: that case improved from
+3.65:1 to **4.17:1** and remains under AA. Closing it needs either a
+`neutral-light` step or a darker chip tint — a design decision, not a
+correction.
+
+## MARKETING TYPE RAMP
+
+Left converged, as instructed. Recorded as visually reviewable, not a blocker.
+The landing page's body copy sits at 5.28:1 (was ~8.0:1) — comfortably AA, and
+quieter than before. No QA this session surfaced a readability problem.
+
+## WHAT THE SURFACE-BY-SURFACE METHOD CAUGHT
+
+A tree-wide replace would have shipped every one of these:
+
+- **Four `status` shadows.** Files where a function parameter is named `status`,
+  so an unqualified `status.neutral` resolves to a string. TypeScript caught two
+  because the parameter was a literal union; where a parameter is a plain
+  `string` it compiles clean and renders `undefined` as a colour. Eleven files
+  now read their palette from module-scope constants for exactly this reason.
+- **A template inside double quotes.** `fill="${brand.accentAlt}20"` compiles,
+  throws nothing, and silently renders the literal characters — the shape just
+  loses its fill. One instance; the browser check now asserts no `fill` or
+  `stroke` anywhere contains a literal `${`.
+- **A dropped attribute name**, leaving `<CartesianGrid {BORDER.subtle} />` in
+  four files.
+- **A wrong border step.** Every white-alpha above 0.05 was mapped to the
+  default border, but `rgba(255,255,255,0.2)` is the STRONG one — a pending
+  stage icon came out at half weight.
+- **A collapsed template.** A cleanup rule turned a legitimate `` `${value}` ``
+  into `value`, changing a function's return type.
+- **The eight-digit blind spot.** Every census matched `#[0-9A-Fa-f]{6}\b`, and
+  the word boundary meant `#10B98120` never matched. Forty-one were sitting in
+  files the count called finished.
+
+## TESTS
+
+Seven suites re-pointed at the token vocabulary. None weakened; three
+strengthened:
+
+- `operationalAwarenessSurface` compared two hex values pulled from source. It
+  now asserts the map contains **no hex at all**, and that `unknown` references
+  a different token from BOTH `healthy` and `degraded`.
+- `designTokens` gained the contrast assertion described above.
+- `dialogSemantics` gained five assertions for the annotations drawer.
+
+## VERIFICATION
+
+`typecheck:web` **14** — unchanged all session, still exactly the deferred
+ClientPortal cluster.
+
+features **1206** · AI **2183** · security **859** · system **170** · migration
+**210** · boundaries **107** — all passing. Production build succeeds.
+
+Browser smoke **35/35**: seven public routes, eleven console destinations, six
+execution tabs and the registry all render with zero unresolved token classes
+and no overflow; a deep link survives a refresh without bouncing to login; the
+drawer opens, shows the AI Control Plane and closes on Escape at 390px; the
+command palette opens as a dialog, finds Operations by name and closes on
+Escape; the invite dialog holds focus across 25 Tab presses and closes on
+Escape; no page errors anywhere.
+
+## NEXT EXACT TASK
+
+1. **A merge decision on this branch.** Fifty-six commits, no PR opened. The
+   token migration has reached closure and this is the natural point to land it.
+2. **The chip-on-own-tint contrast case** above — a `neutral-light` step or a
+   darker chip tint. Design decision.
+3. **Two dead components** — `DiagnosticQuestion` and `ProgressModal`, plus the
+   `ProgressModal` import inside the former. Nothing renders either. Deleting
+   them removes 70 class-E literals and two light-theme orphans, but deletion is
+   the author's call, not a refactor's.
+4. **A React duplicate-key warning** on the registry route for `MQC-COMP-011` —
+   a duplicate in the registry data, pre-existing and unrelated to styling.
+5. **The deferred ClientPortal auth cluster** — still the standing 14 type
+   errors, still untouched.
+
+---
+
+_Last updated: 2026-09-09, at token-migration closure — 5,000 literals to 712,
+every one classified, Class A empty._
