@@ -37,6 +37,8 @@ import { RootLayout }       from '@/app/pages/RootLayout';
 import { LandingPageRoute } from '@/app/pages/LandingPageRoute'; // only eager route
 import { NotFound }         from '@/app/components/NotFound';
 import { RouteErrorFallback } from '@/app/components/RouteErrorFallback';
+import {status as STATUS, surface as SURFACE, brand } from '@/app/lib/tokens';
+
 
 // ── Loading fallback ──────────────────────────────────────────────────────────
 function RouteLoader() {
@@ -44,13 +46,13 @@ function RouteLoader() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0A0A0F',
+        background: SURFACE.canvas,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '12px',
         fontFamily: 'Inter, -apple-system, sans-serif',
-        color: '#6B7280',
+        color: STATUS.neutral,
         fontSize: '14px',
       }}
     >
@@ -59,7 +61,7 @@ function RouteLoader() {
           width: '20px',
           height: '20px',
           border: '2px solid rgba(139,92,246,0.2)',
-          borderTop: '2px solid #8B5CF6',
+          borderTop: `2px solid ${brand.accent}`,
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
         }}

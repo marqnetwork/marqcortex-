@@ -141,15 +141,25 @@ describe('unknown is never rendered as healthy', () => {
   });
 
   it('unknown is not green', () => {
+    // The map reads from the token layer now rather than spelling out hex, so
+    // this compares the RESOLVED colours: what matters is that a state nobody
+    // could measure is never painted the same as one that was measured and
+    // came back well.
     const colors = service.match(/HEALTH_STATE_COLORS[\s\S]*?\};/);
     assert.ok(colors, 'expected a state colour map');
-    const healthy = colors[0].match(/healthy:\s*'(#[0-9A-Fa-f]{6})'/);
-    const unknown = colors[0].match(/unknown:\s*'(#[0-9A-Fa-f]{6})'/);
-    assert.ok(healthy && unknown);
-    assert.notEqual(
-      unknown[1].toLowerCase(), healthy[1].toLowerCase(),
-      'unknown must not borrow the healthy colour',
+    assert.ok(
+      !/'#[0-9A-Fa-f]{3,8}'/.test(colors[0]),
+      'the health colours must come from the token layer, not from hex',
     );
+    const ref = (state: string) => {
+      const m = colors[0].match(new RegExp(`${state}:\\s*([A-Za-z_][\\w.]*)`));
+      assert.ok(m, `expected a colour for ${state}`);
+      return m[1];
+    };
+    assert.notEqual(ref('unknown'), ref('healthy'),
+      'unknown must not borrow the healthy colour');
+    assert.notEqual(ref('unknown'), ref('degraded'),
+      'unknown must not borrow the degraded colour either');
   });
 
   it('unknown outranks healthy when ordering worst-first', () => {

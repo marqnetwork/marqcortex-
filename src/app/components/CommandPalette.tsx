@@ -171,7 +171,7 @@ export function CommandPalette({ isOpen, onClose, commands }: CommandPaletteProp
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
-          className="w-full max-w-2xl bg-[#0A0A0F] border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
+          className="w-full max-w-2xl bg-cortex-canvas border border-white/20 rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Search Input */}
           <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
@@ -353,7 +353,7 @@ function CommandGroup({
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                 ${
                   isSelected
-                    ? 'bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30'
+                    ? 'bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30'
                     : 'hover:bg-white/5'
                 }
               `}
@@ -362,7 +362,7 @@ function CommandGroup({
               {CmdIcon && (
                 <CmdIcon
                   className={`size-4 flex-shrink-0 ${
-                    isSelected ? 'text-[#8B5CF6]' : 'text-gray-400'
+                    isSelected ? 'text-cortex-accent' : 'text-gray-400'
                   }`}
                 />
               )}
@@ -377,7 +377,7 @@ function CommandGroup({
                   {cmd.shortcut}
                 </kbd>
               )}
-              {isSelected && <ArrowRight className="size-4 text-[#8B5CF6]" />}
+              {isSelected && <ArrowRight className="size-4 text-cortex-accent" />}
             </motion.button>
           );
         })}

@@ -30,6 +30,8 @@
 
 import { edgeFunctionBaseUrl } from '@/config/supabase.config';
 import { isBackendEnabled } from '@/config/runtime';
+import { status as STATUS } from '@/app/lib/tokens';
+
 
 const BASE = edgeFunctionBaseUrl;
 
@@ -210,10 +212,10 @@ export const HEALTH_STATE_LABELS: Record<HealthState, string> = {
  * module exists to enforce, and the renderer is where it would be lost.
  */
 export const HEALTH_STATE_COLORS: Record<HealthState, string> = {
-  healthy: '#22C55E',
-  degraded: '#FB923C',
-  unhealthy: '#FD4438',
-  unknown: '#8B8B9A',
+  healthy: STATUS.success,
+  degraded: STATUS.warning,
+  unhealthy: STATUS.danger,
+  unknown: STATUS.neutral,
 };
 
 export const HEALTH_DIMENSION_LABELS: Record<HealthDimension, string> = {

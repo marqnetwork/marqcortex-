@@ -15,7 +15,7 @@
 export function RouteRestoring() {
   return (
     <div
-      className="min-h-screen bg-[#0A0A0F]"
+      className="min-h-screen bg-cortex-canvas"
       role="status"
       aria-busy="true"
       aria-label="Restoring your session"

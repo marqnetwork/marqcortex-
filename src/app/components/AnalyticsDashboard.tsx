@@ -32,7 +32,7 @@ import { EngagementIntelligence } from '@/app/components/EngagementIntelligence'
 // meant drawing charts from seeded records.
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 import { asArray } from '@/app/lib/payload';
-import { brand, status, text, SUBMISSION_STATUS_COLOR, PRIORITY_COLOR } from '@/app/lib/tokens';
+import {brand, status, text, SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, text as TEXT } from '@/app/lib/tokens';
 import { ErrorState } from '@/app/components/ui/cortex';
 
 // ============================================================================
@@ -708,7 +708,7 @@ function DarkTooltip({ active, payload, label }: any) {
     <div className="bg-cortex-canvas border border-cortex-strong rounded-cortex-md px-4 py-3 shadow-2xl">
       {label && <p className="text-xs text-cortex-muted mb-1">{label}</p>}
       {payload.map((p: any, i: number) => (
-        <p key={i} className="text-sm font-bold" style={{ color: p.color || p.fill || '#fff' }}>
+        <p key={i} className="text-sm font-bold" style={{ color: p.color || p.fill || TEXT.primary }}>
           {p.name ? `${p.name}: ` : ''}{p.value}
         </p>
       ))}

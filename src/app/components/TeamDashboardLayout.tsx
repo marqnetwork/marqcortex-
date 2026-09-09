@@ -232,14 +232,14 @@ function DashboardLayoutInner({
   });
 
   return (
-    <div className="flex h-screen bg-[#0A0A0F] text-white overflow-hidden">
+    <div className="flex h-screen bg-cortex-canvas text-white overflow-hidden">
       {/* The first thing a keyboard user reaches. Without it, every visit to
           every page starts by tabbing through the whole sidebar to get to the
           content — thirteen destinations and an account block, on every
           navigation. Visible only while focused. */}
       <a
         href="#cortex-main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-[#8B5CF6] focus:text-white focus:font-medium"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-cortex-accent focus:text-white focus:font-medium"
       >
         Skip to main content
       </a>
@@ -294,7 +294,7 @@ function DashboardLayoutInner({
                 animate={{ opacity: 1 }}
                 className="flex items-center gap-3"
               >
-                <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+                <div className="size-10 rounded-xl bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
                   <Brain className="size-5 text-white" aria-hidden="true" />
                 </div>
                 <div>
@@ -387,7 +387,7 @@ function DashboardLayoutInner({
                     aria-label={destination.label}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
                       isActive
-                        ? 'bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 text-white'
+                        ? 'bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 text-white'
                         : 'hover:bg-white/5 text-gray-400 hover:text-white'
                     }`}
                   >
@@ -408,7 +408,7 @@ function DashboardLayoutInner({
         <div className="p-4 border-t border-white/10">
           {(!sidebarCollapsed || isCompact) && (
             <div className="flex items-center gap-3 mb-3">
-              <div className="size-10 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center font-bold">
+              <div className="size-10 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center font-bold">
                 TU
               </div>
               <div className="flex-1 min-w-0">

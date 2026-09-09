@@ -69,7 +69,7 @@ import { ROITabLayout } from '@/app/components/ROITabLayout';
 import { ProposalDraftEditor } from '@/app/components/ProposalDraftEditor';
 import roiAnalysisJSON from '@/imports/roi-analysis.json';
 import { AIToolbar } from '@/app/components/InlineAITrigger';
-import { brand, status, border, DEPARTMENT_COLOR } from '@/app/lib/tokens';
+import {brand, status, border, DEPARTMENT_COLOR, text as TEXT } from '@/app/lib/tokens';
 
 // The palette these sections used to spell out as hex literals a hundred times
 // over — in ternaries, score bands, severity maps and chart props. Read from
@@ -1719,7 +1719,7 @@ function DecisionTransparencyPanel({ transparency }: { transparency: import('@/a
                   <div key={w.domain} className="flex items-start gap-3 bg-white/[0.02] border border-cortex-subtle rounded-cortex-sm p-3">
                     <div className="flex-shrink-0 mt-0.5">
                       <div className="size-6 rounded-full flex items-center justify-center text-[10px] font-bold text-cortex-muted"
-                        style={{ backgroundColor: `${DOMAIN_COLORS[w.domain] || '#555'}20` }}>
+                        style={{ backgroundColor: `${DOMAIN_COLORS[w.domain] || TEXT.faint}20` }}>
                         {w.score}
                       </div>
                     </div>
@@ -1820,8 +1820,8 @@ function PortfolioPanel({ portfolio, primaryDomain }: { portfolio: import('@/app
           {/* Business Snapshot */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: 'Company', value: ptf.business_snapshot.company, color: '#FFF' },
-              { label: 'Industry', value: ptf.business_snapshot.industry, color: '#FFF' },
+              { label: 'Company', value: ptf.business_snapshot.company, color: TEXT.primary },
+              { label: 'Industry', value: ptf.business_snapshot.industry, color: TEXT.primary },
               { label: 'Team', value: `~${ptf.business_snapshot.employee_estimate}`, color: BLUE },
               { label: 'Data', value: `${Math.round(ptf.business_snapshot.data_completeness * 100)}%`, color: GREEN },
               { label: 'Signals', value: String(ptf.business_snapshot.total_signals_detected), color: PURPLE },
@@ -2066,7 +2066,7 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {[
-              { label: 'Total Investment', value: roi.portfolio_totals.total_investment_label, color: '#FFF' },
+              { label: 'Total Investment', value: roi.portfolio_totals.total_investment_label, color: TEXT.primary },
               { label: '12-Month Gain', value: `$${Math.round(roi.portfolio_totals.total_adjusted_gain_12mo / 1000)}K`, color: GREEN },
               { label: 'Adjusted ROI', value: `${roi.portfolio_totals.total_adjusted_roi_percent}%`, color: roi.portfolio_totals.total_adjusted_roi_percent >= 100 ? GREEN : roi.portfolio_totals.total_adjusted_roi_percent >= 0 ? ORANGE : RED },
               { label: 'Payback', value: roi.portfolio_payback_months < 1 ? '<1mo' : `${roi.portfolio_payback_months}mo`, color: CYAN },
@@ -2126,7 +2126,7 @@ export function ROISection({ data, onPortfolioUpdate }: { data: CortexLeadData; 
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
                     {[
-                      { label: 'Investment', value: r.display.investment, color: '#FFF' },
+                      { label: 'Investment', value: r.display.investment, color: TEXT.primary },
                       { label: '90-Day Gain', value: r.display.gain_90d, color: BLUE },
                       { label: '12-Month Gain', value: r.display.gain_12mo, color: GREEN },
                       { label: 'Payback', value: r.display.payback_timeline, color: CYAN },

@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <h2
               style={{
-                color: '#fff',
+                color: TEXT.primary,
                 fontSize: '20px',
                 fontWeight: 700,
                 margin: '0 0 8px',

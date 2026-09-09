@@ -26,13 +26,15 @@ import {
   type QueuedEmail,
   type EmailTemplateId,
 } from '@/app/utils/emailNurtureQueue';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ── Palette ──────────────────────────────────────────────────────────────────
-const PURPLE = '#8B5CF6';
-const BLUE = '#3B82F6';
-const CYAN = '#06D7F6';
-const ORANGE = '#FB923C';
-const GREEN = '#10B981';
+const PURPLE = brand.accent;
+const BLUE = brand.accentAlt;
+const CYAN = STATUS.info;
+const ORANGE = STATUS.warning;
+const GREEN = STATUS.success;
 
 // ── Main component ───────────────────────────────────────────────────────────
 
@@ -242,7 +244,7 @@ export function ABTestingPanel({ onRefreshQueue }: ABTestingPanelProps) {
                       {/* Bulk actions */}
                       {pendingEmails.length > 0 && (
                         <div className="flex items-center gap-3 mb-6 p-4 rounded-xl bg-white/[0.03] border border-white/5">
-                          <Zap className="size-4 text-[#FB923C] flex-shrink-0" />
+                          <Zap className="size-4 text-cortex-warning flex-shrink-0" />
                           <span className="text-sm text-white/70 flex-1">
                             Apply winning variant to all <strong className="text-white">{pendingEmails.length}</strong> pending emails?
                           </span>

@@ -59,8 +59,10 @@ import {
   type KpiReport,
   type KpiReading,
 } from '@/app/services/operationalAwarenessService';
+import { status as STATUS, surface } from '@/app/lib/tokens';
 
-const ACCENT = '#06D7F6';
+
+const ACCENT = STATUS.info;
 
 interface Props {
   accessToken?: string;
@@ -291,13 +293,13 @@ export function OperationsPanel({ accessToken }: Props) {
     : [];
 
   return (
-    <div className="flex flex-col h-full bg-[#0A0A0F] text-white overflow-auto">
+    <div className="flex flex-col h-full bg-cortex-canvas text-white overflow-auto">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-4 border-b border-white/10">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="size-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/20">
+              <div className="size-9 rounded-xl bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center shadow-lg shadow-cortex-accent/20">
                 <Activity className="size-4 text-white" />
               </div>
               <div>

@@ -34,6 +34,8 @@ import type {
 import type { AnnotatedResponse } from '@/app/utils/questionRegistry';
 import { getIndustryBlueprint } from '@/app/utils/industryBlueprints';
 import exampleCoJSON from '@/imports/exampleco-portfolio-diagnostic-1.json';
+import { brand, status as STATUS } from '@/app/lib/tokens';
+
 
 // ============================================================================
 // MOCK LEADS LIST
@@ -1802,7 +1804,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
       scenarios: [
         {
           name: 'Conservative',
-          color: '#3B82F6',
+          color: brand.accentAlt,
           totalInvestment: 15000,
           year1Return: 156000,
           roi: 940,
@@ -1811,7 +1813,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
         },
         {
           name: 'Expected',
-          color: '#8B5CF6',
+          color: brand.accent,
           totalInvestment: 15000,
           year1Return: 216000,
           roi: 1340,
@@ -1820,7 +1822,7 @@ const getMockROIEstimate = (leadId: string): ROIEstimate => {
         },
         {
           name: 'Aggressive',
-          color: '#10B981',
+          color: STATUS.success,
           totalInvestment: 15000,
           year1Return: 324000,
           roi: 2060,

@@ -39,7 +39,7 @@ import { applyChangeRequest } from '@/app/core/versionEngine';
 import { MonteCarloPanel } from '@/app/components/MonteCarloPanel';
 import { ROIAssumptionsEditor } from '@/app/components/ROIAssumptionsEditor';
 import type { ROIAnalysisData } from '@/app/components/ROIExecutiveDashboard';
-import { brand, status, text } from '@/app/lib/tokens';
+import {brand, status, text, text as TEXT } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -512,7 +512,7 @@ function RecCard({
       {/* Financial Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 px-5 py-4 border-b border-cortex-subtle">
         {[
-          { label: 'Investment',   value: r.display.investment,      color: '#FFF' },
+          { label: 'Investment',   value: r.display.investment,      color: TEXT.primary },
           { label: 'Gain Range',   value: `${fmt$(r.roi_range.low_case.gain)}–${fmt$(r.roi_range.high_case.gain)}`, color: status.success },
           { label: 'ROI Range',    value: `${r.roi_range.low_case.roi_percent}%–${r.roi_range.high_case.roi_percent}%`, color: status.info },
           { label: 'Payback',      value: r.display.payback_timeline, color: brand.accent },

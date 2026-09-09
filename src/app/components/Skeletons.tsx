@@ -82,7 +82,7 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
 
 export function SkeletonDashboard() {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Top bar */}
       <div className="border-b border-white/[0.06] bg-black/40 px-6 py-5">
         <div className="max-w-[1400px] mx-auto flex items-center gap-4">
@@ -120,7 +120,7 @@ export function SkeletonDashboard() {
 
 export function SkeletonClientPortal() {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
+    <div className="min-h-screen bg-cortex-canvas text-white">
       {/* Header */}
       <div className="border-b border-white/[0.06] bg-black/40 px-6 py-6">
         <div className="max-w-4xl mx-auto">
@@ -164,7 +164,7 @@ export function SkeletonClientPortal() {
 
 export function SkeletonForm() {
   return (
-    <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-cortex-canvas flex items-center justify-center px-6">
       <div className="max-w-2xl w-full">
         {/* Progress bar */}
         <Skeleton className="h-1 w-full rounded-full mb-8" />

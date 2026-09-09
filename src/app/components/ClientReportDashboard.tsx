@@ -32,7 +32,7 @@ import {
   Users, Rocket, Star, Activity, Eye, Lock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { brand, status, text, border, surface } from '@/app/lib/tokens';
+import {brand, status, text, border, surface, text as TEXT } from '@/app/lib/tokens';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -405,7 +405,7 @@ export function ClientReportDashboard({
                   <YAxis type="category" dataKey="label" width={120} tick={{ fill: text.muted, fontSize: 11 }} />
                   <Tooltip
                     contentStyle={{ background: surface.overlay, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: 12 }}
-                    labelStyle={{ color: '#fff' }}
+                    labelStyle={{ color: TEXT.primary }}
                   />
                   <Bar key="bar-priority" dataKey="computedPriority" name="Priority Score" radius={[0, 6, 6, 0]}>
                     {[...data.departments].sort((a, b) => b.computedPriority - a.computedPriority).map((d, idx) => (

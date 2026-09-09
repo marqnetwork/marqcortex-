@@ -40,7 +40,7 @@ import {
 } from '@/app/core/orientation';
 import { OrientationPanel } from '@/app/components/OrientationPanel';
 import { LoadingState, ErrorState, Surface } from '@/app/components/ui/cortex';
-import { brand, status, border, surface } from '@/app/lib/tokens';
+import {brand, status, border, surface, text as TEXT } from '@/app/lib/tokens';
 import { canAdministerTeam } from '@/app/lib/teamRole';
 import type { DestinationId } from '@/app/core/navigationModel';
 
@@ -839,11 +839,11 @@ export function TeamHomeDashboard({
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
-                          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#666' }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 9, fill: '#666' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <XAxis dataKey="label" tick={{ fontSize: 9, fill: TEXT.muted }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 9, fill: TEXT.muted }} axisLine={false} tickLine={false} allowDecimals={false} />
                           <Tooltip
                             contentStyle={{ background: surface.overlay, border: `1px solid ${border.strong}`, borderRadius: 8, fontSize: 11 }}
-                            labelStyle={{ color: '#aaa' }}
+                            labelStyle={{ color: TEXT.secondary }}
                             itemStyle={{ color: CYAN }}
                           />
                           <Area key="area-count" type="monotone" dataKey="count" stroke={CYAN} strokeWidth={2} fill="url(#thd-trendGrad)" dot={false} />
@@ -1023,12 +1023,12 @@ export function TeamHomeDashboard({
                       margin={{ top: 0, right: 4, left: -20, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
-                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: '#666' }} axisLine={false} tickLine={false} unit="K" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: TEXT.muted }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: TEXT.muted }} axisLine={false} tickLine={false} unit="K" />
                       <Tooltip
                         contentStyle={{ background: surface.overlay, border: `1px solid ${border.strong}`, borderRadius: 8, fontSize: 11 }}
                         formatter={(v: number) => [`$${v}K`, 'ROI Potential']}
-                        labelStyle={{ color: '#aaa' }}
+                        labelStyle={{ color: TEXT.secondary }}
                       />
                       <Bar key="bar-industry" dataKey="value" radius={[4, 4, 0, 0]}>
                         {[PURPLE, GREEN, ORANGE, BLUE, CYAN, RED].map((c, i) => (

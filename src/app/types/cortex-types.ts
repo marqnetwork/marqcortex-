@@ -825,15 +825,15 @@ export const getStatusColor = (status: LeadStatus): { bg: string; text: string; 
     case 'new':
       return { bg: K_ACCENT, text: K_TEXT_PRIMARY, border: K_ACCENT };
     case 'needs-review':
-      return { bg: K_WARNING, text: '#FFF', border: K_WARNING };
+      return { bg: K_WARNING, text: K_TEXT_PRIMARY, border: K_WARNING };
     case 'ready-for-call':
-      return { bg: K_ACCENT_ALT, text: '#FFF', border: K_ACCENT_ALT };
+      return { bg: K_ACCENT_ALT, text: K_TEXT_PRIMARY, border: K_ACCENT_ALT };
     case 'proposal-sent':
       return { bg: K_INFO, text: K_CANVAS, border: K_INFO };
     case 'converted':
-      return { bg: K_SUCCESS, text: '#FFF', border: K_SUCCESS };
+      return { bg: K_SUCCESS, text: K_TEXT_PRIMARY, border: K_SUCCESS };
     case 'disqualified':
-      return { bg: K_NEUTRAL, text: '#FFF', border: K_NEUTRAL };
+      return { bg: K_NEUTRAL, text: K_TEXT_PRIMARY, border: K_NEUTRAL };
     default:
       // Fallback for any unexpected status values
       return { bg: K_ACCENT, text: K_TEXT_PRIMARY, border: K_ACCENT };
