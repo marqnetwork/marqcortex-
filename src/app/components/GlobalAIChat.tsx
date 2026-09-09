@@ -483,7 +483,7 @@ function LeadContextStrip({
                 {activeLead.priority === 'high' && (
                   <span
                     className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                    style={{ color: status.danger, background: '#FD443815' }}
+                    style={{ color: status.danger, background: `${status.danger}15` }}
                   >
                     HOT
                   </span>

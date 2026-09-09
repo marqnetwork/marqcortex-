@@ -51,7 +51,9 @@ import {
 } from '@/app/core/roiTrackingEngine';
 import type { ProjectedMonth } from '@/app/core/roiTrackingEngine';
 import { useDialogBehavior } from '@/app/components/ui/cortex';
-import { border, brand, status } from '@/app/lib/tokens';
+import { border, brand, status,
+  text as TEXT_TOKEN,
+} from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -289,8 +291,8 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-cortex-sm border text-[10px]"
             style={{
-              borderColor: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? '#10B98120' : '#FD443820',
-              background:  (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? '#10B98108' : '#FD443808',
+              borderColor: (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? `${status.success}20` : `${status.danger}20`,
+              background:  (parseFloat(gain || '0') - parseFloat(inv || '0')) >= 0 ? `${status.success}08` : `${status.danger}08`,
             }}
           >
             <span className="text-cortex-faint">Net this month:</span>
@@ -319,8 +321,8 @@ function ActualsInputForm({ projected, existingCount, onAdd, dealId }: ActualsIn
           disabled={disabled}
           className="flex items-center gap-1.5 px-3 py-2 rounded-cortex-sm text-[10px] font-bold border transition-all"
           style={{
-            borderColor: saved ? status.success : disabled ? '#ffffff10' : '#8B5CF640',
-            background:  saved ? '#10B98114' : disabled ? 'transparent' : '#8B5CF614',
+            borderColor: saved ? status.success : disabled ? `${TEXT_TOKEN.primary}10` : `${brand.accent}40`,
+            background:  saved ? `${status.success}14` : disabled ? 'transparent' : `${brand.accent}14`,
             color:       saved ? status.success  : disabled ? border.strong : brand.accent,
             cursor:      disabled ? 'not-allowed' : 'pointer',
           }}
@@ -387,12 +389,12 @@ function ROIChart({
           <div className="text-[9px] font-bold uppercase tracking-wide text-cortex-faint mb-2">Monthly Gain</div>
           <ResponsiveContainer width="100%" height={160}>
             <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
-                axisLine={{ stroke: '#ffffff10' }}
+                axisLine={{ stroke: `${TEXT_TOKEN.primary}10` }}
               />
               <YAxis
                 tick={{ fontSize: 9, fill: status.neutral }}
@@ -409,7 +411,7 @@ function ROIChart({
               <Bar
                 dataKey="projected_gain"
                 name="Projected"
-                fill="#3B82F620"
+                fill={`${brand.accentAlt}20`}
                 stroke={brand.accentAlt}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
@@ -417,7 +419,7 @@ function ROIChart({
               <Bar
                 dataKey="actual_gain"
                 name="Actual"
-                fill="#10B98140"
+                fill={`${status.success}40`}
                 stroke={status.success}
                 strokeWidth={1}
                 radius={[2, 2, 0, 0]}
@@ -431,12 +433,12 @@ function ROIChart({
           <div className="text-[9px] font-bold uppercase tracking-wide text-cortex-faint mb-2">Cumulative Net Value</div>
           <ResponsiveContainer width="100%" height={140}>
             <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} />
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 9, fill: status.neutral }}
                 tickLine={false}
-                axisLine={{ stroke: '#ffffff10' }}
+                axisLine={{ stroke: `${TEXT_TOKEN.primary}10` }}
               />
               <YAxis
                 tick={{ fontSize: 9, fill: status.neutral }}
@@ -446,7 +448,7 @@ function ROIChart({
                 width={38}
               />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="#ffffff15" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke={border.default} strokeDasharray="4 4" />
               <Legend
                 iconSize={8}
                 wrapperStyle={{ fontSize: 9, color: status.neutral, paddingTop: 6 }}
@@ -569,7 +571,7 @@ function VarianceLog({
                           }}
                           className="text-[8px] px-2 py-0.5 rounded font-bold border transition-colors"
                           style={{
-                            borderColor: active ? cfg.color : '#ffffff10',
+                            borderColor: active ? cfg.color : `${TEXT_TOKEN.primary}10`,
                             background:  active ? `${cfg.color}18` : 'transparent',
                             color:       active ? cfg.color : border.strong,
                           }}
@@ -700,9 +702,9 @@ function QuarterlyModal({
               onClick={copy}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors"
               style={{
-                borderColor: copied ? status.success : '#ffffff15',
+                borderColor: copied ? status.success : `${TEXT_TOKEN.primary}15`,
                 color:       copied ? status.success : status.neutral,
-                background:  copied ? '#10B98110' : 'transparent',
+                background:  copied ? `${status.success}10` : 'transparent',
               }}
             >
               {copied ? <Check className="size-3" /> : <Download className="size-3" />}
@@ -787,7 +789,7 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
             §11 Post-Implementation ROI Tracking
             <span
               className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-              style={{ color: status.success, borderColor: '#10B98133', background: '#10B98114' }}
+              style={{ color: status.success, borderColor: `${status.success}33`, background: `${status.success}14` }}
             >
               Phase 8
             </span>
@@ -796,7 +798,7 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold rounded-cortex-sm border transition-colors"
-            style={{ borderColor: '#10B98130', color: status.success, background: '#10B98110' }}
+            style={{ borderColor: `${status.success}30`, color: status.success, background: `${status.success}10` }}
           >
             <ClipboardList className="size-3" />
             Quarterly Review Draft
@@ -827,7 +829,7 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
           {fs && (
             <div
               className="flex items-center gap-3 px-3 py-2.5 rounded-cortex-sm border"
-              style={{ borderColor: '#3B82F620', background: '#3B82F606' }}
+              style={{ borderColor: `${brand.accentAlt}20`, background: `${brand.accentAlt}06` }}
             >
               <Zap className="size-3 text-cortex-accent-alt flex-shrink-0" />
               <div className="text-[9px] text-cortex-muted">
@@ -874,7 +876,7 @@ export function ROITrackingPanel({ draft }: ROITrackingPanelProps) {
                   key={item.label}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded text-[9px]"
                   style={{
-                    background: item.done ? '#10B98106' : '#FD443806',
+                    background: item.done ? `${status.success}06` : `${status.danger}06`,
                     color:      item.done ? status.success  : status.danger,
                   }}
                 >

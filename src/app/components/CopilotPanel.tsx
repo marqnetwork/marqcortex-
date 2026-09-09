@@ -663,7 +663,7 @@ function ApplyingStep({
       <div className="flex items-center justify-center">
         <div className="relative size-16">
           <svg className="size-16 -rotate-90" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="28" fill="none" stroke="#ffffff10" strokeWidth="4" />
+            <circle cx="32" cy="32" r="28" fill="none" stroke={K_BORDER_DEFAULT} strokeWidth="4" />
             <circle
               cx="32" cy="32" r="28"
               fill="none"

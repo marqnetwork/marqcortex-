@@ -51,6 +51,8 @@ import {
 // the components below: one or more of them take a parameter of that name, and
 // an unqualified reference there resolves to the parameter, not to the token.
 const K_ACCENT        = brand.accent;
+const K_BORDER_SUBTLE  = BORDER.subtle;
+const K_BORDER_DEFAULT = BORDER.default;
 const K_BORDER_STRONG = BORDER.strong;
 const K_CANVAS        = SURFACE.canvas;
 const K_CAUTION       = STATUS.caution;
@@ -333,13 +335,13 @@ function FinancialSection({ report }: { report: QBRReport }) {
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={breakdownData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" />
+                <CartesianGrid strokeDasharray="3 3" stroke={K_BORDER_SUBTLE} />
                 <XAxis dataKey="name" tick={{ fontSize: 7, fill: K_NEUTRAL }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 7, fill: K_NEUTRAL }} axisLine={false} tickLine={false}
                   tickFormatter={v => `$${Math.abs(v / 1000).toFixed(1)}K`} />
                 <Tooltip contentStyle={{ background: K_OVERLAY, border: `1px solid ${K_TEXT_PRIMARY}14`, borderRadius: 8, fontSize: 8 }}
                   formatter={(v: number) => [`$${Math.abs(v).toLocaleString()}`, undefined]} />
-                <ReferenceLine y={0} stroke="#ffffff15" />
+                <ReferenceLine y={0} stroke={K_BORDER_DEFAULT} />
                 <Bar dataKey="value" radius={[2, 2, 0, 0]}>
                   {breakdownData.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Bar>

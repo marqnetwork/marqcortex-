@@ -31,7 +31,7 @@ import type {
   ProposalDraft, Solution, SolutionPillar,
   ImplementationPhase,
 } from '@/app/types/cortex-types';
-import { brand, status } from '@/app/lib/tokens';
+import { brand, status, text } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -300,7 +300,7 @@ function SolutionRow({
                           style={{
                             color:       local.pillar === p ? cfg.color : status.neutral,
                             background:  local.pillar === p ? `${cfg.color}14` : 'transparent',
-                            borderColor: local.pillar === p ? `${cfg.color}33` : '#ffffff10',
+                            borderColor: local.pillar === p ? `${cfg.color}33` : `${text.primary}10`,
                           }}
                         >
                           {cfg.label}
@@ -346,8 +346,8 @@ function SolutionRow({
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-cortex-sm text-[10px] font-bold border transition-all"
                         style={{
                           color:       linked ? status.success : status.neutral,
-                          background:  linked ? '#10B98114' : 'transparent',
-                          borderColor: linked ? '#10B98133' : '#ffffff10',
+                          background:  linked ? `${status.success}14` : 'transparent',
+                          borderColor: linked ? `${status.success}33` : `${text.primary}10`,
                         }}
                       >
                         <span className="font-mono text-[9px]">{b.diagnosis_id}</span>
@@ -371,8 +371,8 @@ function SolutionRow({
                         className="flex-1 py-1.5 rounded-cortex-sm text-[10px] font-bold border transition-all"
                         style={{
                           color:       local.complexity_score === n ? status.warning : status.neutral,
-                          background:  local.complexity_score === n ? '#FB923C14' : 'transparent',
-                          borderColor: local.complexity_score === n ? '#FB923C33' : '#ffffff10',
+                          background:  local.complexity_score === n ? `${status.warning}14` : 'transparent',
+                          borderColor: local.complexity_score === n ? `${status.warning}33` : `${text.primary}10`,
                         }}
                       >
                         {n}
@@ -798,7 +798,7 @@ export function SolutionArchitectureCard({ draft, onSave }: SolutionArchitecture
           Solution Architecture
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-            style={{ color: brand.accent, borderColor: '#8B5CF633', background: '#8B5CF614' }}
+            style={{ color: brand.accent, borderColor: `${brand.accent}33`, background: `${brand.accent}14` }}
           >
             Phase 2
           </span>

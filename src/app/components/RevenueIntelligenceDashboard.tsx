@@ -53,7 +53,7 @@ import type { ObjectionType } from '@/app/types/cortex-types';
 import * as dataService from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
 import { asArray } from '@/app/lib/payload';
-import { brand, status, text } from '@/app/lib/tokens';
+import { brand, status, text, border } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // COLOURS
@@ -153,7 +153,7 @@ function FilterPill({
         <div
           className="flex items-center gap-1 px-2 py-1 rounded-cortex-sm border cursor-pointer"
           style={{
-            borderColor: isActive ? `${C.purple}40` : '#ffffff10',
+            borderColor: isActive ? `${C.purple}40` : `${text.primary}10`,
             background:  isActive ? `${C.purple}10` : 'transparent',
           }}
         >
@@ -216,7 +216,7 @@ function FilterBar({ filters, snapshots, onChange, onReset }: FilterBarProps) {
             onClick={() => set('dateRange', dr.id as DashboardFilters['dateRange'])}
             className="px-2.5 py-1 rounded-cortex-sm text-[9px] font-bold border transition-colors"
             style={{
-              borderColor: filters.dateRange === dr.id ? `${C.cyan}40` : '#ffffff10',
+              borderColor: filters.dateRange === dr.id ? `${C.cyan}40` : `${text.primary}10`,
               background:  filters.dateRange === dr.id ? `${C.cyan}12`  : 'transparent',
               color:       filters.dateRange === dr.id ? C.cyan          : status.neutral,
             }}
@@ -395,7 +395,7 @@ function RevenuePanel({ snapshots }: { snapshots: ReturnType<typeof filterSnapsh
           layout="vertical"
           margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} />
           <YAxis
             type="category"
@@ -477,7 +477,7 @@ function ProposalPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnaps
       <div className="text-[8px] font-bold uppercase tracking-wider text-cortex-faint mb-2">Conversion Funnel</div>
       <ResponsiveContainer width="100%" height={110}>
         <BarChart data={funnelData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 8, fill: text.muted }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} />
           <Tooltip content={<CustomTooltip />} />
@@ -583,7 +583,7 @@ function ROIAccuracyPanel({ snapshots }: { snapshots: ReturnType<typeof filterSn
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={chartData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
               <XAxis dataKey="industry" tick={{ fontSize: 7, fill: status.neutral }} tickLine={false} axisLine={false} />
               <YAxis
                 tick={{ fontSize: 8, fill: status.neutral }}
@@ -676,7 +676,7 @@ function ObjectionPanel({ snapshots }: { snapshots: ReturnType<typeof filterSnap
           </div>
           <ResponsiveContainer width="100%" height={110}>
             <BarChart data={chartData} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={border.subtle} vertical={false} />
               <XAxis dataKey="name" tick={{ fontSize: 7, fill: text.muted }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 8, fill: status.neutral }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
@@ -868,7 +868,7 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
               Revenue Intelligence Dashboard
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded-full font-bold border uppercase tracking-wider"
-                style={{ color: status.success, borderColor: '#10B98133', background: '#10B98114' }}
+                style={{ color: status.success, borderColor: `${status.success}33`, background: `${status.success}14` }}
               >
                 Phase 8
               </span>

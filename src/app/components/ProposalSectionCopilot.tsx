@@ -37,7 +37,7 @@ import {
   type SectionKey,
   type ActionKey,
 } from '@/app/core/proposalCopilotEngine';
-import { brand, status } from '@/app/lib/tokens';
+import { brand, status, text } from '@/app/lib/tokens';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -106,7 +106,7 @@ function ValidationBadge({ label, passed, detail }: { label: string; passed: boo
   return (
     <span
       className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
-      style={{ background: passed ? '#10B98115' : '#FD443815', color: passed ? status.success : status.danger, border: `1px solid ${passed ? '#10B98130' : '#FD443830'}` }}
+      style={{ background: passed ? `${status.success}15` : `${status.danger}15`, color: passed ? status.success : status.danger, border: `1px solid ${passed ? `${status.success}30` : `${status.danger}30`}` }}
       title={detail}
     >
       {passed ? <CheckCircle2 className="size-2.5" /> : <AlertCircle className="size-2.5" />}
@@ -302,7 +302,7 @@ function HistoryItem({ revision }: { revision: SectionRevision }) {
     <div className="flex items-start gap-3 px-3 py-2.5 rounded-cortex-sm bg-white/[0.02] border border-cortex-subtle">
       <div
         className="size-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-        style={{ background: accepted ? '#10B98115' : '#FD443815' }}
+        style={{ background: accepted ? `${status.success}15` : `${status.danger}15` }}
       >
         {accepted
           ? <ThumbsUp className="size-2.5 text-cortex-success" />
@@ -317,7 +317,7 @@ function HistoryItem({ revision }: { revision: SectionRevision }) {
           <span
             className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
             style={{
-              background: accepted ? '#10B98118' : '#FD443818',
+              background: accepted ? `${status.success}18` : `${status.danger}18`,
               color: accepted ? status.success : status.danger,
             }}
           >
@@ -675,7 +675,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                             className="px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold transition-all border"
                             style={active
                               ? { background: `${cfg.color}20`, color: cfg.color, borderColor: `${cfg.color}40` }
-                              : { background: 'transparent', color: status.neutral, borderColor: '#ffffff10' }
+                              : { background: 'transparent', color: status.neutral, borderColor: `${text.primary}10` }
                             }
                           >
                             {cfg.label}
@@ -703,7 +703,7 @@ export function ProposalSectionCopilot({ draft, onApply, accessToken }: Proposal
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-cortex-sm text-[9px] font-bold transition-all border"
                             style={active
                               ? { background: `${cfg.color}18`, color: cfg.color, borderColor: `${cfg.color}35` }
-                              : { background: 'transparent', color: status.neutral, borderColor: '#ffffff10' }
+                              : { background: 'transparent', color: status.neutral, borderColor: `${text.primary}10` }
                             }
                           >
                             <Icon className="size-2.5" />
