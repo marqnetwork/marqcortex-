@@ -1234,17 +1234,54 @@ process maps, and `diagnosticExportStateContracts` and `dialogSemantics` read
 their source. The discrepancy — canon says live, the app never mounts them — is
 a canon-review item, not a cleanup.
 
-## A NEW FINDING: `typecheck:api` IS RED ON MAIN
+## A NEW FINDING: `typecheck:api` IS RED ON MAIN — AND WHAT IT ACTUALLY IS
 
 Deno was absent from this environment, so `npm run typecheck:api` had never been
-run here. Installed it to do the live verification, and ran the boundary:
-**123 errors on clean main**, identical with this change applied — pre-existing
-and untouched. The first is
-`repositories/index.ts` re-exporting `createReportRepository`, which
-`reportRepository.ts` does not export.
+run here. Installing it for the live verification made it runnable, and it
+reports **123 errors on clean main**, identical with this change applied —
+pre-existing and untouched by it.
 
-The frontend is at zero and the server boundary has never been green in this
-environment. That is now the largest known V1 gap.
+Characterised properly, because the headline number is misleading in both
+directions:
+
+**The blocking boundary is CLEAN.** `scripts/typecheck-deno.mjs` splits the
+check in two: `ai` (the AI-01 surface, 306 files) is designated a blocker, and
+`server` is everything else. `typecheck:api:ai` exits **0**. Nothing in the
+security-critical AI surface is red.
+
+**The registries are reachable**, so none of this is the environmental
+"jsr.io unreachable" case the script warns about. The errors are real.
+
+**Where they are:**
+
+| Location | Errors | What they are |
+|---|---:|---|
+| `index.tsx` (deployed edge function) | 97 | three mechanical kinds, below |
+| `migration/**` | ~22 | Node-targeted code swept into a Deno check |
+| `repositories/**`, `kv_store.tsx` | 4 | incl. a missing `createReportRepository` export |
+
+**The 97 in the deployed function are three shapes, repeated:**
+
+- **63x** `'string | undefined' is not assignable to 'string | null'` — Hono's
+  `c.req.header()` returns `string | undefined`; the guards it feeds declare
+  `string | null`. Benign at runtime (both miss the `startsWith` check
+  identically) and a genuine type error. One widened parameter type fixes most
+  of them.
+- **25x** `Property 'message' / 'stack' / 'name' does not exist on type '{}'` —
+  `catch (err)` under `useUnknownInCatchVariables`. Mechanical.
+- **8x** overload mismatches.
+
+**The ~22 under `migration/**` are a different thing entirely** and should not
+be fixed the same way. Those modules contain **zero** `Deno.` globals, are
+imported by **no** deployed server file, are run by Node
+(`node --experimental-strip-types scripts/migration/cli.ts`), and are covered by
+fourteen passing Node suites. Their bare `@supabase/supabase-js` specifier is
+correct for the runtime they actually target and unresolvable only to the Deno
+checker that sweeps everything under `supabase/functions/`. That is the wrong
+tool applied to the wrong code — the mirror image of the failure the script's
+own header warns about for `tsc` — and the fix is a boundary definition, not an
+import map. Reclassifying a QA boundary is the author's call, so it is left
+here rather than done.
 
 ## VERIFICATION
 
@@ -1261,9 +1298,13 @@ no unexpected page errors.
 
 ## NEXT EXACT TASK
 
-1. **`typecheck:api` — 123 errors on the server boundary.** The largest V1 gap,
-   and it has been invisible because the toolchain to see it was not installed.
-   Start with the `createReportRepository` export mismatch.
+1. **`typecheck:api` — 97 real type errors in the deployed edge function.** The
+   largest V1 gap, invisible until now because Deno was not installed here. They
+   are three mechanical shapes (see above), so the work is bounded: widen the
+   header-guard parameter to `string | null | undefined`, narrow the `catch`
+   variables, then the eight overloads. Do NOT sweep `migration/**` in with
+   them — that is Node code in a Deno check and needs a boundary decision, not
+   a code change. Note the blocking `ai` boundary is already clean.
 2. **Canon review**: `DiagnosticQuestion` / `ProgressModal` marked LIVE but never
    mounted. Wire them up or correct the manifest.
 3. **Design review**: chip-on-own-tint contrast (4.17:1, under AA) and the
