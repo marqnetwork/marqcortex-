@@ -98,7 +98,7 @@ describe('no surface re-declares a status palette', () => {
       !/low:\s*\{ bg: 'bg-\[#06D7F6\]/.test(dash),
       'low priority is cyan again here and grey on the analytics panel',
     );
-    assert.equal(PRIORITY_COLOR.low, '#70707C');
+    assert.equal(PRIORITY_COLOR.low, '#7A7A86');
   });
 
   it('the submission list colours approved instead of falling through to grey', () => {

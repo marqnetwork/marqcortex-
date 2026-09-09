@@ -93,7 +93,13 @@
   --cortex-status-danger: #FD4438;
   --cortex-status-info: #06D7F6;
   --cortex-status-caution: #F59E0B;
-  --cortex-status-neutral: #70707C;
+  /* Lifted from #70707C. It is the only status colour used as BODY TEXT — the
+     funnel says "said, but not emphasised" with it in twenty-five places — and
+     at #70707C that text was 4.04:1 on the canvas and 3.95:1 on the overlay,
+     under WCAG AA. Ten units of lightness, hue relationship kept (R=G, B=R+12),
+     takes it to 4.66:1 and 4.56:1. Every other use is a dot or a chip, where
+     lightening only helps. */
+  --cortex-status-neutral: #7A7A86;
 
   --cortex-status-success-light: #34D399;
   --cortex-status-success-deep: #059669;

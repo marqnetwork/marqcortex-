@@ -66,7 +66,7 @@ export const CORTEX_TOKENS = {
   '--cortex-status-danger': '#FD4438',
   '--cortex-status-info': '#06D7F6',
   '--cortex-status-caution': '#F59E0B',
-  '--cortex-status-neutral': '#70707C',
+  '--cortex-status-neutral': '#7A7A86',
   '--cortex-status-success-light': '#34D399',
   '--cortex-status-success-deep': '#059669',
   '--cortex-status-danger-light': '#FCA5A5',

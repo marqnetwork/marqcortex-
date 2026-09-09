@@ -237,7 +237,7 @@ describe('the shells use the shared states rather than local ones', () => {
     }
     // And the values it now reads are the ones the product already rendered.
     assert.equal(CORTEX_TOKENS['--cortex-accent'], '#8B5CF6');
-    assert.equal(CORTEX_TOKENS['--cortex-status-neutral'], '#70707C');
+    assert.equal(CORTEX_TOKENS['--cortex-status-neutral'], '#7A7A86');
   });
 });
 

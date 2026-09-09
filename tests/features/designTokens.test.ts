@@ -254,7 +254,9 @@ describe('the tokens are the colours the product already renders', () => {
     assert.equal(status.danger, '#FD4438');
     assert.equal(status.info, '#06D7F6');
     assert.equal(status.caution, '#F59E0B');
-    assert.equal(status.neutral, '#70707C');
+    // Lifted from #70707C so the funnel's supporting text clears AA; see the
+    // contrast assertion below, which is what actually holds it there.
+    assert.equal(status.neutral, '#7A7A86');
   });
 
   it('keeps the canvas and the dominant panel surface', () => {
@@ -275,6 +277,39 @@ describe('the tokens are the colours the product already renders', () => {
     assert.equal(radius.md, '12px');
     assert.equal(radius.lg, '16px');
     assert.equal(radius.pill, '9999px');
+  });
+
+  it('every text-weight colour clears AA on both dark surfaces', () => {
+    // `neutral` is the only STATUS colour the product also uses as body text —
+    // twenty-five times across the funnel. It was 4.04:1 on the canvas, which
+    // is why this assertion exists: the token may be restyled, but not back
+    // below the threshold that made it readable.
+    const lin = (c: number) => {
+      const v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    };
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+
+    for (const [name, colour] of [
+      ['neutral', status.neutral],
+      ['text primary', text.primary],
+    ] as const) {
+      for (const [surfaceName, bg] of [['canvas', surface.canvas], ['overlay', '#0D0D18']] as const) {
+        const ratio = contrast(colour, bg);
+        assert.ok(
+          ratio >= 4.5,
+          `${name} is ${ratio.toFixed(2)}:1 on the ${surfaceName} — under AA for body text`,
+        );
+      }
+    }
   });
 
   it('offers a comfortable control height that clears a touch target', () => {
