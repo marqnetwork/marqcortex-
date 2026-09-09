@@ -279,15 +279,15 @@ export function getDemoClientSubmission(overrides?: {
 }
 
 /** Get client report (AI-powered or deterministic) */
-export async function getClientReport(submissionId: string) {
+export async function getClientReport(submissionId: string, auth?: ClientAuthContext) {
   if (isDemo()) {
     log('Get client report (demo mode)');
     // Generate deterministic report from demo data
-    const sub = demo.getDemoClientSubmission({ submissionId });
+    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
     const report = _generateClientReport(sub);
     return { success: true, report: report as any, aiPowered: false };
   }
-  return api.getClientReport(submissionId);
+  return api.getClientReport(submissionId, auth);
 }
 
 // ============================================================================
@@ -295,14 +295,14 @@ export async function getClientReport(submissionId: string) {
 // ============================================================================
 
 /** Client reads messages */
-export async function getClientMessages(submissionId: string) {
+export async function getClientMessages(submissionId: string, auth?: ClientAuthContext) {
   if (isDemo()) {
     log('Get client messages (demo mode)');
-    const sub = demo.getDemoClientSubmission({ submissionId });
+    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
     const messages = demo.getDemoMessages(submissionId, sub.contact);
     return { success: true, messages };
   }
-  return api.getClientMessages(submissionId);
+  return api.getClientMessages(submissionId, auth);
 }
 
 /** Client posts a message */
@@ -310,6 +310,7 @@ export async function postClientMessage(
   submissionId: string,
   content: string,
   clientName: string,
+  auth?: ClientAuthContext,
 ) {
   if (isDemo()) {
     log('Post client message (demo mode)');
@@ -323,7 +324,7 @@ export async function postClientMessage(
     };
     return { success: true, message: newMsg };
   }
-  return api.postClientMessage(submissionId, content, clientName);
+  return api.postClientMessage(submissionId, content, clientName, auth);
 }
 
 /** Team reads messages (team auth) */
@@ -410,14 +411,14 @@ export async function sendProposal(submissionId: string, accessToken: string) {
 }
 
 /** Client fetches their proposal */
-export async function getClientProposal(submissionId: string) {
+export async function getClientProposal(submissionId: string, auth?: ClientAuthContext) {
   if (isDemo()) {
     log('Get client proposal (demo mode)');
-    const sub = demo.getDemoClientSubmission({ submissionId });
+    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
     const proposal = demo.getDemoProposal(sub.company);
     return { success: true, proposal };
   }
-  return api.getClientProposal(submissionId);
+  return api.getClientProposal(submissionId, auth);
 }
 
 /** Client responds to proposal */
@@ -425,10 +426,11 @@ export async function respondToProposal(
   submissionId: string,
   response: 'accepted' | 'rejected',
   clientName?: string,
+  auth?: ClientAuthContext,
 ) {
   if (isDemo()) {
     log('Respond to proposal (demo mode):', response);
-    const sub = demo.getDemoClientSubmission({ submissionId });
+    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
     const proposal = demo.getDemoProposal(sub.company);
     return {
       success: true,
@@ -440,7 +442,7 @@ export async function respondToProposal(
       },
     };
   }
-  return api.respondToProposal(submissionId, response, clientName);
+  return api.respondToProposal(submissionId, response, clientName, auth);
 }
 
 /** Get demo proposal (convenience export) */
@@ -494,13 +496,14 @@ export async function trackEngagement(
   submissionId: string,
   type: api.EngagementEventType,
   meta?: Record<string, any>,
+  auth?: ClientAuthContext,
 ) {
   if (isDemo()) return; // Skip silently
-  return api.trackEngagement(submissionId, type, meta);
+  return api.trackEngagement(submissionId, type, meta, auth);
 }
 
 /** Get engagement log */
-export async function getEngagementLog(submissionId: string) {
+export async function getEngagementLog(submissionId: string, auth?: ClientAuthContext) {
   if (isDemo()) {
     log('Get engagement log (demo mode)');
     const events = demo.getDemoEngagementEvents(submissionId);
@@ -514,7 +517,7 @@ export async function getEngagementLog(submissionId: string) {
       })) as api.EngagementEvent[],
     };
   }
-  return api.getEngagementLog(submissionId);
+  return api.getEngagementLog(submissionId, auth);
 }
 
 /** Get engagement summary (batch, team auth) */

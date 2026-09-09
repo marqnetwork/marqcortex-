@@ -30,18 +30,22 @@
  *   and `isDemo()` reads that same `FEATURES.BACKEND_INTEGRATION` flag, so the
  *   two gates can never disagree.
  *
- * WHY THE REST OF THE CLUSTER IS EXCLUDED (escalated, not fixed here)
- *   The sibling wrappers — `getClientReport`, `trackEngagement`,
- *   `getClientMessages`, `postClientMessage`, `getClientProposal`,
- *   `getEngagementLog` — are stale in the same declaration-level way, but they
- *   declare NO positional slot for the auth argument. JavaScript discards
- *   surplus arguments, so those calls reach `api` with `auth === undefined`,
- *   the request goes out with the anon key and no `?email=`, and the server
- *   answers 401. Repairing them changes what the browser sends over the wire —
- *   an authentication and telemetry change, not a type-only one — so it is
- *   reported for a separate, live-mode-verified task rather than folded in.
- *   The assertions in the final block PIN that exclusion: they fail if Task 16
- *   silently widened the escalated wrappers.
+ * THE ESCALATED CLUSTER, NOW CLOSED
+ *   Task 16 deliberately left seven sibling wrappers alone — `getClientReport`,
+ *   `trackEngagement`, `getClientMessages`, `postClientMessage`,
+ *   `getClientProposal`, `respondToProposal`, `getEngagementLog`. They declared
+ *   NO positional slot for the auth argument, so JavaScript discarded the
+ *   fourth argument every call site was already passing: `api` saw
+ *   `auth === undefined`, the request went out with the anon key and no
+ *   `?email=`, and `requireClientAccess` answered 401. In demo mode nothing
+ *   noticed, because those wrappers return before touching `api` at all — and
+ *   `api.trackEngagement` swallows its own errors by design, so seven of the
+ *   eight failures were silent even in live mode.
+ *
+ *   That is now repaired. Each wrapper accepts `auth?: ClientAuthContext` in
+ *   the slot its api counterpart already declared, and forwards it. The
+ *   assertions that used to PIN the exclusion now pin the FORWARDING, and the
+ *   server-contract block below pins what the browser is allowed to send.
  *
  * TESTING APPROACH (documented limitation)
  *   `dataService.ts` is authored against the Vite `@/*` aliases and reaches
@@ -216,43 +220,145 @@ describe('ClientPortal is unchanged by Task 16', () => {
   });
 });
 
-describe('the escalated wrappers were deliberately NOT changed', () => {
+describe('every client wrapper forwards the auth context it is given', () => {
   /**
-   * These are the eight remaining ClientPortal diagnostics plus their siblings
-   * in ClientMessaging / ProposalViewer / EngagementActivityFeed. They share
-   * Task 16's declaration-level root cause but not its runtime profile, and
-   * repairing them alters authentication and telemetry traffic. Task 16 leaves
-   * them exactly as found; these assertions fail if that ever stops being true
-   * without a task that verifies the live-mode consequence.
+   * The repair of the escalated cluster. Each of these declares the auth slot
+   * its api counterpart already had, and passes the value straight through.
+   * A wrapper that drops the argument again fails here.
    */
-  const untouched: readonly [string, RegExp][] = [
-    ['getClientReport', /return api\.getClientReport\(submissionId\);/],
-    ['trackEngagement', /return api\.trackEngagement\(submissionId, type, meta\);/],
-    ['getClientMessages', /return api\.getClientMessages\(submissionId\);/],
-    ['getClientProposal', /return api\.getClientProposal\(submissionId\);/],
-    ['getEngagementLog', /return api\.getEngagementLog\(submissionId\);/],
+  const forwarding: readonly [name: string, signature: RegExp, delegation: RegExp][] = [
+    ['getClientSubmission',
+      /export async function getClientSubmission\(submissionId: string, auth\?: ClientAuthContext\)/,
+      /return api\.getClientSubmission\(submissionId, auth\);/],
+    ['getClientReport',
+      /export async function getClientReport\(submissionId: string, auth\?: ClientAuthContext\)/,
+      /return api\.getClientReport\(submissionId, auth\);/],
+    ['getClientMessages',
+      /export async function getClientMessages\(submissionId: string, auth\?: ClientAuthContext\)/,
+      /return api\.getClientMessages\(submissionId, auth\);/],
+    ['getClientProposal',
+      /export async function getClientProposal\(submissionId: string, auth\?: ClientAuthContext\)/,
+      /return api\.getClientProposal\(submissionId, auth\);/],
+    ['getEngagementLog',
+      /export async function getEngagementLog\(submissionId: string, auth\?: ClientAuthContext\)/,
+      /return api\.getEngagementLog\(submissionId, auth\);/],
+    ['trackEngagement',
+      /auth\?: ClientAuthContext,\s*\)\s*\{\s*if \(isDemo\(\)\) return;/,
+      /return api\.trackEngagement\(submissionId, type, meta, auth\);/],
+    ['postClientMessage',
+      /export async function postClientMessage\([\s\S]{0,160}?auth\?: ClientAuthContext,\s*\)/,
+      /return api\.postClientMessage\(submissionId, content, clientName, auth\);/],
+    ['respondToProposal',
+      /export async function respondToProposal\([\s\S]{0,200}?auth\?: ClientAuthContext,\s*\)/,
+      /return api\.respondToProposal\(submissionId, response, clientName, auth\);/],
   ];
 
-  for (const [name, pattern] of untouched) {
-    it(`${name} still delegates without an auth argument`, () => {
-      assert.match(service, pattern, `${name} is outside Task 16's selected batch`);
+  for (const [name, signature, delegation] of forwarding) {
+    it(`${name} declares the auth slot and forwards it`, () => {
+      assert.match(service, signature, `${name} must accept ClientAuthContext`);
+      assert.match(service, delegation, `${name} must pass auth through to api`);
     });
   }
 
-  it('ClientPortal still passes clientAuth at all eight excluded call sites', () => {
+  it('no client wrapper delegates without its auth argument any more', () => {
+    // The precise regression this closes: a call reaching api with
+    // `auth === undefined` goes out on the anon key and is refused 401.
+    for (const name of [
+      'getClientSubmission', 'getClientReport', 'getClientMessages',
+      'getClientProposal', 'getEngagementLog',
+    ]) {
+      assert.doesNotMatch(
+        service,
+        new RegExp(`return api\\.${name}\\(submissionId\\);`),
+        `${name} dropped the auth argument again`,
+      );
+    }
+    assert.doesNotMatch(service, /return api\.trackEngagement\(submissionId, type, meta\);/);
+    assert.doesNotMatch(service, /return api\.postClientMessage\(submissionId, content, clientName\);/);
+    assert.doesNotMatch(service, /return api\.respondToProposal\(submissionId, response, clientName\);/);
+  });
+
+  it('introduces no unsafe escape anywhere in the repaired wrappers', () => {
+    for (const name of [
+      'getClientReport', 'getClientMessages', 'getClientProposal',
+      'getEngagementLog', 'trackEngagement', 'postClientMessage', 'respondToProposal',
+    ]) {
+      const body = functionBody(service, name);
+      for (const [label, pattern] of [
+        ['any', /:\s*any\b/], ['as unknown as', /as\s+unknown\s+as/],
+        ['as never', /as\s+never\b/], ['@ts-ignore', /@ts-ignore/],
+        ['@ts-expect-error', /@ts-expect-error/],
+      ] as const) {
+        // `report as any` predates this work and is asserted separately below.
+        if (name === 'getClientReport' && label === 'any') continue;
+        assert.doesNotMatch(body, pattern, `${name} must not use ${label}`);
+      }
+    }
+  });
+});
+
+describe('the browser sends only what the server boundary asks for', () => {
+  /**
+   * `requireClientAccess` is the authority. It accepts a bearer session token
+   * bound to ONE submission, or — on reads only — an `?email=` that must equal
+   * the submission's own email. Anything else is refused. These assertions pin
+   * that the browser sends exactly that and nothing more: no organization
+   * header, no service-role key, no tenant identifier the server would have to
+   * trust.
+   */
+  it('client requests carry the session token as a bearer header', () => {
+    assert.match(apiSrc, /function clientHeaders\(auth\?: ClientAuthContext\)\s*\{\s*return headers\(auth\?\.sessionToken\);/);
+  });
+
+  it('and the email only as a query fallback, never as a trusted claim', () => {
+    assert.match(apiSrc, /function withEmailQuery\(url: URL, auth\?: ClientAuthContext\)\s*\{\s*if \(auth\?\.email\) url\.searchParams\.set\('email', auth\.email\);/);
+  });
+
+  it('ClientAuthContext can carry nothing but the token and the email', () => {
+    // A widened context would be a new claim for the server to decide about.
+    assert.match(
+      session,
+      /export type ClientAuthContext\s*=\s*Pick<ClientSession, 'sessionToken'> & Partial<Pick<ClientSession, 'email'>>/,
+    );
+  });
+
+  it('no client wrapper invents an organization or tenant header', () => {
+    for (const forbidden of [/X-Org/i, /organization[iI]d/, /tenant[iI]d/, /service_role/, /SERVICE_ROLE/]) {
+      assert.doesNotMatch(
+        service, forbidden,
+        'the client path must send no claim the server would have to trust',
+      );
+    }
+  });
+
+  it('the demo branch is still gated, so live mode has no demo fallback', () => {
+    for (const name of [
+      'getClientSubmission', 'getClientReport', 'getClientMessages',
+      'getClientProposal', 'getEngagementLog', 'respondToProposal',
+    ]) {
+      assert.match(functionBody(service, name), /if\s*\(\s*isDemo\(\)\s*\)/,
+        `${name} must reach api only when the backend is enabled`);
+    }
+  });
+});
+
+describe('ClientPortal still passes its memoised auth at every call site', () => {
+  it('all seven trackEngagement calls carry clientAuth', () => {
     const trackCalls = portal.match(/trackEngagement\(submissionId, '[a-z_]+', undefined, clientAuth\)/g) ?? [];
-    assert.equal(trackCalls.length, 7, 'the seven trackEngagement call sites must be untouched');
+    assert.equal(trackCalls.length, 7, 'every engagement call must be authenticated');
+  });
+
+  it('the report read carries it too', () => {
     assert.match(portal, /await getClientReport\(submissionId, clientAuth\)/);
   });
 });
 
-describe('why the excluded group is a runtime change, not a type-only one', () => {
+describe('why this was never a type-only change', () => {
   it('a function that declares no slot for an argument discards it', () => {
-    // The exact JavaScript semantics that split the cluster: dataService's
-    // three-parameter trackEngagement receives ClientPortal's fourth argument
-    // and cannot forward it, so api sees `auth === undefined` and the request
-    // goes out unauthenticated. getClientSubmission's stale parameter DID
-    // occupy that slot, which is why only it was safe to correct here.
+    // The JavaScript semantics that made the cluster a runtime bug rather than
+    // a stale annotation: the fourth argument reached a three-parameter
+    // wrapper and vanished, so api saw `auth === undefined` and the request
+    // went out unauthenticated. Repairing the SLOT is what changes the wire.
     const forwards = (a: string, b?: unknown) => [a, b] as const;
     const discards = (a: string) => [a, undefined] as const;
 
