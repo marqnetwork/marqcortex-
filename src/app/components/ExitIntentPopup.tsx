@@ -65,20 +65,20 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#8B5CF6]/30 rounded-2xl p-8 w-full shadow-2xl"
+        className="relative bg-gradient-to-br from-cortex-overlay to-cortex-overlay border border-cortex-accent/30 rounded-cortex-lg p-8 w-full shadow-2xl"
       >
         {/* Close Button */}
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 size-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+          className="absolute top-4 right-4 size-8 rounded-full bg-cortex-control-hover hover:bg-white/20 flex items-center justify-center transition-colors"
         >
           <X className="size-4 text-white" aria-hidden="true" />
         </button>
 
         {/* Alert Icon */}
         <div className="flex justify-center mb-6">
-          <div className="size-16 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center animate-pulse">
+          <div className="size-16 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center animate-pulse">
             <Zap className="size-8 text-white" />
           </div>
         </div>
@@ -89,37 +89,37 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
         </h2>
 
         <p className="text-lg text-white/70 text-center mb-6">
-          <strong className="text-[#06D7F6]">237 businesses</strong> have already discovered their automation opportunities this month
+          <strong className="text-cortex-info">237 businesses</strong> have already discovered their automation opportunities this month
         </p>
 
         {/* Benefits */}
         <div className="space-y-3 mb-6">
           <Benefit
-            icon={<Download className="size-5 text-[#06D7F6]" />}
+            icon={<Download className="size-5 text-cortex-info" />}
             text="Free AI Readiness Guide (instant download)"
           />
           <Benefit
-            icon={<TrendingUp className="size-5 text-[#8B5CF6]" />}
+            icon={<TrendingUp className="size-5 text-cortex-accent" />}
             text="5-minute assessment shows your biggest opportunities"
           />
           <Benefit
-            icon={<CheckCircle2 className="size-5 text-[#10B981]" />}
+            icon={<CheckCircle2 className="size-5 text-cortex-success" />}
             text="Personalized roadmap (worth $500)"
           />
         </div>
 
         {/* Urgency Bar */}
-        <div className="bg-gradient-to-r from-[#FD4438]/20 to-[#FB923C]/20 border border-[#FB923C]/30 rounded-xl p-4 mb-6">
+        <div className="bg-gradient-to-r from-cortex-danger/20 to-cortex-warning/20 border border-cortex-warning/30 rounded-cortex-md p-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-full bg-[#FB923C]/30 flex items-center justify-center animate-bounce">
-              <Users className="size-5 text-[#FB923C]" />
+            <div className="size-10 rounded-full bg-cortex-warning/30 flex items-center justify-center animate-bounce">
+              <Users className="size-5 text-cortex-warning" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-white mb-1">
                 🔥 Limited Availability
               </p>
               <p className="text-xs text-white/60">
-                We only accept <strong className="text-[#FB923C]">50 new assessments per week</strong> to maintain quality
+                We only accept <strong className="text-cortex-warning">50 new assessments per week</strong> to maintain quality
               </p>
             </div>
           </div>
@@ -135,7 +135,7 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email to get started"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-[#8B5CF6] transition-colors"
+              className="w-full px-4 py-3 bg-cortex-control-hover border border-cortex-strong rounded-cortex-md text-white placeholder-white/50 focus:outline-none focus:border-cortex-accent transition-colors"
               disabled={isSubmitting}
             />
           </div>
@@ -143,7 +143,7 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full px-6 py-4 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:from-[#7C3AED] hover:to-[#2563EB] text-white rounded-xl font-bold text-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full px-6 py-4 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:from-cortex-accent-deep hover:to-cortex-accent-alt-deep text-white rounded-cortex-md font-bold text-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <span className="contents">
@@ -165,7 +165,7 @@ export function ExitIntentPopup({ onCapture, onClose }: ExitIntentPopupProps) {
         </p>
 
         {/* Social Proof Counter */}
-        <div className="mt-6 pt-6 border-t border-white/10">
+        <div className="mt-6 pt-6 border-t border-cortex-default">
           <LiveCounter />
         </div>
       </motion.div>
@@ -243,9 +243,9 @@ function LiveCounter() {
 
   return (
     <div className="flex items-center justify-center gap-2">
-      <div className="size-2 rounded-full bg-[#10B981] animate-pulse" />
+      <div className="size-2 rounded-full bg-cortex-success animate-pulse" />
       <p className="text-xs text-white/60">
-        <strong className="text-[#06D7F6]">{count}</strong> businesses assessed this month
+        <strong className="text-cortex-info">{count}</strong> businesses assessed this month
       </p>
     </div>
   );
@@ -256,17 +256,17 @@ function SuccessMessage({ email, onClose }: { email: string; onClose: () => void
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      className="relative bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1e] border border-[#06D7F6]/30 rounded-2xl p-8 w-full shadow-2xl text-center"
+      className="relative bg-gradient-to-br from-cortex-overlay to-cortex-overlay border border-cortex-info/30 rounded-cortex-lg p-8 w-full shadow-2xl text-center"
       onClick={(e) => e.stopPropagation()}
     >
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 size-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+        className="absolute top-4 right-4 size-8 rounded-full bg-cortex-control-hover hover:bg-white/20 flex items-center justify-center transition-colors"
       >
         <X className="size-4 text-white" />
       </button>
 
-      <div className="size-20 rounded-full bg-gradient-to-br from-[#06D7F6] to-[#3B82F6] flex items-center justify-center mx-auto mb-6">
+      <div className="size-20 rounded-full bg-gradient-to-br from-cortex-info to-cortex-accent-alt flex items-center justify-center mx-auto mb-6">
         <CheckCircle2 className="size-10 text-white" />
       </div>
 
@@ -274,10 +274,10 @@ function SuccessMessage({ email, onClose }: { email: string; onClose: () => void
       
       <p className="text-white/70 mb-6">
         We just sent your free guide to:<br />
-        <strong className="text-[#06D7F6]">{email}</strong>
+        <strong className="text-cortex-info">{email}</strong>
       </p>
 
-      <div className="bg-[#8B5CF6]/20 border border-[#8B5CF6]/30 rounded-xl p-4">
+      <div className="bg-cortex-accent/20 border border-cortex-accent/30 rounded-cortex-md p-4">
         <p className="text-sm text-white/80">
           🎯 <strong>Next Step:</strong> Take our 5-minute assessment to get personalized recommendations
         </p>

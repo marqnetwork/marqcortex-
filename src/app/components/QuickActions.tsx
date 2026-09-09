@@ -91,16 +91,16 @@ export function QuickActions({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-[#10B981]/20 to-[#06D7F6]/20 border border-[#10B981]/30 rounded-xl p-4"
+          className="bg-gradient-to-r from-cortex-success/20 to-cortex-info/20 border border-cortex-success/30 rounded-cortex-md p-4"
         >
           <div className="flex items-start gap-3 mb-3">
-            <div className="size-10 rounded-full bg-[#10B981]/30 flex items-center justify-center flex-shrink-0">
-              <Zap className="size-5 text-[#10B981]" />
+            <div className="size-10 rounded-full bg-cortex-success/30 flex items-center justify-center flex-shrink-0">
+              <Zap className="size-5 text-cortex-success" />
             </div>
             <div className="flex-1">
               <h4 className="font-bold text-white mb-1 flex items-center gap-2">
                 Instant Send Recommended
-                <span className="text-xs px-2 py-0.5 bg-[#10B981]/30 rounded-full text-[#10B981]">
+                <span className="text-xs px-2 py-0.5 bg-cortex-success/30 rounded-full text-cortex-success">
                   Quality: {qualityScore}/100
                 </span>
               </h4>
@@ -111,7 +111,7 @@ export function QuickActions({
           </div>
           <button
             onClick={onAutoSend}
-            className="w-full px-4 py-3 bg-gradient-to-r from-[#10B981] to-[#06D7F6] hover:from-[#059669] hover:to-[#0284C7] text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all"
+            className="w-full px-4 py-3 bg-gradient-to-r from-cortex-success to-cortex-info hover:from-cortex-success-deep hover:to-cortex-info/85 text-white rounded-cortex-sm font-semibold flex items-center justify-center gap-2 transition-all"
           >
             <Zap className="size-4" />
             Auto-Send Report Now
@@ -128,10 +128,10 @@ export function QuickActions({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 rounded-xl p-4"
+          className="bg-gradient-to-r from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 rounded-cortex-md p-4"
         >
           <div className="flex items-center gap-3 mb-3">
-            <CheckCircle2 className="size-5 text-[#8B5CF6]" />
+            <CheckCircle2 className="size-5 text-cortex-accent" />
             <div className="flex-1">
               <h4 className="font-bold text-white text-sm">High Quality - Quick Approve?</h4>
               <p className="text-xs text-white/60">Score: {qualityScore}/100</p>
@@ -139,7 +139,7 @@ export function QuickActions({
           </div>
           <button
             onClick={onApprove}
-            className="w-full px-4 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] hover:from-[#7C3AED] hover:to-[#2563EB] text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all"
+            className="w-full px-4 py-2 bg-gradient-to-r from-cortex-accent to-cortex-accent-alt hover:from-cortex-accent-deep hover:to-cortex-accent-alt-deep text-white rounded-cortex-sm font-semibold flex items-center justify-center gap-2 transition-all"
           >
             <CheckCircle2 className="size-4" />
             Approve
@@ -187,7 +187,7 @@ export function QuickActions({
           <span>Est. review: {getEstimatedReviewTime(qualityScore)}</span>
         </div>
         {qualityScore >= 90 && (
-          <div className="flex items-center gap-1 text-[#10B981]">
+          <div className="flex items-center gap-1 text-cortex-success">
             <Sparkles className="size-3" />
             <span>Fast-track eligible</span>
           </div>
@@ -225,13 +225,13 @@ function ActionButton({
   const getVariantStyles = () => {
     switch (variant) {
       case 'success':
-        return 'bg-[#10B981]/20 border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/30';
+        return 'bg-cortex-success/20 border-cortex-success/30 text-cortex-success hover:bg-cortex-success/30';
       case 'warning':
-        return 'bg-[#FB923C]/20 border-[#FB923C]/30 text-[#FB923C] hover:bg-[#FB923C]/30';
+        return 'bg-cortex-warning/20 border-cortex-warning/30 text-cortex-warning hover:bg-cortex-warning/30';
       case 'info':
-        return 'bg-[#06D7F6]/20 border-[#06D7F6]/30 text-[#06D7F6] hover:bg-[#06D7F6]/30';
+        return 'bg-cortex-info/20 border-cortex-info/30 text-cortex-info hover:bg-cortex-info/30';
       default:
-        return 'bg-[#8B5CF6]/20 border-[#8B5CF6]/30 text-[#8B5CF6] hover:bg-[#8B5CF6]/30';
+        return 'bg-cortex-accent/20 border-cortex-accent/30 text-cortex-accent hover:bg-cortex-accent/30';
     }
   };
 
@@ -242,11 +242,11 @@ function ActionButton({
         disabled={disabled}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
-        className={`w-full px-3 py-2 border rounded-lg font-medium text-sm flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${getVariantStyles()}`}
+        className={`w-full px-3 py-2 border rounded-cortex-sm font-medium text-sm flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${getVariantStyles()}`}
       >
         {icon}
         <span>{label}</span>
-        <kbd className="text-[10px] px-1 py-0.5 bg-black/30 rounded">{hotkey}</kbd>
+        <kbd className="text-[10px] px-1 py-0.5 bg-cortex-sunken rounded">{hotkey}</kbd>
       </button>
       
       {/* Tooltip */}
@@ -287,12 +287,12 @@ export function BatchActions({
     <motion.div
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-black/90 backdrop-blur-xl border border-[#8B5CF6]/30 rounded-xl px-6 py-4 shadow-2xl"
+      className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-black/90 backdrop-blur-xl border border-cortex-accent/30 rounded-cortex-md px-6 py-4 shadow-2xl"
     >
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2">
-          <div className="size-8 rounded-full bg-[#8B5CF6]/30 flex items-center justify-center">
-            <CheckCircle2 className="size-4 text-[#8B5CF6]" />
+          <div className="size-8 rounded-full bg-cortex-accent/30 flex items-center justify-center">
+            <CheckCircle2 className="size-4 text-cortex-accent" />
           </div>
           <span className="font-semibold text-white">
             {selectedCount} selected
@@ -302,7 +302,7 @@ export function BatchActions({
         <div className="flex items-center gap-2">
           <button
             onClick={onApproveAll}
-            className="px-4 py-2 bg-[#10B981]/20 hover:bg-[#10B981]/30 border border-[#10B981]/30 text-[#10B981] rounded-lg font-medium text-sm transition-all flex items-center gap-2"
+            className="px-4 py-2 bg-cortex-success/20 hover:bg-cortex-success/30 border border-cortex-success/30 text-cortex-success rounded-cortex-sm font-medium text-sm transition-all flex items-center gap-2"
           >
             <CheckCircle2 className="size-4" />
             Approve All
@@ -310,7 +310,7 @@ export function BatchActions({
 
           <button
             onClick={onSendAll}
-            className="px-4 py-2 bg-[#06D7F6]/20 hover:bg-[#06D7F6]/30 border border-[#06D7F6]/30 text-[#06D7F6] rounded-lg font-medium text-sm transition-all flex items-center gap-2"
+            className="px-4 py-2 bg-cortex-info/20 hover:bg-cortex-info/30 border border-cortex-info/30 text-cortex-info rounded-cortex-sm font-medium text-sm transition-all flex items-center gap-2"
           >
             <Send className="size-4" />
             Send All
@@ -318,7 +318,7 @@ export function BatchActions({
 
           <button
             onClick={onClearSelection}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg font-medium text-sm transition-all"
+            className="px-4 py-2 bg-cortex-control-hover hover:bg-white/20 border border-cortex-strong text-white rounded-cortex-sm font-medium text-sm transition-all"
           >
             Clear
           </button>
@@ -374,16 +374,16 @@ export function QuickEditPanel({ onApplyTemplate }: { onApplyTemplate: (template
         <button
           key={template.id}
           onClick={() => onApplyTemplate(template)}
-          className="w-full text-left px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all group"
+          className="w-full text-left px-3 py-2 bg-cortex-control hover:bg-cortex-control-hover border border-cortex-default rounded-cortex-sm transition-all group"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              <p className="text-sm font-medium text-white group-hover:text-[#8B5CF6] transition-colors">
+              <p className="text-sm font-medium text-white group-hover:text-cortex-accent transition-colors">
                 {template.label}
               </p>
               <p className="text-xs text-white/60 mt-1">{template.description}</p>
             </div>
-            <Sparkles className="size-4 text-white/40 group-hover:text-[#8B5CF6] transition-colors flex-shrink-0" />
+            <Sparkles className="size-4 text-white/40 group-hover:text-cortex-accent transition-colors flex-shrink-0" />
           </div>
         </button>
       ))}

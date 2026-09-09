@@ -69,7 +69,7 @@ export function AIAssistant({
         // does AND its state, since the same control opens and closes.
         aria-label={isOpen ? 'Close the assistant' : 'Open the assistant'}
         aria-expanded={isOpen}
-        className={`fixed bottom-6 right-6 size-14 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] shadow-2xl flex items-center justify-center z-50 transition-all hover:scale-110 ${
+        className={`fixed bottom-6 right-6 size-14 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt shadow-2xl flex items-center justify-center z-50 transition-all hover:scale-110 ${
           showPulse ? 'animate-bounce' : ''
         }`}
       >
@@ -84,7 +84,7 @@ export function AIAssistant({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 size-5 bg-[#FD4438] rounded-full border-2 border-[#0A0A0F] flex items-center justify-center"
+            className="absolute -top-1 -right-1 size-5 bg-cortex-danger rounded-full border-2 border-cortex-canvas flex items-center justify-center"
           >
             <span className="text-xs font-bold text-white" aria-hidden="true">!</span>
             <span className="sr-only">The assistant has something for you</span>
@@ -99,10 +99,10 @@ export function AIAssistant({
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] bg-[#0A0A0F] border border-[#8B5CF6]/30 rounded-2xl shadow-2xl z-50 overflow-hidden"
+            className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] bg-cortex-canvas border border-cortex-accent/30 rounded-cortex-lg shadow-2xl z-50 overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] p-4">
+            <div className="bg-gradient-to-r from-cortex-accent to-cortex-accent-alt p-4">
               <div className="flex items-center gap-3">
                 <div className="size-10 rounded-full bg-white/20 flex items-center justify-center">
                   <Sparkles className="size-5 text-white" />
@@ -112,7 +112,7 @@ export function AIAssistant({
                   <p className="text-xs text-white/70">Here to help you</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="size-2 rounded-full bg-[#10B981] animate-pulse" />
+                  <div className="size-2 rounded-full bg-cortex-success animate-pulse" />
                   <span className="text-xs text-white/70">Active</span>
                 </div>
               </div>
@@ -130,26 +130,26 @@ export function AIAssistant({
             </div>
 
             {/* Progress Footer */}
-            <div className="border-t border-white/10 p-4">
+            <div className="border-t border-cortex-default p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-white/60">Your Progress</span>
-                <span className="text-xs font-bold text-[#06D7F6]">
+                <span className="text-xs font-bold text-cortex-info">
                   {questionNumber}/{totalQuestions} questions
                 </span>
               </div>
-              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-2 bg-cortex-control-hover rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${(questionNumber / totalQuestions) * 100}%` }}
                   transition={{ duration: 0.5 }}
-                  className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#06D7F6]"
+                  className="h-full bg-gradient-to-r from-cortex-accent to-cortex-info"
                 />
               </div>
               {questionNumber === totalQuestions && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-[#10B981] mt-2 font-semibold flex items-center gap-1"
+                  className="text-xs text-cortex-success mt-2 font-semibold flex items-center gap-1"
                 >
                   <CheckCircle2 className="size-3" />
                   Final question! You're almost done!
@@ -184,13 +184,13 @@ function AssistantMessageBubble({
   const getIcon = () => {
     switch (message.type) {
       case 'help':
-        return <Lightbulb className="size-4 text-[#FB923C]" />;
+        return <Lightbulb className="size-4 text-cortex-warning" />;
       case 'encouragement':
-        return <TrendingUp className="size-4 text-[#10B981]" />;
+        return <TrendingUp className="size-4 text-cortex-success" />;
       case 'suggestion':
-        return <Sparkles className="size-4 text-[#06D7F6]" />;
+        return <Sparkles className="size-4 text-cortex-info" />;
       case 'insight':
-        return <CheckCircle2 className="size-4 text-[#8B5CF6]" />;
+        return <CheckCircle2 className="size-4 text-cortex-accent" />;
     }
   };
 
@@ -202,10 +202,10 @@ function AssistantMessageBubble({
     >
       {/* Message */}
       <div className="flex gap-3">
-        <div className="flex-shrink-0 size-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center">
+        <div className="flex-shrink-0 size-8 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center">
           {getIcon()}
         </div>
-        <div className="flex-1 bg-white/5 border border-white/10 rounded-xl p-3">
+        <div className="flex-1 bg-cortex-control border border-cortex-default rounded-cortex-md p-3">
           <p className="text-sm text-white/80 leading-relaxed">{message.content}</p>
         </div>
       </div>
@@ -218,7 +218,7 @@ function AssistantMessageBubble({
             <button
               key={idx}
               onClick={() => onSuggestionClick?.(suggestion)}
-              className="block w-full text-left px-3 py-2 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/30 rounded-lg text-sm text-white/80 transition-colors"
+              className="block w-full text-left px-3 py-2 bg-cortex-accent/20 hover:bg-cortex-accent/30 border border-cortex-accent/30 rounded-cortex-sm text-sm text-white/80 transition-colors"
             >
               {suggestion}
             </button>

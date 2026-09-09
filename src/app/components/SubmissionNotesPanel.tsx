@@ -20,6 +20,12 @@ import {
 import { getNotes, addNote, deleteNote, type Note } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 import { asArray } from '@/app/lib/payload';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ── Types & config ─────────────────────────────────────────────────────────
 
@@ -38,37 +44,37 @@ const NOTE_TYPES: {
     id: 'note',
     label: 'Note',
     icon: StickyNote,
-    color: '#9CA3AF',
-    bg: 'bg-white/5',
-    border: 'border-white/10',
-    chipBg: 'bg-white/10',
+    color: TEXT.muted,
+    bg: 'bg-cortex-control',
+    border: 'border-cortex-default',
+    chipBg: 'bg-cortex-control-hover',
   },
   {
     id: 'action',
     label: 'Action',
     icon: Zap,
-    color: '#FB923C',
-    bg: 'bg-[#FB923C]/8',
-    border: 'border-[#FB923C]/20',
-    chipBg: 'bg-[#FB923C]/15',
+    color: STATUS.warning,
+    bg: 'bg-cortex-warning/8',
+    border: 'border-cortex-warning/20',
+    chipBg: 'bg-cortex-warning/15',
   },
   {
     id: 'flag',
     label: 'Flag',
     icon: AlertTriangle,
-    color: '#FD4438',
-    bg: 'bg-[#FD4438]/8',
-    border: 'border-[#FD4438]/20',
-    chipBg: 'bg-[#FD4438]/15',
+    color: STATUS.danger,
+    bg: 'bg-cortex-danger/8',
+    border: 'border-cortex-danger/20',
+    chipBg: 'bg-cortex-danger/15',
   },
   {
     id: 'insight',
     label: 'Insight',
     icon: Lightbulb,
-    color: '#8B5CF6',
-    bg: 'bg-[#8B5CF6]/8',
-    border: 'border-[#8B5CF6]/20',
-    chipBg: 'bg-[#8B5CF6]/15',
+    color: brand.accent,
+    bg: 'bg-cortex-accent/8',
+    border: 'border-cortex-accent/20',
+    chipBg: 'bg-cortex-accent/15',
   },
 ];
 
@@ -92,7 +98,7 @@ function initials(name: string): string {
 }
 
 // Deterministic avatar colour from author string
-const AVATAR_COLOURS = ['#8B5CF6', '#3B82F6', '#06D7F6', '#FB923C', '#10B981'];
+const AVATAR_COLOURS = [brand.accent, brand.accentAlt, STATUS.info, STATUS.warning, STATUS.success];
 function avatarColour(name: string): string {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h + name.charCodeAt(i)) % AVATAR_COLOURS.length;
@@ -258,29 +264,29 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="size-10 rounded-xl bg-gradient-to-br from-[#8B5CF6]/20 to-[#3B82F6]/20 border border-[#8B5CF6]/30 flex items-center justify-center">
-              <MessageSquare className="size-5 text-[#8B5CF6]" />
+            <div className="size-10 rounded-cortex-md bg-gradient-to-br from-cortex-accent/20 to-cortex-accent-alt/20 border border-cortex-accent/30 flex items-center justify-center">
+              <MessageSquare className="size-5 text-cortex-accent" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Team Notes</h2>
-              <p className="text-gray-500 text-sm">
+              <p className="text-cortex-muted text-sm">
                 {companyName ? `Internal notes for ${companyName}` : 'Internal notes'}
               </p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-gray-600 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-cortex-faint bg-cortex-control border border-cortex-default rounded-cortex-sm px-3 py-1.5">
             <Lock className="size-3" />
             Team only
           </div>
           <button
             onClick={() => fetchNotes(true)}
             disabled={isRefreshing}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="p-2 hover:bg-cortex-control rounded-cortex-sm transition-colors"
             title="Refresh"
           >
-            <RefreshCw className={`size-4 text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-4 text-cortex-muted ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -292,7 +298,7 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
           return (
             <div
               key={t.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${t.bg} ${t.border}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm border text-xs font-medium ${t.bg} ${t.border}`}
               style={{ color: t.color }}
             >
               <Icon className="size-3.5" />
@@ -301,7 +307,7 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
           );
         })}
         {notes.length > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-400">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm bg-cortex-control border border-cortex-default text-xs text-cortex-muted">
             <Clock className="size-3.5" />
             {notes.length} total
           </div>
@@ -309,7 +315,7 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
       </div>
 
       {/* ── Notes feed ── */}
-      <div className="bg-black/30 border border-white/10 rounded-2xl overflow-hidden">
+      <div className="bg-cortex-sunken border border-cortex-default rounded-cortex-lg overflow-hidden">
         <div className="max-h-[480px] overflow-y-auto p-4 space-y-3">
           {isLoading ? (
             <NotesLoadingSkeleton />
@@ -332,7 +338,7 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
         </div>
 
         {/* ── Add note form ── */}
-        <div className="border-t border-white/10 p-4 bg-black/20">
+        <div className="border-t border-cortex-default p-4 bg-black/20">
           {/* Type selector */}
           <div className="flex gap-1.5 mb-3">
             {NOTE_TYPES.map(t => {
@@ -342,10 +348,10 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
                 <button
                   key={t.id}
                   onClick={() => setDraftType(t.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-cortex-sm border text-xs font-medium transition-all ${
                     isActive
                       ? `${t.bg} ${t.border}`
-                      : 'bg-white/3 border-white/8 text-gray-600 hover:text-gray-400 hover:bg-white/5'
+                      : 'bg-white/3 border-white/8 text-cortex-faint hover:text-cortex-muted hover:bg-cortex-control'
                   }`}
                   style={isActive ? { color: t.color } : {}}
                 >
@@ -371,10 +377,10 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
               }
               rows={3}
               disabled={!accessToken}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-[#8B5CF6]/50 focus:ring-1 focus:ring-[#8B5CF6]/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-cortex-control border border-cortex-default rounded-cortex-md px-4 py-3 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-cortex-accent/50 focus:ring-1 focus:ring-cortex-accent/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             />
             {draft.length > 0 && (
-              <div className="absolute bottom-3 right-3 text-[10px] text-gray-600">
+              <div className="absolute bottom-3 right-3 text-[10px] text-cortex-faint">
                 ⌘↵ to submit
               </div>
             )}
@@ -382,7 +388,7 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
 
           {/* Error */}
           {addError && (
-            <p className="mt-2 text-xs text-[#FD4438] flex items-center gap-1">
+            <p className="mt-2 text-xs text-cortex-danger flex items-center gap-1">
               <AlertTriangle className="size-3" />
               {addError}
             </p>
@@ -391,19 +397,19 @@ export function SubmissionNotesPanel({ submissionId, companyName, accessToken }:
           {/* Submit row */}
           <div className="flex items-center justify-between mt-3">
             {!accessToken ? (
-              <p className="text-xs text-gray-600">Authentication required to add notes</p>
+              <p className="text-xs text-cortex-faint">Authentication required to add notes</p>
             ) : (
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-cortex-faint">
                 Notes are visible to all team members
               </p>
             )}
             <button
               onClick={handleSubmit}
               disabled={!draft.trim() || !accessToken || isSubmitting}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-cortex-md text-sm font-semibold transition-all ${
                 draft.trim() && accessToken && !isSubmitting
-                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#3B82F6] text-white hover:opacity-90 shadow-lg shadow-[#8B5CF6]/20'
-                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
+                  ? 'bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white hover:opacity-90 shadow-lg shadow-cortex-accent/20'
+                  : 'bg-cortex-control text-cortex-faint cursor-not-allowed'
               }`}
             >
               {isSubmitting ? (
@@ -441,7 +447,7 @@ function NoteCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: isDeleting ? 0.4 : 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className={`group relative rounded-xl border p-4 transition-all ${cfg.bg} ${cfg.border} ${
+      className={`group relative rounded-cortex-md border p-4 transition-all ${cfg.bg} ${cfg.border} ${
         isTemp ? 'opacity-70' : ''
       }`}
     >
@@ -466,13 +472,13 @@ function NoteCard({
               <Icon className="size-2.5" />
               {cfg.label.toUpperCase()}
             </span>
-            <span className="text-gray-600 text-xs ml-auto flex items-center gap-1">
+            <span className="text-cortex-faint text-xs ml-auto flex items-center gap-1">
               <Clock className="size-2.5" />
               {timeAgo(note.createdAt)}
-              {isTemp && <span className="ml-1 text-[#8B5CF6]">saving…</span>}
+              {isTemp && <span className="ml-1 text-cortex-accent">saving…</span>}
             </span>
           </div>
-          <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-cortex-secondary text-sm leading-relaxed whitespace-pre-wrap break-words">
             {note.content}
           </p>
         </div>
@@ -482,10 +488,10 @@ function NoteCard({
           <button
             onClick={onDelete}
             disabled={isDeleting}
-            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[#FD4438]/15 rounded-lg transition-all flex-shrink-0 mt-0.5"
+            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-cortex-danger/15 rounded-cortex-sm transition-all flex-shrink-0 mt-0.5"
             title="Delete note"
           >
-            <Trash2 className="size-3.5 text-gray-600 hover:text-[#FD4438] transition-colors" />
+            <Trash2 className="size-3.5 text-cortex-faint hover:text-cortex-danger transition-colors" />
           </button>
         )}
       </div>
@@ -496,11 +502,11 @@ function NoteCard({
 function EmptyNotesState() {
   return (
     <div className="py-12 text-center">
-      <div className="size-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
-        <MessageSquare className="size-6 text-gray-600" />
+      <div className="size-14 rounded-cortex-lg bg-cortex-control flex items-center justify-center mx-auto mb-4">
+        <MessageSquare className="size-6 text-cortex-faint" />
       </div>
       <p className="text-white font-medium text-sm mb-1">No notes yet</p>
-      <p className="text-gray-500 text-xs max-w-xs mx-auto leading-relaxed">
+      <p className="text-cortex-muted text-xs max-w-xs mx-auto leading-relaxed">
         Add the first note, flag an issue, or log a required action for this submission.
       </p>
     </div>
@@ -511,12 +517,12 @@ function NotesLoadingSkeleton() {
   return (
     <div className="space-y-3">
       {[1, 2, 3].map(i => (
-        <div key={i} className="flex gap-3 p-4 rounded-xl bg-white/3 border border-white/8 animate-pulse">
-          <div className="size-8 rounded-full bg-white/10 flex-shrink-0" />
+        <div key={i} className="flex gap-3 p-4 rounded-cortex-md bg-white/3 border border-white/8 animate-pulse">
+          <div className="size-8 rounded-full bg-cortex-control-hover flex-shrink-0" />
           <div className="flex-1 space-y-2 pt-1">
-            <div className="h-3 bg-white/10 rounded w-32" />
-            <div className="h-3 bg-white/5 rounded w-full" />
-            <div className="h-3 bg-white/5 rounded w-3/4" />
+            <div className="h-3 bg-cortex-control-hover rounded w-32" />
+            <div className="h-3 bg-cortex-control rounded w-full" />
+            <div className="h-3 bg-cortex-control rounded w-3/4" />
           </div>
         </div>
       ))}

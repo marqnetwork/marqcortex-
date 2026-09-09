@@ -22,6 +22,12 @@ import {
   LOCK_REASON_LABELS,
 } from '@/app/core/blockEngine';
 import { useDialogBehavior } from '@/app/components/ui/cortex';
+import {
+  brand,
+  status as STATUS,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -37,18 +43,18 @@ const CHANGE_TYPE_ICONS: Record<RevisionChangeType, LucideIcon> = {
 };
 
 const CHANGE_TYPE_COLORS: Record<RevisionChangeType, string> = {
-  create:      '#10B981',
-  edit:        '#3B82F6',
-  ai_improve:  '#8B5CF6',
-  ai_expand:   '#06D7F6',
-  ai_simplify: '#F59E0B',
-  chat_patch:  '#FB923C',
+  create:      STATUS.success,
+  edit:        brand.accentAlt,
+  ai_improve:  brand.accent,
+  ai_expand:   STATUS.info,
+  ai_simplify: STATUS.caution,
+  chat_patch:  STATUS.warning,
 };
 
 const APPROVAL_CFG = {
-  pending:  { label: 'Pending',  color: '#F59E0B', Icon: Hourglass    },
-  accepted: { label: 'Accepted', color: '#10B981', Icon: CheckCircle2 },
-  rejected: { label: 'Rejected', color: '#FD4438', Icon: XCircle      },
+  pending:  { label: 'Pending',  color: STATUS.caution, Icon: Hourglass    },
+  accepted: { label: 'Accepted', color: STATUS.success, Icon: CheckCircle2 },
+  rejected: { label: 'Rejected', color: STATUS.danger, Icon: XCircle      },
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -99,7 +105,7 @@ function RevisionEntry({
       {!isFirst && (
         <div
           className="absolute left-[13px] bottom-full h-3 w-px"
-          style={{ background: '#ffffff08' }}
+          style={{ background: `${TEXT.primary}08` }}
         />
       )}
 
@@ -133,20 +139,20 @@ function RevisionEntry({
             </span>
           )}
 
-          <span className="ml-auto text-[8px] text-gray-700 flex items-center gap-1">
+          <span className="ml-auto text-[8px] text-cortex-faint flex items-center gap-1">
             <Clock className="size-2.5" />
             {timeAgo(revision.created_at)}
           </span>
         </div>
 
         {/* Row 2: diff summary */}
-        <p className="text-[10px] text-gray-400 leading-relaxed mb-1.5">
+        <p className="text-[10px] text-cortex-muted leading-relaxed mb-1.5">
           {revision.diff_summary}
         </p>
 
         {/* Row 3: author + approval status */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1 text-[8px] text-gray-700">
+          <span className="flex items-center gap-1 text-[8px] text-cortex-faint">
             {isHuman
               ? <User className="size-2.5" />
               : <Bot  className="size-2.5" />
@@ -164,7 +170,7 @@ function RevisionEntry({
             <ApprovalIcon className="size-2.5" />
             {approvalCfg.label}
             {revision.approved_by && revision.approved_at && (
-              <span className="font-normal text-gray-700">
+              <span className="font-normal text-cortex-faint">
                 · by {revision.approved_by}, {timeAgo(revision.approved_at)}
               </span>
             )}
@@ -215,51 +221,51 @@ export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProp
 
       {/* Panel. A slide-in drawer is still a modal overlay: it covers the page,
           it takes the interaction, and it needs to say so and hold focus. */}
-      <div {...dialogProps} className="relative w-full max-w-md h-full bg-[#0D0D18] border-l border-white/10 flex flex-col shadow-2xl overflow-hidden outline-none">
+      <div {...dialogProps} className="relative w-full max-w-md h-full bg-cortex-overlay border-l border-cortex-default flex flex-col shadow-2xl overflow-hidden outline-none">
 
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-white/8 bg-black/30">
+        <div className="flex items-start justify-between p-5 border-b border-white/8 bg-cortex-sunken">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <GitBranch className="size-3.5 text-[#8B5CF6]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+              <GitBranch className="size-3.5 text-cortex-accent" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-cortex-muted">
                 Revision History
               </span>
             </div>
             <div className="text-sm font-bold text-white leading-tight">{block.title}</div>
-            <div className="text-[9px] text-gray-700 mt-0.5 font-mono">{block.block_id}</div>
+            <div className="text-[9px] text-cortex-faint mt-0.5 font-mono">{block.block_id}</div>
           </div>
           <button
             onClick={onClose}
-            className="size-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+            className="size-7 rounded-cortex-sm flex items-center justify-center text-cortex-faint hover:text-white hover:bg-cortex-control transition-colors flex-shrink-0"
           >
             <X className="size-3.5" />
           </button>
         </div>
 
         {/* Stats strip */}
-        <div className="flex items-center gap-0 border-b border-white/5 bg-black/20">
+        <div className="flex items-center gap-0 border-b border-cortex-subtle bg-black/20">
           {[
-            { label: 'Versions',   value: block.version,   color: '#8B5CF6' },
-            { label: 'Total Rev.',  value: revisions.length, color: '#3B82F6' },
-            { label: 'Human',      value: humanRevs,       color: '#3B82F6' },
-            { label: 'AI',         value: aiRevs,          color: '#8B5CF6' },
+            { label: 'Versions',   value: block.version,   color: brand.accent },
+            { label: 'Total Rev.',  value: revisions.length, color: brand.accentAlt },
+            { label: 'Human',      value: humanRevs,       color: brand.accentAlt },
+            { label: 'AI',         value: aiRevs,          color: brand.accent },
           ].map((s, i) => (
             <div
               key={s.label}
-              className="flex-1 flex flex-col items-center py-2.5 border-r border-white/5 last:border-0"
+              className="flex-1 flex flex-col items-center py-2.5 border-r border-cortex-subtle last:border-0"
             >
               <span className="text-sm font-black" style={{ color: s.color }}>{s.value}</span>
-              <span className="text-[7px] uppercase tracking-wide text-gray-700">{s.label}</span>
+              <span className="text-[7px] uppercase tracking-wide text-cortex-faint">{s.label}</span>
             </div>
           ))}
         </div>
 
         {/* Lock notice */}
         {lock && (
-          <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/60 border border-white/5 text-[9px] text-gray-500">
-            <span className="text-gray-600">Locked:</span>
-            <span className="font-bold text-gray-400">{LOCK_REASON_LABELS[lock.lock_reason]}</span>
+          <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-cortex-sm bg-gray-900/60 border border-cortex-subtle text-[9px] text-cortex-muted">
+            <span className="text-cortex-faint">Locked:</span>
+            <span className="font-bold text-cortex-muted">{LOCK_REASON_LABELS[lock.lock_reason]}</span>
             ·
             <span>{lock.locked_by}</span>
             {!lock.unlock_allowed && (
@@ -270,8 +276,8 @@ export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProp
 
         {/* Pending notice */}
         {pendingRev && (
-          <div className="mx-4 mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-[9px]"
-            style={{ background: '#F59E0B08', borderColor: '#F59E0B30', color: '#F59E0B' }}>
+          <div className="mx-4 mt-2 flex items-center gap-2 px-3 py-2 rounded-cortex-sm border text-[9px]"
+            style={{ background: `${STATUS.caution}08`, borderColor: `${STATUS.caution}30`, color: STATUS.caution }}>
             <Hourglass className="size-3 flex-shrink-0" />
             Pending revision awaiting review — see block card to Accept / Reject
           </div>
@@ -280,7 +286,7 @@ export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProp
         {/* Revision timeline */}
         <div className="flex-1 overflow-y-auto p-5 space-y-0">
           {revisions.length === 0 ? (
-            <div className="text-center py-12 text-[10px] text-gray-700">
+            <div className="text-center py-12 text-[10px] text-cortex-faint">
               No revisions recorded yet.
             </div>
           ) : (
@@ -296,7 +302,7 @@ export function BlockHistoryPanel({ blockState, onClose }: BlockHistoryPanelProp
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/5 bg-black/20 text-[8px] text-gray-700">
+        <div className="px-5 py-3 border-t border-cortex-subtle bg-black/20 text-[8px] text-cortex-faint">
           Rule (schema §4): Revisions are never overwritten. This is the permanent audit trail.
         </div>
       </div>

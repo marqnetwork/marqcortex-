@@ -298,8 +298,12 @@ describe('StageTracker — stage icon contract corrected, render preserved', () 
   it('render behaviour preserved: both repaired sites still pass className and style', () => {
     assert.match(
       code,
-      /<Icon\s+className="size-5"\s+style=\{\{\s*color:\s*'rgba\(255,255,255,0\.2\)'\s*\}\}\s*\/>/,
-      "expected the pending-stage <Icon className=\"size-5\" style={{ color: 'rgba(255,255,255,0.2)' }} /> unchanged",
+      // The colour is now the strong-border token, which IS
+      // `rgba(255,255,255,0.2)`. What this pins is the render shape: the icon
+      // still receives both a className and a style, which is the contract the
+      // repair was about.
+      /<Icon\s+className="size-5"\s+style=\{\{\s*color:\s*K_BORDER_STRONG\s*\}\}\s*\/>/,
+      'expected the pending-stage <Icon className="size-5" style={{ color: K_BORDER_STRONG }} /> unchanged',
     );
     assert.match(
       code,
