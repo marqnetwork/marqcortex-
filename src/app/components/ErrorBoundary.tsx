@@ -7,6 +7,14 @@
 
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  surface as SURFACE,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 interface Props {
   children: ReactNode;
@@ -51,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div
           style={{
             minHeight: '100vh',
-            background: '#0A0A0F',
+            background: SURFACE.canvas,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -63,8 +71,8 @@ export class ErrorBoundary extends Component<Props, State> {
             style={{
               maxWidth: '480px',
               width: '100%',
-              background: '#111118',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: SURFACE.overlay,
+              border: `1px solid ${BORDER.default}`,
               borderRadius: '16px',
               padding: '40px',
               textAlign: 'center',
@@ -74,8 +82,8 @@ export class ErrorBoundary extends Component<Props, State> {
               style={{
                 width: '56px',
                 height: '56px',
-                background: 'rgba(253,68,56,0.12)',
-                border: '1px solid rgba(253,68,56,0.3)',
+                background: `${STATUS.danger}1F`,
+                border: `1px solid ${STATUS.danger}4C`,
                 borderRadius: '14px',
                 display: 'flex',
                 alignItems: 'center',
@@ -83,7 +91,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 margin: '0 auto 20px',
               }}
             >
-              <AlertTriangle size={28} color="#FD4438" />
+              <AlertTriangle size={28} color={STATUS.danger} />
             </div>
 
             <h2
@@ -99,7 +107,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <p
               style={{
-                color: '#9CA3AF',
+                color: TEXT.muted,
                 fontSize: '14px',
                 lineHeight: 1.6,
                 margin: '0 0 24px',
@@ -111,8 +119,8 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.error && (
               <div
                 style={{
-                  background: '#0D0D14',
-                  border: '1px solid rgba(253,68,56,0.2)',
+                  background: SURFACE.overlay,
+                  border: `1px solid ${STATUS.danger}33`,
                   borderRadius: '10px',
                   padding: '12px 16px',
                   marginBottom: '24px',
@@ -121,7 +129,7 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 <p
                   style={{
-                    color: '#FD4438',
+                    color: STATUS.danger,
                     fontSize: '12px',
                     fontFamily: 'monospace',
                     margin: 0,
@@ -141,10 +149,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   alignItems: 'center',
                   gap: '8px',
                   padding: '10px 20px',
-                  background: 'rgba(139,92,246,0.12)',
-                  border: '1px solid rgba(139,92,246,0.3)',
+                  background: `${brand.accent}1F`,
+                  border: `1px solid ${brand.accent}4C`,
                   borderRadius: '10px',
-                  color: '#8B5CF6',
+                  color: brand.accent,
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -161,10 +169,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   alignItems: 'center',
                   gap: '8px',
                   padding: '10px 20px',
-                  background: 'rgba(59,130,246,0.12)',
-                  border: '1px solid rgba(59,130,246,0.3)',
+                  background: `${brand.accentAlt}1F`,
+                  border: `1px solid ${brand.accentAlt}4C`,
                   borderRadius: '10px',
-                  color: '#3B82F6',
+                  color: brand.accentAlt,
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: 'pointer',

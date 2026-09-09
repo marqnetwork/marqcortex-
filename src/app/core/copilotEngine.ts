@@ -29,6 +29,23 @@ import {
   type CopilotInterpretRequest,
   type CopilotInterpretResponse,
 } from '@/app/services/dataService';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT     = brand.accent;
+const K_ACCENT_ALT = brand.accentAlt;
+const K_CAUTION    = STATUS.caution;
+const K_INFO       = STATUS.info;
+const K_SUCCESS    = STATUS.success;
+const K_WARNING    = STATUS.warning;
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -139,42 +156,42 @@ export const QUICK_COMMANDS: QuickCommand[] = [
     label: 'Fix Gate Issues',
     input: 'Fix all failing ready gate items and approve draft blocks.',
     icon:  'wrench',
-    color: '#FB923C',
+    color: K_WARNING,
     scope: 'whole_proposal',
   },
   {
     label: 'Rewrite Tone',
     input: 'Rewrite all proposal blocks in ultra-premium boardroom tone.',
     icon:  'zap',
-    color: '#8B5CF6',
+    color: K_ACCENT,
     scope: 'whole_proposal',
   },
   {
     label: 'Expand Solutions',
     input: 'Expand all solution blocks with integration points, deliverables, and outcomes.',
     icon:  'expand',
-    color: '#06D7F6',
+    color: K_INFO,
     scope: 'whole_proposal',
   },
   {
     label: 'Simplify for Client',
     input: 'Simplify all client-facing blocks — shorter sentences, no internal jargon.',
     icon:  'minimize',
-    color: '#F59E0B',
+    color: K_CAUTION,
     scope: 'whole_proposal',
   },
   {
     label: 'Align Solutions',
     input: 'Ensure all solution blocks reference their linked diagnosis blocks.',
     icon:  'link',
-    color: '#10B981',
+    color: K_SUCCESS,
     scope: 'whole_proposal',
   },
   {
     label: 'Draft Follow-up Email',
     input: 'Generate a follow-up email template summarising the proposal for the client.',
     icon:  'mail',
-    color: '#3B82F6',
+    color: K_ACCENT_ALT,
     scope: 'whole_proposal',
   },
 ];

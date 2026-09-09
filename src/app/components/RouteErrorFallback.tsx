@@ -8,6 +8,14 @@
 
 import { RefreshCw, Home } from 'lucide-react';
 import { useRouteError } from 'react-router';
+import {
+  border as BORDER,
+  brand,
+  status as STATUS,
+  surface as SURFACE,
+  text as TEXT,
+} from '@/app/lib/tokens';
+
 
 export function RouteErrorFallback() {
   const error = useRouteError();
@@ -27,7 +35,7 @@ export function RouteErrorFallback() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0A0A0F',
+        background: SURFACE.canvas,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -39,8 +47,8 @@ export function RouteErrorFallback() {
         style={{
           maxWidth: '480px',
           width: '100%',
-          background: '#111118',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: SURFACE.overlay,
+          border: `1px solid ${BORDER.default}`,
           borderRadius: '16px',
           padding: '40px',
           textAlign: 'center',
@@ -50,8 +58,8 @@ export function RouteErrorFallback() {
           style={{
             width: '56px',
             height: '56px',
-            background: 'rgba(253,68,56,0.12)',
-            border: '1px solid rgba(253,68,56,0.3)',
+            background: `${STATUS.danger}1F`,
+            border: `1px solid ${STATUS.danger}4C`,
             borderRadius: '14px',
             display: 'flex',
             alignItems: 'center',
@@ -76,7 +84,7 @@ export function RouteErrorFallback() {
 
         <p
           style={{
-            color: '#9CA3AF',
+            color: TEXT.muted,
             fontSize: '14px',
             lineHeight: 1.6,
             margin: '0 0 16px',
@@ -89,8 +97,8 @@ export function RouteErrorFallback() {
         {message && (
           <div
             style={{
-              background: '#0D0D14',
-              border: '1px solid rgba(253,68,56,0.25)',
+              background: SURFACE.overlay,
+              border: `1px solid ${STATUS.danger}40`,
               borderRadius: '8px',
               padding: '12px',
               marginBottom: '24px',
@@ -99,7 +107,7 @@ export function RouteErrorFallback() {
           >
             <pre
               style={{
-                color: '#FD4438',
+                color: STATUS.danger,
                 fontSize: '11px',
                 fontFamily: 'monospace',
                 margin: 0,
@@ -120,10 +128,10 @@ export function RouteErrorFallback() {
               alignItems: 'center',
               gap: '8px',
               padding: '10px 20px',
-              background: 'rgba(139,92,246,0.12)',
-              border: '1px solid rgba(139,92,246,0.3)',
+              background: `${brand.accent}1F`,
+              border: `1px solid ${brand.accent}4C`,
               borderRadius: '10px',
-              color: '#8B5CF6',
+              color: brand.accent,
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',
@@ -140,10 +148,10 @@ export function RouteErrorFallback() {
               alignItems: 'center',
               gap: '8px',
               padding: '10px 20px',
-              background: 'rgba(59,130,246,0.12)',
-              border: '1px solid rgba(59,130,246,0.3)',
+              background: `${brand.accentAlt}1F`,
+              border: `1px solid ${brand.accentAlt}4C`,
               borderRadius: '10px',
-              color: '#3B82F6',
+              color: brand.accentAlt,
               fontSize: '14px',
               fontWeight: 600,
               cursor: 'pointer',

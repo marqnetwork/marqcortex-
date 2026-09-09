@@ -17,6 +17,13 @@
  */
 
 import { DEMO_NURTURE_LEADS } from '@/app/services/dataService';
+import {
+  brand,
+  status as STATUS,
+  surface,
+  text,
+} from '@/app/lib/tokens';
+
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +77,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (name) => `Thanks ${name} — we're analyzing your responses`,
     preview: (name) => `Hi ${name}, we've received your diagnostic and our AI is analyzing it now. You'll hear from us within 4-6 hours.`,
     delayMs: 0,
-    color: '#06D7F6',
+    color: STATUS.info,
     icon: '📥',
   },
   {
@@ -79,7 +86,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (_, company) => `Your AI Readiness Score for ${company}`,
     preview: (name, score) => `Hi ${name}, your AI Readiness Score is ${score ?? '—'}/100. Here's what we found and what you can do about it.`,
     delayMs: 60_000, // 1 minute after (sent alongside the instant score)
-    color: '#8B5CF6',
+    color: brand.accent,
     icon: '📊',
   },
   {
@@ -88,7 +95,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (name) => `${name}, your full readiness report is ready`,
     preview: (name) => `Hi ${name}, our team has completed the deep analysis. Your personalised report with actionable recommendations is ready to view.`,
     delayMs: 4 * 3600_000, // 4 hours
-    color: '#3B82F6',
+    color: brand.accentAlt,
     icon: '📋',
   },
   {
@@ -97,7 +104,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (name) => `${name}, let's discuss your opportunities`,
     preview: (name) => `Hi ${name}, I reviewed your assessment and spotted some quick wins. Can we spend 30 minutes walking through them?`,
     delayMs: 48 * 3600_000, // 48 hours
-    color: '#FB923C',
+    color: STATUS.warning,
     icon: '📞',
   },
   {
@@ -106,7 +113,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (_, company) => `Still thinking about ${company}'s AI roadmap?`,
     preview: (name) => `Hi ${name}, it's been a few days since your assessment. The insights we found don't expire, but the competitive window does.`,
     delayMs: 5 * 24 * 3600_000, // 5 days
-    color: '#FD4438',
+    color: STATUS.danger,
     icon: '🔔',
   },
   {
@@ -115,7 +122,7 @@ export const EMAIL_TEMPLATE_CONFIGS: TemplateConfig[] = [
     subject: (name) => `${name}, your custom proposal is ready`,
     preview: (name) => `Hi ${name}, based on our readiness call, we've prepared a tailored proposal with phased implementation and clear ROI projections.`,
     delayMs: 0, // triggered manually by team
-    color: '#10B981',
+    color: STATUS.success,
     icon: '📝',
   },
 ];
@@ -592,17 +599,24 @@ export function getEmailPreview(emailId: string): EmailPreview | null {
     to: email.contactEmail,
     from: 'MARQ Cortex <team@marqcortex.com>',
     subject: email.subject,
-    html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#0A0A1A;color:#E5E7EB;border-radius:12px;">
+    // THE SENT EMAIL.
+    //
+    // A standalone document rendered by somebody's mail client, which strips
+    // <style> blocks and knows nothing of CSS custom properties — every colour
+    // here has to be a literal value in the markup. They interpolate the token
+    // VALUES so the mail stays in step with the product, but a `var(--cortex-*)`
+    // in this string would simply not render.
+    html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:${surface.overlay};color:${text.secondary};border-radius:12px;">
       <div style="text-align:center;margin-bottom:24px;">
-        <h1 style="color:#8B5CF6;font-size:24px;margin:0;">MARQ CORTEX</h1>
+        <h1 style="color:${brand.accent};font-size:24px;margin:0;">MARQ CORTEX</h1>
       </div>
-      <p style="font-size:16px;line-height:1.6;color:#D1D5DB;">Hi ${email.contactName},</p>
-      <p style="font-size:14px;line-height:1.6;color:#9CA3AF;">${email.previewText}</p>
-      <div style="margin:24px 0;padding:16px;background:rgba(139,92,246,0.1);border-left:3px solid #8B5CF6;border-radius:4px;">
-        <p style="margin:0;font-size:13px;color:#C4B5FD;">This is a preview of the <strong>${EMAIL_TEMPLATE_CONFIGS.find(t => t.id === email.templateId)?.label}</strong> template.</p>
+      <p style="font-size:16px;line-height:1.6;color:${text.secondary};">Hi ${email.contactName},</p>
+      <p style="font-size:14px;line-height:1.6;color:${text.muted};">${email.previewText}</p>
+      <div style="margin:24px 0;padding:16px;background:rgba(139,92,246,0.1);border-left:3px solid ${brand.accent};border-radius:4px;">
+        <p style="margin:0;font-size:13px;color:${brand.accentLight};">This is a preview of the <strong>${EMAIL_TEMPLATE_CONFIGS.find(t => t.id === email.templateId)?.label}</strong> template.</p>
       </div>
       <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:24px 0;" />
-      <p style="font-size:11px;color:#6B7280;text-align:center;">MARQ Cortex · AI Consultancy · <a href="#" style="color:#8B5CF6;">Unsubscribe</a></p>
+      <p style="font-size:11px;color:${STATUS.neutral};text-align:center;">MARQ Cortex · AI Consultancy · <a href="#" style="color:${brand.accent};">Unsubscribe</a></p>
     </div>`,
     plainText: `Hi ${email.contactName},\n\n${email.previewText}\n\n---\nMARQ Cortex · AI Consultancy`,
     templateId: email.templateId,

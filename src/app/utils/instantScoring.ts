@@ -10,6 +10,25 @@
  * the user immediate value.
  */
 
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+//
+// Read once at module scope. Deliberately not referenced as `status.x` inside
+// the components below: one or more of them take a parameter of that name, and
+// an unqualified reference there resolves to the parameter, not to the token.
+const K_ACCENT     = brand.accent;
+const K_ACCENT_ALT = brand.accentAlt;
+const K_CAUTION    = STATUS.caution;
+const K_DANGER     = STATUS.danger;
+const K_INFO       = STATUS.info;
+const K_NEUTRAL    = STATUS.neutral;
+const K_SUCCESS    = STATUS.success;
+const K_WARNING    = STATUS.warning;
+
 // ── Pain / opportunity keyword dictionaries ──────────────────────────────────
 
 const PAIN_KEYWORDS = [
@@ -78,7 +97,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'E-commerce Revenue Recovery',
       detail: 'Cart abandonment and post-purchase leakage are the two fastest ROI wins for DTC brands. Most see 15-25% revenue uplift within 60 days of addressing these.',
-      color: '#8B5CF6',
+      color: K_ACCENT,
     },
   },
   saas: {
@@ -89,7 +108,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'SaaS Growth Efficiency',
       detail: 'For SaaS, reducing time-to-value during onboarding and automating expansion triggers typically has 3-5x the impact of adding new acquisition channels.',
-      color: '#3B82F6',
+      color: K_ACCENT_ALT,
     },
   },
   agency: {
@@ -100,7 +119,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Agency Capacity Unlock',
       detail: 'The #1 lever for service businesses is reducing non-billable admin hours. Typical agencies reclaim 8-15 hours/week per person through process automation.',
-      color: '#06D7F6',
+      color: K_INFO,
     },
   },
   healthcare: {
@@ -111,7 +130,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Healthcare Operations Alert',
       detail: 'No-show reduction and revenue cycle automation are the fastest wins in healthcare. Most practices recover $3K-8K/month within 90 days of implementation.',
-      color: '#FB923C',
+      color: K_WARNING,
     },
   },
   manufacturing: {
@@ -122,7 +141,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Manufacturing Efficiency Gap',
       detail: 'Supply chain visibility and predictive maintenance are the highest-impact entry points. Even basic process digitisation can reduce waste by 15-25%.',
-      color: '#F59E0B',
+      color: K_CAUTION,
     },
   },
   nonprofit: {
@@ -133,7 +152,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Non-Profit Impact Multiplier',
       detail: 'Automating grant reporting and donor stewardship lets small teams serve more beneficiaries without adding headcount — the ultimate force multiplier.',
-      color: '#FD4438',
+      color: K_DANGER,
     },
   },
   creators: {
@@ -144,7 +163,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Creator Scalability Path',
       detail: 'The transition from 1:1 to 1:many is the biggest leverage point. Automated delivery + smart segmentation can 3x revenue without increasing your hours.',
-      color: '#10B981',
+      color: K_SUCCESS,
     },
   },
   government: {
@@ -155,7 +174,7 @@ const INDUSTRY_CALIBRATIONS: Record<string, IndustryCalibration> = {
     industryInsight: {
       title: 'Public Sector Modernisation',
       detail: 'Digital intake forms and automated case routing are the fastest wins. Most agencies see 30-50% reduction in processing time for routine requests.',
-      color: '#6B7280',
+      color: K_NEUTRAL,
     },
   },
   other: {
@@ -188,7 +207,7 @@ const BOTTLENECK_THEMES: BottleneckTheme[] = [
     label: 'Founder / Key-Person Dependency',
     description: 'Too many decisions, approvals, and knowledge live with one person. Growth is capped by their bandwidth.',
     keywords: ['depend on me', 'depends on me', 'approval', 'sign-off', 'sign off', 'can\'t move', 'waiting for me', 'I have to', 'only I', 'bottleneck', 'one person'],
-    color: '#8B5CF6',
+    color: K_ACCENT,
     icon: '👤',
   },
   {
@@ -196,7 +215,7 @@ const BOTTLENECK_THEMES: BottleneckTheme[] = [
     label: 'Manual & Repetitive Operations',
     description: 'Core processes are manual, error-prone, and eat team hours that should go to strategic work.',
     keywords: ['manual', 'manually', 'spreadsheet', 'copy-paste', 'copy paste', 'repetitive', 'tedious', 'hours', 'data entry', 'error', 'mistake'],
-    color: '#FB923C',
+    color: K_WARNING,
     icon: '🔧',
   },
   {
@@ -204,7 +223,7 @@ const BOTTLENECK_THEMES: BottleneckTheme[] = [
     label: 'Data & System Fragmentation',
     description: 'Information is siloed across disconnected tools. No single source of truth, leading to bad decisions.',
     keywords: ['disconnected', 'fragmented', 'silo', 'no visibility', 'can\'t see', 'don\'t know', 'guesswork', 'spreadsheet', 'multiple systems', 'different systems', 'lost', 'duplicated'],
-    color: '#3B82F6',
+    color: K_ACCENT_ALT,
     icon: '🔀',
   },
   {
@@ -212,7 +231,7 @@ const BOTTLENECK_THEMES: BottleneckTheme[] = [
     label: 'Customer Experience Gaps',
     description: 'Customer-facing processes are reactive, slow, or inconsistent -- driving churn and missed revenue.',
     keywords: ['customer', 'client', 'support', 'response time', 'churn', 'abandon', 'follow-up', 'follow up', 'retention', 'satisfaction', 'complaint', 'no-show'],
-    color: '#06D7F6',
+    color: K_INFO,
     icon: '💬',
   },
   {
@@ -220,7 +239,7 @@ const BOTTLENECK_THEMES: BottleneckTheme[] = [
     label: 'Scaling Ceiling',
     description: 'Current processes break under higher volume. Growth requires linearly more people or hours.',
     keywords: ['scale', 'scaling', 'growth', 'break', 'collapse', 'volume', 'capacity', 'hire', 'headcount', 'overwhelmed', 'can\'t keep up'],
-    color: '#FD4438',
+    color: K_DANGER,
     icon: '📈',
   },
 ];
@@ -368,7 +387,7 @@ export function computeInstantScore(
         : 'Your decision-making structure shows some delegation, but there may be room to empower the team further.',
       category: 'Governance',
       severity: hasDependency ? 'critical' : 'medium',
-      color: '#8B5CF6',
+      color: K_ACCENT,
     });
   }
 
@@ -383,7 +402,7 @@ export function computeInstantScore(
         : 'There are clear tasks that could be automated or streamlined to free up strategic capacity.',
       category: 'Automation',
       severity: automatable > 2 ? 'high' : 'medium',
-      color: '#06D7F6',
+      color: K_INFO,
     });
   }
 
@@ -395,7 +414,7 @@ export function computeInstantScore(
       detail: 'The areas you highlighted are common revenue drains. Addressing even one could recover significant margin within 90 days.',
       category: 'Revenue',
       severity: 'high',
-      color: '#FB923C',
+      color: K_WARNING,
     });
   }
 
@@ -407,7 +426,7 @@ export function computeInstantScore(
       detail: 'The concern you raised is a leading indicator we see in businesses right before a growth stall. The good news: it\'s addressable.',
       category: 'Risk',
       severity: 'high',
-      color: '#FD4438',
+      color: K_DANGER,
     });
   }
 
@@ -419,7 +438,7 @@ export function computeInstantScore(
       detail: 'Your 90-day goals are specific and measurable -- that clarity is a strong predictor of successful transformation outcomes.',
       category: 'Strategy',
       severity: 'medium',
-      color: '#3B82F6',
+      color: K_ACCENT_ALT,
     });
   }
 
@@ -431,21 +450,21 @@ export function computeInstantScore(
         detail: `Your overall operational maturity indicates ${operationalMaturity > 55 ? 'a solid foundation to build on' : 'significant room for systematisation and optimisation'}.`,
         category: 'Operations',
         severity: operationalMaturity > 55 ? 'medium' : 'high',
-        color: '#8B5CF6',
+        color: K_ACCENT,
       },
       {
         title: 'AI & Automation Readiness',
         detail: `Based on your responses, your ${industry || 'business'} shows ${automationReadiness > 55 ? 'strong readiness' : 'emerging readiness'} for AI-assisted workflows.`,
         category: 'Technology',
         severity: 'medium',
-        color: '#06D7F6',
+        color: K_INFO,
       },
       {
         title: 'Scale Preparedness',
         detail: `${scaleReadiness > 55 ? 'Your operations appear reasonably prepared for growth.' : 'Key processes may break under increased volume -- proactive investment is recommended.'}`,
         category: 'Growth',
         severity: scaleReadiness > 55 ? 'medium' : 'high',
-        color: '#3B82F6',
+        color: K_ACCENT_ALT,
       },
     ];
     for (const fb of fallbacks) {

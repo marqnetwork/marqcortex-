@@ -20,6 +20,11 @@ import type {
   CRMActivityLog,
   CRMTask,
 } from '@/app/types/cortex-types';
+import {
+  brand,
+  status as STATUS,
+} from '@/app/lib/tokens';
+
 
 // ════════════════════════════════════════════════════════════════════════════════
 // STAGE PIPELINE — 14 locked canonical stages
@@ -55,20 +60,20 @@ export interface StageCfg {
 }
 
 export const STAGE_CFG: Record<CRMStage, StageCfg> = {
-  lead_captured:             { label: 'Lead Captured',             short: 'Lead',       color: '#6B7280', close_probability: 0.05, group: 'pre_proposal'  },
-  diagnostic_started:        { label: 'Diagnostic Started',        short: 'Diag Start', color: '#8B5CF6', close_probability: 0.15, group: 'pre_proposal'  },
-  diagnostic_completed:      { label: 'Diagnostic Completed',      short: 'Diag Done',  color: '#A78BFA', close_probability: 0.25, group: 'pre_proposal'  },
-  proposal_draft:            { label: 'Proposal Draft',            short: 'Draft',      color: '#06D7F6', close_probability: 0.30, group: 'proposal'      },
-  proposal_sent:             { label: 'Proposal Sent',             short: 'Sent',       color: '#3B82F6', close_probability: 0.45, group: 'proposal'      },
-  proposal_viewed:           { label: 'Proposal Viewed',           short: 'Viewed',     color: '#10B981', close_probability: 0.55, group: 'proposal'      },
-  negotiation_objection:     { label: 'Negotiation / Objection',   short: 'Objection',  color: '#FB923C', close_probability: 0.40, group: 'proposal'      },
-  approved_pending_contract: { label: 'Approved — Pending Contract', short: 'Approved', color: '#F59E0B', close_probability: 0.75, group: 'contract'      },
-  contract_sent:             { label: 'Contract Sent',             short: 'Contract',   color: '#F59E0B', close_probability: 0.85, group: 'contract'      },
-  contract_signed:           { label: 'Contract Signed',           short: 'Signed',     color: '#10B981', close_probability: 0.95, group: 'contract'      },
-  onboarding_started:        { label: 'Onboarding Started',        short: 'Onboarding', color: '#10B981', close_probability: 0.97, group: 'delivery'      },
-  implementation_active:     { label: 'Implementation Active',     short: 'Active',     color: '#10B981', close_probability: 0.99, group: 'delivery'      },
-  closed_won:                { label: 'Closed Won',                short: 'Won',        color: '#10B981', close_probability: 1.00, group: 'closed'        },
-  closed_lost:               { label: 'Closed Lost',               short: 'Lost',       color: '#FD4438', close_probability: 0.00, group: 'closed'        },
+  lead_captured:             { label: 'Lead Captured',             short: 'Lead',       color: STATUS.neutral, close_probability: 0.05, group: 'pre_proposal'  },
+  diagnostic_started:        { label: 'Diagnostic Started',        short: 'Diag Start', color: brand.accent, close_probability: 0.15, group: 'pre_proposal'  },
+  diagnostic_completed:      { label: 'Diagnostic Completed',      short: 'Diag Done',  color: brand.accentLight, close_probability: 0.25, group: 'pre_proposal'  },
+  proposal_draft:            { label: 'Proposal Draft',            short: 'Draft',      color: STATUS.info, close_probability: 0.30, group: 'proposal'      },
+  proposal_sent:             { label: 'Proposal Sent',             short: 'Sent',       color: brand.accentAlt, close_probability: 0.45, group: 'proposal'      },
+  proposal_viewed:           { label: 'Proposal Viewed',           short: 'Viewed',     color: STATUS.success, close_probability: 0.55, group: 'proposal'      },
+  negotiation_objection:     { label: 'Negotiation / Objection',   short: 'Objection',  color: STATUS.warning, close_probability: 0.40, group: 'proposal'      },
+  approved_pending_contract: { label: 'Approved — Pending Contract', short: 'Approved', color: STATUS.caution, close_probability: 0.75, group: 'contract'      },
+  contract_sent:             { label: 'Contract Sent',             short: 'Contract',   color: STATUS.caution, close_probability: 0.85, group: 'contract'      },
+  contract_signed:           { label: 'Contract Signed',           short: 'Signed',     color: STATUS.success, close_probability: 0.95, group: 'contract'      },
+  onboarding_started:        { label: 'Onboarding Started',        short: 'Onboarding', color: STATUS.success, close_probability: 0.97, group: 'delivery'      },
+  implementation_active:     { label: 'Implementation Active',     short: 'Active',     color: STATUS.success, close_probability: 0.99, group: 'delivery'      },
+  closed_won:                { label: 'Closed Won',                short: 'Won',        color: STATUS.success, close_probability: 1.00, group: 'closed'        },
+  closed_lost:               { label: 'Closed Lost',               short: 'Lost',       color: STATUS.danger, close_probability: 0.00, group: 'closed'        },
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
