@@ -1490,3 +1490,211 @@ the deferred 4E rollout.
 
 _Last updated: 2026-09-10, at deployed Edge Function typecheck closure — 99 to 0
 with three casts removed and nothing suppressed._
+
+---
+
+# REPORT REPOSITORY CLOSURE — MQC-SVC-015
+
+_Branch `claude/report-repository-mqc-svc-015`, from main `9e656240`._
+
+## THE GAP, CONFIRMED INDEPENDENTLY
+
+`reportRepository.ts` and `outcomeRepository.ts` shared one md5
+(`608daf3c1d5b6bea415cc6697fb2b524`). The report repository exported
+`createOutcomeRepository`, queried the `outcomes` table, and no file under
+`supabase/functions/` read `reports` or `report_versions` at all. Canon marks
+**MQC-SVC-015 LIVE** — "client report repository with version history" — so the
+repository the manifest names did not exist, and the `ReportRepository`
+interface had no implementation.
+
+## WHAT THE SCHEMA FORCED — AND WHERE THE COPY WOULD HAVE BEEN WRONG
+
+**`report_versions` is append-only.** No `deleted_at`, no `updated_at`, no
+`updated_by` — unlike `reports`, which has all three. A
+`.is('deleted_at', null)` on the versions table type-checks, passes a naive
+fake, and fails against a real database. The version reads deliberately do not
+filter it, and both suites pin that.
+
+**`reports_submission_idx` is NOT unique.** A submission can carry more than one
+report — a regenerated diagnostic is a second row, not an edit. So
+`getReportBySubmission` orders newest-first with `id` as a tie-break rather than
+expecting a single row: two reports written in the same clock tick still resolve
+to one answer instead of to whichever the planner happens to return.
+
+**The database does not enforce tenancy on a version's parent.**
+`report_versions.report_id` and `.organization_id` are independent fields and
+only the first is foreign-keyed. **Verified live: the cross-tenant insert
+succeeds.** Such a row is invisible to its own parent's organization scope while
+still hanging off that parent. `createReportVersion` reads the parent in the
+caller's organization first — that guard is load-bearing, not belt-and-braces,
+and the live test asserts the gap it closes still exists.
+
+**`updateReport` strips identity, tenancy and provenance.**
+`Partial<ReportRecord>` structurally includes `organization_id`; spreading it
+would let a row found by one organization be handed to another — a cross-tenant
+write dressed as an edit.
+
+**`current_version` is not advanced by `createReportVersion`.** The canonical
+interface keeps the two operations separate, so which version a report points at
+stays the caller's decision. Coupling them would publish every draft the moment
+it was written.
+
+## THE TEST THAT LET IT THROUGH, AND WHAT REPLACED IT
+
+The static suite asserted `/export function create/` per file. The defective
+file satisfied it. The contract now names the factory each file must export, the
+tables each may and may not read, refuses two repositories that are the same
+implementation once comments are stripped, checks every barrel re-export against
+its source file, and **derives the required method list from the
+`ReportRepository` interface** so a method added to canon becomes a failing test.
+
+**Counterfactual:** restoring the byte-identical copy fails **5** of the new
+assertions. The previous suite passed it without complaint.
+
+The behavioural suite (19 steps, recording PostgREST fake) was mutation-tested:
+dropping the patch sanitiser, the parent check, a `deleted_at` filter, or the
+version ordering each turns it red.
+
+## LIVE DATABASE — RUN, NOT SKIPPED
+
+PostgreSQL 16.13 was started locally and **all 19 migrations applied cleanly**.
+That changed what could be proven:
+
+- `test:database` **235/235, zero skipped** (was 217 with 1 skipped — the
+  `kv_compare_and_swap` suite ran 19 real tests for the first time here).
+- `diagnostic_repository_live.test.sql` — ALL CHECKS PASSED.
+- `report_repository_live.test.sql` (new) — ALL CHECKS PASSED.
+- `test:database:diagnostic`, `:scenarios`, `:4c`, `:4d` — all passed against a
+  real PostgreSQL. Every one of these had reported BLOCKED in this environment
+  before.
+
+## VERIFICATION
+
+Deployed Deno typecheck **0** (342 files, exit 0) · `typecheck:api:ai` **0** ·
+`typecheck:web` **0** · features **1217** · security **859** · AI **2183** ·
+system **170** · migration **210** · boundaries **107** · diagnostic **176** ·
+database **235** — all pass. Build succeeds. Barrel proven to LINK at runtime,
+not merely type-check.
+
+**MQC-SVC-015: CLOSED.**
+
+---
+
+# V1 COMPLETION AUDIT
+
+Against the five canonical documents, the roadmap, the §VI-5 gap register and
+the 327-node manifest. No percentage is offered: the inventory below is the
+answer, and a single number would hide that most of what remains is not code.
+
+## COMPLETE
+
+- **Phase 1** S1 Intelligence Gateway, S2 Frontend Gateway Normalization.
+- **Phase 2** S3 Database Architecture, S4 Tenancy Foundation, S5 Diagnostic
+  Foundation — **the repository layer is now genuinely 5/5**, real and distinct.
+- **Phase 3** S6.1–S6.3 migration planning, infrastructure, validation.
+- **Phase 4** S7.1–S7.4 runtime storage gateway and outcome shadow read; S7.7
+  submission shadow read.
+- **Phase 6** AI-01 Batches 1, 2, 3A, 3B, 4A, 4B, 4C, 4D, 4E, 4F. This closes
+  **G3 — intelligence breadth**.
+- **G5 — enterprise performance instrumentation**, for the two sections the
+  blueprint makes buildable: §IV-51 operational health, §IV-48 enterprise KPIs.
+- **G7 — strategic surface**, on the documentation axis (Part V LOCKED).
+- UI Sprints 1–8, token migration with Class A = 0, ClientPortal live
+  authentication path, deployed Edge Function typecheck 99 → 0.
+
+## PARTIAL
+
+- **G1 — Data authority.** Schema, migrations, repositories, backfills,
+  reconciliation and shadow reads all exist; **KV is still the runtime
+  authority** and no route reads a relational row.
+- **G2 — Multi-tenancy enforcement.** `organizations`, RLS policies and
+  `tenancyRepository` exist; runtime isolation across every path is still
+  maturing. Today's finding is evidence: the database accepts a cross-tenant
+  `report_versions` row, and only repository code refuses it.
+- **G8 — Maturity.** Startup shape; Growth→Enterprise→Global→AI-native
+  approved, not realized (§IV-53).
+- **Repositories are not wired to Hono routes** — including this one. That is
+  the sprint's stated scope, not an omission.
+
+## MISSING
+
+- **G4 — AI Workforce runtime.** The Part IV executive/department/manager/worker
+  runtime does not exist. Reserved to the `ai_worker` identity.
+- **G6 — External integrations.** CRM sync, e-sign and scheduling are specified,
+  not live. `CRMSyncPanel` is GATED pending credentials.
+
+## DEFERRED BY CANON
+
+- Repository→route wiring (MCV2-S5: "not wired to Hono routes, per sprint scope").
+- **S7.6 Lead Shadow Read — CANCELLED**, as a finding: the lead domain has no
+  runtime read to shadow, and bulk comparison already exists as
+  `npm run migration:reconcile`.
+- Part V Future Vision runtime realization; the §IV-53 maturity stages.
+
+## BLOCKED BY LIVE / EXTERNAL DEPENDENCY
+
+None of these are code gaps. Each needs a deployment, a credential or a switch.
+
+- **S7.5 Outcome Shadow Read Validation** — exit condition is a mismatch rate
+  over real traffic; needs `MCV2_SHADOW_READ_OUTCOMES` on in a deployment.
+- **S7.8 Full Runtime Validation**; **Phase 5 S8.1–S8.3 SQL cutover**.
+- **Phase 2 backfill execution** — CODE COMPLETE, NOT RUN. Running it against
+  real data is a deployment action.
+- Live AI provider traffic (`AI_ALLOW_REAL_REQUESTS`); the certified diagnostic
+  review capability (`AI_DIAGNOSTIC_REVIEW_ENABLED`, off by default).
+- `FEATURES.BACKEND_INTEGRATION` is **false**, which is what makes the 9 DEMO
+  manifest nodes demo. They are wired, not unbuilt.
+- CRM sync credentials. Production deployment. Final security certification.
+
+## PARKING LOT / POST-V1
+
+- G4 AI Workforce runtime; the G8 maturity stages.
+- `ABTestingPanel` — gated, deliberately absent from navigation.
+- `LearningLoopPanel` — needs ≥50 closed submissions to mean anything.
+
+## DOCUMENTATION INCONSISTENCIES
+
+- **`DiagnosticQuestion` (MQC-COMP-005) is marked LIVE and has zero code
+  references** — only registry and manifest metadata mention it.
+- **`ProgressModal` (MQC-COMP-085) is NOT independently dead.** It is imported
+  and mounted by `DiagnosticQuestion`. An earlier checkpoint listed the two
+  together as unmounted; only the first is. Deleting `DiagnosticQuestion`
+  without noticing would orphan the second.
+- Manifest `lastVerified: 2026-07-31`, `version: 2.1.0` — stale against
+  everything since.
+- `MARQ_CORTEX_STABILIZATION_ROADMAP.md` is a zero-byte file.
+
+## HUMAN DECISIONS REQUIRED
+
+1. Chip-on-own-tint contrast (**4.17:1**, under AA) and the marketing type ramp.
+2. The `migration/**` boundary: own boundary in `typecheck-deno.mjs`, or move it
+   out from under `supabase/functions/`. **24 Deno errors, all Node-targeted.**
+3. `typecheck:tests` — **27 errors, pre-existing and unchanged**; 23 are in
+   Deno-targeted AI files the authoritative checker passes, across two
+   TypeScript versions (5.9.3 vs 6.0.3).
+4. `DiagnosticQuestion`: wire it, or delete it and `ProgressModal` together.
+5. Switching on shadow reads, running the backfill, deploying, certifying.
+
+## NEXT 5 HIGHEST-PRIORITY V1 TASKS
+
+1. **Reconciliation for the cortex and outcome domains** — the roadmap's own
+   next sprint, and the last code-side prerequisite for Phase 5.
+2. **Resolve the two typecheck boundaries** (`migration/**` 24,
+   `typecheck:tests` 27). Both are classification, not defects; both currently
+   make a green tree read red.
+3. **Canon reconciliation** — `DiagnosticQuestion`/`ProgressModal`, the stale
+   manifest `lastVerified`, the empty stabilization roadmap.
+4. **G2 runtime tenancy audit** — enumerate every path that trusts a caller-
+   supplied `organization_id` where the database does not enforce it. The
+   `report_versions` finding is unlikely to be the only one.
+5. **The two design decisions** (chip contrast, type ramp) — blocking nothing
+   technical, but they are the last known AA gap.
+
+Not started, deliberately: production deployment, final security certification,
+the 4E rollout.
+
+---
+
+_Last updated: 2026-09-10, at MQC-SVC-015 closure — a real report repository,
+proven against a real PostgreSQL, and a V1 audit that counts rather than
+estimates._
