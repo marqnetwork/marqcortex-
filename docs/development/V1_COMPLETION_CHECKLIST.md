@@ -46,6 +46,8 @@ human decision rather than code.
 | **Multi-tenancy enforcement (G2)** | §VI-5 G2; RA §7.22, §11.8 | composite keys on all 14 relationships; 27 live scenarios; no class-F path remains |
 | **Phase 5 cutover MECHANISM (G1, S8.1)** | Roadmap Phase 5 | `storage/readAuthority.ts`, wired to the outcome route, switch off; 10 live scenarios incl. rollback |
 | **All typecheck boundaries (H3, H4)** | — | `npm run typecheck` exits 0: web 0, api 0, tests 0 — and `tests` is now **strict**, which it never was |
+| **Integration QA — canonical journeys in a browser** | Product Experience | 17 Playwright tests: sign-in, 13 destinations as deep links, reload, signed-out denial, phone width, accessibility. Found and fixed ungated admin credentials on the sign-in page and a missing favicon |
+| **Production readiness plan** | — | `docs/development/V1_PRODUCTION_READINESS.md` — migration order, flag state, deployment order, Phase 5 sequence, health checks, smoke plan, rollback |
 
 ---
 
@@ -244,6 +246,7 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 | H2 | Marketing type ramp | Deferred deliberately in UI Sprint 8. |
 | ~~H3~~ | ~~The `migration/**` typecheck boundary~~ | **CLOSED.** Its own ADVISORY boundary — reported, never fatal, naming the checker that owns it. Verified not a suppression: `tsc -p tsconfig.node.json` loads 26 of the 27 files and reports **zero** errors in them. |
 | ~~H4~~ | ~~`typecheck:tests`~~ | **CLOSED, 27 → 0.** Not the TypeScript-version difference an earlier checkpoint guessed at: `tsconfig.node.json` had no `strict` (so unions did not narrow), no `DOM` lib (WebCrypto globals), and no `jsx`. Enabling strict surfaced **six real findings in test code**, fixed rather than silenced. |
+| **H1** | Chip-on-own-tint contrast | **4.17:1, under AA.** Canon does not establish the intended treatment. |
 | **H7** | **Submission read cutover changes the response body** | **New, and blocking S8.1 for that domain.** Proven by round-trip: KV `phone: 'Not specified'` becomes `null`, and `website: ''` becomes `null` — the normalizer discards placeholders as non-values and the original spelling is destroyed, so it cannot be reconstructed. Canon does not say whether the served body may change. See P1. |
 | H5 | `DiagnosticQuestion` | Marked LIVE, **zero code references.** Wire it or delete it — and note `ProgressModal` is mounted *by it*, so they go together. |
 | H6 | Switch on shadow reads / run the backfill / deploy / certify | Every LIVE-BLOCKED row above. |

@@ -2005,3 +2005,96 @@ boundaries **107** · build ✓.
 
 _Last updated: 2026-09-10, at the G1 cutover mechanism — the rollout now has
 something to roll out, and a rollback that is a switch._
+
+---
+
+# INTEGRATION QA, THE BOUNDARIES, AND PRODUCTION READINESS
+
+_Branch `claude/v1-integration-qa`, from main `09b514e1`._
+
+## THE BOUNDARIES CLOSED — AND THE EARLIER GUESS CORRECTED
+
+`npm run typecheck` exits 0 for the first time: web 0, api 0, tests 0.
+
+**H3** was the Deno sweep pointed at Node code. It is now its own ADVISORY
+boundary, and — this is the part that makes it a classification rather than a
+suppression — `tsc -p tsconfig.node.json` loads 26 of those 27 files and reports
+**zero** errors in them. The code is checked, by the checker that owns it.
+
+**H4** was 27 errors, and the previous checkpoint guessed at a TypeScript
+version difference. That was wrong. It was three configuration gaps:
+`tsconfig.node.json` had no `strict` (so discriminated unions did not narrow —
+twelve errors against correct code), no `DOM` lib (eleven WebCrypto globals),
+and no `jsx` (three). Enabling strict surfaced **six genuine findings in test
+code**, fixed rather than silenced. The test suite had been checked more weakly
+than the code it tests.
+
+## WHAT RUNNING THE PRODUCT FOUND THAT READING IT DID NOT
+
+**The sign-in page printed working administrator credentials, ungated.** Two
+quick-fill buttons and a "Demo Credentials" panel — three literal mentions of a
+real admin email and password — with no demo check at all. They rendered in a
+production bundle as readily as in the demo one, on a public page.
+
+It was found by accident, which is the point: a tab-order probe walked from the
+email field onto a button whose label was the admin address. No source review
+had caught it and no unit test could have, because nothing was wrong with any
+module. Now behind `isDemoMode()`, with a regression suite that fails if a
+credential literal ever appears before a gate.
+
+**`index.html` declared no icon at all**, so every browser requested
+`/favicon.ico` by default and got a 404 — every page load, every user, dev and
+production, with a blank tab mark. `/vite.svg` and `/manifest.json` return the
+SPA fallback, so there was genuinely no icon anywhere. A data URI in the brand's
+own token colours fixes both without an asset, a build step or a request.
+
+## AND THREE OF MY OWN TEST BUGS, EACH OF WHICH WOULD HAVE LIED
+
+Worth recording because each is a way a QA suite reports something untrue:
+
+- `getByLabel(/password/i)` matched the input **and** the reveal button. The
+  ambiguity was the product being accessible; the failure was mine.
+- I invented login credentials and a route when a working suite already had
+  them. A QA file that invents its own login tests the login it imagined.
+- I guessed the client-portal URL, found no form, and **skipped** — so a
+  cross-tenant assertion never ran. A skip that reads as a pass is worse than a
+  failure. The real route is `#/client/login`, and it now runs.
+
+17 browser tests pass: sign-in, all thirteen destinations as deep links with a
+clean console, reload-preserves-destination, unknown-page-parameter, signed-out
+denial for both the console and the client portal, an unknown client email
+refused, phone-width layout with no horizontal scroll, and four accessibility
+checks.
+
+## THE ROLLBACK MY OWN MIGRATION WAS MISSING
+
+Every other structural migration has one; the composite-keys migration did not.
+Written, and round-trip proven against PostgreSQL 16 — forward gives 14
+composite keys, the rollback restores all 14 single-column keys and leaves 0
+composite, forward again returns to 14. Its header states what rolling back
+COSTS, so it reads as a remedy for a deployment problem rather than a way to
+make unexpected data acceptable.
+
+## PRODUCTION READINESS
+
+`docs/development/V1_PRODUCTION_READINESS.md`: the migration order and the one
+migration that can legitimately refuse, the flag state at go-live (everything
+that changes behaviour ships off), the deployment order and which steps are
+reversible, the Phase 5 switch sequence with its exit conditions, health checks
+with expected values, the smoke plan, and what is NOT ready.
+
+It states plainly that a comprehensive final security campaign has **not** been
+run, and why: canon puts it after functional V1 closure, and V1 is not
+functionally closed while three human decisions are open.
+
+## VERIFICATION
+
+typecheck **0 across all three boundaries** · browser **17** · features **1221**
+· security **859** · system **170** · AI **2183** · migration **236** ·
+database **242** · cutover **10** · tenancy **27** · reconciliation **21** ·
+boundaries **107** · build ✓.
+
+---
+
+_Last updated: 2026-09-10, at integration QA and production readiness — the
+product driven the way a person drives it, and the two defects that found._

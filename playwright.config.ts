@@ -2,6 +2,20 @@ import { defineConfig, devices } from '@playwright/test';
 
 const localBrowserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? (process.env.CI ? undefined : 'chrome');
 
+/**
+ * A browser that is already on the machine.
+ *
+ * Playwright refuses to launch when the installed browser build does not match
+ * the one its own version expects, which is the ordinary state of a sandbox or
+ * image that pre-installs browsers on a different cadence to this repository's
+ * `@playwright/test`. Re-downloading is not always possible and is never
+ * desirable there, so an environment may name the binary instead.
+ *
+ * Unset — which is every developer machine and CI as configured today — nothing
+ * changes and Playwright resolves the browser exactly as it did before.
+ */
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+
 export default defineConfig({
   testDir: './tests/smoke',
   timeout: 60_000,
@@ -26,6 +40,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         ...(localBrowserChannel ? { channel: localBrowserChannel } : {}),
+        ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
     },
   ],

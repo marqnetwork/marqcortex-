@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { teamLogin } from '@/app/services/dataService';
+import { isDemoMode } from '@/config/runtime';
 import {
   brand,
 } from '@/app/lib/tokens';
@@ -191,16 +192,19 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               className="w-full p-4 bg-cortex-overlay border-2 border-cortex-strong rounded-cortex-md text-white placeholder:text-cortex-neutral focus:border-cortex-accent focus:outline-none transition-all"
               style={{ fontFamily: 'Inter' }}
             />
-            <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
-              Use:&nbsp;
-              <button
-                type="button"
-                onClick={() => setEmail('admin@marqcortex.com')}
-                className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-              >
-                admin@marqcortex.com
-              </button>
-            </p>
+            {/* Demo affordance only — see the note on the credentials panel below. */}
+            {isDemoMode() && (
+              <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
+                Use:&nbsp;
+                <button
+                  type="button"
+                  onClick={() => setEmail('admin@marqcortex.com')}
+                  className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                >
+                  admin@marqcortex.com
+                </button>
+              </p>
+            )}
           </div>
 
           {/* Password Field */}
@@ -230,16 +234,18 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
-              Use:&nbsp;
-              <button
-                type="button"
-                onClick={() => setPassword('CortexAdmin2026!')}
-                className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-              >
-                CortexAdmin2026!
-              </button>
-            </p>
+            {isDemoMode() && (
+              <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
+                Use:&nbsp;
+                <button
+                  type="button"
+                  onClick={() => setPassword('CortexAdmin2026!')}
+                  className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                >
+                  CortexAdmin2026!
+                </button>
+              </p>
+            )}
           </div>
 
           {/* Remember Me & Forgot Password */}
@@ -315,20 +321,36 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
         </motion.form>
 
         {/* Demo Credentials Info */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-6 p-5 bg-cortex-info/10 border border-cortex-info/30 rounded-cortex-md"
-        >
-          <p className="text-xs font-semibold text-cortex-info mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
-            Demo Credentials
-          </p>
-          <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
-            <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> admin@marqcortex.com</p>
-            <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> CortexAdmin2026!</p>
-          </div>
-        </motion.div>
+        {/*
+          DEMO ONLY, AND GATED.
+
+          This panel and the two quick-fill buttons above print a working
+          administrator email and password on the sign-in page. That is the
+          right affordance for the demo build every reviewer runs, and it is
+          the wrong thing to ship: ungated, they rendered in a production
+          bundle too, where the credentials are real and the page is public.
+
+          `isDemoMode()` is the same gate the rest of the UI uses —
+          `FEATURES.BACKEND_INTEGRATION`, which is what a live deployment turns
+          on. Turning the backend on now removes these from the page as well as
+          from the bundle's reachable render path.
+        */}
+        {isDemoMode() && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mt-6 p-5 bg-cortex-info/10 border border-cortex-info/30 rounded-cortex-md"
+          >
+            <p className="text-xs font-semibold text-cortex-info mb-2 uppercase tracking-wider" style={{ fontFamily: 'Inter' }}>
+              Demo Credentials
+            </p>
+            <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> admin@marqcortex.com</p>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> CortexAdmin2026!</p>
+            </div>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   );
