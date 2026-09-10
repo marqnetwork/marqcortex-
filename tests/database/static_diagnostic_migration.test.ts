@@ -66,6 +66,103 @@ describe('MCV2-S5 diagnostic migrations (static)', () => {
   });
 });
 
+describe('G2 tenancy composite keys (static)', () => {
+  const composite = readMigration('20260910120000_cortex_tenancy_composite_keys.sql');
+  const foundation = readMigration('20260714050000_cortex_diagnostic_foundation.sql');
+
+  /**
+   * Every parent→child relationship in the diagnostic domain, read from the
+   * FOUNDATION migration rather than restated here.
+   *
+   * The point of deriving it: a child table added later with an
+   * `organization_id` and a parent reference, and no composite key, becomes a
+   * failing test rather than a silent tenancy hole. That is exactly how the
+   * original gap survived — fourteen relationships, one guard, and nothing that
+   * counted them.
+   */
+  function relationships(): { child: string; column: string; parent: string }[] {
+    const found: { child: string; column: string; parent: string }[] = [];
+    for (const [, child, body] of foundation.matchAll(
+      /CREATE TABLE IF NOT EXISTS public\.(\w+) \(([\s\S]*?)\n\);/g,
+    ) as unknown as Iterable<RegExpMatchArray>) {
+      if (!/organization_id\s+UUID NOT NULL/.test(body)) continue;
+      for (const line of body.split('\n')) {
+        const fk = /^\s*(\w+)\s+UUID[^,]*?REFERENCES public\.(\w+)\(id\)/.exec(line);
+        if (!fk || fk[1] === 'organization_id') continue;
+        found.push({ child, column: fk[1], parent: fk[2] });
+      }
+    }
+    return found;
+  }
+
+  it('finds the parent-child relationships it is meant to protect', () => {
+    assert.ok(
+      relationships().length >= 14,
+      `expected at least the fourteen known relationships, found ${relationships().length}`,
+    );
+  });
+
+  it('declares a composite foreign key for every one of them', () => {
+    // The FOUR-column form only. The migration also lists every relationship in
+    // its pre-flight data check, in a three-column form, and matching the whole
+    // file would let a relationship that is merely VALIDATED pass for one that
+    // is CONSTRAINED — which is the difference this test exists to catch.
+    const block = /ADD CONSTRAINT[\s\S]*$/.exec(composite)?.[0] ?? '';
+    const declared = /FOR v_fk IN\s*SELECT \* FROM \(VALUES([\s\S]*?)\) AS t\(child, column_name, parent, on_delete\)/
+      .exec(composite)?.[1];
+    assert.ok(declared, 'the foreign-key VALUES block was not found');
+    assert.ok(block.length > 0, 'no ADD CONSTRAINT section');
+
+    for (const { child, column, parent } of relationships()) {
+      assert.match(
+        declared,
+        new RegExp(`'${child}',\\s*'${column}',\\s*'${parent}',\\s*'(CASCADE|SET NULL)'`),
+        `${child}.${column} -> ${parent} has no composite key — a child could name another tenant's parent`,
+      );
+    }
+  });
+
+  it('constrains exactly the relationships it validates, and no fewer', () => {
+    const countIn = (pattern: RegExp) => (composite.match(pattern) ?? []).length;
+    const validated = /FOR v_pair IN\s*SELECT \* FROM \(VALUES([\s\S]*?)\) AS t\(child, column_name, parent\)/
+      .exec(composite)?.[1];
+    const constrained = /FOR v_fk IN\s*SELECT \* FROM \(VALUES([\s\S]*?)\) AS t\(child, column_name, parent, on_delete\)/
+      .exec(composite)?.[1];
+    assert.ok(validated && constrained);
+    const rows = (block: string) => (block.match(/\('\w+',/g) ?? []).length;
+    assert.equal(
+      rows(constrained),
+      rows(validated),
+      'a relationship is checked for bad data but never given a constraint, or vice versa',
+    );
+    void countIn;
+  });
+
+  it('gives every referenced parent the two-column unique key', () => {
+    const parents = new Set(relationships().map((r) => r.parent));
+    for (const parent of parents) {
+      assert.match(composite, new RegExp(`'${parent}'`), `${parent} needs UNIQUE (id, organization_id)`);
+    }
+  });
+
+  it('restricts SET NULL to the parent column, never the tenant', () => {
+    // Without the column list a two-column SET NULL nulls `organization_id`
+    // too, which is NOT NULL — so deleting a parent fails outright.
+    assert.match(composite, /SET NULL \(%I\)/);
+  });
+
+  it('refuses to run against data that already crosses a tenant boundary', () => {
+    assert.match(composite, /RAISE EXCEPTION[\s\S]*?already cross a tenant boundary/);
+    assert.match(composite, /IS DISTINCT FROM p\.organization_id/);
+  });
+
+  it('adds no column and writes no row', () => {
+    assert.doesNotMatch(composite, /\bADD COLUMN\b/i);
+    assert.doesNotMatch(composite, /\b(INSERT INTO|DELETE FROM)\b/i);
+    assert.doesNotMatch(composite, /\bUPDATE public\./i);
+  });
+});
+
 describe('MCV2-S5 diagnostic repositories (static)', () => {
   const repoDir = join(root, 'supabase', 'functions', 'server', 'repositories');
   const readRepo = (file: string) => readFileSync(join(repoDir, file), 'utf8');
