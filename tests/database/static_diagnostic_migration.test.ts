@@ -67,22 +67,152 @@ describe('MCV2-S5 diagnostic migrations (static)', () => {
 });
 
 describe('MCV2-S5 diagnostic repositories (static)', () => {
+  const repoDir = join(root, 'supabase', 'functions', 'server', 'repositories');
+  const readRepo = (file: string) => readFileSync(join(repoDir, file), 'utf8');
+
+  /**
+   * Source with comments and blank lines removed.
+   *
+   * Two repositories that differ only in their header comment are the same
+   * repository. Comparing raw text would let a renamed banner pass for a
+   * rewrite, which is exactly how `reportRepository.ts` shipped as a
+   * byte-identical copy of `outcomeRepository.ts`.
+   */
+  function code(text: string): string {
+    return text
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  /**
+   * The factory each repository file is REQUIRED to export, and the tables it
+   * is required to read.
+   *
+   * The previous version of this suite asserted only `/export function create/`
+   * against each file. `reportRepository.ts` satisfied that while exporting
+   * `createOutcomeRepository` and querying the `outcomes` table — the whole
+   * defect passed the test that existed to catch it. Naming the factory and
+   * the tables is what closes that gap.
+   */
   const repos = [
-    'leadRepository.ts',
-    'contactRepository.ts',
-    'submissionRepository.ts',
-    'reportRepository.ts',
-    'outcomeRepository.ts',
+    { file: 'leadRepository.ts', factory: 'createLeadRepository', tables: ['leads'] },
+    { file: 'contactRepository.ts', factory: 'createContactRepository', tables: ['contacts'] },
+    { file: 'submissionRepository.ts', factory: 'createSubmissionRepository', tables: ['submissions'] },
+    { file: 'reportRepository.ts', factory: 'createReportRepository', tables: ['reports', 'report_versions'] },
+    { file: 'outcomeRepository.ts', factory: 'createOutcomeRepository', tables: ['outcomes'] },
   ];
 
-  for (const file of repos) {
-    it(`${file} exports create*Repository`, () => {
-      const src = readFileSync(
-        join(root, 'supabase', 'functions', 'server', 'repositories', file),
-        'utf8',
+  for (const { file, factory, tables } of repos) {
+    it(`${file} exports ${factory}`, () => {
+      const src = readRepo(file);
+      assert.match(
+        src,
+        new RegExp(`export\\s+function\\s+${factory}\\s*\\(`),
+        `${file} must export ${factory}, not merely something shaped like a factory`,
       );
-      assert.match(src, /export function create/);
       assert.doesNotMatch(src, /index\.tsx/);
     });
+
+    it(`${file} queries its own tables`, () => {
+      const src = code(readRepo(file));
+      for (const table of tables) {
+        assert.match(src, new RegExp(`from\\(['"\`]${table}['"\`]\\)`), `${file} must read ${table}`);
+      }
+      const foreign = repos
+        .filter((other) => other.file !== file)
+        .flatMap((other) => other.tables)
+        .filter((table) => !tables.includes(table));
+      for (const table of foreign) {
+        assert.doesNotMatch(
+          src,
+          new RegExp(`from\\(['"\`]${table}['"\`]\\)`),
+          `${file} must not read ${table} — that belongs to another repository`,
+        );
+      }
+    });
   }
+
+  it('no two repositories are the same implementation', () => {
+    const seen = new Map<string, string>();
+    for (const { file } of repos) {
+      const body = code(readRepo(file));
+      const twin = seen.get(body);
+      assert.equal(
+        twin,
+        undefined,
+        `${file} is a duplicate of ${twin} — a copied repository is not an implementation`,
+      );
+      seen.set(body, file);
+    }
+  });
+
+  it('every repository factory is exported from the barrel', () => {
+    const barrel = readRepo('index.ts');
+    for (const { file, factory } of repos) {
+      assert.match(
+        barrel,
+        new RegExp(`export\\s*\\{[^}]*\\b${factory}\\b[^}]*\\}\\s*from\\s*['"\\.\\/]*${file.replace('.ts', '')}\\.ts['"]`),
+        `the barrel must export ${factory} from ${file}`,
+      );
+    }
+  });
+
+  it('the barrel names no export its source file does not have', () => {
+    // A named re-export of a missing member fails at ESM LINK time, so the
+    // first module to import the barrel fails to load at all. That is how
+    // `createReportRepository` sat here for a release: nothing imported it.
+    const barrel = readRepo('index.ts');
+    const reExports = [...barrel.matchAll(/export\s*\{([^}]*)\}\s*from\s*'\.\/([\w.]+)'/g)];
+    assert.ok(reExports.length > 0, 'the barrel should re-export something');
+    for (const [, names, source] of reExports) {
+      const src = readRepo(source);
+      for (const raw of names.split(',')) {
+        const name = raw.replace(/\btype\b/, '').trim();
+        if (!name) continue;
+        assert.match(
+          src,
+          new RegExp(`export\\s+(function|const|class|interface|type)\\s+${name}\\b`),
+          `${source} does not export ${name} — the barrel would fail at link time`,
+        );
+      }
+    }
+  });
+
+  it('reportRepository implements every canonical ReportRepository method', () => {
+    // The method list is DERIVED from the interface rather than restated here,
+    // so a method added to canon becomes a failing test instead of a silent gap.
+    const types = readRepo('diagnosticTypes.ts');
+    const block = /export interface ReportRepository \{([\s\S]*?)\n\}/.exec(types);
+    assert.ok(block, 'ReportRepository interface not found in diagnosticTypes.ts');
+    const methods = [...block[1].matchAll(/^\s{2}(\w+)\s*\(/gm)].map((m) => m[1]);
+    assert.ok(methods.length >= 8, `expected the full report surface, found ${methods.length}`);
+
+    const src = readRepo('reportRepository.ts');
+    for (const method of methods) {
+      assert.match(
+        src,
+        new RegExp(`\\basync\\s+${method}\\s*\\(`),
+        `reportRepository.ts does not implement ${method}`,
+      );
+    }
+  });
+
+  it('report_versions is never filtered on a column it does not have', () => {
+    // `reports` is soft-deleted; `report_versions` is append-only and has no
+    // `deleted_at`. A `.is('deleted_at', null)` on the versions table compiles,
+    // passes every type-check, and fails against a real database.
+    const foundation = readMigration('20260714050000_cortex_diagnostic_foundation.sql');
+    const versionsTable = /CREATE TABLE IF NOT EXISTS public\.report_versions \(([\s\S]*?)\n\);/.exec(foundation);
+    assert.ok(versionsTable, 'report_versions table not found');
+    assert.doesNotMatch(versionsTable[1], /deleted_at/, 'schema changed — revisit this contract');
+
+    const src = code(readRepo('reportRepository.ts'));
+    for (const [, chain] of src.matchAll(/from\(['"`]report_versions['"`]\)([\s\S]*?)(?=\n\s*(?:const|return|\}|throwOnError))/g)) {
+      assert.doesNotMatch(chain, /deleted_at/, 'report_versions has no deleted_at column');
+    }
+  });
 });
