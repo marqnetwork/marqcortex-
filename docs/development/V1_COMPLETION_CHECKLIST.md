@@ -10,7 +10,8 @@ Sources: `MARQ_CORTEX_PRODUCT_EXPERIENCE.md`, `MARQ_CORTEX_ONTOLOGY_v1.0.md`,
 `MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md`, `MARQ_CORTEX_ROADMAP.md`, and the
 327-node `src/system/manifest.ts`.
 
-Verified against merged main **`1f4ef999`**. Last updated 2026-09-10.
+Verified against merged main **`0cc934a1`**, with G2 closed on top of it.
+Last updated 2026-09-10.
 
 > **A caution this document exists to enforce.** The roadmap's "Next Sprint"
 > line still names cortex and outcome reconciliation. That work landed in
@@ -42,6 +43,7 @@ human decision rather than code.
 | UI Sprints 1–8; design-token migration | Product Experience | token census Class A = 0 |
 | ClientPortal live authentication path | F-003 | `typecheck:web` 14 → 0; contract suite 35/35 |
 | Deployed Edge Function typecheck | — | 99 → 0 across 342 files, nothing suppressed |
+| **Multi-tenancy enforcement (G2)** | §VI-5 G2; RA §7.22, §11.8 | composite keys on all 14 relationships; 27 live scenarios; no class-F path remains |
 
 ---
 
@@ -59,21 +61,58 @@ human decision rather than code.
 - **Requires** — **live verification and deployment, then a human decision.**
   No code is known to be missing.
 
-### P2 — Multi-tenancy enforcement (**G2**)
+### ~~P2 — Multi-tenancy enforcement (**G2**)~~ → **COMPLETE**
 
-- **Canon** — §VI-5 G2; Reference Architecture tenancy model.
-- **Now** — `organizations`, RLS policies, `tenancyRepository`, and
-  organization-scoped filters in every repository. The service client bypasses
-  RLS, so repository scoping is the guard on that path.
-- **Remaining** — enumerate every path that trusts a caller-supplied
-  `organization_id` where the database does not enforce it. **Two confirmed
-  instances of the database not enforcing what code assumes:** a
-  `report_versions` row may name a parent report in another organization
-  (proven live, MQC-SVC-015), and `submissions.legacy_kv_key` is *globally*
-  unique rather than per-organization (proven live, reconciliation scenarios).
-  Neither is a defect today; both mean the invariant lives in code alone.
-- **Depends on** — nothing. Auditable now.
-- **Requires** — **code** (an audit, then guards or constraints where missing).
+- **Canon** — Master Blueprint §VI-5 G2; Reference Architecture §7.22 (isolation
+  across every layer; no inconsistent reimplementation of a cross-cutting
+  concern), §11.8 (isolation shall never be bypassed).
+- **Closed** — `20260910120000_cortex_tenancy_composite_keys.sql`, and
+  `npm run test:database:tenancy` (27 live scenarios).
+
+**What was wrong.** All **fourteen** parent-child relationships in the
+diagnostic domain accepted a child naming a parent in another tenant, and a
+single UPDATE could re-parent a report onto another tenant's submission or hand
+it to another organization. The finding recorded against MQC-SVC-015 was not a
+`report_versions` quirk — it was the schema-wide pattern, and that repository's
+parent check was the only enforcement anywhere. One guarded path out of fourteen
+is exactly the inconsistency §7.22 forbids.
+
+**Why in SQL.** The repositories and the migration engine run as `service_role`,
+which bypasses RLS by design, so row-level policies are not the layer that could
+close it. A composite foreign key is checked for every writer, including routes
+not yet written.
+
+**Proven both ways.** `--expect-gap` re-runs the same scenarios against the
+schema without the migration and asserts the *unprotected* behaviour, so the
+"before" is evidence rather than a memory. Mutation-tested: removing one
+relationship, or the `SET NULL` column list, each fails at the scenario named
+for it.
+
+**Authority classification, after the audit** (§3 of the task):
+
+| Path | Authority | Class |
+|---|---|---|
+| AI / agent / workflow / BYOK organization hint | `resolveOrganization` checks it against verified memberships; a foreign id returns `ORGANIZATION_NOT_RESOLVED` | **E** — caller-supplied, verified |
+| Agent + workflow **reads** with `?organizationId` | `readScopeFor` returns the actor's own organization unless `agent.run.read.platform`, held only by `super_admin`/`platform_admin` from server-written `app_metadata` | **C/E** |
+| Agent + workflow **mutations** | pass `undefined`; `controlInput` and `decideApproval` use `actor.organization.organizationId` explicitly | **C** — server-derived |
+| Multi-membership with no hint | deterministic **refusal**, never a pick | **C** |
+| No membership | fails closed unless `AI_ALLOW_DEFAULT_ORGANIZATION` | **C** |
+| Platform admin without a membership | no exemption in `resolveOrganization` — refused | **C** |
+| Client portal | bearer token bound to ONE submission; `?email=` on GETs only; 404 on mismatch | **E** |
+| Diagnostic repositories | every read and write filtered by `organization_id` | **D** |
+| Parent-child ownership | **composite foreign key** | **A** — database-enforced *(was F)* |
+| RLS on diagnostic tables | enabled on all 13; a caller with no membership reads nothing, even naming a row id exactly | **B** |
+| `submissions.legacy_kv_key` | globally unique | **A** — see below |
+
+No class **F** path remains.
+
+**`legacy_kv_key` — classified: intentional canonical identity, not a defect.**
+The KV namespace it names has no organization concept; `sub:{id}` was a global
+address before tenancy existed. Global uniqueness is therefore *stronger* than
+per-organization uniqueness would be: two tenants cannot claim one key at all,
+which is proven live, as is that a lookup by key still cannot cross the
+organization filter. **Left unchanged**, per the instruction not to alter it
+merely for being global.
 
 ### P3 — Repositories are not wired to routes
 
@@ -179,9 +218,7 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 
 ## THE NEXT V1 ITEMS, IN DEPENDENCY ORDER
 
-1. **P2 — the tenancy audit.** The only PARTIAL item that is closable with code
-   alone, needs no deployment, and already has two confirmed findings. Highest
-   value per unit of risk.
+1. ~~**P2 — the tenancy audit.**~~ **CLOSED** — see above.
 2. **H3 + H4 — the two typecheck boundaries.** Classification, not defects, but
    they make a green tree read red. Small and dependency-safe.
 3. **H5 and the manifest staleness.** Canon reconciliation.

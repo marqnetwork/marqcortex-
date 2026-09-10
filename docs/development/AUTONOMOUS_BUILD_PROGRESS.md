@@ -1802,3 +1802,113 @@ alone, needing no deployment, and already carrying two confirmed findings.
 
 _Last updated: 2026-09-10, at cortex/outcome reconciliation proof — and a
 correction to the priority that produced it._
+
+---
+
+# G2 — MULTI-TENANCY ENFORCEMENT, CLOSED
+
+_Branch `claude/g2-multi-tenancy-enforcement`, from main `0cc934a1`._
+
+## THE FINDING WAS BIGGER THAN THE FINDING
+
+The checklist carried one instance: `report_versions` could name a parent report
+in another organization. The audit found the same hole in **all fourteen**
+parent-child relationships in the diagnostic domain. Every child table carries
+`organization_id` AND a foreign key to a parent that carries its own, and
+nothing in the schema said the two had to agree.
+
+Worse than the count: the report repository's parent check — added last session —
+was the **only** enforcement of that invariant anywhere in the codebase. One
+guarded path out of fourteen. Reference Architecture §7.22 requires isolation
+across every layer and forbids reimplementing a cross-cutting concern
+inconsistently per domain; §11.8 says isolation shall never be bypassed. One
+guard out of fourteen *is* that inconsistency, not a mitigation of it.
+
+## MEASURED BEFORE IT WAS FIXED
+
+`npm run test:database:tenancy -- --expect-gap` applies the schema **without**
+the new migration and asserts the *unprotected* behaviour: all fourteen
+cross-tenant children accepted, plus both cross-tenant UPDATEs — a report
+re-parented onto another tenant's submission, and a report handed to another
+organization outright. The "before" is evidence, not a memory.
+
+## WHY THE DATABASE, AND NOT RLS
+
+The repositories and the migration engine run as `service_role`, which
+**bypasses RLS by design** — asserted live, so the claim is not folklore. Policy
+rows were never the layer that could close this. A composite foreign key is: it
+is checked for every writer, including routes not yet written, and cannot be
+forgotten by a new call site.
+
+Forward-only and non-destructive. No column added, dropped or retyped; no row
+written. Each parent gains `UNIQUE (id, organization_id)`, already true because
+`id` is the primary key. The migration **validates before it alters** and names
+the offending table and row count, because an operator reading a failed
+deployment needs to know which data to fix — not just which constraint objected.
+
+**The `SET NULL` column list is load-bearing.** Four of the fourteen are
+`SET NULL`. On a two-column key with no column list, PostgreSQL nulls
+`organization_id` too — and it is `NOT NULL`, so deleting a parent fails
+outright and a routine tidy-up becomes an outage. Mutation-testing removes the
+list and produces exactly that: `null value in column "organization_id" ...
+violates not-null constraint`.
+
+## THE APPLICATION LAYER WAS ALREADY SOUND
+
+The audit followed request → authorization → repository → database rather than
+grepping for `organization_id`, and found no class-F path above SQL:
+
+- `resolveOrganization` admits an organization hint **only** against verified
+  memberships; a foreign id returns `ORGANIZATION_NOT_RESOLVED`. Multi-membership
+  with no hint is a deterministic **refusal**, never a pick. No membership fails
+  closed. **A platform admin has no exemption here.**
+- `readScopeFor` discards the caller's `?organizationId` unless the actor holds
+  `agent.run.read.platform` — granted only to `super_admin`/`platform_admin`,
+  which come from server-written `app_metadata`, never from an organization role.
+- Every agent and workflow **mutation** passes `undefined` instead, so the
+  platform *read* capability cannot widen a control action. `decideApproval`
+  says so explicitly: "nobody decides another tenant's approvals, at any role."
+- BYOK puts no organization id in any path or body, deliberately: "a tenant that
+  appears in a URL is a tenant somebody will eventually trust."
+
+## `legacy_kv_key` — CLASSIFIED, NOT CHANGED
+
+**Intentional canonical identity.** The KV namespace it names has no organization
+concept; `sub:{id}` was a global address before tenancy existed. Global
+uniqueness is therefore *stronger* than per-organization would be — two tenants
+cannot claim one key at all — and a lookup by key still cannot cross the
+organization filter. Both proven live. Left unchanged.
+
+## THE REPOSITORY GUARD KEPT ITS PLACE, NOT ITS JOB
+
+`createReportVersion` still reads its parent. Its comment now says why: it turns
+a foreign-key violation — a 500 carrying a constraint name — into the same typed
+`NOT_FOUND` every other miss reports. That is an error-shape decision. The
+invariant lives beneath it now, and nobody reading that file should believe the
+guard is what stands between the tenants.
+
+## VERIFICATION
+
+**27 live scenarios** (`test:database:tenancy`), both directions. Static suite
+**29** — it derives the relationship list from the foundation migration, so a
+child table added later without a composite key fails a test rather than opening
+a hole quietly. That assertion was itself mutation-tested twice: the first
+version matched the migration's pre-flight block and did **not** bite; scoped to
+the constraint block, it does.
+
+All 20 migrations apply in order to a bare PostgreSQL 16; the new one is
+idempotent; the diagnostic rollback still runs.
+
+Deployed Deno typecheck **0** (342 files) · `typecheck:api:ai` **0** ·
+`typecheck:web` **0** · database **242** (zero skipped) · tenancy **27** ·
+reconciliation **21** · backfill, membership, 4C and 4D live suites pass ·
+security **859** · features **1217** · system **170** · lifecycle **241** ·
+AI **2183** · migration **210** · diagnostic **176** · boundaries **107** ·
+build ✓.
+
+**G2: COMPLETE.**
+
+---
+
+_Last updated: 2026-09-10, at G2 closure — fourteen relationships, one
+constraint strategy, and the gap proven before it was closed._
