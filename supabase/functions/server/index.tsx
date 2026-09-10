@@ -347,6 +347,22 @@ console.log('');
 // ============================================================================
 
 /**
+ * A request header as the router hands it over.
+ *
+ * Hono's `c.req.header(name)` returns `string | undefined`; the guards below
+ * were written against `string | null`. Both spellings mean the same thing —
+ * the header was not sent — and every guard already tests for absence with
+ * optional chaining, so the two behave identically at runtime. The annotation
+ * was the only place they differed, and sixty-three call sites had to say so.
+ *
+ * Naming the absent case once, here, is what removes those sixty-three: the
+ * guards accept the header exactly as it arrives and normalise inside. This
+ * widens what may be PASSED IN, never what is let THROUGH — an absent header
+ * still fails the `Bearer ` test and still returns "not authenticated".
+ */
+type RequestHeaderValue = string | null | undefined;
+
+/**
  * Verify that a request carries a MARQ TEAM member's token.
  *
  * HIGH-2 lived here, in the gap between two sentences that sound alike:
@@ -372,7 +388,7 @@ console.log('');
  * PREREQUISITE of this deployment, not a follow-up to it.
  */
 async function resolveTeamCaller(
-  authHeader: string | null,
+  authHeader: RequestHeaderValue,
 ): Promise<{ userId: string; authority: TeamAuthority } | null> {
   try {
     if (!authHeader?.startsWith('Bearer ')) {
@@ -410,7 +426,7 @@ async function resolveTeamCaller(
 
 /** The user id of a verified team caller, or `null`. The shape every route
  *  already expects; the provisioning gate above is what changed underneath. */
-async function verifyTeamToken(authHeader: string | null): Promise<string | null> {
+async function verifyTeamToken(authHeader: RequestHeaderValue): Promise<string | null> {
   return (await resolveTeamCaller(authHeader))?.userId ?? null;
 }
 
@@ -1418,7 +1434,7 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
 });
 
 // ── F-003: Helper — verify client session token ───────────────────────────────
-async function verifyClientToken(authHeader: string | null): Promise<{ submissionId: string; email: string } | null> {
+async function verifyClientToken(authHeader: RequestHeaderValue): Promise<{ submissionId: string; email: string } | null> {
   try {
     if (!authHeader?.startsWith('Bearer ')) return null;
     const token = authHeader.split(' ')[1];
@@ -1442,9 +1458,9 @@ type ClientAccessResult =
 
 /** Require client auth for a submission-scoped route (token preferred, email fallback on GET). */
 async function requireClientAccess(
-  authHeader: string | null,
+  authHeader: RequestHeaderValue,
   submissionId: string,
-  emailQuery?: string | null,
+  emailQuery?: RequestHeaderValue,
 ): Promise<ClientAccessResult> {
   const clientSession = await verifyClientToken(authHeader);
   if (clientSession) {
