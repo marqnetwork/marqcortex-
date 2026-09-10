@@ -1475,9 +1475,26 @@ async function verifyClientToken(authHeader: RequestHeaderValue): Promise<{ subm
   }
 }
 
+/**
+ * The answer `requireClientAccess` gives, and the only two refusals it has.
+ *
+ * `status` was `number`, which is both wider than the truth and wider than
+ * the router accepts: Hono's `c.json` takes a `ContentfulStatusCode`, so all
+ * eight routes that forward this refusal failed to type-check against it.
+ *
+ * The fix is to say what the guard actually returns. It has exactly three
+ * refusal sites — 404 for a token or email bound to a DIFFERENT submission,
+ * 404 for a submission that is not there, and 401 for no credential at all —
+ * and the 404/401 split is the contract: a mismatch must be indistinguishable
+ * from a miss, or the route becomes an oracle for which submissions exist.
+ *
+ * Narrowing the annotation to `401 | 404` is what makes the compiler hold
+ * that line. A fourth status added here now has to be a deliberate edit to
+ * this type, not an accident at a return site.
+ */
 type ClientAccessResult =
   | { ok: true; session: { submissionId: string; email: string } }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: 401 | 404; error: string };
 
 /** Require client auth for a submission-scoped route (token preferred, email fallback on GET). */
 async function requireClientAccess(
@@ -3461,7 +3478,7 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
     // body. Without this, a viewer could invite themselves a second account as
     // an owner.
     const assignment = authorizeRoleAssignment({
-      callerId: callerId as string,
+      callerId: adminCheck.callerId,
       callerRole: adminCheck.callerRole,
       requestedRole: teamRole,
     });
@@ -3508,7 +3525,7 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
     }
 
     // Get caller info for audit trail
-    const { data: { user: callerRecord } } = await supabaseAdmin.auth.admin.getUserById(callerId);
+    const { data: { user: callerRecord } } = await supabaseAdmin.auth.admin.getUserById(adminCheck.callerId);
 
     const member = {
       id:            data.user.id,
@@ -3564,7 +3581,7 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
     let appliedRole: TeamRole = targetCurrentRole;
     if (updates.teamRole !== undefined) {
       const assignment = authorizeRoleAssignment({
-        callerId: callerId as string,
+        callerId: adminCheck.callerId,
         callerRole: adminCheck.callerRole,
         targetId: memberId,
         requestedRole: updates.teamRole,
@@ -3648,7 +3665,7 @@ app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
     }
 
     const removal = authorizeMemberRemoval({
-      callerId: callerId as string,
+      callerId: adminCheck.callerId,
       callerRole: adminCheck.callerRole,
       targetCurrentRole: target.role,
       targetId: memberId,

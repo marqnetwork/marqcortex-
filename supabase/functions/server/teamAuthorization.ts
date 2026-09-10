@@ -300,8 +300,19 @@ export interface TeamAuthorizationFailure {
   readonly message: string;
 }
 
+/**
+ * The answer a team-authorization gate gives.
+ *
+ * The success arm carries `callerId` because the gate is where the caller
+ * stops being nullable. `authorizeTeamAdmin` refuses a null caller with 401
+ * before anything else, so by the time a route holds `ok: true` the id is
+ * known — but that narrowing happened inside this function, where the routes
+ * could not see it, and three of them had resorted to `callerId as string` to
+ * say so. A cast is a claim the compiler cannot check; carrying the verified
+ * id out of the gate is the same claim, checked.
+ */
 export type TeamAuthorizationResult =
-  | { readonly ok: true; readonly callerRole: TeamRole }
+  | { readonly ok: true; readonly callerId: string; readonly callerRole: TeamRole }
   | { readonly ok: false; readonly failure: TeamAuthorizationFailure };
 
 /**
@@ -353,7 +364,7 @@ export function authorizeTeamAdmin(
       },
     };
   }
-  return { ok: true, callerRole };
+  return { ok: true, callerId, callerRole };
 }
 
 /**
@@ -491,5 +502,5 @@ export function authorizeMemberRemoval(request: {
       },
     };
   }
-  return { ok: true, callerRole: request.callerRole };
+  return { ok: true, callerId: request.callerId, callerRole: request.callerRole };
 }
