@@ -1698,3 +1698,107 @@ the 4E rollout.
 _Last updated: 2026-09-10, at MQC-SVC-015 closure — a real report repository,
 proven against a real PostgreSQL, and a V1 audit that counts rather than
 estimates._
+
+---
+
+# CORTEX + OUTCOME RECONCILIATION — PROVEN, AND A CORRECTION
+
+_Branch `claude/cortex-outcome-reconciliation`, from main `1f4ef999`._
+
+## THE CORRECTION FIRST
+
+**The reconcilers already existed.** `fdffd214` implemented cortex and outcome
+reconciliation, retired the bespoke submission reconciler into a shared
+domain-parameterised engine, and wired all three domains into the orchestrator.
+
+The roadmap's "Next Sprint: reconciliation for the cortex and outcome domains"
+was written in `203d5e38` — **before** `fdffd214` — and never updated. The
+previous V1 audit read that line and reported it as the top priority without
+checking it against the code. That was my error, and it is the reason
+`V1_COMPLETION_CHECKLIST.md` now exists and why every PARTIAL and MISSING row in
+it is verified against code rather than against a document.
+
+## THE REAL GAP, AND IT WAS REAL
+
+Every reconciliation test drove the reconcilers over `fakeSupabase.ts`. A fake
+proves the **arithmetic** — given these records and those rows, this many are
+missing — and agrees with whatever the author believed about the query it was
+handed. It cannot show that `NOT legacy_kv_key IS NULL` excludes what was meant,
+that `.is('deleted_at', null)` really drops a soft-deleted row, that a `numeric`
+column returns something the comparator accepts, or that the organization filter
+isolates. Those are properties of PostgreSQL.
+
+**Nothing had ever run a reconciler against a database.** The live harness
+covered the *backfills* (110–113) and stopped there.
+
+## WHAT NOW RUNS
+
+The real reconcilers, unmodified, against a real PostgreSQL 16. Only the
+transport is substituted: `tests/database/harness/postgrestOverPsql.mjs`
+translates the builder chain into SQL. An operator it does not implement throws
+by name rather than quietly returning the wrong rows.
+
+**21 scenarios**, `npm run test:database:reconciliation`:
+
+*Outcome* — exact match · missing relational row · orphan · field mismatch ·
+verdict mismatch · global key uniqueness · cross-tenant ownership · soft delete
+· empty-string/NULL normalization · quarantine without a guessed verdict ·
+duplicate identity refused by the database.
+
+*Cortex* — the two the shared reconciler cannot express: a **partially written**
+analysis (three rows present is not three successes) and one whose pillars
+arrived **unscaled** (four rows present, every one of them 4 instead of 80,
+which row-presence reports as perfectly healthy). Plus missing rows, the
+awaiting-submission split, single-pillar mismatch, orphans, skipped analyses,
+cross-tenant scores, and a soft-deleted submission.
+
+## TWO THINGS THE DATABASE TAUGHT THE SCENARIOS
+
+- **`submissions.legacy_kv_key` is GLOBALLY unique, not per-organization.** Two
+  tenants cannot hold one KV key at all. My first cross-tenant scenario assumed
+  they could and was refused by the index; the scenario was wrong, not the
+  schema.
+- **A soft-deleted submission takes its analysis out of scope on the
+  awaiting-submission side**, not the orphan side — its scores cannot be
+  attributed either way, which is the reconciler declining to guess.
+
+Both are recorded in `V1_COMPLETION_CHECKLIST.md` under the tenancy audit,
+because both mean an invariant lives in code rather than in the database.
+
+## RECONCILIATION MUST NOT WRITE
+
+No `runId` is passed, which is what suppresses `persistReconciliationLog`. Each
+reconcile call is wrapped in a before/after row-count assertion across all five
+tables — a reconciliation that repaired what it measured would report a healthy
+estate it had just created.
+
+## MUTATION-TESTED
+
+| Mutation | Caught by |
+|---|---|
+| **The old lead bug** — field mismatch hard-coded to zero | `outcome — a field mismatch is detected and named` |
+| Drop the organization filter on target rows | `outcome — a row owned by another organization…` |
+| Drop the soft-delete filter | `outcome — a soft-deleted row is not a target row` |
+| Cortex stops splitting "awaiting submission" | `cortex — waiting for a submission is counted apart…` |
+
+Each failed at exactly the scenario named for it; both files restored identical
+afterwards.
+
+## VERIFICATION
+
+Deployed Deno typecheck **0** (342 files) · `typecheck:api:ai` **0** ·
+`typecheck:web` **0** · migration **210** · database **235** (zero skipped) ·
+diagnostic **176** · features **1217** · security **859** · AI **2183** ·
+system **170** · lifecycle **241** · boundaries **107** · reconciliation
+scenarios **21** · backfill and membership live suites pass · build ✓.
+
+## NEXT
+
+`docs/development/V1_COMPLETION_CHECKLIST.md` is now the authoritative state.
+Its first item is the **P2 tenancy audit** — the only PARTIAL closable with code
+alone, needing no deployment, and already carrying two confirmed findings.
+
+---
+
+_Last updated: 2026-09-10, at cortex/outcome reconciliation proof — and a
+correction to the priority that produced it._
