@@ -1,78 +1,126 @@
 /**
- * Outcome repository — MCV2-S5-IMPLEMENT-002 (not wired to routes)
+ * Report repository — MQC-SVC-015 / MCV2-S5-IMPLEMENT-002 (not wired to routes)
+ *
+ * The client report and its version history. Two tables, and they are NOT the
+ * same shape:
+ *
+ *   `reports`          audited and SOFT-DELETED — created_at/updated_at,
+ *                      created_by/updated_by, deleted_at.
+ *   `report_versions`  append-only — created_at/created_by and nothing else.
+ *                      No `updated_at`, no `updated_by`, no `deleted_at`.
+ *
+ * That asymmetry is the schema's, not an oversight here: a version is a record
+ * of what was generated at a moment, so there is nothing to update and nothing
+ * to soft-delete. Every read below filters `deleted_at` on `reports` and does
+ * NOT on `report_versions`, because the column does not exist there and a
+ * filter on it would make every version query fail.
+ *
+ * Tenancy: the service client bypasses RLS, so scoping by `organization_id` on
+ * every read and write is the isolation guarantee at this layer, exactly as in
+ * the sibling repositories.
  */
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2.49.8';
 import type {
-  OutcomeListFilter,
-  OutcomeRecord,
+  ReportListFilter,
+  ReportRecord,
+  ReportVersionRecord,
 } from '../../../../src/types/diagnostic.database.types.ts';
-import type { OutcomeRepository } from './diagnosticTypes.ts';
+import type { ReportRepository } from './diagnosticTypes.ts';
+import { DiagnosticRepositoryError } from './diagnosticTypes.ts';
 import { createServiceClient, mapRow, throwOnError } from './repositoryClient.ts';
 
-export function createOutcomeRepository(client?: SupabaseClient): OutcomeRepository {
+/**
+ * Columns a patch may never move.
+ *
+ * `updateReport` takes `Partial<ReportRecord>`, which structurally includes the
+ * identity and tenancy columns. Spreading such a patch straight into the update
+ * would let `organization_id` be rewritten — the row is found by the caller's
+ * organization and then handed to a different one, which is a cross-tenant
+ * write dressed as an edit. Provenance (`created_at`, `created_by`) and the
+ * soft-delete flag are stripped for the same reason: a patch is not the place
+ * to rewrite when a report was made, by whom, or whether it still exists.
+ */
+const IMMUTABLE_REPORT_COLUMNS = [
+  'id',
+  'organization_id',
+  'submission_id',
+  'created_at',
+  'created_by',
+  'deleted_at',
+] as const;
+
+function sanitizeReportPatch(patch: Partial<ReportRecord>): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...patch };
+  for (const column of IMMUTABLE_REPORT_COLUMNS) delete next[column];
+  return next;
+}
+
+export function createReportRepository(client?: SupabaseClient): ReportRepository {
   const db = client ?? createServiceClient();
 
   return {
-    async createOutcome(input) {
+    async createReport(input) {
       const { data, error } = await db
-        .from('outcomes')
+        .from('reports')
         .insert({
           organization_id: input.organization_id,
           submission_id: input.submission_id,
-          legacy_kv_key: input.legacy_kv_key ?? null,
-          outcome_type: input.outcome_type ?? 'engagement',
-          status: input.status ?? 'open',
-          value: input.value ?? {},
-          recorded_at: input.recorded_at ?? new Date().toISOString(),
+          status: input.status ?? 'draft',
+          title: input.title ?? null,
+          current_version: input.current_version ?? 1,
+          metadata: input.metadata ?? {},
           created_by: input.created_by ?? null,
           updated_by: input.updated_by ?? null,
         })
         .select('*')
         .single();
-      throwOnError(error, 'createOutcome');
-      return data as OutcomeRecord;
+      throwOnError(error, 'createReport');
+      return data as ReportRecord;
     },
 
-    async getOutcomeById(id, organizationId) {
+    async getReportById(id, organizationId) {
       const { data, error } = await db
-        .from('outcomes')
+        .from('reports')
         .select('*')
         .eq('id', id)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
         .maybeSingle();
-      throwOnError(error, 'getOutcomeById');
-      return mapRow<OutcomeRecord>(data as Record<string, unknown> | null);
+      throwOnError(error, 'getReportById');
+      return mapRow<ReportRecord>(data as Record<string, unknown> | null);
     },
 
-    async getOutcomeBySubmission(submissionId, organizationId) {
+    /**
+     * The current report for a submission.
+     *
+     * `reports_submission_idx` is NOT unique, so a submission may carry more
+     * than one report — a regenerated diagnostic is a second row, not an edit
+     * of the first. "The report for this submission" therefore has to name
+     * which one, and it is the most recent: ordered by `created_at` descending
+     * with `id` as the tie-break, so two reports written in the same clock tick
+     * still resolve to one answer rather than to whichever the planner
+     * happened to return.
+     */
+    async getReportBySubmission(submissionId, organizationId) {
       const { data, error } = await db
-        .from('outcomes')
+        .from('reports')
         .select('*')
         .eq('submission_id', submissionId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)
         .maybeSingle();
-      throwOnError(error, 'getOutcomeBySubmission');
-      return mapRow<OutcomeRecord>(data as Record<string, unknown> | null);
+      throwOnError(error, 'getReportBySubmission');
+      return mapRow<ReportRecord>(data as Record<string, unknown> | null);
     },
 
-    async getOutcomeByLegacyKey(legacyKvKey) {
+    async updateReport(id, organizationId, patch) {
       const { data, error } = await db
-        .from('outcomes')
-        .select('*')
-        .eq('legacy_kv_key', legacyKvKey)
-        .is('deleted_at', null)
-        .maybeSingle();
-      throwOnError(error, 'getOutcomeByLegacyKey');
-      return mapRow<OutcomeRecord>(data as Record<string, unknown> | null);
-    },
-
-    async updateOutcome(id, organizationId, patch) {
-      const { data, error } = await db
-        .from('outcomes')
+        .from('reports')
         .update({
-          ...patch,
+          ...sanitizeReportPatch(patch),
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -80,24 +128,100 @@ export function createOutcomeRepository(client?: SupabaseClient): OutcomeReposit
         .is('deleted_at', null)
         .select('*')
         .single();
-      throwOnError(error, 'updateOutcome');
-      return data as OutcomeRecord;
+      throwOnError(error, 'updateReport');
+      return data as ReportRecord;
     },
 
-    async listOutcomes(filter) {
+    async listReports(filter) {
       let q = db
-        .from('outcomes')
+        .from('reports')
         .select('*')
         .eq('organization_id', filter.organizationId)
         .is('deleted_at', null)
-        .order('recorded_at', { ascending: false });
+        .order('created_at', { ascending: false });
       if (filter.submissionId) q = q.eq('submission_id', filter.submissionId);
       if (filter.status) q = q.eq('status', filter.status);
       const limit = Math.min(filter.limit ?? 50, 200);
       const offset = filter.offset ?? 0;
       const { data, error } = await q.range(offset, offset + limit - 1);
-      throwOnError(error, 'listOutcomes');
-      return (data ?? []) as OutcomeRecord[];
+      throwOnError(error, 'listReports');
+      return (data ?? []) as ReportRecord[];
+    },
+
+    /**
+     * Append a version to a report's history.
+     *
+     * The parent is checked first, IN THE CALLER'S ORGANIZATION. `report_id`
+     * and `organization_id` arrive as two independent fields and the schema
+     * only foreign-keys the first, so nothing at the database level stops a
+     * version being written against a report belonging to a different tenant.
+     * Such a row would then be invisible to its own parent's organization scope
+     * while still hanging off that parent — a tenancy leak and an orphan at the
+     * same time. One read closes it, and it reports the same
+     * `DiagnosticRepositoryError` shape as every other failure here.
+     *
+     * `reports.current_version` is deliberately NOT advanced. The canonical
+     * interface keeps `createReportVersion` and `updateReport` separate, so
+     * which version a report currently points at is the caller's decision —
+     * a draft version can exist without becoming the published one. Coupling
+     * them here would invent a policy the contract does not state.
+     */
+    async createReportVersion(input) {
+      const { data: parent, error: parentError } = await db
+        .from('reports')
+        .select('id')
+        .eq('id', input.report_id)
+        .eq('organization_id', input.organization_id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      throwOnError(parentError, 'createReportVersion');
+      if (!parent) {
+        throw new DiagnosticRepositoryError(
+          'createReportVersion: report not found in this organization',
+          'NOT_FOUND',
+        );
+      }
+
+      const { data, error } = await db
+        .from('report_versions')
+        .insert({
+          organization_id: input.organization_id,
+          report_id: input.report_id,
+          version_number: input.version_number,
+          content: input.content,
+          generated_at: input.generated_at ?? new Date().toISOString(),
+          generated_by: input.generated_by ?? null,
+          is_published: input.is_published ?? false,
+          created_by: input.created_by ?? null,
+        })
+        .select('*')
+        .single();
+      throwOnError(error, 'createReportVersion');
+      return data as ReportVersionRecord;
+    },
+
+    async getReportVersion(reportId, versionNumber, organizationId) {
+      const { data, error } = await db
+        .from('report_versions')
+        .select('*')
+        .eq('report_id', reportId)
+        .eq('version_number', versionNumber)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      throwOnError(error, 'getReportVersion');
+      return mapRow<ReportVersionRecord>(data as Record<string, unknown> | null);
+    },
+
+    /** Oldest version first — a history reads forward. */
+    async listReportVersions(reportId, organizationId) {
+      const { data, error } = await db
+        .from('report_versions')
+        .select('*')
+        .eq('report_id', reportId)
+        .eq('organization_id', organizationId)
+        .order('version_number', { ascending: true });
+      throwOnError(error, 'listReportVersions');
+      return (data ?? []) as ReportVersionRecord[];
     },
   };
 }
