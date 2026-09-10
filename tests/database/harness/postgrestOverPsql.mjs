@@ -53,7 +53,14 @@ export function createPsqlClient(databaseUrl) {
   }
 
   function builder(table) {
-    const state = { columns: '*', where: [], orderBy: null, limit: null, count: null, head: false };
+    const state = {
+      columns: '*', where: [], orderBy: null, limit: null, count: null, head: false,
+      // 'single' and 'maybeSingle' change the SHAPE of `data`: one row rather
+      // than an array. The repositories rely on that difference — `mapRow`
+      // expects a row or null — so the adapter has to model it rather than
+      // return an array and let the caller quietly read `[0]` as a row.
+      row: null,
+    };
 
     const chain = {
       select(columns, options) {
@@ -90,6 +97,14 @@ export function createPsqlClient(databaseUrl) {
         state.orderBy = `${quoteIdent(column)} ${options?.ascending === false ? 'DESC' : 'ASC'}`;
         return chain;
       },
+      single() {
+        state.row = 'exactly-one';
+        return chain;
+      },
+      maybeSingle() {
+        state.row = 'at-most-one';
+        return chain;
+      },
       limit(n) {
         state.limit = n;
         return chain;
@@ -114,6 +129,20 @@ export function createPsqlClient(databaseUrl) {
           const rows = run(
             `SELECT row_to_json(t) FROM (SELECT ${columns} FROM ${quoteIdent(table)}${where}${order}${limit}) t`,
           );
+
+          if (state.row === 'at-most-one') {
+            // PostgREST returns null rather than erroring when nothing matched.
+            return Promise.resolve({ data: rows[0] ?? null, error: null }).then(resolve, reject);
+          }
+          if (state.row === 'exactly-one') {
+            if (rows.length !== 1) {
+              return Promise.resolve({
+                data: null,
+                error: { message: `expected exactly one row, got ${rows.length}` },
+              }).then(resolve, reject);
+            }
+            return Promise.resolve({ data: rows[0], error: null }).then(resolve, reject);
+          }
           return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
         } catch (cause) {
           // A PostgREST client reports a failed query as `error`, not a throw,
@@ -128,7 +157,7 @@ export function createPsqlClient(databaseUrl) {
       },
     };
 
-    for (const name of ['in', 'neq', 'lt', 'lte', 'gte', 'range', 'single', 'maybeSingle', 'upsert', 'insert', 'update', 'delete']) {
+    for (const name of ['in', 'neq', 'lt', 'lte', 'gte', 'range', 'upsert', 'insert', 'update', 'delete']) {
       chain[name] = () => {
         throw new Error(`postgrestOverPsql: .${name}() is not implemented — add it deliberately`);
       };

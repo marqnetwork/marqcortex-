@@ -42,27 +42,53 @@ function outcomeGetRoute(): string {
   return indexCode.slice(start, end === -1 ? undefined : end);
 }
 
-describe('S7.4 wiring — KV still decides what is served', () => {
-  it('serves the KV record and observes afterwards', () => {
+describe('S8.1 wiring — one gated path decides what is served', () => {
+  /**
+   * The S7.4 form of this suite asserted that KV ALWAYS decides. That was the
+   * guarantee until the cutover existed; it is now narrower and stated
+   * precisely, because "the relational store can never answer" and "the
+   * relational store answers only through one switch-gated call" are different
+   * claims and only the second one is true.
+   */
+  it('reads KV, resolves authority, observes, then responds — in that order', () => {
     const route = outcomeGetRoute();
     const kvRead = route.indexOf('kv.get(`outcome:');
+    const resolve = route.indexOf('resolveOutcomeRead(');
     const observe = route.indexOf('observeOutcomeRead(');
     const respond = route.indexOf('c.json({ success: true, outcome })');
 
     assert.ok(kvRead >= 0, 'the route no longer reads KV');
-    assert.ok(observe > kvRead, 'the shadow read runs before the KV answer exists');
+    assert.ok(resolve > kvRead, 'authority is resolved before the KV answer exists');
+    assert.ok(
+      observe > resolve,
+      'the shadow read must observe the record actually served, so it runs AFTER the authority',
+    );
     assert.ok(respond > observe, 'the response is returned after the observation');
-    assert.match(route, /const outcome = raw \? JSON\.parse\(raw\) : null;/);
+    assert.match(route, /const kvOutcome = raw \? JSON\.parse\(raw\) : null;/);
+    assert.match(
+      route,
+      /const outcome = resolved\.record;/,
+      'the served record must come from the authority, not from a second source',
+    );
   });
 
-  it('never lets the response body come from the relational store', () => {
+  it('reaches the relational store through exactly ONE named call, and no other', () => {
     const route = outcomeGetRoute();
-    for (const relational in { createOutcomeRepository: 0, getOutcomeByLegacyKey: 0, from: 0 }) {
+    // The gate itself is allowed. Everything that would bypass it is not.
+    assert.ok(route.includes('resolveOutcomeRead('), 'the gated path is missing');
+    for (const bypass of ['createOutcomeRepository', 'getOutcomeByLegacyKey', 'from(']) {
       assert.ok(
-        !route.includes(relational),
-        `the outcome route reaches the relational store directly via ${relational}`,
+        !route.includes(bypass),
+        `the outcome route reaches the relational store directly via ${bypass}`,
       );
     }
+  });
+
+  it('keeps KV as the fallback rather than serving an absence', () => {
+    // The record handed to the authority is the KV one, so a relational store
+    // that is behind falls back to it instead of presenting a live record as
+    // deleted.
+    assert.match(outcomeGetRoute(), /resolveOutcomeRead\(submissionId,\s*kvOutcome\)/);
   });
 
   it('does not import a repository into the router at all', () => {
@@ -77,6 +103,57 @@ describe('S7.4 wiring — KV still decides what is served', () => {
 
   it('hands the shadow reader the record the caller was actually served', () => {
     assert.match(outcomeGetRoute(), /observeOutcomeRead\(submissionId,\s*outcome\)/);
+  });
+});
+
+describe('S8.1 — the cutover is off by default, and its rollback is a switch', () => {
+  const authorityCode = code(
+    readFileSync(join(serverDir, 'storage', 'outcomeReadAuthority.ts'), 'utf8'),
+  );
+
+  it('requires an explicit opt-in, and admits only true or 1', () => {
+    assert.match(authorityCode, /readBool\('MCV2_SQL_AUTHORITY_OUTCOMES'\)/);
+    assert.match(authorityCode, /raw === 'true' \|\| raw === '1'/);
+  });
+
+  it('reads the switch at the point of use, so turning it off is immediate', () => {
+    // Captured at module load, a rollback would need a deploy — which is the
+    // difference between a switch and an outage.
+    assert.doesNotMatch(
+      authorityCode,
+      /^const\s+\w+\s*=\s*readBool\(/m,
+      'the switch is captured at module load',
+    );
+    assert.match(authorityCode, /function authoritative\(domain: AuthorityDomain\): boolean/);
+  });
+
+  it('gates the domain by name, so switching one on does not switch another', () => {
+    assert.match(authorityCode, /domain === 'outcome' && readBool\('MCV2_SQL_AUTHORITY_OUTCOMES'\)/);
+  });
+
+  it('does not reconstruct the denormalised submission snapshot', () => {
+    // Those fields are live on the submission in the relational model. Putting
+    // a stale copy back into the body would undo what the cutover is for.
+    for (const stale of ['industry', 'company', 'aiScore', 'submittedAt']) {
+      assert.ok(
+        !new RegExp(`^\\s*${stale}:`, 'm').test(authorityCode),
+        `the relational-to-KV shaping reintroduces the stale ${stale} snapshot`,
+      );
+    }
+  });
+
+  it('is the only module in the router\'s reach that can serve a relational record', () => {
+    // `index.tsx` imports the storage modules and nothing else that touches a
+    // repository. If a second such import appears, the rollout stops being
+    // reviewable in one place.
+    const storageImports = [...indexCode.matchAll(/from\s+"\.\/storage\/([\w.]+)"/g)].map(
+      (match) => match[1],
+    );
+    assert.deepEqual(
+      storageImports.sort(),
+      ['outcomeReadAuthority.ts', 'outcomeShadowRead.ts', 'submissionShadowRead.ts'],
+      'the set of storage modules the router can reach changed — re-review the cutover surface',
+    );
   });
 });
 

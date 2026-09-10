@@ -37,6 +37,7 @@
     "test:database:diagnostic": "node scripts/submission-backfill-scenarios.mjs",
     "test:database:reconciliation": "node scripts/reconciliation-scenarios.mjs",
     "test:database:tenancy": "node scripts/tenancy-adversarial-scenarios.mjs",
+    "test:database:cutover": "deno run --allow-all --config supabase/functions/deno.json --node-modules-dir=none scripts/cutover-scenarios.mjs",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
     "verify:health": "node --experimental-strip-types --test tests/features/operationalHealth.test.ts tests/features/enterpriseKpis.test.ts",

@@ -1912,3 +1912,96 @@ build ✓.
 
 _Last updated: 2026-09-10, at G2 closure — fourteen relationships, one
 constraint strategy, and the gap proven before it was closed._
+
+---
+
+# G1 — THE CUTOVER MECHANISM, BUILT AND PROVEN
+
+_Branch `claude/g1-data-authority`, from main `72a81c53` (G2 merged as PR #51)._
+
+## WHAT THE CODE SAID THAT THE CHECKLIST DID NOT
+
+The checklist called G1 "PARTIAL — no code is known to be missing", and after
+the reconciliation lesson that claim was worth re-testing rather than trusting.
+It was wrong in an important way.
+
+Everything up to the cutover existed and was proven: schema, repositories,
+backfills, reconciliation, shadow reads, and now tenancy in the key. But
+**the cutover itself did not exist**. `index.tsx` imported only the two
+shadow-read modules; `storage/index.ts` said in its own header that nothing it
+exported returns a relational record; and there was no read-authority switch, no
+fallback and no rollback anywhere in the tree. S8.1 was not waiting on a
+deployment decision — it had nothing to roll out.
+
+## THE MECHANISM
+
+`storage/readAuthority.ts`, and deliberately the ONLY module by which a
+relational record can reach a response body. Concentrating that decision in one
+place is what makes the rollout reviewable and the rollback a switch.
+
+Four invariants, each asserted and each mutation-tested:
+
+- **Off is unchanged.** The KV record comes back *by identity* and the
+  relational store is not read at all — so an un-opted-in deployment behaves as
+  though the module does not exist.
+- **It never fails a request.** Absent credentials, a thrown driver error, a
+  timeout, a missing row — all resolve to KV and a recorded reason.
+- **It never runs unbounded.** Same deadline the shadow read uses.
+- **It records who answered, never the value.** And every answer SQL actually
+  served is compared against what KV would have said: reconciliation and the
+  shadow read both sample; this sees every served request.
+
+**Fallback is not optional.** During a rollout the relational store is behind by
+construction. Serving `null` because it had not caught up would present a live
+record as deleted — so a missing row is a fallback, and it is *counted*, because
+"SQL served 60%, fell back 40%" is the number that decides readiness.
+
+## PROVEN AGAINST A REAL DATABASE
+
+10 scenarios (`npm run test:database:cutover`) drive the real authority over the
+**real repository** against **real rows**: the row answers, a real divergence is
+caught on the served answer, and every unready state — empty table, soft-deleted
+row, refused connection, missed deadline — falls back to KV. The rollback is
+proven as a rollback: SQL answers, the switch flips, the next read is KV, and
+the row is still in the database untouched.
+
+The psql-backed PostgREST adapter gained `single`/`maybeSingle`, which change
+the *shape* of `data` to a row rather than an array. The repositories rely on
+that difference, so modelling it was the difference between running the real
+repository and running something that resembles it.
+
+## A CONTRACT RESTATED, NOT RELAXED
+
+The S7.4 wiring suite asserted "KV always decides what is served". True until
+this existed; now too broad. It is restated precisely: KV is read, authority
+resolves, the shadow observation follows (that order matters — the reverse would
+record an agreement check for an answer nobody received), and the route reaches
+the relational store through **exactly one named call and no other**. The set of
+storage modules the router may import is pinned, so a second path cannot appear
+without a failing test.
+
+## WHY THE SUBMISSION DOMAIN IS NOT A COPY-PASTE
+
+The outcome record is 1:1 — one relational row projects to the served body. The
+submission route serves the KV document **whole**, and its relational form is
+split across five tables; the comparator already excludes the answer map for
+that reason. Its cutover needs an **aggregate read**, not a projection, and
+doing it hastily risks dropping fields from a live response. Recorded as the
+next bounded unit rather than rushed into this one.
+
+## VERIFICATION
+
+Deployed Deno typecheck **0** (343 files) · `typecheck:api:ai` **0** ·
+`typecheck:api:pure` **0** (17 files — the authority is in the strict boundary
+because it is the one module that can serve a relational record) ·
+`typecheck:web` **0** · migration **236** · database **242** · cutover **10** ·
+tenancy **27** · reconciliation **21** · security **859** · features **1217** ·
+system **170** · lifecycle **241** · AI **2183** · diagnostic **176** ·
+boundaries **107** · build ✓.
+
+**No production action.** The switch ships off.
+
+---
+
+_Last updated: 2026-09-10, at the G1 cutover mechanism — the rollout now has
+something to roll out, and a rollback that is a switch._

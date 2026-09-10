@@ -49,17 +49,59 @@ human decision rather than code.
 
 ## PARTIAL
 
-### P1 — Data authority is still KV (**G1**)
+### P1 — Data authority (**G1**) — mechanism COMPLETE, rollout is a live gate
 
 - **Canon** — Master Blueprint §VI-5 G1; Roadmap Phases 4–5.
-- **Now** — schema, migrations, repositories, backfills, reconciliation and
-  shadow reads all exist and pass. `index.tsx` imports no repository and no
-  route serves a relational row. "Current Runtime Authority: KV."
-- **Remaining** — S7.5 outcome validation, S7.8 full runtime validation, then
-  S8.1 SQL read rollout, S8.2 authority validation, S8.3 KV retirement.
-- **Depends on** — a deployment with shadow reads enabled and real traffic.
-- **Requires** — **live verification and deployment, then a human decision.**
-  No code is known to be missing.
+- **Reconstructed from code on `72a81c53`, not from the roadmap.**
+
+**What existed already** (verified, not assumed): relational schema and 20
+migrations; five repositories; backfills for all three domains, code complete
+and proven against real PostgreSQL; reconciliation for all four domains with 21
+live scenarios; shadow reads for outcome and submission; tenancy now in the key.
+
+**What did NOT exist, and now does.** There was no cutover. No per-domain
+read-authority switch, no fallback, no rollback path — S8.1 had nothing to roll
+out. `storage/readAuthority.ts` is that mechanism and is deliberately the only
+module by which a relational record can reach a response body. Off by default;
+off returns the KV record *by identity* and does not read the relational store
+at all. **10 live scenarios** (`test:database:cutover`) drive it through the
+real repository against real rows, including every way the store can be
+unready — empty table, soft-deleted row, refused connection, missed deadline —
+and the rollback, which is the switch and takes effect on the next read.
+
+| Requirement (task §C) | Outcome domain | Submission domain |
+|---|---|---|
+| 1. relational schema | ✅ | ✅ |
+| 2. repository | ✅ | ✅ |
+| 3. backfill | ✅ code, not run | ✅ code, not run |
+| 4. reconciliation | ✅ live-proven | ✅ live-proven |
+| 5. shadow read | ✅ | ✅ |
+| 6. organization isolation | ✅ G2 | ✅ G2 |
+| 7. runtime read path | ✅ wired, switch off | ⛔ **not wired — see below** |
+| 8. runtime write path | KV (unchanged; S8.3) | KV (unchanged; S8.3) |
+| 9. rollback / fallback | ✅ proven live | n/a until wired |
+| 10. cutover readiness | ✅ mechanism ready | pending (7) |
+
+**Why the submission domain is not simply "the same again".** The outcome
+record is 1:1 — one relational row projects to the served body, which is what
+made its cutover a projection. The submission route serves the KV document
+*whole*, and its relational form is split across five tables (`submissions`,
+`submission_sections`, `diagnostic_answers`, `diagnostic_scores`,
+`domain_scores`); the comparator already excludes the answer map for exactly
+that reason. Its cutover therefore needs an **aggregate read**, not a
+projection, and rushing one risks silently dropping fields from a live
+response. It is the next bounded unit, not a copy of the last one.
+
+**Remaining, and what each needs:**
+
+| Item | Needs |
+|---|---|
+| Submission read-authority wiring | **code** — an aggregate read across five tables |
+| S7.5 outcome shadow-read validation | **live** — a mismatch rate over real traffic |
+| S7.8 full runtime validation | **live** |
+| Phase 2 backfill execution | **production authorisation** — code complete, not run |
+| S8.1 rollout (flip the switch) | **production authorisation**, after S7.5 |
+| S8.2 authority validation, S8.3 KV retirement | **live**, then a human decision |
 
 ### ~~P2 — Multi-tenancy enforcement (**G2**)~~ → **COMPLETE**
 
