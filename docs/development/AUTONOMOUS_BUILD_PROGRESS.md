@@ -1314,3 +1314,179 @@ no unexpected page errors.
 
 _Last updated: 2026-09-09, at ClientPortal auth closure — typecheck:web 14 to 0,
 live-verified against the real guard, with the counterfactual to prove it._
+
+---
+
+# DEPLOYED EDGE FUNCTION TYPECHECK CLOSURE
+
+_Branch `claude/edge-function-typecheck-closure`, from main `6fbe386f`._
+
+## THE HEADLINE
+
+**The deployed Edge Function type-checks clean. 99 errors to 0.**
+
+All 341 deployed files — every `.ts`/`.tsx` under `supabase/functions/` except
+the Node-targeted `server/migration/**` — pass `deno check` at exit 0. The AI
+boundary stays clean, the registry-free boundary stays clean, `typecheck:web`
+stays at 0.
+
+Nothing was suppressed to get there. No `@ts-ignore`, no `@ts-expect-error`, no
+`any`, and no cast added. **Three casts were removed.**
+
+## THE BASELINE, CLASSIFIED BEFORE EDITING
+
+`typecheck:api` reported **123**. They were not one problem:
+
+| Class | Count | What it is |
+|---|---:|---|
+| **A — deployed Edge Function** | **99** | real defects in code that ships |
+| **B — AI boundary** | **0** | already clean (306 files, exit 0) |
+| **C — Node-targeted `migration/**`** | **24** | wrong checker, not a defect |
+| **D — environment / module resolution** | **0** | jsr and npm both reachable here |
+
+The previous checkpoint estimated Class A at 97 and Class C at ~22. Measured:
+**99 and 24**. The two extra Class A errors were in `kv_store.tsx` and
+`repositories/index.ts`, not in `index.tsx`, and the second of them turned out
+to matter more than its count suggests (below).
+
+## ROOT CAUSES FIXED
+
+**1. One name for the absent header — 63 errors.** Hono's `c.req.header()`
+returns `string | undefined`. The four request guards — `resolveTeamCaller`,
+`verifyTeamToken`, `verifyClientToken`, `requireClientAccess` — were annotated
+`string | null`. Both spellings mean "the header was not sent", every guard
+already tested for absence with optional chaining, and so the two were identical
+at runtime and differed only in the annotation. Sixty-three call sites paid for
+that difference. One named type at the boundary, `RequestHeaderValue`, and four
+signatures. This widens what may be passed **in**; it does not widen what is let
+**through** — an absent header still fails the `Bearer ` test and still resolves
+to "not authenticated", by the same code path as before.
+
+**2. A caught value narrowed without flattening the taxonomy — 25 errors.**
+`catch (err)` binds `unknown`, so `err?.message` does not compile. The obvious
+narrowing, `error instanceof Error ? error.message : String(error)`, is wrong
+**here**, and quietly so: a PostgREST/Supabase failure is not an `Error`, it is
+a plain object carrying `message`. Every one of those would have taken the
+`String(error)` branch, and `"Database error: connection refused"` would have
+started reading `"Database error: [object Object]"` in the response these routes
+return. `errorField` reads the field the way `err?.message` already did —
+present on an object, absent on anything else — so a thrown string still has no
+`.message`, exactly as before, and call sites keep their own `|| String(err)`
+fallback so an empty message still resolves the same way.
+
+**3. Statuses the guard actually returns — 8 errors.** Eight routes forward
+`requireClientAccess`'s refusal to `c.json`, which takes a `ContentfulStatusCode`.
+`ClientAccessResult.status` was `number`. The guard has exactly three refusal
+sites and two statuses, and the 404/401 split is the contract: a credential
+bound to a different submission must be indistinguishable from a submission that
+is not there, or the route becomes an oracle for which submissions exist. The
+annotation now says `401 | 404`, so a fourth status has to be a deliberate edit.
+
+**4. The caller id, carried out of the gate instead of cast — 1 error.**
+`authorizeTeamAdmin` refuses a null caller with 401 before anything else, so a
+route holding `ok: true` has a known caller id. That narrowing happened inside
+the gate where the routes could not see it, and three of them wrote
+`callerId as string` to say so. `TeamAuthorizationResult`'s success arm carries
+`callerId` now. The audit-trail lookup that could not type-check reads the
+verified id; the three casts are gone.
+
+**5. Environment read once, and named — 1 error.** `kv_store` handed
+`Deno.env.get(...)` straight to `createClient`. Absent, that already threw — on
+the first KV call, without naming which variable the deployment was missing. It
+still throws; the message now names the variable, never its value (the second of
+them is the service-role key).
+
+## A LATENT CRASH, NOT A DORMANT ANNOTATION
+
+`repositories/index.ts` re-exported `createReportRepository`, which **does not
+exist**. `reportRepository.ts` is a **byte-identical copy** of
+`outcomeRepository.ts` — created and never rewritten — so the only thing it
+exports is `createOutcomeRepository`.
+
+A named re-export of a missing member fails at **ESM link time**. The first
+module to import that barrel would not have received a wrong repository; it
+would have failed to load at all. Nothing imports it yet, which is the only
+reason it never fired.
+
+The dead line is removed. The repository named by **MQC-SVC-015** ("client
+report repository with version history") therefore has a type in
+`diagnosticTypes.ts` and **no implementation** — recorded below as a V1 gap
+rather than written during a type-check pass.
+
+## REMAINING BOUNDARY ISSUES — RECORDED, NOT FIXED
+
+**`migration/**` under the Deno sweep — 24 errors.** Confirmed, not assumed:
+`supabase/functions/server/migration/**` is imported by **no** deployed entry
+point and by exactly one consumer, `scripts/migration/*.ts`, which runs under
+Node. Seventeen of the 24 are `TS2307` on the bare specifier
+`@supabase/supabase-js`; the other seven are implicit-`any` cascading from the
+untyped client that unresolved import leaves behind. The rest of the server
+imports `jsr:@supabase/supabase-js@2.49.8` and `deno.json` carries no import
+map, so the bare specifier is exactly what Node-targeted code looks like. The
+`server` boundary defines itself as "everything else under `supabase/functions/`"
+and sweeps it in. **This is a boundary definition, not a code defect** — the
+mirror of the failure the script's own header warns about for `tsc`. Splitting
+it out is the author's call and would not by itself turn `typecheck:api` green,
+so it is left recorded here.
+
+**`typecheck:tests` — 27 errors, pre-existing.** Measured at **27 on
+`origin/main` and 27 on this branch**: unchanged by this work, and not in the
+milestone gate list. Twenty-three of them are in Deno-targeted
+`supabase/functions/server/ai/**` files that the authoritative Deno checker
+passes at exit 0; `tsconfig.node.json` includes `tests` and `scripts`, whose
+graphs reach into those files, and the two checkers run **different TypeScript
+versions** (Node `tsc` 5.9.3, Deno's bundled 6.0.3). Whether that difference is
+the whole explanation is not established here and needs its own pass.
+
+**Two database checks could not run here.** `test:database` skips
+`kv_compare_and_swap` and `test:database:diagnostic` reports `BLOCKED: no
+reachable PostgreSQL` — both for want of a live database in this container, both
+pre-existing, and neither touched by this change, which alters no SQL, no schema
+and no query. NOT RUN is not a pass, and is not claimed as one.
+
+## SELF-REVIEW
+
+Four files changed, all under `supabase/functions/server/`. No test file, no
+migration file, no deployment or configuration file touched. No auth semantics
+changed — the two type changes that touch authorization (`401 | 404`,
+`callerId: string`) both **narrow**. No response shape changed. No new network
+path, no new tenant-trust path. No secret is logged or returned: `requireEnv`
+names the variable, never its value. The `stack` the diagnostic route already
+returned is preserved as-is — removing it is a security decision, not a
+type-check one, and is left for certification.
+
+## TESTS
+
+features **1217** · security **859** · AI **2183** · system **170** ·
+migration **210** · boundaries **107** · lifecycle **241** · diagnostic **176** ·
+database **206 pass / 1 skipped** — all pass, zero failures. Production build
+succeeds.
+
+`typecheck:api:ai` exit 0 · `typecheck:web` 0 · deployed Deno surface (341
+files) exit 0.
+
+## NEXT EXACT TASK
+
+1. **Write the report repository (MQC-SVC-015).** Canon marks it LIVE with
+   "version history"; the file is a copy of the outcome repository and the
+   interface in `diagnosticTypes.ts` has no implementation. Implement it against
+   that interface, restore the barrel export, and strengthen
+   `tests/database/static_diagnostic_migration.test.ts`, which asserts only
+   `export function create` and so passed while the wrong function was exported.
+2. **Decide the `migration/**` boundary.** Either give it its own boundary in
+   `scripts/typecheck-deno.mjs` with the Node checker that owns it, or move it
+   out from under `supabase/functions/`. A code change to those files is the
+   wrong answer.
+3. **Investigate `typecheck:tests` (27, pre-existing).**
+4. **Canon review**: `DiagnosticQuestion` / `ProgressModal` marked LIVE but never
+   mounted. Wire them up or correct the manifest.
+5. **Design review**: chip-on-own-tint contrast (4.17:1, under AA) and the
+   marketing type ramp.
+
+Not started, deliberately: production deployment, final security certification,
+the deferred 4E rollout.
+
+---
+
+_Last updated: 2026-09-10, at deployed Edge Function typecheck closure — 99 to 0
+with three casts removed and nothing suppressed._

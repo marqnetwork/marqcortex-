@@ -291,7 +291,7 @@ async function seedAdminUser() {
       console.log('✅ Admin user already exists');
     }
   } catch (err) {
-    console.log('⚠️ Seed admin error (non-fatal):', err?.message || String(err));
+    console.log('⚠️ Seed admin error (non-fatal):', errorField(err, 'message') || String(err));
   }
 }
 
@@ -320,8 +320,8 @@ async function testDatabaseConnection() {
     }
   } catch (err) {
     console.error('❌ Database connection test failed:', err);
-    console.error('   Error details:', err?.message);
-    console.error('   Error stack:', err?.stack);
+    console.error('   Error details:', errorField(err, 'message'));
+    console.error('   Error stack:', errorField(err, 'stack'));
     return false;
   }
 }
@@ -345,6 +345,45 @@ console.log('');
 // ============================================================================
 // HELPER — verify team JWT
 // ============================================================================
+
+/**
+ * Read one diagnostic field off a caught value.
+ *
+ * `catch (err)` binds `unknown`, so `err?.message` does not type-check. The
+ * shape this replaces is not `error instanceof Error`, and deliberately so:
+ * the values caught here are not all `Error`s. A PostgREST/Supabase failure
+ * arrives as a PLAIN OBJECT carrying `message`, and narrowing on `instanceof`
+ * would send every one of those down the `String(error)` branch — turning
+ * "Database error: connection refused" into "Database error: [object Object]"
+ * and erasing the taxonomy these routes report.
+ *
+ * So this reads the field the way `err?.message` already did: present on an
+ * object, absent on anything else (a thrown string has no `.message`, and did
+ * not have one before either). Callers keep their own `|| String(err)`
+ * fallback, so the empty-message case still resolves exactly as it used to.
+ */
+function errorField(error: unknown, field: 'message' | 'name' | 'stack'): string | undefined {
+  if (error === null || typeof error !== 'object') return undefined;
+  const value = (error as Record<string, unknown>)[field];
+  if (value === undefined) return undefined;
+  return typeof value === 'string' ? value : String(value);
+}
+
+/**
+ * A request header as the router hands it over.
+ *
+ * Hono's `c.req.header(name)` returns `string | undefined`; the guards below
+ * were written against `string | null`. Both spellings mean the same thing —
+ * the header was not sent — and every guard already tests for absence with
+ * optional chaining, so the two behave identically at runtime. The annotation
+ * was the only place they differed, and sixty-three call sites had to say so.
+ *
+ * Naming the absent case once, here, is what removes those sixty-three: the
+ * guards accept the header exactly as it arrives and normalise inside. This
+ * widens what may be PASSED IN, never what is let THROUGH — an absent header
+ * still fails the `Bearer ` test and still returns "not authenticated".
+ */
+type RequestHeaderValue = string | null | undefined;
 
 /**
  * Verify that a request carries a MARQ TEAM member's token.
@@ -372,7 +411,7 @@ console.log('');
  * PREREQUISITE of this deployment, not a follow-up to it.
  */
 async function resolveTeamCaller(
-  authHeader: string | null,
+  authHeader: RequestHeaderValue,
 ): Promise<{ userId: string; authority: TeamAuthority } | null> {
   try {
     if (!authHeader?.startsWith('Bearer ')) {
@@ -403,14 +442,14 @@ async function resolveTeamCaller(
     return { userId: user.id, authority: resolveTeamAuthority(user) };
   } catch (err) {
     console.error('❌ verifyTeamToken: Exception caught:', err);
-    console.error('   Error details:', err?.message);
+    console.error('   Error details:', errorField(err, 'message'));
     return null;
   }
 }
 
 /** The user id of a verified team caller, or `null`. The shape every route
  *  already expects; the provisioning gate above is what changed underneath. */
-async function verifyTeamToken(authHeader: string | null): Promise<string | null> {
+async function verifyTeamToken(authHeader: RequestHeaderValue): Promise<string | null> {
   return (await resolveTeamCaller(authHeader))?.userId ?? null;
 }
 
@@ -947,8 +986,8 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
   } catch (err) {
     console.error('❌ TEST-AUTH error:', err);
     return c.json({ 
-      error: `Test auth failed: ${err?.message || String(err)}`,
-      errorType: err?.name,
+      error: `Test auth failed: ${errorField(err, 'message') || String(err)}`,
+      errorType: errorField(err, 'name'),
     }, 500);
   }
 });
@@ -1211,12 +1250,12 @@ app.get("/make-server-324f4fbe/diagnostic", async (c) => {
     return c.json(result);
   } catch (err) {
     console.error('❌ Diagnostic error:', err);
-    console.error('   Error message:', err?.message);
-    console.error('   Error stack:', err?.stack);
+    console.error('   Error message:', errorField(err, 'message'));
+    console.error('   Error stack:', errorField(err, 'stack'));
     return c.json({ 
-      error: `Diagnostic failed: ${err?.message || String(err)}`,
-      errorType: err?.name || 'Unknown',
-      stack: err?.stack,
+      error: `Diagnostic failed: ${errorField(err, 'message') || String(err)}`,
+      errorType: errorField(err, 'name') || 'Unknown',
+      stack: errorField(err, 'stack'),
     }, 500);
   }
 });
@@ -1418,7 +1457,7 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
 });
 
 // ── F-003: Helper — verify client session token ───────────────────────────────
-async function verifyClientToken(authHeader: string | null): Promise<{ submissionId: string; email: string } | null> {
+async function verifyClientToken(authHeader: RequestHeaderValue): Promise<{ submissionId: string; email: string } | null> {
   try {
     if (!authHeader?.startsWith('Bearer ')) return null;
     const token = authHeader.split(' ')[1];
@@ -1436,15 +1475,32 @@ async function verifyClientToken(authHeader: string | null): Promise<{ submissio
   }
 }
 
+/**
+ * The answer `requireClientAccess` gives, and the only two refusals it has.
+ *
+ * `status` was `number`, which is both wider than the truth and wider than
+ * the router accepts: Hono's `c.json` takes a `ContentfulStatusCode`, so all
+ * eight routes that forward this refusal failed to type-check against it.
+ *
+ * The fix is to say what the guard actually returns. It has exactly three
+ * refusal sites — 404 for a token or email bound to a DIFFERENT submission,
+ * 404 for a submission that is not there, and 401 for no credential at all —
+ * and the 404/401 split is the contract: a mismatch must be indistinguishable
+ * from a miss, or the route becomes an oracle for which submissions exist.
+ *
+ * Narrowing the annotation to `401 | 404` is what makes the compiler hold
+ * that line. A fourth status added here now has to be a deliberate edit to
+ * this type, not an accident at a return site.
+ */
 type ClientAccessResult =
   | { ok: true; session: { submissionId: string; email: string } }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: 401 | 404; error: string };
 
 /** Require client auth for a submission-scoped route (token preferred, email fallback on GET). */
 async function requireClientAccess(
-  authHeader: string | null,
+  authHeader: RequestHeaderValue,
   submissionId: string,
-  emailQuery?: string | null,
+  emailQuery?: RequestHeaderValue,
 ): Promise<ClientAccessResult> {
   const clientSession = await verifyClientToken(authHeader);
   if (clientSession) {
@@ -1632,9 +1688,9 @@ app.get("/make-server-324f4fbe/submissions", async (c) => {
       console.log(`📦 Raw submissions fetched successfully: ${allSubmissions?.length || 0}`);
     } catch (kvError) {
       console.error('❌ KV store error while fetching submissions:', kvError);
-      console.error('KV error stack:', kvError?.stack);
+      console.error('KV error stack:', errorField(kvError, 'stack'));
       return c.json({ 
-        error: `Database error: ${kvError?.message || String(kvError)}`,
+        error: `Database error: ${errorField(kvError, 'message') || String(kvError)}`,
         details: 'Failed to connect to database. Please check Supabase connection.',
       }, 500);
     }
@@ -1667,13 +1723,13 @@ app.get("/make-server-324f4fbe/submissions", async (c) => {
   } catch (err) {
     console.error('❌ List submissions error:', err);
     console.error('   Error type:', typeof err);
-    console.error('   Error name:', err?.name);
-    console.error('   Error message:', err?.message);
-    console.error('   Error stack:', err?.stack);
+    console.error('   Error name:', errorField(err, 'name'));
+    console.error('   Error message:', errorField(err, 'message'));
+    console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
     return c.json({ 
-      error: `Failed to fetch submissions: ${err?.message || String(err)}`,
-      errorType: err?.name || 'Unknown',
+      error: `Failed to fetch submissions: ${errorField(err, 'message') || String(err)}`,
+      errorType: errorField(err, 'name') || 'Unknown',
       timestamp: new Date().toISOString(),
     }, 500);
   }
@@ -2392,9 +2448,9 @@ app.get("/make-server-324f4fbe/notifications", async (c) => {
       console.log(`📦 Raw notifications fetched successfully: ${raw?.length || 0}`);
     } catch (kvError) {
       console.error('❌ KV store error while fetching notifications:', kvError);
-      console.error('KV error stack:', kvError?.stack);
+      console.error('KV error stack:', errorField(kvError, 'stack'));
       return c.json({ 
-        error: `Database error: ${kvError?.message || String(kvError)}`,
+        error: `Database error: ${errorField(kvError, 'message') || String(kvError)}`,
         details: 'Failed to connect to database. Please check Supabase connection.',
       }, 500);
     }
@@ -2465,13 +2521,13 @@ app.get("/make-server-324f4fbe/notifications", async (c) => {
   } catch (err) {
     console.error('❌ Notifications list error:', err);
     console.error('   Error type:', typeof err);
-    console.error('   Error name:', err?.name);
-    console.error('   Error message:', err?.message);
-    console.error('   Error stack:', err?.stack);
+    console.error('   Error name:', errorField(err, 'name'));
+    console.error('   Error message:', errorField(err, 'message'));
+    console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
     return c.json({ 
-      error: `Failed to fetch notifications: ${err?.message || String(err)}`,
-      errorType: err?.name || 'Unknown',
+      error: `Failed to fetch notifications: ${errorField(err, 'message') || String(err)}`,
+      errorType: errorField(err, 'name') || 'Unknown',
       timestamp: new Date().toISOString(),
     }, 500);
   }
@@ -3422,7 +3478,7 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
     // body. Without this, a viewer could invite themselves a second account as
     // an owner.
     const assignment = authorizeRoleAssignment({
-      callerId: callerId as string,
+      callerId: adminCheck.callerId,
       callerRole: adminCheck.callerRole,
       requestedRole: teamRole,
     });
@@ -3469,7 +3525,7 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
     }
 
     // Get caller info for audit trail
-    const { data: { user: callerRecord } } = await supabaseAdmin.auth.admin.getUserById(callerId);
+    const { data: { user: callerRecord } } = await supabaseAdmin.auth.admin.getUserById(adminCheck.callerId);
 
     const member = {
       id:            data.user.id,
@@ -3525,7 +3581,7 @@ app.patch("/make-server-324f4fbe/team/members/:id", async (c) => {
     let appliedRole: TeamRole = targetCurrentRole;
     if (updates.teamRole !== undefined) {
       const assignment = authorizeRoleAssignment({
-        callerId: callerId as string,
+        callerId: adminCheck.callerId,
         callerRole: adminCheck.callerRole,
         targetId: memberId,
         requestedRole: updates.teamRole,
@@ -3609,7 +3665,7 @@ app.delete("/make-server-324f4fbe/team/members/:id", async (c) => {
     }
 
     const removal = authorizeMemberRemoval({
-      callerId: callerId as string,
+      callerId: adminCheck.callerId,
       callerRole: adminCheck.callerRole,
       targetCurrentRole: target.role,
       targetId: memberId,

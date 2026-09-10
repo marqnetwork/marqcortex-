@@ -11,3 +11,11 @@ test-results/
 # Operator-supplied staff rosters. Real auth.users ids never enter the repository;
 # see supabase/operations/roster/README.md.
 supabase/operations/roster/*.local.json
+
+# Written by `deno check` (npm run typecheck:api) whenever the API boundary is
+# checked locally. It is a byproduct of running the checker, not source: the
+# edge functions pin their own versions in the import specifiers themselves
+# (`jsr:@supabase/supabase-js@2.49.8`), and the Supabase CLI resolves them at
+# deploy time. Committing this would newly pin dependency resolution for the
+# deploy — a production change, and not one type-checking needs.
+supabase/functions/deno.lock
