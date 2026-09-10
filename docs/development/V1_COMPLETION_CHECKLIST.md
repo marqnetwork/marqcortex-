@@ -10,7 +10,7 @@ Sources: `MARQ_CORTEX_PRODUCT_EXPERIENCE.md`, `MARQ_CORTEX_ONTOLOGY_v1.0.md`,
 `MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md`, `MARQ_CORTEX_ROADMAP.md`, and the
 327-node `src/system/manifest.ts`.
 
-Verified against merged main **`0cc934a1`**, with G2 closed on top of it.
+Verified against merged main **`5e1e26e0`** (G2 and the G1 cutover mechanism merged).
 Last updated 2026-09-10.
 
 > **A caution this document exists to enforce.** The roadmap's "Next Sprint"
@@ -44,6 +44,8 @@ human decision rather than code.
 | ClientPortal live authentication path | F-003 | `typecheck:web` 14 → 0; contract suite 35/35 |
 | Deployed Edge Function typecheck | — | 99 → 0 across 342 files, nothing suppressed |
 | **Multi-tenancy enforcement (G2)** | §VI-5 G2; RA §7.22, §11.8 | composite keys on all 14 relationships; 27 live scenarios; no class-F path remains |
+| **Phase 5 cutover MECHANISM (G1, S8.1)** | Roadmap Phase 5 | `storage/readAuthority.ts`, wired to the outcome route, switch off; 10 live scenarios incl. rollback |
+| **All typecheck boundaries (H3, H4)** | — | `npm run typecheck` exits 0: web 0, api 0, tests 0 — and `tests` is now **strict**, which it never was |
 
 ---
 
@@ -96,7 +98,7 @@ response. It is the next bounded unit, not a copy of the last one.
 
 | Item | Needs |
 |---|---|
-| Submission read-authority wiring | **code** — an aggregate read across five tables |
+| Submission read-authority wiring | **code**, and a **human decision first** — see H7. The aggregate read across five tables is buildable (`metadata.kv_remainder` preserves the unmodelled fields and answer keys round-trip intact), but placeholder columns do not: a cutover would change `'Not specified'` to `null` in a live response. |
 | S7.5 outcome shadow-read validation | **live** — a mismatch rate over real traffic |
 | S7.8 full runtime validation | **live** |
 | Phase 2 backfill execution | **production authorisation** — code complete, not run |
@@ -240,8 +242,9 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 |---|---|---|
 | H1 | Chip-on-own-tint contrast | **4.17:1, under AA.** Canon does not establish the intended treatment. |
 | H2 | Marketing type ramp | Deferred deliberately in UI Sprint 8. |
-| H3 | The `migration/**` typecheck boundary | **24 Deno errors, all Node-targeted.** Own boundary in `typecheck-deno.mjs`, or move the code out from under `supabase/functions/`. A code change to those files is the wrong answer. |
-| H4 | `typecheck:tests` | **27 errors, pre-existing and unchanged.** 23 are in Deno-targeted AI files the authoritative checker passes; the two checkers run different TypeScript versions (5.9.3 vs 6.0.3). |
+| ~~H3~~ | ~~The `migration/**` typecheck boundary~~ | **CLOSED.** Its own ADVISORY boundary — reported, never fatal, naming the checker that owns it. Verified not a suppression: `tsc -p tsconfig.node.json` loads 26 of the 27 files and reports **zero** errors in them. |
+| ~~H4~~ | ~~`typecheck:tests`~~ | **CLOSED, 27 → 0.** Not the TypeScript-version difference an earlier checkpoint guessed at: `tsconfig.node.json` had no `strict` (so unions did not narrow), no `DOM` lib (WebCrypto globals), and no `jsx`. Enabling strict surfaced **six real findings in test code**, fixed rather than silenced. |
+| **H7** | **Submission read cutover changes the response body** | **New, and blocking S8.1 for that domain.** Proven by round-trip: KV `phone: 'Not specified'` becomes `null`, and `website: ''` becomes `null` — the normalizer discards placeholders as non-values and the original spelling is destroyed, so it cannot be reconstructed. Canon does not say whether the served body may change. See P1. |
 | H5 | `DiagnosticQuestion` | Marked LIVE, **zero code references.** Wire it or delete it — and note `ProgressModal` is mounted *by it*, so they go together. |
 | H6 | Switch on shadow reads / run the backfill / deploy / certify | Every LIVE-BLOCKED row above. |
 
@@ -261,9 +264,11 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 ## THE NEXT V1 ITEMS, IN DEPENDENCY ORDER
 
 1. ~~**P2 — the tenancy audit.**~~ **CLOSED** — see above.
-2. **H3 + H4 — the two typecheck boundaries.** Classification, not defects, but
-   they make a green tree read red. Small and dependency-safe.
-3. **H5 and the manifest staleness.** Canon reconciliation.
-4. **H1/H2 — the design decisions.** The last known AA gap.
-5. **P1 — Phase 5**, once a human enables shadow reads and the mismatch rate is
-   measured. Nothing before that is code.
+2. ~~**H3 + H4 — the two typecheck boundaries.**~~ **CLOSED.**
+3. **H7 — the submission response-contract decision.** Blocks the submission
+   half of S8.1. Nothing else depends on it.
+4. **H5 and the manifest staleness.** Canon reconciliation.
+5. **H1/H2 — the design decisions.** The last known AA gap.
+6. **P1 — Phase 5 rollout**, once a human enables shadow reads and the mismatch
+   rate is measured. The mechanism is now built; nothing before the rollout is
+   code, except H7's domain.
