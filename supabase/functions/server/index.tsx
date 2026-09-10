@@ -56,6 +56,11 @@ import {
   outcomeShadowReader,
 } from "./storage/outcomeShadowRead.ts";
 import {
+  outcomeSqlAuthorityEnabled,
+  readAuthority,
+  resolveOutcomeRead,
+} from "./storage/outcomeReadAuthority.ts";
+import {
   observeSubmissionRead,
   submissionShadowReadEnabled,
 } from "./storage/submissionShadowRead.ts";
@@ -4314,7 +4319,21 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     if (!userId) return c.json({ error: "Unauthorized" }, 401);
     const submissionId = c.req.param('id');
     const raw = await kv.get(`outcome:${submissionId}`);
-    const outcome = raw ? JSON.parse(raw) : null;
+    const kvOutcome = raw ? JSON.parse(raw) : null;
+
+    // ── READ AUTHORITY (MCV2-S8.1) ───────────────────────────────────────
+    //
+    // WHICH STORE ANSWERS. Off by default — `MCV2_SQL_AUTHORITY_OUTCOMES` —
+    // and off means the KV record is returned by identity, with the relational
+    // store not read at all. On, the relational row answers where it exists and
+    // KV answers where it does not, because during a rollout the relational
+    // store is behind by construction and serving `null` would present a live
+    // record as deleted. It never throws and never runs past the deadline, so
+    // this route cannot fail because of the cutover.
+    //
+    // Rollback is the switch, not a deploy.
+    const resolved = await resolveOutcomeRead(submissionId, kvOutcome);
+    const outcome = resolved.record;
 
     // ── SHADOW READ (MCV2-S7.4) ──────────────────────────────────────────
     //
@@ -4323,6 +4342,10 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     // relational row alongside it under a deadline, records whether the two
     // stores agree, and returns nothing. Off by default; it never throws, so
     // this route behaves identically whether it is on or off.
+    //
+    // SECOND, not first: observing before the authority resolved would compare
+    // the KV record and then serve the relational one, recording an agreement
+    // check for an answer nobody received.
     //
     // Awaited rather than detached: an edge isolate may be torn down the moment
     // a response is returned, and an instrument that silently does not run is
@@ -4354,6 +4377,12 @@ app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
     return c.json({
       success: true,
       shadowRead: outcomeShadowReader.report(limit),
+      // The cutover's own numbers: how often SQL actually answered, how often
+      // it fell back, and whether what it served agreed with KV.
+      readAuthority: {
+        outcomesAuthoritative: outcomeSqlAuthorityEnabled(),
+        ...readAuthority.report(limit),
+      },
       switches: {
         outcomes: outcomeShadowReadEnabled(),
         submissions: submissionShadowReadEnabled(),

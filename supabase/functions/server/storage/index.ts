@@ -1,10 +1,20 @@
 /**
- * Runtime storage shadow read — MCV2-S7.4.
+ * Runtime storage — the shadow read (MCV2-S7.4) and the cutover (MCV2-S8.1).
  *
- * KV REMAINS AUTHORITATIVE. Nothing exported here returns a relational record
- * to a route, and nothing here can change a response. The module measures
- * whether the relational store agrees with the store that is serving, so the
- * dual-read phase can be entered on evidence rather than on hope.
+ * KV REMAINS AUTHORITATIVE BY DEFAULT, and the shadow read still cannot change
+ * a response: it measures whether the relational store agrees with the store
+ * that is serving, so the dual-read phase is entered on evidence rather than
+ * hope.
+ *
+ * `readAuthority` is the one exception, and it is deliberately the ONLY one.
+ * It is the single point at which a relational record may answer a request, and
+ * only for a domain a deployment has explicitly switched on. Off — which is the
+ * default and the state of every deployment until an operator decides otherwise
+ * — it returns the KV record by identity and reads nothing.
+ *
+ * Concentrating that decision in one module is what makes the rollout
+ * reviewable and the rollback a switch rather than a deploy. If a second path
+ * to serving a relational record ever appears, that property is gone.
  */
 
 export type {
@@ -37,4 +47,15 @@ export {
   submissionKvKey,
 } from './submissionProjection.ts';
 export { createShadowReader } from './shadowReader.ts';
+export { createReadAuthority } from './readAuthority.ts';
+export type {
+  AuthorityDomain,
+  AuthorityRecord,
+  AuthorityReport,
+  AuthoritySource,
+  ReadAuthority,
+  ReadAuthorityOptions,
+  Resolution,
+  ResolveRequest,
+} from './readAuthority.ts';
 export type { ShadowObservation, ShadowReader, ShadowReaderOptions } from './shadowReader.ts';

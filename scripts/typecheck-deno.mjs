@@ -76,6 +76,10 @@ const REGISTRY_FREE_FILES = [
   join(FUNCTIONS_ROOT, 'server', 'storage', 'outcomeProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'submissionProjection.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'shadowReader.ts'),
+  // The Phase 5 cutover decision point (MCV2-S8.1). Pure — it takes the
+  // comparator and the projections and holds no client, so a regression in the
+  // ONE module that can serve a relational record is a blocker, not a note.
+  join(FUNCTIONS_ROOT, 'server', 'storage', 'readAuthority.ts'),
   join(FUNCTIONS_ROOT, 'server', 'storage', 'index.ts'),
   // The operational health framework (blueprint IV-51) — a roll-up over ports,
   // so it imports nothing a registry has to resolve.
