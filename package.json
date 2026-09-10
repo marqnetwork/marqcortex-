@@ -35,6 +35,7 @@
     "test:database:4c": "node scripts/ai-provider-administration-scenarios.mjs",
     "test:database:4d": "node scripts/ai-customer-byok-scenarios.mjs",
     "test:database:diagnostic": "node scripts/submission-backfill-scenarios.mjs",
+    "test:database:reconciliation": "node scripts/reconciliation-scenarios.mjs",
     "test:migration": "node --experimental-strip-types --test tests/migration/*.test.ts",
     "test:features": "node --experimental-strip-types --test tests/features/*.test.ts",
     "verify:health": "node --experimental-strip-types --test tests/features/operationalHealth.test.ts tests/features/enterpriseKpis.test.ts",
