@@ -320,7 +320,12 @@ describe('DomainType alignment', () => {
   });
 
   it('every declared DomainType value is actually used by the manifest', () => {
-    const used = new Set(entries.map(([, n]) => n.domain));
+    // `declaredDomainTypes` parses the union out of the SOURCE TEXT, so it
+    // yields strings. Comparing against a `Set<DomainType>` would compile only
+    // because the two happen to overlap today; the comparison is string-to-
+    // string on purpose, since the point is to catch a declared member the
+    // manifest never uses.
+    const used = new Set<string>(entries.map(([, n]) => n.domain));
     const unused = declaredDomainTypes().filter(d => !used.has(d));
 
     assert.deepEqual(unused, [], `DomainType values with no manifest node: ${unused.join(', ')}`);

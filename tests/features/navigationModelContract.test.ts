@@ -125,8 +125,16 @@ describe('the navigation model is internally coherent', () => {
 
   it('no two destinations share an accelerator digit', () => {
     const digits = SHORTCUT_DESTINATIONS.map(d => d.shortcutDigit);
-    assert.deepEqual(digits, [...new Set(digits)], 'an accelerator must go one place');
-    assert.deepEqual(digits, [...digits].sort((a, b) => a - b), 'digits come in order');
+    // Every shortcut destination must actually carry a digit. Asserting it
+    // first is what lets the ordering compare numbers rather than sorting
+    // `undefined` into an arbitrary place and calling the result ordered.
+    assert.ok(
+      digits.every((digit): digit is number => typeof digit === 'number'),
+      'a shortcut destination has no accelerator digit',
+    );
+    const ordered = digits as number[];
+    assert.deepEqual(ordered, [...new Set(ordered)], 'an accelerator must go one place');
+    assert.deepEqual(ordered, [...ordered].sort((a, b) => a - b), 'digits come in order');
   });
 
   it('resolves a destination and its label by id', () => {
