@@ -151,14 +151,22 @@ export function createReportRepository(client?: SupabaseClient): ReportRepositor
     /**
      * Append a version to a report's history.
      *
-     * The parent is checked first, IN THE CALLER'S ORGANIZATION. `report_id`
-     * and `organization_id` arrive as two independent fields and the schema
-     * only foreign-keys the first, so nothing at the database level stops a
-     * version being written against a report belonging to a different tenant.
-     * Such a row would then be invisible to its own parent's organization scope
-     * while still hanging off that parent — a tenancy leak and an orphan at the
-     * same time. One read closes it, and it reports the same
-     * `DiagnosticRepositoryError` shape as every other failure here.
+     * The parent is checked first, IN THE CALLER'S ORGANIZATION.
+     *
+     * When this was written the database did not enforce it: `report_id` and
+     * `organization_id` were two independent fields and only the first was
+     * foreign-keyed, so a version could be written against another tenant's
+     * report. The G2 audit found the same hole in all FOURTEEN parent-child
+     * relationships and closed it in the schema
+     * (`20260910120000_cortex_tenancy_composite_keys.sql`), so the invariant no
+     * longer depends on this read.
+     *
+     * The read stays for what it now does: turn a would-be foreign-key
+     * violation — a 500 carrying a constraint name — into the same
+     * `DiagnosticRepositoryError('NOT_FOUND')` every other miss in this file
+     * reports. That is an error-shape decision, not the enforcement, and the
+     * distinction matters: nobody should read this and believe the guard is
+     * what stands between the tenants.
      *
      * `reports.current_version` is deliberately NOT advanced. The canonical
      * interface keeps `createReportVersion` and `updateReport` separate, so
