@@ -349,7 +349,8 @@ describe('the durable store issues the calls the schema expects', () => {
     const read = calls.find(
       (call) => call.table === 'ai_provider_credential' && call.op === 'select.single',
     );
-    assert.ok(read?.columns?.includes('encrypted_secret'));
+    assert.ok(read, 'no credential select was recorded');
+    assert.ok(read.columns?.includes('encrypted_secret'));
     // Keyed by CONFIGURATION and status, never by credential id — so there is
     // no call shape meaning "show me that particular secret".
     assert.deepEqual(read.filters, [

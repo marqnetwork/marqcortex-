@@ -97,6 +97,30 @@ const REGISTRY_FREE_FILES = [
   join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),
 ];
 
+/**
+ * Node-targeted code that happens to live under `supabase/functions/`.
+ *
+ * `server/migration/**` is imported by NO deployed entry point. Its only
+ * consumer is `scripts/migration/*.ts`, which runs under Node
+ * (`node --experimental-strip-types`), and it says so in its imports: the rest
+ * of the server writes `jsr:@supabase/supabase-js@2.49.8` while these files
+ * write the bare `@supabase/supabase-js` that Node resolves from
+ * `node_modules`. `deno.json` carries no import map, so to `deno check` those
+ * specifiers are unresolvable — and the seven implicit-`any` errors that follow
+ * are the untyped client that unresolved import leaves behind, not defects.
+ *
+ * This is the mirror of the failure this script's own header warns about for
+ * `tsc`: the wrong checker pointed at the wrong code. Reporting it as "the
+ * deployed function does not compile" is how a real regression gets lost in a
+ * standing red.
+ *
+ * It is NOT unchecked. `tsconfig.node.json` includes `scripts`, whose graph
+ * reaches these files, so `npm run typecheck:tests` is the checker that owns
+ * them. This boundary therefore reports and does not fail — the same distinction
+ * the script already draws between a type error and an unreachable registry.
+ */
+const NODE_TARGETED_PREFIX = join(FUNCTIONS_ROOT, 'server', 'migration') + sep;
+
 function collectSources(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -109,6 +133,7 @@ function collectSources(dir) {
 
 const isAiFile = (file) => AI_PREFIXES.some((prefix) => file.startsWith(prefix));
 const isRegistryFreeFile = (file) => REGISTRY_FREE_FILES.includes(file);
+const isNodeTargetedFile = (file) => file.startsWith(NODE_TARGETED_PREFIX);
 
 const probe = spawnSync('deno', ['--version'], { stdio: 'ignore' });
 if (probe.error || probe.status !== 0) {
@@ -149,14 +174,22 @@ const boundaries =
     ? [{ name: 'ai', files: all.filter(isAiFile) }]
     : requested === 'registry-free'
       ? [{ name: 'registry-free', files: all.filter(isRegistryFreeFile) }]
-      : [
-          { name: 'ai', files: all.filter(isAiFile) },
-          { name: 'registry-free', files: all.filter(isRegistryFreeFile) },
-          {
-            name: 'server',
-            files: all.filter((file) => !isAiFile(file) && !isRegistryFreeFile(file)),
-          },
-        ];
+      : requested === 'node-targeted'
+        ? [{ name: 'node-targeted', files: all.filter(isNodeTargetedFile), advisory: true }]
+        : [
+            { name: 'ai', files: all.filter(isAiFile) },
+            { name: 'registry-free', files: all.filter(isRegistryFreeFile) },
+            {
+              name: 'server',
+              files: all.filter(
+                (file) =>
+                  !isAiFile(file) && !isRegistryFreeFile(file) && !isNodeTargetedFile(file),
+              ),
+            },
+            // Reported, never fatal — `typecheck:tests` is the checker that owns
+            // these files. Listed last so the deployed surface is read first.
+            { name: 'node-targeted', files: all.filter(isNodeTargetedFile), advisory: true },
+          ];
 
 /**
  * A registry that cannot be reached is an environment problem, not a type
@@ -194,6 +227,16 @@ for (const boundary of boundaries) {
         `  This is an egress restriction, NOT a type error: the checker could not download\n` +
         `  a dependency's manifest, so it never got as far as checking the source. Re-run\n` +
         `  where jsr.io and registry.npmjs.org are reachable to complete this boundary.\n`,
+    );
+    continue;
+  }
+
+  if (boundary.advisory) {
+    process.stdout.write(
+      `[${boundary.name}] exit ${status} — ADVISORY, not a failure.\n` +
+        `  These files target NODE, not Deno, and no deployed entry point imports them.\n` +
+        `  \`npm run typecheck:tests\` is the checker that owns them; this boundary reports\n` +
+        `  what the wrong tool sees so a real deployed regression is never lost in it.\n`,
     );
     continue;
   }

@@ -8,13 +8,31 @@
   // ────────────────────────────────────────────────────────────────────────
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    // `DOM` for the WebCrypto globals — `Crypto`, `CryptoKey`, `SubtleCrypto`.
+    // The AI credential cipher is Deno-targeted and uses them; Deno's own config
+    // supplies them via `deno.window`, and a Node boundary that reaches those
+    // files through the test graph has to supply them too or report eleven
+    // "cannot find name" errors that say nothing about the code.
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     // `bundler` — not NodeNext — because the test graph reaches into src/, which
     // is authored against the Vite aliases and extensionless specifiers below.
     // Node strips type-only imports at runtime, so those aliases never execute;
     // the compiler still has to resolve them to type-check the suites honestly.
     "moduleResolution": "bundler",
+
+    // STRICT, like the other two boundaries.
+    //
+    // Its absence was not a style choice with no consequences: without
+    // `strictNullChecks`, TypeScript does not narrow a discriminated union on a
+    // literal-boolean discriminant, so twelve `Property 'problem' does not
+    // exist` errors were reported against code where the narrowing is correct
+    // and the checker was simply not doing it. The test suite was also being
+    // checked more weakly than the code it tests.
+    "strict": true,
+
+    // The test graph reaches `src/`, which is TSX.
+    "jsx": "react-jsx",
 
     "types": ["node"],
 

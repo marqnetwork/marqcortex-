@@ -67,8 +67,15 @@ describe('mergeProposalSubset', () => {
     const merged = mergeProposalSubset(ids, base as any, stored);
 
     // B-1 replaced by stored v2, other proposal's B-9 untouched (v5 kept).
-    assert.equal(merged.blocks.find((b: any) => b.block_id === 'B-1').version, 2);
-    assert.equal(merged.blocks.find((b: any) => b.block_id === 'B-9').version, 5);
+    // `find` is asserted before it is read: a missing block would otherwise
+    // fail on `undefined.version` and read as a version mismatch.
+    const block = (id: string) => {
+      const found = merged.blocks.find((b: any) => b.block_id === id);
+      assert.ok(found, `${id} is missing from the merge`);
+      return found as { version: number };
+    };
+    assert.equal(block('B-1').version, 2);
+    assert.equal(block('B-9').version, 5);
     // Proposal revisions replaced by stored; B-9's revision preserved.
     assert.deepEqual(merged.revisions.map((r: any) => r.revision_id).sort(), ['R-1', 'R-1b', 'R-9']);
     // Stored lock added; B-9's lock preserved.
