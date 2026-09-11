@@ -211,16 +211,26 @@ Automated, against the deployed URL:
 PLAYWRIGHT_CHROMIUM_EXECUTABLE=<browser> npx playwright test
 ```
 
-17 tests: sign-in, all thirteen destinations as deep links with a clean
+21 tests: sign-in, all thirteen destinations as deep links with a clean
 console, reload-preserves-destination, unknown-page-parameter, signed-out
 denial for both the console and the client portal, an unknown client email
-refused, phone-width layout with no horizontal scroll, and four accessibility
-checks. Point `baseURL` at the deployment.
+refused, phone-width layout with no horizontal scroll, four hand-written
+accessibility checks, and an **axe-core audit over WCAG 2.1 A and AA** across
+every destination and every public page. Point `baseURL` at the deployment.
+
+Note what changes when `baseURL` points at a live deployment rather than the
+demo build: the suites here assert demo-mode behaviour, so a live run will
+legitimately differ on anything demo data drives. The parts that hold in both
+configurations are the deep links, the reload, the signed-out denials and the
+accessibility audit.
 
 Manual, five minutes, because a person notices what an assertion does not:
 
 1. Sign in. The **demo-credential panel must be absent** in a live build — its
-   presence means `BACKEND_INTEGRATION` is not actually on.
+   presence means `BACKEND_INTEGRATION` is not actually on. `npm run
+   test:production-config` already proves this against a backend-configured
+   *build*; this step confirms the *deployment* was built with the flag on,
+   which is a different claim and the one a wrong build setting breaks.
 2. Open a submission, then reload. The URL and the page must agree.
 3. Open the client portal as a real client. Enter the address, **receive the
    code by email**, enter it, and confirm only that client's data. If no code
@@ -363,6 +373,34 @@ login renders neither the demo email nor the demo password, in visible text or
 in `value`/`aria-label`/`title`/`placeholder`/`alt`; no control on the page
 fills either field; and the client portal shows none of the three demo client
 identities. Run against a demo build all four fail, so the proof discriminates.
+
+### What the release actually ships
+
+`vite build` prints a chunk-size warning on every successful run, which is a
+warning nobody reads. Measured instead, and pinned:
+
+| | Raw | Gzipped |
+|---|---|---|
+| Entry chunk (`index-*.js`) — downloaded before anything renders | 145 kB | **47 kB** |
+| Largest lazy chunk (`CortexDashboard`) | 1,217 kB | **299 kB** |
+| Whole bundle, 86 chunks | 4,398 kB | **1,221 kB** |
+
+`npm run test:bundle` builds and enforces a ceiling over each of these. It is a
+**ratchet, not a target**: the budgets sit above what ships today with room for
+ordinary growth, and exist to catch the step change — a heavy library pulled
+into the entry chunk, a lazy route that stops being lazy, a dependency bump that
+doubles a vendor bundle. Those reach a user as a blank screen on a slow link and
+are invisible in a diff.
+
+**`CortexDashboard` is deliberately not being split for V1.** It was checked
+rather than assumed: no heavy charting, PDF or date library is bundled into it
+that is not already lazily routed — it is genuine application code, loaded on
+demand, behind authentication, after the entry chunk has rendered. At 47 kB
+gzipped the entry cost is the number that governs first paint, and it is
+healthy. Restructuring the dashboard chunk is a refactor with regression risk
+and the end of a release cycle is the wrong time for it; the budget makes the
+size a recorded fact that cannot drift silently, which is the part that belongs
+before a release.
 
 ### Response headers
 
