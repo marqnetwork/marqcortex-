@@ -2260,5 +2260,70 @@ decision, or real traffic. None of them can be advanced from here.
 
 ---
 
-_Last updated: 2026-09-11, at final QA, accessibility and the third security
-pass — four of the five findings were in the evidence, not the product._
+## ADDENDUM — THE WARNING NOBODY READ
+
+Merged as #58, then one more thing before calling it.
+
+`vite build` prints a chunk-size warning on **every successful run**, and nothing
+anywhere recorded how large this application is. A warning that appears every
+time is a warning nobody reads.
+
+Measured: entry **47 kB gzipped** (145 kB raw), largest lazy chunk
+(`CortexDashboard`) **299 kB gzipped** (1,217 kB raw), whole bundle **1,221 kB
+gzipped** across 86 chunks.
+
+`npm run test:bundle` puts a ceiling over each. A **ratchet, not a target** — the
+budgets sit above what ships today, and exist to catch the step change: a heavy
+library pulled into the entry chunk, a lazy route that stops being lazy, a
+dependency bump that doubles a vendor bundle. Those reach a user as a blank
+screen on a slow link and are invisible in a diff.
+
+`CortexDashboard` is deliberately **not** split for V1, and that was checked
+rather than assumed — no heavy charting, PDF or date library is bundled into it
+that is not already lazily routed. It is application code, loaded on demand,
+behind authentication, after the entry chunk has rendered, and the 47 kB entry
+is the number that governs first paint. Restructuring it is a refactor with
+regression risk and the end of a release cycle is the wrong time for it.
+
+It lives in `tests/release/` rather than `tests/system/` because it needs a
+build, and `test:system` must run without one. It **fails rather than skips**
+when `dist/` is absent: a skip reads as a pass in a summary line.
+
+## A PROCESS NOTE WORTH KEEPING
+
+The first post-merge browser run was discarded rather than reported. A build was
+started while `scripts/serve-release.mjs` was serving `dist/` for that run, so
+the files changed underneath it and any result would have been about the
+disturbance rather than the code. The suites were re-run cleanly, alone. **A
+result from a disturbed run is not a weaker result, it is a different claim.**
+
+## FINAL AUDIT SWEEP
+
+- `TODO` / `FIXME` / `XXX` / `HACK` in product code: **0**.
+- `.only(` anywhere in the suites: **0** — nothing silently narrows a run.
+- `.skip` / `.todo` / `.fixme`: **0**, except the two `DATABASE_URL`-gated
+  database suites, which name their condition and which ran for real here.
+
+## FINAL STATE — EVERYTHING GREEN, NOTHING SKIPPED
+
+typecheck **0** across all three boundaries · features **1225** · security
+**954** · system **177** · migration **244** · database **245** · lifecycle
+**241** · diagnostic **176** · AI **2183** · boundaries **107**.
+
+Real PostgreSQL 16, **dropped and recreated first**: membership scenarios OK ·
+backfill OK · reconciliation **21** · tenancy **27** · cutover **10** ·
+submission cutover **18** · rehearsal **8 stages** OK.
+
+Browser: smoke **21** · release artifact under real headers **25** ·
+backend-configured build **4** · bundle budget **5**.
+
+`npm audit` **0**, production and dev. Build OK.
+
+**No production action was taken.** Every switch that changes behaviour ships
+off.
+
+---
+
+_Last updated: 2026-09-11, at final QA, accessibility, the third security pass
+and the bundle budget — four of the five findings were in the evidence, not the
+product._
