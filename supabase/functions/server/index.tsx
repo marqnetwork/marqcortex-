@@ -30,6 +30,7 @@ import {
   redeemChallenge,
   requestChallenge,
 } from "./security/clientChallenge.ts";
+import { temporaryPassword } from "./security/randomSecret.ts";
 import {
   registerAIRoutes,
   runCortexAnalysis,
@@ -3619,7 +3620,10 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
       return c.json({ error: assignment.failure.message, code: assignment.failure.code }, assignment.failure.status);
     }
 
-    const password = tempPassword || `Cortex${Math.random().toString(36).slice(2, 8).toUpperCase()}!`;
+    // S-8: from the CSPRNG, never Math.random(). This value is handed to a
+    // person to sign in with, and the isolate publishes Math.random() outputs
+    // in ordinary responses — see security/randomSecret.ts.
+    const password = tempPassword || temporaryPassword();
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
