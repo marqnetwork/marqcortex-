@@ -236,16 +236,30 @@ Manual, five minutes, because a person notices what an assertion does not:
 
 ## 7. What is NOT ready, stated plainly
 
-| Item | Status |
-|---|---|
-| Submission read cutover | **Blocked on D3 (H7)**, then code. |
-| Phase 2 backfill execution | Code complete, **never run**. D1. |
-| S7.5 / S7.8 validation | Needs real traffic. Not a code gap. |
-| Final security certification | **Performed.** Eleven findings, all closed. Section 8. |
-| G4 AI Workforce runtime | Not built. Post-V1 by canon. |
-| G6 external integrations | CRM gated on credentials; e-sign and scheduling specified only. |
-| Chip contrast (4.17:1) and the marketing type ramp | Human design decisions, H1/H2. |
-| `DiagnosticQuestion` / `ProgressModal` | Marked LIVE, unreferenced. H5. |
+Nothing here is blocked on code that could be written in this environment. Each
+row needs production authorisation, real traffic, a human decision, or scope V1
+does not include — and says which.
+
+| Item | Classification | Note |
+|---|---|---|
+| Phase 2 backfill execution | **PRODUCTION_EXECUTION_PENDING** | Code complete, proven against real PostgreSQL, **never run**. Procedure and stop conditions: §10.4. D1. |
+| S8.1 read-authority rollout | **PRODUCTION_EXECUTION_PENDING** | Both switches off. Rollback is the switch and is rehearsed, including a second cutover after one. §10.5. |
+| S7.5 / S7.8 shadow validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | A mismatch rate needs real traffic. Instrumented, not a code gap. |
+| Real backend integration QA (D2) | **EXTERNAL_ENVIRONMENT_BLOCKED** | No credentials, no CLI, no `.env` here. Everything not depending on it was completed, including 23 browser tests against the release artifact. |
+| S8.2 authority validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | Then a human decision. |
+| S8.3 KV retirement | **HUMAN_DECISION_REQUIRED** | A one-way door. |
+| Four ORPHANED components | **HUMAN_DECISION_REQUIRED** | `DiagnosticQuestion`, `ProgressModal`, `SubmissionsListPage`, `QuickActions`. The manifest no longer misreports them; wiring or deleting is a product call. H5. |
+| Rotate the old admin password | **HUMAN_DECISION_REQUIRED** | See below. Out of bounds here, and required. |
+| Erasure path for a submission | **HUMAN_DECISION_REQUIRED** | No route deletes one. Operable today via the runbook in §9; whether V1 ships without a self-service path is a product and legal call. S-11. |
+| Marketing type ramp | **EXPLICITLY_POST_V1** | Deferred deliberately in UI Sprint 8. H2. |
+| S7.6 lead shadow read | **EXPLICITLY_POST_V1** | Not buildable as specified: no route serves a lead, so there is nothing to shadow. |
+| `cortex_analysis` read cutover | **EXPLICITLY_POST_V1** | Canon names no shadow-read sprint for it. |
+| G4 AI Workforce runtime | **EXPLICITLY_POST_V1** | Not built. Post-V1 by canon. |
+| G6 external integrations | **EXPLICITLY_POST_V1** | CRM gated on credentials; e-sign and scheduling specified only. |
+| G8 maturity stages | **EXPLICITLY_POST_V1** | Approved, explicitly not V1. |
+| ~~Submission read cutover~~ | **COMPLETE** | D3 answered; wired, switch off, 18 live scenarios. |
+| ~~Chip contrast~~ | **COMPLETE** | The recorded 4.17:1 case did not exist. Two real failures did, both fixed and now measured on every run. |
+| ~~Final security certification~~ | **COMPLETE** | Eleven findings, all closed. §8. |
 
 ### On security certification
 
