@@ -195,7 +195,7 @@ function KanbanToast({ alert, onDismiss, onNavigate }: ToastProps) {
             {alert.severity === 'critical' && (
               <span
                 className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: `${STATUS.danger}33`, color: STATUS.danger, border: `1px solid ${STATUS.danger}59` }}
+                style={{ background: `${STATUS.danger}20`, color: STATUS.danger, border: `1px solid ${STATUS.danger}59` }}
               >
                 CRITICAL
               </span>

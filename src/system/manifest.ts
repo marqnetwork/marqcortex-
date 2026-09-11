@@ -54,6 +54,7 @@
  * │  DEMO    — Renders correctly but uses mock data (BACKEND_INTEGRATION=false)│
  * │  GATED   — Exists but hidden behind a condition not yet met               │
  * │  MISSING — Referenced but file does not exist on disk                     │
+ * │  ORPHANED— File exists on disk and nothing imports it. Never runs.        │
  * │  SYSTEM  — Internal dev/utility node, not part of the product surface     │
  * └────────────────────────────────────────────────────────────────────────────┘
  *
@@ -70,8 +71,14 @@
 import type { SystemManifest } from './types';
 
 export const manifest: SystemManifest = {
-  version: '2.1.0',
-  lastVerified: '2026-07-31',
+  // 2.2.0 adds ORPHANED to the status vocabulary. `lastVerified` is a date a
+  // human wrote, so it was worth exactly what the last human to touch it knew —
+  // and it was six weeks stale against four nodes claiming LIVE with nothing
+  // importing them. `tests/system/manifest_reachability.test.ts` now checks the
+  // claim against the real import graph on every run, which is what makes this
+  // date mean something.
+  version: '2.2.0',
+  lastVerified: '2026-09-11',
   coreRule: 'Math decides priority. LLM only explains decisions.',
   backendIntegration: false,
 
@@ -307,7 +314,7 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-005',
       name: 'DiagnosticQuestion',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'ORPHANED',
       domain: 'DIAGNOSTIC',
       filePath: 'src/app/components/DiagnosticQuestion.tsx',
       description: 'A single question card in the diagnostic form. Renders the question text, answer options, and handles selection state.',
@@ -773,7 +780,7 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-042',
       name: 'SubmissionsListPage',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'ORPHANED',
       domain: 'EXECUTION',
       filePath: 'src/app/components/SubmissionsListPage.tsx',
       description: 'Paginated list of all diagnostic submissions. Searchable and filterable by status, score band, and industry.',
@@ -1245,7 +1252,7 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-079',
       name: 'QuickActions',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'ORPHANED',
       domain: 'SYSTEM',
       filePath: 'src/app/components/QuickActions.tsx',
       description: 'Quick-action button tray for common team operations — create submission, assign reviewer, send proposal.',
@@ -1317,7 +1324,7 @@ export const manifest: SystemManifest = {
       id: 'MQC-COMP-085',
       name: 'ProgressModal',
       type: 'COMP',
-      status: 'LIVE',
+      status: 'ORPHANED',
       domain: 'SYSTEM',
       filePath: 'src/app/components/ProgressModal.tsx',
       description: 'Modal overlay showing a progress indicator for long-running operations like bulk exports or AI generation.',

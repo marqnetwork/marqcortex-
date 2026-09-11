@@ -24,7 +24,23 @@ export type StatusType =
   | 'DEMO'    // Renders but uses mock/demo data (BACKEND_INTEGRATION: false path)
   | 'GATED'   // Exists but hidden behind a condition not yet met
   | 'MISSING' // Referenced in the system but file does not exist
+  | 'ORPHANED'// The file exists and NOTHING imports it. Not reachable from the app.
   | 'SYSTEM'; // Internal dev/utility node — not part of the product surface
+
+/**
+ * ORPHANED is the status the manifest was missing, and its absence was not
+ * harmless: `DiagnosticQuestion` sat as LIVE with zero importers, and so did
+ * `ProgressModal`, which only `DiagnosticQuestion` mounts. LIVE claims a node
+ * "works end-to-end", and a file nothing reaches does not work at all — it is
+ * simply never run.
+ *
+ * MISSING was the closest existing value and says the opposite thing: file gone,
+ * references remain. This is references gone, file remains. Both are honest
+ * failures to state; neither is LIVE.
+ *
+ * `tests/system/manifest_reachability.test.ts` is what keeps the distinction
+ * true, by walking the real import graph from `src/main.tsx`.
+ */
 
 // ── Domain — the business area this node belongs to ───────────────────────────
 

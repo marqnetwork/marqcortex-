@@ -14,23 +14,25 @@ Prepared against main **`2d0f8ae2`**. Companion to
 
 ## 0. The three decisions that gate go-live
 
-These are not engineering tasks. Nothing below can proceed past the step it
-gates until a person decides.
+**All three have now been decided.** Two of them remain gates on *execution*
+rather than on code, and this document records what each answer obliges.
 
-| # | Decision | Why it cannot be decided here |
+| # | Decision | Answer, and what it obliges |
 |---|---|---|
-| **D1** | Run the Phase 2 backfill against production data | Code complete and proven against PostgreSQL 16; running it writes to customer data. |
-| **D2** | Turn `BACKEND_INTEGRATION` on — the demo→live cutover | It changes every data path in the product at once. |
-| **D3** | **H7** — may the submission response body change? | The relational round-trip turns KV's `phone: 'Not specified'` into `null`. Proven, not assumed. Canon does not say whether that is allowed. Gates the submission half of S8.1 only. |
+| **D1** | Run the Phase 2 backfill against production data | **Not yet — PRODUCTION_EXECUTION_PENDING.** Code complete and proven against PostgreSQL 16. The exact procedure, ordering and stop conditions are §10.4; production has not been touched. |
+| **D2** | Turn `BACKEND_INTEGRATION` on — the demo→live cutover | **Not blindly.** Real backend verification needs an environment with credentials, and this one has none — no Supabase CLI, no keys, no `.env`. That verification is **EXTERNAL_ENVIRONMENT_BLOCKED**; everything not depending on it was completed. |
+| **D3** | **H7** — may the submission response body change? | **Yes — approved as a response-contract normalization.** Missing or placeholder-only values are NULL; the relational representation is authoritative for semantic absence, and `'Not specified'` is not preserved as fake domain data. Presentation may render an empty state; it must not write the placeholder back. **Closed**, with live regression coverage — see the checklist's H7 row. |
 
 ---
 
 ## 1. Migration order
 
-Twenty migrations, applied in filename order. This exact sequence is verified
-on every run of `test:database:tenancy`, `:cutover`, `:reconciliation`,
-`:diagnostic`, `:scenarios`, `:4c` and `:4d`, each of which builds a scratch
-database from them.
+Twenty-one migrations, applied in filename order. This exact sequence is
+verified on every run of `test:database:tenancy`, `:cutover`,
+`:reconciliation`, `:diagnostic`, `:scenarios`, `:4c` and `:4d`, each of which
+builds a scratch database from them — and once more, end to end, from a
+genuinely empty database: all 21 apply cleanly given only the platform stub,
+producing 30 tables and 96 indexes.
 
 ```
 20260711050000_cortex_tenancy_foundation
@@ -52,7 +54,8 @@ database from them.
 20260828120000_ai_provider_administration
 20260901120000_ai_customer_byok
 20260903120000_ai_self_hosted_providers
-20260910120000_cortex_tenancy_composite_keys      ← new in this cycle
+20260910120000_cortex_tenancy_composite_keys
+20260911120000_cortex_tenant_list_indexes         ← new in this cycle
 ```
 
 **A Supabase project supplies two things no migration here does:** the API role
@@ -71,9 +74,27 @@ re-apply — it will not silently reassign a row to another organization. The
 count it reports is also the answer to "did the tenancy hole ever actually get
 used", which is worth recording either way.
 
+### The new one is additive
+
+`20260911120000_cortex_tenant_list_indexes` creates two partial indexes and
+nothing else. It changes no row, no constraint and no policy, so there is no
+state in which it can refuse.
+
+It exists because `listOutcomes` and `listReports` were the only two repository
+queries filtering on `organization_id` alone, and both read every row in their
+table before discarding the other tenants'. `tests/database/tenant_list_indexes`
+asserts the query PLAN on a populated table — an index that exists is not an
+index that is used.
+
+**For an operator with a large existing estate:** `CREATE INDEX` holds an ACCESS
+EXCLUSIVE lock for the build. These tables are empty or near-empty at V1, so it
+is instantaneous; against millions of rows, build them with `CREATE INDEX
+CONCURRENTLY` outside a transaction instead. The migration cannot do that itself
+because it runs inside one.
+
 ### Rollback
 
-Eleven forward migrations have a rollback under `supabase/migrations/rollbacks/`,
+Twelve forward migrations have a rollback under `supabase/migrations/rollbacks/`,
 including the new one. **Roll back in reverse dependency order** — each file
 states its own ordering constraint in its header.
 
@@ -215,16 +236,30 @@ Manual, five minutes, because a person notices what an assertion does not:
 
 ## 7. What is NOT ready, stated plainly
 
-| Item | Status |
-|---|---|
-| Submission read cutover | **Blocked on D3 (H7)**, then code. |
-| Phase 2 backfill execution | Code complete, **never run**. D1. |
-| S7.5 / S7.8 validation | Needs real traffic. Not a code gap. |
-| Final security certification | **Performed.** Eleven findings, all closed. Section 8. |
-| G4 AI Workforce runtime | Not built. Post-V1 by canon. |
-| G6 external integrations | CRM gated on credentials; e-sign and scheduling specified only. |
-| Chip contrast (4.17:1) and the marketing type ramp | Human design decisions, H1/H2. |
-| `DiagnosticQuestion` / `ProgressModal` | Marked LIVE, unreferenced. H5. |
+Nothing here is blocked on code that could be written in this environment. Each
+row needs production authorisation, real traffic, a human decision, or scope V1
+does not include — and says which.
+
+| Item | Classification | Note |
+|---|---|---|
+| Phase 2 backfill execution | **PRODUCTION_EXECUTION_PENDING** | Code complete, proven against real PostgreSQL, **never run**. Procedure and stop conditions: §10.4. D1. |
+| S8.1 read-authority rollout | **PRODUCTION_EXECUTION_PENDING** | Both switches off. Rollback is the switch and is rehearsed, including a second cutover after one. §10.5. |
+| S7.5 / S7.8 shadow validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | A mismatch rate needs real traffic. Instrumented, not a code gap. |
+| Real backend integration QA (D2) | **EXTERNAL_ENVIRONMENT_BLOCKED** | No credentials, no CLI, no `.env` here. Everything not depending on it was completed, including 23 browser tests against the release artifact. |
+| S8.2 authority validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | Then a human decision. |
+| S8.3 KV retirement | **HUMAN_DECISION_REQUIRED** | A one-way door. |
+| Four ORPHANED components | **HUMAN_DECISION_REQUIRED** | `DiagnosticQuestion`, `ProgressModal`, `SubmissionsListPage`, `QuickActions`. The manifest no longer misreports them; wiring or deleting is a product call. H5. |
+| Rotate the old admin password | **HUMAN_DECISION_REQUIRED** | See below. Out of bounds here, and required. |
+| Erasure path for a submission | **HUMAN_DECISION_REQUIRED** | No route deletes one. Operable today via the runbook in §9; whether V1 ships without a self-service path is a product and legal call. S-11. |
+| Marketing type ramp | **EXPLICITLY_POST_V1** | Deferred deliberately in UI Sprint 8. H2. |
+| S7.6 lead shadow read | **EXPLICITLY_POST_V1** | Not buildable as specified: no route serves a lead, so there is nothing to shadow. |
+| `cortex_analysis` read cutover | **EXPLICITLY_POST_V1** | Canon names no shadow-read sprint for it. |
+| G4 AI Workforce runtime | **EXPLICITLY_POST_V1** | Not built. Post-V1 by canon. |
+| G6 external integrations | **EXPLICITLY_POST_V1** | CRM gated on credentials; e-sign and scheduling specified only. |
+| G8 maturity stages | **EXPLICITLY_POST_V1** | Approved, explicitly not V1. |
+| ~~Submission read cutover~~ | **COMPLETE** | D3 answered; wired, switch off, 18 live scenarios. |
+| ~~Chip contrast~~ | **COMPLETE** | The recorded 4.17:1 case did not exist. Two real failures did, both fixed and now measured on every run. |
+| ~~Final security certification~~ | **COMPLETE** | Eleven findings, all closed. §8. |
 
 ### On security certification
 
@@ -343,7 +378,134 @@ Verify with: no row in any table above matches the address, and
 
 ---
 
-## 10. The required stop
+## 10. The production execution plan
+
+Written to be followed by a human with production authorisation. **None of it
+has been run.** This environment cannot run it: the Supabase CLI is absent, no
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`,
+`TEAM_ADMIN_PASSWORD`, `RESEND_API_KEY` or any AI provider key is present, there
+is no `.env` file, and the only outbound target configured is the git remote.
+Checked for presence only; nothing was invoked against production.
+
+### 10.1 Secrets that must exist before the first cold start
+
+Names only. No value belongs in this repository or in any log.
+
+| Secret | Why it is required | What happens without it |
+|---|---|---|
+| `SUPABASE_URL` | every KV and relational call | the function throws on its first request, naming the variable |
+| `SUPABASE_SERVICE_ROLE_KEY` | same | same |
+| `SUPABASE_ANON_KEY` | token verification | sign-in fails |
+| **`TEAM_ADMIN_PASSWORD`** | **new (S-7).** Has no default and no fallback | **no administrator account is created**, and the log says exactly that. Recoverable in one step; a known password is not recoverable at all |
+| **`RESEND_API_KEY`** | **now a hard dependency (S-6).** The client portal signs in by emailed code | the code is written to the server log instead and the portal is unusable to a client. Deployment-blocking |
+| `EMAIL_FROM` | sender identity | falls back to the Resend sandbox sender |
+| `TEAM_ADMIN_EMAIL`, `TEAM_ADMIN_NAME` | optional | sensible defaults |
+| `CORS_ALLOWED_ORIGINS` | optional | wildcard, which is the current behaviour |
+
+Everything under `AI_*` stays at its default. `AI_ALLOW_REAL_REQUESTS` is **off**
+and must stay off until a human decides otherwise.
+
+### 10.2 One required action this work could not perform
+
+A deployment that ever ran with the old `TEAM_ADMIN_PASSWORD` fallback still
+holds an account whose password was published in the browser bundle. **Rotate
+it.** It is a production credential change and out of bounds here, and there is
+no way to tell from outside whether the published password was ever used — which
+is the reason to rotate rather than to check.
+
+### 10.3 Deploy order
+
+1. Apply migrations (§1). Stop if `20260910120000` refuses — that refusal is
+   data, not a fault.
+2. Set the secrets above. Restart so `seedAdminUser` runs.
+3. Confirm the administrator exists and **sign in with the rotated password**.
+4. Deploy the function, then the static site.
+5. Confirm the response headers are actually being served (§6 smoke item 6).
+6. Walk the smoke plan (§6).
+
+### 10.4 The Phase 2 backfill — PRODUCTION_EXECUTION_PENDING
+
+Code complete, proven against real PostgreSQL, **never run anywhere but a test
+database**. Decision D1 holds it.
+
+It is idempotent and checkpointed, so it may be stopped and resumed. Run it
+**after** the deploy is healthy and **before** any read-authority switch, in
+this order, one domain at a time:
+
+```
+npm run migration:inventory                 # counts only, writes nothing
+npm run migration:simulate                  # full dry run, writes nothing
+npm run migration:backfill -- --domain=submissions
+npm run migration:reconcile -- --domain=submissions
+npm run migration:backfill -- --domain=cortex
+npm run migration:reconcile -- --domain=cortex
+npm run migration:backfill -- --domain=outcomes
+npm run migration:reconcile -- --domain=outcomes
+npm run migration:backfill -- --domain=leads
+npm run migration:reconcile -- --domain=leads
+```
+
+**Reconcile after each domain, not once at the end.** A mismatch found after all
+four have run does not tell you which run introduced it.
+
+#### Stop conditions — halt and do not continue to the next domain
+
+| Condition | Why it stops the run |
+|---|---|
+| `migration:simulate` reports any quarantined record | the normalizer could not read a KV document. Read `migration_quarantine` before writing anything |
+| reconciliation reports **any** field mismatch | the relational copy disagrees with KV. The reconciler reports the field and the row; it never rounds to zero |
+| a row count differs from `migration:inventory` | something was skipped or duplicated |
+| `backfill_dropped_answer_keys` is non-empty on any row | answers were lost. The read authority already refuses to serve such a row, but the backfill should not have produced one |
+| any KV write occurs | the backfill is read-only against KV by design. A write means something other than the backfill is running |
+| the run takes materially longer per row than the simulation | investigate before continuing; it is the signature of a missing index or a lock |
+
+#### Rollback
+
+The backfill **adds relational rows and changes no KV document**, so rolling it
+back is deleting what it wrote — and KV remains the authority throughout,
+because neither read-authority switch is on. Nothing a user sees changes at any
+point in this procedure. That is the property that makes it safe to run in
+production before the cutover, and it is why the switches stay off until §10.5.
+
+Per-domain rollback scripts are under `supabase/migrations/rollbacks/`.
+
+### 10.5 The read-authority cutover — after a mismatch rate, not before
+
+Both switches default **off**, and off returns the KV record by identity without
+reading the relational store at all.
+
+```
+MCV2_SHADOW_READ_OUTCOMES=true        # S7.5 — compare, KV still answers
+MCV2_SHADOW_READ_SUBMISSIONS=true     # S7.7
+                                       # then WAIT. Read the mismatch rate.
+MCV2_SQL_AUTHORITY_OUTCOMES=true      # S8.1 — SQL answers
+MCV2_SQL_AUTHORITY_SUBMISSIONS=true
+```
+
+**The rollback is the switch**, takes effect on the next read, and does not burn
+the estate — stage 7 of the local rehearsal cuts over a *second* time after a
+rollback, precisely so that a rollback is not a one-way door.
+
+Do not turn on an authority switch until the shadow read has produced a mismatch
+rate over real traffic that a human has looked at. The whole point of the shadow
+stage is that it costs nothing to be wrong in it.
+
+### 10.6 Backup and recovery
+
+Before the migrations and again before the backfill, take a snapshot through the
+Supabase project's own backup facility. This repository does not manage backups
+and should not: a backup taken by the thing being changed is not a backup.
+
+The recovery position is worth stating plainly, because it is better than it
+looks: **KV is the authority throughout everything above**. Until an authority
+switch is turned on, the worst case of a failed migration or a failed backfill is
+relational rows that are wrong and that nobody reads. That is the reason the
+order in §10.4 and §10.5 is the order it is.
+
+
+---
+
+## 11. The required stop
 
 No production migration, backfill, deployment, data mutation, secret change,
 credential rotation, or AI spending enablement has been performed, and none

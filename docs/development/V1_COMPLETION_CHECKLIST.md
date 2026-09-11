@@ -56,59 +56,93 @@ human decision rather than code.
 
 ## PARTIAL
 
-### P1 — Data authority (**G1**) — mechanism COMPLETE, rollout is a live gate
+### ~~P1 — Data authority (**G1**)~~ → **CODE COMPLETE, cutover proven locally**
+
+**`G1 CODE COMPLETE / LOCAL CUTOVER PROVEN / PRODUCTION EXECUTION PENDING`**
 
 - **Canon** — Master Blueprint §VI-5 G1; Roadmap Phases 4–5.
-- **Reconstructed from code on `72a81c53`, not from the roadmap.**
+- **Reconstructed from code on `f82465e3`, not from the roadmap.** The roadmap
+  was stale twice this cycle; it is evidence of intent, never of state.
 
-**What existed already** (verified, not assumed): relational schema and 20
-migrations; five repositories; backfills for all three domains, code complete
-and proven against real PostgreSQL; reconciliation for all four domains with 21
-live scenarios; shadow reads for outcome and submission; tenancy now in the key.
+### Per-domain classification
 
-**What did NOT exist, and now does.** There was no cutover. No per-domain
-read-authority switch, no fallback, no rollback path — S8.1 had nothing to roll
-out. `storage/readAuthority.ts` is that mechanism and is deliberately the only
-module by which a relational record can reach a response body. Off by default;
-off returns the KV record *by identity* and does not read the relational store
-at all. **10 live scenarios** (`test:database:cutover`) drive it through the
-real repository against real rows, including every way the store can be
-unready — empty table, soft-deleted row, refused connection, missed deadline —
-and the rollback, which is the switch and takes effect on the next read.
+Four domains have a relational plane. They are not in the same place, and the
+difference is not effort — it is that two of them have a runtime read to cut
+over and two do not.
 
-| Requirement (task §C) | Outcome domain | Submission domain |
+| Domain | Schema | Repository | Backfill | Reconciliation | Shadow read | Read authority | Wired to a route | **Classification** |
+|---|---|---|---|---|---|---|---|---|
+| **outcome** | ✅ | ✅ | ✅ code | ✅ live-proven | ✅ S7.4 | ✅ `outcomeReadAuthority` | ✅ `GET /submissions/:id/outcome`, switch off | **PRODUCTION CUTOVER PENDING** |
+| **submission** | ✅ | ✅ | ✅ code | ✅ live-proven | ✅ S7.7 | ✅ `submissionReadAuthority` | ✅ `GET /submissions/:id`, switch off | **PRODUCTION CUTOVER PENDING** |
+| **cortex_analysis** | ✅ | — (normalizer, not a repository) | ✅ code | ✅ live-proven | ❌ | ❌ | `GET /submissions/:id/cortex` serves KV | **LEGACY AUTHORITY** |
+| **leads** | ✅ | ✅ | ✅ code | ✅ live-proven | ❌ **S7.6** | ❌ | **no route serves a lead** | **LEGACY AUTHORITY** *(vacuously)* |
+
+**RELATIONAL AUTHORITY is reached by nobody, deliberately.** Both switches
+default off, and off returns the KV record *by identity* without reading the
+relational store at all. Flipping either one is a production action.
+
+### On S7.6 — Lead Shadow Read, which canon marks ❌
+
+It is not built, and it is **not buildable as specified**. A shadow read compares
+what a route SERVES against what the relational store holds. The lead domain has
+no such route:
+
+- Two POST routes capture leads (`/leads/capture`, `/leads/exit-intent`).
+- One runtime KV read exists and reads the INDEX (`lead_email:<address>`) for a
+  duplicate check — not a lead record.
+- No route serves a lead. No front-end call fetches one. `migration/leadProjection.ts`
+  says so in its own header, and an exhaustive route scan agrees.
+
+Building S7.6 would mean first inventing a lead-serving API that no consumer
+asks for. That is new product scope, not closure of an existing gap, so it is
+**EXPLICITLY_POST_V1** with a stated precondition: *S7.6 becomes buildable the
+day a route serves a lead, and not before.* The lead domain is otherwise
+complete — schema, repository, backfill and live-proven reconciliation all
+exist, so the relational plane is ready for the read whenever one appears.
+
+`cortex_analysis` is the same shape with one difference: it *does* have a runtime
+read (`GET /submissions/:id/cortex`), but canon's Phase 4 names no cortex shadow
+read sprint — only S7.4 (outcome), S7.6 (lead) and S7.7 (submission). It is
+therefore **EXPLICITLY_POST_V1** as well, by canon rather than by impossibility.
+
+### The cutover, rehearsed end to end locally
+
+`npm run test:database:rehearsal` — **8 stages** against real PostgreSQL, in the
+order production would run them:
+
+1. LEGACY — KV answers, relational store empty
+2. BACKFILL — the relational estate is built from KV
+3. RECONCILE — every row agrees
+4. SHADOW — SQL is read alongside and compared, KV still answers
+5. RELATIONAL AUTHORITY — SQL answers, **and each tenant gets its own**
+6. ROLLBACK — the switch alone returns the estate to KV
+7. RELATIONAL AUTHORITY AGAIN — the estate can cut over a second time
+8. INTEGRITY — the census is unchanged from the end of the backfill
+
+Stages 6 and 7 are the ones that matter for a release: rollback is the switch,
+takes effect on the next read, and does not burn the estate — a cutover that
+cannot be repeated after a rollback is a one-way door.
+
+Alongside: **10** outcome cutover scenarios, **18** submission cutover scenarios,
+**21** reconciliation scenarios and **27** tenancy scenarios, all against real
+PostgreSQL, all green with **0 skipped**.
+
+### What remains, and what each needs
+
+| Item | State | Needs |
 |---|---|---|
-| 1. relational schema | ✅ | ✅ |
-| 2. repository | ✅ | ✅ |
-| 3. backfill | ✅ code, not run | ✅ code, not run |
-| 4. reconciliation | ✅ live-proven | ✅ live-proven |
-| 5. shadow read | ✅ | ✅ |
-| 6. organization isolation | ✅ G2 | ✅ G2 |
-| 7. runtime read path | ✅ wired, switch off | ⛔ **not wired — see below** |
-| 8. runtime write path | KV (unchanged; S8.3) | KV (unchanged; S8.3) |
-| 9. rollback / fallback | ✅ proven live | n/a until wired |
-| 10. cutover readiness | ✅ mechanism ready | pending (7) |
+| Phase 2 backfill execution | code complete, **never run** | **PRODUCTION_EXECUTION_PENDING** — D1 forbids running it here |
+| S8.1 rollout (flip either switch) | mechanism ready, proven, off | **PRODUCTION_EXECUTION_PENDING**, after S7.5 |
+| S7.5 outcome shadow-read validation | instrumented | **EXTERNAL_ENVIRONMENT_BLOCKED** — a mismatch rate needs real traffic |
+| S7.8 full runtime validation | instrumented | **EXTERNAL_ENVIRONMENT_BLOCKED** — same |
+| S8.2 authority validation | — | **EXTERNAL_ENVIRONMENT_BLOCKED**, then a human decision |
+| S8.3 KV retirement | — | **HUMAN_DECISION_REQUIRED** — a one-way door |
+| S7.6 lead shadow read | no read path to shadow | **EXPLICITLY_POST_V1** |
+| cortex_analysis read cutover | not named by canon | **EXPLICITLY_POST_V1** |
 
-**Why the submission domain is not simply "the same again".** The outcome
-record is 1:1 — one relational row projects to the served body, which is what
-made its cutover a projection. The submission route serves the KV document
-*whole*, and its relational form is split across five tables (`submissions`,
-`submission_sections`, `diagnostic_answers`, `diagnostic_scores`,
-`domain_scores`); the comparator already excludes the answer map for exactly
-that reason. Its cutover therefore needs an **aggregate read**, not a
-projection, and rushing one risks silently dropping fields from a live
-response. It is the next bounded unit, not a copy of the last one.
-
-**Remaining, and what each needs:**
-
-| Item | Needs |
-|---|---|
-| Submission read-authority wiring | **code**, and a **human decision first** — see H7. The aggregate read across five tables is buildable (`metadata.kv_remainder` preserves the unmodelled fields and answer keys round-trip intact), but placeholder columns do not: a cutover would change `'Not specified'` to `null` in a live response. |
-| S7.5 outcome shadow-read validation | **live** — a mismatch rate over real traffic |
-| S7.8 full runtime validation | **live** |
-| Phase 2 backfill execution | **production authorisation** — code complete, not run |
-| S8.1 rollout (flip the switch) | **production authorisation**, after S7.5 |
-| S8.2 authority validation, S8.3 KV retirement | **live**, then a human decision |
+Nothing in this table is blocked on code that could be written here. Every
+remaining item needs production authorisation, real traffic, a human decision,
+or product scope that V1 does not include.
 
 ### ~~P2 — Multi-tenancy enforcement (**G2**)~~ → **COMPLETE**
 
@@ -245,13 +279,12 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 
 | # | Decision | Detail |
 |---|---|---|
-| H1 | Chip-on-own-tint contrast | **4.17:1, under AA.** Canon does not establish the intended treatment. |
+| ~~H1~~ | ~~Chip-on-own-tint contrast~~ | **CLOSED, and the finding was wrong.** The recorded 4.17:1 case — neutral text on a neutral tint — **does not exist in the code**; nothing pairs them, and the figure was computed hypothetically. Measuring the 18 pairings that *do* exist found two real AA failures nobody had recorded: `status.danger` at 20% in `KanbanAlertToast` (4.14:1) and at 15% in `QATranscriptSheet` (4.44:1). Both moved to 12.5%, which clears AA on every surface. `tests/features/contrastAudit.test.ts` now measures all of them on every run. |
 | H2 | Marketing type ramp | Deferred deliberately in UI Sprint 8. |
 | ~~H3~~ | ~~The `migration/**` typecheck boundary~~ | **CLOSED.** Its own ADVISORY boundary — reported, never fatal, naming the checker that owns it. Verified not a suppression: `tsc -p tsconfig.node.json` loads 26 of the 27 files and reports **zero** errors in them. |
 | ~~H4~~ | ~~`typecheck:tests`~~ | **CLOSED, 27 → 0.** Not the TypeScript-version difference an earlier checkpoint guessed at: `tsconfig.node.json` had no `strict` (so unions did not narrow), no `DOM` lib (WebCrypto globals), and no `jsx`. Enabling strict surfaced **six real findings in test code**, fixed rather than silenced. |
-| **H1** | Chip-on-own-tint contrast | **4.17:1, under AA.** Canon does not establish the intended treatment. |
-| **H7** | **Submission read cutover changes the response body** | **New, and blocking S8.1 for that domain.** Proven by round-trip: KV `phone: 'Not specified'` becomes `null`, and `website: ''` becomes `null` — the normalizer discards placeholders as non-values and the original spelling is destroyed, so it cannot be reconstructed. Canon does not say whether the served body may change. See P1. |
-| H5 | `DiagnosticQuestion` | Marked LIVE, **zero code references.** Wire it or delete it — and note `ProgressModal` is mounted *by it*, so they go together. |
+| ~~H7~~ | ~~Submission read cutover changes the response body~~ | **CLOSED by decision D3.** Missing or placeholder-only values are NULL; the relational representation is authoritative for semantic absence, and `'Not specified'` is not preserved as fake domain data. Proven live: `test:database:cutover:submission` asserts `phone` and `website` come back `null`, that `metadata.kv_remainder` still carries the unmodelled fields, and that a remainder key **cannot** reinstate a placeholder over a modelled column. Presentation may render an empty state; it must not write the placeholder back. |
+| H5 | Four ORPHANED components | **Half closed.** The manifest's claim is now honest and checked: `DiagnosticQuestion`, `ProgressModal`, **`SubmissionsListPage` and `QuickActions`** — four nodes, not two — were marked LIVE with nothing importing them. The last two were found by `tests/system/manifest_reachability.test.ts`, which walks the real import graph from `main.tsx`; nobody had noticed a whole *page* was unreachable. All four are now `ORPHANED`, a status the vocabulary was missing. **Still a human decision:** wire them in or delete them. |
 | H6 | Switch on shadow reads / run the backfill / deploy / certify | Every LIVE-BLOCKED row above. |
 
 ---
@@ -260,21 +293,42 @@ None of these is a code gap. Each needs a deployment, a credential, or a switch.
 
 - `MARQ_CORTEX_ROADMAP.md` "Next Sprint" names work completed in `fdffd214`.
   Its own rules forbid rewriting it, so **this checklist is the correction.**
-- Manifest `lastVerified: 2026-07-31`, `version: 2.1.0` — stale against
-  everything since.
-- `MARQ_CORTEX_STABILIZATION_ROADMAP.md` is a zero-byte file.
-- `DiagnosticQuestion` / `ProgressModal` manifest status (see H5).
+- ~~Manifest `lastVerified: 2026-07-31`, `version: 2.1.0`~~ — **CLOSED.** Now
+  `2.2.0` / `2026-09-11`, and the date means something: it was six weeks stale
+  against four nodes claiming LIVE with nothing importing them, and
+  `tests/system/manifest_reachability.test.ts` now checks that claim against the
+  real import graph on every run rather than against a human's memory.
+- ~~`MARQ_CORTEX_STABILIZATION_ROADMAP.md` is a zero-byte file~~ — **CLOSED.**
+  Documentation Rule 5 names it as a standard document to review each sprint, so
+  an empty file was a standing instruction to consult something that said
+  nothing. It now says what is true: superseded, and where to read instead.
+- ~~`DiagnosticQuestion` / `ProgressModal` manifest status~~ — **CLOSED as a
+  documentation defect**, see H5. The status is honest; what to *do* with the
+  four components is still a human decision.
 
 ---
 
 ## THE NEXT V1 ITEMS, IN DEPENDENCY ORDER
 
-1. ~~**P2 — the tenancy audit.**~~ **CLOSED** — see above.
+Every buildable item is closed. What is left is not code.
+
+1. ~~**P2 — the tenancy audit.**~~ **CLOSED.**
 2. ~~**H3 + H4 — the two typecheck boundaries.**~~ **CLOSED.**
-3. **H7 — the submission response-contract decision.** Blocks the submission
-   half of S8.1. Nothing else depends on it.
-4. **H5 and the manifest staleness.** Canon reconciliation.
-5. **H1/H2 — the design decisions.** The last known AA gap.
-6. **P1 — Phase 5 rollout**, once a human enables shadow reads and the mismatch
-   rate is measured. The mechanism is now built; nothing before the rollout is
-   code, except H7's domain.
+3. ~~**H7 — the submission response contract.**~~ **CLOSED by decision D3**, and
+   proven live rather than argued.
+4. ~~**H1 — the contrast gap.**~~ **CLOSED**, and the recorded finding turned out
+   to describe a pairing that does not exist. Two real ones did.
+5. ~~**The manifest staleness and the zero-byte roadmap.**~~ **CLOSED.**
+6. ~~**The security campaign.**~~ **CLOSED** — eleven findings, no BLOCKER or
+   HIGH remaining. Readiness §8.
+7. **H5 — wire or delete the four ORPHANED components.** A product decision. The
+   manifest no longer misreports them either way.
+8. **H2 — the marketing type ramp.** Deferred deliberately in UI Sprint 8.
+9. **P1 — Phase 5 rollout.** The mechanism is built, rehearsed through all eight
+   stages including rollback and a second cutover, and both switches are off.
+   What remains is a production backfill, a switch, and a mismatch rate measured
+   over real traffic — none of it code.
+
+**Nothing in this list is blocked on work that can be done in this environment.**
+Each remaining item needs production authorisation, real traffic, a human
+decision, or scope V1 does not include.
