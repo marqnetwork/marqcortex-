@@ -10,8 +10,9 @@ Sources: `MARQ_CORTEX_PRODUCT_EXPERIENCE.md`, `MARQ_CORTEX_ONTOLOGY_v1.0.md`,
 `MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md`, `MARQ_CORTEX_ROADMAP.md`, and the
 327-node `src/system/manifest.ts`.
 
-Verified against merged main **`5e1e26e0`** (G2 and the G1 cutover mechanism merged).
-Last updated 2026-09-10.
+Verified against merged main **`396aed8`**, plus the QA/accessibility/security
+branch `claude/kind-bell-91qss4` recorded below.
+Last updated 2026-09-11.
 
 > **A caution this document exists to enforce.** The roadmap's "Next Sprint"
 > line still names cortex and outcome reconciliation. That work landed in
@@ -46,9 +47,14 @@ human decision rather than code.
 | **Multi-tenancy enforcement (G2)** | §VI-5 G2; RA §7.22, §11.8 | composite keys on all 14 relationships; 27 live scenarios; no class-F path remains |
 | **Phase 5 cutover MECHANISM (G1, S8.1)** | Roadmap Phase 5 | `storage/readAuthority.ts`, wired to the outcome route, switch off; 10 live scenarios incl. rollback |
 | **All typecheck boundaries (H3, H4)** | — | `npm run typecheck` exits 0: web 0, api 0, tests 0 — and `tests` is now **strict**, which it never was |
-| **Integration QA — canonical journeys in a browser** | Product Experience | 17 Playwright tests: sign-in, 13 destinations as deep links, reload, signed-out denial, phone width, accessibility. Found and fixed ungated admin credentials on the sign-in page and a missing favicon |
+| **Integration QA — canonical journeys in a browser** | Product Experience | 21 Playwright tests: sign-in, 13 destinations as deep links, reload, signed-out denial, phone width, accessibility. Found and fixed ungated admin credentials on the sign-in page and a missing favicon. The reload test was later found to be comparing a loading spinner against page chrome — rewritten to compare `#cortex-main`, with its own discrimination guard |
 | **Production readiness plan** | — | `docs/development/V1_PRODUCTION_READINESS.md` — migration order, flag state, deployment order, Phase 5 sequence, health checks, smoke plan, rollback |
-| **Final security campaign** | Task §5 | Two passes, **eleven findings, all closed**, no BLOCKER or HIGH remaining. Six new guard modules under `server/security/`, 5 new suites (`tests/security/`), every fix mutation-proven. Readiness §8 |
+| **Final security campaign** | Task §5 | Three passes, **twelve findings, all closed**, no BLOCKER or HIGH remaining. Six guard modules under `server/security/`, 8 suites in `tests/security/`, every fix mutation-proven. The third pass audited the auditors — see S-12. Readiness §8 |
+| **CORS policy** | Task §7 | The one release requirement the campaign had closed with no test. `tests/security/corsPolicy.test.ts` pins the invariant the wildcard origin rests on: no credentials, no origin reflection, no cookie, allow-list intact |
+| **Static-scanner integrity (S-12)** | Task §7 | The regex comment stripper read `"/*"` — the route the middleware is mounted on — as a comment opener and deleted **4,146 characters** of `index.tsx` before every scan, including the CORS policy and the whole edge rate limiter. `tests/helpers/stripComments.ts` + `tests/security/scannerIntegrity.test.ts`. Blast radius measured: one file |
+| **Accessibility — WCAG 2.1 AA by engine** | Task §5 | axe-core across all 13 destinations, landing, team login and client portal. **Two serious violations found and fixed**: `aria-label` on a role-less container (all 13 destinations, one element in the shell) and unnamed `role="img"` pie sectors. Also runs under the real CSP in `test:release` |
+| **Credential gate proven in the production configuration** | Task §5 | `npm run test:production-config` builds with `VITE_BACKEND_INTEGRATION=true` and drives it. The demo-gate regression had said in its own header it could not do this. Discriminating: all four fail against a demo build |
+| **Test-harness order independence** | Task §8 | Two suites' results depended on which ran first — a second site created `service_role` without `BYPASSRLS`, so on a clean database the tenancy bypass assertion and the whole backfill fixture failed. Fixed at both sites and guarded statically |
 | **Release response headers** | Task §6 | `vercel.json` + `scripts/serve-release.mjs`; `npm run test:release` runs all 23 browser tests against the **built artifact under the real headers**, including a proof that an injected inline script is refused |
 | **Dependency supply chain** | Task §6 | `npm audit`: **0**, production and dev. react-router, ws, lodash, dompurify, fflate resolved in range; vite 6.3.5 → 6.4.3 with a byte-identical entry chunk |
 
@@ -319,8 +325,17 @@ Every buildable item is closed. What is left is not code.
 4. ~~**H1 — the contrast gap.**~~ **CLOSED**, and the recorded finding turned out
    to describe a pairing that does not exist. Two real ones did.
 5. ~~**The manifest staleness and the zero-byte roadmap.**~~ **CLOSED.**
-6. ~~**The security campaign.**~~ **CLOSED** — eleven findings, no BLOCKER or
-   HIGH remaining. Readiness §8.
+6. ~~**The security campaign.**~~ **CLOSED** — twelve findings, no BLOCKER or
+   HIGH remaining. Readiness §8. The twelfth was found in the third pass, and it
+   was in the evidence rather than the product: the standing error-disclosure
+   scanner had been reading 96% of the file it certifies.
+6a. ~~**Accessibility, measured rather than asserted.**~~ **CLOSED** — axe-core
+   over WCAG 2.1 A and AA across every destination and every public page. Two
+   serious violations, both fixed. The four hand-written checks that existed
+   covered two pages out of fifteen.
+6b. ~~**The production configuration, driven.**~~ **CLOSED** — the demo-credential
+   gate is now proven in a backend-configured build rather than argued from
+   source, which the regression that pins it had said it could not do.
 7. **H5 — wire or delete the four ORPHANED components.** A product decision. The
    manifest no longer misreports them either way.
 8. **H2 — the marketing type ramp.** Deferred deliberately in UI Sprint 8.

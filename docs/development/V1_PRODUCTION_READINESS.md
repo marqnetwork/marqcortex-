@@ -245,7 +245,7 @@ does not include — and says which.
 | Phase 2 backfill execution | **PRODUCTION_EXECUTION_PENDING** | Code complete, proven against real PostgreSQL, **never run**. Procedure and stop conditions: §10.4. D1. |
 | S8.1 read-authority rollout | **PRODUCTION_EXECUTION_PENDING** | Both switches off. Rollback is the switch and is rehearsed, including a second cutover after one. §10.5. |
 | S7.5 / S7.8 shadow validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | A mismatch rate needs real traffic. Instrumented, not a code gap. |
-| Real backend integration QA (D2) | **EXTERNAL_ENVIRONMENT_BLOCKED** | No credentials, no CLI, no `.env` here. Everything not depending on it was completed, including 23 browser tests against the release artifact. |
+| Real backend integration QA (D2) | **EXTERNAL_ENVIRONMENT_BLOCKED** | No credentials, no CLI, no `.env` here. Everything not depending on it was completed: 25 browser tests against the release artifact under the real headers, and 4 more against a **backend-configured build** (`npm run test:production-config`) — what a production bundle renders before any call is made no longer rests on reading source. What remains genuinely needs a deployed project: signing in against real GoTrue, a real PostgREST round trip, and the mismatch rate. |
 | S8.2 authority validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | Then a human decision. |
 | S8.3 KV retirement | **HUMAN_DECISION_REQUIRED** | A one-way door. |
 | Four ORPHANED components | **HUMAN_DECISION_REQUIRED** | `DiagnosticQuestion`, `ProgressModal`, `SubmissionsListPage`, `QuickActions`. The manifest no longer misreports them; wiring or deleting is a product call. H5. |
@@ -259,14 +259,15 @@ does not include — and says which.
 | G8 maturity stages | **EXPLICITLY_POST_V1** | Approved, explicitly not V1. |
 | ~~Submission read cutover~~ | **COMPLETE** | D3 answered; wired, switch off, 18 live scenarios. |
 | ~~Chip contrast~~ | **COMPLETE** | The recorded 4.17:1 case did not exist. Two real failures did, both fixed and now measured on every run. |
-| ~~Final security certification~~ | **COMPLETE** | Eleven findings, all closed. §8. |
+| ~~Final security certification~~ | **COMPLETE** | Twelve findings, all closed. §8. |
+| ~~Accessibility audit~~ | **COMPLETE** | axe-core across all thirteen destinations, the landing page, the team login and the client portal, WCAG 2.1 A and AA. Two serious violations found and fixed; the suite runs under the real CSP in `test:release`. |
 
 ### On security certification
 
-The campaign HAS now been run, in two passes, and section 8 is its result. The
+The campaign HAS now been run, in three passes, and section 8 is its result. The
 earlier text here said it had not been; that is superseded.
 
-Two of the eleven findings were BLOCKERs and neither was subtle once looked at
+Two of the twelve findings were BLOCKERs and neither was subtle once looked at
 directly: posting an email address returned a working client-portal session, and
 a deployment that had not set `TEAM_ADMIN_PASSWORD` got a platform administrator
 whose password was in the shipped bundle. Both had survived every prior pass
@@ -275,6 +276,17 @@ allowed past them — the G2 audit proved a client token cannot reach another
 client's data, which was true, and says nothing about who can obtain a token.
 
 **No known BLOCKER or HIGH release vulnerability remains.**
+
+The third pass adds a caution the first two could not. S-12 was not a defect in
+the product; it was a defect in the evidence — a scanner that had been reading
+96% of the file it certifies since the day it was written. It was found only
+because CORS was checked against the list of release requirements and turned out
+to have no test, and writing that test could not see the middleware. **A guard
+that has never failed is not the same as a guard that works**, and the remedy
+that generalises is the one applied here: `tests/security/scannerIntegrity.test.ts`
+checks the checkers, and names each middleware it expects to remain visible
+rather than measuring a percentage — a ratio passes while the one region that
+matters is missing.
 
 New required secret: `TEAM_ADMIN_PASSWORD` has no default, and `RESEND_API_KEY`
 is now a hard dependency of the client portal rather than an optional nicety —
@@ -289,11 +301,13 @@ way to tell whether the published password was used.
 
 ---
 
-## 8. The security campaign — eleven findings, all closed
+## 8. The security campaign — twelve findings, all closed
 
-Performed this cycle, in two passes. The second pass is why there are eleven
-rather than nine: it found one leak the first pass's scanner was too narrow to
-see, and one gap that is not a vulnerability at all.
+Performed over three passes. The second pass is why there were eleven rather
+than nine: it found one leak the first pass's scanner was too narrow to see, and
+one gap that is not a vulnerability at all. The third pass is S-12, and it did
+not audit the code — it audited the auditors, after CORS turned out to be the
+one release requirement with no test behind it.
 
 Every finding follows the same shape — reproduce, classify, fix, pin with a
 regression, then mutate the fix and confirm the regression fails. Mutation
@@ -312,6 +326,7 @@ counts are in the commit for each.
 | S-9 | MEDIUM | Three unauthenticated write routes read an unbounded, untyped body and stored it. 120 requests a minute × whatever the sender chose. | `security/inputLimits.ts` — the request stream is bounded as it arrives, not by a declared length that can be a lie. |
 | S-10 | MEDIUM | The **unauthenticated** health endpoint returned `String(err)` — the KV driver's message, naming host and table. Missed by the S-1 sweep because that scanner knew only `${err}`. | Removed, and the standing scanner widened to every spelling plus a pass over the eight public routes. |
 | S-11 | *not a vulnerability* | There is **no route to delete a submission**. An erasure request cannot be honoured through the product. | Runbook below. The product capability is a **HUMAN_DECISION_REQUIRED** item, not a defect. |
+| S-12 | MEDIUM *(control failure)* | Every static scanner stripped comments with a regex, which does not know `/*` inside a string is not a comment. The middleware is mounted on the literal path `"/*"`, so **4,146 characters of `index.tsx` were deleted before every scan** — the CORS policy, the edge rate limiter, its rate-limit headers and its 429 body. The S-1/S-10 error-disclosure guard could not see the rate limiter at all, and 1 of 232 response literals never reached it. | `tests/helpers/stripComments.ts` — a string-, template-, regex- and comment-aware pass. With the region restored the scanner reports **nothing**, so nothing there was disclosing: this is a guard that was not guarding, not a live leak. `tests/security/scannerIntegrity.test.ts` checks the checkers. Blast radius measured across every non-test source file: this was the only one. |
 
 ### Areas swept with nothing found
 
@@ -328,12 +343,34 @@ secrets in the bundle; files and object storage (none used); dependency supply
 chain (`npm audit --omit=dev`: **0**, and 0 including dev after the vite bump);
 migration safety and rollback (round-trip proven against real PostgreSQL).
 
+**CORS was the exception, and finding that is what produced S-12.** It was named
+in the release requirements, the configuration was correct, and nothing tested
+it. `tests/security/corsPolicy.test.ts` now pins the invariant the wildcard
+origin rests on: `origin: '*'` is defensible here for exactly one reason — this
+function sets no authentication cookie, so a browser attaches no ambient
+authority to a cross-origin request, and a page on another origin cannot read
+the bearer token out of the app origin's storage to send one. That premise lived
+in a comment. It is now checked: credentials are never enabled, the origin is
+never reflected from the caller's own `Origin` header, `CORS_ALLOWED_ORIGINS`
+still exists as the deployment-time narrowing, and the server sets no cookie.
+
+**The credential gate is now proven in the configuration it is claimed for.**
+`tests/features/loginCredentialExposure.test.ts` states its own limit — it reads
+source because "the browser suite runs in exactly one configuration, the demo
+one, where they are supposed to be present". `npm run test:production-config`
+builds with `VITE_BACKEND_INTEGRATION=true` and drives that artifact: the team
+login renders neither the demo email nor the demo password, in visible text or
+in `value`/`aria-label`/`title`/`placeholder`/`alt`; no control on the page
+fills either field; and the client portal shows none of the three demo client
+identities. Run against a demo build all four fail, so the proof discriminates.
+
 ### Response headers
 
 `vercel.json` carries the policy; `scripts/serve-release.mjs` serves `dist/` with
 it so it is tested rather than asserted. `npm run test:release` runs the whole
-browser suite against the release artifact under the real headers — 23 tests,
-including one that injects an inline script and proves it does not run.
+browser suite against the release artifact under the real headers — 25 tests,
+including one that injects an inline script and proves it does not run, and the
+axe-core accessibility audit under the real Content-Security-Policy.
 
 `connect-src` is `'self' https:` because the Supabase project URL is
 deployment-configured. Narrowing it to the project host is a deployment-time
