@@ -1,6 +1,10 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
+// The status type `c.json` accepts. Named here so `failureResponse` can take a
+// status without widening it back to `number` — the narrowing the G2 pass put
+// in is what stops an invalid status reaching the router.
+import type { ContentfulStatusCode } from "npm:hono/utils/http-status";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as kv from "./kv_store.tsx";
 import {
@@ -201,12 +205,10 @@ app.onError((err, c) => {
   console.error('Error type:', typeof err);
   console.error('Error stringified:', String(err));
   
-  return c.json({
-    error: `Server error: ${err?.message || err?.name || String(err)}`,
-    errorType: err?.name || 'Unknown',
-    timestamp: new Date().toISOString(),
-    path: c.req.url,
-  }, 500);
+  // The catch-all, and therefore the one that would disclose the most: it sees
+  // every unhandled failure in the function, including the ones no route
+  // anticipated. The detail is logged above; the caller gets a reference.
+  return failureResponse(c, 'Server', err, 500);
 });
 
 // ============================================================================
@@ -355,6 +357,39 @@ console.log('');
 // ============================================================================
 // HELPER — verify team JWT
 // ============================================================================
+
+/**
+ * A 500 that says what failed without saying how.
+ *
+ * Every route used to interpolate the caught error straight into the response
+ * body — `Failed to fetch submission: ${err}` — and one returned the stack
+ * trace as well. Those messages are not generic: a PostgREST failure names the
+ * table, the column and the constraint, and a driver failure can name the host.
+ * Handing them to whoever made the request is information disclosure on the one
+ * path nobody tests by hand, and it was on 67 routes.
+ *
+ * The detail is not lost, it is MOVED. The server logs it in full against a
+ * short reference, and the caller receives the same reference — so an operator
+ * reading a support ticket can still find the exact failure, and a stranger
+ * probing the API learns only that something went wrong.
+ *
+ * The reference is per-occurrence and carries no meaning of its own; it is a
+ * lookup key for the log, not a token.
+ */
+function failureResponse(
+  c: { json: (body: unknown, status: ContentfulStatusCode) => Response },
+  context: string,
+  err: unknown,
+  status: ContentfulStatusCode = 500,
+): Response {
+  const reference = crypto.randomUUID().slice(0, 8);
+  console.error(
+    `❌ ${context} [${reference}]:`,
+    errorField(err, 'message') ?? String(err),
+    errorField(err, 'stack') ?? '',
+  );
+  return c.json({ error: `${context} failed.`, reference }, status);
+}
 
 /**
  * Read one diagnostic field off a caught value.
@@ -995,10 +1030,7 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
     });
   } catch (err) {
     console.error('❌ TEST-AUTH error:', err);
-    return c.json({ 
-      error: `Test auth failed: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name'),
-    }, 500);
+    return failureResponse(c, 'Test auth', err, 500);
   }
 });
 
@@ -1070,7 +1102,7 @@ app.get("/make-server-324f4fbe/kpis", async (c) => {
     return c.json({ success: true, kpis: await registry.read(() => new Date().toISOString()) });
   } catch (err) {
     console.log('KPI report error:', err);
-    return c.json({ error: `Failed to build the KPI report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build the KPI report', err, 500);
   }
 });
 
@@ -1149,7 +1181,7 @@ app.get("/make-server-324f4fbe/health/enterprise", async (c) => {
     return c.json({ success: true, health });
   } catch (err) {
     console.log('Enterprise health error:', err);
-    return c.json({ error: `Failed to build the enterprise health view: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build the enterprise health view', err, 500);
   }
 });
 
@@ -1262,11 +1294,7 @@ app.get("/make-server-324f4fbe/diagnostic", async (c) => {
     console.error('❌ Diagnostic error:', err);
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
-    return c.json({ 
-      error: `Diagnostic failed: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      stack: errorField(err, 'stack'),
-    }, 500);
+    return failureResponse(c, 'Diagnostic', err, 500);
   }
 });
 
@@ -1323,7 +1351,7 @@ app.post("/make-server-324f4fbe/leads/capture", async (c) => {
     return c.json({ success: true, leadId });
   } catch (err: any) {
     console.error('❌ Lead capture error:', err);
-    return c.json({ error: `Lead capture failed: ${err?.message || String(err)}` }, 500);
+    return failureResponse(c, 'Lead capture failed', err, 500);
   }
 });
 
@@ -1359,7 +1387,7 @@ app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
     return c.json({ success: true, leadId });
   } catch (err: any) {
     console.error('❌ Exit-intent capture error:', err);
-    return c.json({ error: `Exit-intent capture failed: ${err?.message || String(err)}` }, 500);
+    return failureResponse(c, 'Exit-intent capture failed', err, 500);
   }
 });
 
@@ -1415,7 +1443,7 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
     });
   } catch (err) {
     console.log('Team login error:', err);
-    return c.json({ error: `Team login server error: ${err}` }, 500);
+    return failureResponse(c, 'Team login server error', err, 500);
   }
 });
 
@@ -1462,7 +1490,7 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
     });
   } catch (err) {
     console.log('Client verify error:', err);
-    return c.json({ error: `Client verification error: ${err}` }, 500);
+    return failureResponse(c, 'Client verification error', err, 500);
   }
 });
 
@@ -1669,7 +1697,7 @@ app.post("/make-server-324f4fbe/submissions", async (c) => {
 
   } catch (err) {
     console.log('Create submission error:', err);
-    return c.json({ error: `Failed to save submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save submission', err, 500);
   }
 });
 
@@ -1737,11 +1765,7 @@ app.get("/make-server-324f4fbe/submissions", async (c) => {
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
-    return c.json({ 
-      error: `Failed to fetch submissions: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      timestamp: new Date().toISOString(),
-    }, 500);
+    return failureResponse(c, 'Failed to fetch submissions', err, 500);
   }
 });
 
@@ -1790,7 +1814,7 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Get submission error:', err);
-    return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch submission', err, 500);
   }
 });
 
@@ -1859,7 +1883,7 @@ app.patch("/make-server-324f4fbe/submissions/:id/status", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Update submission error:', err);
-    return c.json({ error: `Failed to update submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to update submission', err, 500);
   }
 });
 
@@ -1912,7 +1936,7 @@ app.patch("/make-server-324f4fbe/submissions/bulk", async (c) => {
     return c.json({ success: true, updated: succeeded, results });
   } catch (err) {
     console.log('Bulk update error:', err);
-    return c.json({ error: `Bulk update failed: ${err}` }, 500);
+    return failureResponse(c, 'Bulk update failed', err, 500);
   }
 });
 
@@ -1936,7 +1960,7 @@ app.get("/make-server-324f4fbe/client/submission/:id", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Client get submission error:', err);
-    return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch submission', err, 500);
   }
 });
 
@@ -2013,7 +2037,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/engagement", async (c) => 
     return c.json({ success: true, engagement: submission.engagement, event });
   } catch (err) {
     console.log('Engagement tracking error:', err);
-    return c.json({ error: `Failed to track engagement: ${err}` }, 500);
+    return failureResponse(c, 'Failed to track engagement', err, 500);
   }
 });
 
@@ -2032,7 +2056,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/engagement/log", async (c) 
     return c.json({ success: true, events });
   } catch (err) {
     console.log('Get engagement log error:', err);
-    return c.json({ error: `Failed to fetch engagement log: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch engagement log', err, 500);
   }
 });
 
@@ -2064,7 +2088,7 @@ app.get("/make-server-324f4fbe/cortex/engagement-summary", async (c) => {
     return c.json({ success: true, summary });
   } catch (err) {
     console.log('Engagement summary error:', err);
-    return c.json({ error: `Failed to fetch engagement summary: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch engagement summary', err, 500);
   }
 });
 
@@ -2220,7 +2244,7 @@ app.get("/make-server-324f4fbe/analytics/overview", async (c) => {
     });
   } catch (err) {
     console.log('Analytics overview error:', err);
-    return c.json({ error: `Failed to compute analytics: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute analytics', err, 500);
   }
 });
 
@@ -2271,7 +2295,7 @@ app.get("/make-server-324f4fbe/analytics/revenue-snapshots", async (c) => {
     });
   } catch (err) {
     console.log('Revenue snapshots error:', err);
-    return c.json({ error: `Failed to compute revenue snapshots: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute revenue snapshots', err, 500);
   }
 });
 
@@ -2445,7 +2469,7 @@ app.get("/make-server-324f4fbe/analytics/engagement", async (c) => {
     });
   } catch (err) {
     console.log('Engagement analytics error:', err);
-    return c.json({ error: `Failed to compute engagement analytics: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute engagement analytics', err, 500);
   }
 });
 
@@ -2550,11 +2574,7 @@ app.get("/make-server-324f4fbe/notifications", async (c) => {
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
-    return c.json({ 
-      error: `Failed to fetch notifications: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      timestamp: new Date().toISOString(),
-    }, 500);
+    return failureResponse(c, 'Failed to fetch notifications', err, 500);
   }
 });
 
@@ -2572,7 +2592,7 @@ app.post("/make-server-324f4fbe/notifications/read", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Mark notifications read error:', err);
-    return c.json({ error: `Failed to mark notifications: ${err}` }, 500);
+    return failureResponse(c, 'Failed to mark notifications', err, 500);
   }
 });
 
@@ -2611,7 +2631,7 @@ app.get("/make-server-324f4fbe/submissions/:id/notes", async (c) => {
     return c.json({ success: true, notes });
   } catch (err) {
     console.log('List notes error:', err);
-    return c.json({ error: `Failed to fetch notes: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch notes', err, 500);
   }
 });
 
@@ -2656,7 +2676,7 @@ app.post("/make-server-324f4fbe/submissions/:id/notes", async (c) => {
     return c.json({ success: true, note });
   } catch (err) {
     console.log('Add note error:', err);
-    return c.json({ error: `Failed to add note: ${err}` }, 500);
+    return failureResponse(c, 'Failed to add note', err, 500);
   }
 });
 
@@ -2678,7 +2698,7 @@ app.delete("/make-server-324f4fbe/submissions/:id/notes/:noteId", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete note error:', err);
-    return c.json({ error: `Failed to delete note: ${err}` }, 500);
+    return failureResponse(c, 'Failed to delete note', err, 500);
   }
 });
 
@@ -2708,7 +2728,7 @@ app.get("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) =>
     return c.json({ success: true, review });
   } catch (err) {
     console.log('Get review error:', err);
-    return c.json({ error: `Failed to fetch review: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch review', err, 500);
   }
 });
 
@@ -2755,7 +2775,7 @@ app.put("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) =>
     return c.json({ success: true, review: record });
   } catch (err) {
     console.log('Save review error:', err);
-    return c.json({ error: `Failed to save review: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save review', err, 500);
   }
 });
 
@@ -2784,7 +2804,7 @@ app.get("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
     return c.json({ success: true, escalations });
   } catch (err) {
     console.log('List escalations error:', err);
-    return c.json({ error: `Failed to fetch escalations: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch escalations', err, 500);
   }
 });
 
@@ -2837,7 +2857,7 @@ app.post("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
     return c.json({ success: true, escalation, detectionCount });
   } catch (err) {
     console.log('Create escalation error:', err);
-    return c.json({ error: `Failed to record escalation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to record escalation', err, 500);
   }
 });
 
@@ -2863,7 +2883,7 @@ app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", asy
     return c.json({ success: true, escalation: updated });
   } catch (err) {
     console.log('Resolve escalation error:', err);
-    return c.json({ error: `Failed to resolve escalation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to resolve escalation', err, 500);
   }
 });
 
@@ -2896,7 +2916,7 @@ app.post("/make-server-324f4fbe/bookings", async (c) => {
     return c.json({ success: true, booking });
   } catch (err) {
     console.log('Create booking error:', err);
-    return c.json({ error: `Failed to create booking: ${err}` }, 500);
+    return failureResponse(c, 'Failed to create booking', err, 500);
   }
 });
 
@@ -2917,7 +2937,7 @@ app.get("/make-server-324f4fbe/bookings", async (c) => {
     return c.json({ success: true, bookings, count: bookings.length });
   } catch (err) {
     console.log('List bookings error:', err);
-    return c.json({ error: `Failed to fetch bookings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch bookings', err, 500);
   }
 });
 
@@ -2941,7 +2961,7 @@ app.get("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
     return c.json({ success: true, registry });
   } catch (err) {
     console.log('Get block registry error:', err);
-    return c.json({ error: `Failed to fetch block registry: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch block registry', err, 500);
   }
 });
 
@@ -2986,7 +3006,7 @@ app.put("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
     return c.json({ success: true, registry });
   } catch (err) {
     console.log('Save block registry error:', err);
-    return c.json({ error: `Failed to save block registry: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save block registry', err, 500);
   }
 });
 
@@ -3032,7 +3052,7 @@ app.get("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
     return c.json({ success: true, messages, unreadFromClient });
   } catch (err) {
     console.log('Team get messages error:', err);
-    return c.json({ error: `Failed to fetch messages: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch messages', err, 500);
   }
 });
 
@@ -3071,7 +3091,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
     return c.json({ success: true, message });
   } catch (err) {
     console.log('Team post message error:', err);
-    return c.json({ error: `Failed to send reply: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send reply', err, 500);
   }
 });
 
@@ -3104,7 +3124,7 @@ app.get("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
     return c.json({ success: true, messages });
   } catch (err) {
     console.log('Client get messages error:', err);
-    return c.json({ error: `Failed to fetch messages: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch messages', err, 500);
   }
 });
 
@@ -3157,7 +3177,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
     return c.json({ success: true, message });
   } catch (err) {
     console.log('Client post message error:', err);
-    return c.json({ error: `Failed to send message: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send message', err, 500);
   }
 });
 
@@ -3178,7 +3198,7 @@ app.get("/make-server-324f4fbe/submissions/:id/proposal", async (c) => {
     return c.json({ success: true, proposal });
   } catch (err) {
     console.log('Get proposal error:', err);
-    return c.json({ error: `Failed to fetch proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch proposal', err, 500);
   }
 });
 
@@ -3212,7 +3232,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal", async (c) => {
     return c.json({ success: true, proposal: toSave });
   } catch (err) {
     console.log('Save proposal error:', err);
-    return c.json({ error: `Failed to save proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save proposal', err, 500);
   }
 });
 
@@ -3265,7 +3285,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal/send", async (c) => {
     return c.json({ success: true, proposal: updated });
   } catch (err) {
     console.log('Send proposal error:', err);
-    return c.json({ error: `Failed to send proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send proposal', err, 500);
   }
 });
 
@@ -3327,7 +3347,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/proposal", async (c) => {
     return c.json({ success: true, proposal });
   } catch (err) {
     console.log('Client get proposal error:', err);
-    return c.json({ error: `Failed to fetch proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch proposal', err, 500);
   }
 });
 
@@ -3396,7 +3416,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/proposal/respond", async (
     return c.json({ success: true, proposal: updated });
   } catch (err) {
     console.log('Client respond to proposal error:', err);
-    return c.json({ error: `Failed to respond to proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to respond to proposal', err, 500);
   }
 });
 
@@ -3482,7 +3502,7 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
     return c.json({ success: true, members });
   } catch (err) {
     console.log('Get team members error:', err);
-    return c.json({ error: `Failed to fetch team members: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch team members', err, 500);
   }
 });
 
@@ -3796,7 +3816,7 @@ app.get("/make-server-324f4fbe/settings", async (c) => {
     });
   } catch (err) {
     console.log('Get settings error:', err);
-    return c.json({ error: `Failed to load settings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to load settings', err, 500);
   }
 });
 
@@ -3823,7 +3843,7 @@ app.patch("/make-server-324f4fbe/settings", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Save settings error:', err);
-    return c.json({ error: `Failed to save settings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save settings', err, 500);
   }
 });
 
@@ -3853,7 +3873,7 @@ app.post("/make-server-324f4fbe/test-email", async (c) => {
     });
   } catch (err) {
     console.log('Test email error:', err);
-    return c.json({ error: `Failed to send test email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send test email', err, 500);
   }
 });
 
@@ -3919,7 +3939,7 @@ app.post("/make-server-324f4fbe/email/weekly-digest", async (c) => {
     return c.json({ success: true, to: teamEmail });
   } catch (err) {
     console.log('Weekly digest error:', err);
-    return c.json({ error: `Failed to send weekly digest: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send weekly digest', err, 500);
   }
 });
 
@@ -3950,7 +3970,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/report", async (c) => {
     return c.json({ success: true, report: null, aiPowered: false });
   } catch (err) {
     console.log('Client report error:', err);
-    return c.json({ error: `Failed to build client report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build client report', err, 500);
   }
 });
 
@@ -4105,7 +4125,7 @@ app.get("/make-server-324f4fbe/cortex/status", async (c) => {
     return c.json({ success: true, analyzed, count: Object.keys(analyzed).length });
   } catch (err) {
     console.log('Cortex status error:', err);
-    return c.json({ error: `Failed to fetch cortex status: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch cortex status', err, 500);
   }
 });
 
@@ -4162,7 +4182,7 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
     return c.json({ success: true, results, analyzed: successCount, total: capped.length, correlationId: batchCorrelationId });
   } catch (err: any) {
     console.log('Batch analyze error:', err);
-    return c.json({ error: `Batch analysis failed: ${err?.message || err}` }, 500);
+    return failureResponse(c, 'Batch analysis failed', err, 500);
   }
 });
 
@@ -4210,8 +4230,22 @@ app.post("/make-server-324f4fbe/submissions/:id/analyze", async (c) => {
     // `code` and `status` come from the control plane's error taxonomy — no
     // more inferring "the key is missing" by string-matching an exception.
     const status = typeof err?.status === 'number' ? err.status : 500;
+    // `code` and `keyMissing` STAY. They are a deliberate structured contract —
+    // the client reads them instead of string-matching an exception, which is
+    // the whole reason they exist — and they carry no internal detail: `code`
+    // is a closed vocabulary this server defines, not a driver's message.
+    //
+    // The raw `err.message` does not stay, for the same reason it does not stay
+    // anywhere else.
+    const reference = crypto.randomUUID().slice(0, 8);
+    console.error(
+      `❌ CORTEX analysis [${reference}]:`,
+      errorField(err, 'message') ?? String(err),
+      errorField(err, 'stack') ?? '',
+    );
     return c.json({
-      error: `CORTEX analysis failed: ${err?.message || err}`,
+      error: 'CORTEX analysis failed.',
+      reference,
       code: err?.code ?? 'INTERNAL_ERROR',
       keyMissing: err?.code === 'PROVIDER_AUTH_FAILED' || err?.code === 'NO_PROVIDER_AVAILABLE',
     }, status);
@@ -4234,7 +4268,7 @@ app.get("/make-server-324f4fbe/submissions/:id/cortex", async (c) => {
     return c.json({ success: true, analysis });
   } catch (err) {
     console.log('Get cortex analysis error:', err);
-    return c.json({ error: `Failed to fetch cortex analysis: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch cortex analysis', err, 500);
   }
 });
 
@@ -4254,7 +4288,7 @@ app.delete("/make-server-324f4fbe/submissions/:id/cortex", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete cortex analysis error:', err);
-    return c.json({ error: `Failed to clear cortex analysis: ${err}` }, 500);
+    return failureResponse(c, 'Failed to clear cortex analysis', err, 500);
   }
 });
 
@@ -4329,7 +4363,7 @@ app.post("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Log outcome error:', err);
-    return c.json({ error: `Failed to log outcome: ${err}` }, 500);
+    return failureResponse(c, 'Failed to log outcome', err, 500);
   }
 });
 
@@ -4375,7 +4409,7 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
-    return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch outcome', err, 500);
   }
 });
 
@@ -4412,7 +4446,7 @@ app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
     });
   } catch (err) {
     console.log('Shadow read report error:', err);
-    return c.json({ error: `Failed to read the shadow report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to read the shadow report', err, 500);
   }
 });
 
@@ -4444,7 +4478,7 @@ app.get("/make-server-324f4fbe/cortex/outcomes", async (c) => {
     return c.json({ success: true, outcomes, count: Object.keys(outcomes).length });
   } catch (err) {
     console.log('Cortex outcomes error:', err);
-    return c.json({ error: `Failed to fetch outcomes: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch outcomes', err, 500);
   }
 });
 
@@ -4561,7 +4595,7 @@ app.get("/make-server-324f4fbe/cortex/learning-loop", async (c) => {
     });
   } catch (err) {
     console.log('Learning loop error:', err);
-    return c.json({ error: `Failed to compute learning loop: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute learning loop', err, 500);
   }
 });
 
@@ -4581,7 +4615,7 @@ app.get("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true, positions, count: Object.keys(positions).length });
   } catch (err) {
     console.log('Get pipeline positions error:', err);
-    return c.json({ error: `Failed to fetch pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch pipeline positions', err, 500);
   }
 });
 
@@ -4613,7 +4647,7 @@ app.post("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true, positions: current, count: Object.keys(current).length });
   } catch (err) {
     console.log('Save pipeline positions error:', err);
-    return c.json({ error: `Failed to save pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save pipeline positions', err, 500);
   }
 });
 
@@ -4626,7 +4660,7 @@ app.delete("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Reset pipeline positions error:', err);
-    return c.json({ error: `Failed to reset pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to reset pipeline positions', err, 500);
   }
 });
 
@@ -4645,7 +4679,7 @@ app.get("/make-server-324f4fbe/cortex/column-capacities", async (c) => {
     return c.json({ success: true, capacities });
   } catch (err) {
     console.log('Get column capacities error:', err);
-    return c.json({ error: `Failed to fetch column capacities: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch column capacities', err, 500);
   }
 });
 
@@ -4664,7 +4698,7 @@ app.put("/make-server-324f4fbe/cortex/column-capacities", async (c) => {
     return c.json({ success: true, capacities });
   } catch (err) {
     console.log('Save column capacities error:', err);
-    return c.json({ error: `Failed to save column capacities: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save column capacities', err, 500);
   }
 });
 
@@ -4691,7 +4725,7 @@ app.get('/make-server-324f4fbe/proposal/annotations/:submissionId', async (c) =>
     return c.json({ success: true, annotations });
   } catch (err) {
     console.log('Get annotations error:', err);
-    return c.json({ error: `Failed to fetch annotations: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch annotations', err, 500);
   }
 });
 
@@ -4720,7 +4754,7 @@ app.post('/make-server-324f4fbe/proposal/annotations/:submissionId', async (c) =
     return c.json({ success: true, annotation });
   } catch (err) {
     console.log('Create annotation error:', err);
-    return c.json({ error: `Failed to create annotation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to create annotation', err, 500);
   }
 });
 
@@ -4733,7 +4767,7 @@ app.delete('/make-server-324f4fbe/proposal/annotations/:submissionId/:annotation
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete annotation error:', err);
-    return c.json({ error: `Failed to delete annotation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to delete annotation', err, 500);
   }
 });
 
@@ -4778,7 +4812,7 @@ app.post('/make-server-324f4fbe/email-queue', async (c) => {
     return c.json({ success: true, queued: emails.length });
   } catch (err) {
     console.log('Email queue enqueue error:', err);
-    return c.json({ error: `Failed to enqueue emails: ${err}` }, 500);
+    return failureResponse(c, 'Failed to enqueue emails', err, 500);
   }
 });
 
@@ -4801,7 +4835,7 @@ app.get('/make-server-324f4fbe/email-queue', async (c) => {
     return c.json({ success: true, emails, total: emails.length });
   } catch (err) {
     console.log('Email queue fetch error:', err);
-    return c.json({ error: `Failed to fetch email queue: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch email queue', err, 500);
   }
 });
 
@@ -4860,7 +4894,7 @@ app.patch('/make-server-324f4fbe/email-queue/:emailId', async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Email queue update error:', err);
-    return c.json({ error: `Failed to update email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to update email', err, 500);
   }
 });
 
@@ -4884,7 +4918,7 @@ app.get('/make-server-324f4fbe/email/status', async (c) => {
     });
   } catch (err) {
     console.log('Email status check error:', err);
-    return c.json({ error: `Failed to check email status: ${err}` }, 500);
+    return failureResponse(c, 'Failed to check email status', err, 500);
   }
 });
 
@@ -4947,7 +4981,7 @@ app.post('/make-server-324f4fbe/email/send', async (c) => {
     });
   } catch (err) {
     console.log('Email send error:', err);
-    return c.json({ error: `Failed to send email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send email', err, 500);
   }
 });
 
