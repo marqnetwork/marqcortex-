@@ -20,14 +20,22 @@ import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { stripComments } from '../helpers/stripComments.ts';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const source = readFileSync(join(root, 'supabase', 'functions', 'server', 'index.tsx'), 'utf8');
 
-/** Source with comments removed, so the explanation is never the violation. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-}
-const body = code(source);
+/**
+ * Source with comments removed, so the explanation is never the violation.
+ *
+ * This used to be two `replace` calls with the same regex every scanner here
+ * uses. It deleted 4,146 characters of this very file — `app.use("/*", ...)`
+ * opens a comment as far as a regex is concerned, and it ran to the next `*` +
+ * `/` 101 lines later — so this scanner could not see the CORS policy, the edge
+ * rate limiter or its 429 response AT ALL. Nothing in the region was disclosing
+ * when that was found; the guard simply was not guarding it.
+ */
+const body = stripComments(source);
 
 /**
  * Every way a caught value can be rendered into a response.

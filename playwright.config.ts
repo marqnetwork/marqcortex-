@@ -30,7 +30,25 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
  * Unset — the ordinary case — nothing changes.
  */
 const releaseBuild = process.env.PLAYWRIGHT_RELEASE_BUILD === '1';
-const port = releaseBuild ? 4173 : 5173;
+
+/**
+ * Run against a build configured the way PRODUCTION is configured.
+ *
+ * Every other suite here runs in demo mode, because that is what a developer
+ * and a reviewer run and `VITE_BACKEND_INTEGRATION` defaults to false. The
+ * consequence is that anything whose defect is an ABSENCE in the other
+ * configuration — a demo-only affordance that fails to disappear — has never
+ * been observed in a browser at all. `tests/features/loginCredentialExposure.test.ts`
+ * says so in its own header, and settles for reading the source instead.
+ *
+ * `npm run test:production-config` builds with the backend flag ON and runs the
+ * one spec that needs it. It does not talk to a backend and does not need one:
+ * what it checks is what the production BUILD renders before any call is made.
+ */
+const productionConfigBuild = process.env.PLAYWRIGHT_PRODUCTION_CONFIG === '1';
+/** Both modes test a BUILT artifact, so both are served by the release server. */
+const serveDist = releaseBuild || productionConfigBuild;
+const port = serveDist ? 4173 : 5173;
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -42,7 +60,16 @@ export default defineConfig({
    * as a pass in a summary line. `npm run test:release` is what runs them, and
    * the spec still fails loudly if it is invoked directly without the flag.
    */
-  testIgnore: releaseBuild ? [] : ['**/release-headers.spec.ts'],
+  testIgnore: productionConfigBuild
+    ? // The other suites assert demo-mode behaviour, which this build does not
+      // have. Running them here would report failures that are the flag working.
+      ['**/v1-integration-qa.spec.ts', '**/client-portal-status-view.spec.ts',
+       '**/diagnostic-score-team-login.spec.ts', '**/release-headers.spec.ts',
+       '**/accessibility-audit.spec.ts']
+    : [
+        '**/production-config.spec.ts',
+        ...(releaseBuild ? [] : ['**/release-headers.spec.ts']),
+      ],
   timeout: 60_000,
   expect: {
     timeout: 10_000,
@@ -54,7 +81,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: releaseBuild
+    command: serveDist
       ? `node scripts/serve-release.mjs --port ${port}`
       : 'npm run dev -- --host 127.0.0.1',
     url: baseURL,

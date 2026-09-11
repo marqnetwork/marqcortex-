@@ -123,7 +123,14 @@ if (!ENABLED) {
       psql(
         'create table if not exists kv_store_324f4fbe (key text not null primary key, value jsonb not null);',
       );
-      psql("do $$ begin if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role; end if; end $$;");
+      // BYPASSRLS, matching `tests/database/harness/00_platform_stub.sql` and
+      // the real Supabase role. Creating it without the attribute leaves a
+      // degraded `service_role` behind for every suite that runs after this
+      // one on the same database.
+      psql(
+        "do $$ begin if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if; end $$;",
+      );
+      psql('alter role service_role bypassrls;');
 
       // Applied in order, exactly as a deployment would. Both are CREATE OR
       // REPLACE, so this is idempotent and safe to re-run.

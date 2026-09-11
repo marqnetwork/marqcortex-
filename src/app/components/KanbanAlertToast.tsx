@@ -318,9 +318,24 @@ export function KanbanAlertToastStack({ kanbanAlerts, onNavigate }: StackProps) 
   }, []);
 
   return (
+    /*
+     * `aria-label` is PROHIBITED on an element with no role: a bare <div> is
+     * `role="generic"`, which does not support being named, so the name was
+     * silently discarded by assistive technology and axe reported it as a
+     * serious violation on every one of the thirteen destinations — the toast
+     * container mounts in the shell, so one element failed everywhere.
+     *
+     * `status` is the live-region role for advisory messages. It permits the
+     * name, and its implicit `aria-live` is already what this declared.
+     * `aria-atomic="false"` so an arriving toast is announced on its own rather
+     * than re-reading the whole stack — the behaviour a queue of alerts needs,
+     * and the opposite of the role's default.
+     */
     <div
       className="fixed bottom-6 right-6 z-[9900] flex flex-col gap-3 items-end pointer-events-none"
+      role="status"
       aria-live="polite"
+      aria-atomic="false"
       aria-label="Pipeline alerts"
     >
       <AnimatePresence mode="sync">

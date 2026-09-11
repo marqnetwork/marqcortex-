@@ -2098,3 +2098,167 @@ boundaries **107** · build ✓.
 
 _Last updated: 2026-09-10, at integration QA and production readiness — the
 product driven the way a person drives it, and the two defects that found._
+
+---
+
+# FINAL QA, ACCESSIBILITY, AND THE PASS THAT AUDITED THE AUDITORS
+
+_Branch `claude/kind-bell-91qss4`, from main `396aed8`._
+
+Five findings this cycle. Four of them were in the **evidence** rather than in
+the product, which is the pattern worth recording: a V1 that is closed on paper
+is defended by its guards, and nobody had been checking the guards.
+
+## THE GREEN RESULT THAT DEPENDED ON SUITE ORDER
+
+`npm run test:database` passed. `test:database:tenancy` then failed on *"service
+role no longer bypasses RLS — revisit the repository guards"*, and
+`test:database:diagnostic` could not seed at all — its fixture's INSERT into
+`organizations` refused by a policy it does `SET ROLE service_role` precisely to
+bypass.
+
+Neither failure was in the code under test. Two places create the `service_role`
+stub and they disagreed: the platform stub created it with `BYPASSRLS`,
+`kv_compare_and_swap.test.ts` created it with no attributes at all. Both guard
+with `if not exists`, so **whichever ran first won** — and `test:database` runs
+the kv suite.
+
+Both suites pass on a database where the stub happens to be created correctly
+first, which is why this was never seen. The recorded green was order-dependent,
+so the bypass assertion — the one that makes *"the repositories' organization
+filters are load-bearing"* evidence rather than folklore — could pass or fail for
+reasons unrelated to the schema.
+
+Fixed at both sites; the stub now `ALTER`s the attribute rather than only
+creating it, so it converges no matter what ran before it.
+
+## A DEEP-LINK TEST THAT COMPARED A SPINNER TO A SIDEBAR
+
+The reload test captured `body.innerText()` at `networkidle` and compared the
+first 200 characters before and after. Two defects in one assertion:
+
+- **It compared a spinner to a page.** Network idle fired while the app-level
+  Suspense fallback — the single word "Loading…" — was still mounted. The
+  failure was the harmless outcome. Had BOTH snapshots caught the fallback they
+  would have compared *equal*, and a green deep-link guarantee would have
+  asserted nothing.
+- **Its comparison window could not tell the destinations apart.** The sidebar
+  and the thirteen navigation labels come first in the body text and are
+  identical everywhere, so a leading slice of `body` is pure chrome. The test
+  names *"a reload that silently returns to the dashboard"* as the failure it
+  guards against, and could not have detected exactly that.
+
+It now reads `#cortex-main`, settles on the text rather than the network
+(`#cortex-main` was observed holding twenty characters of tab strip well after
+network idle), and **asserts its own discrimination**: it captures the dashboard
+first and fails if operations renders the same content.
+
+## ACCESSIBILITY, MEASURED RATHER THAN LISTED
+
+Four hand-written accessibility checks existed, and they had found real defects.
+They covered the login page and the dashboard — two surfaces out of fifteen —
+and applied a hand-written subset of WCAG.
+
+axe-core across all thirteen destinations, the landing page, the team login and
+the client portal, WCAG 2.1 A and AA, found **two serious violations**:
+
+- **`aria-prohibited-attr`, on all thirteen destinations.** The toast container
+  is a bare `<div>` carrying `aria-label="Pipeline alerts"`. A div with no role
+  is `role="generic"`, which does not support being named — so the name was
+  silently discarded by assistive technology. One element in the shell failed
+  everywhere, which is why the count was thirteen and the fix is one line.
+- **`svg-img-alt`, on analytics.** Recharts renders each pie sector as
+  `<path role="img">`; three had no name, so a screen reader announced three
+  anonymous images.
+
+`color-contrast` is deliberately excluded from that suite and nowhere else.
+`contrastAudit.test.ts` computes every pairing the product *uses*; axe measures
+only what is on screen when it runs, so duplicating it there would be a weaker
+claim dressed as a stronger one.
+
+## S-12 — THE SCANNER THAT HAD READ 96% OF ITS OWN SUBJECT
+
+CORS was named in the release requirements, the configuration was correct, and
+it was the one item the campaign closed with **no test**. Writing that test found
+something larger than CORS.
+
+Every static scanner here strips comments with a regex, and a regex does not
+know that `/*` inside a string is not a comment. The middleware is mounted on
+the literal path `"/*"`:
+
+```
+app.use("/*", cors({ ... }))
+```
+
+That string opened a comment which ran to the next `*` + `/` **101 lines later**.
+**4,146 characters of `index.tsx` were deleted before every scan of it** — the
+CORS policy, the edge rate limiter, its rate-limit headers and its 429 body.
+
+`tests/security/errorDisclosure.test.ts` is the standing regression for S-1 and
+S-10 — the two findings about routes leaking driver detail to strangers — and
+its own header argues that *"a detector that knows one spelling of a mistake
+certifies the other spellings"*. It could not see the rate limiter at all, and
+1 of 232 response literals never reached it.
+
+With the region restored the scanner reports **nothing**, so nothing there was
+disclosing. That is luck, not a result. Blast radius measured across every
+non-test source file in the tree: **one file**, and it is now closed.
+
+The remedy that generalises is `tests/security/scannerIntegrity.test.ts`, which
+checks the checkers and **names each middleware it expects to remain visible**
+rather than measuring a percentage — a ratio passes while the one region that
+matters is missing.
+
+## THE CONFIGURATION NOBODY HAD EVER RENDERED
+
+`loginCredentialExposure.test.ts` pins the fix for the ungated administrator
+credentials, and states its own limit plainly: it reads source because *"the
+browser suite runs in exactly one configuration, the demo one, where they are
+supposed to be present."*
+
+That is the gap that matters — the original defect was found by driving the page
+in a browser after no source review had caught it, and the claim that replaced
+it had only ever been argued from source.
+
+`npm run test:production-config` builds with `VITE_BACKEND_INTEGRATION=true` and
+drives that artifact. Neither literal renders, in text or in
+`value`/`aria-label`/`title`/`placeholder`/`alt` — attributes matter most,
+because the original defect was found through a button's *accessible name*. It
+clicks every non-submit control and requires both fields to stay empty, which
+covers a relabelled quick-fill it does not know the name of. Run against a demo
+build, **all four fail**, so the proof discriminates.
+
+## VERIFICATION — THE FULL BATTERY, FROM A DROPPED DATABASE
+
+typecheck **0** across all three boundaries · features **1225** · security
+**954** · system **177** · migration **244** · database **245** · lifecycle
+**241** · diagnostic **176** · AI **2183** · boundaries **107** · npm audit
+**0** production and dev · build ✓.
+
+Against a PostgreSQL 16 dropped and recreated first, in the order that broke:
+membership scenarios ✓ · backfill ✓ · reconciliation **21** · tenancy **27** ·
+cutover **10** · submission cutover **18** · rehearsal **8 stages** ✓.
+
+Browser: smoke **21** · release artifact under real headers **25** ·
+backend-configured build **4**.
+
+**No production action.** Every switch that changes behaviour still ships off.
+
+## NEXT EXACT TASK
+
+Every buildable pre-production item is closed. What remains is not code:
+
+1. **H5** — wire or delete the four ORPHANED components. Product decision.
+2. **H2** — the marketing type ramp. Deferred in UI Sprint 8.
+3. **Rotate the old admin password** — required, and a production credential
+   change. Readiness §7.
+4. **P1 Phase 5** — the production backfill, then the switch, then a mismatch
+   rate over real traffic. Readiness §10.4 and §10.5.
+
+The next action in every one of these is a production mutation, a human
+decision, or real traffic. None of them can be advanced from here.
+
+---
+
+_Last updated: 2026-09-11, at final QA, accessibility and the third security
+pass — four of the five findings were in the evidence, not the product._

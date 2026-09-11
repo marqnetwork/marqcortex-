@@ -36,6 +36,15 @@ BEGIN
   END IF;
 END $$;
 
+-- The BYPASSRLS attribute is asserted, not merely requested at creation time.
+-- `CREATE ROLE ... IF NOT EXISTS` is a no-op against a role that already
+-- exists, so a role created earlier in the same session with weaker attributes
+-- would survive this file silently -- and every fixture below that does
+-- `SET ROLE service_role` to seed an RLS-protected table would then be refused
+-- by a policy, in a suite that has nothing to do with policies. Converging the
+-- attribute here makes the stub independent of what ran before it.
+ALTER ROLE service_role BYPASSRLS;
+
 CREATE TABLE IF NOT EXISTS auth.users (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email              TEXT UNIQUE,

@@ -365,8 +365,20 @@ export function AnalyticsDashboard({ accessToken }: Props) {
                         paddingAngle={3} dataKey="value"
                         strokeWidth={0}
                       >
+                        {/*
+                          Recharts renders each sector as `<path role="img">`,
+                          and an element claiming that role must have a name --
+                          without one a screen reader announces three anonymous
+                          images. The name carries the value as well as the
+                          label, so the donut is readable on its own terms
+                          rather than only through the legend beside it.
+                        */}
                         {priorityData.map((entry) => (
-                          <Cell key={`priority-cell-${entry.name}`} fill={entry.color} />
+                          <Cell
+                            key={`priority-cell-${entry.name}`}
+                            fill={entry.color}
+                            aria-label={`${entry.name} priority: ${entry.value}`}
+                          />
                         ))}
                       </Pie>
                       <Tooltip content={<DarkTooltip />} />

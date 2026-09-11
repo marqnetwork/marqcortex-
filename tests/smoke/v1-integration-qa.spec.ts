@@ -77,6 +77,59 @@ async function signIn(page: Page): Promise<void> {
   await page.waitForURL(/#\/team\/dashboard/, { timeout: 20_000 });
 }
 
+/**
+ * The text of the destination itself, once it has actually rendered.
+ *
+ * Two things this exists to prevent, both of which made the reload test report
+ * something untrue:
+ *
+ * 1. **`networkidle` is not "rendered".** The route modules are lazy, and the
+ *    app-level Suspense fallback is the single word "Loading…". A snapshot
+ *    taken at network idle caught that fallback, so the test failed comparing
+ *    a spinner to a page. Worse than the failure is the pass it could have
+ *    produced: had BOTH snapshots caught the fallback they would have been
+ *    equal, and a green deep-link guarantee would have asserted nothing.
+ *
+ * 2. **`body` is mostly chrome.** The sidebar, the brand and the thirteen
+ *    navigation labels are identical on every destination and come first in
+ *    the body text, so comparing a leading slice of `body` compares the parts
+ *    that cannot differ. `#cortex-main` is the region the destination owns —
+ *    the skip link points at it — and is the only part that answers "did the
+ *    reload land where the URL says".
+ */
+async function destinationContent(page: Page): Promise<string> {
+  const main = page.locator('#cortex-main');
+  await expect(main).toBeVisible({ timeout: 20_000 });
+
+  // Visible is not rendered, and neither is `networkidle`. The route module is
+  // lazy and the destination mounts progressively inside it — `#cortex-main`
+  // was observed holding nothing but its tab strip, twenty characters, well
+  // after the network went quiet. So settle on the text itself: unchanged
+  // across two reads a beat apart, and long enough to be a page rather than a
+  // shell. That is a claim about what rendered, not about what loaded.
+  let previous = '';
+  await expect
+    .poll(
+      async () => {
+        const current = (await main.innerText()).trim();
+        const settled = current.length > 40 && current === previous;
+        previous = current;
+        return settled;
+      },
+      {
+        timeout: 30_000,
+        intervals: [500],
+        message: 'the destination never settled into rendered content',
+      },
+    )
+    .toBe(true);
+
+  expect(previous, 'the destination was still showing the loading fallback').not.toMatch(
+    /^Loading…$/,
+  );
+  return previous;
+}
+
 test.describe('canonical journey — a team member signs in and works', () => {
   test('the landing page renders and the console is clean', async ({ page }) => {
     const errors = collectErrors(page);
@@ -119,22 +172,28 @@ test.describe('canonical journey — a team member signs in and works', () => {
 test.describe('deep links and refresh', () => {
   test('a reload keeps you on the destination you deep-linked to', async ({ page }) => {
     await signIn(page);
+
+    // The comparison below is only worth making if the two destinations look
+    // different to begin with. Captured first, and asserted, so the test cannot
+    // pass by comparing something every destination shares.
+    await page.goto(`/${TEAM_ROUTE}?page=dashboard`);
+    const dashboard = await destinationContent(page);
+
     await page.goto(`/${TEAM_ROUTE}?page=operations`);
-    await page.waitForLoadState('networkidle');
-    const before = await page.locator('body').innerText();
+    const before = await destinationContent(page);
+    expect(
+      before,
+      'operations and dashboard render the same main content, so this test could not tell them apart',
+    ).not.toBe(dashboard);
 
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // The URL is the authority. A reload that silently returns to the dashboard
     // is the failure this asserts against — a deep link nobody can share.
     await expect(page).toHaveURL(/page=operations/);
-    const after = await page.locator('body').innerText();
-    expect(after.length, 'the page rendered nothing after a reload').toBeGreaterThan(40);
-    expect(
-      after.slice(0, 200),
-      'a reload landed somewhere other than where the URL points',
-    ).toBe(before.slice(0, 200));
+    const after = await destinationContent(page);
+    expect(after, 'a reload landed somewhere other than where the URL points').toBe(before);
+    expect(after, 'a reload landed on the dashboard').not.toBe(dashboard);
   });
 
   test('an unknown page parameter does not produce a blank screen', async ({ page }) => {
