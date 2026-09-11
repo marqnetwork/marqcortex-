@@ -2338,10 +2338,20 @@ wipes `test-results/` at the start of every run — so the next run destroyed th
 trace and the error context before either was read. The artifacts existed; they
 were overwritten.
 
-It is recorded in readiness §8 as an **open observation, not a cleared one**.
-Four passes do not identify a failure, and "it passed when I ran it again" is
-not a root cause. If it recurs: capture the run in full, and read
-`test-results/` before running anything else.
+Rather than accumulate more undifferentiated green, the two specs most capable
+of producing an intermittent failure were then stressed directly — both use a
+30-second settle poll, and one drives thirteen destinations in a single test.
+The accessibility audit at `--repeat-each=3` returned **6 passed**; the deep-link
+reload test at `--repeat-each=5` returned **5 passed**. Five full runs of the
+gate, and eleven targeted executions of its most timing-sensitive tests, with no
+recurrence.
+
+It is recorded in readiness §8 as an **open observation, not a cleared one** —
+a failure that cannot be named cannot be called fixed. It is **not treated as
+blocking**: a single unexplained event on a gate that has since passed
+everything asked of it, where withholding indefinitely would not be
+proportionate. If it recurs: capture the run in full, and read `test-results/`
+before running anything else.
 
 This is the second time in this session that a result was compromised by running
 something alongside it. The first was caught and the run discarded; this one was
