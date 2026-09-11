@@ -1,0 +1,23 @@
+{
+  "//": "Harness-only Deno config for scripts/cutover-rehearsal.mjs.",
+  "//why": [
+    "The rehearsal has to run BOTH halves of the cutover in one process: the",
+    "migration normalizers and reconciler (Node-targeted, bare specifiers) and",
+    "the repositories and read authority (Deno-targeted, jsr: specifiers).",
+    "Neither runtime resolves both on its own, which is the same boundary split",
+    "typecheck-deno.mjs reports as advisory.",
+    "",
+    "Mapping the bare name to the jsr package is exactly what a bundler does for",
+    "the Node consumer. It is test infrastructure: no production config reads",
+    "this file, and the deployed function still resolves its own specifiers."
+  ],
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "lib": ["deno.window", "deno.ns", "esnext"]
+  },
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2.49.8"
+  }
+}

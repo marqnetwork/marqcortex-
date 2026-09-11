@@ -106,6 +106,84 @@ describe('S8.1 wiring — one gated path decides what is served', () => {
   });
 });
 
+describe('S8.1 — the submission route, the aggregate half', () => {
+  function submissionGetRoute(): string {
+    const start = indexCode.indexOf('app.get("/make-server-324f4fbe/submissions/:id"');
+    assert.ok(start >= 0, 'the submission read route was not found');
+    const end = indexCode.indexOf('app.', start + 10);
+    return indexCode.slice(start, end === -1 ? undefined : end);
+  }
+
+  const authorityCode = code(
+    readFileSync(join(serverDir, 'storage', 'submissionReadAuthority.ts'), 'utf8'),
+  );
+
+  it('reads KV, resolves authority, observes, then responds', () => {
+    const route = submissionGetRoute();
+    const kvRead = route.indexOf('kv.get(`sub:');
+    const resolve = route.indexOf('resolveSubmissionRead(');
+    const observe = route.indexOf('observeSubmissionRead(');
+    const respond = route.indexOf('c.json({ success: true, submission })');
+
+    assert.ok(kvRead >= 0, 'the route no longer reads KV');
+    assert.ok(resolve > kvRead, 'authority is resolved before the KV answer exists');
+    assert.ok(observe > resolve, 'the observation must see the record actually served');
+    assert.ok(respond > observe);
+    assert.match(route, /const submission = resolvedSubmission\.record;/);
+  });
+
+  it('reaches the relational store through exactly ONE named call', () => {
+    const route = submissionGetRoute();
+    assert.ok(route.includes('resolveSubmissionRead('));
+    for (const bypass of ['createSubmissionRepository', 'getSubmissionByLegacyKey', 'listAnswers', 'from(']) {
+      assert.ok(!route.includes(bypass), `the submission route reaches the store directly via ${bypass}`);
+    }
+  });
+
+  it('requires its own explicit opt-in, separate from the outcome switch', () => {
+    assert.match(authorityCode, /readBool\('MCV2_SQL_AUTHORITY_SUBMISSIONS'\)/);
+    assert.match(authorityCode, /domain === 'submission' && readBool\('MCV2_SQL_AUTHORITY_SUBMISSIONS'\)/);
+    assert.match(authorityCode, /raw === 'true' \|\| raw === '1'/);
+  });
+
+  it('serves the status vocabulary the console reads, from a DECLARED table', () => {
+    // The forward map is many-to-one, so this cannot be derived by reversing
+    // it. Emitting `under_review` would leave the console's "In Review" counter
+    // reading zero with the rows still there.
+    assert.match(authorityCode, /const STATUS_TO_CONSOLE/);
+    assert.match(authorityCode, /under_review: 'in-review'/);
+    assert.match(authorityCode, /won: 'completed'/);
+  });
+
+  it('spreads the KV remainder FIRST, so a modelled column always wins', () => {
+    const shape = /function submissionRowToKvShape\([\s\S]*?\n\}/.exec(authorityCode)?.[0] ?? '';
+    const remainder = shape.indexOf('...remainder');
+    const firstColumn = shape.indexOf('company: record.company_name');
+    assert.ok(remainder >= 0 && firstColumn > remainder,
+      'the remainder is spread after a modelled column and could overwrite it');
+  });
+
+  it('does not write placeholder text back as domain data (D3)', () => {
+    for (const placeholder of ["'Not specified'", "'TBD'"]) {
+      assert.ok(
+        !new RegExp(`\\?\\?\\s*${placeholder}`).test(authorityCode),
+        `the reconstruction restores ${placeholder} as a value`,
+      );
+    }
+    assert.match(authorityCode, /phone: record\.phone \?\? null/);
+  });
+
+  it('refuses a reconstruction the backfill made lossy', () => {
+    assert.match(authorityCode, /export function reconstructionIsLossy/);
+    assert.match(authorityCode, /backfill_dropped_answer_keys/);
+    assert.match(authorityCode, /if \(reconstructionIsLossy\(row\)\) return null;/);
+  });
+
+  it('reads answers in the submission ROW\'s organization, never a caller\'s', () => {
+    assert.match(authorityCode, /row\.organization_id as string/);
+  });
+});
+
 describe('S8.1 — the cutover is off by default, and its rollback is a switch', () => {
   const authorityCode = code(
     readFileSync(join(serverDir, 'storage', 'outcomeReadAuthority.ts'), 'utf8'),
@@ -151,7 +229,12 @@ describe('S8.1 — the cutover is off by default, and its rollback is a switch',
     );
     assert.deepEqual(
       storageImports.sort(),
-      ['outcomeReadAuthority.ts', 'outcomeShadowRead.ts', 'submissionShadowRead.ts'],
+      [
+        'outcomeReadAuthority.ts',
+        'outcomeShadowRead.ts',
+        'submissionReadAuthority.ts',
+        'submissionShadowRead.ts',
+      ],
       'the set of storage modules the router can reach changed — re-review the cutover surface',
     );
   });
