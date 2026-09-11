@@ -27,10 +27,12 @@ gates until a person decides.
 
 ## 1. Migration order
 
-Twenty migrations, applied in filename order. This exact sequence is verified
-on every run of `test:database:tenancy`, `:cutover`, `:reconciliation`,
-`:diagnostic`, `:scenarios`, `:4c` and `:4d`, each of which builds a scratch
-database from them.
+Twenty-one migrations, applied in filename order. This exact sequence is
+verified on every run of `test:database:tenancy`, `:cutover`,
+`:reconciliation`, `:diagnostic`, `:scenarios`, `:4c` and `:4d`, each of which
+builds a scratch database from them — and once more, end to end, from a
+genuinely empty database: all 21 apply cleanly given only the platform stub,
+producing 30 tables and 96 indexes.
 
 ```
 20260711050000_cortex_tenancy_foundation
@@ -52,7 +54,8 @@ database from them.
 20260828120000_ai_provider_administration
 20260901120000_ai_customer_byok
 20260903120000_ai_self_hosted_providers
-20260910120000_cortex_tenancy_composite_keys      ← new in this cycle
+20260910120000_cortex_tenancy_composite_keys
+20260911120000_cortex_tenant_list_indexes         ← new in this cycle
 ```
 
 **A Supabase project supplies two things no migration here does:** the API role
@@ -71,9 +74,27 @@ re-apply — it will not silently reassign a row to another organization. The
 count it reports is also the answer to "did the tenancy hole ever actually get
 used", which is worth recording either way.
 
+### The new one is additive
+
+`20260911120000_cortex_tenant_list_indexes` creates two partial indexes and
+nothing else. It changes no row, no constraint and no policy, so there is no
+state in which it can refuse.
+
+It exists because `listOutcomes` and `listReports` were the only two repository
+queries filtering on `organization_id` alone, and both read every row in their
+table before discarding the other tenants'. `tests/database/tenant_list_indexes`
+asserts the query PLAN on a populated table — an index that exists is not an
+index that is used.
+
+**For an operator with a large existing estate:** `CREATE INDEX` holds an ACCESS
+EXCLUSIVE lock for the build. These tables are empty or near-empty at V1, so it
+is instantaneous; against millions of rows, build them with `CREATE INDEX
+CONCURRENTLY` outside a transaction instead. The migration cannot do that itself
+because it runs inside one.
+
 ### Rollback
 
-Eleven forward migrations have a rollback under `supabase/migrations/rollbacks/`,
+Twelve forward migrations have a rollback under `supabase/migrations/rollbacks/`,
 including the new one. **Roll back in reverse dependency order** — each file
 states its own ordering constraint in its header.
 
