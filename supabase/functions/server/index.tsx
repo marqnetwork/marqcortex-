@@ -61,6 +61,11 @@ import {
   resolveOutcomeRead,
 } from "./storage/outcomeReadAuthority.ts";
 import {
+  resolveSubmissionRead,
+  submissionReadAuthority,
+  submissionSqlAuthorityEnabled,
+} from "./storage/submissionReadAuthority.ts";
+import {
   observeSubmissionRead,
   submissionShadowReadEnabled,
 } from "./storage/submissionShadowRead.ts";
@@ -1757,14 +1762,29 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
       return c.json({ error: "Submission not found" }, 404);
     }
 
-    const submission = safeJsonParse(raw);
+    const kvSubmission = safeJsonParse(raw);
+
+    // ── READ AUTHORITY (MCV2-S8.1) ───────────────────────────────────────
+    //
+    // WHICH STORE ANSWERS. Off by default — `MCV2_SQL_AUTHORITY_SUBMISSIONS` —
+    // and off returns the KV record by identity without reading the relational
+    // store at all. On, the relational model answers where it has the row,
+    // reconstructed across `submissions` and `diagnostic_answers`, and KV
+    // answers where it does not. It never throws and never runs past the
+    // deadline, so this route cannot fail because of the cutover.
+    //
+    // Rollback is the switch, not a deploy.
+    const resolvedSubmission = await resolveSubmissionRead(id, kvSubmission);
+    const submission = resolvedSubmission.record;
 
     // ── SHADOW READ (MCV2-S7.7) ──────────────────────────────────────────
     //
     // AFTER the response body is decided, over the record the caller is being
     // served. It returns nothing, never throws, and is bounded by its own
-    // deadline; off by default behind `MCV2_SHADOW_READ_SUBMISSIONS`. KV
-    // remains authoritative — this route serves exactly what it always did.
+    // deadline; off by default behind `MCV2_SHADOW_READ_SUBMISSIONS`.
+    //
+    // SECOND, not first: observing before the authority resolved would compare
+    // the KV record and then serve the relational one.
     await observeSubmissionRead(id, submission);
 
     return c.json({ success: true, submission });
@@ -4381,7 +4401,9 @@ app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
       // it fell back, and whether what it served agreed with KV.
       readAuthority: {
         outcomesAuthoritative: outcomeSqlAuthorityEnabled(),
-        ...readAuthority.report(limit),
+        submissionsAuthoritative: submissionSqlAuthorityEnabled(),
+        outcomes: readAuthority.report(limit),
+        submissions: submissionReadAuthority.report(limit),
       },
       switches: {
         outcomes: outcomeShadowReadEnabled(),

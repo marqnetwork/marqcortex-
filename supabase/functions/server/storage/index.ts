@@ -48,6 +48,13 @@ export {
 } from './submissionProjection.ts';
 export { createShadowReader } from './shadowReader.ts';
 export { createReadAuthority } from './readAuthority.ts';
+// The per-domain WIRING modules (`outcomeReadAuthority`, `submissionReadAuthority`)
+// are deliberately NOT re-exported here. They hold a repository, and a
+// repository holds a `jsr:` import that Node cannot resolve — so exporting one
+// would make this barrel un-loadable from the Node test suites that read it.
+// The barrel stays pure: contracts, projections, the comparator, and the two
+// factories. A route imports a wiring module directly, by name, which is also
+// what keeps the cutover surface countable.
 export type {
   AuthorityDomain,
   AuthorityRecord,
