@@ -14,6 +14,28 @@ import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
 const DEMO_CLIENT = { email: 'client@company.com', companyName: 'Acme Fashion Co.' };
 
+/**
+ * Signing in is two steps now (S-6): an address gets you a CODE, and the code
+ * gets you a session. It used to be one, and that one step handed a session
+ * token to anybody who typed an address.
+ *
+ * In demo mode there is no mail and no server, so `dataService` accepts a fixed
+ * code. That constant exists only behind `isDemo()`; the live path has no
+ * constant code of any kind, which `tests/security/clientPortalAuth.test.ts`
+ * is what actually holds.
+ */
+const DEMO_SIGN_IN_CODE = '000000';
+
+async function signInAsClient(page: Page, email = DEMO_CLIENT.email) {
+  await page.getByPlaceholder('you@company.com').fill(email);
+  await page.getByRole('button', { name: /send me a sign-in code/i }).click();
+
+  const code = page.getByLabel(/sign-in code/i);
+  await expect(code, 'the code step never appeared').toBeVisible();
+  await code.fill(DEMO_SIGN_IN_CODE);
+  await page.getByRole('button', { name: /access my results/i }).click();
+}
+
 /** Collect console errors plus uncaught exceptions for the lifetime of the page. */
 function collectPageErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -35,8 +57,7 @@ test('client portal default StatusView renders without a clientAuth ReferenceErr
   await page.goto('/#/client/login');
   await expect(page.getByRole('heading', { name: /client portal/i })).toBeVisible();
 
-  await page.getByPlaceholder('you@company.com').fill(DEMO_CLIENT.email);
-  await page.getByRole('button', { name: /access my results/i }).click();
+  await signInAsClient(page);
 
   await expect(page).toHaveURL(/#\/client\/portal/);
 
@@ -57,8 +78,7 @@ test('client portal survives a reload on the status view', async ({ page }) => {
   const errors = collectPageErrors(page);
 
   await page.goto('/#/client/login');
-  await page.getByPlaceholder('you@company.com').fill(DEMO_CLIENT.email);
-  await page.getByRole('button', { name: /access my results/i }).click();
+  await signInAsClient(page);
   await expect(page).toHaveURL(/#\/client\/portal/);
 
   await page.reload();
