@@ -30,6 +30,7 @@ import {
   type AIAdministration,
 } from './ai/index.ts';
 import type { AIRouteRegistrar, RouteContext } from './aiRoutes.ts';
+import { clientAddress } from './security/clientAddress.ts';
 
 export interface AIAdminRouteDependencies {
   readonly administration: AIAdministration;
@@ -54,10 +55,11 @@ export interface AIAdminRouteRegistrar extends AIRouteRegistrar {
 }
 
 function transportOf(c: AdminRouteContext): { correlationId?: string; clientIp?: string } {
-  const forwardedFor = c.req.header('x-forwarded-for');
   return {
     correlationId: c.req.header('x-correlation-id') ?? c.req.header('x-request-id'),
-    clientIp: forwardedFor?.split(',')[0]?.trim() ?? c.req.header('x-real-ip'),
+    // The address the nearest proxy OBSERVED, not the one the caller claimed.
+    // This lands in the admin audit trail; see security/clientAddress.ts.
+    clientIp: clientAddress((name) => c.req.header(name)) ?? undefined,
   };
 }
 

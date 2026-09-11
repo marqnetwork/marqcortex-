@@ -1,5 +1,7 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
+import { createRequestRateLimiter } from "./security/requestRateLimit.ts";
+import { clientAddress } from "./security/clientAddress.ts";
 import { logger } from "npm:hono/logger";
 // The status type `c.json` accepts. Named here so `failureResponse` can take a
 // status without widening it back to `number` — the narrowing the G2 pass put
@@ -125,62 +127,62 @@ import {
 
 const app = new Hono();
 
-// CORS MUST be first to handle preflight OPTIONS requests
+// CORS MUST be first to handle preflight OPTIONS requests.
+//
+// `credentials: true` used to sit alongside `origin: "*"`. That pairing is
+// rejected by every browser — the Fetch spec forbids a wildcard origin on a
+// credentialed request — so it never did anything. Leaving it in was the risk:
+// the day someone changed `origin` to reflect the request's own Origin header,
+// the dead flag would have come alive and turned a permissive read into full
+// credentialed impersonation. Nothing here authenticates by cookie (auth is a
+// bearer token in the Authorization header, which no browser attaches on its
+// own), so the flag is simply gone.
+//
+// The wildcard itself stays the default because the console, the client portal
+// and embedded diagnostic forms are deployed under origins this function does
+// not know. Set CORS_ALLOWED_ORIGINS to a comma-separated list to narrow it.
+const allowedOrigins = (Deno.env.get("CORS_ALLOWED_ORIGINS") ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: allowedOrigins.length > 0 ? allowedOrigins : "*",
     allowHeaders: ["Content-Type", "Authorization", "X-MARQ-Organization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
-    credentials: true,
   }),
 );
 
 app.use('*', logger(console.log));
 
-// ── In-memory rate limiter ───────────────────────────────────────────────────
-// Tracks requests per IP. Resets naturally when the edge function cold-starts.
-// Production upgrade: use Redis or Supabase KV for distributed rate limiting.
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 120;          // max requests per window per IP
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+// The edge rate limiter. See security/requestRateLimit.ts for why the key is
+// derived rather than taken from the header, and why there is a second ceiling.
+// Resets naturally when the edge function cold-starts; a distributed limiter
+// (Redis, or KV) is the upgrade when one isolate stops being the right scope.
+const edgeRateLimiter = createRequestRateLimiter();
 
 app.use('*', async (c, next) => {
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    || c.req.header('x-real-ip')
-    || 'unknown';
-  const now = Date.now();
-  let entry = rateLimitMap.get(ip);
+  const decision = edgeRateLimiter.check((name) => c.req.header(name));
 
-  if (!entry || now > entry.resetAt) {
-    entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
-    rateLimitMap.set(ip, entry);
-  }
+  c.header('X-RateLimit-Limit', String(decision.limit));
+  c.header('X-RateLimit-Remaining', String(decision.remaining));
+  c.header('X-RateLimit-Reset', String(decision.resetSeconds));
 
-  entry.count++;
-
-  // Set rate limit headers
-  c.header('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
-  c.header('X-RateLimit-Remaining', String(Math.max(0, RATE_LIMIT_MAX - entry.count)));
-  c.header('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
-
-  if (entry.count > RATE_LIMIT_MAX) {
-    console.log(`🚫 Rate limit exceeded for IP ${ip}: ${entry.count}/${RATE_LIMIT_MAX}`);
+  if (!decision.allowed) {
+    // The address is logged, never returned: telling a caller which bucket it
+    // landed in tells it how to land in a different one.
+    console.log(
+      `\u{1F6AB} Rate limit exceeded (${decision.refusedBy}) for ${clientAddress((name) => c.req.header(name)) ?? 'unidentified caller'}`,
+    );
     return c.json({ error: 'Too many requests. Please try again later.' }, 429);
   }
 
   await next();
 });
-
-// Periodic cleanup of stale rate-limit entries (every 5 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap) {
-    if (now > entry.resetAt) rateLimitMap.delete(ip);
-  }
-}, 5 * 60_000);
 
 // Custom request logger middleware
 app.use('*', async (c, next) => {
