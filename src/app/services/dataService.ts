@@ -154,7 +154,7 @@ export async function teamLogin(
 }> {
   if (isDemo()) {
     log('Team login (demo mode)');
-    if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
+    if (email === demo.DEMO_TEAM_LOGIN.email && password === demo.DEMO_TEAM_LOGIN.password) {
       return {
         success: true,
         accessToken: 'demo_access_token_12345',
@@ -169,26 +169,54 @@ export async function teamLogin(
   return api.teamLogin(email, password);
 }
 
-/** Client email verification — demo mode checks DEMO_CLIENTS */
-export async function verifyClientEmail(
+/**
+ * Client sign-in, step one — ask for a code.
+ *
+ * Demo mode has no mail and no server, so it acknowledges without sending
+ * anything; `DEMO_SIGN_IN_CODE` is what the second step accepts there. That is
+ * a property of demo mode, which serves fixed fixtures to nobody in particular
+ * — it is never reachable when `isDemo()` is false, and the live path has no
+ * constant code of any kind.
+ */
+export const DEMO_SIGN_IN_CODE = '000000';
+
+export async function requestClientSignInCode(
   email: string,
+): Promise<{ sent: boolean; message: string }> {
+  if (isDemo()) {
+    log('Request client sign-in code (demo mode):', email);
+    return {
+      sent: true,
+      message: `Demo mode: use code ${DEMO_SIGN_IN_CODE}.`,
+    };
+  }
+  return api.requestClientSignInCode(email);
+}
+
+/** Client sign-in, step two — exchange the code for a session. */
+export async function exchangeClientSignInCode(
+  email: string,
+  code: string,
 ): Promise<{ exists: boolean; submissionId?: string; companyName?: string; sessionToken?: string }> {
   if (isDemo()) {
-    log('Verify client email (demo mode):', email);
+    log('Exchange client sign-in code (demo mode):', email);
+    if (code.trim() !== DEMO_SIGN_IN_CODE) return { exists: false };
     const match = demo.findDemoClient(email);
     if (match) {
-      // Generate a deterministic demo token from submissionId + email
-      // so the same credentials always produce the same token (no server needed)
+      // A deterministic demo token from submissionId + email, so the same
+      // fixture always produces the same token (no server needed).
       const demoToken = `demo_tok_${btoa(`${match.submissionId}:${email}`).replace(/=/g, '')}`;
       return { exists: true, submissionId: match.submissionId, companyName: match.companyName, sessionToken: demoToken };
     }
     return { exists: false };
   }
-  return api.verifyClientEmail(email);
+  return api.exchangeClientSignInCode(email, code);
 }
 
 /** Expose demo clients list for login hints */
 export const DEMO_CLIENTS = demo.DEMO_CLIENTS;
+/** The team credentials demo mode accepts. A fixture — see demoData.ts. */
+export const DEMO_TEAM_LOGIN = demo.DEMO_TEAM_LOGIN;
 export const findDemoClient = demo.findDemoClient;
 
 // ============================================================================

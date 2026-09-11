@@ -173,16 +173,84 @@ test.describe('permissions — what a signed-out visitor cannot reach', () => {
     const email = page.locator('input[type="email"]').first();
     await expect(email, 'the client login form was not found').toBeVisible();
     await email.fill('nobody@example.invalid');
-    await page.getByRole('button', { name: /access|continue|sign in|view|portal/i }).first().click();
+    await page.getByRole('button', { name: /send me a sign-in code/i }).click();
+
+    // Step one no longer says whether the address is known — deliberately. It
+    // used to answer "no diagnostic found for this email", which let anybody
+    // test a list of addresses for MARQ clients. What it must do is refuse to
+    // open the portal, which is what step two decides.
+    const code = page.getByLabel(/sign-in code/i);
+    await expect(code, 'the code step never appeared').toBeVisible();
+    await code.fill('123456');
+    await page.getByRole('button', { name: /access my results/i }).click();
     await page.waitForTimeout(2000);
 
-    // The portal must not open for an address it does not know.
     await expect(page).not.toHaveURL(/client\/portal/);
     const text = await page.locator('body').innerText();
     expect(
-      /not found|no submission|couldn'?t find|unable|invalid|no diagnostic/i.test(text),
-      `an unknown client email produced no refusal. Page said:\n${text.slice(0, 400)}`,
+      /not valid|request a new one|invalid|incorrect/i.test(text),
+      `an unknown client produced no refusal. Page said:\n${text.slice(0, 400)}`,
     ).toBe(true);
+  });
+
+  test('an address alone does not open the portal (S-6)', async ({ page }) => {
+    // The defect this replaced: typing an address WAS signing in. The server
+    // returned a session token for whatever address it was given, so knowing a
+    // client's email was the same as being them.
+    await page.goto('/#/client/login');
+    await page.waitForLoadState('networkidle');
+
+    // A real demo client — an address the system definitely knows.
+    await page.locator('input[type="email"]').first().fill('client@company.com');
+    await page.getByRole('button', { name: /send me a sign-in code/i }).click();
+    await page.waitForTimeout(1500);
+
+    await expect(
+      page,
+      'a known address alone reached the portal — the code step was skipped',
+    ).not.toHaveURL(/client\/portal/);
+    await expect(page.getByLabel(/sign-in code/i)).toBeVisible();
+
+    // And a wrong code for a KNOWN address is refused the same way.
+    await page.getByLabel(/sign-in code/i).fill('999999');
+    await page.getByRole('button', { name: /access my results/i }).click();
+    await page.waitForTimeout(1500);
+    await expect(page, 'a wrong code opened a known client\'s portal').not.toHaveURL(
+      /client\/portal/,
+    );
+  });
+
+  test('step one answers the same for a known and an unknown address (S-6)', async ({ page }) => {
+    // The oracle: the old route said `exists: true` or `exists: false`, so a
+    // list of addresses could be tested for MARQ clients — each hit disclosing
+    // a company name too. Both now reach the same screen saying the same thing.
+    await page.goto('/#/client/login');
+    await page.waitForLoadState('networkidle');
+
+    async function acknowledgementFor(address: string): Promise<string> {
+      await page.locator('input[type="email"]').first().fill(address);
+      await page.getByRole('button', { name: /send me a sign-in code/i }).click();
+      await expect(page.getByLabel(/sign-in code/i)).toBeVisible();
+      const message = (await page.getByRole('status').innerText()).trim();
+      // Back to step one through the control a real user would use. A reload
+      // would do it too, but the dev server does not settle its `load` event
+      // here, and the button is on the page precisely for this.
+      await page.getByRole('button', { name: /use a different email address/i }).click();
+      await expect(page.getByLabel(/sign-in code/i)).toBeHidden();
+      return message;
+    }
+
+    const known = await acknowledgementFor('client@company.com');
+    const unknown = await acknowledgementFor('nobody@example.invalid');
+
+    expect(
+      unknown,
+      `the answer differs by whether the address is a client:\n known:   ${known}\n unknown: ${unknown}`,
+    ).toBe(known);
+    expect(
+      /acme|company name|fashion/i.test(known),
+      `step one disclosed something about the client: ${known}`,
+    ).toBe(false);
   });
 
   test('the client portal is not reachable by URL without a session', async ({ page }) => {

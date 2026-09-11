@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { teamLogin } from '@/app/services/dataService';
+import { teamLogin, DEMO_TEAM_LOGIN } from '@/app/services/dataService';
 import { isDemoMode } from '@/config/runtime';
 import {
   brand,
@@ -239,10 +239,10 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                 Use:&nbsp;
                 <button
                   type="button"
-                  onClick={() => setPassword('CortexAdmin2026!')}
+                  onClick={() => setPassword(DEMO_TEAM_LOGIN.password)}
                   className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
                 >
-                  CortexAdmin2026!
+                  {DEMO_TEAM_LOGIN.password}
                 </button>
               </p>
             )}
@@ -346,8 +346,8 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               Demo Credentials
             </p>
             <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
-              <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> admin@marqcortex.com</p>
-              <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> CortexAdmin2026!</p>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> {DEMO_TEAM_LOGIN.email}</p>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> {DEMO_TEAM_LOGIN.password}</p>
             </div>
           </motion.div>
         )}

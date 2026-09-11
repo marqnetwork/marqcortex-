@@ -461,10 +461,10 @@ export const FN_NODES: RegistryNode[] = [
     id: 'MQC-FN-008', label: 'seedAdminUser()',
     path: '/supabase/functions/server/index.tsx',
     type: 'FN' as any, domain: 'team-auth',
-    description: 'Idempotent admin user seeder. Runs on server startup. Reads TEAM_ADMIN_EMAIL/TEAM_ADMIN_PASSWORD/TEAM_ADMIN_NAME from env vars (defaults: admin@marqcortex.com / CortexAdmin2026! / MARQ Admin). Creates user if not exists.',
+    description: 'Idempotent admin user seeder. Runs on server startup. Reads TEAM_ADMIN_EMAIL/TEAM_ADMIN_PASSWORD/TEAM_ADMIN_NAME from env vars. TEAM_ADMIN_PASSWORD has NO default and no fallback: without it the seeder creates nothing and says so (S-7). Creates the user if it does not exist.',
     demands: ['MQC-BEF-001'],
     supplies: ['admin user in Supabase Auth (idempotent)'],
-    debugNotes: 'Default credentials: admin@marqcortex.com / CortexAdmin2026!. Set TEAM_ADMIN_EMAIL + TEAM_ADMIN_PASSWORD env vars in Supabase to change. Runs on every cold start but is idempotent.',
+    debugNotes: 'There are no default credentials. Set TEAM_ADMIN_PASSWORD (and optionally TEAM_ADMIN_EMAIL, TEAM_ADMIN_NAME) in Supabase secrets before the first cold start; until it is set no administrator account exists. Runs on every cold start but is idempotent.',
     status: 'stable',
   },
   {

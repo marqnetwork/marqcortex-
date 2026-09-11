@@ -201,9 +201,15 @@ Manual, five minutes, because a person notices what an assertion does not:
 1. Sign in. The **demo-credential panel must be absent** in a live build — its
    presence means `BACKEND_INTEGRATION` is not actually on.
 2. Open a submission, then reload. The URL and the page must agree.
-3. Open the client portal as a real client. Confirm only that client's data.
+3. Open the client portal as a real client. Enter the address, **receive the
+   code by email**, enter it, and confirm only that client's data. If no code
+   arrives, `RESEND_API_KEY` is not set and the portal is unusable — that is now
+   a hard dependency, not a nicety.
 4. Check the tab icon renders — no `/favicon.ico` 404 in the console.
 5. Visit AI Control Plane. Confirm real requests are **off**.
+6. Check the response headers on the deployed site: `Content-Security-Policy`,
+   `X-Frame-Options`, `Strict-Transport-Security`. `npm run test:release` proves
+   them against the artifact; this confirms the host is actually sending them.
 
 ---
 
@@ -214,7 +220,7 @@ Manual, five minutes, because a person notices what an assertion does not:
 | Submission read cutover | **Blocked on D3 (H7)**, then code. |
 | Phase 2 backfill execution | Code complete, **never run**. D1. |
 | S7.5 / S7.8 validation | Needs real traffic. Not a code gap. |
-| Final security certification | **Not performed.** See below. |
+| Final security certification | **Performed.** Eleven findings, all closed. Section 8. |
 | G4 AI Workforce runtime | Not built. Post-V1 by canon. |
 | G6 external integrations | CRM gated on credentials; e-sign and scheduling specified only. |
 | Chip contrast (4.17:1) and the marketing type ramp | Human design decisions, H1/H2. |
@@ -222,20 +228,122 @@ Manual, five minutes, because a person notices what an assertion does not:
 
 ### On security certification
 
-A **comprehensive final security campaign has not been run**, and this document
-does not claim one. Canon puts it after functional V1 closure, and V1 is not
-functionally closed while D1, D2 and D3 are open.
+The campaign HAS now been run, in two passes, and section 8 is its result. The
+earlier text here said it had not been; that is superseded.
 
-What HAS been done this cycle is narrower and worth stating exactly: the G2
-tenancy audit enumerated every organization-authority path from request to
-database, classified each, found and closed a fourteen-relationship gap in the
-schema, and left no caller-controlled authority path unverified. Integration QA
-then found and fixed ungated administrator credentials on the public sign-in
-page. Neither is a substitute for the certification.
+Two of the eleven findings were BLOCKERs and neither was subtle once looked at
+directly: posting an email address returned a working client-portal session, and
+a deployment that had not set `TEAM_ADMIN_PASSWORD` got a platform administrator
+whose password was in the shipped bundle. Both had survived every prior pass
+because the prior passes asked whether the guards worked rather than who was
+allowed past them — the G2 audit proved a client token cannot reach another
+client's data, which was true, and says nothing about who can obtain a token.
+
+**No known BLOCKER or HIGH release vulnerability remains.**
+
+New required secret: `TEAM_ADMIN_PASSWORD` has no default, and `RESEND_API_KEY`
+is now a hard dependency of the client portal rather than an optional nicety —
+without it no sign-in code can be delivered. Both belong in the go-live secret
+checklist.
+
+**One required human action before release:** a deployment that ever ran with
+the old `TEAM_ADMIN_PASSWORD` fallback still holds an account whose password was
+public. Rotating it is a production credential change and is out of bounds for
+this work. It must be done, and it cannot be verified from here — there is no
+way to tell whether the published password was used.
 
 ---
 
-## 8. The required stop
+## 8. The security campaign — eleven findings, all closed
+
+Performed this cycle, in two passes. The second pass is why there are eleven
+rather than nine: it found one leak the first pass's scanner was too narrow to
+see, and one gap that is not a vulnerability at all.
+
+Every finding follows the same shape — reproduce, classify, fix, pin with a
+regression, then mutate the fix and confirm the regression fails. Mutation
+counts are in the commit for each.
+
+| # | Severity | Finding | Closed by |
+|---|---|---|---|
+| S-1 | HIGH | 67 routes interpolated the caught error into their 500 body; one returned a stack trace. PostgREST errors name tables, columns and constraints. | `failureResponse()` — full detail to the log against a short reference, `{error, reference}` to the caller. |
+| S-2 | MEDIUM | `clientIp` in the provider-administration **audit trail** came from the caller-written half of `X-Forwarded-For`. An arbitrary string was recorded as the forensic origin of a privileged mutation. | `security/clientAddress.ts` — read from the right of the chain, parsed as an address, absent rather than fabricated. |
+| S-3 | MEDIUM | The edge rate limiter keyed its bucket on the same caller-written value. Rotating the header gave every request a fresh bucket, so the only guard in front of the unauthenticated routes never bound. | `security/requestRateLimit.ts` — derived key, swept and capped map, isolate-wide ceiling. |
+| S-4 | HIGH | The AI chat rendered every message through `dangerouslySetInnerHTML` with only `**bold**` transformed. A public diagnostic answer, quoted back by the assistant, executed in an operator's authenticated console. | `renderEmphasis` returns nodes. The sink is gone, not guarded. |
+| S-5 | LOW | The proposal exporter interpolated `ann.color` raw into a `style` attribute; the print fallback `document.write`s into a same-origin window. | `safeColor` — six hex digits or the palette default. |
+| S-6 | **BLOCKER** | `POST /auth/client/verify` returned a submission id, a company name and an **eight-hour session token** for any email address posted to it. `requireClientAccess` accepted `?email=` in place of a token on eight read routes. | `security/clientChallenge.ts` — a one-time code, hashed and salted per address, five attempts, ten minutes. The email fallback is gone. |
+| S-7 | **BLOCKER** | The seeder created a **platform administrator** with a password hard-coded in this repository — and shipped in three chunks of the browser bundle, documented in the registry as the default and offered by the login screen as click-to-fill. | No fallback. Without `TEAM_ADMIN_PASSWORD` the seeder creates nothing and says so. |
+| S-8 | MEDIUM | Invite temporary passwords came from `Math.random()`, whose outputs the same isolate publishes in ordinary responses (notification, message and lead ids). | `security/randomSecret.ts` — `crypto.getRandomValues`, rejection-sampled, ~139 bits. |
+| S-9 | MEDIUM | Three unauthenticated write routes read an unbounded, untyped body and stored it. 120 requests a minute × whatever the sender chose. | `security/inputLimits.ts` — the request stream is bounded as it arrives, not by a declared length that can be a lie. |
+| S-10 | MEDIUM | The **unauthenticated** health endpoint returned `String(err)` — the KV driver's message, naming host and table. Missed by the S-1 sweep because that scanner knew only `${err}`. | Removed, and the standing scanner widened to every spelling plus a pass over the eight public routes. |
+| S-11 | *not a vulnerability* | There is **no route to delete a submission**. An erasure request cannot be honoured through the product. | Runbook below. The product capability is a **HUMAN_DECISION_REQUIRED** item, not a defect. |
+
+### Areas swept with nothing found
+
+Authentication and session lifecycle on the team side (`app_metadata` is re-read
+from GoTrue on every request, so a revoked member loses access on their next
+call); RBAC and rank guards on invite, role change and removal; RLS and tenant
+isolation (G2, 27 adversarial scenarios against real PostgreSQL); service-role
+boundaries; SQL injection (no string-built SQL anywhere — every database call is
+PostgREST or a named RPC); SSRF on self-hosted provider endpoints
+(`endpointPolicy.ts` covers link-local, IMDS, IPv4-mapped IPv6 and redirect
+chains); BYOK, provider configuration, AI routing, spend and real-request gates
+(2,183 tests); secrets in logs (lengths and validity flags, never values);
+secrets in the bundle; files and object storage (none used); dependency supply
+chain (`npm audit --omit=dev`: **0**, and 0 including dev after the vite bump);
+migration safety and rollback (round-trip proven against real PostgreSQL).
+
+### Response headers
+
+`vercel.json` carries the policy; `scripts/serve-release.mjs` serves `dist/` with
+it so it is tested rather than asserted. `npm run test:release` runs the whole
+browser suite against the release artifact under the real headers — 23 tests,
+including one that injects an inline script and proves it does not run.
+
+`connect-src` is `'self' https:` because the Supabase project URL is
+deployment-configured. Narrowing it to the project host is a deployment-time
+improvement, not a code change.
+
+---
+
+## 9. Erasure runbook (S-11)
+
+Until the product grows a deletion path, an erasure request is an operator task.
+These are every place a data subject's details are held. Delete in this order —
+indexes last, so a partial run leaves no dangling pointer.
+
+**KV (`kv_store_324f4fbe`), by key:**
+
+| Key | Holds |
+|---|---|
+| `sub:<id>` | the submission: contact name, email, phone, website, answers |
+| `cortex:<id>`, `outcome:<id>`, `review:<id>` | analyses derived from it |
+| `proposal:<id>`, `annotation:<id>` | proposal and its annotations |
+| `msg:<id>:*`, `msg_read:<id>:*` | the message thread |
+| `escalation:<id>`, `blockreg:<id>` | escalations raised on it |
+| `lead:<leadId>` | a lead capture: name, email, phone, website |
+| `booking:<id>` | a booking: contact email and scheduled time |
+| `client_session:<token>` | any live portal session (expires in 8h regardless) |
+| `sub_email:<email>`, `lead_email:<email>`, `booking_email:<email>` | **the indexes — delete last** |
+
+**Relational:** `submissions`, `diagnostic_answers`, `diagnostic_scores`,
+`domain_scores`, `submission_sections`, `reports`, `report_versions`,
+`outcomes`, `contacts`, `contact_methods`, `leads`, `lead_sources`, `lead_tags`.
+The composite foreign keys carry `ON DELETE SET NULL (column_list)`, so deleting
+a parent does **not** cascade — each table is deleted explicitly, children first.
+
+**Not to be deleted:** `cortex.membership_lifecycle_log`,
+`cortex.membership_bootstrap_log`, `cortex.team_roster_stamp_log` and the AI
+audit records. Those are the record of *administrative actions*, not of the data
+subject, and they are append-only by design.
+
+Verify with: no row in any table above matches the address, and
+`kv_store_324f4fbe` holds no key whose value contains it.
+
+
+---
+
+## 10. The required stop
 
 No production migration, backfill, deployment, data mutation, secret change,
 credential rotation, or AI spending enablement has been performed, and none

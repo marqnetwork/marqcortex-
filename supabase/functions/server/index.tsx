@@ -1,6 +1,12 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
+import { createRequestRateLimiter } from "./security/requestRateLimit.ts";
+import { clientAddress } from "./security/clientAddress.ts";
 import { logger } from "npm:hono/logger";
+// The status type `c.json` accepts. Named here so `failureResponse` can take a
+// status without widening it back to `number` — the narrowing the G2 pass put
+// in is what stops an invalid status reaching the router.
+import type { ContentfulStatusCode } from "npm:hono/utils/http-status";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as kv from "./kv_store.tsx";
 import {
@@ -16,7 +22,23 @@ import {
   sendTestEmail,
   isResendConfigured,
   sendNurtureEmail,
+  sendClientSignInCodeEmail,
 } from "./emailService.ts";
+import {
+  CHALLENGE_TTL_MS,
+  normalizeEmail,
+  redeemChallenge,
+  requestChallenge,
+} from "./security/clientChallenge.ts";
+import { temporaryPassword } from "./security/randomSecret.ts";
+import {
+  bodyFailureResponse,
+  boundedAnswers,
+  boundedEmail,
+  boundedString,
+  optionalBoundedString,
+  readBoundedJson,
+} from "./security/inputLimits.ts";
 import {
   registerAIRoutes,
   runCortexAnalysis,
@@ -117,66 +139,67 @@ import {
   normalizeBooking,
   migrateBookingRecord,
   type BookingRecord,
+  type BookingInput,
 } from "./bookings/bookingRecord.ts";
 
 const app = new Hono();
 
-// CORS MUST be first to handle preflight OPTIONS requests
+// CORS MUST be first to handle preflight OPTIONS requests.
+//
+// `credentials: true` used to sit alongside `origin: "*"`. That pairing is
+// rejected by every browser — the Fetch spec forbids a wildcard origin on a
+// credentialed request — so it never did anything. Leaving it in was the risk:
+// the day someone changed `origin` to reflect the request's own Origin header,
+// the dead flag would have come alive and turned a permissive read into full
+// credentialed impersonation. Nothing here authenticates by cookie (auth is a
+// bearer token in the Authorization header, which no browser attaches on its
+// own), so the flag is simply gone.
+//
+// The wildcard itself stays the default because the console, the client portal
+// and embedded diagnostic forms are deployed under origins this function does
+// not know. Set CORS_ALLOWED_ORIGINS to a comma-separated list to narrow it.
+const allowedOrigins = (Deno.env.get("CORS_ALLOWED_ORIGINS") ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: allowedOrigins.length > 0 ? allowedOrigins : "*",
     allowHeaders: ["Content-Type", "Authorization", "X-MARQ-Organization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
-    credentials: true,
   }),
 );
 
 app.use('*', logger(console.log));
 
-// ── In-memory rate limiter ───────────────────────────────────────────────────
-// Tracks requests per IP. Resets naturally when the edge function cold-starts.
-// Production upgrade: use Redis or Supabase KV for distributed rate limiting.
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 120;          // max requests per window per IP
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+// The edge rate limiter. See security/requestRateLimit.ts for why the key is
+// derived rather than taken from the header, and why there is a second ceiling.
+// Resets naturally when the edge function cold-starts; a distributed limiter
+// (Redis, or KV) is the upgrade when one isolate stops being the right scope.
+const edgeRateLimiter = createRequestRateLimiter();
 
 app.use('*', async (c, next) => {
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    || c.req.header('x-real-ip')
-    || 'unknown';
-  const now = Date.now();
-  let entry = rateLimitMap.get(ip);
+  const decision = edgeRateLimiter.check((name) => c.req.header(name));
 
-  if (!entry || now > entry.resetAt) {
-    entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
-    rateLimitMap.set(ip, entry);
-  }
+  c.header('X-RateLimit-Limit', String(decision.limit));
+  c.header('X-RateLimit-Remaining', String(decision.remaining));
+  c.header('X-RateLimit-Reset', String(decision.resetSeconds));
 
-  entry.count++;
-
-  // Set rate limit headers
-  c.header('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
-  c.header('X-RateLimit-Remaining', String(Math.max(0, RATE_LIMIT_MAX - entry.count)));
-  c.header('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
-
-  if (entry.count > RATE_LIMIT_MAX) {
-    console.log(`🚫 Rate limit exceeded for IP ${ip}: ${entry.count}/${RATE_LIMIT_MAX}`);
+  if (!decision.allowed) {
+    // The address is logged, never returned: telling a caller which bucket it
+    // landed in tells it how to land in a different one.
+    console.log(
+      `\u{1F6AB} Rate limit exceeded (${decision.refusedBy}) for ${clientAddress((name) => c.req.header(name)) ?? 'unidentified caller'}`,
+    );
     return c.json({ error: 'Too many requests. Please try again later.' }, 429);
   }
 
   await next();
 });
-
-// Periodic cleanup of stale rate-limit entries (every 5 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap) {
-    if (now > entry.resetAt) rateLimitMap.delete(ip);
-  }
-}, 5 * 60_000);
 
 // Custom request logger middleware
 app.use('*', async (c, next) => {
@@ -201,12 +224,10 @@ app.onError((err, c) => {
   console.error('Error type:', typeof err);
   console.error('Error stringified:', String(err));
   
-  return c.json({
-    error: `Server error: ${err?.message || err?.name || String(err)}`,
-    errorType: err?.name || 'Unknown',
-    timestamp: new Date().toISOString(),
-    path: c.req.url,
-  }, 500);
+  // The catch-all, and therefore the one that would disclose the most: it sees
+  // every unhandled failure in the function, including the ones no route
+  // anticipated. The detail is logged above; the caller gets a reference.
+  return failureResponse(c, 'Server', err, 500);
 });
 
 // ============================================================================
@@ -254,10 +275,33 @@ const marqMembershipPort = createRpcMembershipPort(supabaseAdmin as unknown as R
 async function seedAdminUser() {
   try {
     console.log('🔧 Seeding admin user...');
-    // Read admin credentials from env vars with demo fallbacks
     const adminEmail = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD') || 'CortexAdmin2026!';
+    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD');
     const adminName = Deno.env.get('TEAM_ADMIN_NAME') || 'MARQ Admin';
+
+    // S-7. There used to be a fallback here: a fixed literal password. A
+    // deployment that had not set the secret got a PLATFORM ADMIN account with
+    // a password written into this file — and into three chunks of the shipped
+    // browser bundle, where the registry documented it as the default and the
+    // login screen offered to type it for you. Anyone who loaded the app could
+    // read it. On a deployment that never set the secret, that was the whole
+    // console.
+    //
+    // There is no safe default for this. A fixed one is a published password; a
+    // random one is an account nobody can sign in to and that nobody knows to
+    // replace. So the account is not created at all, and the log says exactly
+    // what to set. A deployment with no administrator is recoverable in one
+    // step; a deployment with a known administrator password is not
+    // recoverable at all, because you cannot tell who used it.
+    if (!adminPassword) {
+      console.error(
+        '⛔ TEAM_ADMIN_PASSWORD is not set — no administrator account was created.\n' +
+        '   Set TEAM_ADMIN_PASSWORD (and optionally TEAM_ADMIN_EMAIL, TEAM_ADMIN_NAME)\n' +
+        '   in this deployment\'s secrets, then restart. This seeder is idempotent\n' +
+        '   and will create the account on the next cold start.',
+      );
+      return;
+    }
 
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
@@ -304,7 +348,6 @@ async function seedAdminUser() {
     console.log('⚠️ Seed admin error (non-fatal):', errorField(err, 'message') || String(err));
   }
 }
-
 // ============================================================================
 // TEST DATABASE CONNECTIVITY ON STARTUP
 // ============================================================================
@@ -355,6 +398,39 @@ console.log('');
 // ============================================================================
 // HELPER — verify team JWT
 // ============================================================================
+
+/**
+ * A 500 that says what failed without saying how.
+ *
+ * Every route used to interpolate the caught error straight into the response
+ * body — `Failed to fetch submission: ${err}` — and one returned the stack
+ * trace as well. Those messages are not generic: a PostgREST failure names the
+ * table, the column and the constraint, and a driver failure can name the host.
+ * Handing them to whoever made the request is information disclosure on the one
+ * path nobody tests by hand, and it was on 67 routes.
+ *
+ * The detail is not lost, it is MOVED. The server logs it in full against a
+ * short reference, and the caller receives the same reference — so an operator
+ * reading a support ticket can still find the exact failure, and a stranger
+ * probing the API learns only that something went wrong.
+ *
+ * The reference is per-occurrence and carries no meaning of its own; it is a
+ * lookup key for the log, not a token.
+ */
+function failureResponse(
+  c: { json: (body: unknown, status: ContentfulStatusCode) => Response },
+  context: string,
+  err: unknown,
+  status: ContentfulStatusCode = 500,
+): Response {
+  const reference = crypto.randomUUID().slice(0, 8);
+  console.error(
+    `❌ ${context} [${reference}]:`,
+    errorField(err, 'message') ?? String(err),
+    errorField(err, 'stack') ?? '',
+  );
+  return c.json({ error: `${context} failed.`, reference }, status);
+}
 
 /**
  * Read one diagnostic field off a caught value.
@@ -995,10 +1071,7 @@ app.get("/make-server-324f4fbe/test-auth", async (c) => {
     });
   } catch (err) {
     console.error('❌ TEST-AUTH error:', err);
-    return c.json({ 
-      error: `Test auth failed: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name'),
-    }, 500);
+    return failureResponse(c, 'Test auth', err, 500);
   }
 });
 
@@ -1070,7 +1143,7 @@ app.get("/make-server-324f4fbe/kpis", async (c) => {
     return c.json({ success: true, kpis: await registry.read(() => new Date().toISOString()) });
   } catch (err) {
     console.log('KPI report error:', err);
-    return c.json({ error: `Failed to build the KPI report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build the KPI report', err, 500);
   }
 });
 
@@ -1149,7 +1222,7 @@ app.get("/make-server-324f4fbe/health/enterprise", async (c) => {
     return c.json({ success: true, health });
   } catch (err) {
     console.log('Enterprise health error:', err);
-    return c.json({ error: `Failed to build the enterprise health view: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build the enterprise health view', err, 500);
   }
 });
 
@@ -1169,12 +1242,15 @@ app.get("/make-server-324f4fbe/health", async (c) => {
       kvStore: kvHealthy ? 'connected' : 'error',
     });
   } catch (err) {
-    console.error('Health check error:', err);
-    return c.json({ 
-      status: "error", 
+    // S-10. This route is UNAUTHENTICATED, and `String(err)` on a KV failure is
+    // the driver's own message — the host it could not reach, the table it could
+    // not read. `status` and `kvStore` already say everything a monitor needs;
+    // the detail belongs in the log, against a reference an operator can find.
+    console.error('Health check error:', errorField(err, 'message') ?? String(err));
+    return c.json({
+      status: "error",
       timestamp: new Date().toISOString(),
       kvStore: 'error',
-      error: String(err),
     }, 500);
   }
 });
@@ -1262,11 +1338,7 @@ app.get("/make-server-324f4fbe/diagnostic", async (c) => {
     console.error('❌ Diagnostic error:', err);
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
-    return c.json({ 
-      error: `Diagnostic failed: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      stack: errorField(err, 'stack'),
-    }, 500);
+    return failureResponse(c, 'Diagnostic', err, 500);
   }
 });
 
@@ -1276,11 +1348,22 @@ app.get("/make-server-324f4fbe/diagnostic", async (c) => {
 
 app.post("/make-server-324f4fbe/leads/capture", async (c) => {
   try {
-    const body = await c.req.json();
-    const { name, email, phone, website } = body;
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const body = (parsed.body ?? {}) as Record<string, unknown>;
 
+    const email = boundedEmail(body.email);
     if (!email) {
       return c.json({ error: "Email is required for lead capture" }, 400);
+    }
+    const name = optionalBoundedString(body.name);
+    const phone = optionalBoundedString(body.phone);
+    const website = optionalBoundedString(body.website);
+    if (name === null || phone === null || website === null) {
+      return c.json({ error: "Lead details are too long or malformed" }, 400);
     }
 
     const leadId = `lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1323,14 +1406,18 @@ app.post("/make-server-324f4fbe/leads/capture", async (c) => {
     return c.json({ success: true, leadId });
   } catch (err: any) {
     console.error('❌ Lead capture error:', err);
-    return c.json({ error: `Lead capture failed: ${err?.message || String(err)}` }, 500);
+    return failureResponse(c, 'Lead capture failed', err, 500);
   }
 });
 
 app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
   try {
-    const body = await c.req.json();
-    const { email } = body;
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const email = boundedEmail((parsed.body as Record<string, unknown> | null)?.email);
 
     if (!email) {
       return c.json({ error: "Email is required for exit-intent capture" }, 400);
@@ -1359,7 +1446,7 @@ app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
     return c.json({ success: true, leadId });
   } catch (err: any) {
     console.error('❌ Exit-intent capture error:', err);
-    return c.json({ error: `Exit-intent capture failed: ${err?.message || String(err)}` }, 500);
+    return failureResponse(c, 'Exit-intent capture failed', err, 500);
   }
 });
 
@@ -1415,44 +1502,116 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
     });
   } catch (err) {
     console.log('Team login error:', err);
-    return c.json({ error: `Team login server error: ${err}` }, 500);
+    return failureResponse(c, 'Team login server error', err, 500);
   }
 });
 
 // ============================================================================
-// AUTH — CLIENT EMAIL VERIFICATION
+// AUTH — CLIENT PORTAL SIGN-IN (S-6)
 // ============================================================================
+//
+// Two steps, because one was not authentication. `/verify` used to take an
+// email address and hand back a session token; see security/clientChallenge.ts
+// for why an address is an identifier and never a credential.
+//
+// Both routes answer the SAME WAY for an address that has a submission and one
+// that does not. The old route said `exists: true` or `exists: false`, which
+// let anybody test a list of addresses for MARQ clients and collect each one's
+// company name on the way past.
+
+/** The one answer `/auth/client/verify` gives, whatever is behind the address. */
+const CHALLENGE_ACKNOWLEDGEMENT = {
+  sent: true,
+  message: 'If a diagnostic exists for that address, a sign-in code is on its way.',
+} as const;
 
 app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
   try {
-    const { email } = await c.req.json();
+    const parsed = await readBoundedJson(c.req.raw, 4096);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const email = boundedEmail((parsed.body as Record<string, unknown> | null)?.email);
     if (!email) {
-      return c.json({ error: "Email is required" }, 400);
+      return c.json({ error: "A valid email address is required" }, 400);
     }
 
-    const emailKey = `sub_email:${email.toLowerCase().trim()}`;
-    const submissionId = await kv.get(emailKey);
+    const normalized = normalizeEmail(email);
+    const submissionId = await kv.get(`sub_email:${normalized}`);
+    const { code } = await requestChallenge(
+      kv,
+      normalized,
+      typeof submissionId === 'string' && submissionId.length > 0 ? submissionId : null,
+    );
 
-    if (!submissionId) {
-      return c.json({ exists: false });
+    if (code !== null) {
+      if (isResendConfigured()) {
+        await sendClientSignInCodeEmail({
+          email: normalized,
+          code,
+          expiresInMinutes: Math.round(CHALLENGE_TTL_MS / 60_000),
+        });
+      } else {
+        // A deployment with no mail transport cannot deliver the code, and a
+        // portal that lets people in anyway is the defect this replaced. The
+        // code goes to the log so a local stack is usable; reaching the log is
+        // an operator privilege, which is the point. Production sets
+        // RESEND_API_KEY — see the release checklist.
+        console.log(
+          `🔑 [NO RESEND_API_KEY] client sign-in code for ${normalized}: ${code}`,
+        );
+      }
     }
 
-    // Get submission for company name
+    return c.json(CHALLENGE_ACKNOWLEDGEMENT);
+  } catch (err) {
+    console.log('Client challenge error:', err);
+    return failureResponse(c, 'Client sign-in', err, 500);
+  }
+});
+
+app.post("/make-server-324f4fbe/auth/client/session", async (c) => {
+  try {
+    // `read`, not `parsed`: this handler already has a `parsed` further down
+    // holding the submission record it reads back.
+    const read = await readBoundedJson(c.req.raw, 4096);
+    if (!read.ok) {
+      const failure = bodyFailureResponse(read.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const payload = (read.body ?? {}) as Record<string, unknown>;
+    const email = boundedEmail(payload.email);
+    // A code is six digits. Anything else is refused before it reaches the
+    // store, so a megabyte of "code" never becomes a hash computation.
+    const code = boundedString(payload.code, 16);
+    if (!email || !code) {
+      return c.json({ error: "Email and code are required" }, 400);
+    }
+
+    const normalized = normalizeEmail(email);
+    const redemption = await redeemChallenge(kv, normalized, code);
+    if (!redemption.ok) {
+      // One message for every refusal. Telling the caller WHICH refusal it was
+      // rebuilds the oracle the acknowledgement above closed.
+      console.log(`⚠️ Client sign-in refused for ${normalized}: ${redemption.reason}`);
+      return c.json({ error: "That code is not valid. Request a new one." }, 401);
+    }
+
+    const submissionId = redemption.submissionId;
     const submission = await kv.get(`sub:${submissionId}`);
-    const parsed = submission ? (typeof submission === 'string' ? JSON.parse(submission) : submission) : null;
+    const parsed = submission ? safeJsonParse(submission) : null;
 
-    // ── F-003: Issue a server-side session token ────────────────────────────
-    // Token is stored in KV with 8-hour TTL; required for protected client routes.
+    // The session token is unchanged — it is still bound to ONE submission and
+    // still expires in eight hours. What changed is who can obtain one.
     const sessionToken = `client_${crypto.randomUUID()}`;
-    const tokenKey = `client_session:${sessionToken}`;
-    const tokenPayload = {
+    await kv.set(`client_session:${sessionToken}`, JSON.stringify({
       submissionId,
-      email: email.toLowerCase().trim(),
+      email: normalized,
       issuedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-    };
-    await kv.set(tokenKey, JSON.stringify(tokenPayload));
-    console.log(`✅ Client session token issued for ${email} → ${submissionId}`);
+    }));
+    console.log(`✅ Client session issued for ${normalized} → ${submissionId}`);
 
     return c.json({
       exists: true,
@@ -1461,8 +1620,8 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
       sessionToken,
     });
   } catch (err) {
-    console.log('Client verify error:', err);
-    return c.json({ error: `Client verification error: ${err}` }, 500);
+    console.log('Client session error:', err);
+    return failureResponse(c, 'Client sign-in', err, 500);
   }
 });
 
@@ -1492,11 +1651,11 @@ async function verifyClientToken(authHeader: RequestHeaderValue): Promise<{ subm
  * the router accepts: Hono's `c.json` takes a `ContentfulStatusCode`, so all
  * eight routes that forward this refusal failed to type-check against it.
  *
- * The fix is to say what the guard actually returns. It has exactly three
- * refusal sites — 404 for a token or email bound to a DIFFERENT submission,
- * 404 for a submission that is not there, and 401 for no credential at all —
- * and the 404/401 split is the contract: a mismatch must be indistinguishable
- * from a miss, or the route becomes an oracle for which submissions exist.
+ * The fix is to say what the guard actually returns. It has exactly two
+ * refusal sites — 404 for a token bound to a DIFFERENT submission, and 401 for
+ * no token at all — and the 404/401 split is the contract: a mismatch must be
+ * indistinguishable from a miss, or the route becomes an oracle for which
+ * submissions exist.
  *
  * Narrowing the annotation to `401 | 404` is what makes the compiler hold
  * that line. A fourth status added here now has to be a deliberate edit to
@@ -1506,33 +1665,34 @@ type ClientAccessResult =
   | { ok: true; session: { submissionId: string; email: string } }
   | { ok: false; status: 401 | 404; error: string };
 
-/** Require client auth for a submission-scoped route (token preferred, email fallback on GET). */
+/**
+ * Require client auth for a submission-scoped route.
+ *
+ * A SESSION TOKEN, and nothing else. There used to be a second way in: pass
+ * `?email=` matching the submission's contact address and the guard let you
+ * through. That is the same defect as the old `/auth/client/verify` wearing a
+ * different hat — an email address identifies a person, it does not prove you
+ * are them, so every read route carrying the fallback was a route anybody could
+ * call for any client whose address they knew.
+ *
+ * Removing it costs nothing at the call sites: the front end has always sent
+ * `Authorization: Bearer <sessionToken>` alongside the query parameter, and the
+ * token path was already preferred when both arrived.
+ */
 async function requireClientAccess(
   authHeader: RequestHeaderValue,
   submissionId: string,
-  emailQuery?: RequestHeaderValue,
 ): Promise<ClientAccessResult> {
   const clientSession = await verifyClientToken(authHeader);
-  if (clientSession) {
-    if (clientSession.submissionId !== submissionId) {
-      return { ok: false, status: 404, error: 'Submission not found' };
-    }
-    return { ok: true, session: clientSession };
+  if (!clientSession) {
+    return { ok: false, status: 401, error: 'Authentication required: sign in to your portal' };
   }
-
-  if (emailQuery) {
-    const raw = await kv.get(`sub:${submissionId}`);
-    if (!raw) return { ok: false, status: 404, error: 'Submission not found' };
-    const submission = safeJsonParse(raw);
-    const reqEmail = emailQuery.toLowerCase().trim();
-    const subEmail = String(submission?.email ?? '').toLowerCase().trim();
-    if (reqEmail !== subEmail) {
-      return { ok: false, status: 404, error: 'Submission not found' };
-    }
-    return { ok: true, session: { submissionId, email: reqEmail } };
+  // A token is bound to ONE submission. 404 rather than 403 on a mismatch, so
+  // a token cannot be used to discover which submissions exist.
+  if (clientSession.submissionId !== submissionId) {
+    return { ok: false, status: 404, error: 'Submission not found' };
   }
-
-  return { ok: false, status: 401, error: 'Authentication required: provide session token or email' };
+  return { ok: true, session: clientSession };
 }
 
 // ============================================================================
@@ -1560,19 +1720,33 @@ async function storeNotification(payload: {
 
 app.post("/make-server-324f4fbe/submissions", async (c) => {
   try {
-    const body = await c.req.json();
-    const {
-      contactName,
-      email,
-      phone,
-      website,
-      industry,
-      answers,
-    } = body;
+    // S-9: bounded before it is read. This route takes a body from anybody, and
+    // what it stores is what it is sent — see security/inputLimits.ts.
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const body = (parsed.body ?? {}) as Record<string, unknown>;
 
+    const email = boundedEmail(body.email);
+    const industry = boundedString(body.industry);
     if (!email || !industry) {
       return c.json({ error: "Email and industry are required" }, 400);
     }
+
+    const contactName = optionalBoundedString(body.contactName);
+    const phone = optionalBoundedString(body.phone);
+    const website = optionalBoundedString(body.website);
+    if (contactName === null || phone === null || website === null) {
+      return c.json({ error: "Contact details are too long or malformed" }, 400);
+    }
+
+    const bounded = boundedAnswers(body.answers);
+    if (!bounded.ok) {
+      return c.json({ error: "Answers are too large or malformed" }, 400);
+    }
+    const answers = bounded.answers;
 
     // Generate submission ID
     const id = `SUB-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -1669,7 +1843,7 @@ app.post("/make-server-324f4fbe/submissions", async (c) => {
 
   } catch (err) {
     console.log('Create submission error:', err);
-    return c.json({ error: `Failed to save submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save submission', err, 500);
   }
 });
 
@@ -1737,11 +1911,7 @@ app.get("/make-server-324f4fbe/submissions", async (c) => {
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
-    return c.json({ 
-      error: `Failed to fetch submissions: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      timestamp: new Date().toISOString(),
-    }, 500);
+    return failureResponse(c, 'Failed to fetch submissions', err, 500);
   }
 });
 
@@ -1790,7 +1960,7 @@ app.get("/make-server-324f4fbe/submissions/:id", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Get submission error:', err);
-    return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch submission', err, 500);
   }
 });
 
@@ -1859,7 +2029,7 @@ app.patch("/make-server-324f4fbe/submissions/:id/status", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Update submission error:', err);
-    return c.json({ error: `Failed to update submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to update submission', err, 500);
   }
 });
 
@@ -1912,7 +2082,7 @@ app.patch("/make-server-324f4fbe/submissions/bulk", async (c) => {
     return c.json({ success: true, updated: succeeded, results });
   } catch (err) {
     console.log('Bulk update error:', err);
-    return c.json({ error: `Bulk update failed: ${err}` }, 500);
+    return failureResponse(c, 'Bulk update failed', err, 500);
   }
 });
 
@@ -1924,7 +2094,7 @@ app.get("/make-server-324f4fbe/client/submission/:id", async (c) => {
   try {
     const id = c.req.param('id');
     const authHeader = c.req.header('Authorization');
-    const access = await requireClientAccess(authHeader, id, c.req.query('email'));
+    const access = await requireClientAccess(authHeader, id);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const raw = await kv.get(`sub:${id}`);
@@ -1936,7 +2106,7 @@ app.get("/make-server-324f4fbe/client/submission/:id", async (c) => {
     return c.json({ success: true, submission });
   } catch (err) {
     console.log('Client get submission error:', err);
-    return c.json({ error: `Failed to fetch submission: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch submission', err, 500);
   }
 });
 
@@ -2013,7 +2183,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/engagement", async (c) => 
     return c.json({ success: true, engagement: submission.engagement, event });
   } catch (err) {
     console.log('Engagement tracking error:', err);
-    return c.json({ error: `Failed to track engagement: ${err}` }, 500);
+    return failureResponse(c, 'Failed to track engagement', err, 500);
   }
 });
 
@@ -2021,7 +2191,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/engagement", async (c) => 
 app.get("/make-server-324f4fbe/client/submission/:id/engagement/log", async (c) => {
   try {
     const id = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), id, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), id);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const logRaw = await kv.get(`eng_log:${id}`);
@@ -2032,7 +2202,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/engagement/log", async (c) 
     return c.json({ success: true, events });
   } catch (err) {
     console.log('Get engagement log error:', err);
-    return c.json({ error: `Failed to fetch engagement log: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch engagement log', err, 500);
   }
 });
 
@@ -2064,7 +2234,7 @@ app.get("/make-server-324f4fbe/cortex/engagement-summary", async (c) => {
     return c.json({ success: true, summary });
   } catch (err) {
     console.log('Engagement summary error:', err);
-    return c.json({ error: `Failed to fetch engagement summary: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch engagement summary', err, 500);
   }
 });
 
@@ -2220,7 +2390,7 @@ app.get("/make-server-324f4fbe/analytics/overview", async (c) => {
     });
   } catch (err) {
     console.log('Analytics overview error:', err);
-    return c.json({ error: `Failed to compute analytics: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute analytics', err, 500);
   }
 });
 
@@ -2271,7 +2441,7 @@ app.get("/make-server-324f4fbe/analytics/revenue-snapshots", async (c) => {
     });
   } catch (err) {
     console.log('Revenue snapshots error:', err);
-    return c.json({ error: `Failed to compute revenue snapshots: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute revenue snapshots', err, 500);
   }
 });
 
@@ -2445,7 +2615,7 @@ app.get("/make-server-324f4fbe/analytics/engagement", async (c) => {
     });
   } catch (err) {
     console.log('Engagement analytics error:', err);
-    return c.json({ error: `Failed to compute engagement analytics: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute engagement analytics', err, 500);
   }
 });
 
@@ -2550,11 +2720,7 @@ app.get("/make-server-324f4fbe/notifications", async (c) => {
     console.error('   Error message:', errorField(err, 'message'));
     console.error('   Error stack:', errorField(err, 'stack'));
     console.error('   Error stringified:', String(err));
-    return c.json({ 
-      error: `Failed to fetch notifications: ${errorField(err, 'message') || String(err)}`,
-      errorType: errorField(err, 'name') || 'Unknown',
-      timestamp: new Date().toISOString(),
-    }, 500);
+    return failureResponse(c, 'Failed to fetch notifications', err, 500);
   }
 });
 
@@ -2572,7 +2738,7 @@ app.post("/make-server-324f4fbe/notifications/read", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Mark notifications read error:', err);
-    return c.json({ error: `Failed to mark notifications: ${err}` }, 500);
+    return failureResponse(c, 'Failed to mark notifications', err, 500);
   }
 });
 
@@ -2611,7 +2777,7 @@ app.get("/make-server-324f4fbe/submissions/:id/notes", async (c) => {
     return c.json({ success: true, notes });
   } catch (err) {
     console.log('List notes error:', err);
-    return c.json({ error: `Failed to fetch notes: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch notes', err, 500);
   }
 });
 
@@ -2656,7 +2822,7 @@ app.post("/make-server-324f4fbe/submissions/:id/notes", async (c) => {
     return c.json({ success: true, note });
   } catch (err) {
     console.log('Add note error:', err);
-    return c.json({ error: `Failed to add note: ${err}` }, 500);
+    return failureResponse(c, 'Failed to add note', err, 500);
   }
 });
 
@@ -2678,7 +2844,7 @@ app.delete("/make-server-324f4fbe/submissions/:id/notes/:noteId", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete note error:', err);
-    return c.json({ error: `Failed to delete note: ${err}` }, 500);
+    return failureResponse(c, 'Failed to delete note', err, 500);
   }
 });
 
@@ -2708,7 +2874,7 @@ app.get("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) =>
     return c.json({ success: true, review });
   } catch (err) {
     console.log('Get review error:', err);
-    return c.json({ error: `Failed to fetch review: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch review', err, 500);
   }
 });
 
@@ -2755,7 +2921,7 @@ app.put("/make-server-324f4fbe/submissions/:id/review/:reviewType", async (c) =>
     return c.json({ success: true, review: record });
   } catch (err) {
     console.log('Save review error:', err);
-    return c.json({ error: `Failed to save review: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save review', err, 500);
   }
 });
 
@@ -2784,7 +2950,7 @@ app.get("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
     return c.json({ success: true, escalations });
   } catch (err) {
     console.log('List escalations error:', err);
-    return c.json({ error: `Failed to fetch escalations: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch escalations', err, 500);
   }
 });
 
@@ -2837,7 +3003,7 @@ app.post("/make-server-324f4fbe/submissions/:id/escalations", async (c) => {
     return c.json({ success: true, escalation, detectionCount });
   } catch (err) {
     console.log('Create escalation error:', err);
-    return c.json({ error: `Failed to record escalation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to record escalation', err, 500);
   }
 });
 
@@ -2863,7 +3029,7 @@ app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", asy
     return c.json({ success: true, escalation: updated });
   } catch (err) {
     console.log('Resolve escalation error:', err);
-    return c.json({ error: `Failed to resolve escalation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to resolve escalation', err, 500);
   }
 });
 
@@ -2877,7 +3043,17 @@ app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", asy
 // POST /bookings — create a booking (public — anon key)
 app.post("/make-server-324f4fbe/bookings", async (c) => {
   try {
-    const body = await c.req.json();
+    // `normalizeBooking` already validates the email and the time; the bound
+    // here is on the SIZE of what it is asked to validate.
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    // `normalizeBooking` is the validator — it refuses a bad email or time and
+    // returns a reason. The assertion hands it the declared parameter shape; it
+    // does not assume anything about what actually arrived.
+    const body = (parsed.body ?? {}) as BookingInput;
     const id = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const result = normalizeBooking(body, id, new Date().toISOString());
 
@@ -2896,7 +3072,7 @@ app.post("/make-server-324f4fbe/bookings", async (c) => {
     return c.json({ success: true, booking });
   } catch (err) {
     console.log('Create booking error:', err);
-    return c.json({ error: `Failed to create booking: ${err}` }, 500);
+    return failureResponse(c, 'Failed to create booking', err, 500);
   }
 });
 
@@ -2917,7 +3093,7 @@ app.get("/make-server-324f4fbe/bookings", async (c) => {
     return c.json({ success: true, bookings, count: bookings.length });
   } catch (err) {
     console.log('List bookings error:', err);
-    return c.json({ error: `Failed to fetch bookings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch bookings', err, 500);
   }
 });
 
@@ -2941,7 +3117,7 @@ app.get("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
     return c.json({ success: true, registry });
   } catch (err) {
     console.log('Get block registry error:', err);
-    return c.json({ error: `Failed to fetch block registry: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch block registry', err, 500);
   }
 });
 
@@ -2986,7 +3162,7 @@ app.put("/make-server-324f4fbe/proposals/:proposalId/blocks", async (c) => {
     return c.json({ success: true, registry });
   } catch (err) {
     console.log('Save block registry error:', err);
-    return c.json({ error: `Failed to save block registry: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save block registry', err, 500);
   }
 });
 
@@ -3032,7 +3208,7 @@ app.get("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
     return c.json({ success: true, messages, unreadFromClient });
   } catch (err) {
     console.log('Team get messages error:', err);
-    return c.json({ error: `Failed to fetch messages: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch messages', err, 500);
   }
 });
 
@@ -3071,7 +3247,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
     return c.json({ success: true, message });
   } catch (err) {
     console.log('Team post message error:', err);
-    return c.json({ error: `Failed to send reply: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send reply', err, 500);
   }
 });
 
@@ -3083,7 +3259,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
 app.get("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const raw = await kv.getByPrefix(`msg:${submissionId}:`);
@@ -3104,7 +3280,7 @@ app.get("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
     return c.json({ success: true, messages });
   } catch (err) {
     console.log('Client get messages error:', err);
-    return c.json({ error: `Failed to fetch messages: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch messages', err, 500);
   }
 });
 
@@ -3157,7 +3333,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
     return c.json({ success: true, message });
   } catch (err) {
     console.log('Client post message error:', err);
-    return c.json({ error: `Failed to send message: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send message', err, 500);
   }
 });
 
@@ -3178,7 +3354,7 @@ app.get("/make-server-324f4fbe/submissions/:id/proposal", async (c) => {
     return c.json({ success: true, proposal });
   } catch (err) {
     console.log('Get proposal error:', err);
-    return c.json({ error: `Failed to fetch proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch proposal', err, 500);
   }
 });
 
@@ -3212,7 +3388,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal", async (c) => {
     return c.json({ success: true, proposal: toSave });
   } catch (err) {
     console.log('Save proposal error:', err);
-    return c.json({ error: `Failed to save proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save proposal', err, 500);
   }
 });
 
@@ -3265,7 +3441,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal/send", async (c) => {
     return c.json({ success: true, proposal: updated });
   } catch (err) {
     console.log('Send proposal error:', err);
-    return c.json({ error: `Failed to send proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send proposal', err, 500);
   }
 });
 
@@ -3277,7 +3453,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal/send", async (c) => {
 app.get("/make-server-324f4fbe/client/submission/:id/proposal", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     // Verify submission exists
@@ -3327,7 +3503,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/proposal", async (c) => {
     return c.json({ success: true, proposal });
   } catch (err) {
     console.log('Client get proposal error:', err);
-    return c.json({ error: `Failed to fetch proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch proposal', err, 500);
   }
 });
 
@@ -3396,7 +3572,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/proposal/respond", async (
     return c.json({ success: true, proposal: updated });
   } catch (err) {
     console.log('Client respond to proposal error:', err);
-    return c.json({ error: `Failed to respond to proposal: ${err}` }, 500);
+    return failureResponse(c, 'Failed to respond to proposal', err, 500);
   }
 });
 
@@ -3482,7 +3658,7 @@ app.get("/make-server-324f4fbe/team/members", async (c) => {
     return c.json({ success: true, members });
   } catch (err) {
     console.log('Get team members error:', err);
-    return c.json({ error: `Failed to fetch team members: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch team members', err, 500);
   }
 });
 
@@ -3511,7 +3687,10 @@ app.post("/make-server-324f4fbe/team/invite", async (c) => {
       return c.json({ error: assignment.failure.message, code: assignment.failure.code }, assignment.failure.status);
     }
 
-    const password = tempPassword || `Cortex${Math.random().toString(36).slice(2, 8).toUpperCase()}!`;
+    // S-8: from the CSPRNG, never Math.random(). This value is handed to a
+    // person to sign in with, and the isolate publishes Math.random() outputs
+    // in ordinary responses — see security/randomSecret.ts.
+    const password = tempPassword || temporaryPassword();
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -3796,7 +3975,7 @@ app.get("/make-server-324f4fbe/settings", async (c) => {
     });
   } catch (err) {
     console.log('Get settings error:', err);
-    return c.json({ error: `Failed to load settings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to load settings', err, 500);
   }
 });
 
@@ -3823,7 +4002,7 @@ app.patch("/make-server-324f4fbe/settings", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Save settings error:', err);
-    return c.json({ error: `Failed to save settings: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save settings', err, 500);
   }
 });
 
@@ -3853,7 +4032,7 @@ app.post("/make-server-324f4fbe/test-email", async (c) => {
     });
   } catch (err) {
     console.log('Test email error:', err);
-    return c.json({ error: `Failed to send test email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send test email', err, 500);
   }
 });
 
@@ -3919,7 +4098,7 @@ app.post("/make-server-324f4fbe/email/weekly-digest", async (c) => {
     return c.json({ success: true, to: teamEmail });
   } catch (err) {
     console.log('Weekly digest error:', err);
-    return c.json({ error: `Failed to send weekly digest: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send weekly digest', err, 500);
   }
 });
 
@@ -3930,7 +4109,7 @@ app.post("/make-server-324f4fbe/email/weekly-digest", async (c) => {
 app.get("/make-server-324f4fbe/client/submission/:id/report", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const subRaw = await kv.get(`sub:${submissionId}`);
@@ -3950,7 +4129,7 @@ app.get("/make-server-324f4fbe/client/submission/:id/report", async (c) => {
     return c.json({ success: true, report: null, aiPowered: false });
   } catch (err) {
     console.log('Client report error:', err);
-    return c.json({ error: `Failed to build client report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to build client report', err, 500);
   }
 });
 
@@ -4105,7 +4284,7 @@ app.get("/make-server-324f4fbe/cortex/status", async (c) => {
     return c.json({ success: true, analyzed, count: Object.keys(analyzed).length });
   } catch (err) {
     console.log('Cortex status error:', err);
-    return c.json({ error: `Failed to fetch cortex status: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch cortex status', err, 500);
   }
 });
 
@@ -4162,7 +4341,7 @@ app.post("/make-server-324f4fbe/submissions/analyze-batch", async (c) => {
     return c.json({ success: true, results, analyzed: successCount, total: capped.length, correlationId: batchCorrelationId });
   } catch (err: any) {
     console.log('Batch analyze error:', err);
-    return c.json({ error: `Batch analysis failed: ${err?.message || err}` }, 500);
+    return failureResponse(c, 'Batch analysis failed', err, 500);
   }
 });
 
@@ -4210,8 +4389,22 @@ app.post("/make-server-324f4fbe/submissions/:id/analyze", async (c) => {
     // `code` and `status` come from the control plane's error taxonomy — no
     // more inferring "the key is missing" by string-matching an exception.
     const status = typeof err?.status === 'number' ? err.status : 500;
+    // `code` and `keyMissing` STAY. They are a deliberate structured contract —
+    // the client reads them instead of string-matching an exception, which is
+    // the whole reason they exist — and they carry no internal detail: `code`
+    // is a closed vocabulary this server defines, not a driver's message.
+    //
+    // The raw `err.message` does not stay, for the same reason it does not stay
+    // anywhere else.
+    const reference = crypto.randomUUID().slice(0, 8);
+    console.error(
+      `❌ CORTEX analysis [${reference}]:`,
+      errorField(err, 'message') ?? String(err),
+      errorField(err, 'stack') ?? '',
+    );
     return c.json({
-      error: `CORTEX analysis failed: ${err?.message || err}`,
+      error: 'CORTEX analysis failed.',
+      reference,
       code: err?.code ?? 'INTERNAL_ERROR',
       keyMissing: err?.code === 'PROVIDER_AUTH_FAILED' || err?.code === 'NO_PROVIDER_AVAILABLE',
     }, status);
@@ -4234,7 +4427,7 @@ app.get("/make-server-324f4fbe/submissions/:id/cortex", async (c) => {
     return c.json({ success: true, analysis });
   } catch (err) {
     console.log('Get cortex analysis error:', err);
-    return c.json({ error: `Failed to fetch cortex analysis: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch cortex analysis', err, 500);
   }
 });
 
@@ -4254,7 +4447,7 @@ app.delete("/make-server-324f4fbe/submissions/:id/cortex", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete cortex analysis error:', err);
-    return c.json({ error: `Failed to clear cortex analysis: ${err}` }, 500);
+    return failureResponse(c, 'Failed to clear cortex analysis', err, 500);
   }
 });
 
@@ -4329,7 +4522,7 @@ app.post("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Log outcome error:', err);
-    return c.json({ error: `Failed to log outcome: ${err}` }, 500);
+    return failureResponse(c, 'Failed to log outcome', err, 500);
   }
 });
 
@@ -4375,7 +4568,7 @@ app.get("/make-server-324f4fbe/submissions/:id/outcome", async (c) => {
     return c.json({ success: true, outcome });
   } catch (err) {
     console.log('Get outcome error:', err);
-    return c.json({ error: `Failed to fetch outcome: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch outcome', err, 500);
   }
 });
 
@@ -4412,7 +4605,7 @@ app.get("/make-server-324f4fbe/cortex/shadow-read", async (c) => {
     });
   } catch (err) {
     console.log('Shadow read report error:', err);
-    return c.json({ error: `Failed to read the shadow report: ${err}` }, 500);
+    return failureResponse(c, 'Failed to read the shadow report', err, 500);
   }
 });
 
@@ -4444,7 +4637,7 @@ app.get("/make-server-324f4fbe/cortex/outcomes", async (c) => {
     return c.json({ success: true, outcomes, count: Object.keys(outcomes).length });
   } catch (err) {
     console.log('Cortex outcomes error:', err);
-    return c.json({ error: `Failed to fetch outcomes: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch outcomes', err, 500);
   }
 });
 
@@ -4561,7 +4754,7 @@ app.get("/make-server-324f4fbe/cortex/learning-loop", async (c) => {
     });
   } catch (err) {
     console.log('Learning loop error:', err);
-    return c.json({ error: `Failed to compute learning loop: ${err}` }, 500);
+    return failureResponse(c, 'Failed to compute learning loop', err, 500);
   }
 });
 
@@ -4581,7 +4774,7 @@ app.get("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true, positions, count: Object.keys(positions).length });
   } catch (err) {
     console.log('Get pipeline positions error:', err);
-    return c.json({ error: `Failed to fetch pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch pipeline positions', err, 500);
   }
 });
 
@@ -4613,7 +4806,7 @@ app.post("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true, positions: current, count: Object.keys(current).length });
   } catch (err) {
     console.log('Save pipeline positions error:', err);
-    return c.json({ error: `Failed to save pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save pipeline positions', err, 500);
   }
 });
 
@@ -4626,7 +4819,7 @@ app.delete("/make-server-324f4fbe/cortex/pipeline-positions", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Reset pipeline positions error:', err);
-    return c.json({ error: `Failed to reset pipeline positions: ${err}` }, 500);
+    return failureResponse(c, 'Failed to reset pipeline positions', err, 500);
   }
 });
 
@@ -4645,7 +4838,7 @@ app.get("/make-server-324f4fbe/cortex/column-capacities", async (c) => {
     return c.json({ success: true, capacities });
   } catch (err) {
     console.log('Get column capacities error:', err);
-    return c.json({ error: `Failed to fetch column capacities: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch column capacities', err, 500);
   }
 });
 
@@ -4664,7 +4857,7 @@ app.put("/make-server-324f4fbe/cortex/column-capacities", async (c) => {
     return c.json({ success: true, capacities });
   } catch (err) {
     console.log('Save column capacities error:', err);
-    return c.json({ error: `Failed to save column capacities: ${err}` }, 500);
+    return failureResponse(c, 'Failed to save column capacities', err, 500);
   }
 });
 
@@ -4691,7 +4884,7 @@ app.get('/make-server-324f4fbe/proposal/annotations/:submissionId', async (c) =>
     return c.json({ success: true, annotations });
   } catch (err) {
     console.log('Get annotations error:', err);
-    return c.json({ error: `Failed to fetch annotations: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch annotations', err, 500);
   }
 });
 
@@ -4720,7 +4913,7 @@ app.post('/make-server-324f4fbe/proposal/annotations/:submissionId', async (c) =
     return c.json({ success: true, annotation });
   } catch (err) {
     console.log('Create annotation error:', err);
-    return c.json({ error: `Failed to create annotation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to create annotation', err, 500);
   }
 });
 
@@ -4733,7 +4926,7 @@ app.delete('/make-server-324f4fbe/proposal/annotations/:submissionId/:annotation
     return c.json({ success: true });
   } catch (err) {
     console.log('Delete annotation error:', err);
-    return c.json({ error: `Failed to delete annotation: ${err}` }, 500);
+    return failureResponse(c, 'Failed to delete annotation', err, 500);
   }
 });
 
@@ -4778,7 +4971,7 @@ app.post('/make-server-324f4fbe/email-queue', async (c) => {
     return c.json({ success: true, queued: emails.length });
   } catch (err) {
     console.log('Email queue enqueue error:', err);
-    return c.json({ error: `Failed to enqueue emails: ${err}` }, 500);
+    return failureResponse(c, 'Failed to enqueue emails', err, 500);
   }
 });
 
@@ -4801,7 +4994,7 @@ app.get('/make-server-324f4fbe/email-queue', async (c) => {
     return c.json({ success: true, emails, total: emails.length });
   } catch (err) {
     console.log('Email queue fetch error:', err);
-    return c.json({ error: `Failed to fetch email queue: ${err}` }, 500);
+    return failureResponse(c, 'Failed to fetch email queue', err, 500);
   }
 });
 
@@ -4860,7 +5053,7 @@ app.patch('/make-server-324f4fbe/email-queue/:emailId', async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log('Email queue update error:', err);
-    return c.json({ error: `Failed to update email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to update email', err, 500);
   }
 });
 
@@ -4884,7 +5077,7 @@ app.get('/make-server-324f4fbe/email/status', async (c) => {
     });
   } catch (err) {
     console.log('Email status check error:', err);
-    return c.json({ error: `Failed to check email status: ${err}` }, 500);
+    return failureResponse(c, 'Failed to check email status', err, 500);
   }
 });
 
@@ -4947,7 +5140,7 @@ app.post('/make-server-324f4fbe/email/send', async (c) => {
     });
   } catch (err) {
     console.log('Email send error:', err);
-    return c.json({ error: `Failed to send email: ${err}` }, 500);
+    return failureResponse(c, 'Failed to send email', err, 500);
   }
 });
 

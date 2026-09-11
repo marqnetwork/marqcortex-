@@ -40,6 +40,23 @@ function annotColor(hex: string) {
   return PRINT_COLORS[hex] ?? PRINT_COLORS['#FBBF24'];
 }
 
+/**
+ * A colour that is safe to put inside a `style="..."` attribute.
+ *
+ * The tint lookup above is a closed table, so everything that went through it
+ * was already safe. One badge did not: it interpolated `ann.color` directly.
+ * An annotation is stored server-side and read back, so its colour is a string
+ * that arrived over the wire — and `red" onmouseover="alert(1)` ends the
+ * attribute and starts a new one. That matters because the print fallback does
+ * `window.open('')` then `document.write(html)`, and a blank window inherits
+ * its opener's ORIGIN: script written there runs as the console.
+ *
+ * Six literal hex digits or the palette default. Nothing else is a colour.
+ */
+function safeColor(hex: string): string {
+  return /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : '#FBBF24';
+}
+
 // ── HTML helpers ──────────────────────────────────────────────────────────────
 
 function esc(s: string): string {
@@ -325,7 +342,7 @@ function renderAnnotationIndex(
     return `
     <div style="display:flex;gap:16px;padding:16px 0;border-bottom:1px solid #F3F4F6;">
       <!-- Ref circle -->
-      <div style="width:30px;height:30px;border-radius:50%;background:${ann.color};color:#fff;
+      <div style="width:30px;height:30px;border-radius:50%;background:${safeColor(ann.color)};color:#fff;
                   display:flex;align-items:center;justify-content:center;font-weight:800;
                   font-size:12px;flex-shrink:0;line-height:1;margin-top:2px;">${ref}</div>
 

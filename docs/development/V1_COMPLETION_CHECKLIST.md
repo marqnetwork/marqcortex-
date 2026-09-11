@@ -48,6 +48,9 @@ human decision rather than code.
 | **All typecheck boundaries (H3, H4)** | — | `npm run typecheck` exits 0: web 0, api 0, tests 0 — and `tests` is now **strict**, which it never was |
 | **Integration QA — canonical journeys in a browser** | Product Experience | 17 Playwright tests: sign-in, 13 destinations as deep links, reload, signed-out denial, phone width, accessibility. Found and fixed ungated admin credentials on the sign-in page and a missing favicon |
 | **Production readiness plan** | — | `docs/development/V1_PRODUCTION_READINESS.md` — migration order, flag state, deployment order, Phase 5 sequence, health checks, smoke plan, rollback |
+| **Final security campaign** | Task §5 | Two passes, **eleven findings, all closed**, no BLOCKER or HIGH remaining. Six new guard modules under `server/security/`, 5 new suites (`tests/security/`), every fix mutation-proven. Readiness §8 |
+| **Release response headers** | Task §6 | `vercel.json` + `scripts/serve-release.mjs`; `npm run test:release` runs all 23 browser tests against the **built artifact under the real headers**, including a proof that an injected inline script is refused |
+| **Dependency supply chain** | Task §6 | `npm audit`: **0**, production and dev. react-router, ws, lodash, dompurify, fflate resolved in range; vite 6.3.5 → 6.4.3 with a byte-identical entry chunk |
 
 ---
 
@@ -144,7 +147,7 @@ for it.
 | Multi-membership with no hint | deterministic **refusal**, never a pick | **C** |
 | No membership | fails closed unless `AI_ALLOW_DEFAULT_ORGANIZATION` | **C** |
 | Platform admin without a membership | no exemption in `resolveOrganization` — refused | **C** |
-| Client portal | bearer token bound to ONE submission; `?email=` on GETs only; 404 on mismatch | **E** |
+| Client portal | bearer token bound to ONE submission; 404 on mismatch. The `?email=` fallback is **gone** (S-6) — an address identified a caller, it never proved one, and a token is now obtained only by redeeming a code sent to the mailbox | **C** — server-derived *(was E)* |
 | Diagnostic repositories | every read and write filtered by `organization_id` | **D** |
 | Parent-child ownership | **composite foreign key** | **A** — database-enforced *(was F)* |
 | RLS on diagnostic tables | enabled on all 13; a caller with no membership reads nothing, even naming a row id exactly | **B** |

@@ -26,6 +26,7 @@ import {
   type AIControlPlane,
   type AIHttpRequest,
 } from './ai/index.ts';
+import { clientAddress } from './security/clientAddress.ts';
 
 export interface AIRouteDependencies {
   readonly plane: AIControlPlane;
@@ -92,7 +93,6 @@ export interface AIRouteRegistrar {
 }
 
 function transportOf(c: RouteContext, featureId: string, body: unknown): AIHttpRequest {
-  const forwardedFor = c.req.header('x-forwarded-for');
   const channelHeader = c.req.header('x-marq-channel');
   const channel: AIChannel =
     channelHeader === 'client_portal' || channelHeader === 'system'
@@ -105,7 +105,9 @@ function transportOf(c: RouteContext, featureId: string, body: unknown): AIHttpR
     authorization: c.req.header('Authorization') ?? null,
     correlationId: correlationIdFromHeaders((name) => c.req.header(name)),
     organizationHint: c.req.header('x-marq-organization'),
-    clientIp: forwardedFor?.split(',')[0]?.trim() ?? c.req.header('x-real-ip'),
+    // The address the nearest proxy OBSERVED, not the one the caller claimed.
+    // This lands in the admin audit trail; see security/clientAddress.ts.
+    clientIp: clientAddress((name) => c.req.header(name)) ?? undefined,
     userAgent: c.req.header('user-agent'),
     contentLength: parseContentLength(c.req.header('content-length')),
     channel,

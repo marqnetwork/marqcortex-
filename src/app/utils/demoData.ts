@@ -20,6 +20,32 @@ import type { TeamMemberRecord } from '@/app/lib/api';
 import type { Message } from '@/app/lib/api';
 
 // ============================================================================
+// DEMO TEAM LOGIN
+// ============================================================================
+
+/**
+ * The team credentials demo mode accepts.
+ *
+ * A FIXTURE, and only a fixture. Demo mode has no server and no database; it
+ * serves canned data to whoever asks, so the account it signs you into owns
+ * nothing and the password protects nothing.
+ *
+ * It was not only a fixture until S-7. The deployed server used the same string
+ * as the fallback for `TEAM_ADMIN_PASSWORD`, so a deployment that had not set
+ * that secret got a real platform administrator whose password was sitting in
+ * three chunks of the shipped bundle — documented in the registry as the
+ * default, and offered by the login screen as a click-to-fill. The server no
+ * longer has a fallback: without the secret it creates no account at all.
+ *
+ * Declared once here so the coupling cannot quietly return through a second
+ * copy of the literal.
+ */
+export const DEMO_TEAM_LOGIN = {
+  email: 'admin@marqcortex.com',
+  password: 'CortexAdmin2026!',
+} as const;
+
+// ============================================================================
 // DEMO CLIENT LOGINS
 // ============================================================================
 
