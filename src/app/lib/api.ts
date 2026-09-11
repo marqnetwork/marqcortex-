@@ -227,15 +227,43 @@ export async function teamLogin(email: string, password: string) {
 // CLIENT AUTH
 // ============================================================================
 
-export async function verifyClientEmail(email: string) {
+/**
+ * Step one: ask for a sign-in code.
+ *
+ * This used to be the WHOLE of client authentication — post an address, receive
+ * a session token. An address identifies somebody; it does not prove you are
+ * them. See `supabase/functions/server/security/clientChallenge.ts`.
+ *
+ * The answer is now the same whether or not that address has a diagnostic, so
+ * there is deliberately nothing here to branch on. The old `exists` flag let
+ * anyone test a list of addresses for MARQ clients.
+ */
+export async function requestClientSignInCode(email: string) {
   const res = await fetch(`${BASE}/auth/client/verify`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ email }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Verification failed');
-  return data as { exists: boolean; submissionId?: string; companyName?: string; sessionToken?: string };
+  if (!res.ok) throw new Error(data.error || 'Could not send a sign-in code');
+  return data as { sent: boolean; message: string };
+}
+
+/** Step two: exchange the code for a session. */
+export async function exchangeClientSignInCode(email: string, code: string) {
+  const res = await fetch(`${BASE}/auth/client/session`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'That code is not valid. Request a new one.');
+  return data as {
+    exists: boolean;
+    submissionId?: string;
+    companyName?: string;
+    sessionToken?: string;
+  };
 }
 
 // ============================================================================

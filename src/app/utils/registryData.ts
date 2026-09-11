@@ -362,7 +362,7 @@ const SVC_NODES: RegistryNode[] = [
     description: 'PRIMARY data service — single source of truth for ALL data access. Every component imports from here. Contains the FEATURES.BACKEND_INTEGRATION gate: isDemo()=true → returns demo data; false → calls real API. Re-exports all types from api.ts so components never import api.ts directly. Contains the 5-step ops-only production cutover checklist.',
     demands: ['MQC-CFG-001','MQC-LIB-001','MQC-UTL-004','MQC-UTL-001'],
     supplies: [
-      'saveLead','saveExitIntentLead','teamLogin','verifyClientEmail',
+      'saveLead','saveExitIntentLead','teamLogin','requestClientSignInCode','exchangeClientSignInCode',
       'createSubmission','getSubmissions','updateSubmissionStatus','bulkUpdateSubmissions',
       'getClientSubmission','getDemoClientSubmission','getClientReport',
       'getClientMessages','postClientMessage','getTeamMessages','postTeamReply',

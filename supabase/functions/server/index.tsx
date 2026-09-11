@@ -22,7 +22,14 @@ import {
   sendTestEmail,
   isResendConfigured,
   sendNurtureEmail,
+  sendClientSignInCodeEmail,
 } from "./emailService.ts";
+import {
+  CHALLENGE_TTL_MS,
+  normalizeEmail,
+  redeemChallenge,
+  requestChallenge,
+} from "./security/clientChallenge.ts";
 import {
   registerAIRoutes,
   runCortexAnalysis,
@@ -1450,39 +1457,95 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
 });
 
 // ============================================================================
-// AUTH — CLIENT EMAIL VERIFICATION
+// AUTH — CLIENT PORTAL SIGN-IN (S-6)
 // ============================================================================
+//
+// Two steps, because one was not authentication. `/verify` used to take an
+// email address and hand back a session token; see security/clientChallenge.ts
+// for why an address is an identifier and never a credential.
+//
+// Both routes answer the SAME WAY for an address that has a submission and one
+// that does not. The old route said `exists: true` or `exists: false`, which
+// let anybody test a list of addresses for MARQ clients and collect each one's
+// company name on the way past.
+
+/** The one answer `/auth/client/verify` gives, whatever is behind the address. */
+const CHALLENGE_ACKNOWLEDGEMENT = {
+  sent: true,
+  message: 'If a diagnostic exists for that address, a sign-in code is on its way.',
+} as const;
 
 app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
   try {
     const { email } = await c.req.json();
-    if (!email) {
-      return c.json({ error: "Email is required" }, 400);
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return c.json({ error: "A valid email address is required" }, 400);
     }
 
-    const emailKey = `sub_email:${email.toLowerCase().trim()}`;
-    const submissionId = await kv.get(emailKey);
+    const normalized = normalizeEmail(email);
+    const submissionId = await kv.get(`sub_email:${normalized}`);
+    const { code } = await requestChallenge(
+      kv,
+      normalized,
+      typeof submissionId === 'string' && submissionId.length > 0 ? submissionId : null,
+    );
 
-    if (!submissionId) {
-      return c.json({ exists: false });
+    if (code !== null) {
+      if (isResendConfigured()) {
+        await sendClientSignInCodeEmail({
+          email: normalized,
+          code,
+          expiresInMinutes: Math.round(CHALLENGE_TTL_MS / 60_000),
+        });
+      } else {
+        // A deployment with no mail transport cannot deliver the code, and a
+        // portal that lets people in anyway is the defect this replaced. The
+        // code goes to the log so a local stack is usable; reaching the log is
+        // an operator privilege, which is the point. Production sets
+        // RESEND_API_KEY — see the release checklist.
+        console.log(
+          `🔑 [NO RESEND_API_KEY] client sign-in code for ${normalized}: ${code}`,
+        );
+      }
     }
 
-    // Get submission for company name
+    return c.json(CHALLENGE_ACKNOWLEDGEMENT);
+  } catch (err) {
+    console.log('Client challenge error:', err);
+    return failureResponse(c, 'Client sign-in', err, 500);
+  }
+});
+
+app.post("/make-server-324f4fbe/auth/client/session", async (c) => {
+  try {
+    const { email, code } = await c.req.json();
+    if (!email || typeof email !== 'string' || !code || typeof code !== 'string') {
+      return c.json({ error: "Email and code are required" }, 400);
+    }
+
+    const normalized = normalizeEmail(email);
+    const redemption = await redeemChallenge(kv, normalized, code);
+    if (!redemption.ok) {
+      // One message for every refusal. Telling the caller WHICH refusal it was
+      // rebuilds the oracle the acknowledgement above closed.
+      console.log(`⚠️ Client sign-in refused for ${normalized}: ${redemption.reason}`);
+      return c.json({ error: "That code is not valid. Request a new one." }, 401);
+    }
+
+    const submissionId = redemption.submissionId;
     const submission = await kv.get(`sub:${submissionId}`);
-    const parsed = submission ? (typeof submission === 'string' ? JSON.parse(submission) : submission) : null;
+    const parsed = submission ? safeJsonParse(submission) : null;
 
-    // ── F-003: Issue a server-side session token ────────────────────────────
-    // Token is stored in KV with 8-hour TTL; required for protected client routes.
+    // The session token is unchanged — it is still bound to ONE submission and
+    // still expires in eight hours. What changed is who can obtain one.
     const sessionToken = `client_${crypto.randomUUID()}`;
-    const tokenKey = `client_session:${sessionToken}`;
-    const tokenPayload = {
+    await kv.set(`client_session:${sessionToken}`, JSON.stringify({
       submissionId,
-      email: email.toLowerCase().trim(),
+      email: normalized,
       issuedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-    };
-    await kv.set(tokenKey, JSON.stringify(tokenPayload));
-    console.log(`✅ Client session token issued for ${email} → ${submissionId}`);
+    }));
+    console.log(`✅ Client session issued for ${normalized} → ${submissionId}`);
 
     return c.json({
       exists: true,
@@ -1491,8 +1554,8 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
       sessionToken,
     });
   } catch (err) {
-    console.log('Client verify error:', err);
-    return failureResponse(c, 'Client verification error', err, 500);
+    console.log('Client session error:', err);
+    return failureResponse(c, 'Client sign-in', err, 500);
   }
 });
 
@@ -1522,11 +1585,11 @@ async function verifyClientToken(authHeader: RequestHeaderValue): Promise<{ subm
  * the router accepts: Hono's `c.json` takes a `ContentfulStatusCode`, so all
  * eight routes that forward this refusal failed to type-check against it.
  *
- * The fix is to say what the guard actually returns. It has exactly three
- * refusal sites — 404 for a token or email bound to a DIFFERENT submission,
- * 404 for a submission that is not there, and 401 for no credential at all —
- * and the 404/401 split is the contract: a mismatch must be indistinguishable
- * from a miss, or the route becomes an oracle for which submissions exist.
+ * The fix is to say what the guard actually returns. It has exactly two
+ * refusal sites — 404 for a token bound to a DIFFERENT submission, and 401 for
+ * no token at all — and the 404/401 split is the contract: a mismatch must be
+ * indistinguishable from a miss, or the route becomes an oracle for which
+ * submissions exist.
  *
  * Narrowing the annotation to `401 | 404` is what makes the compiler hold
  * that line. A fourth status added here now has to be a deliberate edit to
@@ -1536,33 +1599,34 @@ type ClientAccessResult =
   | { ok: true; session: { submissionId: string; email: string } }
   | { ok: false; status: 401 | 404; error: string };
 
-/** Require client auth for a submission-scoped route (token preferred, email fallback on GET). */
+/**
+ * Require client auth for a submission-scoped route.
+ *
+ * A SESSION TOKEN, and nothing else. There used to be a second way in: pass
+ * `?email=` matching the submission's contact address and the guard let you
+ * through. That is the same defect as the old `/auth/client/verify` wearing a
+ * different hat — an email address identifies a person, it does not prove you
+ * are them, so every read route carrying the fallback was a route anybody could
+ * call for any client whose address they knew.
+ *
+ * Removing it costs nothing at the call sites: the front end has always sent
+ * `Authorization: Bearer <sessionToken>` alongside the query parameter, and the
+ * token path was already preferred when both arrived.
+ */
 async function requireClientAccess(
   authHeader: RequestHeaderValue,
   submissionId: string,
-  emailQuery?: RequestHeaderValue,
 ): Promise<ClientAccessResult> {
   const clientSession = await verifyClientToken(authHeader);
-  if (clientSession) {
-    if (clientSession.submissionId !== submissionId) {
-      return { ok: false, status: 404, error: 'Submission not found' };
-    }
-    return { ok: true, session: clientSession };
+  if (!clientSession) {
+    return { ok: false, status: 401, error: 'Authentication required: sign in to your portal' };
   }
-
-  if (emailQuery) {
-    const raw = await kv.get(`sub:${submissionId}`);
-    if (!raw) return { ok: false, status: 404, error: 'Submission not found' };
-    const submission = safeJsonParse(raw);
-    const reqEmail = emailQuery.toLowerCase().trim();
-    const subEmail = String(submission?.email ?? '').toLowerCase().trim();
-    if (reqEmail !== subEmail) {
-      return { ok: false, status: 404, error: 'Submission not found' };
-    }
-    return { ok: true, session: { submissionId, email: reqEmail } };
+  // A token is bound to ONE submission. 404 rather than 403 on a mismatch, so
+  // a token cannot be used to discover which submissions exist.
+  if (clientSession.submissionId !== submissionId) {
+    return { ok: false, status: 404, error: 'Submission not found' };
   }
-
-  return { ok: false, status: 401, error: 'Authentication required: provide session token or email' };
+  return { ok: true, session: clientSession };
 }
 
 // ============================================================================
@@ -1950,7 +2014,7 @@ app.get("/make-server-324f4fbe/client/submission/:id", async (c) => {
   try {
     const id = c.req.param('id');
     const authHeader = c.req.header('Authorization');
-    const access = await requireClientAccess(authHeader, id, c.req.query('email'));
+    const access = await requireClientAccess(authHeader, id);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const raw = await kv.get(`sub:${id}`);
@@ -2047,7 +2111,7 @@ app.post("/make-server-324f4fbe/client/submission/:id/engagement", async (c) => 
 app.get("/make-server-324f4fbe/client/submission/:id/engagement/log", async (c) => {
   try {
     const id = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), id, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), id);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const logRaw = await kv.get(`eng_log:${id}`);
@@ -3105,7 +3169,7 @@ app.post("/make-server-324f4fbe/submissions/:id/messages/team", async (c) => {
 app.get("/make-server-324f4fbe/submissions/:id/messages", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const raw = await kv.getByPrefix(`msg:${submissionId}:`);
@@ -3299,7 +3363,7 @@ app.post("/make-server-324f4fbe/submissions/:id/proposal/send", async (c) => {
 app.get("/make-server-324f4fbe/client/submission/:id/proposal", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     // Verify submission exists
@@ -3952,7 +4016,7 @@ app.post("/make-server-324f4fbe/email/weekly-digest", async (c) => {
 app.get("/make-server-324f4fbe/client/submission/:id/report", async (c) => {
   try {
     const submissionId = c.req.param('id');
-    const access = await requireClientAccess(c.req.header('Authorization'), submissionId, c.req.query('email'));
+    const access = await requireClientAccess(c.req.header('Authorization'), submissionId);
     if (!access.ok) return c.json({ error: access.error }, access.status);
 
     const subRaw = await kv.get(`sub:${submissionId}`);

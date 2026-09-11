@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Brain, ArrowLeft, LogIn, Mail, Sparkles, CheckCircle2, Loader2, Shield, Lock } from 'lucide-react';
-import { verifyClientEmail, DEMO_CLIENTS } from '@/app/services/dataService';
+import { Brain, ArrowLeft, LogIn, Mail, Sparkles, CheckCircle2, Loader2, Shield, Lock, KeyRound } from 'lucide-react';
+import {
+  requestClientSignInCode,
+  exchangeClientSignInCode,
+  DEMO_CLIENTS,
+} from '@/app/services/dataService';
+import { isDemoMode } from '@/config/runtime';
 import { BRAND, GRADIENTS } from '@/app/utils/designTokens';
 import { text } from '@/app/lib/tokens';
 
@@ -10,12 +15,32 @@ interface ClientLoginProps {
   onBack: () => void;
 }
 
+/**
+ * Client portal sign-in, in two steps.
+ *
+ * It used to be one: type an address, and you were in. The server handed back a
+ * session token for whatever address it was given, so knowing a client's email
+ * was the same as being them — and their diagnostic answers, report and
+ * proposal are not things a stranger should be able to read. See
+ * `supabase/functions/server/security/clientChallenge.ts`.
+ *
+ * The extra step is a code sent to the mailbox. That is the whole of the change
+ * to what a client does here, and it is the smallest step that actually tests
+ * the claim the address makes.
+ *
+ * The first step says the same thing whatever the address turns out to be. It
+ * is not a friendlier error — the old "no diagnostic found for this email" let
+ * anybody test a list of addresses for MARQ clients.
+ */
 export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -26,12 +51,10 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
 
     setIsLoading(true);
     try {
-      const result = await verifyClientEmail(email);
-      if (result.exists && result.submissionId) {
-        onLogin(result.submissionId, email, result.companyName || 'Your Company', result.sessionToken ?? null);
-      } else {
-        setError('No diagnostic found for this email. Try one of the demo emails shown below.');
-      }
+      const result = await requestClientSignInCode(email);
+      setNotice(result.message);
+      setStep('code');
+      setCode('');
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -39,6 +62,31 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
     }
   };
 
+  const handleSubmitCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!code.trim()) {
+      setError('Enter the code from your email.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await exchangeClientSignInCode(email, code.trim());
+      if (result.exists && result.submissionId) {
+        onLogin(result.submissionId, email, result.companyName || 'Your Company', result.sessionToken ?? null);
+      } else {
+        setError('That code is not valid. Request a new one.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'That code is not valid. Request a new one.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = step === 'email' ? handleRequestCode : handleSubmitCode;
   return (
     <div className="min-h-screen bg-cortex-canvas text-white flex items-center justify-center px-8 relative overflow-hidden">
       {/* Animated Background Elements */}
@@ -186,23 +234,59 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 required
-                className="w-full pl-12 pr-4 py-4 bg-cortex-control border-2 border-cortex-default rounded-cortex-md text-white placeholder:text-cortex-faint focus:border-cortex-accent focus:outline-none transition-all"
+                readOnly={step === 'code'}
+                className="w-full pl-12 pr-4 py-4 bg-cortex-control border-2 border-cortex-default rounded-cortex-md text-white placeholder:text-cortex-faint focus:border-cortex-accent focus:outline-none transition-all read-only:opacity-70"
               />
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-cortex-muted">
-              Use:&nbsp;
-              {DEMO_CLIENTS.map((c) => (
-                <button
-                  key={c.email}
-                  type="button"
-                  onClick={() => setEmail(c.email)}
-                  className="text-cortex-accent hover:text-white font-mono bg-cortex-accent/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                >
-                  {c.email}
-                </button>
-              ))}
-            </div>
+            {isDemoMode() && step === 'email' && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-cortex-muted">
+                Use:&nbsp;
+                {DEMO_CLIENTS.map((c) => (
+                  <button
+                    key={c.email}
+                    type="button"
+                    onClick={() => setEmail(c.email)}
+                    className="text-cortex-accent hover:text-white font-mono bg-cortex-accent/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                  >
+                    {c.email}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Code Field — step two */}
+          {step === 'code' && (
+            <div>
+              <label htmlFor="client-login-code" className="block text-sm font-semibold text-cortex-secondary mb-2">
+                Sign-in Code
+              </label>
+              <div className="relative">
+                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-cortex-muted" size={20} aria-hidden="true" />
+                <motion.input
+                  id="client-login-code"
+                  whileFocus={{ scale: 1.01 }}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  required
+                  autoFocus
+                  className="w-full pl-12 pr-4 py-4 bg-cortex-control border-2 border-cortex-default rounded-cortex-md text-white text-center text-2xl font-mono tracking-[0.5em] placeholder:text-cortex-faint placeholder:tracking-[0.5em] focus:border-cortex-accent focus:outline-none transition-all"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { setStep('email'); setError(''); setNotice(''); }}
+                className="mt-2 text-xs text-cortex-accent hover:text-white transition-colors"
+              >
+                Use a different email address
+              </button>
+            </div>
+          )}
 
           {/* Submit Button */}
           <motion.button
@@ -224,9 +308,23 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             />
             <span className="relative z-10 flex items-center gap-2 text-white">
               {isLoading ? <Loader2 size={20} className="animate-spin" /> : <LogIn size={20} />}
-              Access My Results
+              {step === 'email' ? 'Send Me a Sign-in Code' : 'Access My Results'}
             </span>
           </motion.button>
+
+          {/* Notice — the same wording whatever the address turns out to be. */}
+          {notice && !error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-cortex-accent/10 border border-cortex-accent/30 rounded-cortex-md"
+              role="status"
+            >
+              <p className="text-sm text-cortex-secondary text-center font-medium">
+                {notice}
+              </p>
+            </motion.div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -234,6 +332,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="p-4 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md"
+              role="alert"
             >
               <p className="text-sm text-cortex-danger text-center font-medium">
                 {error}
@@ -242,7 +341,8 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
           )}
         </motion.form>
 
-        {/* Demo Credentials Info */}
+        {/* Demo Email Addresses */}
+        {isDemoMode() && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -258,6 +358,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             ))}
           </div>
         </motion.div>
+        )}
 
         {/* First Time User Info */}
         <motion.div

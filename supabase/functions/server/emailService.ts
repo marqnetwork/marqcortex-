@@ -644,3 +644,41 @@ export async function sendNurtureEmail(email: {
   const html = baseTemplate(bodyBlock);
   await sendEmail(email.contactEmail, email.subject, html);
 }
+// ============================================================================
+// CLIENT PORTAL — SIGN-IN CODE
+// ============================================================================
+
+/**
+ * The one-time code that lets a client into their portal.
+ *
+ * This mail IS the authentication. Before it existed, posting an address to
+ * `/auth/client/verify` returned a session token outright — so anyone who knew
+ * a client's email could read that client's diagnostic. The code is what turns
+ * "I claim to be this address" into "I can read this mailbox".
+ *
+ * Nothing about the submission goes in here: no company name, no id, no scores.
+ * A mail sent to an address that turns out to be wrong should tell its reader
+ * nothing they did not already know.
+ */
+export async function sendClientSignInCodeEmail(recipient: {
+  email: string;
+  code: string;
+  expiresInMinutes: number;
+}) {
+  const html = baseTemplate(`
+    <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 8px;">Your sign-in code</h1>
+    <p style="color:#9CA3AF;font-size:15px;line-height:1.6;margin:0 0 28px;">
+      Enter this code to open your MARQ Cortex portal. It expires in ${recipient.expiresInMinutes} minutes and can be used once.
+    </p>
+
+    <div style="background:linear-gradient(135deg,#8B5CF618,#3B82F618);border:1px solid #8B5CF630;border-radius:14px;padding:28px;margin:0 0 28px;text-align:center;">
+      <div style="color:#fff;font-size:38px;font-weight:800;letter-spacing:10px;font-family:'SF Mono',Menlo,monospace;">${recipient.code}</div>
+    </div>
+
+    <p style="color:#6B7280;font-size:13px;text-align:center;margin:0;">
+      If you did not ask to sign in, you can ignore this email — nobody can use the code but you.
+    </p>
+  `);
+
+  await sendEmail(recipient.email, 'Your MARQ Cortex sign-in code', html);
+}
