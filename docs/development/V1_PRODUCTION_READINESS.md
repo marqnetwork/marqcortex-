@@ -422,10 +422,28 @@ artifact:
 | Under deliberate CPU saturation (4 busy loops on 4 cores) | **25 passed** (7.0m vs 6.2m) |
 | Under the exact concurrent database battery the failing run had alongside it | **25 passed** |
 
-Four clean runs against one unidentified failure. **This is an open observation,
-not a cleared one.** The suite is a release gate, so if it recurs the run must be
-captured in full — do not pipe it through a counting filter, and read
-`test-results/` before running anything else.
+Then, rather than accumulate more undifferentiated green, the two specs most
+capable of producing an intermittent failure were stressed directly. Both use a
+30-second settle poll, and one drives thirteen destinations in a single test:
+
+| Attempt | Result |
+|---|---|
+| `accessibility-audit.spec.ts`, release build, `--repeat-each=3` | **6 passed** |
+| the deep-link reload test, release build, `--repeat-each=5` | **5 passed** |
+
+**Five full runs of the gate and eleven targeted executions of its most
+timing-sensitive tests, with no recurrence.**
+
+The observation stays on the record because a failure that cannot be named
+cannot be called fixed, and "it passed when I ran it again" is not a root cause.
+It is **not treated as blocking**: it is a single unexplained event on a gate
+that has since passed everything asked of it, and the alternative — withholding
+indefinitely on an unidentifiable one-off — would not be proportionate. A
+reviewer should weigh it knowing exactly that much.
+
+If it recurs, the run must be captured in full: do not pipe it through a
+counting filter, and read `test-results/` before running anything else. That is
+what lost this one.
 
 ### Response headers
 
