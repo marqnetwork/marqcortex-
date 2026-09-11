@@ -2,6 +2,21 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/index.css';
 
+/**
+ * The boot fallbacks below write HTML directly, because they run when React is
+ * not available to write it for them. Both interpolate an error message, and an
+ * error message is not a literal — a rejected fetch carries a URL, a thrown
+ * value carries whatever threw it. Escaping is cheap; reasoning each time about
+ * whether a particular failure could carry a `<` is not.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ── Root element guard ────────────────────────────────────────────────────────
 const rootElement = document.getElementById('root');
 
@@ -21,7 +36,7 @@ window.addEventListener('error', (e) => {
           <div style="font-size:32px;margin-bottom:16px;">⚠️</div>
           <h2 style="color:#fff;font-size:18px;font-weight:700;margin:0 0 8px;">App failed to start</h2>
           <p style="color:#9CA3AF;font-size:13px;margin:0 0 16px;line-height:1.6;">A JavaScript error prevented the app from loading. Check the browser console for the full error.</p>
-          <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${String(e.message ?? e.error ?? 'Unknown error').slice(0, 400)}</pre>
+          <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${escapeHtml(String(e.message ?? e.error ?? 'Unknown error').slice(0, 400))}</pre>
           <button onclick="location.reload()" style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
         </div>
       </div>`;
@@ -52,7 +67,7 @@ async function mount() {
             <div style="font-size:32px;margin-bottom:16px;">🔧</div>
             <h2 style="color:#fff;font-size:18px;font-weight:700;margin:0 0 8px;">MARQ Cortex</h2>
             <p style="color:#9CA3AF;font-size:13px;margin:0 0 16px;line-height:1.6;">A module failed to load. Check the browser console for details.</p>
-            <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${String(err instanceof Error ? err.message : err).slice(0, 400)}</pre>
+            <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${escapeHtml(String(err instanceof Error ? err.message : err).slice(0, 400))}</pre>
             <button onclick="location.reload()" style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
           </div>
         </div>`;

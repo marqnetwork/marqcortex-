@@ -175,6 +175,39 @@ function getMockResponse(
 
 // ---- Message Bubble ---------------------------------------------------------
 
+/**
+ * A chat line, with `**bold**` honoured and nothing else interpreted.
+ *
+ * This used to be a `line.replace(...)` of the asterisk pattern, piped into
+ * `dangerouslySetInnerHTML`. Only the asterisks were transformed — every other
+ * character in the line went into `innerHTML` verbatim, so anything in a message
+ * that looked like a tag WAS one.
+ *
+ * That was reachable by someone with no account at all. A diagnostic form is
+ * open to the public; its answers become part of the context the assistant is
+ * asked about; the assistant quotes them back; the quote rendered as markup in
+ * an OPERATOR's authenticated session, where a script can read the bearer token
+ * out of storage and act as them. Submitter to admin, with one form field.
+ *
+ * Returning nodes instead of a string removes the sink rather than guarding it:
+ * React escapes text children, so there is no longer a place for an escaper to
+ * be forgotten. The rendered output for legitimate content is unchanged.
+ */
+function renderEmphasis(line: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const pattern = /\*\*(.*?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > cursor) nodes.push(line.slice(cursor, match.index));
+    nodes.push(<strong key={`b${match.index}`}>{match[1]}</strong>);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < line.length) nodes.push(line.slice(cursor));
+  return nodes;
+}
+
 function MessageBubble({
   msg, section, onApply, onCopy, copiedId,
 }: {
@@ -223,16 +256,11 @@ function MessageBubble({
               : 'bg-cortex-control border border-cortex-default text-cortex-secondary rounded-tl-sm'
           }`}
         >
-          {msg.content.split('\n').map((line, i) => {
-            const html = line.replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong>${t}</strong>`);
-            return (
-              <p
-                key={i}
-                className={i > 0 && line === '' ? 'mt-2' : i > 0 ? 'mt-1' : ''}
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            );
-          })}
+          {msg.content.split('\n').map((line, i) => (
+            <p key={i} className={i > 0 && line === '' ? 'mt-2' : i > 0 ? 'mt-1' : ''}>
+              {renderEmphasis(line)}
+            </p>
+          ))}
         </div>
 
         {!isUser && msg.applyContent && (
