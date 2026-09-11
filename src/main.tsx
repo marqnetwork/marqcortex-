@@ -9,6 +9,18 @@ import '@/styles/index.css';
  * value carries whatever threw it. Escaping is cheap; reasoning each time about
  * whether a particular failure could carry a `<` is not.
  */
+/**
+ * Wire the reload button the boot fallbacks paint.
+ *
+ * They used an inline `onclick`, which a Content-Security-Policy of
+ * `script-src 'self'` refuses to run — so the one button on the one screen a
+ * user sees when the app has failed to start would have done nothing, silently,
+ * in production only. Attaching the listener afterwards needs no CSP exception.
+ */
+function wireReload(container: HTMLElement): void {
+  container.querySelector('[data-reload]')?.addEventListener('click', () => location.reload());
+}
+
 function escapeHtml(value: unknown): string {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -37,9 +49,10 @@ window.addEventListener('error', (e) => {
           <h2 style="color:#fff;font-size:18px;font-weight:700;margin:0 0 8px;">App failed to start</h2>
           <p style="color:#9CA3AF;font-size:13px;margin:0 0 16px;line-height:1.6;">A JavaScript error prevented the app from loading. Check the browser console for the full error.</p>
           <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${escapeHtml(String(e.message ?? e.error ?? 'Unknown error').slice(0, 400))}</pre>
-          <button onclick="location.reload()" style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
+          <button data-reload style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
         </div>
       </div>`;
+    wireReload(rootElement);
   }
 });
 
@@ -68,9 +81,10 @@ async function mount() {
             <h2 style="color:#fff;font-size:18px;font-weight:700;margin:0 0 8px;">MARQ Cortex</h2>
             <p style="color:#9CA3AF;font-size:13px;margin:0 0 16px;line-height:1.6;">A module failed to load. Check the browser console for details.</p>
             <pre style="background:#0D0D14;border:1px solid rgba(253,68,56,0.25);border-radius:8px;padding:12px;color:#FD4438;font-size:11px;text-align:left;white-space:pre-wrap;word-break:break-word;margin:0 0 20px;">${escapeHtml(String(err instanceof Error ? err.message : err).slice(0, 400))}</pre>
-            <button onclick="location.reload()" style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
+            <button data-reload style="padding:10px 24px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:10px;color:#8B5CF6;font-size:14px;font-weight:600;cursor:pointer;">Reload</button>
           </div>
         </div>`;
+      wireReload(rootElement);
     }
   }
 }
