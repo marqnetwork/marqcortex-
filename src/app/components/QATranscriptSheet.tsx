@@ -279,7 +279,7 @@ function CategorySection({
         </div>
         <div className="flex items-center gap-4">
           {totalPain > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${STATUS.danger}26`, color: STATUS.danger }}>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${STATUS.danger}20`, color: STATUS.danger }}>
               {totalPain} pain signals
             </span>
           )}

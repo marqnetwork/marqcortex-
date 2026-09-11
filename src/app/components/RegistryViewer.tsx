@@ -98,6 +98,9 @@ const STATUS_COLORS: Record<StatusType, { bg: string; text: string; dot: string 
   DEMO:    { bg: `${K_CAUTION}1F`,  text: K_CAUTION, dot: K_CAUTION },
   GATED:   { bg: `${K_ACCENT}1F`, text: K_ACCENT, dot: K_ACCENT },
   MISSING: { bg: `${K_DANGER}1F`,  text: K_DANGER, dot: K_DANGER },
+  // Not an error like MISSING — the file is there. It is simply never
+  // reached, which is its own kind of wrong and reads as its own colour.
+  ORPHANED:{ bg: `${K_CAUTION}1F`, text: K_CAUTION, dot: K_CAUTION },
   SYSTEM:  { bg: `${K_NEUTRAL}1F`, text: K_NEUTRAL, dot: K_NEUTRAL },
 };
 
@@ -1140,7 +1143,7 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
   const [selectedManifestStatus, setSelectedManifestStatus] = useState<StatusType | null>(null);
 
   const byManifestStatus = useMemo(() => {
-    const map: Record<StatusType, ManifestEntry[]> = { LIVE: [], DEMO: [], GATED: [], MISSING: [], SYSTEM: [] };
+    const map: Record<StatusType, ManifestEntry[]> = { LIVE: [], DEMO: [], GATED: [], MISSING: [], ORPHANED: [], SYSTEM: [] };
     for (const e of entries) map[e.status].push(e);
     return map;
   }, [entries]);
