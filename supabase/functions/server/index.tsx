@@ -265,10 +265,33 @@ const marqMembershipPort = createRpcMembershipPort(supabaseAdmin as unknown as R
 async function seedAdminUser() {
   try {
     console.log('🔧 Seeding admin user...');
-    // Read admin credentials from env vars with demo fallbacks
     const adminEmail = Deno.env.get('TEAM_ADMIN_EMAIL') || 'admin@marqcortex.com';
-    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD') || 'CortexAdmin2026!';
+    const adminPassword = Deno.env.get('TEAM_ADMIN_PASSWORD');
     const adminName = Deno.env.get('TEAM_ADMIN_NAME') || 'MARQ Admin';
+
+    // S-7. There used to be a fallback here: a fixed literal password. A
+    // deployment that had not set the secret got a PLATFORM ADMIN account with
+    // a password written into this file — and into three chunks of the shipped
+    // browser bundle, where the registry documented it as the default and the
+    // login screen offered to type it for you. Anyone who loaded the app could
+    // read it. On a deployment that never set the secret, that was the whole
+    // console.
+    //
+    // There is no safe default for this. A fixed one is a published password; a
+    // random one is an account nobody can sign in to and that nobody knows to
+    // replace. So the account is not created at all, and the log says exactly
+    // what to set. A deployment with no administrator is recoverable in one
+    // step; a deployment with a known administrator password is not
+    // recoverable at all, because you cannot tell who used it.
+    if (!adminPassword) {
+      console.error(
+        '⛔ TEAM_ADMIN_PASSWORD is not set — no administrator account was created.\n' +
+        '   Set TEAM_ADMIN_PASSWORD (and optionally TEAM_ADMIN_EMAIL, TEAM_ADMIN_NAME)\n' +
+        '   in this deployment\'s secrets, then restart. This seeder is idempotent\n' +
+        '   and will create the account on the next cold start.',
+      );
+      return;
+    }
 
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
@@ -315,7 +338,6 @@ async function seedAdminUser() {
     console.log('⚠️ Seed admin error (non-fatal):', errorField(err, 'message') || String(err));
   }
 }
-
 // ============================================================================
 // TEST DATABASE CONNECTIVITY ON STARTUP
 // ============================================================================

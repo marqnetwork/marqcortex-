@@ -154,7 +154,7 @@ export async function teamLogin(
 }> {
   if (isDemo()) {
     log('Team login (demo mode)');
-    if (email === 'admin@marqcortex.com' && password === 'CortexAdmin2026!') {
+    if (email === demo.DEMO_TEAM_LOGIN.email && password === demo.DEMO_TEAM_LOGIN.password) {
       return {
         success: true,
         accessToken: 'demo_access_token_12345',
@@ -215,6 +215,8 @@ export async function exchangeClientSignInCode(
 
 /** Expose demo clients list for login hints */
 export const DEMO_CLIENTS = demo.DEMO_CLIENTS;
+/** The team credentials demo mode accepts. A fixture — see demoData.ts. */
+export const DEMO_TEAM_LOGIN = demo.DEMO_TEAM_LOGIN;
 export const findDemoClient = demo.findDemoClient;
 
 // ============================================================================
