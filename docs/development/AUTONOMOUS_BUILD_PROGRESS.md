@@ -2324,6 +2324,33 @@ off.
 
 ---
 
+## ONE THING LEFT OPEN, AND IT IS OPEN ON PURPOSE
+
+The post-merge regression on `1ceb665` had **one** of the 25 release-artifact
+browser tests fail, once. It did not reproduce — the suite alone, the suite
+under deliberate CPU saturation, and the suite under the exact concurrent
+database battery the failing run had alongside it all returned 25 passed, four
+clean runs in total.
+
+**Its identity was lost, and that was a capture mistake worth naming.** The run
+was piped through a filter that kept only the pass/fail counts, and Playwright
+wipes `test-results/` at the start of every run — so the next run destroyed the
+trace and the error context before either was read. The artifacts existed; they
+were overwritten.
+
+It is recorded in readiness §8 as an **open observation, not a cleared one**.
+Four passes do not identify a failure, and "it passed when I ran it again" is
+not a root cause. If it recurs: capture the run in full, and read
+`test-results/` before running anything else.
+
+This is the second time in this session that a result was compromised by running
+something alongside it. The first was caught and the run discarded; this one was
+not caught in time to keep the evidence. The rule that would have prevented both
+is simple — **a release-gate run gets the machine to itself, and its output is
+read before anything else starts.**
+
+---
+
 _Last updated: 2026-09-11, at final QA, accessibility, the third security pass
 and the bundle budget — four of the five findings were in the evidence, not the
-product._
+product, and one observation is left open._

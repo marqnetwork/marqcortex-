@@ -402,6 +402,31 @@ and the end of a release cycle is the wrong time for it; the budget makes the
 size a recorded fact that cannot drift silently, which is the part that belongs
 before a release.
 
+### One unreproduced browser failure, recorded rather than dismissed
+
+During the post-merge regression on `1ceb665`, one of the 25 release-artifact
+browser tests failed **once**. It has not reproduced, and its identity was lost:
+the run's output was piped through a filter that kept only the pass/fail counts,
+and Playwright wipes `test-results/` at the start of each run, so the next run
+destroyed the trace and error context before they were read. That is a mistake
+in how the run was captured, not a property of the suite, and it is written down
+because "it passed when I ran it again" is not a root cause.
+
+What was then tried, each a full run of the same 25 tests against the same
+artifact:
+
+| Attempt | Result |
+|---|---|
+| Before the merge, suite alone | **25 passed** |
+| After the merge, suite alone | **25 passed** |
+| Under deliberate CPU saturation (4 busy loops on 4 cores) | **25 passed** (7.0m vs 6.2m) |
+| Under the exact concurrent database battery the failing run had alongside it | **25 passed** |
+
+Four clean runs against one unidentified failure. **This is an open observation,
+not a cleared one.** The suite is a release gate, so if it recurs the run must be
+captured in full — do not pipe it through a counting filter, and read
+`test-results/` before running anything else.
+
 ### Response headers
 
 `vercel.json` carries the policy; `scripts/serve-release.mjs` serves `dist/` with
