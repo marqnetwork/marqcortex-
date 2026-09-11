@@ -32,6 +32,14 @@ import {
 } from "./security/clientChallenge.ts";
 import { temporaryPassword } from "./security/randomSecret.ts";
 import {
+  bodyFailureResponse,
+  boundedAnswers,
+  boundedEmail,
+  boundedString,
+  optionalBoundedString,
+  readBoundedJson,
+} from "./security/inputLimits.ts";
+import {
   registerAIRoutes,
   runCortexAnalysis,
   type AIRouteRegistrar,
@@ -131,6 +139,7 @@ import {
   normalizeBooking,
   migrateBookingRecord,
   type BookingRecord,
+  type BookingInput,
 } from "./bookings/bookingRecord.ts";
 
 const app = new Hono();
@@ -1336,11 +1345,22 @@ app.get("/make-server-324f4fbe/diagnostic", async (c) => {
 
 app.post("/make-server-324f4fbe/leads/capture", async (c) => {
   try {
-    const body = await c.req.json();
-    const { name, email, phone, website } = body;
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const body = (parsed.body ?? {}) as Record<string, unknown>;
 
+    const email = boundedEmail(body.email);
     if (!email) {
       return c.json({ error: "Email is required for lead capture" }, 400);
+    }
+    const name = optionalBoundedString(body.name);
+    const phone = optionalBoundedString(body.phone);
+    const website = optionalBoundedString(body.website);
+    if (name === null || phone === null || website === null) {
+      return c.json({ error: "Lead details are too long or malformed" }, 400);
     }
 
     const leadId = `lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1389,8 +1409,12 @@ app.post("/make-server-324f4fbe/leads/capture", async (c) => {
 
 app.post("/make-server-324f4fbe/leads/exit-intent", async (c) => {
   try {
-    const body = await c.req.json();
-    const { email } = body;
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const email = boundedEmail((parsed.body as Record<string, unknown> | null)?.email);
 
     if (!email) {
       return c.json({ error: "Email is required for exit-intent capture" }, 400);
@@ -1500,8 +1524,13 @@ const CHALLENGE_ACKNOWLEDGEMENT = {
 
 app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
   try {
-    const { email } = await c.req.json();
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    const parsed = await readBoundedJson(c.req.raw, 4096);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const email = boundedEmail((parsed.body as Record<string, unknown> | null)?.email);
+    if (!email) {
       return c.json({ error: "A valid email address is required" }, 400);
     }
 
@@ -1541,8 +1570,19 @@ app.post("/make-server-324f4fbe/auth/client/verify", async (c) => {
 
 app.post("/make-server-324f4fbe/auth/client/session", async (c) => {
   try {
-    const { email, code } = await c.req.json();
-    if (!email || typeof email !== 'string' || !code || typeof code !== 'string') {
+    // `read`, not `parsed`: this handler already has a `parsed` further down
+    // holding the submission record it reads back.
+    const read = await readBoundedJson(c.req.raw, 4096);
+    if (!read.ok) {
+      const failure = bodyFailureResponse(read.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const payload = (read.body ?? {}) as Record<string, unknown>;
+    const email = boundedEmail(payload.email);
+    // A code is six digits. Anything else is refused before it reaches the
+    // store, so a megabyte of "code" never becomes a hash computation.
+    const code = boundedString(payload.code, 16);
+    if (!email || !code) {
       return c.json({ error: "Email and code are required" }, 400);
     }
 
@@ -1677,19 +1717,33 @@ async function storeNotification(payload: {
 
 app.post("/make-server-324f4fbe/submissions", async (c) => {
   try {
-    const body = await c.req.json();
-    const {
-      contactName,
-      email,
-      phone,
-      website,
-      industry,
-      answers,
-    } = body;
+    // S-9: bounded before it is read. This route takes a body from anybody, and
+    // what it stores is what it is sent — see security/inputLimits.ts.
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const body = (parsed.body ?? {}) as Record<string, unknown>;
 
+    const email = boundedEmail(body.email);
+    const industry = boundedString(body.industry);
     if (!email || !industry) {
       return c.json({ error: "Email and industry are required" }, 400);
     }
+
+    const contactName = optionalBoundedString(body.contactName);
+    const phone = optionalBoundedString(body.phone);
+    const website = optionalBoundedString(body.website);
+    if (contactName === null || phone === null || website === null) {
+      return c.json({ error: "Contact details are too long or malformed" }, 400);
+    }
+
+    const bounded = boundedAnswers(body.answers);
+    if (!bounded.ok) {
+      return c.json({ error: "Answers are too large or malformed" }, 400);
+    }
+    const answers = bounded.answers;
 
     // Generate submission ID
     const id = `SUB-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -2986,7 +3040,17 @@ app.patch("/make-server-324f4fbe/submissions/:id/escalations/:escalationId", asy
 // POST /bookings — create a booking (public — anon key)
 app.post("/make-server-324f4fbe/bookings", async (c) => {
   try {
-    const body = await c.req.json();
+    // `normalizeBooking` already validates the email and the time; the bound
+    // here is on the SIZE of what it is asked to validate.
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    // `normalizeBooking` is the validator — it refuses a bad email or time and
+    // returns a reason. The assertion hands it the declared parameter shape; it
+    // does not assume anything about what actually arrived.
+    const body = (parsed.body ?? {}) as BookingInput;
     const id = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const result = normalizeBooking(body, id, new Date().toISOString());
 
