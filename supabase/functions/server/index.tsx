@@ -1242,12 +1242,15 @@ app.get("/make-server-324f4fbe/health", async (c) => {
       kvStore: kvHealthy ? 'connected' : 'error',
     });
   } catch (err) {
-    console.error('Health check error:', err);
-    return c.json({ 
-      status: "error", 
+    // S-10. This route is UNAUTHENTICATED, and `String(err)` on a KV failure is
+    // the driver's own message — the host it could not reach, the table it could
+    // not read. `status` and `kvStore` already say everything a monitor needs;
+    // the detail belongs in the log, against a reference an operator can find.
+    console.error('Health check error:', errorField(err, 'message') ?? String(err));
+    return c.json({
+      status: "error",
       timestamp: new Date().toISOString(),
       kvStore: 'error',
-      error: String(err),
     }, 500);
   }
 });

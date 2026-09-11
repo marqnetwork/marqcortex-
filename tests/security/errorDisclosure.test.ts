@@ -29,11 +29,75 @@ function code(text: string): string {
 }
 const body = code(source);
 
+/**
+ * Every way a caught value can be rendered into a response.
+ *
+ * The first version of this matched only `${err}` — template interpolation.
+ * The re-audit found `error: String(err)` on the HEALTH endpoint, which is
+ * unauthenticated, and the scanner had walked straight past it. A detector that
+ * knows one spelling of a mistake certifies the other spellings.
+ */
+const RENDERS_CAUGHT_VALUE =
+  /\$\{\s*(err|error|e)\b[^}]*\}|String\(\s*(err|error|e)\s*\)|\b(err|error|e)\.(message|stack|name|code)\b|JSON\.stringify\(\s*(err|error|e)\s*\)|\berrorType\b/;
+
+/** The balanced object literal each `c.json({...})` is given. */
+function responseLiterals(text: string): string[] {
+  const literals: string[] = [];
+  for (const match of text.matchAll(/c\.json\(\s*\{/g)) {
+    const start = match.index! + match[0].length - 1;
+    let depth = 0;
+    let end = start;
+    for (; end < text.length; end += 1) {
+      if (text[end] === '{') depth += 1;
+      else if (text[end] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    literals.push(text.slice(start, end + 1));
+  }
+  return literals;
+}
+
 describe('error disclosure — the caught value never reaches the caller', () => {
-  it('no response interpolates a caught error into its body', () => {
-    const leaks = [...body.matchAll(/c\.json\(\s*\{[^}]*error:[^}]*\$\{\s*(err|error|e)\b[^}]*\}/g)]
-      .map((match) => match[0].slice(0, 140));
-    assert.deepEqual(leaks, [], `responses carrying the caught error:\n${leaks.join('\n')}`);
+  it('no response renders a caught error, in any spelling', () => {
+    // Scoped to the object literal `c.json` is given, matched with a balanced
+    // brace walk rather than a fixed window — a window long enough to hold the
+    // biggest body also runs into whatever follows it, which is how the first
+    // version of this assertion reported a SUCCESS response as a leak.
+    const leaks = responseLiterals(body)
+      .filter((literal) => RENDERS_CAUGHT_VALUE.test(literal))
+      .map((literal) => literal.replace(/\s+/g, ' ').slice(0, 140));
+    assert.deepEqual(leaks, [], `responses carrying the caught value:\n${leaks.join('\n')}`);
+  });
+
+  it('the unauthenticated routes disclose nothing at all', () => {
+    // These answer anybody, so a driver message here names a host and a table to
+    // whoever asked. `health` is the one the re-audit caught.
+    const PUBLIC = [
+      '/make-server-324f4fbe/ping',
+      '/make-server-324f4fbe/health',
+      '/make-server-324f4fbe/leads/capture',
+      '/make-server-324f4fbe/leads/exit-intent',
+      '/make-server-324f4fbe/submissions',
+      '/make-server-324f4fbe/bookings',
+      '/make-server-324f4fbe/auth/client/verify',
+      '/make-server-324f4fbe/auth/client/session',
+    ];
+
+    for (const route of PUBLIC) {
+      const at = body.search(new RegExp(`app\\.(get|post)\\("${route.replace(/\//g, '\\/')}"`));
+      assert.notEqual(at, -1, `${route} is gone`);
+      const next = body.slice(at + 10).search(/\napp\.(get|post|put|patch|delete)\(/);
+      const handler = body.slice(at, next === -1 ? undefined : at + 10 + next);
+
+      for (const literal of responseLiterals(handler)) {
+        assert.ok(
+          !RENDERS_CAUGHT_VALUE.test(literal),
+          `${route} discloses a caught value to an unauthenticated caller:\n${literal.slice(0, 200)}`,
+        );
+      }
+    }
   });
 
   it('no response carries a stack trace or an error class name', () => {
