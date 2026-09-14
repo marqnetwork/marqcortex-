@@ -2364,3 +2364,107 @@ read before anything else starts.**
 _Last updated: 2026-09-11, at final QA, accessibility, the third security pass
 and the bundle budget — four of the five findings were in the evidence, not the
 product, and one observation is left open._
+
+---
+
+# THE PRODUCTION PRE-FLIGHT
+
+_Executed 2026-09-14 against main `0fae2d6`. Read-only: no production system was
+contacted, no migration applied to anything but a local scratch database, no
+secret read or written, no vendor called._
+
+The pre-flight was not another run of the test suite. The suites already pass;
+what had never been checked is whether the **readiness document's own claims**
+are true, because that document is what a human will follow at go-live and a
+wrong number in it is a wrong action taken with confidence.
+
+## THE CENSUS MATCHES
+
+21 migrations applied in filename order to a genuinely empty PostgreSQL 16,
+given only the platform stub a real Supabase project supplies. Result: **30
+tables, 96 indexes, 14 composite foreign keys**, RLS on all 24 `public` tables
+with 57 policies. Every documented figure, confirmed.
+
+Worth recording how the first count went wrong: scoped to `public` alone it
+reads 24 tables and 79 indexes, and for a moment that looked like a discrepancy
+in the document. It was a discrepancy in the query — the census counts `public`
+**and** `cortex`, and excludes the `auth` stub that a real project provides
+rather than a migration. The document was right.
+
+## THE MIGRATION THAT CAN REFUSE, DRIVEN ON DIRTY DATA
+
+`20260910120000_cortex_tenancy_composite_keys` is the only step in the deploy
+order whose outcome depends on what production already holds, which makes it the
+only one that can turn a deployment into an incident. Its refusal had been
+described; it had not been watched.
+
+With one cross-tenant report planted, the whole operator path ran:
+
+- it **refuses**, naming the finding rather than a constraint;
+- it names **which rows** — `reports.submission_id -> submissions: 1 row(s)`;
+- with a second violation planted in `outcomes`, it reports **both in one
+  attempt**, because the guard loops all fourteen relationships and accumulates
+  rather than short-circuiting. An operator fixes the estate once instead of
+  discovering it a table at a time;
+- the abort is **clean** — zero composite keys after, the violating row still
+  present and still in its own organization, not silently reassigned;
+- and the documented remedy **works**: fix the rows, re-apply, 14 composite keys.
+
+## ROLLBACKS, AND A NUMBER THAT WAS WRONG
+
+Composite keys: 14 → 0 → 14. Tenant list indexes: 79 → 77 → 79, and applying the
+index migration twice leaves 79, so a re-run deploy is safe.
+
+The index round trip needed care to be worth anything. The first attempt ran
+against a database where that migration had never been applied, so the rollback
+was a no-op and the numbers (77 → 77 → 79) said nothing about round-tripping.
+Re-run against a database that actually had it, it is a real round trip.
+
+The document said **twelve** forward migrations have a rollback. There are
+**thirteen** — the prose had been updated when the thirteenth was added and the
+number had not. Every rollback file maps to a forward migration; there are no
+orphans. Corrected. It is a small error in exactly the class this repository has
+been burned by twice: a stale number in a document someone will act on.
+
+## FAIL-CLOSED, CHECKED IN THE CODE
+
+All seven switches §2 says must ship off are off when unset — verified at the
+parsing expression, not at the comment above it. The `MCV2_*` switches read
+`raw === 'true' || raw === '1'`; the `AI_*` switches use `readBool(env, name,
+false)` and fall back to false even on an unrecognised value.
+
+One operator note came out of that: the two parsers accept different
+vocabularies. `MCV2_SQL_AUTHORITY_OUTCOMES=on` leaves the switch **off**, where
+`AI_ALLOW_REAL_REQUESTS=on` would turn it on. It errs safe and §4 already says
+`=true` literally, so it is not a defect — but in a sequenced cutover it would
+present as a switch that did nothing. Recorded in §11.4.
+
+## AND A DATA POINT ON THE OPEN OBSERVATION
+
+Run with the machine to itself, the smoke suite takes **1.1 minutes** and the
+release suite **1.0 minutes**. The runs around the unreproduced failure recorded
+in §8 took **eight to ten minutes** — the same tests, roughly nine times slower,
+because that session was running a database battery alongside them.
+
+That does not identify the failing test and is not offered as an identification.
+It is circumstantial, and it is recorded as circumstantial. But a suite starved
+to nine times its normal duration is a more plausible place for a timeout to trip
+than a healthy one, and anyone weighing that observation should have the number.
+
+## NEXT EXACT TASK
+
+None that can be performed here. The pre-flight is complete and every remaining
+action is a production mutation or a human decision:
+
+1. Rotate the old administrator password (§10.2) — required, and a production
+   credential change.
+2. Apply the 21 migrations to production, in order, prepared to act on the
+   refusal in §11.2 if it fires.
+3. Set the secrets in §10.1, restart, confirm the administrator exists.
+4. Deploy the function, then the static site; confirm headers are served.
+5. Then, separately and later, the Phase 5 sequence in §4.
+
+---
+
+_Last updated: 2026-09-14, at the production pre-flight — the document's own
+claims checked against a real database, and the one number that was wrong._
