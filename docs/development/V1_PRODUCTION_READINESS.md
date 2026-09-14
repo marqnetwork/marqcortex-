@@ -94,8 +94,11 @@ because it runs inside one.
 
 ### Rollback
 
-Twelve forward migrations have a rollback under `supabase/migrations/rollbacks/`,
-including the new one. **Roll back in reverse dependency order** — each file
+Thirteen of the twenty-one forward migrations have a rollback under
+`supabase/migrations/rollbacks/`, including the new one. (This said *twelve*
+until the pre-flight counted them: the prose was updated when the thirteenth
+was added and the number was not. Every rollback file maps to a forward
+migration — there are no orphans.) **Roll back in reverse dependency order** — each file
 states its own ordering constraint in its header.
 
 `20260910120000_rollback_tenancy_composite_keys` is round-trip proven: forward
@@ -623,7 +626,105 @@ order in §10.4 and §10.5 is the order it is.
 
 ---
 
-## 11. The required stop
+## 11. The production pre-flight — executed 2026-09-14 against main `0fae2d6`
+
+**Read-only. No production system was contacted.** Every check below ran against
+a local PostgreSQL 16 built from the repository's own migrations, or against the
+source, or against a locally built release artifact.
+
+### 11.1 The migration path, from an empty database
+
+| Check | Documented | Measured |
+|---|---|---|
+| Migrations applied in filename order | 21 | **21, all clean** |
+| Tables (`public` + `cortex`, excluding the auth stub a real project supplies) | 30 | **30** |
+| Indexes (same scope) | 96 | **96** |
+| Composite `(id, organization_id)` foreign keys | 14 | **14** |
+| RLS enabled on `public` tables | all | **24 of 24**, 57 policies |
+| `service_role` bypasses RLS | yes | **yes** |
+
+### 11.2 The one migration that can refuse — proven on dirty data, not asserted
+
+`20260910120000_cortex_tenancy_composite_keys` is the single highest-risk step
+in the deploy order, because it is the only one whose outcome depends on
+production's existing data. The whole operator path was driven:
+
+1. **It refuses.** With one cross-tenant report planted, the migration aborts:
+   `cortex_tenancy_composite_keys: existing rows already cross a tenant boundary.`
+2. **It names what to fix** — `reports.submission_id -> submissions: 1 row(s)
+   whose organization differs from their parent's`.
+3. **It reports EVERY violating relationship in one attempt.** A second
+   violation planted in `outcomes` produced both lines together, so an operator
+   fixes the whole estate once rather than discovering it a table at a time.
+   The guard loops all fourteen relationships and accumulates.
+4. **The abort is clean.** 0 composite keys afterwards, the violating row still
+   present and **still in its own organization** — not silently reassigned.
+5. **The documented remedy works.** After fixing the two rows, re-applying
+   succeeded and produced all 14 composite keys.
+
+### 11.3 Rollback round trips
+
+| Rollback | Round trip |
+|---|---|
+| `20260910120000_rollback_tenancy_composite_keys` | 14 composite keys → **0** → **14** |
+| `20260911120000_rollback_tenant_list_indexes` | 79 indexes → **77** → **79** |
+
+The index migration is also **idempotent**: applying it a second time leaves 79,
+so a re-run deploy is safe.
+
+### 11.4 Fail-closed behaviour, verified in the code rather than in prose
+
+- **All seven switches §2 says must ship off are off when unset.** The three
+  `MCV2_*` storage switches read `raw === 'true' || raw === '1'`, so absent or
+  any other value is off; the four `AI_*` switches use `readBool(env, name,
+  false)`, which also falls back to false on an unrecognised value.
+- `kv_store` throws naming the missing variable (`SUPABASE_URL` /
+  `SUPABASE_SERVICE_ROLE_KEY`) and never the value — the second is the
+  service-role key.
+- Without `TEAM_ADMIN_PASSWORD` the seeder creates **no** account and logs
+  exactly what to set.
+- The diagnostics route reports `outcomesAuthoritative`,
+  `submissionsAuthoritative` and both shadow-read switches, behind team auth —
+  the §5 health values an operator reads at go-live.
+
+**One operator note.** The two flag parsers accept different vocabularies: the
+`AI_*` switches take `yes`/`on`/`1`/`true`, the `MCV2_*` switches take only
+`true`/`1`. Setting `MCV2_SQL_AUTHORITY_OUTCOMES=on` leaves it **off**. That
+errs in the safe direction and §4 already specifies `=true` literally, so it is
+not a defect — but during a sequenced cutover it would look like a switch that
+did nothing. Use `true`.
+
+### 11.5 Regression, at pre-flight
+
+typecheck **0** across web, api and tests · features **1225** · security **954**
+· system **177** · migration **244** · database **245** · lifecycle **241** ·
+diagnostic **176** · AI **2183** · boundaries **107** · bundle **5** ·
+`npm audit` **0** production and dev — **0 skipped anywhere**.
+
+Real PostgreSQL 16, from a dropped and recreated database: membership scenarios
+✓ · backfill ✓ · reconciliation **21** · tenancy **27** · cutover **10** ·
+submission cutover **18** · rehearsal **8 stages** ✓.
+
+Browser: smoke **21** · release artifact under real headers **25** ·
+backend-configured build **4**.
+
+### 11.6 New evidence on the open observation in §8
+
+The unreproduced browser failure recorded in §8 has a material new data point.
+Run with the machine to itself, the smoke suite finished in **1.1 minutes** and
+the release suite in **1.0 minutes**. The runs around the original failure took
+**8–10 minutes** — the same tests, roughly nine times slower, because that
+session was running a database battery alongside them.
+
+This still does not identify the failing test, and it is not offered as one: it
+is circumstantial. But a suite starved to nine times its normal duration is a
+materially more plausible place for a timeout to trip than a healthy one, and
+the observation should be read with that in mind. It remains **recorded and
+non-blocking**, on the same terms as before.
+
+---
+
+## 12. The required stop
 
 No production migration, backfill, deployment, data mutation, secret change,
 credential rotation, or AI spending enablement has been performed, and none
