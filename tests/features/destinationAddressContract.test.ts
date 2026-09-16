@@ -54,7 +54,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
-import { PAGE_PARAM, DESTINATIONS } from '../../src/app/core/navigationModel.ts';
+import { PAGE_PARAM, DESTINATIONS, SHELL_DESTINATIONS } from '../../src/app/core/navigationModel.ts';
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -91,7 +91,7 @@ describe('the destination lives in the URL', () => {
   it('the shell reads the current destination from the URL', () => {
     assert.match(SHELL, /import \{ useNavigate, useSearchParams \} from 'react-router'/);
     assert.ok(
-      /const currentPage = pageFromParam\(searchParams\.get\(PAGE_PARAM\)\)/.test(SHELL),
+      /const resolution = resolvePage\(searchParams\.get\(PAGE_PARAM\)\)/.test(SHELL),
       'the URL must be the source of truth, not a mirror of state',
     );
     assert.ok(
@@ -118,18 +118,53 @@ describe('the destination lives in the URL', () => {
   it('an unknown parameter falls back rather than erroring', () => {
     // The parameter is user-editable. A hand-typed `?page=nonsense` must land
     // somewhere real, not on the invalid-page error screen.
+    assert.ok(/if \(kind === 'unknown'\)/.test(SHELL) || /\{ kind: 'unknown' \}/.test(SHELL));
+    assert.ok(/return \{ kind: 'unknown' \};/.test(SHELL));
     assert.ok(
-      /if \(raw && SHELL_PAGES\.has\(raw as DestinationId\)\) return raw as PageView;/.test(SHELL),
+      /resolution\.kind === 'shell' \? resolution\.page : 'dashboard'/.test(SHELL),
+      'an unresolved destination must still land on something real',
     );
-    assert.ok(/return 'dashboard';/.test(SHELL));
+  });
+
+  it('a REAL destination the shell cannot render is redirected, not swallowed', () => {
+    // Product Reality §7.2. `?page=execution` and `?page=architecture` used to
+    // render the Dashboard silently, because the resolver had only two answers
+    // — "this destination" or "the fallback" — and a destination the shell
+    // cannot render collapsed into the fallback, exactly like a typo.
+    assert.ok(
+      /\{ kind: 'external'; route: string \}/.test(SHELL),
+      'the resolver has no answer for a destination that lives elsewhere',
+    );
+    assert.ok(
+      /if \(externalRoute\) navigate\(externalRoute, \{ replace: true \}\);/.test(SHELL),
+      'a URL naming an external destination does not go there',
+    );
+    // And the route itself comes from the model, not from an `if` in the shell.
+    assert.ok(
+      !/if \(page === 'execution'\)/.test(SHELL),
+      'the external routes are restated in the shell again, which is how they drifted',
+    );
+    assert.match(SHELL, /externalRouteFor\(page as DestinationId\)/);
   });
 
   it('validates against the model, so every real destination is addressable', () => {
-    // SHELL_PAGES is derived from DESTINATIONS, so this cannot drift.
+    // SHELL_PAGES is derived from the model's own split between the
+    // destinations the shell renders and the ones that live at their own route.
     assert.ok(
-      /const SHELL_PAGES: ReadonlySet<DestinationId> = new Set\(\s*DESTINATIONS\.map/.test(SHELL),
+      /const SHELL_PAGES: ReadonlySet<DestinationId> = new Set\(\s*SHELL_DESTINATIONS\.map/.test(SHELL),
     );
     assert.ok(DESTINATIONS.length > 0);
+
+    // Every destination is addressable by SOME means: the shell renders it, or
+    // the model names the route it lives at. Neither is a valid third state.
+    const unreachable = DESTINATIONS.filter(
+      d => !SHELL_DESTINATIONS.includes(d) && !d.externalRoute,
+    );
+    assert.deepEqual(
+      unreachable.map(d => d.id),
+      [],
+      'these destinations are declared but have nowhere to be',
+    );
   });
 });
 
@@ -143,7 +178,10 @@ describe('the sessionStorage side channel is gone', () => {
   it('the execution route hands off through the URL instead', () => {
     assert.ok(!/sessionStorage\.setItem/.test(EXEC_ROUTE));
     assert.ok(!/TEAM_DASHBOARD_PAGE_KEY/.test(EXEC_ROUTE));
-    assert.match(EXEC_ROUTE, /import \{ PAGE_PARAM \} from '@\/app\/core\/navigationModel'/);
+    assert.match(
+      EXEC_ROUTE,
+      /import \{ externalRouteFor, PAGE_PARAM, type DestinationId \} from '@\/app\/core\/navigationModel'/,
+    );
     assert.ok(
       /`\/team\/dashboard\?\$\{PAGE_PARAM\}=\$\{encodeURIComponent\(page\)\}`/.test(EXEC_ROUTE),
       'the page name goes in the URL, encoded',

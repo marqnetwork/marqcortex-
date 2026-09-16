@@ -24,6 +24,8 @@ import { SUBMISSION_STATUS_COLOR, PRIORITY_COLOR, brand, status as statusToken }
 interface SubmissionsListPageProps {
   onViewCortex: () => void;
   searchInputRef?: React.RefObject<HTMLInputElement>;
+  /** The workspace's submissions. Absent means none — never a seeded set. */
+  submissions?: Submission[];
 }
 
 interface Submission {
@@ -40,62 +42,23 @@ interface Submission {
   qualityScore?: number;
 }
 
-const sampleSubmissions: Submission[] = [
-  {
-    id: '1',
-    company: 'TechCorp Solutions',
-    email: 'contact@techcorp.io',
-    industry: 'Technology',
-    employees: '51-200',
-    revenue: '$1M - $5M',
-    submittedDate: 'Jan 27, 2026',
-    status: 'new',
-    priority: 'high',
-    completionScore: 95,
-    qualityScore: 94,
-  },
-  {
-    id: '2',
-    company: 'HealthFirst Medical',
-    email: 'info@healthfirst.com',
-    industry: 'Healthcare',
-    employees: '11-50',
-    revenue: '$500K - $1M',
-    submittedDate: 'Jan 26, 2026',
-    status: 'in-review',
-    priority: 'high',
-    completionScore: 88,
-    qualityScore: 90,
-  },
-  {
-    id: '3',
-    company: 'RetailMax Inc',
-    email: 'hello@retailmax.com',
-    industry: 'Retail',
-    employees: '201-500',
-    revenue: '$5M - $10M',
-    submittedDate: 'Jan 25, 2026',
-    status: 'new',
-    priority: 'medium',
-    completionScore: 92,
-    qualityScore: 85,
-  },
-  {
-    id: '4',
-    company: 'CloudServe Ltd',
-    email: 'contact@cloudserve.net',
-    industry: 'Services',
-    employees: '1-10',
-    revenue: '$100K - $500K',
-    submittedDate: 'Jan 24, 2026',
-    status: 'completed',
-    priority: 'low',
-    completionScore: 100,
-    qualityScore: 98,
-  },
-];
+// THE FOUR SEEDED COMPANIES THAT USED TO BE DECLARED HERE ARE GONE.
+//
+// `sampleSubmissions` — TechCorp Solutions, HealthFirst Medical, RetailMax Inc
+// and CloudServe Ltd, with revenue bands, submission dates and quality scores
+// — was the initial value of this page's state. Nothing currently renders this
+// component, which is the only reason an operator never saw them; a single
+// import would have put four invented customers into the product.
+//
+// The list arrives as a prop now, and an absent one means an empty list, which
+// the page already knows how to say.
 
-export function SubmissionsListPage({ onViewCortex, searchInputRef }: SubmissionsListPageProps) {
+
+export function SubmissionsListPage({
+  onViewCortex,
+  searchInputRef,
+  submissions: incoming,
+}: SubmissionsListPageProps) {
   // Use context for persistent state
   const {
     state,
@@ -116,7 +79,7 @@ export function SubmissionsListPage({ onViewCortex, searchInputRef }: Submission
   const selectedSubmissions = state.selectedSubmissions;
 
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [submissions, setSubmissions] = useState<Submission[]>(sampleSubmissions);
+  const [submissions, setSubmissions] = useState<Submission[]>(incoming ?? []);
 
   const filterOptions = [
     'All Submissions',

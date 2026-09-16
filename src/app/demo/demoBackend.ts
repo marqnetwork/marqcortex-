@@ -405,12 +405,31 @@ export async function getEngagementAnalytics(accessToken: string) {
   return { success: true, engagement: analytics };
 }
 
+/**
+ * Demo analytics, in the shape the Analytics screen actually reads.
+ *
+ * This used to return `{ submissionCounts, dailyTrend }` — a shape that
+ * predates the `AnalyticsData` the page has read for some time. The mismatch
+ * was invisible because the page never called this function: in demo mode it
+ * took a `generateDemoSubmissions()` branch instead and computed its own. CP-1
+ * gave the page one path, and the first run of it crashed on
+ * `analytics.byPriority.high`, taking the whole console to the route error
+ * boundary.
+ *
+ * Two lessons, both acted on: a fixture that no code path exercises is a
+ * fixture nobody knows is wrong, and a 200 in the wrong shape must not be able
+ * to crash a surface (`buildPriorityData` and its siblings now narrow).
+ */
 export async function getAnalytics(accessToken: string) {
   log('Get analytics (demo mode)');
   return {
     success: true,
     analytics: {
-      submissionCounts: { new: 3, 'in-review': 2, completed: 1, approved: 0, total: 6 },
+      total: 6,
+      byStatus: { new: 3, 'in-review': 2, completed: 1, approved: 0 },
+      byPriority: { high: 2, medium: 3, low: 1 },
+      avgQuality: 82,
+      industryBreakdown: { 'Professional Services': 3, Manufacturing: 2, Retail: 1 },
       dailyTrend: [],
     },
   };

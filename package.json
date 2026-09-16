@@ -11,6 +11,8 @@
     "typecheck:api": "node scripts/typecheck-deno.mjs",
     "typecheck:tests": "tsc -p tsconfig.node.json --pretty false",
     "test:smoke": "playwright test",
+    "test:product": "PLAYWRIGHT_FIXTURE_BACKEND=1 playwright test navigation-truth honest-states",
+    "serve:fixture": "node scripts/serve-with-fixture-backend.mjs",
     "test:release": "npm run build && PLAYWRIGHT_RELEASE_BUILD=1 playwright test",
     "test:production-config": "VITE_BACKEND_INTEGRATION=true npm run build && PLAYWRIGHT_PRODUCTION_CONFIG=1 playwright test",
     "test:ai": "node --experimental-strip-types --test supabase/functions/server/ai/__tests__/*.test.ts",

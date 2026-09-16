@@ -2,8 +2,13 @@
  * EXECUTION ROUTE — /team/execution
  *
  * Renders the Execution Dashboard for the latest available ExecutionProject.
- * Uses MOCK_EXECUTION (ExampleCo seed) when EXECUTION_STORE is empty.
  * Requires team login.
+ *
+ * An empty `EXECUTION_STORE` used to mean `MOCK_EXECUTION` — the ExampleCo
+ * seed — which is to say: every workspace that had not yet converted a
+ * proposal was shown a twelve-week programme, with owners, due dates and a
+ * governance gate already signed off, for a client that does not exist. An
+ * empty store now renders an empty state, which is what it means.
  */
 
 import { Navigate, useNavigate } from 'react-router';
@@ -11,11 +16,12 @@ import { useApp } from '@/app/contexts/AppContext';
 import { DashboardProvider } from '@/app/contexts/DashboardContext';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import { ExecutionDashboard } from '@/app/components/ExecutionDashboard';
-import { EXECUTION_STORE, MOCK_EXECUTION } from '@/app/core/executionEngine';
+import { EXECUTION_STORE } from '@/app/core/executionEngine';
+import { ProductDataState } from '@/app/components/ProductDataState';
 // The destination travels in the URL, and its parameter name is declared once
 // by the navigation model — so this route and the shell it hands off to cannot
 // drift apart, and no sessionStorage side channel is needed to carry it.
-import { PAGE_PARAM } from '@/app/core/navigationModel';
+import { externalRouteFor, PAGE_PARAM, type DestinationId } from '@/app/core/navigationModel';
 import { RouteRestoring } from '@/app/components/RouteRestoring';
 
 export function ExecutionRoute() {
@@ -34,15 +40,17 @@ export function ExecutionRoute() {
   }
 
   const project =
-    EXECUTION_STORE.length > 0
-      ? EXECUTION_STORE[EXECUTION_STORE.length - 1]
-      : MOCK_EXECUTION;
+    EXECUTION_STORE.length > 0 ? EXECUTION_STORE[EXECUTION_STORE.length - 1] : null;
 
   const handleNavigate = (page: string) => {
     if (page === 'execution') return;
 
-    if (page === 'architecture') {
-      navigate('/architecture');
+    // Read from the navigation model rather than restated here. The literal
+    // this replaces was one of three copies of the same fact, and the copies
+    // were how `?page=execution` came to resolve to the Dashboard.
+    const route = externalRouteFor(page as DestinationId);
+    if (route) {
+      navigate(route);
       return;
     }
 
@@ -71,7 +79,17 @@ export function ExecutionRoute() {
         onNavigate={handleNavigate}
         accessToken={teamAccessToken}
       >
-        <ExecutionDashboard project={project} />
+        <div className="p-6">
+          <ProductDataState
+            loading={false}
+            reason={null}
+            empty={project === null}
+            subject="execution plans"
+            emptyHint="An execution plan is created from an accepted proposal, through the Mapping Engine. Nothing has been converted in this workspace yet."
+          >
+            {project ? <ExecutionDashboard project={project} /> : null}
+          </ProductDataState>
+        </div>
       </TeamDashboardLayout>
     </DashboardProvider>
   );

@@ -299,13 +299,25 @@ describe('the shell renders what the model declares', () => {
 
   it('derives its valid-page set from the model', () => {
     assert.ok(
-      /const SHELL_PAGES: ReadonlySet<DestinationId> = new Set\(\s*DESTINATIONS\.map/.test(shell),
+      /const SHELL_PAGES: ReadonlySet<DestinationId> = new Set\(\s*SHELL_DESTINATIONS\.map/.test(shell),
       'the fallback guard must not keep a fourth hand-written list',
     );
     assert.ok(
       !/!\['dashboard', 'cortex', 'team', 'settings'/.test(shell),
       'the literal page array must be gone',
     );
+  });
+
+  it('and takes the routed-away set from the model too', () => {
+    // It used to restate `['execution', 'architecture']` as a literal here,
+    // beside a second copy in `handleNavigate` — and a third in the execution
+    // route. Three copies of one fact, and the URL agreed with none of them:
+    // `?page=execution` rendered the Dashboard (Product Reality §7.2).
+    assert.ok(
+      !/const ROUTED_AWAY/.test(shell),
+      'the routed-away destinations are a hand-written list again',
+    );
+    assert.match(shell, /externalRouteFor/);
   });
 
   it('takes its page type from the model', () => {

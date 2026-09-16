@@ -46,9 +46,26 @@ const releaseBuild = process.env.PLAYWRIGHT_RELEASE_BUILD === '1';
  * what it checks is what the production BUILD renders before any call is made.
  */
 const productionConfigBuild = process.env.PLAYWRIGHT_PRODUCTION_CONFIG === '1';
-/** Both modes test a BUILT artifact, so both are served by the release server. */
+
+/**
+ * Run against a REAL DATA PATH, backed by a controlled stand-in.
+ *
+ * `PLAYWRIGHT_FIXTURE_BACKEND=1` serves the app with
+ * `VITE_BACKEND_INTEGRATION=true` and points it at
+ * `tests/helpers/fixture-backend.mjs`, which speaks the edge function's routes.
+ *
+ * This is the configuration CP-1 is about, and it is the only way to drive the
+ * states that matter in a browser: a POPULATED workspace, a genuinely EMPTY
+ * one, a 500 and a 403. A live backend does not produce the last three to
+ * order, and this environment cannot reach one in any case — the network policy
+ * answers 403 to a CONNECT for `*.supabase.co`. Nothing run here is live
+ * verification and nothing here is reported as such.
+ */
+const fixtureBackend = process.env.PLAYWRIGHT_FIXTURE_BACKEND === '1';
+
+/** Both build modes test a BUILT artifact, so both are served by the release server. */
 const serveDist = releaseBuild || productionConfigBuild;
-const port = serveDist ? 4173 : 5173;
+const port = serveDist ? 4173 : fixtureBackend ? 5174 : 5173;
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -65,9 +82,20 @@ export default defineConfig({
       // have. Running them here would report failures that are the flag working.
       ['**/v1-integration-qa.spec.ts', '**/client-portal-status-view.spec.ts',
        '**/diagnostic-score-team-login.spec.ts', '**/release-headers.spec.ts',
-       '**/accessibility-audit.spec.ts']
+       '**/accessibility-audit.spec.ts', '**/navigation-truth.spec.ts',
+       '**/honest-states.spec.ts']
+    : fixtureBackend
+    ? // The real-data run. The demo suites are excluded because this build has
+      // no demo — that is the point of it.
+      ['**/v1-integration-qa.spec.ts', '**/client-portal-status-view.spec.ts',
+       '**/diagnostic-score-team-login.spec.ts', '**/release-headers.spec.ts',
+       '**/production-config.spec.ts', '**/accessibility-audit.spec.ts']
     : [
         '**/production-config.spec.ts',
+        // These two need a backend to be about anything, and the default run
+        // has none. `npm run test:product` is what runs them.
+        '**/navigation-truth.spec.ts',
+        '**/honest-states.spec.ts',
         ...(releaseBuild ? [] : ['**/release-headers.spec.ts']),
       ],
   timeout: 60_000,
@@ -83,10 +111,17 @@ export default defineConfig({
   webServer: {
     command: serveDist
       ? `node scripts/serve-release.mjs --port ${port}`
+      : fixtureBackend
+      ? `node scripts/serve-with-fixture-backend.mjs --port ${port} --backend-port 5199`
+      // The default run is the DEMO experience, explicitly asked for. Before
+      // CP-1 it did not have to be asked for — demo data was what an unset
+      // backend flag meant — and these suites were written against that, so
+      // they are the demo's own coverage and this is where it is turned on.
       : 'npm run dev -- --host 127.0.0.1',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: serveDist || fixtureBackend ? undefined : { VITE_DEMO_EXPERIENCE: 'true' },
   },
   projects: [
     {

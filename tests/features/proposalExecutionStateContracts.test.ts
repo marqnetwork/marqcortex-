@@ -280,15 +280,25 @@ describe('the settings demo fixtures match the served contract', () => {
     }
   });
 
-  it('every demo fixture supplies the fields the page actually renders', () => {
-    // There is ONE fixture now, and deliberately so. It used to be two: the
-    // second stood in for a FAILED load whenever `SHOW_API_ERRORS` was off.
-    // On this page that was unsafe — the substituted values render into live
-    // form controls and Save writes them back, so a transient failure offered
-    // a form pre-filled with settings that were never the user's, one click
-    // from overwriting the real configuration. UI Sprint 7 removed it; the
-    // assertion below pins that it stays removed.
-    const fixtures = settings.match(/platformSettings:\s*\{\n[\s\S]*?\n\s{4}\},/g);
+  it('the one demo fixture supplies the fields the page renders, from behind the boundary', () => {
+    // There were two: the second stood in for a FAILED load whenever
+    // `SHOW_API_ERRORS` was off. On this page that was unsafe — the substituted
+    // values render into live form controls and Save writes them back, so a
+    // transient failure offered a form pre-filled with settings that were never
+    // the user's, one click from overwriting the real configuration. UI Sprint 7
+    // removed it. CP-1 moved the survivor out of the component entirely, so
+    // this page holds no fixture at all and a demo reaches its own.
+    // A fixture, not a save payload: the page still builds
+    // `platformSettings: { ...settings, … }` when it writes back, and must.
+    // What it must not do is DECLARE one, which shows up as literal values.
+    assert.ok(!/function demoSettings/.test(settings), 'the settings page declares a fixture again');
+    assert.ok(
+      !/brandingName:\s*'/.test(settings),
+      'the settings page declares fixture values again',
+    );
+
+    const demoBackend = stripComments(readSource('src/app/demo/demoBackend.ts'));
+    const fixtures = demoBackend.match(/platformSettings:\s*\{\n[\s\S]*?\n\s{4}\},/g);
     assert.ok(fixtures && fixtures.length >= 1, 'expected the demo fixture');
     for (const fixture of fixtures) {
       assert.match(fixture, /brandingName:/);
@@ -312,6 +322,8 @@ describe('the settings demo fixtures match the served contract', () => {
   });
 
   it('the notification preference keys match PlatformSettings', () => {
+    // Read from the demo boundary, which is where the fixture lives now.
+    const demoBackend = stripComments(readSource('src/app/demo/demoBackend.ts'));
     const api = stripComments(readSource('src/app/lib/api.ts'));
     const decl = api.match(/export interface PlatformSettings\s*\{[\s\S]*?\n\}/);
     assert.ok(decl, 'expected a PlatformSettings interface');
@@ -321,8 +333,8 @@ describe('the settings demo fixtures match the served contract', () => {
     assert.ok(keys.length > 0);
     for (const key of keys) {
       assert.ok(
-        new RegExp(`${key}:\\s*(true|false)`).test(settings),
-        `demo fixtures must supply the ${key} preference the panel renders`,
+        new RegExp(`${key}:\\s*(true|false)`).test(demoBackend),
+        `the demo fixture must supply the ${key} preference the panel renders`,
       );
     }
   });

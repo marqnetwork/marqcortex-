@@ -281,21 +281,44 @@ describe('the shells use the shared states rather than local ones', () => {
 describe('the settings screen refuses to substitute data for a failed load', () => {
   const settings = stripComments(read('src/app/components/SettingsPage.tsx'));
 
-  it('declares its demo settings once, against the real response shape', () => {
-    // There used to be TWO copies of this object — one for demo mode, one
+  it('declares NO demo settings of its own', () => {
+    // There used to be two copies of this object here — one for demo mode, one
     // substituted on a failed live request — and both were written against an
     // older `PlatformSettings`: `companyName`, `companyEmail`,
     // `emailNotifications` and five other fields the server neither sends nor
     // stores, with `brandingName`, `defaultAssignee`, `autoAssign` and
     // `notificationPrefs` — the fields this page renders — absent entirely.
-    assert.equal((settings.match(/function demoSettings\(\): SettingsResponse/g) ?? []).length, 1);
+    //
+    // UI Sprint 7 removed the second. CP-1 removed the first: this page renders
+    // the settings it is GIVEN, and a "Demo User" pre-filled into live form
+    // controls above a Save button is not a settings screen telling the truth,
+    // whichever flag put it there.
+    assert.equal((settings.match(/function demoSettings\(\)/g) ?? []).length, 0);
     assert.ok(
       !/companyName:/.test(settings),
       'the settings fallback is back to a shape the server does not use',
     );
+
+    // The demo's settings still exist — behind the boundary, reached only by an
+    // explicitly designated demo — and still carry the fields this page reads.
+    const demoBackend = stripComments(read('src/app/demo/demoBackend.ts'));
     for (const field of ['brandingName:', 'defaultAssignee:', 'autoAssign:', 'notificationPrefs:']) {
-      assert.ok(settings.includes(field), `the demo settings omit ${field}`);
+      assert.ok(demoBackend.includes(field), `the demo settings fixture omits ${field}`);
     }
+  });
+
+  it('treats an incomplete 200 as a failed load rather than crashing', () => {
+    // `getPlatformSettings` ends in `data as SettingsResponse` — an assertion,
+    // not a check — and this page reads `data.currentUser.name` straight into a
+    // `useState`. A 200 without `currentUser` threw during render, and because
+    // this destination lives inside the shell, the route error boundary
+    // replaced the whole console with "Page failed to load". Found in a browser
+    // during CP-1's QA, reloading `?page=settings`.
+    assert.match(
+      settings,
+      /if \(!response\?\.currentUser \|\| !response\?\.platformSettings\) \{/,
+      'an incomplete settings response can crash the console again',
+    );
   });
 
   it('reports a failed load instead of pre-filling the form', () => {

@@ -389,6 +389,12 @@ function DashboardLayoutInner({
                     key={destination.id}
                     onClick={() => navigateAndClose(destination.id)}
                     aria-current={isActive ? 'page' : undefined}
+                    /* The destination's own id, on the control that goes there.
+                       `tests/smoke/navigation-truth.spec.ts` reads the full
+                       registered list off the rendered sidebar and drives every
+                       entry, so a destination added to NAV_GROUPS is tested
+                       without anybody adding it to a list in the test. */
+                    data-destination={destination.id}
                     /* Collapsed, only the icon renders. Without these the
                        collapsed sidebar is unreadable to a screen reader and
                        unlabelled on hover. */
@@ -501,7 +507,20 @@ function DashboardLayoutInner({
         <DemoExperienceBanner />
 
         {/* Page content */}
-        <main id="cortex-main" tabIndex={-1} className="flex-1 overflow-auto">{children}</main>
+        {/* WHICH DESTINATION IS ACTUALLY ON SCREEN.
+            The deep-link suite used to answer that question by comparing the
+            first 40 characters of `#cortex-main`'s text between two loads —
+            which cannot distinguish two destinations that happen to start the
+            same way, and cannot detect a silent fallback to the Dashboard at
+            all if both loads fall back. The shell knows the answer; it says so. */}
+        <main
+          id="cortex-main"
+          data-destination={currentPage}
+          tabIndex={-1}
+          className="flex-1 overflow-auto"
+        >
+          {children}
+        </main>
       </div>
 
       {/* ── Overlays ────────────────────────────────────────────────────── */}

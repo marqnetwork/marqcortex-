@@ -120,7 +120,12 @@ export function AnalyticsDashboard({ accessToken }: Props) {
         getAnalytics(accessToken),
         getSubmissions(accessToken),
       ]);
-      if (!analyticsRes.analytics) throw new Error('Analytics were not returned.');
+      // A 200 carrying no analytics, or analytics without the breakdowns this
+      // screen charts, is a failed load — not a screen of zeros, and certainly
+      // not a crash.
+      if (!analyticsRes.analytics?.byStatus || !analyticsRes.analytics?.byPriority) {
+        throw new Error('The analytics response was incomplete.');
+      }
       setAnalytics(analyticsRes.analytics);
       // Narrowed before it becomes state — see `@/app/lib/payload`.
       setSubmissions(asArray<Submission>(submissionsRes.submissions));
@@ -799,22 +804,31 @@ function buildIndustryData(analytics: AnalyticsData | null, submissions: Submiss
     .sort((a, b) => b.count - a.count);
 }
 
+// A 200 IS NOT AN `AnalyticsData`.
+//
+// `getAnalytics` returns `data` unnarrowed, and these builders read two levels
+// deep into it. A response without `byPriority` threw during render and the
+// route error boundary replaced the whole console — observed in CP-1's browser
+// QA, on a fixture whose shape had drifted years from the page's. Optional
+// chaining here means a wrong shape renders as zeros in a chart rather than as
+// a broken console; `load` treats it as a failed load, which is the honest
+// answer, and this is the backstop.
 function buildPriorityData(analytics: AnalyticsData | null) {
   if (!analytics) return [];
   return [
-    { name: 'High',   value: analytics.byPriority.high   || 0, color: RED },
-    { name: 'Medium', value: analytics.byPriority.medium || 0, color: ORANGE },
-    { name: 'Low',    value: analytics.byPriority.low    || 0, color: GRAY },
+    { name: 'High',   value: analytics.byPriority?.high   || 0, color: RED },
+    { name: 'Medium', value: analytics.byPriority?.medium || 0, color: ORANGE },
+    { name: 'Low',    value: analytics.byPriority?.low    || 0, color: GRAY },
   ];
 }
 
 function buildStatusData(analytics: AnalyticsData | null) {
   if (!analytics) return [];
   return [
-    { key: 'new',       label: 'New',        count: analytics.byStatus.new        || 0, color: PURPLE },
-    { key: 'in-review', label: 'In Review',  count: analytics.byStatus['in-review'] || 0, color: ORANGE },
-    { key: 'completed', label: 'Completed',  count: analytics.byStatus.completed  || 0, color: BLUE },
-    { key: 'approved',  label: 'Converted',  count: analytics.byStatus.approved   || 0, color: GREEN },
+    { key: 'new',       label: 'New',        count: analytics.byStatus?.new        || 0, color: PURPLE },
+    { key: 'in-review', label: 'In Review',  count: analytics.byStatus?.['in-review'] || 0, color: ORANGE },
+    { key: 'completed', label: 'Completed',  count: analytics.byStatus?.completed  || 0, color: BLUE },
+    { key: 'approved',  label: 'Converted',  count: analytics.byStatus?.approved   || 0, color: GREEN },
   ];
 }
 
