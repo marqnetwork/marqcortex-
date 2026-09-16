@@ -1140,6 +1140,102 @@ export interface TeamMemberRecord {
   isSelf: boolean;
 }
 
+// ============================================================================
+// ORGANIZATIONAL SPINE (CP-3)
+//
+// `getTeamMembers` below lists AUTHENTICATION ACCOUNTS — who can sign in.
+// These two list the ORGANIZATION: who belongs, where, under whom. They are
+// different questions with different answers, and ONT 12.3 is why: not every
+// Identity is an active User, so a person can be a full member of the
+// organization and appear on neither list the other produces.
+//
+// Neither call sends an organization id, because neither route accepts one.
+// The tenant is resolved server-side from the authenticated membership.
+// ============================================================================
+
+export interface OrganizationWorkspace {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+}
+
+export interface OrganizationPerson {
+  id: string;
+  fullName: string;
+  email: string | null;
+  positionTitle: string | null;
+  departmentId: string | null;
+  reportsToPersonId: string | null;
+  status: string;
+  /** Whether this person also has console credentials. Never the auth id. */
+  hasConsoleAccess: boolean;
+}
+
+export interface OrganizationDepartment {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  businessUnitId: string | null;
+  leadPersonId: string | null;
+}
+
+export interface OrganizationTeam {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  departmentId: string | null;
+  leadPersonId: string | null;
+}
+
+export interface OrganizationBusinessUnit {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+}
+
+export interface OrganizationStructureResponse {
+  success: boolean;
+  organization: OrganizationWorkspace | null;
+  organizationUnavailableReason: string | null;
+  structure: {
+    businessUnits: OrganizationBusinessUnit[];
+    departments: OrganizationDepartment[];
+    people: OrganizationPerson[];
+    teams: OrganizationTeam[];
+    teamMemberships: { teamId: string; personId: string; isLead: boolean }[];
+  };
+  summary: {
+    people: number;
+    peopleWithoutConsoleAccess: number;
+    departments: number;
+    teams: number;
+    businessUnits: number;
+    unassignedPeople: number;
+  };
+}
+
+export async function getOrganizationContext(accessToken: string) {
+  const res = await fetch(`${BASE}/organization/context`, { headers: headers(accessToken) });
+  const data = await res.json();
+  if (!res.ok) throw apiError(res, data.error || 'Failed to resolve the workspace');
+  return data as {
+    success: boolean;
+    organization: OrganizationWorkspace | null;
+    organizationUnavailableReason: string | null;
+    otherOrganizations: number;
+  };
+}
+
+export async function getOrganizationStructure(accessToken: string) {
+  const res = await fetch(`${BASE}/organization/structure`, { headers: headers(accessToken) });
+  const data = await res.json();
+  if (!res.ok) throw apiError(res, data.error || 'Failed to read the organization structure');
+  return data as OrganizationStructureResponse;
+}
+
 export async function getTeamMembers(accessToken: string) {
   const res = await fetch(`${BASE}/team/members`, { headers: headers(accessToken) });
   const data = await res.json();

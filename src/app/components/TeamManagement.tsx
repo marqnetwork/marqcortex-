@@ -16,6 +16,7 @@ import {
   ChevronDown, Check, Eye, Crown, Star, Briefcase, LineChart,
 } from 'lucide-react';
 import { EmptyState } from '@/app/components/EmptyState';
+import { OrganizationSpine } from '@/app/components/OrganizationSpine';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
   type TeamMemberRecord,
@@ -181,11 +182,24 @@ export function TeamManagement({ accessToken }: Props) {
         )}
       </AnimatePresence>
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      {/* ── The organization itself (CP-3) ──
+          First, because it is the larger fact: the roster below is the subset
+          of this organization that happens to hold console credentials, and
+          reading them the other way round is the confusion ONT 12.3 warns
+          against. */}
+      <OrganizationSpine accessToken={accessToken} />
+
+      {/* ── Header ──
+          Retitled. "Team Management" over a list of auth accounts was the whole
+          ambiguity: it read as the organization's team and was the login list.
+          What this section manages is CONSOLE ACCESS, and it now says so. */}
+      <div className="flex items-center justify-between pt-2 border-t border-cortex-default">
         <div>
-          <h1 className="text-3xl font-black text-white mb-1">Team Management</h1>
-          <p className="text-white/50 text-sm">Manage team access and permissions via Supabase Auth</p>
+          <h2 className="text-2xl font-black text-white mb-1">Console access</h2>
+          <p className="text-white/50 text-sm">
+            Who can sign into MARQ Cortex, and at which role. A person can belong to
+            the organization above without appearing here.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button

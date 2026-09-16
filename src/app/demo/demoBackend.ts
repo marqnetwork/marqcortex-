@@ -648,6 +648,37 @@ export async function saveBlockRegistry(
   return { success: true, registry };
 }
 
+/** The demo workspace — the same organization the demo login resolves. */
+export async function getOrganizationContext(accessToken: string) {
+  log('Get organization context (demo mode)');
+  return {
+    success: true,
+    organization: demo.getDemoOrganization(),
+    organizationUnavailableReason: null,
+    otherOrganizations: 0,
+  };
+}
+
+/** The demo organizational spine. */
+export async function getOrganizationStructure(accessToken: string) {
+  log('Get organization structure (demo mode)');
+  const structure = demo.getDemoOrganizationStructure();
+  return {
+    success: true,
+    organization: demo.getDemoOrganization(),
+    organizationUnavailableReason: null,
+    structure,
+    summary: {
+      people: structure.people.length,
+      peopleWithoutConsoleAccess: structure.people.filter(p => !p.hasConsoleAccess).length,
+      departments: structure.departments.length,
+      teams: structure.teams.length,
+      businessUnits: structure.businessUnits.length,
+      unassignedPeople: structure.people.filter(p => p.departmentId === null).length,
+    },
+  };
+}
+
 export async function getTeamMembers(accessToken: string) {
   log('Get team members (demo mode)');
   return { success: true, members: demo.getDemoTeamMembers() };

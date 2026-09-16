@@ -290,12 +290,21 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     destinations: [
       {
         id: 'team',
-        label: 'Team',
-        description: 'Members, roles and permissions',
+        // CP-3 renamed the LABEL and left the id alone. The destination now
+        // shows the organization — people, departments, teams, reporting lines
+        // — with console access as one section inside it, so "Team" had become
+        // the narrower of the two things on the page. The id is the URL
+        // (`?page=team`), and changing it would break every existing link for
+        // a wording improvement.
+        label: 'Organization',
+        description: 'People, departments, teams and console access',
         icon: Users,
         group: 'administer',
         tier: 'secondary',
-        keywords: ['members', 'people', 'permissions', 'roles', 'access'],
+        keywords: [
+          'members', 'people', 'permissions', 'roles', 'access', 'team',
+          'organization', 'department', 'reporting line', 'org chart',
+        ],
       },
       {
         id: 'settings',

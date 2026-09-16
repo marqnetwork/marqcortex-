@@ -78,6 +78,47 @@ const MEMBERS = [
   { id: 'fix-m-2', email: 'review@fixture.invalid', name: 'Fixture Reviewer', teamRole: 'reviewer', createdAt: '2026-01-02T00:00:00.000Z' },
 ];
 
+// The organizational spine (CP-3). Structurally complete and deliberately
+// small: two departments, two teams, and a person with NO console login, so
+// browser QA can see that an organizational person is not an auth account.
+const SPINE = {
+  businessUnits: [
+    { id: 'fix-bu-1', key: 'delivery', name: 'Fixture Delivery', description: 'Client work.' },
+  ],
+  departments: [
+    { id: 'fix-dep-1', key: 'consulting', name: 'Fixture Consulting', description: 'Diagnostics.', businessUnitId: 'fix-bu-1', leadPersonId: 'fix-p-1' },
+    { id: 'fix-dep-2', key: 'engineering', name: 'Fixture Engineering', description: 'The product.', businessUnitId: 'fix-bu-1', leadPersonId: null },
+  ],
+  people: [
+    { id: 'fix-p-1', fullName: 'Fixture Admin', email: 'admin@fixture.invalid', positionTitle: 'Partner', departmentId: 'fix-dep-1', reportsToPersonId: null, status: 'active', hasConsoleAccess: true },
+    { id: 'fix-p-2', fullName: 'Fixture Reviewer', email: 'review@fixture.invalid', positionTitle: 'Consultant', departmentId: 'fix-dep-1', reportsToPersonId: 'fix-p-1', status: 'active', hasConsoleAccess: true },
+    { id: 'fix-p-3', fullName: 'Fixture Contractor', email: null, positionTitle: 'Contract Engineer', departmentId: 'fix-dep-2', reportsToPersonId: 'fix-p-1', status: 'active', hasConsoleAccess: false },
+  ],
+  teams: [
+    { id: 'fix-t-1', key: 'pod', name: 'Fixture Pod', description: 'Runs engagements.', departmentId: 'fix-dep-1', leadPersonId: 'fix-p-2' },
+    { id: 'fix-t-2', key: 'core', name: 'Fixture Core', description: 'Builds the product.', departmentId: 'fix-dep-2', leadPersonId: null },
+  ],
+  teamMemberships: [
+    { teamId: 'fix-t-1', personId: 'fix-p-2', isLead: true },
+    { teamId: 'fix-t-2', personId: 'fix-p-3', isLead: false },
+  ],
+};
+
+const EMPTY_SPINE = {
+  businessUnits: [], departments: [], people: [], teams: [], teamMemberships: [],
+};
+
+function spineSummary(structure) {
+  return {
+    people: structure.people.length,
+    peopleWithoutConsoleAccess: structure.people.filter(p => !p.hasConsoleAccess).length,
+    departments: structure.departments.length,
+    teams: structure.teams.length,
+    businessUnits: structure.businessUnits.length,
+    unassignedPeople: structure.people.filter(p => p.departmentId === null).length,
+  };
+}
+
 const ANALYTICS = {
   total: SUBMISSIONS.length,
   byStatus: { new: 1, 'in-review': 1, completed: 1, approved: 0 },
@@ -121,6 +162,19 @@ function dataRoutes(empty) {
   return {
     'GET /submissions': () => ({ success: true, submissions: list(SUBMISSIONS), total: list(SUBMISSIONS).length }),
     'GET /team/members': () => ({ success: true, members: list(MEMBERS) }),
+    'GET /organization/context': () => ({
+      success: true,
+      ...WORKSPACE_BY_MODE.populated,
+    }),
+    'GET /organization/structure': () => {
+      const structure = empty ? EMPTY_SPINE : SPINE;
+      return {
+        success: true,
+        ...WORKSPACE_BY_MODE.populated,
+        structure,
+        summary: spineSummary(structure),
+      };
+    },
     'GET /analytics/overview': () => ({
       success: true,
       analytics: empty
@@ -203,39 +257,35 @@ const ALWAYS = {
 };
 
 /**
- * What `/auth/team/login` says about the organization in each fixture mode.
+ * What the workspace resolves to in each fixture mode.
  *
- * `populated` resolves a real workspace; the other three drive the three
- * absent states the shell must tell apart — nobody to belong to, a refusal,
- * and a breakage. The names match the rest of these fixtures ("Fixture
- * Industries"), so a screenshot showing a real tenant name can still never be
- * mistaken for production data.
+ * `empty` resolves the SAME organization as `populated`. That is deliberate and
+ * it is the distinction the whole CP-1/CP-3 honesty model rests on: `empty`
+ * means "you belong to an organization and it has nothing in it yet", which is
+ * an EMPTY state, while a missing workspace means "there is no organization to
+ * show you", which is not. Collapsing them here would make the fixture teach
+ * the confusion the product exists to avoid.
+ *
+ * `error` and `forbidden` are the two that have no workspace, and they differ
+ * from each other: a breakage and a refusal have different remedies. Login
+ * still SUCCEEDS in both — a team account with no resolvable organization
+ * still has console access — so the browser sees a signed-in session whose
+ * header has to say honestly what went wrong.
+ *
+ * The name matches the rest of these fixtures, so a screenshot showing a real
+ * tenant name can still never be mistaken for production data.
  */
+const FIXTURE_WORKSPACE = {
+  organizationId: 'fix-org-1',
+  organizationName: 'Fixture Industries',
+  organizationSlug: 'fixture-industries',
+};
+
 const WORKSPACE_BY_MODE = {
-  populated: {
-    organization: {
-      organizationId: 'fix-org-1',
-      organizationName: 'Fixture Industries',
-      organizationSlug: 'fixture-industries',
-    },
-    organizationUnavailableReason: null,
-    otherOrganizations: 0,
-  },
-  empty: {
-    organization: null,
-    organizationUnavailableReason: 'no-membership',
-    otherOrganizations: 0,
-  },
-  error: {
-    organization: null,
-    organizationUnavailableReason: 'lookup-failed',
-    otherOrganizations: 0,
-  },
-  forbidden: {
-    organization: null,
-    organizationUnavailableReason: 'permission-denied',
-    otherOrganizations: 0,
-  },
+  populated: { organization: FIXTURE_WORKSPACE, organizationUnavailableReason: null, otherOrganizations: 0 },
+  empty:     { organization: FIXTURE_WORKSPACE, organizationUnavailableReason: null, otherOrganizations: 0 },
+  error:     { organization: null, organizationUnavailableReason: 'lookup-failed', otherOrganizations: 0 },
+  forbidden: { organization: null, organizationUnavailableReason: 'permission-denied', otherOrganizations: 0 },
 };
 
 // ── Server ──────────────────────────────────────────────────────────────────

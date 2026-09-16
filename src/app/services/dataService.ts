@@ -621,6 +621,26 @@ export async function saveBlockRegistry(
 // 11. TEAM MANAGEMENT
 // ============================================================================
 
+/**
+ * The organization this session is working inside, re-read live.
+ *
+ * The login response carries the same answer, and it goes stale: a membership
+ * suspended after sign-in leaves the shell naming an organization the operator
+ * was removed from. This is how a surface asks again.
+ */
+export async function getOrganizationContext(accessToken: string) {
+  if (isDemoExperience()) return demoBackend(b => b.getOrganizationContext(accessToken));
+  requireProductBackend();
+  return api.getOrganizationContext(accessToken);
+}
+
+/** The organizational spine — people, departments, teams, business units. */
+export async function getOrganizationStructure(accessToken: string) {
+  if (isDemoExperience()) return demoBackend(b => b.getOrganizationStructure(accessToken));
+  requireProductBackend();
+  return api.getOrganizationStructure(accessToken);
+}
+
 export async function getTeamMembers(accessToken: string) {
   if (isDemoExperience()) return demoBackend(b => b.getTeamMembers(accessToken));
   requireProductBackend();
