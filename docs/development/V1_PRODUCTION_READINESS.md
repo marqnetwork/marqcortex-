@@ -6,9 +6,16 @@ worked, and how to undo each step.
 **Nothing in this document has been executed.** Every production action is
 withheld pending explicit human approval, which is the one required stop.
 
-Prepared against main **`2d0f8ae2`**. Companion to
+Prepared against main **`d3fc9f1`** — the current certified release candidate,
+and the SHA every step below assumes. Companion to
 `V1_COMPLETION_CHECKLIST.md` (what is done) and `AUTONOMOUS_BUILD_PROGRESS.md`
 (how each item was closed).
+
+**If the SHA above is not the tip of `main`, stop and re-certify.** The migration
+census, the flag table and the deploy order are claims about a specific tree, not
+standing facts. This header has been stale before — it read `2d0f8ae2` while the
+pre-flight in §11 had been run against `0fae2d6` — which is exactly the class of
+defect an operator acts on without noticing.
 
 ---
 
@@ -82,7 +89,7 @@ state in which it can refuse.
 
 It exists because `listOutcomes` and `listReports` were the only two repository
 queries filtering on `organization_id` alone, and both read every row in their
-table before discarding the other tenants'. `tests/database/tenant_list_indexes`
+table before discarding the other tenants'. `tests/database/tenant_list_indexes.test.ts`
 asserts the query PLAN on a populated table — an index that exists is not an
 index that is used.
 
@@ -130,7 +137,7 @@ one at a time, with its own verification.
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Absent, `kv_store` now throws naming the missing variable rather than failing obscurely on the first KV call. |
 | `SUPABASE_ANON_KEY` | — |
-| `TEAM_ADMIN_EMAIL`, `TEAM_ADMIN_NAME`, `TEAM_ADMIN_PASSWORD` | Seeds the first team account. |
+| `TEAM_ADMIN_EMAIL`, `TEAM_ADMIN_NAME`, `TEAM_ADMIN_PASSWORD` | Seeds the first team account — **creates it when absent, and changes nothing when it already exists.** This is not a rotation mechanism; see §10.2. |
 | `AI_CREDENTIAL_ENCRYPTION_KEY` | Required before any BYOK credential is stored. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Absent, email no-ops by design. |
 
@@ -194,6 +201,41 @@ than failing the request.
 
 ## 5. Health checks
 
+### 5.0 Required before any health check — the production origins
+
+**These are not recorded anywhere in this repository, and nothing below can be
+run until an operator fills them in.** The repository knows the Supabase project
+ref (`supabase/config.toml`, `utils/supabase/info.tsx`) and it knows the health
+*paths*; it has never known where the application is actually served from.
+`vercel.json` configures the host but names no deployment, and there is no
+`.vercel/` project link in the tree.
+
+Fill these in, in this document, as part of §10.3 step 0. An operator who
+reaches §6 without them will improvise an origin, and a smoke run against the
+wrong origin is worse than no smoke run — it reports green for something nobody
+is about to ship.
+
+| Field | Value | Where it comes from |
+|---|---|---|
+| **Production application origin** | `__________________` **(REQUIRED — unset)** | the deployment platform (Vercel project → production domain). Scheme + host, no trailing slash. |
+| **Production Edge Function origin** | `https://oqybniefkbppptfatoae.supabase.co/functions/v1` | derived from the project ref; confirm against the project before use |
+| **Production Supabase project ref** | `oqybniefkbppptfatoae` (name: `cortex`) | `supabase/config.toml`, `utils/supabase/info.tsx`, `.env.example` |
+
+Two rules about that first row:
+
+- **Do not infer it.** Not from `vercel.json`, not from a branch preview URL, not
+  from a Supabase dashboard link. A preview deployment answers `200` on every
+  check in this section while being an entirely different build.
+- **Confirm the origin serves the certified build before trusting a green
+  result** — smoke item 6 (response headers) and smoke item 1 (the
+  demo-credential panel) are the two cheapest ways to catch that you are
+  pointed somewhere else.
+
+`__________________` above is deliberately not a placeholder that parses. A
+reader must notice it is missing.
+
+### 5.1 The checks
+
 | Check | How | Healthy |
 |---|---|---|
 | Edge Function alive | `GET /make-server-324f4fbe/health` | 200 |
@@ -207,6 +249,10 @@ than failing the request.
 ---
 
 ## 6. Smoke plan
+
+**Prerequisite: the production application origin is recorded in §5.0.** If that
+field is still blank, stop — there is nothing to point `baseURL` at, and
+guessing is the failure mode §5.0 exists to prevent.
 
 Automated, against the deployed URL:
 
@@ -262,7 +308,10 @@ does not include — and says which.
 | S8.2 authority validation | **EXTERNAL_ENVIRONMENT_BLOCKED** | Then a human decision. |
 | S8.3 KV retirement | **HUMAN_DECISION_REQUIRED** | A one-way door. |
 | Four ORPHANED components | **HUMAN_DECISION_REQUIRED** | `DiagnosticQuestion`, `ProgressModal`, `SubmissionsListPage`, `QuickActions`. The manifest no longer misreports them; wiring or deleting is a product call. H5. |
-| Rotate the old admin password | **HUMAN_DECISION_REQUIRED** | See below. Out of bounds here, and required. |
+| Rotate the old admin password | **HUMAN_DECISION_REQUIRED** | Out of bounds here, and required. **The procedure in §10.2 was wrong until Checkpoint A and has been rewritten** — setting `TEAM_ADMIN_PASSWORD` and restarting does not rotate an existing account. Follow §10.2 as it now reads, not from memory. |
+| Production access for the rollout itself | **EXTERNAL_ENVIRONMENT_BLOCKED** | Checkpoint A: no Supabase CLI, no credentials, and `*.supabase.co` refused by egress policy. The rollout cannot be driven from this environment at all. §12. |
+| Production application origin | **HUMAN_INPUT_REQUIRED** | Not recorded anywhere in this repository. §5 and §6 cannot run until it is. §5.0. |
+| Production pre-mutation baseline | **PRODUCTION_EXECUTION_PENDING** | Refusal precheck not run, ledger unread, row counts not captured. The backfill has nothing to reconcile against until they are. §12.2. |
 | Erasure path for a submission | **HUMAN_DECISION_REQUIRED** | No route deletes one. Operable today via the runbook in §9; whether V1 ships without a self-service path is a product and legal call. S-11. |
 | Marketing type ramp | **EXPLICITLY_POST_V1** | Deferred deliberately in UI Sprint 8. H2. |
 | S7.6 lead shadow read | **EXPLICITLY_POST_V1** | Not buildable as specified: no route serves a lead, so there is nothing to shadow. |
@@ -311,6 +360,11 @@ the old `TEAM_ADMIN_PASSWORD` fallback still holds an account whose password was
 public. Rotating it is a production credential change and is out of bounds for
 this work. It must be done, and it cannot be verified from here — there is no
 way to tell whether the published password was used.
+
+**Follow §10.2 for the procedure.** Setting the secret and restarting is *not* a
+rotation — the seeder creates an account, it never changes an existing one — and
+because the credential was public, rotation alone may not be enough: outstanding
+sessions issued under it must be revoked as well. §10.2 covers both.
 
 ---
 
@@ -508,6 +562,13 @@ has been run.** This environment cannot run it: the Supabase CLI is absent, no
 is no `.env` file, and the only outbound target configured is the git remote.
 Checked for presence only; nothing was invoked against production.
 
+**And the network policy closes the question independently of the credentials.**
+Checkpoint A (§12) established that `*.supabase.co` and `supabase.com` are both
+refused at the egress proxy — `CONNECT tunnel failed, response 403`, so no
+request reaches production at all. Installing the CLI or supplying a key would
+change nothing on its own. Either the policy is widened for this environment, or
+the plan below is executed from an operator machine that already has both.
+
 ### 10.1 Secrets that must exist before the first cold start
 
 Names only. No value belongs in this repository or in any log.
@@ -517,7 +578,7 @@ Names only. No value belongs in this repository or in any log.
 | `SUPABASE_URL` | every KV and relational call | the function throws on its first request, naming the variable |
 | `SUPABASE_SERVICE_ROLE_KEY` | same | same |
 | `SUPABASE_ANON_KEY` | token verification | sign-in fails |
-| **`TEAM_ADMIN_PASSWORD`** | **new (S-7).** Has no default and no fallback | **no administrator account is created**, and the log says exactly that. Recoverable in one step; a known password is not recoverable at all |
+| **`TEAM_ADMIN_PASSWORD`** | **new (S-7).** Has no default and no fallback. Governs account **creation only** — §10.2 | **no administrator account is created**, and the log says exactly that. Recoverable in one step; a known password is not recoverable at all |
 | **`RESEND_API_KEY`** | **now a hard dependency (S-6).** The client portal signs in by emailed code | the code is written to the server log instead and the portal is unusable to a client. Deployment-blocking |
 | `EMAIL_FROM` | sender identity | falls back to the Resend sandbox sender |
 | `TEAM_ADMIN_EMAIL`, `TEAM_ADMIN_NAME` | optional | sensible defaults |
@@ -526,7 +587,7 @@ Names only. No value belongs in this repository or in any log.
 Everything under `AI_*` stays at its default. `AI_ALLOW_REAL_REQUESTS` is **off**
 and must stay off until a human decides otherwise.
 
-### 10.2 One required action this work could not perform
+### 10.2 One required action this work could not perform — administrator password rotation
 
 A deployment that ever ran with the old `TEAM_ADMIN_PASSWORD` fallback still
 holds an account whose password was published in the browser bundle. **Rotate
@@ -534,12 +595,129 @@ it.** It is a production credential change and out of bounds here, and there is
 no way to tell from outside whether the published password was ever used — which
 is the reason to rotate rather than to check.
 
+#### Setting the secret does NOT rotate an existing account
+
+**Read this before following §10.3.** An earlier revision of this document let
+steps 2–3 be read as "set `TEAM_ADMIN_PASSWORD`, restart, sign in with the new
+password". **That does not rotate anything, and on the exact deployment this
+section is about it fails silently.**
+
+`seedAdminUser()` (`supabase/functions/server/index.tsx`) is a *seeder*, not a
+rotator. It branches on existence:
+
+- account absent → it is **created** with the current `TEAM_ADMIN_PASSWORD`;
+- account present → it logs `✅ Admin user already exists` and **returns without
+  touching the password**.
+
+So on a deployment that already seeded an administrator under the published
+fallback, changing the secret and restarting leaves the old password live.
+Worse, the verification in §10.3 step 3 would then *succeed* — against the old
+credential — and the operator would record a rotation that never happened.
+There is no password-change route anywhere in the Edge Function; the
+`updateUserById` calls in `index.tsx` write roles and names, never passwords.
+
+The secret still matters, for two reasons: it is what a *cold* project uses to
+create the account in the first place, and leaving it at the old published value
+means any future re-seed — a new project, a restored database with no auth user
+— recreates the compromised credential. **Rotate the stored secret as well as
+the live account. Neither substitutes for the other.**
+
+#### The supported rotation procedure
+
+Rotation is an out-of-band Supabase Auth action. Pick one path; both require
+production authority this repository does not and should not hold.
+
+**Path A — Supabase Dashboard (recommended; no tooling, fully audited).**
+
+1. Take the recovery precautions below **first**.
+2. Dashboard → project `oqybniefkbppptfatoae` → **Authentication → Users**.
+3. Find the account at `TEAM_ADMIN_EMAIL` (default `admin@marqcortex.com`).
+4. Update its password to a newly generated value.
+5. Store that value in the approved secret store, then set it as the Edge
+   Function secret `TEAM_ADMIN_PASSWORD` (Edge Functions → Secrets) so a future
+   cold start cannot resurrect the old one.
+6. Verify per the checklist below.
+
+**Path B — Auth Admin API, with the service-role key.**
+
+`supabaseAdmin.auth.admin.updateUserById(<userId>, { password: <new> })`, run
+from an operator machine that already holds `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`. Then do step 5 above.
+
+Never put the value in this repository, in a commit, in a shell history that is
+retained, in a CI log, or in a support ticket. Generate it in the secret manager
+if the secret manager can generate it.
+
+#### Before you rotate — recovery precautions
+
+Rotation is the one step in this plan whose failure mode is **losing the ability
+to perform any of the other steps**. Establish the way back first:
+
+- **Confirm a second route into the project exists** — a Supabase *project*
+  owner/member login is not the same account as the application's
+  `TEAM_ADMIN_EMAIL` user, and it is what lets you undo a bad rotation. If the
+  only way into either is the account being rotated, stop and fix that first.
+- **Confirm the mailbox at `TEAM_ADMIN_EMAIL` is monitored and reachable**, so
+  a password-recovery email is an available fallback.
+- **Have the new value stored before you set it**, not after. A rotation
+  completed with a value nobody recorded is an outage.
+- Rotation writes to `auth.users` only. It does not touch
+  `public.organization_memberships`, `app_metadata`, or any application row, so
+  the account's team role and membership survive it.
+
+#### Verification — after rotation, in this order
+
+1. Sign in at the production sign-in page with the **new** password. It must
+   succeed.
+2. Attempt a sign-in with the **old** published password. It must be refused
+   with `401`. **This is the step that actually proves rotation happened**, and
+   it is the one the previous procedure omitted — a successful sign-in with the
+   new password proves nothing on its own if the old one still works too.
+3. Confirm the account still resolves as a team admin (the console renders the
+   team surfaces, and an AI request does not fail `ORGANIZATION_REQUIRED`) —
+   i.e. `app_metadata` and the membership row are intact.
+4. Record the rotation date and the operator. Do not record the value.
+
+#### Session and token invalidation — assume nothing
+
+**This is not documented by this repository and must be established against the
+deployment rather than assumed.** A GoTrue password update does not
+automatically revoke refresh tokens already issued in every configuration, so an
+attacker holding a live session from the published credential may survive a
+password change. Treat a *compromised* credential as requiring both:
+
+- rotate the password, **and**
+- revoke outstanding sessions for that user — Dashboard → the user → sign out /
+  revoke sessions, or the Auth admin sign-out endpoint.
+
+Verify which of these the project's GoTrue version actually does before relying
+on either, and write the answer into this section once it is known.
+
+#### Rollback / recovery if rotation loses access
+
+- The new value is known but sign-in fails → re-set the password through the
+  same path; `auth.users` has no lockout that a project owner cannot clear.
+- The new value is lost → set another one through Path A or B. Rotation is
+  idempotent and repeatable.
+- Access to the *project* is lost as well → this is why the second route above
+  is a precondition, not a nicety. Recovery is then a Supabase organization
+  owner restoring project access, which is outside this plan.
+- Nothing here is rolled back by reverting code or re-running a migration. The
+  credential lives in Supabase Auth, not in this repository.
+
 ### 10.3 Deploy order
 
+0. **Record the production application origin** in §5 before anything else. The
+   health checks and the smoke plan cannot be run without it.
 1. Apply migrations (§1). Stop if `20260910120000` refuses — that refusal is
-   data, not a fault.
-2. Set the secrets above. Restart so `seedAdminUser` runs.
-3. Confirm the administrator exists and **sign in with the rotated password**.
+   data, not a fault. Run the read-only precheck first, not the migration.
+2. Set the secrets above. Restart so `seedAdminUser` runs. **On a cold project
+   this creates the administrator. On a project that already has one it does
+   not change its password** — see §10.2.
+3. Confirm the administrator exists. **If the account already existed, rotate
+   its password out of band per §10.2 and verify with the two-part check there
+   — new password accepted AND old password refused.** Do not treat a
+   successful sign-in as evidence of rotation on its own.
 4. Deploy the function, then the static site.
 5. Confirm the response headers are actually being served (§6 smoke item 6).
 6. Walk the smoke plan (§6).
@@ -588,7 +766,63 @@ because neither read-authority switch is on. Nothing a user sees changes at any
 point in this procedure. That is the property that makes it safe to run in
 production before the cutover, and it is why the switches stay off until §10.5.
 
-Per-domain rollback scripts are under `supabase/migrations/rollbacks/`.
+**Three different things are called "rollback" in this plan. They are not
+interchangeable, and reaching for the wrong one during an incident is the
+failure this table exists to prevent.** An earlier revision of this section
+pointed the backfill rollback at `supabase/migrations/rollbacks/`, which holds
+no backfill rollback at all — that directory undoes *schema*, and running one of
+those files to undo *data* would drop the tables rather than the rows.
+
+| What you are undoing | Mechanism | Where it lives |
+|---|---|---|
+| **Schema** — a forward migration's DDL | 13 SQL rollback files, applied in reverse dependency order, each stating its own ordering constraint in its header | `supabase/migrations/rollbacks/` |
+| **Data** — rows a backfill run wrote | the migration CLI's `rollback` mode, targeted at one run id | `scripts/migration/cli.ts` → `supabase/functions/server/migration/rollback.ts` |
+| **Behaviour** — which store answers a read | the environment switch itself; effective on the next read, no deploy and no data movement | §10.5 |
+
+##### Data/backfill rollback — the actual procedure
+
+**There is no `npm run migration:rollback` script.** The mode is reached through
+the CLI directly — invoke it as written below, not by appending
+`--mode=rollback` to one of the other `migration:*` scripts, which would leave
+two conflicting `--mode` flags on one command line.
+
+**First, preview. It writes nothing, and needs neither gate:**
+
+```
+node --experimental-strip-types scripts/migration/cli.ts \
+  --mode=rollback --runId=<uuid> --dry-run
+```
+
+`--dry-run` returns the rollback preview — what that run wrote, and what would
+be deleted — and returns before the `--confirm` and `MIGRATION_ROLLBACK_ENABLED`
+checks are reached. Read it before executing.
+
+**Then, to execute:**
+
+```
+MIGRATION_ROLLBACK_ENABLED=true \
+node --experimental-strip-types scripts/migration/cli.ts \
+  --mode=rollback --runId=<uuid> --confirm
+```
+
+Three things gate it, deliberately, and they are checked in this order:
+
+- **`--runId=<uuid>` is required** — the CLI exits `1` with `rollback requires
+  --runId` if it is absent. Rollback is scoped to the rows tagged with one
+  migration run; it is not a "delete the relational copy" button. Take the run
+  id from the backfill's own output, or from `public.migration_runs`.
+- **`--confirm` is required** — without it: `Rollback requires --confirm flag`.
+- **`MIGRATION_ROLLBACK_ENABLED=true` is required** — unset, or any other value:
+  `MIGRATION_ROLLBACK_ENABLED=true is required for live rollback`. A destructive
+  data operation does not run because somebody mistyped a mode.
+
+It also needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, and it records
+itself in `public.migration_runs` with `mode: 'rollback'` and the target run id
+in its metadata — so a rollback is as auditable as the backfill it undoes.
+
+It deletes only rows that run wrote. It does not touch KV, which is why the
+recovery position in §10.6 holds: until a read-authority switch is on, a wrong
+relational row is a row nobody reads.
 
 ### 10.5 The read-authority cutover — after a mismatch rate, not before
 
@@ -724,7 +958,92 @@ non-blocking**, on the same terms as before.
 
 ---
 
-## 12. The required stop
+## 12. Checkpoint A — access and baseline, 2026-09-16, against main `d3fc9f1`
+
+**Read-only. Production was not contacted.** The question this checkpoint asked
+was not "is the code ready" — §11 answered that — but "can this environment
+actually perform the rollout, and what is production's state before it starts".
+
+**Result: BLOCKED. `PRODUCTION_MUTATION_NOT_AUTHORIZED`.**
+
+### 12.1 What was established
+
+| | |
+|---|---|
+| Source | `origin/main` == `d3fc9f1`, working tree clean, zero drift from the certified candidate |
+| Supabase CLI | **ABSENT** |
+| Supabase / Vercel credentials | **ABSENT** — presence-checked only, no value read |
+| Egress to `*.supabase.co`, `supabase.com` | **REFUSED** by network policy (403 at proxy CONNECT). Not worked around |
+| Production project | `oqybniefkbppptfatoae` (`cortex`) — identified from repository configuration, **not contacted** |
+| Production application origin | **not recorded anywhere in this repository** → §5.0 |
+
+### 12.2 What could NOT be captured, and why it matters
+
+Every item below is a Checkpoint A exit criterion, and every one of them fails
+for the same root cause — no production access:
+
+- **Migration ledger** — applied / pending / out-of-band: **UNKNOWN.**
+- **The refusal precheck for `20260910120000`: NOT RUN.** Neither `PASS` nor
+  `REFUSAL_EXPECTED` can be asserted. **This alone blocks the first step of
+  §10.3.** The precheck itself is read-only and is reproduced from the
+  migration's own step 0 — fourteen child→parent pairs under
+  `c.organization_id IS DISTINCT FROM p.organization_id` — and writes nothing.
+- **Pre-mutation row counts: NOT CAPTURED.** The BEFORE leg of
+  BEFORE → BACKFILL → RECONCILIATION → CUTOVER does not exist, so the backfill
+  in §10.4 currently has nothing to reconcile against.
+- **Effective production flag state: UNAVAILABLE.** Every switch in §2 was
+  verified to *default* off at source, with strict `=== 'true' || === '1'`
+  readers — but a default is not a reading. **No dangerous flag was observed ON;
+  that is not the same claim as "they are OFF in production", and this document
+  does not make the second one.**
+- **Deployed commit, Edge Function version, production health: UNKNOWN /
+  UNREACHABLE.**
+
+### 12.3 Rollback capability, separated honestly
+
+| Capability | Status |
+|---|---|
+| Schema migration rollback | **PROVEN LOCALLY** — 13 files, no orphans, composite-FK round trip 14 → 0 → 14 |
+| Data/backfill rollback | **PROVEN LOCALLY** — §10.4, gated three ways |
+| Authority-switch rollback | **PROVEN LOCALLY** — rehearsed, including a second cutover after a rollback |
+| Backfill / reconciliation stop conditions | **AVAILABLE** — §10.4 |
+| Database snapshot & recovery | **UNVERIFIED IN PRODUCTION** — §10.6 delegates to the Supabase project's own backup facility; its existence, retention and PITR window have not been confirmed |
+| Previous application deployment rollback | **UNVERIFIED IN PRODUCTION** |
+| Edge Function rollback / redeploy | **UNVERIFIED IN PRODUCTION** |
+
+Nothing above is claimed as a production capability on the strength of a local
+pass.
+
+### 12.4 What must be resolved before Checkpoint A can return READY
+
+1. Egress to `*.supabase.co` and `supabase.com`, **or** an operator machine that
+   already has it. Requires a human; the policy is not to be circumvented.
+2. Supabase CLI — installable, but useless before (1).
+3. Authenticated project access: a CLI access token and a read-capable database
+   credential. **Requires a human login; this is the boundary the work stops
+   at.**
+4. The production application origin → §5.0.
+5. Then: run the precheck, capture the ledger, the schema/RLS/FK state and the
+   row counts, and read the effective flag state.
+
+### 12.5 Defects this checkpoint found in *this document*
+
+Documentation defects, all corrected in the same change that added this section:
+
+| Defect | Where | Correction |
+|---|---|---|
+| The rotation procedure was a **silent no-op** on an existing account — and its verification step would have *passed* against the old credential | §10.2, §10.3 | rewritten: `seedAdminUser` creates, it does not rotate; out-of-band procedure, recovery precautions, and a two-part verification that checks the **old** password is refused |
+| Backfill rollback pointed at `supabase/migrations/rollbacks/`, which contains no backfill rollback — following it would drop tables instead of rows | §10.4 | three rollback kinds separated; the real CLI invocation, its dry-run preview, and all three gates documented |
+| No production application origin recorded anywhere | §5 | §5.0 added as a required, deliberately unfillable-by-accident field; §6 gated on it |
+| Header read `2d0f8ae2` while the §11 pre-flight had run against `0fae2d6` | header | set to `d3fc9f1` with a standing instruction to stop if it is stale |
+
+The first two are the significant ones: both are procedures an operator would
+have followed confidently, during a production rollout, and both would have done
+something other than what the operator believed.
+
+---
+
+## 13. The required stop
 
 No production migration, backfill, deployment, data mutation, secret change,
 credential rotation, or AI spending enablement has been performed, and none
