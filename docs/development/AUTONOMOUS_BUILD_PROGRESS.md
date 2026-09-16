@@ -2451,20 +2451,95 @@ It is circumstantial, and it is recorded as circumstantial. But a suite starved
 to nine times its normal duration is a more plausible place for a timeout to trip
 than a healthy one, and anyone weighing that observation should have the number.
 
+---
+
+## CHECKPOINT A — access, baseline and mutation readiness
+
+_2026-09-16, against main `d3fc9f1`. Read-only; production was never contacted._
+
+The pre-flight above asked whether the **code** was ready. Checkpoint A asked
+whether **this environment can perform the rollout**, and what production's
+state is before anything is mutated.
+
+**Result: BLOCKED — `PRODUCTION_MUTATION_NOT_AUTHORIZED`.** Full record in
+Readiness §12.
+
+Source is exactly as certified: `origin/main` == `d3fc9f1`, clean tree, no drift.
+Everything else fails on one root cause — **there is no production access here.**
+No Supabase CLI, no credentials (presence-checked only, no value read), and
+`*.supabase.co` and `supabase.com` are both refused at the egress proxy with a
+403 at CONNECT. The policy was not worked around. Consequently the migration
+ledger is unread, the refusal precheck for `20260910120000` was **not run**
+(neither `PASS` nor `REFUSAL_EXPECTED` can be asserted), no pre-mutation row
+counts exist, and the effective production flag state is unknown — every switch
+was verified to *default* off at source, which is not the same claim.
+
+### Two procedures in the readiness document were wrong
+
+Checkpoint A's most useful output was not the access finding — that was
+expected — but two defects in the runbook itself. Both were procedures an
+operator would have followed confidently during a production rollout, and both
+would have done something other than what the operator believed:
+
+1. **The administrator password rotation was a silent no-op.** §10.3 read as
+   "set `TEAM_ADMIN_PASSWORD`, restart, sign in with the new password".
+   `seedAdminUser()` is a seeder: account absent → created; account present →
+   it logs `✅ Admin user already exists` and **returns without touching the
+   password**. On exactly the deployment §10.2 is about — one already seeded
+   under the published fallback — the secret change does nothing, and the
+   verification step would then have *succeeded against the old credential*,
+   recording a rotation that never happened. Rewritten with the real
+   out-of-band procedure, recovery precautions, and a two-part verification
+   that requires the **old** password to be refused.
+
+2. **The backfill rollback pointed at the wrong directory.** §10.4 sent the
+   operator to `supabase/migrations/rollbacks/`, which holds only *schema*
+   rollbacks — following it to undo *data* would drop the tables rather than
+   the rows. The data rollback is the migration CLI's `--mode=rollback`, scoped
+   to one run id and gated three ways. All three kinds of "rollback" in the plan
+   are now separated in a table.
+
+Also corrected: no production application origin was recorded anywhere in the
+repository, so §5 and §6 could not be executed at all — §5.0 now carries it as a
+required field; and the readiness header read `2d0f8ae2` while §11's pre-flight
+had run against `0fae2d6`.
+
+### Release hygiene
+
+PR #1 (`MCV2-S7`) confirmed obsolete: its head and its base are both absent from
+`main`'s ancestry, and `supabase/functions/server/storage/` on main carries S7
+**and** the S8 read-authority work that superseded it. It is more than stale —
+merging it would revert the release candidate, deleting `vercel.json`, all four
+`tsconfig*.json` and the `tests/system/` suite, and adding ~23,100 files of
+committed `node_modules/` and `dist/`.
+
 ## NEXT EXACT TASK
 
-None that can be performed here. The pre-flight is complete and every remaining
-action is a production mutation or a human decision:
+None that can be performed here, and now for a second reason: not only is every
+remaining action a production mutation or a human decision, this environment
+cannot reach production even to observe it.
 
-1. Rotate the old administrator password (§10.2) — required, and a production
-   credential change.
-2. Apply the 21 migrations to production, in order, prepared to act on the
+**First, unblock access** (Readiness §12.4): egress to `*.supabase.co`, the
+Supabase CLI, and an authenticated project credential — or run the rest from an
+operator machine that already has all three. Then:
+
+1. Record the production application origin in Readiness §5.0. Nothing in §5 or
+   §6 can run until it is filled in.
+2. Run the read-only refusal precheck for `20260910120000` and capture the
+   pre-mutation baseline: migration ledger, schema/RLS/FK state, row counts.
+   This is the BEFORE leg the backfill will later be reconciled against.
+3. Read the effective production flag state and confirm every switch in §2 is
+   actually off.
+4. Rotate the old administrator password — **per §10.2 as it now reads**, not
+   from memory, and verify the old password is refused.
+5. Apply the 21 migrations to production, in order, prepared to act on the
    refusal in §11.2 if it fires.
-3. Set the secrets in §10.1, restart, confirm the administrator exists.
-4. Deploy the function, then the static site; confirm headers are served.
-5. Then, separately and later, the Phase 5 sequence in §4.
+6. Set the secrets in §10.1 and restart.
+7. Deploy the function, then the static site; confirm headers are served.
+8. Then, separately and later, the Phase 5 sequence in §4.
 
 ---
 
-_Last updated: 2026-09-14, at the production pre-flight — the document's own
-claims checked against a real database, and the one number that was wrong._
+_Last updated: 2026-09-16, at Checkpoint A — what this environment can actually
+do to production (nothing), and the two runbook procedures that would not have
+done what they said._
