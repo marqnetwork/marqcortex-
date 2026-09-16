@@ -51,7 +51,14 @@ P0–P4.
 
 ### CRITICAL PATH
 
-#### CP-1 — Turn the product on (P0)
+#### CP-1 — Turn the product on (P0) — **CODE COMPLETE, LIVE VERIFICATION BLOCKED**
+
+*Executed. See `MARQ_CORTEX_CP1_RECORD.md`. Every item below is done except the
+last, which is the same external input that has blocked two checkpoints:
+Supabase is unreachable from the build environment (the network policy answers
+403 to a CONNECT for `*.supabase.co`). The states were proved against a
+controlled stand-in, which is a test double and is not live verification.*
+
 - **Outcome:** a signed-in user sees their own real data, or an honest empty
   state. No fabricated business data anywhere in an authenticated surface.
 - **Canon:** D17 authoritative source of record; PX Ch35 honesty; MB III-11.
@@ -65,7 +72,12 @@ P0–P4.
 - **Done:** zero fabricated rows in an authenticated view; empty states real.
 - **Depends on:** a reachable Supabase project (this is the one external input).
 
-#### CP-2 — Fix navigation truth (P0/P4)
+#### CP-2 — Fix navigation truth (P0/P4) — **DONE, pulled forward into CP-1**
+
+*Both defects were in the way of CP-1's browser QA: a suite that cannot tell one
+destination from another cannot prove a surface shows real data either. The work
+is recorded under CP-1. What CP-2 becomes instead is in §7 below.*
+
 - **Outcome:** all 13 destinations deep-link, reload and bookmark correctly.
 - **Fix:** `?page=execution` and `?page=architecture` silently render the
   Dashboard (Product Reality §7.2); the smoke suite's four invalid IDs
@@ -174,7 +186,61 @@ Each is either finished, or cannot pay off until the product uses the platform.
 
 ---
 
-## 6. How progress is measured from here
+## 6. CP-2, rescoped — NAVIGATION + PRODUCT SHELL TRUTH
+
+CP-2 as originally written was the two navigation defects, and CP-1 had to fix
+both to be able to test anything. What is left is the larger version of the same
+question, and CP-1's browser QA made it answerable for the first time — because
+the product can finally be put into an EMPTY state and looked at.
+
+### What CP-1 exposed that CP-2 should take
+
+1. **Five destinations have no backend and now say so.** Email Queue engagement,
+   Execution, the Mapping Engine, meeting attendees, and the AI chat's
+   provenance. Saying so honestly is where CP-1 stopped. Two of them —
+   Execution and the Mapping Engine — are now near-empty screens carrying a
+   sidebar entry and a heading, which is truthful and is not yet a product.
+   Either give them a producer or stop declaring them as destinations.
+
+2. **The empty product is reachable and mostly unfurnished.** Until CP-1 nobody
+   had seen MARQ Cortex with nothing in it. The Command Center leads with
+   orientation and reads well; most other destinations render a heading and a
+   sentence. A new organization's first ten minutes are now observable, and
+   should be designed rather than inherited.
+
+3. **The shell's own truthfulness.** CP-1 fixed the account block, which showed
+   an invented person to everybody. The same class of thing should be swept:
+   anything in the shell that is a literal where a fact belongs.
+
+4. **`registryAudit.ts` defines LIVE as "works with zero backend".** Under that
+   definition a client-side engine running on fabricated inputs counts as LIVE,
+   which is how 133 of 185 interactions came to be labelled that way. The
+   vocabulary needs to change before the registry can be read as a status.
+
+### Scope
+
+- Decide, per destination, whether it is a product surface or a platform tool,
+  and let `NAV_GROUPS` say which. A destination that cannot do anything yet
+  should not sit beside ones that can.
+- Design the empty product: first-run for each destination, not just the
+  Command Center.
+- Sweep the shell for remaining literals-where-facts-belong.
+- Re-vocabulary `registryAudit` so LIVE means "reads real data".
+- Keep the CP-1 guards green; add the destination-classification to them.
+
+### Not in CP-2
+
+New entities, goals, decisions or value modelling — that is CP-3, and it needs
+the organizational spine. No AI or agent surfaces. No production work.
+
+### Depends on
+
+Nothing external. CP-2 is doable with the same blocked Supabase, which is why it
+is next.
+
+---
+
+## 7. How progress is measured from here
 
 Two numbers, never merged:
 
