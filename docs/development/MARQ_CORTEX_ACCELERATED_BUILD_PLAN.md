@@ -186,7 +186,15 @@ Each is either finished, or cannot pay off until the product uses the platform.
 
 ---
 
-## 6. CP-2, rescoped — NAVIGATION + PRODUCT SHELL TRUTH
+## 6. CP-2, rescoped — NAVIGATION + PRODUCT SHELL TRUTH — **COMPLETE**
+
+*Executed. See `MARQ_CORTEX_CP2_RECORD.md`. 13 destinations audited for actual
+capability, 3 withdrawn from navigation, the registry's `LIVE` renamed to what
+it measured, and two shell defects fixed — a search control that did nothing on
+nine of ten destinations, and a role the session knew and the shell never said.
+Product completeness ~34% → ~35%: CP-2 removed false capability rather than
+adding real capability, and the number reports that honestly.*
+
 
 CP-2 as originally written was the two navigation defects, and CP-1 had to fix
 both to be able to test anything. What is left is the larger version of the same

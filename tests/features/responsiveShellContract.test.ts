@@ -262,8 +262,20 @@ describe('the header survives a narrow viewport', () => {
   });
 
   it('names the header icon buttons', () => {
-    // "Search" alone names the widget, not the job. UI Sprint 7 made every
-    // icon-only control in the console say what it acts on.
-    assert.ok(/aria-label="Search submissions"/.test(layout));
+    // This asserted `aria-label="Search submissions"` — "Search" alone names
+    // the widget, not the job, and UI Sprint 7 made every icon-only control say
+    // what it acts on.
+    //
+    // CP-2 narrowed the name back to "Search", and that is the correction: the
+    // control did not search submissions. It called `focus()` on a ref that was
+    // never attached to an element, so on nine of the ten offered destinations
+    // it did nothing at all. It opens the command palette now, which searches
+    // destinations AND submissions — so "Search submissions" would be the
+    // narrower claim, and the wrong one.
+    assert.ok(/aria-label="Search"/.test(layout), 'the header search control lost its name');
+    assert.ok(
+      /title=\{`Search \(\$\{isMac\(\) \? "\\u2318" : "Ctrl\+"\}K\)`\}/.test(layout),
+      'the control no longer tells the operator the accelerator that also opens it',
+    );
   });
 });

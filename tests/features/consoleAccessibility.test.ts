@@ -142,7 +142,10 @@ describe('the shell keeps the landmarks and states it gained', () => {
   });
 
   it('names every icon-only control in the shell', () => {
-    for (const label of ['Open navigation', 'Search submissions', 'Sign out']) {
+    // "Search submissions" was the old name for the header magnifier. CP-2
+    // found it focused a ref that was never attached and renamed it to what it
+    // now does: open the command palette, which searches more than submissions.
+    for (const label of ['Open navigation', 'Search', 'Sign out']) {
       assert.ok(shell.includes(`aria-label="${label}"`), `the shell is missing "${label}"`);
     }
     // One control serves both widths: it closes the drawer where there is a
