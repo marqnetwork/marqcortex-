@@ -2506,12 +2506,20 @@ had run against `0fae2d6`.
 
 ### Release hygiene
 
-PR #1 (`MCV2-S7`) confirmed obsolete: its head and its base are both absent from
-`main`'s ancestry, and `supabase/functions/server/storage/` on main carries S7
-**and** the S8 read-authority work that superseded it. It is more than stale —
-merging it would revert the release candidate, deleting `vercel.json`, all four
-`tsconfig*.json` and the `tests/system/` suite, and adding ~23,100 files of
-committed `node_modules/` and `dist/`.
+PR #1 (`MCV2-S7`) confirmed obsolete, and on a firmer basis than "stale": its
+head and base are both absent from `main`'s ancestry, and **`git merge-base`
+between its head and current `main` returns nothing at all** — the histories are
+unrelated, so no merge can even be computed. The tree it carries differs from
+main by ~23,200 files, including committed `node_modules/` and `dist/`, and
+predates `vercel.json`, the four `tsconfig*.json` files and the `tests/system/`
+suite.
+
+Its capability is superseded rather than merged. `supabase/functions/server/
+storage/` on main was reorganised and extended — outcome **and** submission
+shadow reads plus read authority for both, under the per-domain
+`MCV2_SHADOW_READ_*` / `MCV2_SQL_AUTHORITY_*` switches, with coverage in
+`tests/migration/`. PR #1's own kill switch, `STORAGE_FORCE_KV_ONLY`, does not
+exist in main because that design was replaced. Closed as stale, not merged.
 
 ## NEXT EXACT TASK
 
