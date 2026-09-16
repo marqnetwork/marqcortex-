@@ -19,6 +19,7 @@ import {
   Search as SearchIcon,
 } from 'lucide-react';
 import { useDashboard } from '@/app/contexts/DashboardContext';
+import { useApp } from '@/app/contexts/AppContext';
 import {
   NAV_GROUPS,
   SHORTCUT_DESTINATIONS,
@@ -92,6 +93,24 @@ function DashboardLayoutInner({
     useDashboard();
 
   const loadedSubmissions = state.searchableSubmissions;
+
+  /**
+   * The signed-in operator, from the session — never a placeholder.
+   *
+   * An em dash where a name would be is the honest rendering of "the session
+   * has not resolved a name yet"; a plausible-looking invented one is not.
+   */
+  const { teamUser } = useApp();
+  const accountName = teamUser?.name?.trim() || 'Signed in';
+  const accountEmail = teamUser?.email?.trim() || '—';
+  const accountInitials =
+    accountName
+      .split(/\s+/)
+      .map(part => part[0])
+      .filter(Boolean)
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '—';
 
   // The AI's notion of "the lead you are looking at" used to be resolved
   // against `getDemoSubmissions()` — so whatever record the operator had open,
@@ -419,16 +438,22 @@ function DashboardLayoutInner({
           })}
         </nav>
 
-        {/* User section */}
+        {/* ── WHO IS SIGNED IN ────────────────────────────────────────────
+            "Team User", "team@example.com" and the initials "TU" were literals.
+            Every operator, on every screen, in every configuration, saw the same
+            invented person in the account block — beside a greeting three feet
+            away that used their real name, and above the Sign out button. It is
+            the smallest fabrication CP-1 found and the one hardest to argue was
+            ever intentional. */}
         <div className="p-4 border-t border-white/10">
           {(!sidebarCollapsed || isCompact) && (
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center font-bold">
-                TU
+                {accountInitials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">Team User</p>
-                <p className="text-xs text-gray-400 truncate">team@example.com</p>
+                <p className="font-semibold text-sm truncate">{accountName}</p>
+                <p className="text-xs text-gray-400 truncate">{accountEmail}</p>
               </div>
             </div>
           )}

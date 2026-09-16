@@ -43,6 +43,12 @@ const TEAM_ROUTE = '#/team/dashboard';
  * A destination renamed there is renamed here in the same breath.
  */
 async function destinations(page: Page): Promise<string[]> {
+  // The sidebar has to be up before it can be read. `signIn` waits for the URL,
+  // which the router changes before the shell's lazy chunk has mounted — so
+  // reading here too early returned an empty list, and on a loaded machine it
+  // did. An empty list would silently mean "this loop asserted nothing", which
+  // is the exact failure §7.1 was.
+  await expect(page.locator('nav [data-destination]').first()).toBeVisible({ timeout: 20_000 });
   const ids = await page.locator('nav [data-destination]').evaluateAll(nodes =>
     nodes.map(node => node.getAttribute('data-destination') ?? ''),
   );

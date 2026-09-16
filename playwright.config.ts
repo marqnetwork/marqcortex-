@@ -103,6 +103,19 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
+  /**
+   * The fixture-backend run is SERIAL, and has to be.
+   *
+   * `fullyParallel: false` still lets Playwright run different spec FILES in
+   * different workers, and `tests/helpers/fixture-backend.mjs` has one global
+   * mode that every test switches over HTTP. Two workers therefore fight over
+   * it: a spec that set `empty` reads a populated dashboard because a spec in
+   * the other worker set `populated` a moment earlier. Observed as three
+   * honest-state failures that passed when either file was run alone — the
+   * worst kind, because "it passes on its own" reads as flakiness rather than
+   * as a suite that cannot see what it claims to.
+   */
+  workers: fixtureBackend ? 1 : undefined,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL,
@@ -121,6 +134,10 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // The default and release runs exercise the DEMO experience, which CP-1
+    // made something a build has to ask for. `test:release` passes the same
+    // flag to its `vite build`, because a served `dist/` was configured at
+    // build time and no server env can change it afterwards.
     env: serveDist || fixtureBackend ? undefined : { VITE_DEMO_EXPERIENCE: 'true' },
   },
   projects: [

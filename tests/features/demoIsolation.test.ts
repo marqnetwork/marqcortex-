@@ -327,6 +327,21 @@ describe('no authenticated surface declares its own fabricated business data', (
     }
   });
 
+  it('no surface renders an invented identity for the signed-in operator', () => {
+    // "Team User" / "team@example.com" / the initials "TU" were literals in the
+    // shell's account block, so every operator saw the same invented person
+    // beside a greeting that used their real name. Found in a CP-1 screenshot,
+    // not by reading the file.
+    const layout = readFileSync(
+      join(ROOT, 'src', 'app', 'components', 'TeamDashboardLayout.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    assert.ok(!/team@example\.com/.test(layout), 'a placeholder email is back in the account block');
+    assert.ok(!/>Team User</.test(layout), 'a placeholder name is back in the account block');
+    assert.match(layout, /const accountName = teamUser\?\.name/);
+    assert.match(layout, /const accountEmail = teamUser\?\.email/);
+  });
+
   it('email engagement is reported as unmeasured rather than estimated', () => {
     // 97% delivered, 42% opened, 18% clicked, 2% bounced — constants times the
     // sent count, drawn as the Email Queue's four headline figures. Nothing
