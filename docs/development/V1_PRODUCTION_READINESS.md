@@ -11,11 +11,23 @@ and the SHA every step below assumes. Companion to
 `V1_COMPLETION_CHECKLIST.md` (what is done) and `AUTONOMOUS_BUILD_PROGRESS.md`
 (how each item was closed).
 
-**If the SHA above is not the tip of `main`, stop and re-certify.** The migration
-census, the flag table and the deploy order are claims about a specific tree, not
-standing facts. This header has been stale before — it read `2d0f8ae2` while the
-pre-flight in §11 had been run against `0fae2d6` — which is exactly the class of
-defect an operator acts on without noticing.
+**Before following this plan, confirm `main` carries no code change after the SHA
+above:**
+
+```
+git diff --name-only d3fc9f1..origin/main | grep -v '^docs/'
+```
+
+**Empty → this document still describes what you are about to deploy.** Anything
+listed → **stop and re-certify**: the migration census, the flag table and the
+deploy order are claims about a specific tree, not standing facts. Documentation
+commits land on top of a certified candidate routinely — including the one that
+added this paragraph — so "is it the literal tip of `main`" is the wrong
+question and would halt a rollout over a typo fix.
+
+This header has been stale before — it read `2d0f8ae2` while the pre-flight in
+§11 had been run against `0fae2d6` — which is exactly the class of defect an
+operator acts on without noticing.
 
 ---
 
@@ -217,7 +229,7 @@ is about to ship.
 
 | Field | Value | Where it comes from |
 |---|---|---|
-| **Production application origin** | `__________________` **(REQUIRED — unset)** | the deployment platform (Vercel project → production domain). Scheme + host, no trailing slash. |
+| **Production application origin** | `__________________` **(REQUIRED — unset)** | Vercel project **`marq-networks-projects/marqcortex`** → Settings → Domains → the production domain. Scheme + host, no trailing slash. The project was identified from the deployment status the Vercel GitHub integration posts on every pull request; the *domain* still has to be read from the dashboard, and a deployment inspector URL is not it. |
 | **Production Edge Function origin** | `https://oqybniefkbppptfatoae.supabase.co/functions/v1` | derived from the project ref; confirm against the project before use |
 | **Production Supabase project ref** | `oqybniefkbppptfatoae` (name: `cortex`) | `supabase/config.toml`, `utils/supabase/info.tsx`, `.env.example` |
 
