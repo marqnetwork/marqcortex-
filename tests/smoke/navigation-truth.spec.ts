@@ -146,6 +146,91 @@ test.describe('every registered destination resolves to itself', () => {
     expect(await shownDestination(page)).toBe('dashboard');
   });
 
+  test('the command palette reaches every offered destination', async ({ page }) => {
+    // CP-2 §6.5. The palette is the third path to the product (Ch. 21.4), and
+    // before CP-2 it enumerated the DECLARED list while the sidebar enumerated
+    // the offered one — so the two described different products and a
+    // withdrawn destination stayed one Cmd-K away.
+    await signIn(page);
+    const destinations = await registeredDestinations(page);
+
+    const unreachable: string[] = [];
+    for (const id of destinations) {
+      await page.goto(`/${TEAM_ROUTE}`);
+      await shownDestination(page);
+
+      await page.getByRole('button', { name: /^search$/i }).click();
+      const dialog = page.locator('[role="dialog"]').first();
+      await expect(dialog).toBeVisible();
+
+      const label = await page
+        .locator(`nav [data-destination="${id}"]`)
+        .first()
+        .getAttribute('aria-label');
+      await dialog.locator('input').first().fill(label ?? id);
+      await page.waitForTimeout(350);
+
+      if (!(await dialog.innerText()).includes(label ?? id)) {
+        unreachable.push(`${id} (searched "${label}")`);
+      }
+      await page.keyboard.press('Escape');
+    }
+
+    expect(
+      unreachable,
+      `destinations the command palette cannot reach:\n${unreachable.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  test('every label names the destination it actually goes to', async ({ page }) => {
+    // CP-2 §6.9. A label is the promise; the destination is the delivery. This
+    // catches a label edited without its id, and an id rewired without its
+    // label — the pair drifting apart is how `?page=execution` came to mean the
+    // Dashboard in the first place.
+    await signIn(page);
+
+    const pairs = await page.locator('nav [data-destination]').evaluateAll(nodes =>
+      nodes.map(node => ({
+        id: node.getAttribute('data-destination') ?? '',
+        label: node.getAttribute('aria-label') ?? '',
+      })),
+    );
+
+    const mismatched: string[] = [];
+    for (const { id, label } of pairs) {
+      const entry = page.locator(`nav [data-destination="${id}"]`).first();
+
+      // A group of nothing but platform plumbing is FOLDED until asked for
+      // (Ch. 13.1), so its entries are in the DOM and not on the screen. That
+      // is a disclosure, not a hiding place — and a disclosure that cannot be
+      // opened is its own defect, so opening it is part of the test rather
+      // than a way around it.
+      if (!(await entry.isVisible())) {
+        await page.locator('nav button[aria-expanded="false"]').first().click();
+        await expect(entry).toBeVisible();
+      }
+
+      await entry.click();
+      await expect(page.locator('main[data-destination]')).toHaveAttribute(
+        'data-destination', id, { timeout: 20_000 },
+      );
+      const shown = await shownDestination(page);
+      if (shown !== id) mismatched.push(`"${label}" goes to "${shown}", not "${id}"`);
+    }
+    expect(mismatched, `labels that lie:\n${mismatched.join('\n')}`).toEqual([]);
+  });
+
+  test('no destination id is offered twice', async ({ page }) => {
+    // CP-2 §6.10. Two entries with one id are two promises that cannot both be
+    // kept, and the sidebar's active state would mark both.
+    await signIn(page);
+    const ids = await page.locator('nav [data-destination]').evaluateAll(nodes =>
+      nodes.map(node => node.getAttribute('data-destination') ?? ''),
+    );
+    const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+    expect(duplicates, `duplicate destination ids in the sidebar: ${duplicates.join(', ')}`).toEqual([]);
+  });
+
   test('the ids the old suite used do not exist, and would now be caught', async ({ page }) => {
     // Pinning §7.1 itself. If somebody renames a destination TO one of these,
     // this test becomes wrong and says so rather than going quietly green.

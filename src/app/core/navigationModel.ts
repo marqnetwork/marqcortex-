@@ -26,6 +26,7 @@
  * permission check, and nothing here should become one.
  */
 
+import { isDestinationVisible } from './capabilityStatus.ts';
 import {
   LayoutDashboard,
   Brain,
@@ -332,12 +333,46 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  * Such a group is the one the sidebar folds until asked for. A group holding
  * any real work is never hidden behind a disclosure — progressive disclosure
  * means deferring the platform's own plumbing, not the business's work.
+ *
+ * Judged on VISIBLE destinations: a group whose only work-tier entry is hidden
+ * is, to the person looking at it, a system group.
  */
 export function isSystemGroup(group: NavGroup): boolean {
-  return group.destinations.every(destination => destination.tier === 'system');
+  const shown = visibleDestinationsOf(group);
+  return shown.length > 0 && shown.every(destination => destination.tier === 'system');
 }
 
-/** Every destination, in sidebar order. */
+/**
+ * The destinations in a group that a person should actually be offered.
+ *
+ * CP-2's rule: a sidebar entry is a promise. A destination that renders only
+ * fabricated data, or that is wired to a producer which does not exist, cannot
+ * keep that promise, so it is not offered — `capabilityStatus.ts` says which,
+ * with the evidence. It remains declared, addressable and testable; what
+ * changes is that the product stops advertising it.
+ */
+export function visibleDestinationsOf(group: NavGroup): readonly Destination[] {
+  return group.destinations.filter(destination => isDestinationVisible(destination.id));
+}
+
+/** Groups holding at least one destination worth offering. */
+export const VISIBLE_NAV_GROUPS: readonly NavGroup[] = NAV_GROUPS
+  .map(group => ({ ...group, destinations: [...visibleDestinationsOf(group)] }))
+  .filter(group => group.destinations.length > 0);
+
+/** Every destination a person is offered, in sidebar order. */
+export const VISIBLE_DESTINATIONS: readonly Destination[] =
+  VISIBLE_NAV_GROUPS.flatMap(group => group.destinations);
+
+/**
+ * Every destination the model DECLARES, in sidebar order.
+ *
+ * Declared is not the same as shown. `VISIBLE_DESTINATIONS` is what a person
+ * sees; this is the full registry, and the deep-link resolver reads it so that
+ * a URL naming a hidden destination still resolves to that destination rather
+ * than silently becoming the Dashboard. Hiding something from the sidebar is a
+ * statement about what to offer, never about what a URL means.
+ */
 export const DESTINATIONS: readonly Destination[] =
   NAV_GROUPS.flatMap(group => group.destinations);
 
@@ -370,8 +405,14 @@ export const SHELL_DESTINATIONS: readonly Destination[] =
 export const EXTERNAL_DESTINATIONS: readonly Destination[] =
   DESTINATIONS.filter(d => d.externalRoute);
 
-/** Destinations carrying a Cmd/Ctrl+N accelerator, in digit order. */
-export const SHORTCUT_DESTINATIONS: readonly Destination[] = DESTINATIONS
+/**
+ * Destinations carrying a Cmd/Ctrl+N accelerator, in digit order.
+ *
+ * Read from the VISIBLE set. An accelerator for a destination the sidebar does
+ * not offer is a third path to a place the product has decided not to send
+ * anybody — Ch. 21.4's duplicate reality, arrived at from the other direction.
+ */
+export const SHORTCUT_DESTINATIONS: readonly Destination[] = VISIBLE_DESTINATIONS
   .filter((d): d is Destination & { shortcutDigit: number } =>
     typeof d.shortcutDigit === 'number')
   .sort((a, b) => a.shortcutDigit - b.shortcutDigit);

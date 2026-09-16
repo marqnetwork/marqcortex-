@@ -20,8 +20,9 @@ import {
 } from 'lucide-react';
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { useApp } from '@/app/contexts/AppContext';
+import { TEAM_ROLE_LABELS } from '@/app/lib/teamRole';
 import {
-  NAV_GROUPS,
+  VISIBLE_NAV_GROUPS,
   SHORTCUT_DESTINATIONS,
   isSystemGroup,
   type DestinationId,
@@ -100,9 +101,10 @@ function DashboardLayoutInner({
    * An em dash where a name would be is the honest rendering of "the session
    * has not resolved a name yet"; a plausible-looking invented one is not.
    */
-  const { teamUser } = useApp();
+  const { teamUser, teamRole } = useApp();
   const accountName = teamUser?.name?.trim() || 'Signed in';
   const accountEmail = teamUser?.email?.trim() || '—';
+  const accountRole = TEAM_ROLE_LABELS[teamRole] ?? teamRole;
   const accountInitials =
     accountName
       .split(/\s+/)
@@ -143,6 +145,9 @@ function DashboardLayoutInner({
   }, [activeSubmissionId, loadedSubmissions, setActiveLead]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  // Kept for the palette's own input, not for the header control — see
+  // `handleFocusSearch`. It was never attached to anything, which is exactly
+  // why the header's search button was a dead end.
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const sidebarCollapsed = state.viewPreferences.sidebarCollapsed;
@@ -190,8 +195,25 @@ function DashboardLayoutInner({
     onNavigate?.(page);
   };
 
+  /**
+   * The magnifier in the header.
+   *
+   * IT DID NOTHING, almost everywhere. It called `searchInputRef.current
+   * ?.focus()` on a ref this layout declares and never attaches to any element,
+   * then `onFocusSearch?.()`, which the shell implements as "focus the
+   * submissions filter, IF the current page is the Dashboard". So on the other
+   * nine destinations a person clicked a search icon and the focus ring landed
+   * back on the button. Confirmed in a browser on Analytics: focus went
+   * BODY → BUTTON and nothing opened.
+   *
+   * The product already has a global search that works on every destination and
+   * searches both destinations and submissions — the command palette. The icon
+   * promised search; this is the search it promised. The Dashboard's filter box
+   * is still focused as well, where it exists, because that was a real (if
+   * narrow) affordance and removing it would be a second change.
+   */
   const handleFocusSearch = () => {
-    searchInputRef.current?.focus();
+    setShowCommandPalette(true);
     onFocusSearch?.();
   };
 
@@ -357,7 +379,11 @@ function DashboardLayoutInner({
         {/* Nav items — grouped by intent (Ch. 21.2), read from the one
             navigation model every surface shares (Ch. 21.4). */}
         <nav className="flex-1 p-4 space-y-4 overflow-y-auto" aria-label="Primary">
-          {NAV_GROUPS.map(group => {
+          {/* VISIBLE, not declared. CP-2's rule: a sidebar entry is a promise,
+              and `capabilityStatus.ts` decides which destinations can keep one.
+              A group whose members are all hidden does not render an empty
+              heading — it does not render. */}
+          {VISIBLE_NAV_GROUPS.map(group => {
             // A group of nothing but platform plumbing folds until asked for
             // (Ch. 13.1). It is a disclosure, not a hiding place: one click
             // opens it, and the command palette reaches inside it by name
@@ -454,6 +480,11 @@ function DashboardLayoutInner({
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm truncate">{accountName}</p>
                 <p className="text-xs text-gray-400 truncate">{accountEmail}</p>
+                {/* The role decides what the server will let this person do,
+                    and the shell knew it and did not say it. Six roles exist;
+                    which one you hold is the difference between the Team
+                    surface working and refusing. */}
+                <p className="text-[10px] text-gray-500 truncate">{accountRole}</p>
               </div>
             </div>
           )}
@@ -511,7 +542,8 @@ function DashboardLayoutInner({
 
             <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
               <button
-                aria-label="Search submissions"
+                aria-label="Search"
+                title={`Search (${isMac() ? "\u2318" : "Ctrl+"}K)`}
                 className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                 onClick={handleFocusSearch}
               >

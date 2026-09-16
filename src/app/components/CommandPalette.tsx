@@ -32,7 +32,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useEscapeKey, formatShortcut, isMac } from '@/app/hooks/useKeyboardShortcuts';
-import { DESTINATIONS, NAV_GROUPS } from '@/app/core/navigationModel';
+import { VISIBLE_DESTINATIONS, NAV_GROUPS } from '@/app/core/navigationModel';
 import type { Submission } from '@/app/services/dataService';
 
 // ============================================================================
@@ -417,7 +417,12 @@ export function useCommandPaletteCommands({
       // they were — two navigation surfaces describing two different products.
       // The group label rides along as a keyword so searching an intent
       // ("operate", "deliver") finds everything filed under it.
-      ...DESTINATIONS.map((destination): Command => ({
+      // Ch. 21.4 — the sidebar, the palette and the shortcut table are three
+      // paths to one product, and they must not describe three different ones.
+      // Before CP-2 this read the DECLARED list while the sidebar read the
+      // visible one, so a destination hidden from the sidebar stayed one
+      // Cmd-K away, which is the same duplicate reality arrived at sideways.
+      ...VISIBLE_DESTINATIONS.map((destination): Command => ({
         id: `nav-${destination.id}`,
         label: `Go to ${destination.label}`,
         description: destination.description,

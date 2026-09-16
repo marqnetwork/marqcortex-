@@ -7,12 +7,15 @@ Audited 2026-09-16 against main `b349fc1a`. Evidence is the repository, a real
 build, and a real browser driving the real application. Where repository evidence
 and a progress document disagreed, the repository won.
 
-> **CP-1 has since answered §7 and §9.** The two navigation defects are fixed
-> and the fabricated data is isolated behind `src/app/demo/`. This document is
-> left as it was written — it is the evidence CP-1 was measured against, and
-> rewriting it would destroy that. What changed, and what is still not proven,
-> is recorded in `MARQ_CORTEX_CP1_RECORD.md`. The headline numbers are now
-> **~34% product / ~80% foundation**, and live verification remains BLOCKED.
+> **CP-1 answered §7 and §9; CP-2 answered §9's registry paragraph.** The
+> navigation defects are fixed, the fabricated data is isolated behind
+> `src/app/demo/`, and `registryAudit`'s over-permissive `LIVE` is now `WIRED`
+> with capability answered separately per destination. This document is left as
+> it was written — it is the evidence those sprints were measured against, and
+> rewriting it would destroy that. What changed is recorded in
+> `MARQ_CORTEX_CP1_RECORD.md` and `MARQ_CORTEX_CP2_RECORD.md`. The headline
+> numbers are now **~35% product / ~80% foundation**, and live verification
+> remains BLOCKED.
 
 This document does **not** replace `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md`,
 `MARQ_CORTEX_PRODUCT_EXPERIENCE.md`, `MARQ_CORTEX_ONTOLOGY_v1.0.md` or
@@ -285,6 +288,18 @@ The repository's own `registryAudit.ts` classifies 185 interactions as 133 LIVE 
 now with zero backend (pure UI / client-side engine)"**. Under the product
 definition used here, client-side-only on fabricated inputs is not product
 complete. The same reading applies to the 327-node manifest's 298 LIVE.
+
+> **CP-2:** closed. The status is now `WIRED`, which is what it always measured,
+> and the registry says so in its own header. Capability is answered separately,
+> per destination, in `src/app/core/capabilityStatus.ts` — 13 declared
+> destinations, of which 7 LIVE, 2 BLOCKED, 1 PARTIAL, 1 DEMO-ONLY and 2 EMPTY.
+> The three that cannot deliver what their label promises are no longer offered
+> in the sidebar, the palette or the mobile drawer. `capabilityTruth.test.ts`
+> fails the build if a destination claims more than its source supports.
+>
+> CP-2 also found what this audit's file-name-based count could not: **Reviewer
+> QA** invented eight companies at mount and another every thirty seconds, from
+> `Math.random()`, inside the component rather than in a file named `mock*`.
 
 ---
 

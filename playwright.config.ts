@@ -83,7 +83,7 @@ export default defineConfig({
       ['**/v1-integration-qa.spec.ts', '**/client-portal-status-view.spec.ts',
        '**/diagnostic-score-team-login.spec.ts', '**/release-headers.spec.ts',
        '**/accessibility-audit.spec.ts', '**/navigation-truth.spec.ts',
-       '**/honest-states.spec.ts']
+       '**/honest-states.spec.ts', '**/shell-truth.spec.ts']
     : fixtureBackend
     ? // The real-data run. The demo suites are excluded because this build has
       // no demo — that is the point of it.
@@ -96,6 +96,7 @@ export default defineConfig({
         // has none. `npm run test:product` is what runs them.
         '**/navigation-truth.spec.ts',
         '**/honest-states.spec.ts',
+        '**/shell-truth.spec.ts',
         ...(releaseBuild ? [] : ['**/release-headers.spec.ts']),
       ],
   timeout: 60_000,

@@ -62,6 +62,8 @@ import { canAdministerTeam, type TeamRole } from '../lib/teamRole.ts';
 
 import {
   NAV_GROUPS,
+  VISIBLE_NAV_GROUPS,
+  VISIBLE_DESTINATIONS,
   DESTINATIONS,
   isSystemGroup,
   type Destination,
@@ -98,7 +100,16 @@ function toEntry(destination: Destination, groupLabel: string): NavEntry {
  * Order is the canonical model's order — the shape of the work, not the shape
  * of the codebase.
  */
-export const NAV_MODEL: readonly NavEntry[] = NAV_GROUPS.flatMap(group =>
+/**
+ * The destinations orientation may point at.
+ *
+ * VISIBLE, not declared. An orientation step is the product telling somebody
+ * new where to go first, so it must never name a destination the product has
+ * decided not to offer — `orientation.test.ts` asserts every step's target is
+ * in here, which is what caught `first-outcome` still pointing at the review
+ * queue after CP-2 hid it.
+ */
+export const NAV_MODEL: readonly NavEntry[] = VISIBLE_NAV_GROUPS.flatMap(group =>
   group.destinations.map(destination => toEntry(destination, group.label)),
 );
 
@@ -114,7 +125,7 @@ export interface NavGroup {
  * and first-appearance order between groups.
  */
 export function navigationGroups(): readonly NavGroup[] {
-  return NAV_GROUPS.map(group => ({
+  return VISIBLE_NAV_GROUPS.map(group => ({
     label: group.label,
     entries: group.destinations.map(destination => toEntry(destination, group.label)),
     // A group is folded only when every entry in it is system-tier. A group
@@ -160,7 +171,7 @@ export function restorablePage(
 
 // `DESTINATIONS` is re-exported so a consumer needing the full canonical
 // records (icons, keywords, accelerators) does not import a second model.
-export { DESTINATIONS };
+export { DESTINATIONS, VISIBLE_DESTINATIONS };
 
 // ── Workspace state ───────────────────────────────────────────────────────────
 
@@ -263,10 +274,18 @@ export function orientationSteps(input: OrientationInput): readonly OrientationS
     {
       id: 'first-outcome',
       title: 'Take one engagement to an outcome',
-      detail: 'Approving work is what turns analysis into an engagement.',
+      detail: 'Recording what happened is what turns analysis into an engagement.',
       state: resolve(hasFinishedOne),
-      target: 'reviewer',
-      actionLabel: 'Open the review queue',
+      // Was `reviewer`. That destination renders a queue of companies invented
+      // by a random generator on a thirty-second timer (see
+      // `capabilityStatus.ts`), so CP-2 stopped offering it — and this step was
+      // still sending every new operator straight to it, which is the stale
+      // secondary navigation a hidden destination leaves behind.
+      //
+      // CORTEX is where an outcome is actually logged: it reads the real
+      // outcomes map and writes through the outcome route.
+      target: 'cortex',
+      actionLabel: 'Log an outcome',
     },
   ];
 
