@@ -1,8 +1,8 @@
 /**
  * CORTEX DATA SERVICE — CORTEX-specific data layer
  *
- * Wraps mockCortexData + cortexDataGenerator so CortexDashboard.tsx
- * imports from a service layer, not directly from utils.
+ * Wraps cortexDataGenerator so CortexDashboard.tsx imports from a service
+ * layer, not directly from utils.
  *
  * WHY NOT IN dataService.ts?
  *   cortexDataGenerator.ts imports `Submission` from dataService.ts.
@@ -22,8 +22,18 @@
 // ── Re-export CORTEX types so callers only need this file ────────────────────
 export type { Lead, CortexLeadData, LeadStatus } from '@/app/types/cortex-types';
 
-// ── Mock lead list (demo mode) ───────────────────────────────────────────────
-export { getMockLeads, getMockCortexLeadData } from '@/app/utils/mockCortexData';
+// ── The mock lead list used to be re-exported here ───────────────────────────
+//
+// `export { getMockLeads, getMockCortexLeadData } from '…/mockCortexData'`.
+// `CortexDashboard` read both: `getMockLeads()` when the backend was off, when
+// the pipeline came back empty, AND inside the `catch`; and
+// `getMockCortexLeadData(leadId)` for any lead it could not find — a function
+// that returns the FIRST fixture for an unrecognised id, so a stale link showed
+// a complete, confident diagnostic belonging to a company that does not exist.
+//
+// The fixtures are still there, behind `@/app/demo`. Nothing in the
+// authenticated product reaches them, and `tests/features/demoIsolation.test.ts`
+// is what keeps that true.
 
 // ── Submission → CortexLeadData converter (deterministic core) ───────────────
 export { generateCortexData } from '@/app/utils/cortexDataGenerator';

@@ -103,6 +103,29 @@ export interface Destination {
   id: DestinationId;
   /** Sidebar label. Short, and the same word the operator would say. */
   label: string;
+  /**
+   * The hash route this destination lives at, when it is NOT rendered inside
+   * the team-dashboard shell.
+   *
+   * Two destinations are like this — `execution` at `#/team/execution` and
+   * `architecture` at `#/architecture` — and before CP-1 that fact was written
+   * down in exactly one place: an `if (page === 'execution')` inside
+   * `TeamDashboardNew.handleNavigate`. Clicking the sidebar worked, because it
+   * went through that function. Everything else did not.
+   *
+   * `#/team/dashboard?page=execution` SILENTLY RENDERED THE DASHBOARD. The
+   * shell's `pageFromParam` did not recognise the id — correctly, since the
+   * shell cannot render it — and fell back, so a bookmark, a shared link, a
+   * refresh or a hand-typed URL landed on the wrong screen with no error and
+   * no indication. Product Reality §7.2 found it in a browser. The smoke suite
+   * had been asserting `?page=execution` for months and passing, because it
+   * only checked that SOMETHING rendered.
+   *
+   * Declared here, the shell redirects instead of falling back, the sidebar
+   * reads the same field it always did, and a test can drive every destination
+   * from this one list rather than a hand-kept copy that drifts.
+   */
+  externalRoute?: string;
   /** Command-palette subtitle — what the destination is FOR. */
   description: string;
   icon: LucideIcon;
@@ -201,6 +224,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Zap,
         group: 'deliver',
         tier: 'primary',
+        externalRoute: '/team/execution',
         keywords: ['delivery', 'project', 'milestone', 'workstream', 'gate', 'tasks'],
       },
       {
@@ -295,6 +319,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Cpu,
         group: 'platform',
         tier: 'system',
+        externalRoute: '/architecture',
         keywords: ['architecture', 'system', 'diagram', 'reference', 'internals'],
       },
     ],
@@ -328,6 +353,22 @@ export function getDestination(id: DestinationId): Destination | undefined {
 export function destinationLabel(id: DestinationId): string {
   return BY_ID.get(id)?.label ?? id;
 }
+
+/**
+ * The route a destination rendered outside the shell lives at, or `undefined`
+ * for one the shell renders itself.
+ */
+export function externalRouteFor(id: DestinationId): string | undefined {
+  return BY_ID.get(id)?.externalRoute;
+}
+
+/** Destinations the team-dashboard shell renders in place. */
+export const SHELL_DESTINATIONS: readonly Destination[] =
+  DESTINATIONS.filter(d => !d.externalRoute);
+
+/** Destinations that live at their own route. */
+export const EXTERNAL_DESTINATIONS: readonly Destination[] =
+  DESTINATIONS.filter(d => d.externalRoute);
 
 /** Destinations carrying a Cmd/Ctrl+N accelerator, in digit order. */
 export const SHORTCUT_DESTINATIONS: readonly Destination[] = DESTINATIONS

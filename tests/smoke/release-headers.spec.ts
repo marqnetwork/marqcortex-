@@ -99,6 +99,12 @@ test.describe('release headers', () => {
     await page.getByRole('button', { name: /sign in to marq cortex/i }).click();
 
     await page.waitForURL(/#\/team\/dashboard/, { timeout: 20_000 });
+    // `networkidle` is not "rendered". The route module is lazy and the
+    // app-level Suspense fallback is the single word "Loading…" — eight
+    // characters, which is what this assertion read once the dashboard started
+    // waiting on a request instead of rendering seed data synchronously. The
+    // shell's `<main>` is the thing that means the destination is up.
+    await expect(page.locator('main[data-destination]')).toBeVisible({ timeout: 20_000 });
     await page.waitForLoadState('networkidle');
 
     const text = await page.locator('body').innerText();

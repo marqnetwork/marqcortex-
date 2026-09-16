@@ -63,16 +63,21 @@ describe('a failed load never becomes a fabricated report', () => {
     );
   });
 
-  it('reaches the demo submission only from the demo-mode branch', () => {
-    const calls = portal.match(/getDemoClientSubmission\(/g) ?? [];
-    assert.equal(calls.length, 1, `getDemoClientSubmission is called ${calls.length} times`);
-    // And that one call is above the network request, inside the
-    // `!isBackendEnabled()` branch which returns before it.
-    const demoBranch = portal.indexOf('if (!isBackendEnabled())');
-    const demoCall = portal.indexOf('getDemoClientSubmission(');
-    const request = portal.indexOf('await getClientSubmission(');
-    assert.ok(demoBranch >= 0 && demoBranch < demoCall, 'the demo call is outside the demo branch');
-    assert.ok(demoCall < request, 'the demo call is reachable after the live request');
+  it('cannot reach a demo submission at all', () => {
+    // CP-1 went further than the assertion this replaces. That one allowed ONE
+    // call to `getDemoClientSubmission`, inside a `!isBackendEnabled()` branch
+    // — which is to say: in the shipped build, where the flag is false, the
+    // client's whole portal was that call. There is now no such call, no such
+    // branch, and no path from this component to the demo boundary.
+    assert.ok(
+      !/getDemoClientSubmission/.test(portal),
+      'the portal can build a client report from a seeded profile again',
+    );
+    assert.ok(
+      !/@\/app\/demo\//.test(portal),
+      'the portal imports from the demo boundary',
+    );
+    assert.match(portal, /await getClientSubmission\(submissionId, clientAuth\)/);
   });
 
   it('records a failure instead of substituting anything', () => {

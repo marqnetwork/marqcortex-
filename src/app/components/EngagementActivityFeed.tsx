@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  getEngagementLog, getDemoEngagementEvents,
+  getEngagementLog,
   type EngagementEvent, type EngagementEventType, type ClientAuthContext,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
@@ -157,20 +157,11 @@ export function EngagementActivityFeed({ submissionId, refreshTick = 0, clientAu
         }
         prevCountRef.current = res.events.length;
       } else {
-        // Demo mode: use rich engagement events from centralized demo data
-        if (events.length === 0 && !silent) {
-          const rawEvents = getDemoEngagementEvents(submissionId);
-          const demoEvents: EngagementEvent[] = rawEvents.map(e => ({
-            id: e.id,
-            type: e.event as EngagementEventType,
-            at: e.timestamp,
-          }));
-          setEvents(demoEvents);
-          prevCountRef.current = demoEvents.length;
-          if (isVerboseLogging()) {
-            console.log('Demo mode: loaded rich engagement events');
-          }
-        }
+        // No backend, so no engagement to report. This used to fill the feed
+        // with invented opens, views and downloads — activity the client never
+        // performed, shown to the team as evidence of interest.
+        setEvents([]);
+        prevCountRef.current = 0;
       }
     } catch (err) {
       console.error('EngagementActivityFeed load error:', err);

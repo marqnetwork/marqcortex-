@@ -28,7 +28,8 @@ import {
   Flag, MessageSquare, Loader2, RefreshCw, Sparkles, XCircle, Kanban, List,
   Search, ArrowUpDown, Table2, LayoutList,
 } from 'lucide-react';
-import { getMockLeads, getMockCortexLeadData } from '@/app/services/cortexDataService';
+import { classifyProductDataError, type ProductDataReason } from '@/app/services/productData';
+import { ProductDataNotice } from '@/app/components/ProductDataState';
 import {
   getReadinessColor, getPillarColor, getStatusColor, getServiceLabel,
 } from '@/app/types/cortex-types';
@@ -284,6 +285,7 @@ function LeadOverviewView({
 }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [leadsFailure, setLeadsFailure] = useState<ProductDataReason | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | LeadStatus>('all');
   const [cortexStatus, setCortexStatus] = useState<Record<string, CortexStatusEntry>>({});
@@ -324,19 +326,14 @@ function LeadOverviewView({
   const loadLeads = async (silent = false) => {
     if (!silent) setIsLoading(true);
     else setIsRefreshing(true);
+    setLeadsFailure(null);
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for CORTEX dashboard (backend disabled)');
-        }
-        setLeads(getMockLeads());
-        setIsLoading(false);
-        setIsRefreshing(false);
+      if (!accessToken) {
+        setLeads([]);
+        setLeadsFailure('unauthenticated');
         return;
       }
-
-      if (accessToken) {
+      {
         // Load leads + cortex status + outcomes in parallel
         const [result] = await Promise.all([
           getSubmissions(accessToken),
@@ -361,15 +358,18 @@ function LeadOverviewView({
           urgencyLevel: sub.priority === 'high' ? 8 : sub.priority === 'medium' ? 5 : 3,
           impactPotential: Math.min(Math.round(sub.completionScore / 10), 10),
         }));
-        setLeads(realLeads.length > 0 ? realLeads : getMockLeads());
-      } else {
-        setLeads(getMockLeads());
+        // An empty pipeline is a pipeline with nothing in it. It used to be
+        // replaced with `getMockLeads()` — invented companies, invented
+        // readiness scores, invented urgency — which is how CORTEX came to be
+        // "diagnostic intelligence" about businesses that do not exist.
+        setLeads(realLeads);
       }
     } catch (err) {
       if (isVerboseLogging()) {
-        console.error('❌ Failed to load CORTEX leads:', err);
+        console.error('Failed to load CORTEX leads:', err);
       }
-      setLeads(getMockLeads());
+      setLeads([]);
+      setLeadsFailure(classifyProductDataError(err).reason);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -714,8 +714,27 @@ function LeadOverviewView({
 
         {/* Content: Pipeline Kanban, Table, or Lead Cards list */}
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="size-8 text-cortex-accent animate-spin" />
+          <div
+            data-testid="product-data-loading"
+            role="status"
+            aria-busy="true"
+            aria-label="Loading leads"
+            className="flex items-center justify-center py-20"
+          >
+            <Loader2 aria-hidden="true" className="size-8 text-cortex-accent animate-spin" />
+          </div>
+        ) : leadsFailure ? (
+          <ProductDataNotice reason={leadsFailure} onRetry={() => { void loadLeads(); }} />
+        ) : leads.length === 0 ? (
+          <div
+            data-testid="product-data-empty"
+            className="rounded-cortex-lg border border-cortex-default bg-white/[0.02] px-6 py-12 text-center"
+          >
+            <h3 className="text-sm font-bold text-white">No leads yet</h3>
+            <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-cortex-muted">
+              CORTEX analyses the diagnostics your clients complete. Once one
+              arrives it appears here.
+            </p>
           </div>
         ) : viewMode === 'pipeline' ? (
           <PipelineKanban
@@ -1082,6 +1101,7 @@ function CortexLeadDetail({
 }) {
   const [data, setData] = useState<CortexLeadData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [detailFailure, setDetailFailure] = useState<ProductDataReason | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('diagnostic');
   const [currentStatus, setCurrentStatus] = useState<LeadStatus>('new');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -1145,19 +1165,8 @@ function CortexLeadDetail({
 
   const loadLeadData = async () => {
     setIsLoading(true);
+    setDetailFailure(null);
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for lead details (backend disabled)');
-        }
-        const mockData = getMockCortexLeadData(leadId);
-        setData(mockData);
-        setCurrentStatus(mockData.lead.status);
-        setIsLoading(false);
-        return;
-      }
-
       let baseData: CortexLeadData | null = null;
 
       if (accessToken) {
@@ -1188,18 +1197,21 @@ function CortexLeadDetail({
         setData(baseData);
         setCurrentStatus(baseData.lead.status);
       } else {
-        // Fallback to mock
-        const mockData = getMockCortexLeadData(leadId);
-        setData(mockData);
-        setCurrentStatus(mockData.lead.status);
+        // The submission this id names is not in the workspace. It used to
+        // render `getMockCortexLeadData(leadId)`, which returns the FIRST
+        // fixture lead for any id it does not recognise — so an operator
+        // following a stale link was shown a complete, confident diagnostic
+        // belonging to a company that does not exist, under the heading they
+        // had clicked.
+        setData(null);
+        setDetailFailure('not-found');
       }
     } catch (err) {
       if (isVerboseLogging()) {
-        console.error('❌ Failed to load lead data:', err);
+        console.error('Failed to load lead data:', err);
       }
-      const mockData = getMockCortexLeadData(leadId);
-      setData(mockData);
-      setCurrentStatus(mockData.lead.status);
+      setData(null);
+      setDetailFailure(classifyProductDataError(err).reason);
     } finally {
       setIsLoading(false);
     }
@@ -1337,10 +1349,27 @@ function CortexLeadDetail({
     },
   ];
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-cortex-canvas">
-        <Loader2 className="size-10 text-cortex-accent animate-spin" />
+      <div
+        data-testid="product-data-loading"
+        role="status"
+        aria-busy="true"
+        aria-label="Loading lead"
+        className="flex items-center justify-center min-h-screen bg-cortex-canvas"
+      >
+        <Loader2 aria-hidden="true" className="size-10 text-cortex-accent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-cortex-canvas p-6">
+        <ProductDataNotice
+          reason={detailFailure ?? 'not-found'}
+          onRetry={() => { void loadLeadData(); }}
+        />
       </div>
     );
   }

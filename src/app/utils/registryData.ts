@@ -875,7 +875,7 @@ const UTL_NODES: RegistryNode[] = [
   {
     id: 'MQC-UTL-004',
     label: 'demoData.ts',
-    path: '/src/app/utils/demoData.ts',
+    path: '/src/app/demo/fixtures/demoData.ts',
     type: 'UTL',
     domain: 'data-layer',
     description: 'Master demo data module. Provides all seed data when BACKEND_INTEGRATION=false. Includes DEMO_CLIENTS, getDemoSubmissions, getDemoMessages, getDemoProposal, getDemoTeamMembers, etc.',
@@ -970,7 +970,7 @@ const UTL_NODES: RegistryNode[] = [
   {
     id: 'MQC-UTL-012',
     label: 'mockAIAnalysis.ts',
-    path: '/src/app/utils/mockAIAnalysis.ts',
+    path: '/src/app/demo/fixtures/mockAIAnalysis.ts',
     type: 'UTL',
     domain: 'ai-cortex',
     description: 'Mock AI analysis data for demo mode. Returns deterministic-looking AI analysis without calling OpenAI.',
@@ -981,7 +981,7 @@ const UTL_NODES: RegistryNode[] = [
   {
     id: 'MQC-UTL-013',
     label: 'mockClientReport.ts',
-    path: '/src/app/utils/mockClientReport.ts',
+    path: '/src/app/demo/fixtures/mockClientReport.ts',
     type: 'UTL',
     domain: 'client-portal',
     description: 'Mock client report data for demo mode.',
@@ -992,7 +992,7 @@ const UTL_NODES: RegistryNode[] = [
   {
     id: 'MQC-UTL-014',
     label: 'mockCortexAIBrain.ts',
-    path: '/src/app/utils/mockCortexAIBrain.ts',
+    path: '/src/app/demo/fixtures/mockCortexAIBrain.ts',
     type: 'UTL',
     domain: 'ai-cortex',
     description: 'Mock CORTEX AI brain responses for demo mode.',
@@ -1003,7 +1003,7 @@ const UTL_NODES: RegistryNode[] = [
   {
     id: 'MQC-UTL-015',
     label: 'mockCortexData.ts',
-    path: '/src/app/utils/mockCortexData.ts',
+    path: '/src/app/demo/fixtures/mockCortexData.ts',
     type: 'UTL',
     domain: 'ai-cortex',
     description: 'Mock CORTEX dashboard data for demo mode.',

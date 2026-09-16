@@ -29,12 +29,14 @@ import {
   BellRing, ListChecks, Layers, LineChart, UserCheck,
   Building2, Filter, MessageSquare,
 } from 'lucide-react';
-import { getSubmissions, getTeamMembers, getDemoSubmissions, getDemoTeamMembers } from '@/app/services/dataService';
+import { getSubmissions, getTeamMembers } from '@/app/services/dataService';
+import { classifyProductDataError, type ProductDataReason } from '@/app/services/productData';
+import { ProductDataNotice } from '@/app/components/ProductDataState';
 import { FullFeaturedDashboard } from '@/app/components/FullFeaturedDashboard';
 import { InlineAITrigger } from '@/app/components/InlineAITrigger';
 import { FEATURES } from '@/config/features';
 import { useApp } from '@/app/contexts/AppContext';
-import type { Submission } from '@/app/services/dataService';
+import type { Submission, TeamMemberRecord } from '@/app/services/dataService';
 import {
   shouldLeadWithOrientation, nextOrientationStep, type OrientationInput,
 } from '@/app/core/orientation';
@@ -227,16 +229,13 @@ function buildActivityFeed(subs: Submission[]): ActivityItem[] {
 }
 
 // Static recent activity (representative events — demo mode only)
-const ACTIVITY_FEED = [
-  { id: 'a1', icon: Sparkles,      color: PURPLE,  text: 'AI analysis completed for Manufacturing Pro',     time: '2 min ago' },
-  { id: 'a2', icon: FileText,      color: BLUE,    text: 'Proposal draft §3 updated — TechCorp Solutions',  time: '18 min ago' },
-  { id: 'a3', icon: MessageSquare, color: CYAN,    text: 'New message from Dr. James Wilson (HealthFirst)',  time: '34 min ago' },
-  { id: 'a4', icon: CheckCircle2,  color: GREEN,   text: 'CloudServe Ltd marked as Completed',              time: '1 hr ago' },
-  { id: 'a5', icon: BellRing,      color: ORANGE,  text: 'RetailMax Inc — 3-day follow-up reminder fired',  time: '2 hr ago' },
-  { id: 'a6', icon: Star,          color: PURPLE,  text: 'QBR report generated for Manufacturing Pro',      time: '4 hr ago' },
-  { id: 'a7', icon: UserCheck,     color: GREEN,   text: 'FinanceHub assigned to Review Manager',           time: '5 hr ago' },
-  { id: 'a8', icon: Building2,     color: BLUE,    text: 'New diagnostic submitted — FinanceHub',           time: '6 hr ago' },
-];
+// The eight-item ACTIVITY FEED that used to sit here is gone.
+//
+// It named Manufacturing Pro, TechCorp Solutions, HealthFirst, CloudServe Ltd,
+// RetailMax Inc and a Dr. James Wilson, timestamped them "2 min ago", and put
+// them on the Command Center beside whatever real pipeline the operator had.
+// `buildActivityFeed(submissions)` derives the feed from the submissions the
+// workspace actually returned, which is the only feed that can be true.
 
 // ─────────────────────────────────────────────────────────────
 // PROPS
@@ -267,14 +266,15 @@ export function TeamHomeDashboard({
   const [activeTab, setActiveTab] = useState<DashTab>('command');
   const [now] = useState(() => new Date());
 
-  // ── Live submissions ────────────────────────────────────────
-  // Backend mode: read from GET /submissions (no demo fallback — a real
-  // empty pipeline must read as empty, never masked by seed data).
-  // Demo mode: use the local seed set.
-  const backendMode = FEATURES.BACKEND_INTEGRATION && !!accessToken;
-  const [submissions, setSubmissions] = useState<Submission[]>(
-    () => (backendMode ? [] : getDemoSubmissions()),
-  );
+  // ── Submissions ─────────────────────────────────────────────
+  //
+  // ONE PATH. There used to be two — a live one and a `getDemoSubmissions()`
+  // one chosen by a feature flag — so the Command Center's pipeline, its KPI
+  // grid, its charts and its "needs attention" queue were computed from
+  // invented companies whenever the backend was off, and nothing on the screen
+  // said so. `getSubmissions` now either returns the workspace's real
+  // submissions or raises, and a raise is rendered as a raise.
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
 
   // LOADING IS NOT EMPTY.
   //
@@ -282,36 +282,32 @@ export function TeamHomeDashboard({
   // mounted, which meant a complete grid of zeros — "you have no leads, no
   // pipeline, nothing needs attention" — for as long as the first request took,
   // shown with the same confidence as real data. A busy workspace was told it
-  // was empty. The flag starts true only in backend mode, because demo mode has
-  // its data synchronously and has nothing to wait for.
-  const [isLoading, setIsLoading] = useState(backendMode);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // was empty.
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadFailure, setLoadFailure] =
+    useState<{ reason: ProductDataReason; detail: string } | null>(null);
 
   const loadSubmissions = useCallback(async (signal: { cancelled: boolean }) => {
-    if (!backendMode) {
-      setSubmissions(getDemoSubmissions());
-      setIsLoading(false);
-      setLoadError(null);
-      return;
-    }
+    if (!accessToken) { setIsLoading(false); return; }
     setIsLoading(true);
-    setLoadError(null);
+    setLoadFailure(null);
     try {
-      const result = await getSubmissions(accessToken!);
+      const result = await getSubmissions(accessToken);
       if (!signal.cancelled) setSubmissions(result.submissions ?? []);
     } catch (err) {
       if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load submissions', err);
       if (!signal.cancelled) {
         // A failed load is NOT an empty workspace, and must not be drawn as
-        // one. The panel says the load failed and offers to retry; it does not
-        // quietly present zero as a measurement.
+        // one. The panel says WHICH failure it was — unreachable, refused,
+        // not connected — and does not present zero as a measurement.
+        const classified = classifyProductDataError(err);
         setSubmissions([]);
-        setLoadError(err instanceof Error ? err.message : 'The workspace could not be loaded.');
+        setLoadFailure({ reason: classified.reason, detail: classified.message });
       }
     } finally {
       if (!signal.cancelled) setIsLoading(false);
     }
-  }, [backendMode, accessToken]);
+  }, [accessToken]);
 
   useEffect(() => {
     const signal = { cancelled: false };
@@ -319,41 +315,51 @@ export function TeamHomeDashboard({
     return () => { signal.cancelled = true; };
   }, [loadSubmissions]);
 
-  // Team Pulse showed the seeded roster in EVERY mode, so a live workspace saw
-  // four invented colleagues with invented activity beside its real pipeline.
-  // In backend mode the roster is not loaded on this surface, so it is empty —
-  // and `null` tells the orientation model that the count is unknown rather
-  // than zero, which is the difference between "we do not know" and "you are
-  // alone here".
-  const teamMembers = useMemo(() => (backendMode ? [] : getDemoTeamMembers()), [backendMode]);
-
-  // The roster count exists ONLY to resolve the "bring your team in"
-  // orientation step, and that step is offered only to a role the server lets
-  // administer the team. So it is fetched only when it can change what the user
-  // sees — never as an unconditional extra request on the console's busiest
-  // surface. `null` until it arrives, which the model reads as UNKNOWN and
-  // renders as neither done nor outstanding.
+  // ── The roster ──────────────────────────────────────────────
+  //
+  // Team Pulse used to render `getDemoTeamMembers()` — four invented colleagues
+  // with invented assignment counts and an invented online dot — beside the
+  // operator's real pipeline. It reads the real roster now, and when it cannot,
+  // it says so rather than filling the panel.
+  //
+  // The request is made only for a role the server lets administer the team,
+  // because for anybody else it is a guaranteed 403 and an extra round trip on
+  // the console's busiest surface. `null` means UNKNOWN, which the orientation
+  // model renders as neither done nor outstanding — not the same as zero.
+  const [teamMembers, setTeamMembers] = useState<TeamMemberRecord[]>([]);
+  const [rosterFailure, setRosterFailure] = useState<ProductDataReason | null>(null);
   const [liveTeamMemberCount, setLiveTeamMemberCount] = useState<number | null>(null);
-  const needsRoster = backendMode && canAdministerTeam(teamRole);
+  const needsRoster = !!accessToken && canAdministerTeam(teamRole);
 
   useEffect(() => {
-    if (!needsRoster) { setLiveTeamMemberCount(null); return; }
+    if (!needsRoster) {
+      setLiveTeamMemberCount(null);
+      setTeamMembers([]);
+      setRosterFailure(accessToken ? 'permission-denied' : null);
+      return;
+    }
     let cancelled = false;
+    setRosterFailure(null);
     (async () => {
       try {
         const result = await getTeamMembers(accessToken!);
-        if (!cancelled) setLiveTeamMemberCount(result.members?.length ?? null);
+        if (cancelled) return;
+        setTeamMembers(result.members ?? []);
+        setLiveTeamMemberCount(result.members?.length ?? null);
       } catch (err) {
         if (FEATURES.VERBOSE_LOGGING) console.error('TeamHomeDashboard: failed to load the roster', err);
         // A failed roster load leaves the count UNKNOWN. It must not read as
         // zero: "you are alone here" is not a claim to make from a failure.
-        if (!cancelled) setLiveTeamMemberCount(null);
+        if (cancelled) return;
+        setTeamMembers([]);
+        setLiveTeamMemberCount(null);
+        setRosterFailure(classifyProductDataError(err).reason);
       }
     })();
     return () => { cancelled = true; };
   }, [needsRoster, accessToken]);
 
-  const teamMemberCount = backendMode ? liveTeamMemberCount : teamMembers.length;
+  const teamMemberCount = liveTeamMemberCount;
 
   // ── Computed KPIs ──────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -376,10 +382,11 @@ export function TeamHomeDashboard({
     [priorityItems],
   );
 
-  // Recent Activity: live submissions in backend mode, representative feed in demo mode
+  // Recent activity, derived from the submissions this workspace returned.
+  // There is no second, invented feed to fall back to any more.
   const recentActivity = useMemo<ActivityItem[]>(
-    () => (backendMode ? buildActivityFeed(submissions) : ACTIVITY_FEED),
-    [backendMode, submissions],
+    () => buildActivityFeed(submissions),
+    [submissions],
   );
 
   // Industry bar chart data — computed once at top level (NOT inside JSX)
@@ -471,10 +478,10 @@ export function TeamHomeDashboard({
               {/* ── LOAD FAILURE ──────────────────────────────────────────
                   A failed request is not an empty workspace. It says so, and
                   offers the retry rather than presenting zero as a fact. */}
-              {!isLoading && loadError && (
-                <ErrorState
-                  title="This workspace could not be loaded"
-                  detail={loadError}
+              {!isLoading && loadFailure && (
+                <ProductDataNotice
+                  reason={loadFailure.reason}
+                  detail={loadFailure.detail}
                   onRetry={() => { void loadSubmissions({ cancelled: false }); }}
                 />
               )}
@@ -483,7 +490,7 @@ export function TeamHomeDashboard({
                   Leads with orientation instead of a command centre made of
                   zeros. `shouldLeadWithOrientation` is true only for a
                   workspace that has finished loading and is genuinely empty. */}
-              {!isLoading && !loadError && leadWithOrientation && (
+              {!isLoading && !loadFailure && leadWithOrientation && (
                 <OrientationPanel
                   facts={orientationFacts}
                   onNavigate={onNavigate}
@@ -494,7 +501,7 @@ export function TeamHomeDashboard({
 
               {/* Everything below is the command centre proper, and is shown
                   only once there is something for it to describe. */}
-              {!isLoading && !loadError && !leadWithOrientation && (
+              {!isLoading && !loadFailure && !leadWithOrientation && (
                 <>
               {/* ─────────────────────── HERO BANNER ─────────────────────── */}
               <div className="relative overflow-hidden rounded-cortex-lg border border-cortex-default bg-gradient-to-br from-cortex-overlay via-cortex-overlay to-cortex-canvas p-6">
@@ -951,41 +958,55 @@ export function TeamHomeDashboard({
                     </button>
                   </div>
 
-                  {/* Team members */}
-                  <div className="divide-y divide-white/4">
-                    {teamMembers.map((member, i) => {
-                      const initials = member.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-                      const isOnline = i === 0;
-                      const assignedCount = i === 0 ? 3 : i === 1 ? 2 : 1;
-                      const roleColors: Record<string, string> = { admin: PURPLE, reviewer: BLUE, viewer: GRAY };
-                      return (
-                        <div key={member.id} className="flex items-center gap-3 px-5 py-3">
-                          <div className="relative flex-shrink-0">
-                            <div className="size-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  {/* ── The roster ──────────────────────────────────────
+                      Three invented facts used to be rendered per member and
+                      none of them came from anywhere: `isOnline` was "is this
+                      the first row", `assignedCount` was 3, 2 or 1 by position,
+                      and the "Active" figure counted the first row. They are
+                      gone. What is left is what the roster endpoint returns —
+                      a name and a role — and an honest state when it returns
+                      nothing or refuses. */}
+                  {rosterFailure ? (
+                    <div className="px-5 py-4">
+                      <ProductDataNotice reason={rosterFailure} />
+                    </div>
+                  ) : teamMembers.length === 0 ? (
+                    <p
+                      data-testid="product-data-empty"
+                      className="px-5 py-6 text-center text-[11px] text-gray-500"
+                    >
+                      No team members yet. Invite colleagues from Team.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-white/4">
+                      {teamMembers.map(member => {
+                        const initials = member.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                        const roleColors: Record<string, string> = { admin: PURPLE, reviewer: BLUE, viewer: GRAY };
+                        return (
+                          <div key={member.id} className="flex items-center gap-3 px-5 py-3">
+                            <div className="size-9 flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white"
                               style={{ background: `linear-gradient(135deg, ${PURPLE}, ${BLUE})` }}>
                               {initials}
                             </div>
-                            <div className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-cortex-canvas ${isOnline ? 'bg-cortex-success' : 'bg-gray-600'}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-white truncate">{member.name}</p>
+                              <p className="text-[10px] capitalize" style={{ color: roleColors[member.teamRole] ?? GRAY }}>{member.teamRole}</p>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-white truncate">{member.name}</p>
-                            <p className="text-[10px] capitalize" style={{ color: roleColors[member.teamRole] ?? GRAY }}>{member.teamRole}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-bold text-white">{assignedCount}</p>
-                            <p className="text-[10px] text-gray-600">assigned</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Stats footer */}
-                  <div className="px-5 py-3 border-t border-white/8 grid grid-cols-3 gap-2">
+                  {/* Stats footer — only figures this surface can actually count. */}
+                  <div className="px-5 py-3 border-t border-white/8 grid grid-cols-2 gap-2">
                     {[
-                      { label: 'Active', value: String(teamMembers.filter((_, i) => i === 0).length), color: GREEN },
-                      { label: 'Members', value: String(teamMembers.length), color: BLUE },
-                      { label: 'Assigned', value: `${kpis.total - kpis.newCount}`, color: ORANGE },
+                      {
+                        label: 'Members',
+                        value: teamMemberCount === null ? '—' : String(teamMemberCount),
+                        color: BLUE,
+                      },
+                      { label: 'In progress', value: `${kpis.total - kpis.newCount}`, color: ORANGE },
                     ].map(s => (
                       <div key={s.label} className="text-center">
                         <p className="text-sm font-bold" style={{ color: s.color }}>{s.value}</p>

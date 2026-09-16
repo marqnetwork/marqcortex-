@@ -95,24 +95,27 @@ describe('every panel records the failure it used to swallow', () => {
 describe('the analytics panel no longer draws charts from seeded records', () => {
   const analytics = stripComments(read('src/app/components/AnalyticsDashboard.tsx'));
 
-  it('reaches the demo generator only from the demo-mode branch', () => {
-    // The CALL, not the declaration — `generateDemoSubmissions` is defined near
-    // the bottom of the file, long after the request, and matching that would
-    // fail for no reason.
-    const demoBranch = analytics.indexOf('if (!isBackendEnabled())');
-    const request = analytics.indexOf('await Promise.all(');
-    assert.ok(demoBranch >= 0 && request > demoBranch, 'the demo branch is gone or has moved');
-
-    const calls = [...analytics.matchAll(/(?<!function )generateDemoSubmissions\(\)/g)]
-      .map(m => m.index!)
-      .filter(at => !analytics.slice(Math.max(0, at - 40), at).includes('function '));
-    assert.ok(calls.length > 0, 'the demo branch no longer generates anything');
-    for (const at of calls) {
-      assert.ok(
-        at > demoBranch && at < request,
-        'generateDemoSubmissions is called outside the demo-mode branch',
-      );
-    }
+  it('has no demo generator left to reach', () => {
+    // The assertion this replaces required the call to be INSIDE the
+    // `!isBackendEnabled()` branch, which sounded like containment and was not:
+    // that branch is the shipped configuration, so `generateDemoSubmissions()`
+    // was what the Analytics screen actually charted. Worse, it built its
+    // twenty records from `Math.random()` — completion, quality and AI scores,
+    // and ages spread over a fortnight — so the conversion rates, industry
+    // breakdowns and weekly trends changed on every reload.
+    assert.ok(
+      !/function generateDemoSubmissions/.test(analytics),
+      'the random submission generator is back',
+    );
+    assert.ok(
+      !/generateDemoSubmissions\(\)/.test(analytics),
+      'the analytics screen is charting generated records again',
+    );
+    assert.ok(
+      !/Math\.random\(\)/.test(analytics),
+      'a number on the analytics screen is coming from Math.random()',
+    );
+    assert.match(analytics, /await Promise\.all\(/, 'the live load is gone');
   });
 
   it('clears the state it could not load', () => {
@@ -156,22 +159,24 @@ describe('the team panel makes no claim about a roster it could not read', () =>
 describe('the engagement panel invents no measurement', () => {
   const engagement = stripComments(read('src/app/components/EngagementIntelligence.tsx'));
 
-  it('no longer builds an EngagementAnalytics in its catch', () => {
-    // The demo-mode branch legitimately constructs one — that is what demo mode
-    // IS. The defect was a SECOND copy in the catch, so the assertion is scoped
-    // to the catch rather than to the file.
-    const catchAt = engagement.indexOf('} catch (err');
-    assert.ok(catchAt > 0, 'the catch block has moved');
-    const catchBody = engagement.slice(catchAt);
+  it('builds no EngagementAnalytics anywhere — catch or otherwise', () => {
+    // There used to be two copies of the same fabrication: one in the catch,
+    // which this file already removed, and one in the `!isBackendEnabled()`
+    // branch, which it permitted on the grounds that "that is what demo mode
+    // IS". But that branch was the shipped configuration, so the permitted
+    // copy was the one a team actually read: fifteen reports available, twelve
+    // viewed, eight CTA clicks, an 80% view rate, a "High Engagement Co"
+    // scoring 95 — on a panel whose entire purpose is telling the team how
+    // real clients are engaging.
     assert.ok(
-      !/const demoData: EngagementAnalytics/.test(catchBody),
-      'the hand-written engagement numbers are back in the catch',
+      !/const demoData: EngagementAnalytics/.test(engagement),
+      'the hand-written engagement numbers are back',
     );
-    // And the one that remains is inside the demo branch, before the request.
-    const demoBranch = engagement.indexOf('if (!isBackendEnabled())');
-    const seed = engagement.indexOf('const demoData: EngagementAnalytics');
-    const request = engagement.indexOf('await getEngagementAnalytics(');
-    assert.ok(demoBranch >= 0 && demoBranch < seed && seed < request);
+    assert.ok(
+      !/isBackendEnabled\(\)/.test(engagement),
+      'the panel is branching on the backend flag again instead of reporting what happened',
+    );
+    assert.match(engagement, /await getEngagementAnalytics\(/);
   });
 
   it('treats a response without analytics as a failure', () => {

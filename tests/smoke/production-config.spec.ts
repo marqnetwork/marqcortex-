@@ -34,7 +34,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * The literals. Taken from `src/app/utils/demoData.ts`, which declares them
+ * The literals. Taken from `src/app/demo/fixtures/demoData.ts`, which declares them
  * once so the coupling cannot return through a second copy.
  */
 const DEMO_EMAIL = 'admin@marqcortex.com';
@@ -142,7 +142,7 @@ test.describe('the production build does not print working credentials', () => {
     const text = await renderedText(page);
     const attributes = await accessibleSurfaces(page);
 
-    // From DEMO_CLIENTS in src/app/utils/demoData.ts. A client address is a
+    // From DEMO_CLIENTS in src/app/demo/fixtures/demoData.ts. A client address is a
     // weaker credential than the admin password but it is still an identity the
     // portal recognises, and the portal's own gate is the same one.
     for (const identity of ['client@company.com', 'john@business.com', 'sarah@startup.io']) {

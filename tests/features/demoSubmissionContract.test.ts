@@ -50,7 +50,7 @@ function readSource(rel: string): string {
   return readFileSync(join(REPO_ROOT, rel), 'utf8');
 }
 
-const DEMO_REL = 'src/app/utils/demoData.ts';
+const DEMO_REL = 'src/app/demo/fixtures/demoData.ts';
 const API_REL = 'src/app/lib/api.ts';
 
 /** The `CLIENT_PROFILES` object literal, from its declaration to its closing brace. */

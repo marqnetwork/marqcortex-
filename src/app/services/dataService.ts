@@ -93,8 +93,10 @@ export type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
 // import ClientAuthContext from this module; this is the export they resolve to.
 export type { ClientAuthContext } from '@/app/lib/session';
 
-// Re-export demo types
-export type { DemoClient, DemoNurtureLead } from '@/app/utils/demoData';
+// Re-export the demo fixture TYPES. A type is erased at build time, so this
+// carries no fixture data into the authenticated bundle — it only lets a
+// designated demo surface name the shape it is rendering.
+export type { DemoClient, DemoNurtureLead } from '@/app/demo/fixtures/demoData';
 
 // Re-export clientReportGenerator type so components only need dataService
 export type { ClientReportData } from '@/app/utils/clientReportGenerator';
@@ -104,8 +106,21 @@ import { normalizeTeamRole } from '@/app/lib/teamRole';
 import * as api from '@/app/lib/api';
 import type { ClientAuthContext } from '@/app/lib/session';
 import type { ReviewerChecklist } from '@/app/types/reviewer-checklist';
-import * as demo from '@/app/utils/demoData';
 import { generateClientReport as _generateClientReport } from '@/app/utils/clientReportGenerator';
+import { requireProductBackend } from '@/app/services/productData';
+
+// Re-export the product-data contract so a surface needs one import to both
+// fetch and render honestly.
+export {
+  ProductDataUnavailableError,
+  classifyProductDataError,
+  requireProductBackend,
+  hasProductBackend,
+  isEmptyAnswer,
+  REASON_HEADLINE,
+  REASON_DETAIL,
+} from '@/app/services/productData';
+export type { ProductDataReason } from '@/app/services/productData';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,8 +128,35 @@ function log(...args: any[]) {
   if (FEATURES.VERBOSE_LOGGING) console.log('📦 [dataService]', ...args);
 }
 
-function isDemo(): boolean {
-  return !FEATURES.BACKEND_INTEGRATION;
+/**
+ * Is this an explicitly designated demo experience?
+ *
+ * Note the second half. Before CP-1 the question was `!BACKEND_INTEGRATION` —
+ * "is the backend off?" — which meant the ANSWER TO A FAILURE was a fixture.
+ * Requiring `BACKEND_INTEGRATION` to be off as well as `DEMO_EXPERIENCE` to be
+ * on makes the two mutually exclusive by construction: once a real backend is
+ * configured, no code path in this file can reach a fabricated answer, whatever
+ * the other flag says and however badly the backend behaves.
+ *
+ * Both false — the shipped default — is an authenticated product that reports
+ * honestly that it is not connected.
+ */
+function isDemoExperience(): boolean {
+  return FEATURES.DEMO_EXPERIENCE && !FEATURES.BACKEND_INTEGRATION;
+}
+
+/**
+ * The one door to the fabricated answers.
+ *
+ * A dynamic import, deliberately: it keeps `@/app/demo/*` out of the
+ * authenticated bundle's module graph, and it makes every call site that wants
+ * a fixture visible as one line of code that names the demo boundary.
+ */
+type DemoBackend = typeof import('@/app/demo/demoBackend');
+
+async function demoBackend<T>(use: (backend: DemoBackend) => T | Promise<T>): Promise<T> {
+  const backend = await import('@/app/demo/demoBackend');
+  return use(backend);
 }
 
 // ============================================================================
@@ -123,19 +165,15 @@ function isDemo(): boolean {
 
 /** Capture lead from the lead magnet form */
 export async function saveLead(data: api.LeadCapturePayload) {
-  if (isDemo()) {
-    log('Save lead (demo mode):', data.email);
-    return { success: true, leadId: `demo_lead_${Date.now()}` };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveLead(data));
+  requireProductBackend();
   return api.captureLead(data);
 }
 
 /** Capture exit-intent email (email-only, simplified) */
 export async function saveExitIntentLead(email: string) {
-  if (isDemo()) {
-    log('Save exit-intent lead (demo mode):', email);
-    return { success: true, leadId: `demo_exit_${Date.now()}`, alreadyExists: false };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveExitIntentLead(email));
+  requireProductBackend();
   return api.captureExitIntentLead(email);
 }
 
@@ -152,44 +190,24 @@ export async function teamLogin(
   accessToken: string;
   user: { id: string; email: string; name: string; teamRole?: string };
 }> {
-  if (isDemo()) {
-    log('Team login (demo mode)');
-    if (email === demo.DEMO_TEAM_LOGIN.email && password === demo.DEMO_TEAM_LOGIN.password) {
-      return {
-        success: true,
-        accessToken: 'demo_access_token_12345',
-        // Demo mode signs in the one demo account, and it is the admin one —
-        // stating the role here rather than leaving it to the fail-closed
-        // default is what makes the demo show the admin experience it claims to.
-        user: { id: 'user_001', email, name: 'Admin User', teamRole: 'admin' },
-      };
-    }
-    throw new Error('Invalid credentials. Use demo credentials shown below.');
-  }
+  if (isDemoExperience()) return demoBackend(b => b.teamLogin(email, password));
+  requireProductBackend();
   return api.teamLogin(email, password);
 }
 
 /**
  * Client sign-in, step one — ask for a code.
  *
- * Demo mode has no mail and no server, so it acknowledges without sending
- * anything; `DEMO_SIGN_IN_CODE` is what the second step accepts there. That is
- * a property of demo mode, which serves fixed fixtures to nobody in particular
- * — it is never reachable when `isDemo()` is false, and the live path has no
- * constant code of any kind.
+ * There is no constant code on this path and no fixture behind it. The demo's
+ * fixed code lives in `@/app/demo/demoBackend`, which this function can only
+ * reach through `isDemoExperience()`, and which a live configuration can never
+ * reach at all.
  */
-export const DEMO_SIGN_IN_CODE = '000000';
-
 export async function requestClientSignInCode(
   email: string,
 ): Promise<{ sent: boolean; message: string }> {
-  if (isDemo()) {
-    log('Request client sign-in code (demo mode):', email);
-    return {
-      sent: true,
-      message: `Demo mode: use code ${DEMO_SIGN_IN_CODE}.`,
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.requestClientSignInCode(email));
+  requireProductBackend();
   return api.requestClientSignInCode(email);
 }
 
@@ -198,26 +216,29 @@ export async function exchangeClientSignInCode(
   email: string,
   code: string,
 ): Promise<{ exists: boolean; submissionId?: string; companyName?: string; sessionToken?: string }> {
-  if (isDemo()) {
-    log('Exchange client sign-in code (demo mode):', email);
-    if (code.trim() !== DEMO_SIGN_IN_CODE) return { exists: false };
-    const match = demo.findDemoClient(email);
-    if (match) {
-      // A deterministic demo token from submissionId + email, so the same
-      // fixture always produces the same token (no server needed).
-      const demoToken = `demo_tok_${btoa(`${match.submissionId}:${email}`).replace(/=/g, '')}`;
-      return { exists: true, submissionId: match.submissionId, companyName: match.companyName, sessionToken: demoToken };
-    }
-    return { exists: false };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.exchangeClientSignInCode(email, code));
+  requireProductBackend();
   return api.exchangeClientSignInCode(email, code);
 }
 
-/** Expose demo clients list for login hints */
-export const DEMO_CLIENTS = demo.DEMO_CLIENTS;
-/** The team credentials demo mode accepts. A fixture — see demoData.ts. */
-export const DEMO_TEAM_LOGIN = demo.DEMO_TEAM_LOGIN;
-export const findDemoClient = demo.findDemoClient;
+/**
+ * The sign-in hints a DEMO shows, or `null` in every other configuration.
+ *
+ * These used to be three synchronous re-exports of the fixture module, which
+ * meant the shipped login screens imported the demo credentials whether or not
+ * they rendered them — and the shipped bundle therefore contained them. Asking
+ * for them is now an async question that answers `null` unless this build is an
+ * explicitly designated demo, so a login screen renders the hint block only
+ * where the hint is true.
+ */
+export async function getDemoSignInHints(): Promise<{
+  team: { email: string; password: string };
+  clients: { email: string; companyName: string }[];
+  code: string;
+} | null> {
+  if (!isDemoExperience()) return null;
+  return demoBackend(b => b.getSignInHints());
+}
 
 // ============================================================================
 // 2. SUBMISSIONS (Team-side)
@@ -225,20 +246,15 @@ export const findDemoClient = demo.findDemoClient;
 
 /** Create a new submission */
 export async function createSubmission(payload: api.SubmissionPayload) {
-  if (isDemo()) {
-    log('Create submission (demo mode)');
-    return { success: true, submissionId: `demo-${Date.now()}` };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.createSubmission(payload));
+  requireProductBackend();
   return api.createSubmission(payload);
 }
 
 /** Get all submissions (team auth) */
 export async function getSubmissions(accessToken: string) {
-  if (isDemo()) {
-    log('Fetching submissions (demo mode)');
-    const submissions = demo.getDemoSubmissions();
-    return { success: true, submissions, total: submissions.length };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getSubmissions(accessToken));
+  requireProductBackend();
   return api.getSubmissions(accessToken);
 }
 
@@ -248,16 +264,8 @@ export async function updateSubmissionStatus(
   accessToken: string,
   updates: { status?: string; priority?: string; assignedTo?: string },
 ) {
-  if (isDemo()) {
-    log('Update submission status (demo mode)', id, updates);
-    // Return a mock updated submission
-    const subs = demo.getDemoSubmissions();
-    const sub = subs.find(s => s.id === id) || subs[0];
-    return {
-      success: true,
-      submission: { ...sub, ...updates } as api.Submission,
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.updateSubmissionStatus(id, accessToken, updates));
+  requireProductBackend();
   return api.updateSubmissionStatus(id, accessToken, updates);
 }
 
@@ -267,10 +275,8 @@ export async function bulkUpdateSubmissions(
   updates: { status?: string; priority?: string; assignedTo?: string },
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Bulk update (demo mode)', ids.length, 'items');
-    return { success: true, updated: ids.length };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.bulkUpdateSubmissions(ids, updates, accessToken));
+  requireProductBackend();
   return api.bulkUpdateSubmissions(ids, updates, accessToken);
 }
 
@@ -289,32 +295,15 @@ export async function bulkUpdateSubmissions(
  * this wrapper hands on.
  */
 export async function getClientSubmission(submissionId: string, auth?: ClientAuthContext) {
-  if (isDemo()) {
-    log('Get client submission (demo mode):', submissionId);
-    const submission = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
-    return { success: true, submission };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getClientSubmission(submissionId, auth));
+  requireProductBackend();
   return api.getClientSubmission(submissionId, auth);
-}
-
-/** Build a demo client submission (helper for portal) */
-export function getDemoClientSubmission(overrides?: {
-  submissionId?: string;
-  clientEmail?: string;
-  companyName?: string;
-}) {
-  return demo.getDemoClientSubmission(overrides);
 }
 
 /** Get client report (AI-powered or deterministic) */
 export async function getClientReport(submissionId: string, auth?: ClientAuthContext) {
-  if (isDemo()) {
-    log('Get client report (demo mode)');
-    // Generate deterministic report from demo data
-    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
-    const report = _generateClientReport(sub);
-    return { success: true, report: report as any, aiPowered: false };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getClientReport(submissionId, auth));
+  requireProductBackend();
   return api.getClientReport(submissionId, auth);
 }
 
@@ -324,12 +313,8 @@ export async function getClientReport(submissionId: string, auth?: ClientAuthCon
 
 /** Client reads messages */
 export async function getClientMessages(submissionId: string, auth?: ClientAuthContext) {
-  if (isDemo()) {
-    log('Get client messages (demo mode)');
-    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
-    const messages = demo.getDemoMessages(submissionId, sub.contact);
-    return { success: true, messages };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getClientMessages(submissionId, auth));
+  requireProductBackend();
   return api.getClientMessages(submissionId, auth);
 }
 
@@ -340,45 +325,15 @@ export async function postClientMessage(
   clientName: string,
   auth?: ClientAuthContext,
 ) {
-  if (isDemo()) {
-    log('Post client message (demo mode)');
-    const newMsg: api.Message = {
-      id: `msg_demo_${Date.now()}`,
-      submissionId,
-      author: 'client',
-      authorName: clientName,
-      content,
-      createdAt: new Date().toISOString(),
-    };
-    return { success: true, message: newMsg };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.postClientMessage(submissionId, content, clientName, auth));
+  requireProductBackend();
   return api.postClientMessage(submissionId, content, clientName, auth);
 }
 
 /** Team reads messages (team auth) */
 export async function getTeamMessages(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get team messages (demo mode)');
-    const messages: api.Message[] = [
-      {
-        id: 'demo_team_msg_1',
-        submissionId,
-        author: 'client',
-        authorName: 'Client',
-        content: 'When will my report be ready?',
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-      },
-      {
-        id: 'demo_team_msg_2',
-        submissionId,
-        author: 'team',
-        authorName: 'Team',
-        content: "Your report is being finalized now. You'll receive it within the next hour!",
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-      },
-    ];
-    return { success: true, messages, unreadFromClient: 0 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getTeamMessages(submissionId, accessToken));
+  requireProductBackend();
   return api.getTeamMessages(submissionId, accessToken);
 }
 
@@ -389,23 +344,10 @@ export async function postTeamReply(
   accessToken: string,
   authorName: string,
 ) {
-  if (isDemo()) {
-    log('Post team reply (demo mode)');
-    const newMsg: api.Message = {
-      id: `msg_team_demo_${Date.now()}`,
-      submissionId,
-      author: 'team',
-      authorName,
-      content,
-      createdAt: new Date().toISOString(),
-    };
-    return { success: true, message: newMsg };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.postTeamReply(submissionId, content, accessToken, authorName));
+  requireProductBackend();
   return api.postTeamReply(submissionId, content, accessToken, authorName);
 }
-
-/** Get demo messages (convenience export for components that use it) */
-export const getDemoMessages = demo.getDemoMessages;
 
 // ============================================================================
 // 5. PROPOSALS
@@ -413,39 +355,29 @@ export const getDemoMessages = demo.getDemoMessages;
 
 /** Get proposal (team auth) */
 export async function getProposal(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get proposal (demo mode)');
-    return { success: true, proposal: null };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getProposal(submissionId, accessToken));
+  requireProductBackend();
   return api.getProposal(submissionId, accessToken);
 }
 
 /** Save proposal (team auth) */
 export async function saveProposal(submissionId: string, proposal: any, accessToken: string) {
-  if (isDemo()) {
-    log('Save proposal (demo mode — not persisted)');
-    return { success: true, proposal };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveProposal(submissionId, proposal, accessToken));
+  requireProductBackend();
   return api.saveProposal(submissionId, proposal, accessToken);
 }
 
 /** Send proposal to client */
 export async function sendProposal(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Send proposal (demo mode — not sent)');
-    return { success: true, proposal: { status: 'sent', sentAt: new Date().toISOString() } };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.sendProposal(submissionId, accessToken));
+  requireProductBackend();
   return api.sendProposal(submissionId, accessToken);
 }
 
 /** Client fetches their proposal */
 export async function getClientProposal(submissionId: string, auth?: ClientAuthContext) {
-  if (isDemo()) {
-    log('Get client proposal (demo mode)');
-    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
-    const proposal = demo.getDemoProposal(sub.company);
-    return { success: true, proposal };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getClientProposal(submissionId, auth));
+  requireProductBackend();
   return api.getClientProposal(submissionId, auth);
 }
 
@@ -456,35 +388,18 @@ export async function respondToProposal(
   clientName?: string,
   auth?: ClientAuthContext,
 ) {
-  if (isDemo()) {
-    log('Respond to proposal (demo mode):', response);
-    const sub = demo.getDemoClientSubmission({ submissionId, clientEmail: auth?.email });
-    const proposal = demo.getDemoProposal(sub.company);
-    return {
-      success: true,
-      proposal: {
-        ...proposal,
-        status: response === 'accepted' ? 'accepted' : 'rejected',
-        respondedAt: new Date().toISOString(),
-        respondedBy: clientName,
-      },
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.respondToProposal(submissionId, response, clientName, auth));
+  requireProductBackend();
   return api.respondToProposal(submissionId, response, clientName, auth);
 }
-
-/** Get demo proposal (convenience export) */
-export const getDemoProposal = demo.getDemoProposal;
 
 // ============================================================================
 // 6. PROPOSAL ANNOTATIONS
 // ============================================================================
 
 export async function getProposalAnnotations(submissionId: string) {
-  if (isDemo()) {
-    log('Get proposal annotations (demo mode)');
-    return { success: true, annotations: [] };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getProposalAnnotations(submissionId));
+  requireProductBackend();
   return api.getProposalAnnotations(submissionId);
 }
 
@@ -492,26 +407,14 @@ export async function createProposalAnnotation(
   submissionId: string,
   payload: Omit<api.ProposalAnnotation, 'id' | 'submissionId' | 'createdAt'>,
 ) {
-  if (isDemo()) {
-    log('Create annotation (demo mode)');
-    return {
-      success: true,
-      annotation: {
-        ...payload,
-        id: `ann_demo_${Date.now()}`,
-        submissionId,
-        createdAt: new Date().toISOString(),
-      } as api.ProposalAnnotation,
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.createProposalAnnotation(submissionId, payload));
+  requireProductBackend();
   return api.createProposalAnnotation(submissionId, payload);
 }
 
 export async function deleteProposalAnnotation(submissionId: string, annotationId: string) {
-  if (isDemo()) {
-    log('Delete annotation (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.deleteProposalAnnotation(submissionId, annotationId));
+  requireProductBackend();
   return api.deleteProposalAnnotation(submissionId, annotationId);
 }
 
@@ -526,137 +429,39 @@ export async function trackEngagement(
   meta?: Record<string, any>,
   auth?: ClientAuthContext,
 ) {
-  if (isDemo()) return; // Skip silently
+  if (isDemoExperience()) return demoBackend(b => b.trackEngagement(submissionId, type, meta, auth));
+  requireProductBackend();
   return api.trackEngagement(submissionId, type, meta, auth);
 }
 
 /** Get engagement log */
 export async function getEngagementLog(submissionId: string, auth?: ClientAuthContext) {
-  if (isDemo()) {
-    log('Get engagement log (demo mode)');
-    const events = demo.getDemoEngagementEvents(submissionId);
-    // Map to the expected shape
-    return {
-      success: true,
-      events: events.map(e => ({
-        id: e.id,
-        type: e.event as api.EngagementEventType,
-        at: e.timestamp,
-      })) as api.EngagementEvent[],
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEngagementLog(submissionId, auth));
+  requireProductBackend();
   return api.getEngagementLog(submissionId, auth);
 }
 
 /** Get engagement summary (batch, team auth) */
 export async function getEngagementSummary(accessToken: string, submissionIds: string[]) {
-  if (isDemo()) {
-    log('Get engagement summary (demo mode)');
-    const summary: Record<string, api.EngagementEvent | null> = {};
-    for (const id of submissionIds) {
-      summary[id] = {
-        id: `evt_demo_${id}`,
-        type: 'portal_opened',
-        at: new Date(Date.now() - 86400000).toISOString(),
-      };
-    }
-    return { success: true, summary };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEngagementSummary(accessToken, submissionIds));
+  requireProductBackend();
   return api.getEngagementSummary(accessToken, submissionIds);
 }
 
 /** Get engagement analytics (team auth) */
 export async function getEngagementAnalytics(accessToken: string) {
-  if (isDemo()) {
-    log('Get engagement analytics (demo mode)');
-    const analytics: api.EngagementAnalytics = {
-      reportDelivery: {
-        reportAvailable: 15,
-        totalViewed: 12,
-        totalCTAClicked: 8,
-        totalPDFSaved: 5,
-        totalViews: 34,
-        avgViewsPerViewed: 2.8,
-        viewRate: 80,
-        ctaRate: 67,
-        pdfRate: 42,
-      },
-      notes: {
-        total: 47,
-        submissionsWithNotes: 10,
-        byType: { note: 20, action: 15, flag: 7, insight: 5 },
-        topCommented: [
-          { id: 'demo_1', company: 'TechCorp Solutions', count: 8 },
-          { id: 'demo_2', company: 'HealthFirst Medical', count: 6 },
-          { id: 'demo_3', company: 'RetailMax Inc', count: 5 },
-        ],
-      },
-      topEngagedLeads: [
-        {
-          id: 'DEMO-001',
-          company: 'TechCorp Solutions',
-          industry: 'SaaS / Software',
-          status: 'completed',
-          viewCount: 5,
-          lastViewedAt: new Date(Date.now() - 3600000).toISOString(),
-          ctaClicked: true,
-          pdfSaved: true,
-          noteCount: 8,
-          engagementScore: 95,
-        },
-        {
-          id: 'DEMO-002',
-          company: 'HealthFirst Medical',
-          industry: 'Healthcare / Medical',
-          status: 'in-review',
-          viewCount: 3,
-          lastViewedAt: new Date(Date.now() - 7200000).toISOString(),
-          ctaClicked: true,
-          pdfSaved: false,
-          noteCount: 6,
-          engagementScore: 78,
-        },
-      ],
-      recentActivity: [
-        {
-          type: 'report_viewed',
-          company: 'TechCorp Solutions',
-          detail: 'Client viewed readiness report',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          submissionId: 'DEMO-001',
-        },
-        {
-          type: 'cta_clicked',
-          company: 'HealthFirst Medical',
-          detail: 'Client clicked Schedule Call CTA',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          submissionId: 'DEMO-002',
-        },
-      ],
-    };
-    return { success: true, engagement: analytics };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEngagementAnalytics(accessToken));
+  requireProductBackend();
   return api.getEngagementAnalytics(accessToken);
 }
-
-/** Get demo engagement events (convenience) */
-export const getDemoEngagementEvents = demo.getDemoEngagementEvents;
 
 // ============================================================================
 // 8. ANALYTICS
 // ============================================================================
 
 export async function getAnalytics(accessToken: string) {
-  if (isDemo()) {
-    log('Get analytics (demo mode)');
-    return {
-      success: true,
-      analytics: {
-        submissionCounts: { new: 3, 'in-review': 2, completed: 1, approved: 0, total: 6 },
-        dailyTrend: [],
-      },
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getAnalytics(accessToken));
+  requireProductBackend();
   return api.getAnalytics(accessToken);
 }
 
@@ -669,11 +474,8 @@ export async function getAnalytics(accessToken: string) {
 export async function getRevenueSnapshots(
   accessToken: string,
 ): Promise<{ snapshots: import('@/app/core/dashboardAggregator').DealSnapshot[]; source: 'demo' | 'live'; summary?: api.RevenueSnapshotSummary }> {
-  if (isDemo()) {
-    log('Get revenue snapshots (demo mode) — MOCK_SNAPSHOTS');
-    const { MOCK_SNAPSHOTS } = await import('@/app/core/dashboardAggregator');
-    return { snapshots: MOCK_SNAPSHOTS, source: 'demo' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getRevenueSnapshots(accessToken));
+  requireProductBackend();
   const res = await api.getRevenueSnapshots(accessToken);
   return { snapshots: res.snapshots, source: 'live', summary: res.summary };
 }
@@ -683,38 +485,14 @@ export async function getRevenueSnapshots(
 // ============================================================================
 
 export async function getNotifications(accessToken: string) {
-  if (isDemo()) {
-    log('Get notifications (demo mode)');
-    const notifications: api.AppNotification[] = [
-      {
-        id: 'notif_demo_1',
-        type: 'new_submission',
-        title: 'New Diagnostic Submission',
-        message: 'TechCorp Solutions submitted a new diagnostic assessment',
-        submissionId: 'DEMO-001',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        read: false,
-      },
-      {
-        id: 'notif_demo_2',
-        type: 'status_change',
-        title: 'Report Ready',
-        message: 'HealthFirst Medical report has been generated',
-        submissionId: 'DEMO-002',
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-        read: true,
-      },
-    ];
-    return { success: true, notifications, unreadCount: 1 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getNotifications(accessToken));
+  requireProductBackend();
   return api.getNotifications(accessToken);
 }
 
 export async function markNotificationsRead(accessToken: string) {
-  if (isDemo()) {
-    log('Mark notifications read (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.markNotificationsRead(accessToken));
+  requireProductBackend();
   return api.markNotificationsRead(accessToken);
 }
 
@@ -723,32 +501,8 @@ export async function markNotificationsRead(accessToken: string) {
 // ============================================================================
 
 export async function getNotes(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get notes (demo mode)');
-    const notes: api.Note[] = [
-      {
-        id: 'note_demo_1',
-        kvKey: '',
-        submissionId,
-        content: 'Strong lead — high readiness score and clear pain signals in fulfillment pipeline.',
-        type: 'insight',
-        authorName: 'Admin User',
-        authorEmail: 'admin@marqcortex.com',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-      },
-      {
-        id: 'note_demo_2',
-        kvKey: '',
-        submissionId,
-        content: 'Follow up on inventory sync issue — they mentioned overselling 3-4x per week.',
-        type: 'action',
-        authorName: 'Review Manager',
-        authorEmail: 'reviewer@marqcortex.com',
-        createdAt: new Date(Date.now() - 43200000).toISOString(),
-      },
-    ];
-    return { success: true, notes };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getNotes(submissionId, accessToken));
+  requireProductBackend();
   return api.getNotes(submissionId, accessToken);
 }
 
@@ -758,28 +512,14 @@ export async function addNote(
   type: api.Note['type'],
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Add note (demo mode)');
-    const note: api.Note = {
-      id: `note_demo_${Date.now()}`,
-      kvKey: '',
-      submissionId,
-      content,
-      type,
-      authorName: 'Demo User',
-      authorEmail: 'demo@marqcortex.com',
-      createdAt: new Date().toISOString(),
-    };
-    return { success: true, note };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.addNote(submissionId, content, type, accessToken));
+  requireProductBackend();
   return api.addNote(submissionId, content, type, accessToken);
 }
 
 export async function deleteNote(submissionId: string, noteId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Delete note (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.deleteNote(submissionId, noteId, accessToken));
+  requireProductBackend();
   return api.deleteNote(submissionId, noteId, accessToken);
 }
 
@@ -792,10 +532,8 @@ export async function getReview(
   reviewType: api.ReviewType,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Get review (demo mode) — no persisted review');
-    return { success: true, review: null as api.StoredReview | null };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getReview(submissionId, reviewType, accessToken));
+  requireProductBackend();
   return api.getReview(submissionId, reviewType, accessToken);
 }
 
@@ -805,16 +543,8 @@ export async function saveReview(
   checklist: ReviewerChecklist,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Save review (demo mode) — echo only, not persisted');
-    const review = {
-      ...checklist,
-      lead_id: submissionId,
-      review_type: reviewType,
-      updated_at: new Date().toISOString(),
-    } as api.StoredReview;
-    return { success: true, review };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveReview(submissionId, reviewType, checklist, accessToken));
+  requireProductBackend();
   return api.saveReview(submissionId, reviewType, checklist, accessToken);
 }
 
@@ -823,10 +553,8 @@ export async function saveReview(
 // ============================================================================
 
 export async function getEscalations(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get escalations (demo mode) — none persisted');
-    return { success: true, escalations: [] as api.EscalationRecord[] };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEscalations(submissionId, accessToken));
+  requireProductBackend();
   return api.getEscalations(submissionId, accessToken);
 }
 
@@ -835,26 +563,8 @@ export async function createEscalation(
   payload: api.CreateEscalationPayload,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Create escalation (demo mode) — echo only, not persisted');
-    const detectionCount = 1;
-    const escalation: api.EscalationRecord = {
-      id: `esc_demo_${Date.now()}`,
-      submissionId,
-      proposalId: payload.proposalId ?? null,
-      objectionType: payload.objectionType,
-      confidence: payload.confidence,
-      atRisk: payload.atRisk,
-      detectionCount,
-      status: 'active',
-      inputExcerpt: payload.inputExcerpt ?? '',
-      companyName: payload.companyName ?? '',
-      contactName: payload.contactName ?? '',
-      createdAt: new Date().toISOString(),
-      resolvedAt: null,
-    };
-    return { success: true, escalation, detectionCount };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.createEscalation(submissionId, payload, accessToken));
+  requireProductBackend();
   return api.createEscalation(submissionId, payload, accessToken);
 }
 
@@ -863,10 +573,8 @@ export async function resolveEscalation(
   escalationId: string,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Resolve escalation (demo mode) — no-op');
-    return { success: true, escalation: null as unknown as api.EscalationRecord };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.resolveEscalation(submissionId, escalationId, accessToken));
+  requireProductBackend();
   return api.resolveEscalation(submissionId, escalationId, accessToken);
 }
 
@@ -875,31 +583,14 @@ export async function resolveEscalation(
 // ============================================================================
 
 export async function createBooking(payload: api.CreateBookingPayload) {
-  if (isDemo()) {
-    log('Create booking (demo mode) — echo only, not persisted');
-    const booking: api.Booking = {
-      id: `bk_demo_${Date.now()}`,
-      schemaVersion: 2,
-      submissionId: payload.submissionId ?? null,
-      contactName: payload.contactName ?? '',
-      contactEmail: (payload.contactEmail || '').toLowerCase(),
-      companyName: payload.companyName ?? '',
-      scheduledAt: payload.scheduledAt,
-      priority: Boolean(payload.priority),
-      status: 'requested',
-      source: payload.source ?? 'score-page',
-      createdAt: new Date().toISOString(),
-    };
-    return { success: true, booking };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.createBooking(payload));
+  requireProductBackend();
   return api.createBooking(payload);
 }
 
 export async function getBookings(accessToken: string) {
-  if (isDemo()) {
-    log('Get bookings (demo mode) — none persisted');
-    return { success: true, bookings: [] as api.Booking[], count: 0 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getBookings(accessToken));
+  requireProductBackend();
   return api.getBookings(accessToken);
 }
 
@@ -908,10 +599,8 @@ export async function getBookings(accessToken: string) {
 // ============================================================================
 
 export async function getBlockRegistry(proposalId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get block registry (demo mode) — none persisted');
-    return { success: true, registry: null as api.BlockRegistrySnapshot | null };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getBlockRegistry(proposalId, accessToken));
+  requireProductBackend();
   return api.getBlockRegistry(proposalId, accessToken);
 }
 
@@ -920,18 +609,8 @@ export async function saveBlockRegistry(
   payload: api.SaveBlockRegistryPayload,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Save block registry (demo mode) — echo only, not persisted');
-    const registry: api.BlockRegistrySnapshot = {
-      proposalId,
-      blocks: payload.blocks,
-      revisions: payload.revisions,
-      locks: payload.locks,
-      rev: (payload.baseRev ?? 0) + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    return { success: true, registry };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveBlockRegistry(proposalId, payload, accessToken));
+  requireProductBackend();
   return api.saveBlockRegistry(proposalId, payload, accessToken);
 }
 
@@ -940,10 +619,8 @@ export async function saveBlockRegistry(
 // ============================================================================
 
 export async function getTeamMembers(accessToken: string) {
-  if (isDemo()) {
-    log('Get team members (demo mode)');
-    return { success: true, members: demo.getDemoTeamMembers() };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getTeamMembers(accessToken));
+  requireProductBackend();
   return api.getTeamMembers(accessToken);
 }
 
@@ -951,20 +628,8 @@ export async function inviteTeamMember(
   payload: { name: string; email: string; teamRole: string; tempPassword?: string },
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Invite team member (demo mode)');
-    const member: api.TeamMemberRecord = {
-      id: `user_demo_${Date.now()}`,
-      email: payload.email,
-      name: payload.name,
-      teamRole: normalizeTeamRole(payload.teamRole),
-      status: 'pending',
-      joinedDate: new Date().toISOString(),
-      lastActive: null,
-      isSelf: false,
-    };
-    return { success: true, member, tempPassword: 'DemoPass123!' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.inviteTeamMember(payload, accessToken));
+  requireProductBackend();
   return api.inviteTeamMember(payload, accessToken);
 }
 
@@ -973,64 +638,24 @@ export async function updateTeamMember(
   updates: { name?: string; teamRole?: string },
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Update team member (demo mode)');
-    const members = demo.getDemoTeamMembers();
-    const member = members.find(m => m.id === id) || members[0];
-    return { success: true, member: { ...member, ...updates } as api.TeamMemberRecord };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.updateTeamMember(id, updates, accessToken));
+  requireProductBackend();
   return api.updateTeamMember(id, updates, accessToken);
 }
 
 export async function removeTeamMember(id: string, accessToken: string) {
-  if (isDemo()) {
-    log('Remove team member (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.removeTeamMember(id, accessToken));
+  requireProductBackend();
   return api.removeTeamMember(id, accessToken);
 }
-
-/** Convenience exports for direct access */
-export const getDemoTeamMembers = demo.getDemoTeamMembers;
-export const getDemoTeamFallback = demo.getDemoTeamFallback;
 
 // ============================================================================
 // 12. SETTINGS
 // ============================================================================
 
 export async function getPlatformSettings(accessToken: string) {
-  if (isDemo()) {
-    log('Get platform settings (demo mode)');
-    const demoSettings: any = {
-      success: true,
-      currentUser: {
-        id: 'demo_user_1',
-        email: 'demo@marqcortex.com',
-        name: 'Demo User',
-        teamRole: 'admin',
-      },
-      platformSettings: {
-        brandingName: 'MARQ Cortex',
-        defaultAssignee: 'Admin User',
-        autoAssign: false,
-        notificationPrefs: {
-          newSubmission: true,
-          reportReady: true,
-          teamActivity: false,
-          weeklyDigest: true,
-          proposalViewed: true,
-          proposalAccepted: true,
-          messageReceived: true,
-        },
-      },
-      health: {
-        submissionCounts: { new: 3, 'in-review': 2, completed: 1, approved: 0, total: 6 },
-        serverTime: new Date().toISOString(),
-        recentActivity: [],
-      },
-    };
-    return demoSettings as api.SettingsResponse;
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getPlatformSettings(accessToken));
+  requireProductBackend();
   return api.getPlatformSettings(accessToken);
 }
 
@@ -1038,10 +663,8 @@ export async function savePlatformSettings(
   payload: { platformSettings?: Partial<api.PlatformSettings>; profileName?: string },
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Save platform settings (demo mode — not persisted)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.savePlatformSettings(payload, accessToken));
+  requireProductBackend();
   return api.savePlatformSettings(payload, accessToken);
 }
 
@@ -1050,42 +673,32 @@ export async function savePlatformSettings(
 // ============================================================================
 
 export async function getCortexAnalysis(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get CORTEX analysis (demo mode)');
-    return { success: true, analysis: null };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getCortexAnalysis(submissionId, accessToken));
+  requireProductBackend();
   return api.getCortexAnalysis(submissionId, accessToken);
 }
 
 export async function analyzeSubmission(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Analyze submission (demo mode — requires backend)');
-    throw new Error('Backend integration is disabled. Enable it in feature flags to use AI analysis.');
-  }
+  if (isDemoExperience()) return demoBackend(b => b.analyzeSubmission(submissionId, accessToken));
+  requireProductBackend();
   return api.analyzeSubmission(submissionId, accessToken);
 }
 
 export async function clearCortexAnalysis(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Clear CORTEX analysis (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.clearCortexAnalysis(submissionId, accessToken));
+  requireProductBackend();
   return api.clearCortexAnalysis(submissionId, accessToken);
 }
 
 export async function getCortexStatus(accessToken: string) {
-  if (isDemo()) {
-    log('Get CORTEX status (demo mode)');
-    return { success: true, analyzed: {} as Record<string, api.CortexStatusEntry>, count: 0 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getCortexStatus(accessToken));
+  requireProductBackend();
   return api.getCortexStatus(accessToken);
 }
 
 export async function analyzeSubmissionsBatch(ids: string[], accessToken: string) {
-  if (isDemo()) {
-    log('Batch analyze (demo mode — requires backend)');
-    throw new Error('Backend integration is disabled. Enable it in feature flags to use AI analysis.');
-  }
+  if (isDemoExperience()) return demoBackend(b => b.analyzeSubmissionsBatch(ids, accessToken));
+  requireProductBackend();
   return api.analyzeSubmissionsBatch(ids, accessToken);
 }
 
@@ -1098,49 +711,26 @@ export async function logOutcome(
   payload: api.OutcomePayload,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Log outcome (demo mode — not persisted)');
-    const record: api.OutcomeRecord = {
-      ...payload,
-      submissionId,
-      loggedAt: new Date().toISOString(),
-      loggedBy: 'demo_user_1',
-      industry: 'Demo',
-      company: 'Demo Company',
-      aiScore: 85,
-      recommendedService: 'AI Operations Audit',
-      submittedAt: new Date(Date.now() - 86400000).toISOString(),
-    };
-    return { success: true, outcome: record };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.logOutcome(submissionId, payload, accessToken));
+  requireProductBackend();
   return api.logOutcome(submissionId, payload, accessToken);
 }
 
 export async function getOutcome(submissionId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Get outcome (demo mode)');
-    return { success: true, outcome: null };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getOutcome(submissionId, accessToken));
+  requireProductBackend();
   return api.getOutcome(submissionId, accessToken);
 }
 
 export async function getOutcomesMap(accessToken: string) {
-  if (isDemo()) {
-    log('Get outcomes map (demo mode)');
-    return {
-      success: true,
-      outcomes: {} as Record<string, { didConvert: boolean; conversionValue: number | null; loggedAt: string }>,
-      count: 0,
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getOutcomesMap(accessToken));
+  requireProductBackend();
   return api.getOutcomesMap(accessToken);
 }
 
 export async function getLearningLoop(accessToken: string) {
-  if (isDemo()) {
-    log('Get learning loop (demo mode)');
-    return { success: true, data: null, isEmpty: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getLearningLoop(accessToken));
+  requireProductBackend();
   return api.getLearningLoop(accessToken);
 }
 
@@ -1149,34 +739,26 @@ export async function getLearningLoop(accessToken: string) {
 // ============================================================================
 
 export async function getPipelinePositions(accessToken: string) {
-  if (isDemo()) {
-    log('Get pipeline positions (demo mode)');
-    return { success: true, positions: {} as Record<string, string>, count: 0 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getPipelinePositions(accessToken));
+  requireProductBackend();
   return api.getPipelinePositions(accessToken);
 }
 
 export async function savePipelinePosition(submissionId: string, columnId: string, accessToken: string) {
-  if (isDemo()) {
-    log('Save pipeline position (demo mode)');
-    return { success: true, positions: { [submissionId]: columnId } };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.savePipelinePosition(submissionId, columnId, accessToken));
+  requireProductBackend();
   return api.savePipelinePosition(submissionId, columnId, accessToken);
 }
 
 export async function savePipelinePositions(positions: Record<string, string>, accessToken: string) {
-  if (isDemo()) {
-    log('Save pipeline positions (demo mode)');
-    return { success: true, positions };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.savePipelinePositions(positions, accessToken));
+  requireProductBackend();
   return api.savePipelinePositions(positions, accessToken);
 }
 
 export async function resetPipelinePositions(accessToken: string) {
-  if (isDemo()) {
-    log('Reset pipeline positions (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.resetPipelinePositions(accessToken));
+  requireProductBackend();
   return api.resetPipelinePositions(accessToken);
 }
 
@@ -1185,18 +767,14 @@ export async function resetPipelinePositions(accessToken: string) {
 // ============================================================================
 
 export async function getColumnCapacities(accessToken: string) {
-  if (isDemo()) {
-    log('Get column capacities (demo mode)');
-    return { success: true, capacities: {} as Record<string, number> };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getColumnCapacities(accessToken));
+  requireProductBackend();
   return api.getColumnCapacities(accessToken);
 }
 
 export async function saveColumnCapacities(capacities: Record<string, number>, accessToken: string) {
-  if (isDemo()) {
-    log('Save column capacities (demo mode)');
-    return { success: true, capacities };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.saveColumnCapacities(capacities, accessToken));
+  requireProductBackend();
   return api.saveColumnCapacities(capacities, accessToken);
 }
 
@@ -1205,31 +783,20 @@ export async function saveColumnCapacities(capacities: Record<string, number>, a
 // ============================================================================
 
 export async function sendTestEmailRequest(accessToken: string) {
-  if (isDemo()) {
-    log('Send test email (demo mode)');
-    return { success: true, sent: false, resendKeyConfigured: false, to: 'demo@marqcortex.com' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.sendTestEmailRequest(accessToken));
+  requireProductBackend();
   return api.sendTestEmailRequest(accessToken);
 }
 
 export async function sendWeeklyDigestRequest(accessToken: string) {
-  if (isDemo()) {
-    log('Send weekly digest (demo mode)');
-    return { success: true, reason: 'Demo mode — no email sent' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.sendWeeklyDigestRequest(accessToken));
+  requireProductBackend();
   return api.sendWeeklyDigestRequest(accessToken);
 }
 
 export async function getEmailStatus(accessToken: string) {
-  if (isDemo()) {
-    log('Get email status (demo mode)');
-    return {
-      success: true,
-      resendConfigured: false,
-      fromAddress: 'noreply@marqcortex.com',
-      note: 'Demo mode — email not configured',
-    };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEmailStatus(accessToken));
+  requireProductBackend();
   return api.getEmailStatus(accessToken);
 }
 
@@ -1243,18 +810,14 @@ export async function enqueueEmails(payload: {
   bottleneckTheme: string;
   emails: api.QueuedEmailPayload[];
 }) {
-  if (isDemo()) {
-    log('Enqueue emails (demo mode)');
-    return { success: true, queued: payload.emails.length };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.enqueueEmails(payload));
+  requireProductBackend();
   return api.enqueueEmails(payload);
 }
 
 export async function getEmailQueue(accessToken: string) {
-  if (isDemo()) {
-    log('Get email queue (demo mode)');
-    return { success: true, emails: [], total: 0 };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getEmailQueue(accessToken));
+  requireProductBackend();
   return api.getEmailQueue(accessToken);
 }
 
@@ -1263,10 +826,8 @@ export async function updateEmailStatus(
   status: 'sent' | 'skipped' | 'failed',
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Update email status (demo mode)');
-    return { success: true };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.updateEmailStatus(emailId, status, accessToken));
+  requireProductBackend();
   return api.updateEmailStatus(emailId, status, accessToken);
 }
 
@@ -1279,22 +840,8 @@ export async function generateCortexNarrative(
   context: api.NarrativeContext,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('Generate narrative (demo mode — requires backend)');
-    // Return a helpful demo narrative instead of throwing
-    const demoNarratives: Record<string, string> = {
-      why_now: `Based on our analysis, ${context.company} is at a critical inflection point. Current manual processes are consuming approximately 30% of operational capacity, and with your growth trajectory, these bottlenecks will compound significantly within the next 6-12 months. Acting now allows you to build the automation foundation before scaling pressure makes changes more costly and disruptive.`,
-      confidence_reasoning: `Our confidence in this recommendation stems from three key signals: (1) multiple diagnostic answers independently point to the same root causes, (2) the operational patterns we see in ${context.company} closely match successful transformations we've executed in the ${context.industry} sector, and (3) the quantified time savings and cost reduction estimates are based on conservative benchmarks from comparable engagements.`,
-      strategic_decision: `The recommended approach for ${context.company} prioritizes the highest-impact, lowest-risk intervention first. By starting with process automation in the core operational pipeline, we address the most expensive bottleneck while building internal confidence and capability for the broader transformation roadmap.`,
-    };
-    return {
-      success: true,
-      type,
-      narrative: demoNarratives[type] || demoNarratives.why_now,
-      model: 'demo-mode',
-      generated_at: new Date().toISOString(),
-    } as api.NarrativeResponse;
-  }
+  if (isDemoExperience()) return demoBackend(b => b.generateCortexNarrative(type, context, accessToken));
+  requireProductBackend();
   return api.generateCortexNarrative(type, context, accessToken);
 }
 
@@ -1302,15 +849,8 @@ export async function chatWithAI(
   req: api.AIChatRequest,
   accessToken: string,
 ) {
-  if (isDemo()) {
-    log('AI chat (demo mode — requires backend)');
-    return {
-      success: true,
-      reply: `[Demo Mode] I'd be happy to help analyze this. In production, I would use GPT-4o-mini to provide intelligent insights about ${req.section}. To enable AI chat, set BACKEND_INTEGRATION to true and ensure your OpenAI API key is configured.`,
-      model: 'demo-mode',
-      generated_at: new Date().toISOString(),
-    } as api.AIChatResponse;
-  }
+  if (isDemoExperience()) return demoBackend(b => b.chatWithAI(req, accessToken));
+  requireProductBackend();
   return api.chatWithAI(req, accessToken);
 }
 
@@ -1319,12 +859,8 @@ export async function blockAIAssist(
   req: api.BlockAIAssistRequest,
   accessToken: string,
 ): Promise<api.BlockAIAssistResponse> {
-  if (isDemo()) {
-    log('Block AI assist (demo mode):', req.block_id, req.action);
-    await new Promise(r => setTimeout(r, 1_200));
-    const { buildMockBlockAIAssistApiResponse } = await import('@/app/core/aiAssistEngine');
-    return buildMockBlockAIAssistApiResponse(req);
-  }
+  if (isDemoExperience()) return demoBackend(b => b.blockAIAssist(req, accessToken));
+  requireProductBackend();
   return api.blockAIAssist(req, accessToken);
 }
 
@@ -1343,18 +879,8 @@ export async function proposalSectionCopilot(
   },
 ): Promise<import('@/app/core/proposalCopilotEngine').SectionCopilotResult> {
   const engine = await import('@/app/core/proposalCopilotEngine');
-  if (isDemo()) {
-    log('Proposal section copilot (demo mode):', req.section, req.action);
-    await new Promise(r => setTimeout(r, 1_400));
-    if (!demo) throw new Error('proposalSectionCopilot demo mode requires draft context');
-    return engine.buildDemoSectionRevision(
-      req.section as import('@/app/core/proposalCopilotEngine').SectionKey,
-      req.action as import('@/app/core/proposalCopilotEngine').ActionKey,
-      demo.draft,
-      req.custom_prompt ?? '',
-      demo.rejectionContexts,
-    );
-  }
+  if (isDemoExperience()) return demoBackend(b => b.proposalSectionCopilot(req, accessToken, demo));
+  requireProductBackend();
   const res = await api.proposalSectionCopilot(req, accessToken);
   return engine.assembleLiveResult(
     req.section as import('@/app/core/proposalCopilotEngine').SectionKey,
@@ -1370,17 +896,8 @@ export async function copilotInterpret(
   accessToken: string,
   demoAllStates?: import('@/app/core/blockEngine').BlockState[],
 ): Promise<api.CopilotInterpretResponse> {
-  if (isDemo()) {
-    log('Copilot interpret (demo mode):', req.entity_id);
-    await new Promise(r => setTimeout(r, 900));
-    const { buildMockCopilotInterpretApiResponse } = await import('@/app/core/copilotEngine');
-    return buildMockCopilotInterpretApiResponse(
-      req.user_input,
-      req.scope as import('@/app/core/copilotEngine').PatchScope,
-      req.entity_id,
-      demoAllStates ?? [],
-    );
-  }
+  if (isDemoExperience()) return demoBackend(b => b.copilotInterpret(req, accessToken, demoAllStates));
+  requireProductBackend();
   return api.copilotInterpret(req, accessToken);
 }
 
@@ -1389,45 +906,47 @@ export async function copilotInterpret(
 // ============================================================================
 
 export async function ping() {
-  if (isDemo()) {
-    return { success: true, message: 'pong (demo mode)', timestamp: new Date().toISOString(), server: 'demo' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.ping());
+  requireProductBackend();
   return api.ping();
 }
 
 export async function healthCheck() {
-  if (isDemo()) {
-    return { status: 'ok', timestamp: new Date().toISOString(), kvStore: 'demo' };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.healthCheck());
+  requireProductBackend();
   return api.healthCheck();
 }
 
 export async function testAuth(accessToken: string) {
-  if (isDemo()) {
-    return { success: true, message: 'Auth OK (demo mode)', userId: 'demo_user_1', timestamp: new Date().toISOString() };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.testAuth(accessToken));
+  requireProductBackend();
   return api.testAuth(accessToken);
 }
 
 export async function getDiagnostics(accessToken: string) {
-  if (isDemo()) {
-    return { success: true, diagnostics: [] };
-  }
+  if (isDemoExperience()) return demoBackend(b => b.getDiagnostics(accessToken));
+  requireProductBackend();
   return api.getDiagnostics(accessToken);
 }
 
 // ============================================================================
-// 20. CONVENIENCE EXPORTS (Demo data helpers)
+// 20. THE CONVENIENCE EXPORTS THAT USED TO LIVE HERE
 // ============================================================================
-
-/** Get demo submissions (for components that need the raw list) */
-export const getDemoSubmissions = demo.getDemoSubmissions;
-
-/** Get demo scheduled meeting */
-export const getDemoScheduledMeeting = demo.getDemoScheduledMeeting;
-
-/** Demo nurture leads for email automation */
-export const DEMO_NURTURE_LEADS = demo.DEMO_NURTURE_LEADS;
+//
+// `getDemoSubmissions`, `getDemoTeamMembers`, `getDemoMessages`,
+// `getDemoProposal`, `getDemoEngagementEvents`, `getDemoScheduledMeeting`,
+// `getDemoClientSubmission`, `DEMO_CLIENTS`, `DEMO_TEAM_LOGIN` and
+// `DEMO_NURTURE_LEADS` were exported from this file, synchronously, and eleven
+// authenticated components imported them — most of them as the FALLBACK inside
+// a `catch`. That is the precise mechanism Product Reality §9 describes: a
+// backend failure and a healthy backend rendered the same invented companies,
+// so nobody could tell them apart, including the people building it.
+//
+// They are gone from here on purpose. The fixtures still exist, in
+// `@/app/demo/fixtures`, reachable only through `@/app/demo/demoBackend` and
+// only when this build is an explicitly designated demo. A component that
+// wants demo data now has to ask for a demo, and the surfaces that used to
+// fall back render an honest state instead — see `ProductDataState`.
 
 /**
  * Re-export generateClientReport so ClientPortal (and any future callers)

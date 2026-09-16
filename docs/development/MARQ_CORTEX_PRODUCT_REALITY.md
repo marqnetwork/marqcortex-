@@ -7,6 +7,13 @@ Audited 2026-09-16 against main `b349fc1a`. Evidence is the repository, a real
 build, and a real browser driving the real application. Where repository evidence
 and a progress document disagreed, the repository won.
 
+> **CP-1 has since answered §7 and §9.** The two navigation defects are fixed
+> and the fabricated data is isolated behind `src/app/demo/`. This document is
+> left as it was written — it is the evidence CP-1 was measured against, and
+> rewriting it would destroy that. What changed, and what is still not proven,
+> is recorded in `MARQ_CORTEX_CP1_RECORD.md`. The headline numbers are now
+> **~34% product / ~80% foundation**, and live verification remains BLOCKED.
+
 This document does **not** replace `MARQ_CORTEX_MASTER_BLUEPRINT_v1.0.md`,
 `MARQ_CORTEX_PRODUCT_EXPERIENCE.md`, `MARQ_CORTEX_ONTOLOGY_v1.0.md` or
 `MARQ_CORTEX_IMPLEMENTATION_GUIDE_v1.0.md`. It translates them into current
@@ -207,14 +214,22 @@ with **zero user-reachable experience**.
 
 Recorded here because both are in release gates that were reported green.
 
-**7.1 — Six of thirteen deep-link assertions prove nothing.** The smoke suite
+**7.1 — Six of thirteen deep-link assertions prove nothing.** *(CP-1: fixed.
+Both that suite and the accessibility audit now read the destination list off
+the rendered sidebar, which renders from `NAV_GROUPS`, so there is no second
+copy to drift. `navigation-truth.spec.ts` asserts destination IDENTITY rather
+than liveness.)* The smoke suite
 (`tests/smoke/v1-integration-qa.spec.ts`) navigates `?page=<id>` for 13
 destinations. Four of the IDs it uses — `reviewer-qa`, `email-queue`,
 `revenue-intelligence`, `mapping-engine` — **do not exist**; the nav model
 declares `reviewer`, `emails`, `revenue`, `mapping`. Invalid IDs fall back to the
 Dashboard, and the assertion (no console errors, some content) passes anyway.
 
-**7.2 — Two real destinations do not deep-link at all.** `?page=execution` and
+**7.2 — Two real destinations do not deep-link at all.** *(CP-1: fixed. The
+resolver had two answers, so a real destination the shell cannot render
+collapsed into the fallback exactly like a typo; it has three now. The route
+each lives at is declared once, on the Destination, instead of in three places
+that disagreed.)* `?page=execution` and
 `?page=architecture` **silently render the Dashboard**. Both are declared in
 `NAV_GROUPS` and both only work via their dedicated routes `#/team/execution`
 and `#/architecture`. A bookmark or a reload on either shows the wrong page.
@@ -256,6 +271,14 @@ spinner to page chrome): **a gate that cannot detect the failure it names.**
 `VITE_BACKEND_INTEGRATION` ships `false`. Named companies ("Manufacturing Pro",
 "RetailMax Inc", "TechCorp Solutions"), a `$3.12M` pipeline and a `91/100`
 pipeline-health score are all invented.
+
+> **CP-1:** closed. The count was an undercount — the real total is 5,927 lines
+> once the revenue snapshots, the execution project, the Mapping Engine's
+> proposal and the canned assistant are included, all of which this table
+> missed because they were declared inline in components and engines rather
+> than in files named `mock*`. Everything is now under `src/app/demo/`, in its
+> own bundle chunk, behind a standing test. The fixtures are kept, not deleted;
+> what changed is that reaching them requires asking for a demo by name.
 
 The repository's own `registryAudit.ts` classifies 185 interactions as 133 LIVE /
 34 GATED / 13 DEMO / 3 MISSING / 2 VISUAL — but it defines **LIVE as "works right

@@ -107,26 +107,25 @@ export function AnalyticsDashboard({ accessToken }: Props) {
     if (!silent) setIsLoading(true); else setIsRefreshing(true);
     setError(null);
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for analytics (backend disabled)');
-        }
-        // Generate demo analytics data
-        const demoSubmissions: Submission[] = generateDemoSubmissions();
-        setSubmissions(demoSubmissions);
-        setAnalytics(computeAnalyticsFromSubmissions(demoSubmissions));
-        setLastUpdated(new Date());
-        setIsLoading(false);
-        setIsRefreshing(false);
-        return;
-      }
-
+      // The no-backend branch that used to sit here called
+      // `generateDemoSubmissions()` — twenty records with RANDOM completion,
+      // quality and AI scores, random ages across a fortnight, and companies
+      // named "Demo Company 1" through 20 — then computed the whole analytics
+      // screen from them. Conversion rates, industry breakdowns and weekly
+      // trends were drawn from `Math.random()`, refreshed to different values
+      // on every reload, in a panel headed Analytics. The `catch` below
+      // already refuses that substitution and explains why; this is the same
+      // refusal on the same grounds.
       const [analyticsRes, submissionsRes] = await Promise.all([
         getAnalytics(accessToken),
         getSubmissions(accessToken),
       ]);
-      if (!analyticsRes.analytics) throw new Error('Analytics were not returned.');
+      // A 200 carrying no analytics, or analytics without the breakdowns this
+      // screen charts, is a failed load — not a screen of zeros, and certainly
+      // not a crash.
+      if (!analyticsRes.analytics?.byStatus || !analyticsRes.analytics?.byPriority) {
+        throw new Error('The analytics response was incomplete.');
+      }
       setAnalytics(analyticsRes.analytics);
       // Narrowed before it becomes state — see `@/app/lib/payload`.
       setSubmissions(asArray<Submission>(submissionsRes.submissions));
@@ -732,43 +731,9 @@ function DarkTooltip({ active, payload, label }: any) {
 // DATA BUILDERS
 // ============================================================================
 
-function generateDemoSubmissions(): Submission[] {
-  const industries = ['Technology', 'Healthcare', 'E-commerce', 'Manufacturing', 'Finance'];
-  const statuses: Array<'new' | 'in-review' | 'completed' | 'approved'> = ['new', 'in-review', 'completed', 'approved'];
-  const priorities: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
-  
-  const demos: Submission[] = [];
-  for (let i = 0; i < 20; i++) {
-    const daysAgo = Math.floor(Math.random() * 14);
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    
-    demos.push({
-      id: `demo_sub_${i + 1}`,
-      company: `Demo Company ${i + 1}`,
-      contact: `Contact ${i + 1}`,
-      email: `contact${i + 1}@democompany.com`,
-      phone: '(555) 123-4567',
-      website: `www.demo${i + 1}.com`,
-      industry: industries[i % industries.length],
-      industryId: industries[i % industries.length].toLowerCase(),
-      employees: i % 3 === 0 ? '10-50' : i % 3 === 1 ? '51-200' : '201-500',
-      revenue: i % 3 === 0 ? '$1M-$5M' : i % 3 === 1 ? '$5M-$20M' : '$20M-$50M',
-      submittedAt: date.toISOString(),
-      submittedDate: date.toLocaleDateString(),
-      status: statuses[i % statuses.length],
-      priority: priorities[i % priorities.length],
-      completionScore: 60 + Math.floor(Math.random() * 35),
-      qualityScore: 70 + Math.floor(Math.random() * 25),
-      aiScore: 65 + Math.floor(Math.random() * 30),
-      roiPotential: i % 2 === 0 ? 'High' : 'Medium',
-      answers: { 1: 'Demo answer', 2: 'Demo answer 2' },
-      isRead: i % 2 === 0,
-    });
-  }
-  
-  return demos;
-}
+// `generateDemoSubmissions()` used to be declared here: twenty records built
+// from `Math.random()`, which this screen charted as a business. It is gone.
+
 
 function computeAnalyticsFromSubmissions(subs: Submission[]): AnalyticsData {
   const byStatus: Record<string, number> = { new: 0, 'in-review': 0, completed: 0, approved: 0 };
@@ -839,22 +804,31 @@ function buildIndustryData(analytics: AnalyticsData | null, submissions: Submiss
     .sort((a, b) => b.count - a.count);
 }
 
+// A 200 IS NOT AN `AnalyticsData`.
+//
+// `getAnalytics` returns `data` unnarrowed, and these builders read two levels
+// deep into it. A response without `byPriority` threw during render and the
+// route error boundary replaced the whole console — observed in CP-1's browser
+// QA, on a fixture whose shape had drifted years from the page's. Optional
+// chaining here means a wrong shape renders as zeros in a chart rather than as
+// a broken console; `load` treats it as a failed load, which is the honest
+// answer, and this is the backstop.
 function buildPriorityData(analytics: AnalyticsData | null) {
   if (!analytics) return [];
   return [
-    { name: 'High',   value: analytics.byPriority.high   || 0, color: RED },
-    { name: 'Medium', value: analytics.byPriority.medium || 0, color: ORANGE },
-    { name: 'Low',    value: analytics.byPriority.low    || 0, color: GRAY },
+    { name: 'High',   value: analytics.byPriority?.high   || 0, color: RED },
+    { name: 'Medium', value: analytics.byPriority?.medium || 0, color: ORANGE },
+    { name: 'Low',    value: analytics.byPriority?.low    || 0, color: GRAY },
   ];
 }
 
 function buildStatusData(analytics: AnalyticsData | null) {
   if (!analytics) return [];
   return [
-    { key: 'new',       label: 'New',        count: analytics.byStatus.new        || 0, color: PURPLE },
-    { key: 'in-review', label: 'In Review',  count: analytics.byStatus['in-review'] || 0, color: ORANGE },
-    { key: 'completed', label: 'Completed',  count: analytics.byStatus.completed  || 0, color: BLUE },
-    { key: 'approved',  label: 'Converted',  count: analytics.byStatus.approved   || 0, color: GREEN },
+    { key: 'new',       label: 'New',        count: analytics.byStatus?.new        || 0, color: PURPLE },
+    { key: 'in-review', label: 'In Review',  count: analytics.byStatus?.['in-review'] || 0, color: ORANGE },
+    { key: 'completed', label: 'Completed',  count: analytics.byStatus?.completed  || 0, color: BLUE },
+    { key: 'approved',  label: 'Converted',  count: analytics.byStatus?.approved   || 0, color: GREEN },
   ];
 }
 

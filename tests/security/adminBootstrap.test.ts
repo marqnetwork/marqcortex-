@@ -112,14 +112,14 @@ describe('the seeder has no password of its own', () => {
 
 describe('the demo fixture is a fixture and nothing else', () => {
   it('the demo password exists in exactly one place', async () => {
-    const declaration = await readFile(new URL('app/utils/demoData.ts', SRC), 'utf8');
+    const declaration = await readFile(new URL('app/demo/fixtures/demoData.ts', SRC), 'utf8');
     const match = /export const DEMO_TEAM_LOGIN = \{[\s\S]*?password: '([^']+)'/.exec(declaration);
     assert.ok(match, 'DEMO_TEAM_LOGIN is gone');
     const password = match[1];
 
     const copies: string[] = [];
     for (const file of await sources(SRC)) {
-      if (file.pathname.endsWith('/app/utils/demoData.ts')) continue;
+      if (file.pathname.endsWith('/app/demo/fixtures/demoData.ts')) continue;
       const source = await readFile(file, 'utf8');
       if (source.includes(password)) copies.push(file.pathname.slice(ROOT.pathname.length));
     }
@@ -144,42 +144,42 @@ describe('the demo fixture is a fixture and nothing else', () => {
     assert.deepEqual(offenders, [], 'these document a default administrator credential');
   });
 
-  it('the login screen shows the fixture only in demo mode', async () => {
+  it('the login screen carries no fixture credential to gate', async () => {
     const source = await readFile(new URL('app/components/TeamLogin.tsx', SRC), 'utf8');
 
     /**
-     * The balanced extent of every `isDemoMode() && ( ... )` branch.
+     * WHAT THIS ASSERTION USED TO BE, AND WHY IT IS NOT ENOUGH.
      *
-     * The first version of this test looked BACKWARDS a fixed number of
-     * characters for `isDemoMode() &&`, which is not containment: deleting the
-     * guard on one branch still left the guard on a NEARBY branch inside the
-     * window, and the mutation went undetected. A range either holds an offset
-     * or it does not.
+     * It required every `DEMO_TEAM_LOGIN` mention to sit inside the balanced
+     * extent of an `isDemoMode() && ( … )` branch — careful containment logic,
+     * written after a first attempt that a nearby guard could fool.
+     *
+     * It was still only a claim about RENDERING. `DEMO_TEAM_LOGIN` was a static
+     * import, so the administrator email and password were compiled into every
+     * build and the guard decided nothing but whether they were painted on the
+     * screen. A string in a shipped bundle is readable by anybody who asks for
+     * the file, and — per the case this whole suite exists for — the deployed
+     * server accepted that exact string as `TEAM_ADMIN_PASSWORD` until S-7.
+     *
+     * CP-1 removed the import. The hints are fetched through
+     * `getDemoSignInHints()`, which answers `null` outside a designated demo,
+     * and the literals sit behind a dynamic import into `@/app/demo` that a
+     * live build never loads. So there is nothing here to contain.
      */
-    const guarded: Array<[number, number]> = [];
-    const guard = /isDemoMode\(\)\s*&&\s*\(/g;
-    for (let match = guard.exec(source); match !== null; match = guard.exec(source)) {
-      let i = match.index + match[0].length;
-      let depth = 1;
-      while (i < source.length && depth > 0) {
-        if (source[i] === '(') depth++;
-        else if (source[i] === ')') depth--;
-        i++;
-      }
-      guarded.push([match.index, i]);
-    }
-    assert.ok(guarded.length >= 2, `expected demo-mode branches, found ${guarded.length}`);
-
-    let mentions = 0;
-    for (let at = source.indexOf('DEMO_TEAM_LOGIN'); at !== -1; at = source.indexOf('DEMO_TEAM_LOGIN', at + 1)) {
-      const line = source.slice(source.lastIndexOf('\n', at) + 1, source.indexOf('\n', at));
-      if (line.startsWith('import ')) continue;
-      mentions++;
-      assert.ok(
-        guarded.some(([from, to]) => at > from && at < to),
-        `a fixture credential is rendered outside every demo-mode branch:\n  ${line.trim()}`,
-      );
-    }
-    assert.ok(mentions >= 2, `expected the autofill and the hint panel, found ${mentions}`);
+    assert.doesNotMatch(
+      source,
+      /admin@marqcortex\.com|CortexAdmin2026!/,
+      'a fixture credential literal is back in the login page — it would ship in every bundle',
+    );
+    assert.doesNotMatch(
+      source,
+      /^import[^\n]*DEMO_TEAM_LOGIN/m,
+      'the login page statically imports the fixture credentials again',
+    );
+    assert.match(
+      source,
+      /getDemoSignInHints/,
+      'the login page no longer asks for its hints through the gated accessor',
+    );
   });
 });

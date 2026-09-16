@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Brain, ArrowLeft, LogIn, Mail, Sparkles, CheckCircle2, Loader2, Shield, Lock, KeyRound } from 'lucide-react';
 import {
   requestClientSignInCode,
   exchangeClientSignInCode,
-  DEMO_CLIENTS,
+  getDemoSignInHints,
 } from '@/app/services/dataService';
-import { isDemoMode } from '@/config/runtime';
+
+type DemoSignInHints = Awaited<ReturnType<typeof getDemoSignInHints>>;
 import { BRAND, GRADIENTS } from '@/app/utils/designTokens';
 import { text } from '@/app/lib/tokens';
 
@@ -33,6 +34,21 @@ interface ClientLoginProps {
  * anybody test a list of addresses for MARQ clients.
  */
 export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
+  // The demo credentials, asked for rather than imported.
+  //
+  // They used to be a STATIC import from `dataService`, so the administrator
+  // email and password were in the bundle of every build and the `isDemoMode()`
+  // guard below only decided whether they were PAINTED. They are fetched now,
+  // from the demo boundary, and `getDemoSignInHints()` answers `null` in any
+  // build that is not an explicitly designated demo.
+  const [demoHints, setDemoHints] = useState<DemoSignInHints>(null);
+
+  useEffect(() => {
+    let live = true;
+    void getDemoSignInHints().then(hints => { if (live) setDemoHints(hints); });
+    return () => { live = false; };
+  }, []);
+
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -238,10 +254,10 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
                 className="w-full pl-12 pr-4 py-4 bg-cortex-control border-2 border-cortex-default rounded-cortex-md text-white placeholder:text-cortex-faint focus:border-cortex-accent focus:outline-none transition-all read-only:opacity-70"
               />
             </div>
-            {isDemoMode() && step === 'email' && (
+            {demoHints && step === 'email' && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-cortex-muted">
                 Use:&nbsp;
-                {DEMO_CLIENTS.map((c) => (
+                {demoHints.clients.map((c) => (
                   <button
                     key={c.email}
                     type="button"
@@ -342,7 +358,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
         </motion.form>
 
         {/* Demo Email Addresses */}
-        {isDemoMode() && (
+        {demoHints && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -353,7 +369,7 @@ export default function ClientLogin({ onLogin, onBack }: ClientLoginProps) {
             Demo Email Addresses
           </p>
           <div className="space-y-1 text-sm">
-            {DEMO_CLIENTS.map((c) => (
+            {demoHints.clients.map((c) => (
               <p key={c.email} className="text-cortex-secondary">&bull; {c.email} <span className="text-cortex-faint">— {c.companyName}</span></p>
             ))}
           </div>

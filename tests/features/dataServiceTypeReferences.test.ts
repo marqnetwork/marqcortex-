@@ -91,12 +91,24 @@ describe('dataService — api types are referenced through the namespace import'
   });
 
   it('saveLead still forwards the untouched value to api.captureLead', () => {
-    // Annotation-only task: the call it guards must be byte-identical.
     assert.match(code, /return api\.captureLead\(data\);/, 'saveLead no longer forwards to api.captureLead');
+  });
+
+  it('saveLead reaches a fixture only through the demo boundary', () => {
+    // CP-1 moved every demo branch out of this module. What used to be an
+    // inline `if (isDemo()) { …fabricate… }` is now a delegation to
+    // `@/app/demo/demoBackend`, guarded by `isDemoExperience()`, followed by
+    // `requireProductBackend()` — so a build with no backend raises instead of
+    // answering.
     assert.match(
       code,
-      /if \(isDemo\(\)\) \{\s*log\('Save lead \(demo mode\):', data\.email\);/,
-      'the saveLead demo branch changed',
+      /if \(isDemoExperience\(\)\) return demoBackend\(b => b\.saveLead\(data\)\);\s*\n\s*requireProductBackend\(\);/,
+      'the saveLead demo delegation changed',
+    );
+    assert.doesNotMatch(
+      code,
+      /isDemo\(\)/,
+      'dataService still has an isDemo() branch — the demo boundary is not whole',
     );
   });
 

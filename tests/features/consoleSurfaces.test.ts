@@ -128,7 +128,7 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
   it('does not draw the command centre while the first fetch is in flight', () => {
     assert.match(
       dash,
-      /\{!isLoading && !loadError && !leadWithOrientation && \(/,
+      /\{!isLoading && !loadFailure && !leadWithOrientation && \(/,
       'the command centre is not gated on the load having finished',
     );
     assert.match(dash, /\{isLoading && \([\s\S]{0,400}<LoadingState/, 'no loading state is rendered');
@@ -140,8 +140,17 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
   });
 
   it('treats a failed load as a failure, not as an empty workspace', () => {
-    assert.match(dash, /\{!isLoading && loadError && \([\s\S]{0,400}<ErrorState/);
-    assert.match(dash, /setLoadError\(/, 'a load failure is not recorded');
+    assert.match(dash, /\{!isLoading && loadFailure && \([\s\S]{0,400}<ProductDataNotice/);
+    assert.match(dash, /setLoadFailure\(\{ reason: classified\.reason/, 'a load failure is not recorded');
+  });
+
+  it('says WHICH failure it was, not merely that one happened', () => {
+    // CP-1 added the distinction. "Not connected", "cannot reach the server"
+    // and "you do not have access to this" are three different facts and an
+    // operator acts differently on each; a single error string could not
+    // carry any of them.
+    assert.match(dash, /classifyProductDataError/);
+    assert.match(dash, /ProductDataReason/);
   });
 
   it('no longer seeds the trend chart with invented days', () => {
@@ -154,23 +163,49 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
     assert.match(dash, /days\.push\(\{ label, count, value: Math\.round\(value\) \}\);[\s\S]{0,80}return days;/);
   });
 
-  it('shows the seeded roster only in demo mode', () => {
-    assert.match(
-      dash,
-      /backendMode \? \[\] : getDemoTeamMembers\(\)/,
+  it('shows no seeded roster in any mode', () => {
+    // The assertion this replaces permitted the seeded roster whenever the
+    // backend was off — which is the shipped build, so Team Pulse's four
+    // invented colleagues were what an operator actually saw. Team Pulse reads
+    // the real roster now, or says it could not.
+    assert.ok(
+      !/getDemoTeamMembers/.test(dash),
       'Team Pulse is showing invented colleagues beside a real pipeline again',
     );
+    assert.match(dash, /setTeamMembers\(result\.members \?\? \[\]\)/);
+    assert.match(dash, /<ProductDataNotice reason=\{rosterFailure\}/);
+  });
+
+  it('invents no per-member activity for the members it does show', () => {
+    // Three fabricated facts were rendered per row and none came from
+    // anywhere: `isOnline` was "is this the first row", `assignedCount` was 3,
+    // 2 or 1 by position, and the "Active" figure counted the first row.
+    assert.ok(!/const assignedCount = /.test(dash), 'assignment counts are invented again');
+    assert.ok(!/const isOnline = i === 0/.test(dash), 'an online indicator is invented again');
+    assert.ok(
+      !/teamMembers\.filter\(\(_, i\) => i === 0\)\.length/.test(dash),
+      'the Active figure is counting array positions again',
+    );
+  });
+
+  it('draws the recent-activity feed from the workspace, not from a fixture', () => {
+    // `ACTIVITY_FEED` was eight hand-written events naming Manufacturing Pro,
+    // TechCorp Solutions, HealthFirst and a Dr. James Wilson, timestamped
+    // "2 min ago" and rendered on the Command Center beside the real pipeline.
+    assert.ok(!/const ACTIVITY_FEED = \[/.test(dash), 'the invented activity feed is back');
+    assert.match(dash, /\(\) => buildActivityFeed\(submissions\)/);
   });
 
   it('reads an unloaded roster as unknown, never as zero', () => {
     // `null` is the model's UNKNOWN. A failed or skipped roster load must not
     // become the number 0, which the model would read as "you are alone here".
     assert.match(dash, /setLiveTeamMemberCount\(result\.members\?\.length \?\? null\)/);
-    assert.match(dash, /if \(!cancelled\) setLiveTeamMemberCount\(null\);/);
+    assert.match(dash, /setLiveTeamMemberCount\(null\);/);
+    assert.match(dash, /const teamMemberCount = liveTeamMemberCount;/);
   });
 
   it('fetches the roster only for a role that can act on it', () => {
-    assert.match(dash, /const needsRoster = backendMode && canAdministerTeam\(teamRole\)/);
+    assert.match(dash, /const needsRoster = !!accessToken && canAdministerTeam\(teamRole\)/);
   });
 });
 
@@ -246,21 +281,44 @@ describe('the shells use the shared states rather than local ones', () => {
 describe('the settings screen refuses to substitute data for a failed load', () => {
   const settings = stripComments(read('src/app/components/SettingsPage.tsx'));
 
-  it('declares its demo settings once, against the real response shape', () => {
-    // There used to be TWO copies of this object — one for demo mode, one
+  it('declares NO demo settings of its own', () => {
+    // There used to be two copies of this object here — one for demo mode, one
     // substituted on a failed live request — and both were written against an
     // older `PlatformSettings`: `companyName`, `companyEmail`,
     // `emailNotifications` and five other fields the server neither sends nor
     // stores, with `brandingName`, `defaultAssignee`, `autoAssign` and
     // `notificationPrefs` — the fields this page renders — absent entirely.
-    assert.equal((settings.match(/function demoSettings\(\): SettingsResponse/g) ?? []).length, 1);
+    //
+    // UI Sprint 7 removed the second. CP-1 removed the first: this page renders
+    // the settings it is GIVEN, and a "Demo User" pre-filled into live form
+    // controls above a Save button is not a settings screen telling the truth,
+    // whichever flag put it there.
+    assert.equal((settings.match(/function demoSettings\(\)/g) ?? []).length, 0);
     assert.ok(
       !/companyName:/.test(settings),
       'the settings fallback is back to a shape the server does not use',
     );
+
+    // The demo's settings still exist — behind the boundary, reached only by an
+    // explicitly designated demo — and still carry the fields this page reads.
+    const demoBackend = stripComments(read('src/app/demo/demoBackend.ts'));
     for (const field of ['brandingName:', 'defaultAssignee:', 'autoAssign:', 'notificationPrefs:']) {
-      assert.ok(settings.includes(field), `the demo settings omit ${field}`);
+      assert.ok(demoBackend.includes(field), `the demo settings fixture omits ${field}`);
     }
+  });
+
+  it('treats an incomplete 200 as a failed load rather than crashing', () => {
+    // `getPlatformSettings` ends in `data as SettingsResponse` — an assertion,
+    // not a check — and this page reads `data.currentUser.name` straight into a
+    // `useState`. A 200 without `currentUser` threw during render, and because
+    // this destination lives inside the shell, the route error boundary
+    // replaced the whole console with "Page failed to load". Found in a browser
+    // during CP-1's QA, reloading `?page=settings`.
+    assert.match(
+      settings,
+      /if \(!response\?\.currentUser \|\| !response\?\.platformSettings\) \{/,
+      'an incomplete settings response can crash the console again',
+    );
   });
 
   it('reports a failed load instead of pre-filling the form', () => {

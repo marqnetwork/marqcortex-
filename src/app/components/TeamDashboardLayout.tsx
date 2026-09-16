@@ -19,6 +19,7 @@ import {
   Search as SearchIcon,
 } from 'lucide-react';
 import { useDashboard } from '@/app/contexts/DashboardContext';
+import { useApp } from '@/app/contexts/AppContext';
 import {
   NAV_GROUPS,
   SHORTCUT_DESTINATIONS,
@@ -28,12 +29,12 @@ import {
 import { useKeyboardShortcuts, isMac } from '@/app/hooks/useKeyboardShortcuts';
 import { useMediaQuery } from '@/app/hooks/usePerformance';
 import { CommandPalette, useCommandPaletteCommands } from '@/app/components/CommandPalette';
+import { DemoExperienceBanner } from '@/app/components/DemoExperienceBanner';
 import { KeyboardShortcutsHelp } from '@/app/components/KeyboardShortcutsHelp';
 import { NotificationCenter } from '@/app/components/NotificationCenter';
 import { KanbanAlertToastStack } from '@/app/components/KanbanAlertToast';
 import { GlobalAIChatProvider, useGlobalAIChat } from '@/app/contexts/GlobalAIChatContext';
 import { GlobalAIChat } from '@/app/components/GlobalAIChat';
-import { getDemoSubmissions } from '@/app/services/dataService';
 
 // ── Shared types ───────────────────────────────────────────────────────────────
 
@@ -86,10 +87,41 @@ function DashboardLayoutInner({
     setAccessToken(accessToken);
   }, [accessToken, setAccessToken]);
 
+
+  // ── Dashboard context ──────────────────────────────────────────────────────
+  const { state, setSidebarCollapsed, setActiveFilter, kanbanAlerts, markKanbanAlertsRead } =
+    useDashboard();
+
+  const loadedSubmissions = state.searchableSubmissions;
+
+  /**
+   * The signed-in operator, from the session — never a placeholder.
+   *
+   * An em dash where a name would be is the honest rendering of "the session
+   * has not resolved a name yet"; a plausible-looking invented one is not.
+   */
+  const { teamUser } = useApp();
+  const accountName = teamUser?.name?.trim() || 'Signed in';
+  const accountEmail = teamUser?.email?.trim() || '—';
+  const accountInitials =
+    accountName
+      .split(/\s+/)
+      .map(part => part[0])
+      .filter(Boolean)
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '—';
+
+  // The AI's notion of "the lead you are looking at" used to be resolved
+  // against `getDemoSubmissions()` — so whatever record the operator had open,
+  // the assistant was briefed on an invented company with the same position in
+  // a fixture list, or on nothing. It resolves against the submissions this
+  // session actually loaded, and when the id is not among them it sets no lead
+  // rather than the wrong one.
   useEffect(() => {
     if (!activeSubmissionId) return;
-    const sub = getDemoSubmissions().find(s => s.id === activeSubmissionId);
-    if (!sub) return;
+    const sub = loadedSubmissions.find(s => s.id === activeSubmissionId);
+    if (!sub) { setActiveLead(null); return; }
     setActiveLead({
       id: sub.id,
       companyName: sub.company,
@@ -108,11 +140,7 @@ function DashboardLayoutInner({
         roiSummary: sub.roiPotential,
       },
     });
-  }, [activeSubmissionId, setActiveLead]);
-
-  // ── Dashboard context ──────────────────────────────────────────────────────
-  const { state, setSidebarCollapsed, setActiveFilter, kanbanAlerts, markKanbanAlertsRead } =
-    useDashboard();
+  }, [activeSubmissionId, loadedSubmissions, setActiveLead]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -380,6 +408,12 @@ function DashboardLayoutInner({
                     key={destination.id}
                     onClick={() => navigateAndClose(destination.id)}
                     aria-current={isActive ? 'page' : undefined}
+                    /* The destination's own id, on the control that goes there.
+                       `tests/smoke/navigation-truth.spec.ts` reads the full
+                       registered list off the rendered sidebar and drives every
+                       entry, so a destination added to NAV_GROUPS is tested
+                       without anybody adding it to a list in the test. */
+                    data-destination={destination.id}
                     /* Collapsed, only the icon renders. Without these the
                        collapsed sidebar is unreadable to a screen reader and
                        unlabelled on hover. */
@@ -404,16 +438,22 @@ function DashboardLayoutInner({
           })}
         </nav>
 
-        {/* User section */}
+        {/* ── WHO IS SIGNED IN ────────────────────────────────────────────
+            "Team User", "team@example.com" and the initials "TU" were literals.
+            Every operator, on every screen, in every configuration, saw the same
+            invented person in the account block — beside a greeting three feet
+            away that used their real name, and above the Sign out button. It is
+            the smallest fabrication CP-1 found and the one hardest to argue was
+            ever intentional. */}
         <div className="p-4 border-t border-white/10">
           {(!sidebarCollapsed || isCompact) && (
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center font-bold">
-                TU
+                {accountInitials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">Team User</p>
-                <p className="text-xs text-gray-400 truncate">team@example.com</p>
+                <p className="font-semibold text-sm truncate">{accountName}</p>
+                <p className="text-xs text-gray-400 truncate">{accountEmail}</p>
               </div>
             </div>
           )}
@@ -487,8 +527,25 @@ function DashboardLayoutInner({
           </div>
         </header>
 
+        {/* If this build serves fabricated data, it says so, above the work and
+            on every destination. Renders nothing in any other configuration. */}
+        <DemoExperienceBanner />
+
         {/* Page content */}
-        <main id="cortex-main" tabIndex={-1} className="flex-1 overflow-auto">{children}</main>
+        {/* WHICH DESTINATION IS ACTUALLY ON SCREEN.
+            The deep-link suite used to answer that question by comparing the
+            first 40 characters of `#cortex-main`'s text between two loads —
+            which cannot distinguish two destinations that happen to start the
+            same way, and cannot detect a silent fallback to the Dashboard at
+            all if both loads fall back. The shell knows the answer; it says so. */}
+        <main
+          id="cortex-main"
+          data-destination={currentPage}
+          tabIndex={-1}
+          className="flex-1 overflow-auto"
+        >
+          {children}
+        </main>
       </div>
 
       {/* ── Overlays ────────────────────────────────────────────────────── */}

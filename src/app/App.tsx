@@ -15,7 +15,7 @@
  *   #/team/execution  → CORTEX execution plan
  *   #/client/login    → Client portal login
  *   #/client/portal   → Client portal
- *   #/architecture    → System architecture view
+ *   #/architecture    → System architecture view (team session required)
  *   #/registry        → System Registry (codebase ID map / debug tool)
  *
  * ── PERFORMANCE NOTES ────────────────────────────────────────────────────────
@@ -132,9 +132,13 @@ const router = createHashRouter([
 
       // ── Dev / utility (large data payloads — definitely split) ────────────
       {
+        // Moved out of "Dev / utility" and into the authenticated shells below
+        // in CP-1: `architecture` is a declared sidebar destination, so it must
+        // render inside the product, with its navigation item selected, and
+        // behind the same session gate as every other destination.
         path: 'architecture',
         errorElement: <RouteErrorFallback />,
-        lazy: makeLazy(() => import('@/app/components/SystemArchitecture'), 'SystemArchitecture'),
+        lazy: makeLazy(() => import('@/app/pages/ArchitectureRoute'), 'ArchitectureRoute'),
       },
       {
         path: 'registry',

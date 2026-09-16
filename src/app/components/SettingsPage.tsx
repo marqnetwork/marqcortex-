@@ -72,51 +72,20 @@ const TABS = [
 ];
 
 /**
- * The demo-mode settings.
+ * The SECOND copy of the demo settings used to live here.
  *
- * Declared ONCE, and against the real `SettingsResponse` shape. There used to
- * be two copies of this object — one for demo mode and one substituted on a
- * failed live request — and both had been written against an older, different
- * `PlatformSettings`: `companyName`, `companyEmail`, `emailNotifications` and
- * five other fields the server neither sends nor stores, with `brandingName`,
- * `defaultAssignee`, `autoAssign` and `notificationPrefs` — the fields this
- * page actually renders — absent entirely.
+ * `demoSettings()` — a "Demo User" at demo@marqcortex.com with an admin role
+ * and a full notification configuration — was rendered into this page's live
+ * form controls whenever the backend was off, which is the shipped default.
+ * The values then sat in the same inputs a real configuration sits in, above
+ * the same Save button, which writes whatever the controls hold back to the
+ * server.
  *
- * The consequence was not cosmetic. `NotificationSettings` initialises its
- * toggles from `{ ...settings.notificationPrefs }`; spreading `undefined`
- * yields `{}`, so every notification toggle rendered OFF regardless of the
- * real configuration, and pressing Save wrote that empty object back.
+ * It is gone. There is one demo-settings fixture now, behind
+ * `@/app/demo/demoBackend`, and `getPlatformSettings` reaches it only in an
+ * explicitly designated demo. This page asks for settings and renders what it
+ * is given, or says why it cannot.
  */
-function demoSettings(): SettingsResponse {
-  return {
-    success: true,
-    currentUser: {
-      id: 'demo_user_1',
-      email: 'demo@marqcortex.com',
-      name: 'Demo User',
-      teamRole: 'admin',
-    },
-    platformSettings: {
-      brandingName: 'CORTEX Intelligence',
-      defaultAssignee: 'auto',
-      autoAssign: true,
-      notificationPrefs: {
-        newSubmission: true,
-        reportReady: true,
-        teamActivity: false,
-        weeklyDigest: true,
-        proposalViewed: true,
-        proposalAccepted: true,
-        messageReceived: true,
-      },
-    },
-    health: {
-      submissionCounts: { new: 5, 'in-review': 3, completed: 8, approved: 2, total: 18 },
-      serverTime: new Date().toISOString(),
-      recentActivity: [],
-    },
-  };
-}
 
 export function SettingsPage({ accessToken }: Props) {
   const [activeTab, setActiveTab]   = useState('profile');
@@ -135,14 +104,24 @@ export function SettingsPage({ accessToken }: Props) {
     if (!silent) setIsLoading(true);
     setError(null);
     try {
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for settings (backend disabled)');
-        }
-        setData(demoSettings());
-        return;
+      const response = await getPlatformSettings(accessToken);
+
+      // A 200 IS NOT A SETTINGS RESPONSE.
+      //
+      // `getPlatformSettings` ends in `data as SettingsResponse` — an
+      // assertion, not a check — and this page reads `data.currentUser.name`
+      // straight into a `useState`. A response that arrives without
+      // `currentUser` therefore threw during render, and because this
+      // destination lives inside the shell, the route error boundary replaced
+      // the whole console with "Page failed to load". Found in a browser
+      // during CP-1's QA, reloading `?page=settings`.
+      //
+      // The same 200 is now a failed load, which this page already knows how
+      // to report, with a retry beside it.
+      if (!response?.currentUser || !response?.platformSettings) {
+        throw new Error('The settings response was incomplete.');
       }
-      setData(await getPlatformSettings(accessToken));
+      setData(response);
     } catch (err: any) {
       if (isVerboseLogging()) {
         console.error('❌ Failed to load settings:', err);

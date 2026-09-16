@@ -14,14 +14,15 @@
  * first navigation to that panel, not on TeamDashboard mount.
  */
 
-import { useState, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import type { Breadcrumb } from '@/app/components/TeamDashboardLayout';
 import { DashboardProvider, useDashboard } from '@/app/contexts/DashboardContext';
 import {
-  DESTINATIONS,
+  SHELL_DESTINATIONS,
   destinationLabel,
+  externalRouteFor,
   PAGE_PARAM,
   type DestinationId,
 } from '@/app/core/navigationModel';
@@ -81,23 +82,19 @@ export default function TeamDashboard({ onLogout, accessToken }: TeamDashboardPr
 type PageView = DestinationId;
 
 /**
- * The destinations this shell renders in place. 'execution' and 'architecture'
- * are real destinations, but handleNavigate routes them out of the shell, so
- * they are never a currentPage here. Derived from the model so a destination
- * added there and rendered here needs no second list to be updated.
+ * The destinations this shell renders in place.
+ *
+ * Derived from the model's `externalRoute` field rather than from a hand-kept
+ * list. The previous version restated `['execution', 'architecture']` here as a
+ * literal, which meant the shell and `handleNavigate` each knew half of a fact
+ * neither could check against the other.
  */
-const ROUTED_AWAY: ReadonlySet<DestinationId> = new Set<DestinationId>([
-  'execution',
-  'architecture',
-]);
 const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
-  DESTINATIONS.map(d => d.id).filter(id => !ROUTED_AWAY.has(id)),
+  SHELL_DESTINATIONS.map(d => d.id),
 );
 
 /**
  * RECOVERY FROM A REFRESH.
- *
- * The destination named by the URL, or the dashboard.
  *
  * The shell used to keep the page in `useState`, seeded from a sessionStorage
  * key that was read and DELETED in the same breath — so a refresh, a reconnect
@@ -106,13 +103,30 @@ const SHELL_PAGES: ReadonlySet<DestinationId> = new Set(
  * which restores on refresh, survives a shared link and makes Back mean what it
  * says.
  *
- * An unknown value falls back rather than being trusted: the parameter is
- * user-editable, and a hand-typed `?page=nonsense` must land somewhere real
- * instead of on the invalid-page error screen.
+ * THREE ANSWERS, NOT TWO. The previous version returned a `PageView` and so had
+ * only "this destination" or "the dashboard" to choose between — which is why
+ * `?page=execution` rendered the Dashboard. `execution` is a REAL destination
+ * that this shell cannot render, and collapsing it into the fallback made a
+ * correct URL behave exactly like a typo.
+ *
+ *   { kind: 'shell' }    render it here
+ *   { kind: 'external' } it lives at its own route — go there
+ *   { kind: 'unknown' }  a typo, or an id that no longer exists — the dashboard
+ *
+ * Only the third falls back, and falling back is right for it: `?page=nonsense`
+ * is user-typed and must land somewhere real rather than on an error screen.
  */
-function pageFromParam(raw: string | null): PageView {
-  if (raw && SHELL_PAGES.has(raw as DestinationId)) return raw as PageView;
-  return 'dashboard';
+type Resolution =
+  | { kind: 'shell'; page: PageView }
+  | { kind: 'external'; route: string }
+  | { kind: 'unknown' };
+
+function resolvePage(raw: string | null): Resolution {
+  if (!raw) return { kind: 'shell', page: 'dashboard' };
+  if (SHELL_PAGES.has(raw as DestinationId)) return { kind: 'shell', page: raw as PageView };
+  const external = externalRouteFor(raw as DestinationId);
+  if (external) return { kind: 'external', route: external };
+  return { kind: 'unknown' };
 }
 
 function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
@@ -122,7 +136,22 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
 
   // The URL is the source of truth for which destination is showing, so Back,
   // Forward, a refresh and a shared link all agree with the sidebar.
-  const currentPage = pageFromParam(searchParams.get(PAGE_PARAM));
+  const resolution = resolvePage(searchParams.get(PAGE_PARAM));
+  const currentPage: PageView = resolution.kind === 'shell' ? resolution.page : 'dashboard';
+
+  /**
+   * A URL naming a destination that lives outside this shell.
+   *
+   * `#/team/dashboard?page=execution` used to render the Dashboard, silently.
+   * It now goes where the URL says. `replace: true` because the shell URL was
+   * never a place the operator meant to be — leaving it in history would put a
+   * Back press onto a redirect that immediately fires again.
+   */
+  const externalRoute = resolution.kind === 'external' ? resolution.route : null;
+  useEffect(() => {
+    if (externalRoute) navigate(externalRoute, { replace: true });
+  }, [externalRoute, navigate]);
+
   const setCurrentPage = (page: PageView) => {
     setSearchParams(
       previous => {
@@ -199,13 +228,13 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
 
   // Handle navigation between pages
   const handleNavigate = (page: string) => {
-    // Routes that leave the dashboard shell — navigate via hash-router URL
-    if (page === 'execution') {
-      navigate('/team/execution');
-      return;
-    }
-    if (page === 'architecture') {
-      navigate('/architecture');
+    // Destinations that live outside this shell — read from the navigation
+    // model rather than restated here. These two `if (page === …)` branches
+    // were the ONLY record that `execution` and `architecture` have their own
+    // routes, so the sidebar knew and the URL did not.
+    const route = externalRouteFor(page as DestinationId);
+    if (route) {
+      navigate(route);
       return;
     }
     setCurrentPage(page as PageView);

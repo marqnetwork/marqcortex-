@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, ArrowLeft, LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { teamLogin, DEMO_TEAM_LOGIN } from '@/app/services/dataService';
-import { isDemoMode } from '@/config/runtime';
+import { teamLogin, getDemoSignInHints } from '@/app/services/dataService';
+
+type DemoSignInHints = Awaited<ReturnType<typeof getDemoSignInHints>>;
 import {
   brand,
 } from '@/app/lib/tokens';
@@ -19,6 +20,21 @@ interface TeamLoginProps {
 }
 
 export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
+  // The demo credentials, asked for rather than imported.
+  //
+  // They used to be a STATIC import from `dataService`, so the administrator
+  // email and password were in the bundle of every build and the `isDemoMode()`
+  // guard below only decided whether they were PAINTED. They are fetched now,
+  // from the demo boundary, and `getDemoSignInHints()` answers `null` in any
+  // build that is not an explicitly designated demo.
+  const [demoHints, setDemoHints] = useState<DemoSignInHints>(null);
+
+  useEffect(() => {
+    let live = true;
+    void getDemoSignInHints().then(hints => { if (live) setDemoHints(hints); });
+    return () => { live = false; };
+  }, []);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -193,15 +209,15 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               style={{ fontFamily: 'Inter' }}
             />
             {/* Demo affordance only — see the note on the credentials panel below. */}
-            {isDemoMode() && (
+            {demoHints && (
               <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
                 Use:&nbsp;
                 <button
                   type="button"
-                  onClick={() => setEmail('admin@marqcortex.com')}
+                  onClick={() => setEmail(demoHints.team.email)}
                   className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
                 >
-                  admin@marqcortex.com
+                  {demoHints.team.email}
                 </button>
               </p>
             )}
@@ -234,15 +250,15 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            {isDemoMode() && (
+            {demoHints && (
               <p className="mt-1.5 text-xs text-cortex-neutral flex items-center gap-1.5" style={{ fontFamily: 'Inter' }}>
                 Use:&nbsp;
                 <button
                   type="button"
-                  onClick={() => setPassword(DEMO_TEAM_LOGIN.password)}
+                  onClick={() => setPassword(demoHints.team.password)}
                   className="text-cortex-info hover:text-white font-mono bg-cortex-info/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
                 >
-                  {DEMO_TEAM_LOGIN.password}
+                  {demoHints.team.password}
                 </button>
               </p>
             )}
@@ -330,12 +346,12 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
           the wrong thing to ship: ungated, they rendered in a production
           bundle too, where the credentials are real and the page is public.
 
-          `isDemoMode()` is the same gate the rest of the UI uses —
-          `FEATURES.BACKEND_INTEGRATION`, which is what a live deployment turns
-          on. Turning the backend on now removes these from the page as well as
-          from the bundle's reachable render path.
+          `getDemoSignInHints()` is the gate, and it is stronger than the old
+          `isDemoMode()` one: it does not merely hide the panel in a live build,
+          it returns nothing to render, and the credentials themselves live behind
+          a dynamic import into `@/app/demo` that a live build never loads.
         */}
-        {isDemoMode() && (
+        {demoHints && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -346,8 +362,8 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
               Demo Credentials
             </p>
             <div className="space-y-1 text-sm" style={{ fontFamily: 'Inter' }}>
-              <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> {DEMO_TEAM_LOGIN.email}</p>
-              <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> {DEMO_TEAM_LOGIN.password}</p>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Email:</span> {demoHints.team.email}</p>
+              <p className="text-cortex-primary"><span className="text-cortex-neutral">Password:</span> {demoHints.team.password}</p>
             </div>
           </motion.div>
         )}

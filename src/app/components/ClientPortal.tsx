@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { DemoExperienceBanner } from '@/app/components/DemoExperienceBanner';
 import type { ComponentType } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 import {
   getClientSubmission, trackEngagement, getClientReport,
-  getDemoClientSubmission, generateClientReport, type Submission, type ClientReportData,
+  generateClientReport, type Submission, type ClientReportData,
   type ClientAuthContext,
 } from '@/app/services/dataService';
 import { ClientReadinessReport } from '@/app/components/ClientReadinessReport';
@@ -166,24 +167,14 @@ export default function ClientPortal({
     setError(null);
 
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for client portal (backend disabled)');
-        }
-        
-        // Create demo submission data
-        const demoSubmission: Submission = getDemoClientSubmission({ submissionId, companyName, clientEmail });
-        
-        setSubmission(demoSubmission);
-        setReportData(generateClientReport(demoSubmission));
-        setIsAIPowered(false);
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setLastUpdated(new Date().toISOString());
-        return;
-      }
-
+      // The no-backend branch that used to sit here built the portal out of
+      // `getDemoClientSubmission({ submissionId, companyName, clientEmail })` —
+      // the client's real name and address over a seeded profile, from which
+      // `generateClientReport` then derived a readiness score and a list of
+      // recommendations. A paying client read findings about their own company
+      // that had never been derived from their diagnostic. The catch below
+      // explains at length why that fallback was removed there; it is gone
+      // here for exactly the same reason.
       const result = await getClientSubmission(submissionId, clientAuth);
       // A response without a submission is a FAILURE, not an empty portal. The
       // `if (result.submission)` guard used to let it fall through silently,
@@ -282,6 +273,11 @@ export default function ClientPortal({
 
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
+      {/* A client is the last person who should have to guess whether the
+          report in front of them is theirs. Renders nothing outside a
+          designated demo. */}
+      <DemoExperienceBanner />
+
       {/* The portal header carries eight section tabs. Without this a keyboard
           user walked all eight, on every view, before reaching the content —
           and there was no `<main>` landmark to jump to either. */}

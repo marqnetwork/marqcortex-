@@ -28,12 +28,35 @@ import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 
 const TEAM_ROUTE = '#/team/dashboard';
 
-/** The thirteen canonical destinations, as `navigationModel.ts` declares them. */
-const DESTINATIONS = [
-  'dashboard', 'reviewer-qa', 'email-queue', 'cortex', 'analytics',
-  'revenue-intelligence', 'execution', 'mapping-engine', 'control-plane',
-  'operations', 'team', 'settings', 'architecture',
-] as const;
+/**
+ * The destinations, READ OFF THE RENDERED SIDEBAR rather than written here.
+ *
+ * What used to be here was a thirteen-entry literal introduced as "the thirteen
+ * canonical destinations, as `navigationModel.ts` declares them". Four of them
+ * were not: `reviewer-qa`, `email-queue`, `revenue-intelligence` and
+ * `mapping-engine` do not exist — the model declares `reviewer`, `emails`,
+ * `revenue`, `mapping`. An unknown id falls back to the Dashboard, the
+ * Dashboard renders and audits fine, and so this loop asserted four times over
+ * that the Dashboard was acceptable (Product Reality §7.1).
+ *
+ * The sidebar renders from `NAV_GROUPS`, so reading it is reading the model.
+ * A destination renamed there is renamed here in the same breath.
+ */
+async function destinations(page: Page): Promise<string[]> {
+  // The sidebar has to be up before it can be read. `signIn` waits for the URL,
+  // which the router changes before the shell's lazy chunk has mounted — so
+  // reading here too early returned an empty list, and on a loaded machine it
+  // did. An empty list would silently mean "this loop asserted nothing", which
+  // is the exact failure §7.1 was.
+  await expect(page.locator('nav [data-destination]').first()).toBeVisible({ timeout: 20_000 });
+  const ids = await page.locator('nav [data-destination]').evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('data-destination') ?? ''),
+  );
+  const unique = [...new Set(ids.filter(Boolean))];
+  expect(unique.length, 'no destinations were found — this loop would assert nothing')
+    .toBeGreaterThanOrEqual(10);
+  return unique;
+}
 
 /**
  * Console errors worth failing on.
@@ -152,10 +175,14 @@ test.describe('canonical journey — a team member signs in and works', () => {
     await signIn(page);
     const broken: string[] = [];
 
-    for (const destination of DESTINATIONS) {
+    for (const destination of await destinations(page)) {
       const errors = collectErrors(page);
       await page.goto(`/${TEAM_ROUTE}?page=${destination}`);
-      // The lazy chunk has to arrive before the page can be judged.
+      // The lazy chunk has to arrive before the page can be judged — and for a
+      // destination that lives at its own route, so does the redirect. Waiting
+      // on the shell's `<main>` covers both; `networkidle` alone caught the
+      // Suspense fallback and reported "13 characters".
+      await expect(page.locator('main[data-destination]')).toBeVisible({ timeout: 20_000 });
       await page.waitForLoadState('networkidle');
       const text = (await page.locator('body').innerText()).trim();
 

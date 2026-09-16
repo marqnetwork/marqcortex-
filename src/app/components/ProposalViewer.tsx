@@ -15,7 +15,7 @@ import {
   ChevronDown, ChevronUp,
 } from 'lucide-react';
 import {
-  getClientProposal, respondToProposal, getDemoProposal,
+  getClientProposal, respondToProposal,
   type ClientAuthContext,
 } from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
@@ -52,16 +52,14 @@ export function ProposalViewer({ submissionId, clientName, companyName, clientAu
     setIsLoading(true);
     setError(null);
     try {
-      if (isBackendEnabled()) {
-        const res = await getClientProposal(submissionId, clientAuth);
-        setProposal(res.proposal);
-      } else {
-        // Demo mode: show a rich, fully-structured proposal
-        if (isVerboseLogging()) {
-          console.log('Demo mode: loading rich mock proposal');
-        }
-        setProposal(getDemoProposal(companyName));
-      }
+      // A complete, priced, fully-structured proposal addressed to the client's
+      // own company used to be rendered here whenever the backend was off —
+      // scope, phases, investment figures and all. A client reading a price
+      // MARQ never quoted is the most expensive kind of fabrication this
+      // product could produce. There is one path now, and no proposal is not
+      // a proposal.
+      const res = await getClientProposal(submissionId, clientAuth);
+      setProposal(res.proposal);
     } catch (err: any) {
       console.error('ProposalViewer load error:', err);
       setError(err.message || 'Failed to load proposal');

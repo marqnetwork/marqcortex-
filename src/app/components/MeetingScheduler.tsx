@@ -15,7 +15,6 @@ import {
   Phone, MessageSquare, ChevronLeft, ChevronRight,
   Brain, Users, FileText, Sparkles, MapPin,
 } from 'lucide-react';
-import { getDemoScheduledMeeting } from '@/app/services/dataService';
 
 interface MeetingSchedulerProps {
   clientData: {
@@ -69,6 +68,17 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+/**
+ * The agenda every introductory call follows. Copy, not data — it does not
+ * vary by client and nothing measures it.
+ */
+const MEETING_AGENDA = [
+  'Review your readiness report findings (10 min)',
+  'Deep-dive into top 3 priority recommendations (15 min)',
+  'ROI walkthrough and investment discussion (10 min)',
+  'Q&A and next steps (10 min)',
+] as const;
+
 export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -84,7 +94,14 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
     return d;
   }, []);
 
-  const demoMeeting = useMemo(() => getDemoScheduledMeeting(), []);
+  // `getDemoScheduledMeeting()` used to supply both of the blocks below. Its
+  // agenda is product copy — the same four items for every booking, which is
+  // what an agenda template is — so it is declared here as copy. Its
+  // ATTENDEES were two invented consultants, "Marcus Chen, Lead Analyst" and
+  // "Priya Sharma, Solutions Architect", introduced to the client by name as
+  // "Your MARQ Cortex Team". MARQ has no attendee assignment at booking time,
+  // so the honest thing to show is that the team will be confirmed, and that
+  // is what the confirmation now says.
   const slots = selectedDate ? getAvailableSlots(selectedDate) : [];
 
   // Build calendar grid
@@ -197,22 +214,12 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
               />
             </div>
 
-            {/* Attendees */}
+            {/* Who you will meet — once it is actually decided. */}
             <div className="mt-6 pt-5 border-t border-cortex-default">
               <p className="text-xs font-bold text-cortex-muted uppercase tracking-wider mb-3">Your MARQ Cortex Team</p>
-              <div className="flex gap-4">
-                {demoMeeting.attendees.map((a, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="size-9 rounded-full bg-gradient-to-br from-cortex-accent to-cortex-accent-alt flex items-center justify-center text-xs font-bold text-white">
-                      {a.avatar}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{a.name}</p>
-                      <p className="text-xs text-cortex-muted">{a.role}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-cortex-secondary">
+                We will confirm who is joining, by email, before the call.
+              </p>
             </div>
           </div>
 
@@ -223,7 +230,7 @@ export function MeetingScheduler({ clientData, onScheduled }: MeetingSchedulerPr
               Call Agenda
             </h3>
             <div className="space-y-3">
-              {demoMeeting.agenda.map((item, i) => (
+              {MEETING_AGENDA.map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className="size-6 rounded-full bg-cortex-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-xs font-bold text-cortex-accent">{i + 1}</span>

@@ -16,6 +16,7 @@
  * Rule: Math decides structure. Pipeline is deterministic — no LLM.
  */
 
+import { isDemoMode } from '@/config/runtime';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -48,73 +49,20 @@ const K_SUCCESS_LIGHT = STATUS.successLight;
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEMO SNAPSHOT (ExampleCo seed — used when no live snapshot exists)
+// THE EXAMPLECO SNAPSHOT THAT USED TO BE DECLARED HERE
 // ─────────────────────────────────────────────────────────────────────────────
-
-const DEMO_SNAPSHOT: ProposalSnapshot = {
-  proposal_snapshot_id: 'PS-DEMO-001',
-  proposal_id:          'PROP-EXCO-001',
-  version_number:       1,
-  version_hash:         generateVersionHash({ demo: true }),
-  created_at:           new Date(Date.now() - 86400000 * 2).toISOString(),
-  created_by:           'account-lead-01',
-  status:               'immutable',
-  triggered_by_export:  'pdf_export',
-  content_snapshot: {
-    blocks: [],
-    roi_snapshot: {
-      total_investment: 42000,
-      monthly_cost_before: 31000,
-      hours_wasted_monthly: 220,
-      revenue_at_risk_annual: 312000,
-      payback_months: 8,
-      roi_percent_12m: 318,
-    } as any,
-    assumptions_snapshot: [],
-    contract_snapshot: [],
-    executive_brief: {
-      client_name: 'ExampleCo',
-      title: 'ExampleCo AI Operations Transformation',
-      engagement_type: 'AI Operations Audit',
-      value_prop: 'Eliminate 220 hrs/month of manual work and recover $312K annual revenue leakage through targeted automation.',
-      key_outcomes: ['Automated order fulfillment pipeline', 'Real-time inventory sync', 'AI-powered customer support triage'],
-      proposed_investment: '$42,000',
-      proposed_timeline: '12 weeks',
-    } as any,
-    diagnosis_blocks: [
-      { id: 'dx-01', title: 'Manual Order Processing', severity: 'critical', description: 'Team manually copies orders between 4 systems — 6 hrs/day.' } as any,
-      { id: 'dx-02', title: 'Inventory Fragmentation', severity: 'high',     description: 'Stock levels not synced across channels — overselling 3-4x/week.' } as any,
-    ],
-    scope_boundaries: {
-      included: [
-        'Order management automation (WMS ↔ Shopify ↔ ERP)',
-        'AI customer support triage + escalation routing',
-        'Real-time inventory sync across all sales channels',
-        'Executive KPI dashboard (live operational data)',
-      ],
-      scope_included: [],
-      scope_excluded: ['Third-party tool procurement', 'Legal contract redlines', 'Non-digital change management'],
-      integration_points: ['Shopify API', 'WMS REST API', 'Zendesk webhook', 'Google Data Studio'],
-      assumptions: [
-        'Client IT provides credentials within 5 business days of kickoff',
-        'Existing CRM data is exportable (minimum CSV)',
-        'Named client project owner available 4 hrs/week',
-      ],
-    } as any,
-    next_step_offer: null as any,
-    solutions: [
-      { solution_id: 'sol-01', title: 'Automated Order Pipeline',    system_description: 'End-to-end order flow automation eliminating all manual touchpoints.',       timeline_weeks: 4, diagnosis_link: 'dx-01' },
-      { solution_id: 'sol-02', title: 'Inventory Intelligence Sync', system_description: 'Real-time multi-channel inventory synchronisation with conflict resolution.',   timeline_weeks: 3, diagnosis_link: 'dx-02' },
-      { solution_id: 'sol-03', title: 'AI Support Triage Engine',    system_description: 'ML classifier routes 60% of tickets automatically; escalates the rest.',       timeline_weeks: 3, diagnosis_link: 'dx-02' },
-    ] as any,
-    implementation_phases: [
-      { phase_id: 'ph-01', phase_name: 'Audit & System Mapping', start_week: 1, end_week: 2,  duration: 'Weeks 1–2',   governance_checkpoint: 'Kickoff sign-off' },
-      { phase_id: 'ph-02', phase_name: 'Build & Configure',      start_week: 3, end_week: 5,  duration: 'Weeks 3–5',   governance_checkpoint: 'Security & DPA gate' },
-      { phase_id: 'ph-03', phase_name: 'Validate & Pilot',       start_week: 6, end_week: 8,  duration: 'Weeks 6–8',   governance_checkpoint: 'UAT sign-off' },
-      { phase_id: 'ph-04', phase_name: 'Deploy & Review',        start_week: 9, end_week: 12, duration: 'Weeks 9–12',  governance_checkpoint: 'Executive go-live' },
-    ] as any,
-  },
-};
+//
+// `DEMO_SNAPSHOT` was a complete, priced proposal — "ExampleCo AI Operations
+// Transformation", $42,000, twelve weeks, a 318% twelve-month ROI, three named
+// solutions and four governance checkpoints — and it was not a fallback. It was
+// the panel's ONLY input, in every configuration. The Mapping Engine displayed
+// it as the proposal being mapped, ran its eight-step pipeline against it, and
+// presented the resulting workstreams, milestones, tasks and gates as an
+// execution plan.
+//
+// It has moved to `@/app/demo/fixtures/proposalSnapshot.ts` and is loaded only
+// in an explicitly designated demo. Without one, the panel says what it needs
+// — an accepted proposal — and offers nothing to run against.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP METADATA
@@ -181,6 +129,26 @@ function PriorityBadge({ p }: { p: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function MappingEnginePanel() {
+  /**
+   * The snapshot to map, or `null`.
+   *
+   * There is no endpoint that hands this panel a proposal snapshot yet — the
+   * Mapping Engine's input is produced by accepting a proposal, and nothing in
+   * the product persists one where this surface can read it. So the honest
+   * answer, outside a demo, is that there is nothing to map; a demo loads the
+   * fixture through the boundary, lazily, like every other fixture.
+   */
+  const [snapshot, setSnapshot] = useState<ProposalSnapshot | null>(null);
+
+  useEffect(() => {
+    if (!isDemoMode()) return;
+    let live = true;
+    void import('@/app/demo/fixtures/proposalSnapshot').then(m => {
+      if (live) setSnapshot(m.DEMO_PROPOSAL_SNAPSHOT);
+    });
+    return () => { live = false; };
+  }, []);
+
   const [running,      setRunning]      = useState(false);
   const [activeStep,   setActiveStep]   = useState<number>(-1);   // -1 = idle
   const [result,       setResult]       = useState<MappingPipelineResult | null>(null);
@@ -189,9 +157,10 @@ export function MappingEnginePanel() {
   const [elapsed,      setElapsed]      = useState<number | null>(null);
   const cancelRef = useRef(false);
 
-  const validation = validateSnapshotForMapping(DEMO_SNAPSHOT);
+  const validation = snapshot ? validateSnapshotForMapping(snapshot) : null;
 
   const runPipeline = async () => {
+    if (!snapshot) return;
     cancelRef.current = false;
     setRunning(true);
     setResult(null);
@@ -209,7 +178,7 @@ export function MappingEnginePanel() {
     }
 
     if (!cancelRef.current) {
-      const res = runMappingPipeline(DEMO_SNAPSHOT, 'account-lead-01');
+      const res = runMappingPipeline(snapshot, 'account-lead-01');
       setResult(res);
       setElapsed(Math.round(performance.now() - t0));
       setActiveStep(8); // "done"
@@ -272,12 +241,17 @@ export function MappingEnginePanel() {
             )}
             <button
               onClick={running ? reset : runPipeline}
-              disabled={false}
+              /* Nothing to map, nothing to press. The pipeline used to be
+                 runnable unconditionally because its input was a constant. */
+              disabled={!snapshot && !running}
+              title={!snapshot ? 'There is no proposal snapshot to map' : undefined}
               className={`flex items-center gap-2 px-4 py-2 rounded-cortex-md text-sm font-semibold transition-all ${
                 running
                   ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20'
                   : result
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-default'
+                  : !snapshot
+                  ? 'bg-white/5 text-gray-600 border border-white/10 cursor-not-allowed'
                   : 'bg-gradient-to-r from-cortex-accent to-cortex-accent-alt text-white hover:opacity-90 shadow-lg shadow-cortex-accent/20'
               }`}
             >
@@ -299,14 +273,23 @@ export function MappingEnginePanel() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">
-              {(DEMO_SNAPSHOT.content_snapshot.executive_brief as any)?.title ?? DEMO_SNAPSHOT.proposal_id}
+              {(snapshot?.content_snapshot.executive_brief as any)?.title ?? snapshot?.proposal_id ?? 'No proposal snapshot'}
             </p>
             <p className="text-[11px] text-cortex-muted font-mono">
-              {DEMO_SNAPSHOT.proposal_snapshot_id} · v{DEMO_SNAPSHOT.version_number} · {DEMO_SNAPSHOT.version_hash} · status: {DEMO_SNAPSHOT.status}
+              {snapshot
+                ? `${snapshot.proposal_snapshot_id} · v${snapshot.version_number} · ${snapshot.version_hash} · status: ${snapshot.status}`
+                : 'Nothing to map — accept a proposal to produce one'}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {validation.errors.length === 0 ? (
+            {!validation ? (
+              <span
+                data-testid="product-data-empty"
+                className="flex items-center gap-1.5 text-gray-500 text-xs font-semibold"
+              >
+                <AlertCircle className="size-3.5" /> No snapshot
+              </span>
+            ) : validation.errors.length === 0 ? (
               <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
                 <CheckCircle2 className="size-3.5" /> Snapshot valid
               </span>
@@ -530,7 +513,9 @@ export function MappingEnginePanel() {
           </div>
           <h3 className="text-lg font-semibold text-cortex-secondary">Pipeline ready to run</h3>
           <p className="text-sm text-cortex-muted max-w-sm">
-            Press "Run Pipeline" to execute all 8 mapping steps against the ExampleCo snapshot.
+            {snapshot
+              ? 'Press "Run Pipeline" to execute all 8 mapping steps against the loaded snapshot.'
+              : 'The Mapping Engine turns an accepted proposal into an execution plan. There is no proposal snapshot in this workspace yet, so there is nothing to map.'}
             The full execution blueprint — workstreams, milestones, tasks, gates, baseline lock,
             scope boundaries, and dependency graph — will be generated in under a second.
           </p>

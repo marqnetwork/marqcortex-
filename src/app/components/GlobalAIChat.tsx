@@ -24,8 +24,10 @@ import {
 import type { ChatSectionContext, ActiveLeadInfo } from '@/app/contexts/GlobalAIChatContext';
 import { chatWithAI } from '@/app/services/dataService';
 import type { AIChatMessage } from '@/app/services/dataService';
-import { getDemoSubmissions } from '@/app/services/dataService';
-import { isBackendEnabled, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
+import { useDashboard } from '@/app/contexts/DashboardContext';
+import { ProductDataUnavailableError } from '@/app/services/productData';
+import type { Submission } from '@/app/services/dataService';
+import { isBackendEnabled, isDemoMode, isVerboseLogging, shouldShowApiErrors } from '@/config/runtime';
 import { useDialogBehavior } from '@/app/components/ui/cortex';
 import { brand, status, text, border, surface } from '@/app/lib/tokens';
 
@@ -39,6 +41,8 @@ interface ChatMsg {
   appliedTo?: string;
   isLoading?: boolean;
   error?: string;
+  /** True when this reply came from the demo's canned set, not from a model. */
+  canned?: boolean;
   timestamp: Date;
 }
 
@@ -109,10 +113,15 @@ const STATUS_COLOR: Record<string, string> = {
   'approved':   status.success,
 };
 
-// ---- Build lead roster from demo data ----------------------------------------
+// ---- Build the lead roster from the submissions this session loaded ---------
+//
+// It used to be built from `getDemoSubmissions()`, unconditionally, so the
+// assistant's entire notion of "your leads" was seven invented companies — and
+// when the operator asked about their pipeline it answered about that fixture,
+// confidently, in a panel labelled AI. It reads the loaded workspace now.
 
-function buildLeadRoster(): ActiveLeadInfo[] {
-  return getDemoSubmissions().map(s => ({
+function buildLeadRoster(submissions: Submission[]): ActiveLeadInfo[] {
+  return submissions.map(s => ({
     id: s.id,
     companyName: s.company,
     contactName: s.contact,
@@ -132,42 +141,12 @@ function buildLeadRoster(): ActiveLeadInfo[] {
   }));
 }
 
-// ---- Demo mock responses ----------------------------------------------------
-
-function getMockResponse(
-  message: string,
-  _section: string,
-): { reply: string; applyContent?: string } {
-  const lower = message.toLowerCase();
-
-  if (lower.includes('polish') || lower.includes('tone')) {
-    return {
-      reply: "I've polished the tone for a C-suite audience. The language is now more authoritative and the value proposition is front-loaded.",
-      applyContent: `This diagnostic engagement identifies a critical operational inflection point for your organisation. The evidence indicates that current systems are creating compounding friction at a rate that will materially affect capacity within the next two quarters.\n\nThe recommended intervention is sequenced for maximum impact with minimum disruption -- targeting the highest-leverage bottleneck first, then systematically removing downstream constraints.`,
-    };
-  }
-  if (lower.includes('urgency') || lower.includes('why now')) {
-    return {
-      reply: "Here's a strengthened 'why now' argument grounded in operational timing and market context.",
-      applyContent: `The timing for this intervention is material. Operational drag of this nature compounds at approximately 15-20% per quarter when left unresolved. Competitors who have already addressed similar bottlenecks are reporting 35-50% efficiency gains within 90 days of structured intervention.\n\nDelaying action by one quarter is not a neutral decision -- it is an active choice to absorb an increasing cost.`,
-    };
-  }
-  if (lower.includes('roi') || lower.includes('return')) {
-    return {
-      reply: "Here's an executive-ready ROI framing using your existing figures. All numbers intact -- only the narrative framing has been enhanced.",
-      applyContent: `The projected return reflects a conservative model applied to your current operational baseline. The primary value drivers are time recovered from manual processes, cost avoided through earlier issue detection, and revenue leakage reduced through improved pipeline visibility.\n\nAt the conservative estimate, the engagement pays for itself within the first engagement cycle.`,
-    };
-  }
-  if (lower.includes('strengthen') || lower.includes('argument') || lower.includes('reasoning')) {
-    return {
-      reply: "Here's a strengthened version of the recommendation reasoning with 'why this sequencing' logic added.",
-      applyContent: `The recommendation follows the Cortex sequencing principle: resolve constraints before optimisation, fix bottlenecks before growth. This is not a generic recommendation -- it is derived directly from your diagnostic data, which identified this as the highest-leverage point of intervention.\n\nAddressing this first creates the conditions for every downstream improvement to be more effective.`,
-    };
-  }
-  return {
-    reply: `Understood. The key principle: the most effective proposals anchor every claim in the diagnostic data. The AI's role is to explain and frame -- the math has already decided the priority.\n\nIs there a specific aspect you'd like me to refine? I can improve tone, strengthen argument, simplify language, or generate a specific narrative block.`,
-  };
-}
+// `getMockResponse()` used to be declared here and called whenever the backend
+// was off. It answered as "MARQ Cortex AI", in the same bubble a real model
+// answers in, with confident prose about compounding operational drag and
+// competitors reporting 35-50% efficiency gains within 90 days. It has moved
+// to `@/app/demo/aiDemoResponses.ts`, is loaded only in a designated demo, and
+// every reply it produces is now labelled as canned in the transcript itself.
 
 // ============================================================================
 // Sub-components
@@ -262,6 +241,18 @@ function MessageBubble({
             </p>
           ))}
         </div>
+
+        {/* Provenance, on the reply rather than in a caption elsewhere.
+            A canned answer and a governed model's answer used to be typeset
+            identically under the same "MARQ Cortex AI" heading. */}
+        {msg.canned && (
+          <p
+            data-testid="ai-canned-reply"
+            className="text-[10px] font-medium text-cortex-caution"
+          >
+            Canned demo reply — no model was asked.
+          </p>
+        )}
 
         {!isUser && msg.applyContent && (
           <div className="w-full rounded-cortex-md border border-cortex-accent/30 bg-cortex-accent/5 overflow-hidden">
@@ -671,7 +662,11 @@ export function GlobalAIChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const roster = useMemo(() => buildLeadRoster(), []);
+  const { state: dashboardState } = useDashboard();
+  const roster = useMemo(
+    () => buildLeadRoster(dashboardState.searchableSubmissions),
+    [dashboardState.searchableSubmissions],
+  );
 
   // Auto-scroll
   useEffect(() => {
@@ -755,12 +750,25 @@ export function GlobalAIChat() {
     try {
       let reply: string;
       let applyContent: string | undefined;
+      let canned = false;
 
-      if (!isBackendEnabled()) {
+      if (isDemoMode()) {
+        // A designated demo, and the transcript says so on the reply itself.
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 700));
+        const { getMockResponse } = await import('@/app/demo/aiDemoResponses');
         const mock = getMockResponse(trimmed, currentSection?.sectionId ?? 'general');
         reply = mock.reply;
         applyContent = mock.applyContent;
+        canned = true;
+      } else if (!isBackendEnabled()) {
+        // Not a demo, and no model to ask. The assistant used to answer anyway,
+        // from the canned set above, in a bubble headed "MARQ Cortex AI" — so
+        // the only thing distinguishing a governed model's answer from five
+        // keyword matches was a small grey caption elsewhere on the panel.
+        throw new ProductDataUnavailableError(
+          'backend-not-configured',
+          'MARQ Cortex AI is not connected in this build, so there is no model to answer.',
+        );
       } else {
         const res = await chatWithAI(
           {
@@ -783,6 +791,7 @@ export function GlobalAIChat() {
           role: 'assistant',
           content: reply,
           applyContent,
+          canned,
           timestamp: new Date(),
         }),
       );
@@ -913,7 +922,7 @@ export function GlobalAIChat() {
                   <div>
                     <h3 className="font-bold text-white text-sm leading-tight">MARQ Cortex AI</h3>
                     <p className="text-[10px] text-cortex-muted leading-tight">
-                      {isBackendEnabled() ? 'GPT-4o-mini - Live' : 'Demo Mode'}
+                      {isBackendEnabled() ? 'Live model' : isDemoMode() ? 'Demo — canned replies' : 'Not connected'}
                     </p>
                   </div>
                 </div>
@@ -1028,7 +1037,9 @@ export function GlobalAIChat() {
                     {!isBackendEnabled() && (
                       <div className="mt-3 px-3 py-2 rounded-cortex-sm bg-cortex-caution/10 border border-cortex-caution/20 w-full">
                         <p className="text-[10px] text-cortex-caution font-medium text-center">
-                          Demo mode -- set BACKEND_INTEGRATION: true for live GPT-4o-mini
+                          {isDemoMode()
+                            ? 'Demo — replies are canned, not generated. No model is asked.'
+                            : 'Not connected — MARQ Cortex AI has no model to ask in this build.'}
                         </p>
                       </div>
                     )}
