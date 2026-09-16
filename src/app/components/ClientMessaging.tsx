@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import {
   getClientMessages, postClientMessage, trackEngagement,
-  getDemoMessages, type Message, type ClientAuthContext,
+  type Message, type ClientAuthContext,
 } from '@/app/services/dataService';
 // `shouldShowApiErrors` is deliberately NOT read here: on the client-facing
 // thread, hiding a failure means showing an empty conversation instead.
@@ -57,24 +57,11 @@ export function ClientMessaging({ submissionId, clientName, companyName, clientA
   const load = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging() && !silent) {
-          console.log('Using rich demo data for client messaging (backend disabled)');
-        }
-        const demoMessages = getDemoMessages(submissionId, clientName);
-        setMessages(prev => {
-          // Preserve any optimistic messages sent during this session
-          const optimistic = prev.filter(m => m.id.startsWith('opt_') || m.id.startsWith('demo_local_'));
-          // Merge demo messages with local messages
-          const existingLocalIds = new Set(prev.filter(m => m.id.startsWith('local_')).map(m => m.id));
-          const localMsgs = prev.filter(m => existingLocalIds.has(m.id));
-          return [...demoMessages, ...localMsgs, ...optimistic];
-        });
-        setError(null);
-        setIsLoading(false);
-        return;
-      }
-
+      // A thread of invented messages, attributed to the client's own team and
+      // addressed to them by name, used to be served here whenever the backend
+      // was off. A conversation somebody did not have is not a degraded state
+      // of a conversation — it is a different thing entirely, and the client
+      // had no way to tell. An empty thread reads as empty now.
       const res = await getClientMessages(submissionId, clientAuth);
       // Narrowed before it becomes state — see `@/app/lib/payload`.
       const incoming = asArray<Message>(res.messages);

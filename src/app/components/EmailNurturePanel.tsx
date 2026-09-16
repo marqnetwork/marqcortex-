@@ -25,8 +25,8 @@ import {
   seedDemoQueue,
   seedABVariants,
   EMAIL_TEMPLATE_CONFIGS,
-  getDemoDeliveryStats,
-  getDemoTemplatePerformance,
+  getDeliveryStats,
+  getTemplatePerformance,
   getEmailPreview,
   type QueuedEmail,
   type EmailStatus,
@@ -154,7 +154,7 @@ export function EmailNurturePanel() {
   };
 
   const refresh = () => {
-    seedDemoQueue(); // idempotent
+    void seedDemoQueue(); // idempotent, and a no-op outside a designated demo
     seedABVariants(); // idempotent — seeds A/B variants onto all emails
     setQueue(getEmailQueue());
     setStats(getQueueStats());
@@ -788,20 +788,23 @@ function EmailHTMLPreview({ emailId }: { emailId: string }) {
 // ── Delivery Analytics Panel ─────────────────────────────────────────────────
 
 function DeliveryAnalytics() {
-  const stats = useMemo(() => getDemoDeliveryStats(), []);
-  const templatePerf = useMemo(() => getDemoTemplatePerformance(), []);
+  const stats = useMemo(() => getDeliveryStats(), []);
+  const templatePerf = useMemo(() => getTemplatePerformance(), []);
 
+  // The four cards used to be Delivery Rate 97%, Open Rate 42%, Click Rate 18%
+  // and Bounce Rate 2% — every one of them a constant multiplied by the sent
+  // count, and every one of them presented as a measurement. These three are
+  // counted from the queue's own records.
   const overviewCards: { label: string; value: string; sub: string; color: string }[] = [
-    { label: 'Delivery Rate', value: `${stats.deliveryRate}%`, sub: `${stats.delivered} / ${stats.totalSent}`, color: GREEN },
-    { label: 'Open Rate', value: `${stats.openRate}%`, sub: `${stats.opened} opened`, color: BLUE },
-    { label: 'Click Rate', value: `${stats.clickRate}%`, sub: `${stats.clicked} clicks`, color: CYAN },
-    { label: 'Bounce Rate', value: `${stats.bounceRate}%`, sub: `${stats.bounced} bounced`, color: stats.bounceRate > 5 ? RED : ORANGE },
+    { label: 'Sent', value: String(stats.totalSent), sub: 'handed to the mail provider', color: GREEN },
+    { label: 'Pending', value: String(stats.totalPending), sub: 'scheduled, not yet sent', color: BLUE },
+    { label: 'Failed', value: String(stats.totalFailed), sub: 'could not be handed over', color: stats.totalFailed > 0 ? RED : ORANGE },
   ];
 
   return (
     <div className="space-y-6">
       {/* Overview cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {overviewCards.map((card) => (
           <div key={card.label} className="p-5 rounded-cortex-md bg-cortex-raised border border-cortex-default relative overflow-hidden">
             <div className="absolute inset-0 opacity-5 rounded-cortex-md" style={{ background: `radial-gradient(circle at 80% 20%, ${card.color}, transparent 70%)` }} />
@@ -825,10 +828,9 @@ function DeliveryAnalytics() {
               <tr className="border-b border-cortex-subtle">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Template</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Sent</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Delivered</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Open Rate</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Click Rate</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider hidden lg:table-cell">Best Subject</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Pending</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Failed</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider hidden lg:table-cell">Subject</th>
               </tr>
             </thead>
             <tbody>
@@ -843,20 +845,10 @@ function DeliveryAnalytics() {
                       </div>
                     </td>
                     <td className="text-right px-4 py-3 text-white/70 font-mono text-xs">{tp.stats.totalSent}</td>
-                    <td className="text-right px-4 py-3 text-white/70 font-mono text-xs">{tp.stats.delivered}</td>
-                    <td className="text-right px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 bg-cortex-control-hover rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${tp.stats.openRate}%`, background: tp.stats.openRate >= 50 ? GREEN : tp.stats.openRate >= 30 ? ORANGE : RED }} />
-                        </div>
-                        <span className="text-xs font-mono text-white/70 w-10 text-right">{tp.stats.openRate}%</span>
-                      </div>
-                    </td>
-                    <td className="text-right px-4 py-3">
-                      <span className="text-xs font-mono text-white/70">{tp.stats.clickRate}%</span>
-                    </td>
+                    <td className="text-right px-4 py-3 text-white/70 font-mono text-xs">{tp.stats.totalPending}</td>
+                    <td className="text-right px-4 py-3 text-white/70 font-mono text-xs">{tp.stats.totalFailed}</td>
                     <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className="text-xs text-white/50 truncate block max-w-[240px]">{tp.bestSubjectLine}</span>
+                      <span className="text-xs text-white/50 truncate block max-w-[240px]">{tp.lastSubjectLine}</span>
                     </td>
                   </tr>
                 );
@@ -866,17 +858,24 @@ function DeliveryAnalytics() {
         </div>
       </div>
 
-      {/* Demo mode disclaimer */}
-      {!FEATURES.BACKEND_INTEGRATION && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-cortex-md bg-cortex-warning/5 border border-cortex-warning/15">
-          <Zap className="size-4 text-cortex-warning flex-shrink-0" />
-          <p className="text-xs text-white/50">
-            <span className="text-cortex-warning font-semibold">Demo Mode</span> — These metrics are simulated based on industry
-            benchmarks. Connect Resend and flip <code className="text-white/60 bg-cortex-control px-1 rounded">BACKEND_INTEGRATION</code> to
-            true for real delivery tracking via webhooks.
-          </p>
-        </div>
-      )}
+      {/* ── What is NOT measured, said where the numbers would have been ──
+          Not a demo-mode caveat: this is true in every configuration, because
+          nothing in this product consumes a delivery webhook yet. Opens,
+          clicks, bounces and delivery confirmations are the mail provider's to
+          report, and until that report is wired there is no honest number to
+          put in a card. */}
+      <div
+        data-testid="product-data-unavailable"
+        className="flex items-start gap-3 px-4 py-3 rounded-cortex-md bg-cortex-warning/5 border border-cortex-warning/15"
+      >
+        <Zap aria-hidden="true" className="size-4 text-cortex-warning flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-white/50 leading-relaxed">
+          <span className="text-cortex-warning font-semibold">Engagement is not measured.</span>{' '}
+          Opens, clicks, bounces and delivery confirmations require a mail-provider
+          webhook that MARQ Cortex does not yet consume. The counts above are the
+          queue&rsquo;s own records of what it handed over — nothing here is estimated.
+        </p>
+      </div>
     </div>
   );
 }

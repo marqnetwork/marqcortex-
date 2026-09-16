@@ -18,7 +18,6 @@ import {
 import { EmptyState } from '@/app/components/EmptyState';
 import {
   getTeamMembers, inviteTeamMember, updateTeamMember, removeTeamMember,
-  getDemoTeamMembers,
   type TeamMemberRecord,
 } from '@/app/services/dataService';
 // `shouldShowApiErrors` is deliberately NOT read here: hiding this failure
@@ -93,18 +92,10 @@ export function TeamManagement({ accessToken }: Props) {
     setIsLoading(true);
     setError(null);
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for team members (backend disabled)');
-        }
-        // Demo team members
-        const demoMembers: TeamMemberRecord[] = getDemoTeamMembers();
-        setMembers(demoMembers);
-        setIsLoading(false);
-        return;
-      }
-
+      // One path. The no-backend branch that used to sit here served
+      // `getDemoTeamMembers()` — four colleagues who are not in this workspace,
+      // holding roles they do not hold, beside controls offering to re-role and
+      // remove them against ids the server has never seen.
       const res = await getTeamMembers(accessToken);
       // Narrowed before it becomes state — see `@/app/lib/payload`.
       setMembers(asArray<TeamMemberRecord>(res.members));

@@ -269,7 +269,7 @@ describe('the immutable-snapshot tooltip is rendered', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('mock recommendations name canonical services', () => {
-  const mock  = stripComments(readSource('src/app/utils/mockCortexData.ts'));
+  const mock  = stripComments(readSource('src/app/demo/fixtures/mockCortexData.ts'));
   const types = stripComments(readSource('src/app/types/cortex-types.ts'));
 
   const union = types.match(/export type ServiceType\s*=([\s\S]*?);/);

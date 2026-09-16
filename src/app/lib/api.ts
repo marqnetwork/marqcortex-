@@ -9,6 +9,32 @@ import type { DealSnapshot } from '@/app/core/dashboardAggregator';
 
 const BASE = edgeFunctionBaseUrl;
 
+/**
+ * An HTTP failure that still knows which HTTP failure it was.
+ *
+ * Every route here used to throw a bare `Error` carrying only the server's
+ * message, so by the time a surface caught it, "you are not allowed to see
+ * this" and "the server fell over" were the same object. A surface cannot
+ * render an honest permission-denied state from a string it has to pattern
+ * match, so the status travels with the error.
+ *
+ * `classifyProductDataError` in `services/productData.ts` is the consumer.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+/** The throw every `!res.ok` branch uses, so no status is dropped on the way out. */
+function apiError(res: Response, message: string): ApiError {
+  return new ApiError(res.status, message);
+}
+
 const headers = (token?: string | null) => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${token || supabaseAnonKey}`,
@@ -35,7 +61,7 @@ export async function ping() {
     });
     const data = await res.json();
     if (FEATURES.VERBOSE_LOGGING) console.log('🏓 Ping response:', data);
-    if (!res.ok) throw new Error(data.error || 'Ping failed');
+    if (!res.ok) throw apiError(res, data.error || 'Ping failed');
     return data as { success: boolean; message: string; timestamp: string; server: string };
   } catch (err) {
     console.error('❌ Ping failed:', {
@@ -55,7 +81,7 @@ export async function testAuth(accessToken: string) {
     });
     const data = await res.json();
     if (FEATURES.VERBOSE_LOGGING) console.log('🔐 Auth test response:', data);
-    if (!res.ok) throw new Error(data.error || 'Auth test failed');
+    if (!res.ok) throw apiError(res, data.error || 'Auth test failed');
     return data as { success: boolean; message: string; userId: string; timestamp: string };
   } catch (err) {
     console.error('❌ Auth test failed:', {
@@ -94,11 +120,11 @@ export async function healthCheck() {
       data = JSON.parse(text);
     } catch (parseErr) {
       console.error('❌ Failed to parse health check response as JSON');
-      throw new Error(`Invalid JSON response (status ${res.status}): ${text.substring(0, 100)}`);
+      throw apiError(res, `Invalid JSON response (status ${res.status}): ${text.substring(0, 100)}`);
     }
     
     if (FEATURES.VERBOSE_LOGGING) console.log('🏥 Health check response:', data);
-    if (!res.ok) throw new Error(data.error || 'Health check failed');
+    if (!res.ok) throw apiError(res, data.error || 'Health check failed');
     return data as { status: string; timestamp: string; kvStore: string };
   } catch (err) {
     console.error('❌ Health check failed:', {
@@ -139,13 +165,13 @@ export async function getDiagnostics(accessToken: string) {
       if (FEATURES.VERBOSE_LOGGING) console.log('📦 Response data parsed:', data);
     } catch (jsonErr: any) {
       console.error('❌ Failed to parse JSON response:', jsonErr);
-      throw new Error(`Server returned invalid JSON (status: ${res.status}). Server may be down or returning HTML error page.`);
+      throw apiError(res, `Server returned invalid JSON (status: ${res.status}). Server may be down or returning HTML error page.`);
     }
     
     if (!res.ok) {
       const errorMsg = data.error || data.message || 'Diagnostics failed';
       console.error('❌ Server error:', errorMsg);
-      throw new Error(errorMsg);
+      throw apiError(res, errorMsg);
     }
     return data;
   } catch (err: any) {
@@ -209,7 +235,7 @@ export async function teamLogin(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Login failed');
+  if (!res.ok) throw apiError(res, data.error || 'Login failed');
   // `teamRole` has always been in this response — `resolveTeamAuthority` puts
   // it there. The declared type omitted it, so every consumer downstream was
   // typed as if the field did not exist and the console could not offer a
@@ -245,7 +271,7 @@ export async function requestClientSignInCode(email: string) {
     body: JSON.stringify({ email }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Could not send a sign-in code');
+  if (!res.ok) throw apiError(res, data.error || 'Could not send a sign-in code');
   return data as { sent: boolean; message: string };
 }
 
@@ -257,7 +283,7 @@ export async function exchangeClientSignInCode(email: string, code: string) {
     body: JSON.stringify({ email, code }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'That code is not valid. Request a new one.');
+  if (!res.ok) throw apiError(res, data.error || 'That code is not valid. Request a new one.');
   return data as {
     exists: boolean;
     submissionId?: string;
@@ -288,7 +314,7 @@ export async function createSubmission(payload: SubmissionPayload) {
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save submission');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save submission');
   return data as { success: boolean; submissionId: string };
 }
 
@@ -325,13 +351,13 @@ export async function getSubmissions(accessToken: string) {
       if (FEATURES.VERBOSE_LOGGING) console.log('📦 Response data parsed:', data);
     } catch (jsonErr) {
       console.error('❌ Failed to parse JSON response:', jsonErr);
-      throw new Error(`Server returned invalid JSON (status: ${res.status})`);
+      throw apiError(res, `Server returned invalid JSON (status: ${res.status})`);
     }
     
     if (!res.ok) {
       const errorMsg = data.error || data.details || 'Failed to fetch submissions';
       console.error('❌ Server error:', errorMsg);
-      throw new Error(errorMsg);
+      throw apiError(res, errorMsg);
     }
     return data as { success: boolean; submissions: Submission[]; total: number };
   } catch (err) {
@@ -343,6 +369,9 @@ export async function getSubmissions(accessToken: string) {
       accessToken: accessToken ? 'present' : 'missing',
       type: typeof err,
     });
+    // Re-wrapping an ApiError here would discard the status, and a 403 that
+    // arrives as a bare Error cannot be rendered as a permission-denied state.
+    if (err instanceof ApiError) throw err;
     throw new Error(`Failed to fetch submissions: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
@@ -358,7 +387,7 @@ export async function updateSubmissionStatus(
     body: JSON.stringify(updates),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update submission');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to update submission');
   return data as { success: boolean; submission: Submission };
 }
 
@@ -373,7 +402,7 @@ export async function bulkUpdateSubmissions(
     body: JSON.stringify({ ids, ...updates }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Bulk update failed');
+  if (!res.ok) throw apiError(res, data.error || 'Bulk update failed');
   return data as { success: boolean; updated: number };
 }
 
@@ -387,7 +416,7 @@ export async function getClientSubmission(
     headers: clientHeaders(auth),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Submission not found');
+  if (!res.ok) throw apiError(res, data.error || 'Submission not found');
   return data as { success: boolean; submission: Submission };
 }
 
@@ -432,7 +461,7 @@ export async function getEngagementLog(submissionId: string, auth?: ClientAuthCo
     headers: clientHeaders(auth),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch engagement log');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch engagement log');
   return data as { success: boolean; events: EngagementEvent[] };
 }
 
@@ -447,7 +476,7 @@ export async function getEngagementSummary(
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch engagement summary');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch engagement summary');
   return data;
 }
 
@@ -456,7 +485,7 @@ export async function getAnalytics(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Analytics error');
+  if (!res.ok) throw apiError(res, data.error || 'Analytics error');
   return data;
 }
 
@@ -465,7 +494,7 @@ export async function getEngagementAnalytics(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Engagement analytics error');
+  if (!res.ok) throw apiError(res, data.error || 'Engagement analytics error');
   return data as { success: boolean; engagement: EngagementAnalytics };
 }
 
@@ -494,7 +523,7 @@ export async function getRevenueSnapshots(accessToken: string): Promise<RevenueS
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Revenue snapshots error');
+  if (!res.ok) throw apiError(res, data.error || 'Revenue snapshots error');
   return data as RevenueSnapshotsResponse;
 }
 
@@ -558,7 +587,7 @@ export async function getClientMessages(submissionId: string, auth?: ClientAuthC
     headers: clientHeaders(auth),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch messages');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch messages');
   return data as { success: boolean; messages: Message[] };
 }
 
@@ -575,7 +604,7 @@ export async function postClientMessage(
     body: JSON.stringify({ content, clientName }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to send message');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to send message');
   return data as { success: boolean; message: Message };
 }
 
@@ -585,7 +614,7 @@ export async function getTeamMessages(submissionId: string, accessToken: string)
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch messages');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch messages');
   return data as { success: boolean; messages: Message[]; unreadFromClient: number };
 }
 
@@ -602,7 +631,7 @@ export async function postTeamReply(
     body: JSON.stringify({ content, authorName }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to send reply');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to send reply');
   return data as { success: boolean; message: Message };
 }
 
@@ -648,13 +677,13 @@ export async function getNotifications(accessToken: string) {
       if (FEATURES.VERBOSE_LOGGING) console.log('📦 Response data parsed:', data);
     } catch (jsonErr) {
       console.error('❌ Failed to parse JSON response:', jsonErr);
-      throw new Error(`Server returned invalid JSON (status: ${res.status})`);
+      throw apiError(res, `Server returned invalid JSON (status: ${res.status})`);
     }
     
     if (!res.ok) {
       const errorMsg = data.error || data.details || 'Failed to fetch notifications';
       console.error('❌ Server error:', errorMsg);
-      throw new Error(errorMsg);
+      throw apiError(res, errorMsg);
     }
     return data as { success: boolean; notifications: AppNotification[]; unreadCount: number };
   } catch (err) {
@@ -666,6 +695,9 @@ export async function getNotifications(accessToken: string) {
       accessToken: accessToken ? 'present' : 'missing',
       type: typeof err,
     });
+    // Re-wrapping an ApiError here would discard the status, and a 403 that
+    // arrives as a bare Error cannot be rendered as a permission-denied state.
+    if (err instanceof ApiError) throw err;
     throw new Error(`Failed to fetch notifications: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
@@ -676,7 +708,7 @@ export async function markNotificationsRead(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to mark notifications read');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to mark notifications read');
   return data as { success: boolean };
 }
 
@@ -700,7 +732,7 @@ export async function getNotes(submissionId: string, accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch notes');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch notes');
   return data as { success: boolean; notes: Note[] };
 }
 
@@ -716,7 +748,7 @@ export async function addNote(
     body: JSON.stringify({ content, type }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to add note');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to add note');
   return data as { success: boolean; note: Note };
 }
 
@@ -730,7 +762,7 @@ export async function deleteNote(
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to delete note');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to delete note');
   return data as { success: boolean };
 }
 
@@ -758,7 +790,7 @@ export async function getReview(
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch review');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch review');
   return data as { success: boolean; review: StoredReview | null };
 }
 
@@ -775,7 +807,7 @@ export async function saveReview(
     body: JSON.stringify({ checklist }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save review');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save review');
   return data as { success: boolean; review: StoredReview };
 }
 
@@ -818,7 +850,7 @@ export async function getEscalations(submissionId: string, accessToken: string) 
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch escalations');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch escalations');
   return data as { success: boolean; escalations: EscalationRecord[] };
 }
 
@@ -834,7 +866,7 @@ export async function createEscalation(
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to record escalation');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to record escalation');
   return data as { success: boolean; escalation: EscalationRecord; detectionCount: number };
 }
 
@@ -850,7 +882,7 @@ export async function resolveEscalation(
     body: JSON.stringify({ status: 'resolved' }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to resolve escalation');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to resolve escalation');
   return data as { success: boolean; escalation: EscalationRecord };
 }
 
@@ -890,7 +922,7 @@ export async function createBooking(payload: CreateBookingPayload) {
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to create booking');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to create booking');
   return data as { success: boolean; booking: Booking };
 }
 
@@ -900,7 +932,7 @@ export async function getBookings(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch bookings');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch bookings');
   return data as { success: boolean; bookings: Booking[]; count: number };
 }
 
@@ -934,7 +966,7 @@ export async function getBlockRegistry(proposalId: string, accessToken: string) 
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch block registry');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch block registry');
   return data as { success: boolean; registry: BlockRegistrySnapshot | null };
 }
 
@@ -974,7 +1006,7 @@ export async function getProposal(submissionId: string, accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch proposal');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch proposal');
   return data as { success: boolean; proposal: any | null };
 }
 
@@ -985,7 +1017,7 @@ export async function saveProposal(submissionId: string, proposal: any, accessTo
     body: JSON.stringify(proposal),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save proposal');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save proposal');
   return data as { success: boolean; proposal: any };
 }
 
@@ -995,7 +1027,7 @@ export async function sendProposal(submissionId: string, accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to send proposal');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to send proposal');
   return data as { success: boolean; proposal: any };
 }
 
@@ -1006,7 +1038,7 @@ export async function getClientProposal(submissionId: string, auth?: ClientAuthC
     headers: clientHeaders(auth),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch proposal');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch proposal');
   return data as { success: boolean; proposal: any | null };
 }
 
@@ -1022,7 +1054,7 @@ export async function respondToProposal(
     body: JSON.stringify({ response, clientName }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to respond to proposal');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to respond to proposal');
   return data as { success: boolean; proposal: any };
 }
 
@@ -1046,7 +1078,7 @@ export async function getProposalAnnotations(submissionId: string) {
     headers: headers(),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch annotations');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch annotations');
   return data as { success: boolean; annotations: ProposalAnnotation[] };
 }
 
@@ -1060,7 +1092,7 @@ export async function createProposalAnnotation(
     body:    JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to create annotation');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to create annotation');
   return data as { success: boolean; annotation: ProposalAnnotation };
 }
 
@@ -1070,7 +1102,7 @@ export async function deleteProposalAnnotation(submissionId: string, annotationI
     headers: headers(),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to delete annotation');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to delete annotation');
   return data as { success: boolean };
 }
 
@@ -1103,7 +1135,7 @@ export interface TeamMemberRecord {
 export async function getTeamMembers(accessToken: string) {
   const res = await fetch(`${BASE}/team/members`, { headers: headers(accessToken) });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch team members');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch team members');
   return data as { success: boolean; members: TeamMemberRecord[] };
 }
 
@@ -1117,7 +1149,7 @@ export async function inviteTeamMember(
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to invite team member');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to invite team member');
   return data as { success: boolean; member: TeamMemberRecord; tempPassword: string };
 }
 
@@ -1132,7 +1164,7 @@ export async function updateTeamMember(
     body: JSON.stringify(updates),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update team member');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to update team member');
   return data as { success: boolean; member: TeamMemberRecord };
 }
 
@@ -1142,7 +1174,7 @@ export async function removeTeamMember(id: string, accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to remove team member');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to remove team member');
   return data as { success: boolean };
 }
 
@@ -1180,7 +1212,7 @@ export interface SettingsResponse {
 export async function getPlatformSettings(accessToken: string) {
   const res = await fetch(`${BASE}/settings`, { headers: headers(accessToken) });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to load settings');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to load settings');
   return data as SettingsResponse;
 }
 
@@ -1194,7 +1226,7 @@ export async function savePlatformSettings(
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save settings');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save settings');
   return data as { success: boolean };
 }
 
@@ -1204,7 +1236,7 @@ export async function sendTestEmailRequest(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to send test email');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to send test email');
   return data as { success: boolean; sent: boolean; resendKeyConfigured: boolean; to: string };
 }
 
@@ -1214,7 +1246,7 @@ export async function sendWeeklyDigestRequest(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to send weekly digest');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to send weekly digest');
   return data as { success: boolean; to?: string; reason?: string };
 }
 
@@ -1224,7 +1256,7 @@ export async function getEmailStatus(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to check email status');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to check email status');
   return data as { success: boolean; resendConfigured: boolean; fromAddress: string; note: string };
 }
 
@@ -1299,7 +1331,7 @@ export async function getCortexAnalysis(submissionId: string, accessToken: strin
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch cortex analysis');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch cortex analysis');
   return data as { success: boolean; analysis: CortexAnalysisResult | null };
 }
 
@@ -1325,7 +1357,7 @@ export async function clearCortexAnalysis(submissionId: string, accessToken: str
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to clear cortex analysis');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to clear cortex analysis');
   return data as { success: boolean };
 }
 
@@ -1344,7 +1376,7 @@ export async function getClientReport(submissionId: string, auth?: ClientAuthCon
     headers: clientHeaders(auth),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch client report');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch client report');
   return data as { success: boolean; report: ClientReportPayload | null; aiPowered: boolean };
 }
 
@@ -1402,7 +1434,7 @@ export async function getCortexStatus(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch cortex status');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch cortex status');
   return data as { success: boolean; analyzed: Record<string, CortexStatusEntry>; count: number };
 }
 
@@ -1465,7 +1497,7 @@ export async function logOutcome(submissionId: string, payload: OutcomePayload, 
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to log outcome');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to log outcome');
   return data as { success: boolean; outcome: OutcomeRecord };
 }
 
@@ -1475,7 +1507,7 @@ export async function getOutcome(submissionId: string, accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch outcome');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch outcome');
   return data as { success: boolean; outcome: OutcomeRecord | null };
 }
 
@@ -1485,7 +1517,7 @@ export async function getOutcomesMap(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch outcomes map');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch outcomes map');
   return data as { success: boolean; outcomes: Record<string, { didConvert: boolean; conversionValue: number | null; loggedAt: string }>; count: number };
 }
 
@@ -1542,7 +1574,7 @@ export async function getLearningLoop(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch learning loop');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch learning loop');
   return data as { success: boolean; data: LearningLoopData | null; isEmpty: boolean };
 }
 
@@ -1556,7 +1588,7 @@ export async function getPipelinePositions(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch pipeline positions');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch pipeline positions');
   return data as { success: boolean; positions: Record<string, string>; count: number };
 }
 
@@ -1568,7 +1600,7 @@ export async function savePipelinePosition(submissionId: string, columnId: strin
     body: JSON.stringify({ submissionId, columnId }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save pipeline position');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save pipeline position');
   return data as { success: boolean; positions: Record<string, string> };
 }
 
@@ -1580,7 +1612,7 @@ export async function savePipelinePositions(positions: Record<string, string>, a
     body: JSON.stringify({ positions }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save pipeline positions');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save pipeline positions');
   return data as { success: boolean; positions: Record<string, string> };
 }
 
@@ -1591,7 +1623,7 @@ export async function resetPipelinePositions(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to reset pipeline positions');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to reset pipeline positions');
   return data as { success: boolean };
 }
 
@@ -1605,7 +1637,7 @@ export async function getColumnCapacities(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch column capacities');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch column capacities');
   return data as { success: boolean; capacities: Record<string, number> };
 }
 
@@ -1617,7 +1649,7 @@ export async function saveColumnCapacities(capacities: Record<string, number>, a
     body: JSON.stringify({ capacities }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to save column capacities');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to save column capacities');
   return data as { success: boolean; capacities: Record<string, number> };
 }
 
@@ -1657,7 +1689,7 @@ export async function enqueueEmails(
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to enqueue emails');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to enqueue emails');
   return data as { success: boolean; queued: number };
 }
 
@@ -1667,7 +1699,7 @@ export async function getEmailQueue(accessToken: string) {
     headers: headers(accessToken),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to fetch email queue');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to fetch email queue');
   return data as { success: boolean; emails: any[]; total: number };
 }
 
@@ -1683,7 +1715,7 @@ export async function updateEmailStatus(
     body: JSON.stringify({ status }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to update email status');
+  if (!res.ok) throw apiError(res, data.error || 'Failed to update email status');
   return data as { success: boolean; email?: any };
 }
 
@@ -2034,7 +2066,7 @@ export async function captureLead(payload: LeadCapturePayload) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Lead capture failed');
+    if (!res.ok) throw apiError(res, data.error || 'Lead capture failed');
     return data as { success: boolean; leadId: string };
   } catch (err) {
     console.error('❌ Lead capture failed:', {
@@ -2054,7 +2086,7 @@ export async function captureExitIntentLead(email: string) {
       body: JSON.stringify({ email }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Exit-intent capture failed');
+    if (!res.ok) throw apiError(res, data.error || 'Exit-intent capture failed');
     return data as { success: boolean; leadId: string; alreadyExists?: boolean };
   } catch (err) {
     console.error('❌ Exit-intent capture failed:', {

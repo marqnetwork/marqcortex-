@@ -35,7 +35,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  MOCK_SNAPSHOTS,
   DEFAULT_FILTERS,
   filterSnapshots,
   prevPeriodSnapshots,
@@ -52,6 +51,8 @@ import {
 import type { ObjectionType } from '@/app/types/cortex-types';
 import * as dataService from '@/app/services/dataService';
 import { isBackendEnabled, isVerboseLogging } from '@/config/runtime';
+import { classifyProductDataError, type ProductDataReason } from '@/app/services/productData';
+import { ProductDataNotice } from '@/app/components/ProductDataState';
 import { asArray } from '@/app/lib/payload';
 import { brand, status, text, border } from '@/app/lib/tokens';
 
@@ -799,19 +800,15 @@ interface RevenueIntelligenceDashboardProps {
 
 export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenceDashboardProps) {
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
-  // Demo mode is seeded with MOCK_SNAPSHOTS. Live mode must NEVER display mock
-  // data (governance: no fabricated metrics), so it starts empty and shows only
-  // the deterministically-derived snapshots returned by the backend — even when
-  // that set is empty (a fresh tenant with no deals yet).
-  const [snapshots, setSnapshots] = useState<DealSnapshot[]>(() =>
-    isBackendEnabled() ? [] : MOCK_SNAPSHOTS,
-  );
-  const [loadState, setLoadState] = useState<'ready' | 'loading' | 'error'>(() =>
-    isBackendEnabled() ? 'loading' : 'ready',
-  );
+  // No seed set, in either configuration. The demo's sixteen deals now arrive
+  // the same way live ones do — through `getRevenueSnapshots`, which reaches
+  // the demo boundary only in an explicitly designated demo — so this surface
+  // has one code path and one source of truth.
+  const [snapshots, setSnapshots] = useState<DealSnapshot[]>([]);
+  const [loadState, setLoadState] = useState<'ready' | 'loading' | 'error'>('loading');
+  const [failure, setFailure] = useState<ProductDataReason | null>(null);
 
   useEffect(() => {
-    if (!isBackendEnabled()) return; // demo mode keeps the seed set
     let cancelled = false;
     setLoadState('loading');
     (async () => {
@@ -822,12 +819,15 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
         // than falling back to MOCK_SNAPSHOTS, which would fabricate revenue.
         // Narrowed before it becomes state — see `@/app/lib/payload`.
         setSnapshots(asArray(res.snapshots));
+        setFailure(null);
         setLoadState('ready');
       } catch (err) {
         if (cancelled) return;
         if (isVerboseLogging()) console.error('Revenue snapshots fetch failed:', err);
-        // Do NOT fall back to mock data in production — surface an honest error.
+        // Never a fixture in place of revenue. The reason is carried so the
+        // surface can tell "not connected" from "refused" from "server down".
         setSnapshots([]);
+        setFailure(classifyProductDataError(err).reason);
         setLoadState('error');
       }
     })();
@@ -896,13 +896,11 @@ export function RevenueIntelligenceDashboard({ accessToken }: RevenueIntelligenc
               <div className="text-sm font-bold text-cortex-faint">Loading revenue snapshots…</div>
             </div>
           ) : loadState === 'error' ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-              <Filter className="size-8 text-cortex-danger/60" />
-              <div className="text-sm font-bold text-cortex-muted">Couldn't load revenue data</div>
-              <div className="text-[10px] text-cortex-faint">The snapshot service is unavailable. No data is shown rather than estimated figures.</div>
+            <div className="px-6 py-12">
+              <ProductDataNotice reason={failure ?? 'server-error'} />
             </div>
           ) : snapshots.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+            <div data-testid="product-data-empty" className="flex flex-col items-center justify-center py-24 gap-3 text-center">
               <BarChart3 className="size-8 text-cortex-faint" />
               <div className="text-sm font-bold text-cortex-faint">No deal data yet</div>
               <div className="text-[10px] text-cortex-faint">Revenue intelligence appears here once diagnostics, proposals, and outcomes are recorded.</div>

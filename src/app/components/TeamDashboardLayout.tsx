@@ -28,12 +28,12 @@ import {
 import { useKeyboardShortcuts, isMac } from '@/app/hooks/useKeyboardShortcuts';
 import { useMediaQuery } from '@/app/hooks/usePerformance';
 import { CommandPalette, useCommandPaletteCommands } from '@/app/components/CommandPalette';
+import { DemoExperienceBanner } from '@/app/components/DemoExperienceBanner';
 import { KeyboardShortcutsHelp } from '@/app/components/KeyboardShortcutsHelp';
 import { NotificationCenter } from '@/app/components/NotificationCenter';
 import { KanbanAlertToastStack } from '@/app/components/KanbanAlertToast';
 import { GlobalAIChatProvider, useGlobalAIChat } from '@/app/contexts/GlobalAIChatContext';
 import { GlobalAIChat } from '@/app/components/GlobalAIChat';
-import { getDemoSubmissions } from '@/app/services/dataService';
 
 // ── Shared types ───────────────────────────────────────────────────────────────
 
@@ -86,10 +86,23 @@ function DashboardLayoutInner({
     setAccessToken(accessToken);
   }, [accessToken, setAccessToken]);
 
+
+  // ── Dashboard context ──────────────────────────────────────────────────────
+  const { state, setSidebarCollapsed, setActiveFilter, kanbanAlerts, markKanbanAlertsRead } =
+    useDashboard();
+
+  const loadedSubmissions = state.searchableSubmissions;
+
+  // The AI's notion of "the lead you are looking at" used to be resolved
+  // against `getDemoSubmissions()` — so whatever record the operator had open,
+  // the assistant was briefed on an invented company with the same position in
+  // a fixture list, or on nothing. It resolves against the submissions this
+  // session actually loaded, and when the id is not among them it sets no lead
+  // rather than the wrong one.
   useEffect(() => {
     if (!activeSubmissionId) return;
-    const sub = getDemoSubmissions().find(s => s.id === activeSubmissionId);
-    if (!sub) return;
+    const sub = loadedSubmissions.find(s => s.id === activeSubmissionId);
+    if (!sub) { setActiveLead(null); return; }
     setActiveLead({
       id: sub.id,
       companyName: sub.company,
@@ -108,11 +121,7 @@ function DashboardLayoutInner({
         roiSummary: sub.roiPotential,
       },
     });
-  }, [activeSubmissionId, setActiveLead]);
-
-  // ── Dashboard context ──────────────────────────────────────────────────────
-  const { state, setSidebarCollapsed, setActiveFilter, kanbanAlerts, markKanbanAlertsRead } =
-    useDashboard();
+  }, [activeSubmissionId, loadedSubmissions, setActiveLead]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -486,6 +495,10 @@ function DashboardLayoutInner({
             </div>
           </div>
         </header>
+
+        {/* If this build serves fabricated data, it says so, above the work and
+            on every destination. Renders nothing in any other configuration. */}
+        <DemoExperienceBanner />
 
         {/* Page content */}
         <main id="cortex-main" tabIndex={-1} className="flex-1 overflow-auto">{children}</main>

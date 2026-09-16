@@ -16,7 +16,7 @@
  * what nurture emails are pending, sent, or skipped for each lead.
  */
 
-import { DEMO_NURTURE_LEADS } from '@/app/services/dataService';
+import { FEATURES } from '@/config/features';
 import {
   brand,
   status as STATUS,
@@ -275,9 +275,17 @@ export function clearQueue(): void {
 }
 
 /**
- * Seed the queue with demo data.
+ * Seed the queue — DEMO ONLY, and it asks before it acts.
+ *
+ * This used to import `DEMO_NURTURE_LEADS` statically and run on mount of the
+ * Email Queue, so a signed-in operator's nurture queue was populated with
+ * invented leads on invented schedules whether or not this was a demo. It now
+ * reaches the demo boundary through a dynamic import and returns immediately
+ * in any build that is not an explicitly designated demo.
  */
-export function seedDemoQueue(): void {
+export async function seedDemoQueue(): Promise<void> {
+  if (!(FEATURES.DEMO_EXPERIENCE && !FEATURES.BACKEND_INTEGRATION)) return;
+  const { DEMO_NURTURE_LEADS } = await import('@/app/demo/demoBackend');
   const existing = loadQueue();
   if (existing.length > 0) return; // Don't re-seed
 
@@ -469,104 +477,116 @@ export interface EmailDeliveryEvent {
   };
 }
 
+/**
+ * What this product can actually say about email delivery.
+ *
+ * Every engagement field below is `null`, and that is the change. The previous
+ * shape had `delivered`, `opened`, `clicked`, `bounced`, `openRate` and
+ * `clickRate` as numbers, and they were computed as `totalSent * 0.97`,
+ * `delivered * 0.42`, `opened * 0.18` and `totalSent * 0.02` — constants
+ * described in a comment as "realistic industry benchmarks". The Email Queue
+ * rendered them as its four headline figures: a 97% delivery rate, a 42% open
+ * rate, an 18% click rate. Nothing measured any of it. There is no Resend
+ * webhook consumer in this repository, so no open has ever been observed.
+ *
+ * `null` means "not measured here", the surface renders it as such, and the
+ * day a webhook consumer exists it fills these in without anything else
+ * changing.
+ */
 export interface EmailDeliveryStats {
+  /** Real: the queue's own records, counted. */
   totalSent: number;
-  delivered: number;
-  opened: number;
-  clicked: number;
-  bounced: number;
-  complained: number;
-  unsubscribed: number;
-  deliveryRate: number;      // delivered / totalSent (%)
-  openRate: number;          // opened / delivered (%)
-  clickRate: number;         // clicked / opened (%)
-  bounceRate: number;        // bounced / totalSent (%)
+  totalPending: number;
+  totalFailed: number;
+  /** Not measured — requires delivery webhooks this product does not consume. */
+  delivered: number | null;
+  opened: number | null;
+  clicked: number | null;
+  bounced: number | null;
+  complained: number | null;
+  unsubscribed: number | null;
+  deliveryRate: number | null;
+  openRate: number | null;
+  clickRate: number | null;
+  bounceRate: number | null;
 }
 
 export interface TemplatePerformance {
   templateId: EmailTemplateId;
   label: string;
   stats: EmailDeliveryStats;
-  bestSubjectLine: string;
-  bestOpenRate: number;
+  /** The subject line actually used, when one has been sent. */
+  lastSubjectLine: string;
 }
 
 /**
- * Get demo delivery stats for the nurture queue.
- * When BACKEND_INTEGRATION is true, replace this with real webhook data from Resend.
+ * Delivery statistics, counted rather than simulated.
  *
- * API integration point:
- *   GET /email/stats → returns EmailDeliveryStats
- *   POST /email/webhooks/resend → receives EmailDeliveryEvent from Resend webhooks
+ * The queue is a local record of what this product asked to be sent. It knows
+ * how many it queued, sent and failed, and it knows nothing else — what
+ * happened after handoff is the mail provider's to report, over a webhook
+ * nothing here consumes yet.
+ *
+ * Integration point, when there is one:
+ *   GET  /email/stats                 → the counted fields
+ *   POST /email/webhooks/resend       → fills in the `null` ones
  */
-export function getDemoDeliveryStats(): EmailDeliveryStats {
+export function getDeliveryStats(): EmailDeliveryStats {
   const queue = loadQueue();
-  const sent = queue.filter(e => e.status === 'sent');
-  const totalSent = sent.length;
-
-  // Simulate realistic email delivery metrics
-  const delivered = Math.round(totalSent * 0.97);
-  const opened = Math.round(delivered * 0.42);
-  const clicked = Math.round(opened * 0.18);
-  const bounced = Math.round(totalSent * 0.02);
-
   return {
-    totalSent,
-    delivered,
-    opened,
-    clicked,
-    bounced,
-    complained: 0,
-    unsubscribed: 0,
-    deliveryRate: totalSent > 0 ? Math.round((delivered / totalSent) * 100) : 0,
-    openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
-    clickRate: opened > 0 ? Math.round((clicked / opened) * 100) : 0,
-    bounceRate: totalSent > 0 ? Math.round((bounced / totalSent) * 100) : 0,
+    totalSent: queue.filter(e => e.status === 'sent').length,
+    totalPending: queue.filter(e => e.status === 'pending').length,
+    totalFailed: queue.filter(e => e.status === 'failed').length,
+    delivered: null,
+    opened: null,
+    clicked: null,
+    bounced: null,
+    complained: null,
+    unsubscribed: null,
+    deliveryRate: null,
+    openRate: null,
+    clickRate: null,
+    bounceRate: null,
   };
 }
 
 /**
- * Get per-template performance for the analytics view.
- * API integration point: GET /email/stats/by-template
+ * Per-template counts for the analytics view.
+ *
+ * The `benchmarkOpenRates` table that used to live here — 0.72 for
+ * `diagnostic_received`, 0.78 for `proposal_delivered`, and so on — was
+ * multiplied by the sent count to produce a per-template open rate, and the
+ * result was drawn as a progress bar coloured green above 50%. It measured
+ * nothing. Counting is all this function can honestly do.
+ *
+ * Integration point: GET /email/stats/by-template
  */
-export function getDemoTemplatePerformance(): TemplatePerformance[] {
+export function getTemplatePerformance(): TemplatePerformance[] {
   const queue = loadQueue();
-
-  // Simulated open rates vary by template type (realistic industry benchmarks)
-  const benchmarkOpenRates: Record<EmailTemplateId, number> = {
-    diagnostic_received: 0.72,  // transactional — high
-    score_summary: 0.58,
-    report_ready: 0.65,
-    meeting_nudge: 0.34,
-    followup_reminder: 0.28,
-    proposal_delivered: 0.78,   // high-intent
-  };
 
   return EMAIL_TEMPLATE_CONFIGS.map(tpl => {
-    const sent = queue.filter(e => e.templateId === tpl.id && e.status === 'sent');
-    const totalSent = sent.length;
-    const openRate = benchmarkOpenRates[tpl.id] ?? 0.35;
-    const opened = Math.round(totalSent * openRate);
-    const clicked = Math.round(opened * 0.2);
+    const forTemplate = queue.filter(e => e.templateId === tpl.id);
+    const sent = forTemplate.filter(e => e.status === 'sent');
 
     return {
       templateId: tpl.id,
       label: tpl.label,
       stats: {
-        totalSent,
-        delivered: Math.round(totalSent * 0.97),
-        opened,
-        clicked,
-        bounced: Math.round(totalSent * 0.02),
-        complained: 0,
-        unsubscribed: 0,
-        deliveryRate: totalSent > 0 ? 97 : 0,
-        openRate: totalSent > 0 ? Math.round(openRate * 100) : 0,
-        clickRate: opened > 0 ? Math.round((clicked / opened) * 100) : 0,
-        bounceRate: totalSent > 0 ? 2 : 0,
+        totalSent: sent.length,
+        totalPending: forTemplate.filter(e => e.status === 'pending').length,
+        totalFailed: forTemplate.filter(e => e.status === 'failed').length,
+        delivered: null,
+        opened: null,
+        clicked: null,
+        bounced: null,
+        complained: null,
+        unsubscribed: null,
+        deliveryRate: null,
+        openRate: null,
+        clickRate: null,
+        bounceRate: null,
       },
-      bestSubjectLine: sent[0]?.subject ?? tpl.subject('{{name}}', '{{company}}'),
-      bestOpenRate: Math.round(openRate * 100),
+      lastSubjectLine: sent[0]?.subject ?? tpl.subject('{{name}}', '{{company}}'),
     };
   });
 }

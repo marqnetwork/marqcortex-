@@ -26,6 +26,34 @@ export const FEATURES = {
   BACKEND_INTEGRATION: envFlag('VITE_BACKEND_INTEGRATION', false),
 
   /**
+   * DEMO_EXPERIENCE
+   *
+   * The ONE switch that allows fabricated business data to reach a rendered
+   * surface. It is off by default and it is deliberately NOT the inverse of
+   * BACKEND_INTEGRATION.
+   *
+   * Before CP-1 the two were the same question: "is the backend off?" meant
+   * "serve invented companies, an invented pipeline and an invented team", so
+   * a signed-in operator was shown a $3.12M pipeline belonging to nobody and
+   * had no way to tell. The product's own audit named 4,492 lines of that.
+   *
+   * Now they are separate questions:
+   *   BACKEND_INTEGRATION — is a real backend configured?
+   *   DEMO_EXPERIENCE     — is this an explicitly designated demo?
+   *
+   * Backend off and demo off — the shipped default — is an authenticated
+   * product that says plainly it is not connected. That is the honest answer,
+   * and an honest answer is the point of the sprint.
+   *
+   * The two can never both be on: `isDemoExperience()` in dataService requires
+   * BACKEND_INTEGRATION to be false, so a live call that fails can never be
+   * papered over with a fixture. Override with VITE_DEMO_EXPERIENCE for a
+   * sales demo; every authenticated surface then carries a visible banner
+   * saying the data is fabricated.
+   */
+  DEMO_EXPERIENCE: envFlag('VITE_DEMO_EXPERIENCE', false),
+
+  /**
    * SHOW_API_ERRORS
    * 
    * When true: Shows error banners when API calls fail

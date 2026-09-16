@@ -112,84 +112,13 @@ export function EngagementIntelligence({ accessToken }: Props) {
     if (!silent) setIsLoading(true); else setIsRefreshing(true);
     setError(null);
     try {
-      // Check feature flag before making API calls
-      if (!isBackendEnabled()) {
-        if (isVerboseLogging()) {
-          console.log('📦 Using demo data for engagement analytics (backend disabled)');
-        }
-        // Generate demo engagement data
-        const demoData: EngagementAnalytics = {
-          reportDelivery: {
-            reportAvailable: 15,
-            totalViewed: 12,
-            totalCTAClicked: 8,
-            totalPDFSaved: 5,
-            totalViews: 34,
-            avgViewsPerViewed: 2.8,
-            viewRate: 80,
-            ctaRate: 67,
-            pdfRate: 42,
-          },
-          notes: {
-            total: 47,
-            submissionsWithNotes: 10,
-            byType: { note: 20, action: 15, flag: 7, insight: 5 },
-            topCommented: [
-              { id: 'demo_1', company: 'Demo Company 1', count: 8 },
-              { id: 'demo_2', company: 'Demo Company 2', count: 6 },
-              { id: 'demo_3', company: 'Demo Company 3', count: 5 },
-            ],
-          },
-          topEngagedLeads: [
-            {
-              id: 'demo_1',
-              company: 'High Engagement Co',
-              industry: 'Technology',
-              status: 'completed',
-              viewCount: 5,
-              lastViewedAt: new Date(Date.now() - 3600000).toISOString(),
-              ctaClicked: true,
-              pdfSaved: true,
-              noteCount: 8,
-              engagementScore: 95,
-            },
-            {
-              id: 'demo_2',
-              company: 'Active Prospect Inc',
-              industry: 'Healthcare',
-              status: 'in-review',
-              viewCount: 3,
-              lastViewedAt: new Date(Date.now() - 7200000).toISOString(),
-              ctaClicked: true,
-              pdfSaved: false,
-              noteCount: 6,
-              engagementScore: 78,
-            },
-          ],
-          recentActivity: [
-            {
-              type: 'report_viewed',
-              company: 'Demo Company 1',
-              detail: 'Viewed report 3rd time',
-              timestamp: new Date(Date.now() - 1800000).toISOString(),
-              submissionId: 'demo_1',
-            },
-            {
-              type: 'cta_clicked',
-              company: 'Demo Company 2',
-              detail: 'Clicked "Schedule Call"',
-              timestamp: new Date(Date.now() - 3600000).toISOString(),
-              submissionId: 'demo_2',
-            },
-          ],
-        };
-        setData(demoData);
-        setLastUpdated(new Date());
-        setIsLoading(false);
-        setIsRefreshing(false);
-        return;
-      }
-
+      // The no-backend branch that used to sit here declared a complete
+      // `EngagementAnalytics` literal inline — fifteen reports available,
+      // twelve viewed, eight CTA clicks, an 80% view rate, a "High Engagement
+      // Co" scoring 95 — and set it as the panel's data. It is the same
+      // fabrication the `catch` below already refuses, so it is refused here
+      // too. This panel reports what clients did, or it reports that it does
+      // not know.
       const res = await getEngagementAnalytics(accessToken);
       // A response without the analytics is a failure, not a blank panel.
       if (!res.engagement) throw new Error('Engagement data was not returned.');

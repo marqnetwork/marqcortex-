@@ -80,11 +80,13 @@ const API_REL = 'src/app/lib/api.ts';
 const SESSION_REL = 'src/app/lib/session.ts';
 const PORTAL_REL = 'src/app/components/ClientPortal.tsx';
 const TYPECHECK_REL = 'src/app/components/__typechecks__/clientAuthContract.ts';
+const DEMO_BACKEND_REL = 'src/app/demo/demoBackend.ts';
 
 const service = stripComments(readSource(SERVICE_REL));
 const apiSrc = stripComments(readSource(API_REL));
 const session = stripComments(readSource(SESSION_REL));
 const portal = stripComments(readSource(PORTAL_REL));
+const demoBackendSrc = stripComments(readSource(DEMO_BACKEND_REL));
 
 /** Body of a named exported function in the given source, up to its closer. */
 function functionBody(code: string, name: string): string {
@@ -139,8 +141,14 @@ describe('dataService.getClientSubmission — corrected auth parameter', () => {
 describe('dataService.getClientSubmission — forwarding is unchanged', () => {
   const body = functionBody(service, 'getClientSubmission');
 
-  it('still gates on isDemo() before touching the api layer', () => {
-    assert.match(body, /if\s*\(\s*isDemo\(\)\s*\)/);
+  it('reaches a fixture only through the demo boundary, then requires a backend', () => {
+    // CP-1 replaced the inline `if (isDemo()) { …fabricate… }` with a
+    // delegation to `@/app/demo/demoBackend` that only an explicitly designated
+    // demo can reach, followed by `requireProductBackend()`. A build with no
+    // backend now raises rather than answering with a seeded client.
+    assert.match(body, /if \(isDemoExperience\(\)\) return demoBackend\(/);
+    assert.match(body, /requireProductBackend\(\);/);
+    assert.doesNotMatch(body, /isDemo\(\)/);
   });
 
   it('forwards the auth context positionally to api.getClientSubmission', () => {
@@ -148,13 +156,23 @@ describe('dataService.getClientSubmission — forwarding is unchanged', () => {
     assert.match(body, /return\s+api\.getClientSubmission\(\s*submissionId\s*,\s*auth\s*\)/);
   });
 
-  it('reads the email off the auth context in the demo branch', () => {
-    assert.match(body, /demo\.getDemoClientSubmission\(\{\s*submissionId\s*,\s*clientEmail:\s*auth\?\.email\s*\}\)/);
+  it('passes the auth context to the demo boundary too, so it cannot widen it', () => {
+    // The fixture is chosen by the SAME auth context the live call uses. A
+    // demo that ignored it would answer for whoever asked.
+    assert.match(body, /demoBackend\(b => b\.getClientSubmission\(submissionId, auth\)\)/);
   });
 
-  it('still returns the same { success, submission } shape from both branches', () => {
-    assert.match(body, /return\s*\{\s*success:\s*true\s*,\s*submission\s*\}/);
+  it('returns the api shape', () => {
     assert.match(body, /return\s+api\.getClientSubmission\(/);
+  });
+
+  it('the demo boundary still reads the email off the auth context', () => {
+    const demoBody = functionBody(demoBackendSrc, 'getClientSubmission');
+    assert.match(
+      demoBody,
+      /demo\.getDemoClientSubmission\(\{\s*submissionId\s*,\s*clientEmail:\s*auth\?\.email\s*\}\)/,
+    );
+    assert.match(demoBody, /return\s*\{\s*success:\s*true\s*,\s*submission\s*\}/);
   });
 
   it('introduces no unsafe escape to absorb the diagnostic', () => {
@@ -208,10 +226,13 @@ describe('ClientPortal is unchanged by Task 16', () => {
     assert.match(portal, /return \{ sessionToken: sessionToken \?\? null, email: clientEmail \}/);
   });
 
-  it('still short-circuits to demo data before reaching the api layer', () => {
-    // This early return is what makes the demo branch of the corrected wrapper
-    // unreachable from the only caller, and therefore the change type-only.
-    assert.match(portal, /if \(!isBackendEnabled\(\)\)/);
+  it('no longer short-circuits to demo data at all', () => {
+    // It used to, and that was the defect: the portal built itself from
+    // `getDemoClientSubmission({ submissionId, companyName, clientEmail })`,
+    // so a client read a readiness score derived from a seeded profile under
+    // their own company's name.
+    assert.doesNotMatch(portal, /getDemoClientSubmission/);
+    assert.match(portal, /await getClientSubmission\(submissionId, clientAuth\)/);
   });
 
   it('still imports the portal data functions from the dataService gateway', () => {
@@ -243,7 +264,7 @@ describe('every client wrapper forwards the auth context it is given', () => {
       /export async function getEngagementLog\(submissionId: string, auth\?: ClientAuthContext\)/,
       /return api\.getEngagementLog\(submissionId, auth\);/],
     ['trackEngagement',
-      /auth\?: ClientAuthContext,\s*\)\s*\{\s*if \(isDemo\(\)\) return;/,
+      /auth\?: ClientAuthContext,\s*\)\s*\{\s*if \(isDemoExperience\(\)\)/,
       /return api\.trackEngagement\(submissionId, type, meta, auth\);/],
     ['postClientMessage',
       /export async function postClientMessage\([\s\S]{0,160}?auth\?: ClientAuthContext,\s*\)/,
@@ -331,13 +352,21 @@ describe('the browser sends only what the server boundary asks for', () => {
     }
   });
 
-  it('the demo branch is still gated, so live mode has no demo fallback', () => {
+  it('every client wrapper requires a real backend before it reaches api', () => {
+    // Stronger than the assertion it replaces. That one checked the demo
+    // branch was GATED; this checks that when the gate is shut there is no
+    // answer at all — `requireProductBackend()` raises, so a disconnected
+    // build cannot serve a client anything.
     for (const name of [
       'getClientSubmission', 'getClientReport', 'getClientMessages',
       'getClientProposal', 'getEngagementLog', 'respondToProposal',
     ]) {
-      assert.match(functionBody(service, name), /if\s*\(\s*isDemo\(\)\s*\)/,
-        `${name} must reach api only when the backend is enabled`);
+      const body = functionBody(service, name);
+      assert.match(body, /if \(isDemoExperience\(\)\) return demoBackend\(/,
+        `${name} must reach a fixture only through the demo boundary`);
+      assert.match(body, /requireProductBackend\(\);/,
+        `${name} must refuse to answer without a backend`);
+      assert.doesNotMatch(body, /isDemo\(\)/, `${name} still uses the old conflated gate`);
     }
   });
 });

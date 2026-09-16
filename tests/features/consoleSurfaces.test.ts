@@ -128,7 +128,7 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
   it('does not draw the command centre while the first fetch is in flight', () => {
     assert.match(
       dash,
-      /\{!isLoading && !loadError && !leadWithOrientation && \(/,
+      /\{!isLoading && !loadFailure && !leadWithOrientation && \(/,
       'the command centre is not gated on the load having finished',
     );
     assert.match(dash, /\{isLoading && \([\s\S]{0,400}<LoadingState/, 'no loading state is rendered');
@@ -140,8 +140,17 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
   });
 
   it('treats a failed load as a failure, not as an empty workspace', () => {
-    assert.match(dash, /\{!isLoading && loadError && \([\s\S]{0,400}<ErrorState/);
-    assert.match(dash, /setLoadError\(/, 'a load failure is not recorded');
+    assert.match(dash, /\{!isLoading && loadFailure && \([\s\S]{0,400}<ProductDataNotice/);
+    assert.match(dash, /setLoadFailure\(\{ reason: classified\.reason/, 'a load failure is not recorded');
+  });
+
+  it('says WHICH failure it was, not merely that one happened', () => {
+    // CP-1 added the distinction. "Not connected", "cannot reach the server"
+    // and "you do not have access to this" are three different facts and an
+    // operator acts differently on each; a single error string could not
+    // carry any of them.
+    assert.match(dash, /classifyProductDataError/);
+    assert.match(dash, /ProductDataReason/);
   });
 
   it('no longer seeds the trend chart with invented days', () => {
@@ -154,23 +163,49 @@ describe('the home dashboard distinguishes loading, empty, failed and real', () 
     assert.match(dash, /days\.push\(\{ label, count, value: Math\.round\(value\) \}\);[\s\S]{0,80}return days;/);
   });
 
-  it('shows the seeded roster only in demo mode', () => {
-    assert.match(
-      dash,
-      /backendMode \? \[\] : getDemoTeamMembers\(\)/,
+  it('shows no seeded roster in any mode', () => {
+    // The assertion this replaces permitted the seeded roster whenever the
+    // backend was off — which is the shipped build, so Team Pulse's four
+    // invented colleagues were what an operator actually saw. Team Pulse reads
+    // the real roster now, or says it could not.
+    assert.ok(
+      !/getDemoTeamMembers/.test(dash),
       'Team Pulse is showing invented colleagues beside a real pipeline again',
     );
+    assert.match(dash, /setTeamMembers\(result\.members \?\? \[\]\)/);
+    assert.match(dash, /<ProductDataNotice reason=\{rosterFailure\}/);
+  });
+
+  it('invents no per-member activity for the members it does show', () => {
+    // Three fabricated facts were rendered per row and none came from
+    // anywhere: `isOnline` was "is this the first row", `assignedCount` was 3,
+    // 2 or 1 by position, and the "Active" figure counted the first row.
+    assert.ok(!/const assignedCount = /.test(dash), 'assignment counts are invented again');
+    assert.ok(!/const isOnline = i === 0/.test(dash), 'an online indicator is invented again');
+    assert.ok(
+      !/teamMembers\.filter\(\(_, i\) => i === 0\)\.length/.test(dash),
+      'the Active figure is counting array positions again',
+    );
+  });
+
+  it('draws the recent-activity feed from the workspace, not from a fixture', () => {
+    // `ACTIVITY_FEED` was eight hand-written events naming Manufacturing Pro,
+    // TechCorp Solutions, HealthFirst and a Dr. James Wilson, timestamped
+    // "2 min ago" and rendered on the Command Center beside the real pipeline.
+    assert.ok(!/const ACTIVITY_FEED = \[/.test(dash), 'the invented activity feed is back');
+    assert.match(dash, /\(\) => buildActivityFeed\(submissions\)/);
   });
 
   it('reads an unloaded roster as unknown, never as zero', () => {
     // `null` is the model's UNKNOWN. A failed or skipped roster load must not
     // become the number 0, which the model would read as "you are alone here".
     assert.match(dash, /setLiveTeamMemberCount\(result\.members\?\.length \?\? null\)/);
-    assert.match(dash, /if \(!cancelled\) setLiveTeamMemberCount\(null\);/);
+    assert.match(dash, /setLiveTeamMemberCount\(null\);/);
+    assert.match(dash, /const teamMemberCount = liveTeamMemberCount;/);
   });
 
   it('fetches the roster only for a role that can act on it', () => {
-    assert.match(dash, /const needsRoster = backendMode && canAdministerTeam\(teamRole\)/);
+    assert.match(dash, /const needsRoster = !!accessToken && canAdministerTeam\(teamRole\)/);
   });
 });
 

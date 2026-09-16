@@ -22,8 +22,10 @@ import {
 } from 'lucide-react';
 import {
   getSubmissions, updateSubmissionStatus, bulkUpdateSubmissions,
-  getDemoSubmissions, type Submission,
+  type Submission,
 } from '@/app/services/dataService';
+import { classifyProductDataError, type ProductDataReason } from '@/app/services/productData';
+import { ProductDataNotice } from '@/app/components/ProductDataState';
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { useApp } from '@/app/contexts/AppContext';
 import { SkeletonCardGrid, SkeletonTable } from '@/app/components/Skeletons';
@@ -43,8 +45,16 @@ const K_SUCCESS = STATUS.success;
 const K_WARNING = STATUS.warning;
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
-
-const SEED_SUBMISSIONS: Submission[] = getDemoSubmissions();
+//
+// There is none, and that is the change.
+//
+// `const SEED_SUBMISSIONS = getDemoSubmissions()` used to run at MODULE SCOPE,
+// so seven invented companies were constructed the moment this chunk loaded,
+// whatever the configuration. Three call sites then used them: the no-backend
+// path, the `catch`, and — worst — the success path, where
+// `result.submissions?.length ? result.submissions : SEED_SUBMISSIONS` meant a
+// real, correctly-answered, genuinely empty workspace was shown somebody
+// else's pipeline. All three are gone.
 
 // ── Status / priority palettes ────────────────────────────────────────────────
 
@@ -142,7 +152,8 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
-  const [error, setError]             = useState<string | null>(null);
+  const [failure, setFailure] =
+    useState<{ reason: ProductDataReason; detail: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // Debounce the search — filter useMemo only re-runs 200 ms after typing stops
@@ -164,57 +175,35 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
   // ── Load ───────────────────────────────────────────────────────────────────
 
   const loadSubmissions = useCallback(async (silent = false) => {
-    // If backend integration is disabled, use demo data immediately
-    if (!FEATURES.BACKEND_INTEGRATION || !accessToken) {
-      if (FEATURES.VERBOSE_LOGGING) {
-        console.log('📊 Using demo/seed data (backend integration disabled or no access token)');
-      }
-      setSubmissions(SEED_SUBMISSIONS);
-      setSearchableSubmissions(SEED_SUBMISSIONS);
+    if (!accessToken) {
+      setSubmissions([]);
+      setSearchableSubmissions([]);
+      setFailure({ reason: 'unauthenticated', detail: 'No team session.' });
       setIsLoading(false);
       return;
     }
 
-    // Backend integration enabled - attempt to load from server
     if (!silent) setIsLoading(true); else setIsRefreshing(true);
-    setError(null);
-    
+    setFailure(null);
+
     try {
-      if (FEATURES.VERBOSE_LOGGING) {
-        console.log('🔄 Loading submissions from backend...');
-      }
       const result = await getSubmissions(accessToken);
-      
-      if (FEATURES.VERBOSE_LOGGING) {
-        console.log('✅ Submissions loaded:', result);
-      }
-      
-      const data = result.submissions?.length ? result.submissions : SEED_SUBMISSIONS;
+      // An empty answer is an ANSWER. It renders as "no submissions yet",
+      // which is true, rather than as seven companies that do not exist.
+      const data = result.submissions ?? [];
       setSubmissions(data);
       setSearchableSubmissions(data);
-    } catch (err: any) {
-      if (FEATURES.VERBOSE_LOGGING) {
-        console.error('❌ Failed to load submissions:', err);
-      }
-      
-      const errorMessage = err?.message || String(err);
-      
-      // Only show error UI if feature flag is enabled
-      if (FEATURES.SHOW_API_ERRORS) {
-        let displayError = 'Failed to load submissions from server';
-        if (errorMessage.includes('Unauthorized')) {
-          displayError = 'Authentication error: Please log in again.';
-        } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
-          displayError = 'Network error: Unable to connect to server.';
-        } else if (errorMessage.includes('Database error')) {
-          displayError = 'Database connection error: ' + errorMessage;
-        }
-        setError(displayError);
-      }
-      
-      // Always fall back to demo data
-      setSubmissions(SEED_SUBMISSIONS);
-      setSearchableSubmissions(SEED_SUBMISSIONS);
+    } catch (err) {
+      if (FEATURES.VERBOSE_LOGGING) console.error('Failed to load submissions:', err);
+      // `SHOW_API_ERRORS` used to decide whether the operator was TOLD about a
+      // failure, while the fallback happened either way — so with the flag off,
+      // which is the shipped default, a broken backend was indistinguishable
+      // from a working one. The failure is now always reported and never
+      // substituted.
+      const classified = classifyProductDataError(err);
+      setSubmissions([]);
+      setSearchableSubmissions([]);
+      setFailure({ reason: classified.reason, detail: classified.message });
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -332,11 +321,31 @@ export function FullFeaturedDashboard({ onViewCortex, searchInputRef, onSubmissi
   return (
     <div className="p-6 space-y-5 pb-32">
 
-      {/* ── Error banner ── */}
-      {error && (
-        <div className="p-4 bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md text-sm text-cortex-danger flex items-center justify-between">
-          <span>⚠️ {error} — showing demo data</span>
-          <button onClick={() => loadSubmissions()} className="underline text-xs">Retry</button>
+      {/* ── The load failed ──
+          It used to say "showing demo data", which was at least honest about
+          what it was doing. Now there is no demo data to show, so it says what
+          failed and nothing else is drawn from a source that does not exist. */}
+      {failure && (
+        <ProductDataNotice
+          reason={failure.reason}
+          detail={failure.detail}
+          onRetry={() => { void loadSubmissions(); }}
+        />
+      )}
+
+      {/* ── Nothing here yet ──
+          Reachable for the first time: until CP-1 a signed-in operator could
+          not see this state, because seed data guaranteed content. */}
+      {!failure && submissions.length === 0 && (
+        <div
+          data-testid="product-data-empty"
+          className="rounded-cortex-md border border-cortex-default bg-white/[0.02] px-6 py-10 text-center"
+        >
+          <h3 className="text-sm font-bold text-white">No submissions yet</h3>
+          <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-cortex-muted">
+            Diagnostics completed by your clients arrive here. This is your
+            workspace&rsquo;s real answer, not a placeholder.
+          </p>
         </div>
       )}
 

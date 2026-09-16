@@ -23,7 +23,7 @@
 export type { Lead, CortexLeadData, LeadStatus } from '@/app/types/cortex-types';
 
 // ── Mock lead list (demo mode) ───────────────────────────────────────────────
-export { getMockLeads, getMockCortexLeadData } from '@/app/utils/mockCortexData';
+export { getMockLeads, getMockCortexLeadData } from '@/app/demo/fixtures/mockCortexData';
 
 // ── Submission → CortexLeadData converter (deterministic core) ───────────────
 export { generateCortexData } from '@/app/utils/cortexDataGenerator';
