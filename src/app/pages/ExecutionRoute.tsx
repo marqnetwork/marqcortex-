@@ -17,7 +17,7 @@ import { DashboardProvider } from '@/app/contexts/DashboardContext';
 import { TeamDashboardLayout } from '@/app/components/TeamDashboardLayout';
 import { ExecutionDashboard } from '@/app/components/ExecutionDashboard';
 import { EXECUTION_STORE } from '@/app/core/executionEngine';
-import { ProductDataState } from '@/app/components/ProductDataState';
+import { NotOfferedYet } from '@/app/components/NotOfferedYet';
 // The destination travels in the URL, and its parameter name is declared once
 // by the navigation model — so this route and the shell it hands off to cannot
 // drift apart, and no sessionStorage side channel is needed to carry it.
@@ -79,17 +79,16 @@ export function ExecutionRoute() {
         onNavigate={handleNavigate}
         accessToken={teamAccessToken}
       >
-        <div className="p-6">
-          <ProductDataState
-            loading={false}
-            reason={null}
-            empty={project === null}
-            subject="execution plans"
-            emptyHint="An execution plan is created from an accepted proposal, through the Mapping Engine. Nothing has been converted in this workspace yet."
-          >
-            {project ? <ExecutionDashboard project={project} /> : null}
-          </ProductDataState>
-        </div>
+        {/* CP-2 classified this destination EMPTY and stopped offering it:
+            `EXECUTION_STORE` is an in-memory array whose only writer is the
+            Mapping Engine, which has no proposal snapshot to run against, so it
+            is empty on every load regardless of the workspace. The route still
+            resolves — a URL must mean what it says — and explains itself. */}
+        {project ? (
+          <ExecutionDashboard project={project} />
+        ) : (
+          <NotOfferedYet destination="execution" label="Execution" onNavigate={handleNavigate} />
+        )}
       </TeamDashboardLayout>
     </DashboardProvider>
   );

@@ -106,7 +106,7 @@ const STATUS_COLORS: Record<StatusType, { bg: string; text: string; dot: string 
 
 // Audit status colour map — adds VISUAL which manifest StatusType doesn't have
 const AUDIT_STATUS_COLORS: Record<AuditStatus, { bg: string; text: string; dot: string }> = {
-  LIVE:    { bg: `${K_SUCCESS}1F`,  text: K_SUCCESS, dot: K_SUCCESS },
+  WIRED:   { bg: `${K_SUCCESS}1F`,  text: K_SUCCESS, dot: K_SUCCESS },
   DEMO:    { bg: `${K_CAUTION}1F`,  text: K_CAUTION, dot: K_CAUTION },
   GATED:   { bg: `${K_ACCENT}1F`, text: K_ACCENT, dot: K_ACCENT },
   MISSING: { bg: `${K_DANGER}1F`,  text: K_DANGER, dot: K_DANGER },
@@ -1033,7 +1033,7 @@ function InteractionsTab({ allNodes }: { allNodes: Record<string, ManifestEntry>
     <span className="contents">
       {/* Status pills */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        {(['LIVE', 'DEMO', 'GATED', 'MISSING', 'VISUAL'] as AuditStatus[]).map(s => {
+        {(['WIRED', 'DEMO', 'GATED', 'MISSING', 'VISUAL'] as AuditStatus[]).map(s => {
           const c = AUDIT_STATUS_COLORS[s];
           const count = AUDIT.filter(a => a.status === s).length;
           return (
@@ -1161,11 +1161,13 @@ function AuditTab({ allNodes }: { allNodes: Record<string, ManifestEntry> }) {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: K_ACCENT_LIGHT, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>
           Interaction Audit — {AUDIT_SUMMARY.total} buttons / inputs / shortcuts classified
+          by whether a handler is wired. This is not a count of working features —
+          see the capability model for that.
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
           {[
-            { label: 'LIVE',    value: AUDIT_SUMMARY.live,    color: K_SUCCESS },
+            { label: 'WIRED',   value: AUDIT_SUMMARY.wired,   color: K_SUCCESS },
             { label: 'DEMO',    value: AUDIT_SUMMARY.demo,    color: K_CAUTION },
             { label: 'GATED',   value: AUDIT_SUMMARY.gated,   color: K_ACCENT },
             { label: 'MISSING', value: AUDIT_SUMMARY.missing, color: K_DANGER },

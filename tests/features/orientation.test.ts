@@ -48,6 +48,7 @@ import {
   shouldLeadWithOrientation,
   type OrientationInput,
 } from '../../src/app/core/orientation.ts';
+import { DESTINATIONS, VISIBLE_DESTINATIONS } from '../../src/app/core/navigationModel.ts';
 import { TEAM_ROLES, canAdministerTeam } from '../../src/app/lib/teamRole.ts';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -80,23 +81,28 @@ describe('the navigation model covers the shell without hiding anything', () => 
     }
   });
 
-  it('covers every page the shell renders', () => {
-    // The keys `TeamDashboardNew` switches on. If a page is added to the shell
-    // and not to the model, it becomes unreachable from the sidebar.
-    // UI Sprint 1 made the AI Control Plane and Operations first-class
-    // destinations. They are renderable pages, so the model must name them —
-    // this list is the shell's, and the assertion below is exact in both
-    // directions precisely so a destination cannot be added to one and not
-    // the other.
-    const shellPages = [
-      'dashboard', 'cortex', 'team', 'settings', 'reviewer',
-      'analytics', 'emails', 'revenue', 'execution', 'mapping', 'architecture',
-      'control-plane', 'operations',
-    ];
-    for (const page of shellPages) {
-      assert.ok(navEntry(page), `${page} is renderable but not in the nav model`);
+  it('covers every page the shell OFFERS, and nothing it does not', () => {
+    // This used to compare the model against a hand-written list of the keys
+    // `TeamDashboardNew` switches on, in both directions. CP-2 separated two
+    // things that list conflated: what the shell can RENDER (all thirteen
+    // declared destinations, so a URL naming any of them resolves) and what the
+    // product OFFERS (the ten a person can actually use). `NAV_MODEL` is the
+    // second, because orientation may only send somebody somewhere real.
+    //
+    // Derived from the model rather than restated, so hiding or restoring a
+    // destination needs no edit here — the §7.1 lesson.
+    const offered = VISIBLE_DESTINATIONS.map(d => d.id);
+    for (const page of offered) {
+      assert.ok(navEntry(page), `${page} is offered but not in the nav model`);
     }
-    assert.deepEqual([...navigablePageIds()].sort(), [...shellPages].sort());
+    assert.deepEqual([...navigablePageIds()].sort(), [...offered].sort());
+
+    // And the hidden ones are still DECLARED, so they remain addressable.
+    const hidden = DESTINATIONS.filter(d => !offered.includes(d.id)).map(d => d.id);
+    assert.ok(hidden.length > 0, 'the fixture is stale — nothing is hidden');
+    for (const page of hidden) {
+      assert.equal(navEntry(page), null, `${page} is hidden but still offered`);
+    }
   });
 
   it('leads with the work before the reporting on it', () => {

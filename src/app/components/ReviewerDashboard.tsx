@@ -73,29 +73,43 @@ interface Submission {
   readinessScore: number;
 }
 
+/**
+ * THE QUALITY COMMAND CENTER, AND WHAT IT ACTUALLY HAD.
+ *
+ * This surface displayed a review queue. It had no review queue.
+ *
+ * `generateMockSubmissions()` built the initial state from eight invented
+ * companies, `generateRandomSubmission()` decided their quality scores,
+ * readiness scores, flags and detected patterns with eighteen `Math.random()`
+ * calls, and a thirty-second interval invented a NEW company at random and —
+ * if the dice made it `needs-review` — raised a browser notification about it.
+ * The component took no access token and made no request of any kind.
+ *
+ * CP-1 missed it. Its demo-isolation guard looks for the fixture names the
+ * audit listed and for imports of the demo boundary; this generator lives
+ * inside the component and invented its own names, so neither caught it.
+ * CP-2's capability audit found it by asking a different question — not "where
+ * does the data come from" but "what can a person actually do here".
+ *
+ * WHAT HAPPENS NOW. The destination is no longer offered (see
+ * `capabilityStatus.ts` — DEMO-ONLY, hidden), but hiding it from the sidebar
+ * does not stop a URL, a bookmark or the browser history. So the surface itself
+ * has to be honest, and it is: it says what it is for, that the queue is not
+ * wired yet, and where to go instead.
+ *
+ * The review CHECKLIST behind it is real — `getReview`/`saveReview` are wired
+ * routes and `reviewer-checklist.ts` is a real contract. What is missing is the
+ * QUEUE: a list of submissions awaiting review. That is the producer this needs,
+ * and it is a sprint's worth of work, not a patch.
+ */
 export function ReviewerDashboard() {
-  const [submissions, setSubmissions] = useState<Submission[]>(generateMockSubmissions());
+  // Deliberately empty, and deliberately not a fetch. There is no queue
+  // endpoint to call; inventing a loading state for a request that will never
+  // be made would be a second dishonesty on top of the first.
+  const [submissions] = useState<Submission[]>([]);
   const [filter, setFilter] = useState<'all' | 'auto-approved' | 'needs-review' | 'needs-revision'>('all');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Simulate live submissions
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate new submission every 30 seconds
-      if (Math.random() > 0.7) {
-        const newSubmission = generateRandomSubmission();
-        setSubmissions(prev => [newSubmission, ...prev]);
-        
-        // Show notification for submissions needing review
-        if (newSubmission.status === 'needs-review') {
-          showNotification(newSubmission);
-        }
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const filteredSubmissions = submissions.filter(s => {
     if (filter !== 'all' && s.status !== filter) return false;
@@ -864,73 +878,16 @@ function calculateStats(submissions: Submission[]) {
   };
 }
 
-function showNotification(submission: Submission) {
-  // In production: Show browser notification
-  console.log(`New submission needing review: ${submission.companyName}`);
-}
-
 // ============================================================================
-// MOCK DATA
+// THE GENERATORS THAT USED TO LIVE HERE
 // ============================================================================
-
-function generateMockSubmissions(): Submission[] {
-  const companies = [
-    { name: 'TechFlow Solutions', industry: 'SaaS' },
-    { name: 'Green Valley Logistics', industry: 'Logistics' },
-    { name: 'Premier Healthcare', industry: 'Healthcare' },
-    { name: 'Summit Financial', industry: 'Finance' },
-    { name: 'Bright Minds Education', industry: 'Education' },
-    { name: 'Urban Retail Co', industry: 'Retail' },
-    { name: 'Velocity Manufacturing', industry: 'Manufacturing' },
-    { name: 'Nexus Consulting', industry: 'Consulting' }
-  ];
-
-  return companies.map((company, idx) => generateRandomSubmission(company.name, company.industry, idx));
-}
-
-function generateRandomSubmission(
-  companyName?: string,
-  industry?: string,
-  idx?: number
-): Submission {
-  const score = Math.floor(Math.random() * 30) + 70; // 70-100
-  
-  let status: Submission['status'];
-  if (score >= 90) status = 'auto-approved';
-  else if (score >= 75) status = 'needs-review';
-  else status = 'needs-revision';
-
-  const patterns = ['Manual-Heavy', 'Scale Stress', 'Tool Chaos', 'Decision Bottleneck'];
-  const selectedPatterns = patterns.slice(0, Math.floor(Math.random() * 3) + 1);
-
-  const flags = score < 80 ? [
-    'ROI estimates slightly aggressive',
-    'Cross-validation needed on Problem #2',
-    'Readiness score may be inflated'
-  ].slice(0, Math.floor(Math.random() * 2) + 1) : [];
-
-  return {
-    id: `sub_${Date.now()}_${Math.random()}`,
-    companyName: companyName || `Company ${Math.floor(Math.random() * 1000)}`,
-    industry: industry || ['SaaS', 'Logistics', 'Healthcare', 'Finance'][Math.floor(Math.random() * 4)],
-    submittedAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
-    qualityScore: {
-      overall: score,
-      breakdown: {
-        intakeQuality: Math.floor(Math.random() * 3) + 8,
-        diagnosisAccuracy: Math.floor(Math.random() * 3) + 7,
-        scoringSanity: Math.floor(Math.random() * 3) + 8,
-        recommendationControl: Math.floor(Math.random() * 3) + 9,
-        roiValidation: Math.floor(Math.random() * 3) + 7,
-        reportQuality: Math.floor(Math.random() * 3) + 8,
-        callReadiness: Math.floor(Math.random() * 3) + 9,
-        proposalCheck: Math.floor(Math.random() * 3) + 8
-      }
-    },
-    status,
-    flags,
-    liveInsights: Math.floor(Math.random() * 6) + 3,
-    patternsDetected: selectedPatterns,
-    readinessScore: Math.floor(Math.random() * 40) + 50
-  };
-}
+//
+// `showNotification`, `generateMockSubmissions` and `generateRandomSubmission`
+// are gone. Between them they produced eight invented companies at mount, a
+// ninth every thirty seconds at random, and every quality score, readiness
+// score, flag and "pattern detected" this surface displayed — from
+// `Math.random()`, re-rolled on each render of a fresh session.
+//
+// A queue of real submissions awaiting review is what belongs here. The review
+// checklist behind it already exists and is wired (`getReview` / `saveReview`,
+// and the `reviewer-checklist` contract); the list is the missing half.

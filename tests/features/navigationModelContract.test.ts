@@ -30,7 +30,8 @@
  *   complexity).
  *
  * TESTING APPROACH
- *   navigationModel.ts imports only lucide-react, so the runner can import it:
+ *   navigationModel.ts imports only lucide-react and its sibling
+ *   capabilityStatus.ts — both resolvable by the runner — so it can import it:
  *   the model's own guarantees are proven BEHAVIOURALLY. The four consuming
  *   surfaces are .tsx, so — following frontendRuntimeDefects and the other
  *   frontend contract suites — their derivation is enforced structurally, with
@@ -213,7 +214,7 @@ describe('every navigation surface derives from the one model', () => {
       'the sidebar must not keep a second destination list',
     );
     assert.ok(
-      /NAV_GROUPS\.map\(group =>/.test(layout),
+      /VISIBLE_NAV_GROUPS\.map\(group =>/.test(layout),
       'the sidebar renders the model\'s intent groups',
     );
     assert.ok(
@@ -225,8 +226,10 @@ describe('every navigation surface derives from the one model', () => {
   it('the command palette generates its navigation commands from the model', () => {
     assert.match(palette, /from '@\/app\/core\/navigationModel'/);
     assert.ok(
-      /\.\.\.DESTINATIONS\.map\(\(destination\): Command =>/.test(palette),
-      'the palette must offer every destination, not a hand-picked four',
+      /\.\.\.VISIBLE_DESTINATIONS\.map\(\(destination\): Command =>/.test(palette),
+      'the palette must offer every OFFERED destination, not a hand-picked four — ' +
+        'and not the declared list either, which would put a destination the ' +
+        'sidebar has hidden one Cmd-K away (CP-2)',
     );
     for (const id of ['dashboard', 'cortex', 'team', 'settings']) {
       assert.ok(

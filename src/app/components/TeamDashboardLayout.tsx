@@ -21,7 +21,7 @@ import {
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { useApp } from '@/app/contexts/AppContext';
 import {
-  NAV_GROUPS,
+  VISIBLE_NAV_GROUPS,
   SHORTCUT_DESTINATIONS,
   isSystemGroup,
   type DestinationId,
@@ -357,7 +357,11 @@ function DashboardLayoutInner({
         {/* Nav items — grouped by intent (Ch. 21.2), read from the one
             navigation model every surface shares (Ch. 21.4). */}
         <nav className="flex-1 p-4 space-y-4 overflow-y-auto" aria-label="Primary">
-          {NAV_GROUPS.map(group => {
+          {/* VISIBLE, not declared. CP-2's rule: a sidebar entry is a promise,
+              and `capabilityStatus.ts` decides which destinations can keep one.
+              A group whose members are all hidden does not render an empty
+              heading — it does not render. */}
+          {VISIBLE_NAV_GROUPS.map(group => {
             // A group of nothing but platform plumbing folds until asked for
             // (Ch. 13.1). It is a disclosure, not a hiding place: one click
             // opens it, and the command palette reaches inside it by name

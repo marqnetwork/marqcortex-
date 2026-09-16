@@ -26,6 +26,8 @@ import {
   PAGE_PARAM,
   type DestinationId,
 } from '@/app/core/navigationModel';
+import { isDestinationVisible } from '@/app/core/capabilityStatus';
+import { NotOfferedYet } from '@/app/components/NotOfferedYet';
 import { LoadingState } from '@/app/components/ui/cortex';
 
 // ── Lazy panels ───────────────────────────────────────────────────────────────
@@ -269,8 +271,23 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
       }}
       accessToken={accessToken}
     >
+      {/* ── A DESTINATION THE PRODUCT NO LONGER OFFERS ────────────────────
+          Reached by bookmark, history or a hand-typed `?page=`. CP-1's rule
+          says the URL must still resolve to the destination it names rather
+          than silently becoming the Dashboard, so it does — and says honestly
+          what it cannot do. Placed before the page switch so it takes
+          precedence over the component behind it. */}
+      {!isDestinationVisible(currentPage) && (
+        <NotOfferedYet
+          key={`not-offered-${currentPage}`}
+          destination={currentPage}
+          label={destinationLabel(currentPage)}
+          onNavigate={handleNavigate}
+        />
+      )}
+
       {/* Render content based on current page - use key to force remount */}
-      {currentPage === 'dashboard' && (
+      {isDestinationVisible(currentPage) && currentPage === 'dashboard' && (
         <Suspense fallback={<PanelSkeleton />}>
           <TeamHomeDashboard
             key="dashboard-page"
@@ -283,7 +300,7 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         </Suspense>
       )}
 
-      {currentPage === 'cortex' && (
+      {isDestinationVisible(currentPage) && currentPage === 'cortex' && (
         <Suspense fallback={<PanelSkeleton />}>
           <CortexDashboard 
             key="cortex-page"
@@ -296,55 +313,55 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
         </Suspense>
       )}
 
-      {currentPage === 'team' && (
+      {isDestinationVisible(currentPage) && currentPage === 'team' && (
         <Suspense fallback={<PanelSkeleton />}>
           <TeamManagement key="team-page" accessToken={accessToken} />
         </Suspense>
       )}
 
-      {currentPage === 'settings' && (
+      {isDestinationVisible(currentPage) && currentPage === 'settings' && (
         <Suspense fallback={<PanelSkeleton />}>
           <SettingsPage key="settings-page" accessToken={accessToken} />
         </Suspense>
       )}
 
-      {currentPage === 'analytics' && (
+      {isDestinationVisible(currentPage) && currentPage === 'analytics' && (
         <Suspense fallback={<PanelSkeleton />}>
           <AnalyticsDashboard key="analytics-page" accessToken={accessToken} />
         </Suspense>
       )}
 
-      {currentPage === 'reviewer' && (
+      {isDestinationVisible(currentPage) && currentPage === 'reviewer' && (
         <Suspense fallback={<PanelSkeleton />}>
           <ReviewerDashboard key="reviewer-page" />
         </Suspense>
       )}
 
-      {currentPage === 'emails' && (
+      {isDestinationVisible(currentPage) && currentPage === 'emails' && (
         <Suspense fallback={<PanelSkeleton />}>
           <EmailNurturePanel key="emails-page" />
         </Suspense>
       )}
 
-      {currentPage === 'revenue' && (
+      {isDestinationVisible(currentPage) && currentPage === 'revenue' && (
         <Suspense fallback={<PanelSkeleton />}>
           <RevenueIntelligenceDashboard key="revenue-page" accessToken={accessToken} />
         </Suspense>
       )}
 
-      {currentPage === 'mapping' && (
+      {isDestinationVisible(currentPage) && currentPage === 'mapping' && (
         <Suspense fallback={<PanelSkeleton />}>
           <MappingEnginePanel key="mapping-page" />
         </Suspense>
       )}
 
-      {currentPage === 'control-plane' && (
+      {isDestinationVisible(currentPage) && currentPage === 'control-plane' && (
         <Suspense fallback={<PanelSkeleton />}>
           <AIAdministrationConsole key="control-plane-page" accessToken={accessToken} />
         </Suspense>
       )}
 
-      {currentPage === 'operations' && (
+      {isDestinationVisible(currentPage) && currentPage === 'operations' && (
         <Suspense fallback={<PanelSkeleton />}>
           <OperationsPanel key="operations-page" accessToken={accessToken} />
         </Suspense>
