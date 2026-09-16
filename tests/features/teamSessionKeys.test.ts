@@ -208,18 +208,18 @@ const user = { id: 'u-1', email: 'lead@marqcortex.com', name: 'Avery Stone', tea
 
 describe('team session record round-trips', () => {
   it('preserves token and user', () => {
-    const session: TeamSession = { accessToken: 'tok-1', user };
+    const session: TeamSession = { accessToken: 'tok-1', user, workspace: null, workspaceReason: 'not-reported' };
     const restored = parseTeamSession(serializeTeamSession(session));
     assert.deepEqual(restored, session);
   });
 
   it('preserves a session with no user', () => {
-    const session: TeamSession = { accessToken: 'tok-1', user: null };
+    const session: TeamSession = { accessToken: 'tok-1', user: null, workspace: null, workspaceReason: 'not-reported' };
     assert.deepEqual(parseTeamSession(serializeTeamSession(session)), session);
   });
 
   it('carries identity inside the canonical record — no second key exists', () => {
-    const stored = serializeTeamSession({ accessToken: 'tok-1', user });
+    const stored = serializeTeamSession({ accessToken: 'tok-1', user, workspace: null, workspaceReason: null });
     assert.ok(stored.includes('Avery Stone'), 'identity travels with the session record');
   });
 });
@@ -228,9 +228,14 @@ describe('team session restoration', () => {
   it('accepts the bare-token format an earlier bundle wrote to the same key', () => {
     // Still valid authentication under the canonical key — restore it rather
     // than signing the user out, but with no identity attached.
+    // The workspace is UNKNOWN in such a record, not absent: a bundle that
+    // predates CP-3 said nothing about the organization, and `not-reported`
+    // is what says nothing rather than claiming the account belongs nowhere.
     assert.deepEqual(parseTeamSession('raw-token-abc'), {
       accessToken: 'raw-token-abc',
       user: null,
+      workspace: null,
+      workspaceReason: 'not-reported',
     });
   });
 
@@ -242,7 +247,9 @@ describe('team session restoration', () => {
 
   it('drops a partial user rather than restoring half an identity', () => {
     const raw = JSON.stringify({ accessToken: 'tok-1', user: { name: 'Avery Stone' } });
-    assert.deepEqual(parseTeamSession(raw), { accessToken: 'tok-1', user: null });
+    assert.deepEqual(parseTeamSession(raw), {
+      accessToken: 'tok-1', user: null, workspace: null, workspaceReason: 'not-reported',
+    });
   });
 
   it('never derives a session from a legacy key value', () => {
@@ -448,9 +455,9 @@ describe('authenticated team UI', () => {
 
   it('the login path hands the server-supplied user to the session', () => {
     const login = read('src/app/components/TeamLogin.tsx');
-    assert.ok(login.includes('onLogin(result.accessToken, result.user ?? null)'));
+    assert.ok(login.includes('onLogin(result.accessToken, result.user ?? null, result)'));
 
     const route = read('src/app/pages/TeamLoginRoute.tsx');
-    assert.ok(route.includes('loginTeam(token, user)'));
+    assert.ok(route.includes('loginTeam(token, user, loginResponse)'));
   });
 });

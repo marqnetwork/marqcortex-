@@ -189,6 +189,9 @@ export async function teamLogin(
   success: boolean;
   accessToken: string;
   user: { id: string; email: string; name: string; teamRole?: string };
+  organization?: unknown;
+  organizationUnavailableReason?: unknown;
+  otherOrganizations?: number;
 }> {
   if (isDemoExperience()) return demoBackend(b => b.teamLogin(email, password));
   requireProductBackend();

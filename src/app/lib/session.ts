@@ -87,6 +87,90 @@ export interface TeamUser {
   teamRole: TeamRole;
 }
 
+// ── Workspace ─────────────────────────────────────────────────────────────────
+
+/**
+ * The organization the signed-in session is working inside.
+ *
+ * Mirrors `Workspace` in `supabase/functions/server/organization/
+ * workspaceContext.ts`, which is the ONLY thing that produces it: the server
+ * derives it from the authenticated membership relationship and the client
+ * never assembles, defaults or infers one. A workspace the browser could
+ * construct would be a tenant label with no membership behind it.
+ */
+export interface Workspace {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+}
+
+/**
+ * Why this session has no workspace.
+ *
+ * The first six values are the server's own reasons, carried through verbatim.
+ * `not-reported` is the client's and means exactly what it says: this response
+ * or this stored record said nothing about an organization at all — an older
+ * bundle's session, or a backend that does not resolve one. It is kept
+ * distinct from `no-membership` because "nobody told us" and "you belong to
+ * nobody" are different facts, and only one of them is about the operator.
+ */
+export type WorkspaceUnavailableReason =
+  | 'no-membership'
+  | 'membership-inactive'
+  | 'organization-removed'
+  | 'organization-unnamed'
+  | 'permission-denied'
+  | 'lookup-failed'
+  | 'not-reported';
+
+const WORKSPACE_REASONS: readonly WorkspaceUnavailableReason[] = [
+  'no-membership',
+  'membership-inactive',
+  'organization-removed',
+  'organization-unnamed',
+  'permission-denied',
+  'lookup-failed',
+  'not-reported',
+];
+
+/**
+ * Keep only a fully-formed workspace; a partial record is treated as absent.
+ *
+ * All three fields are required, and `organizationName` must be non-empty: a
+ * workspace with a blank name is a shell header with nothing in it, which is
+ * the silent-placeholder failure this whole contract exists to prevent. The
+ * slug may be empty — it identifies, it does not display.
+ */
+export function normaliseWorkspace(value: unknown): Workspace | null {
+  if (!value || typeof value !== 'object') return null;
+  const { organizationId, organizationName, organizationSlug } = value as {
+    organizationId?: unknown; organizationName?: unknown; organizationSlug?: unknown;
+  };
+  if (typeof organizationId !== 'string' || organizationId.trim() === '') return null;
+  if (typeof organizationName !== 'string' || organizationName.trim() === '') return null;
+  return {
+    organizationId,
+    organizationName: organizationName.trim(),
+    organizationSlug: typeof organizationSlug === 'string' ? organizationSlug : '',
+  };
+}
+
+/**
+ * Narrow an untrusted reason to one this build understands.
+ *
+ * An unrecognised value becomes `lookup-failed` rather than being dropped:
+ * the server said something was wrong, and a reason this bundle cannot render
+ * is still not a reason to render nothing.
+ */
+export function normaliseWorkspaceReason(value: unknown): WorkspaceUnavailableReason {
+  if (typeof value !== 'string') return 'not-reported';
+  return WORKSPACE_REASONS.includes(value as WorkspaceUnavailableReason)
+    ? (value as WorkspaceUnavailableReason)
+    : 'lookup-failed';
+}
+
+// ── Team session ──────────────────────────────────────────────────────────────
+
 /**
  * A logged-in team member's session.
  *
@@ -99,6 +183,19 @@ export interface TeamSession {
 
   /** Who is signed in, when the login response supplied it. */
   user: TeamUser | null;
+
+  /** Which organization this session is working inside, when one resolved. */
+  workspace: Workspace | null;
+
+  /**
+   * Why there is no workspace. Null exactly when `workspace` is set.
+   *
+   * Never inferred from the absence of a workspace: a restored record that
+   * carried neither reads as `not-reported`, which is the truth about that
+   * record, and the shell says so instead of claiming the account has no
+   * organization.
+   */
+  workspaceReason: WorkspaceUnavailableReason | null;
 }
 
 /** Serialise a team session for storage. */
@@ -127,20 +224,43 @@ export function parseTeamSession(raw: string | null | undefined): TeamSession | 
     parsed = JSON.parse(raw);
   } catch {
     // Not JSON — the earlier bare-token format.
-    return { accessToken: raw, user: null };
+    return unresolvedWorkspaceSession(raw, null);
   }
 
   // JSON.parse('"abc"') yields a string: also a bare token, just quoted.
   if (typeof parsed === 'string') {
-    return parsed ? { accessToken: parsed, user: null } : null;
+    return parsed ? unresolvedWorkspaceSession(parsed, null) : null;
   }
 
   if (!parsed || typeof parsed !== 'object') return null;
 
-  const { accessToken, user } = parsed as { accessToken?: unknown; user?: unknown };
+  const { accessToken, user, workspace, workspaceReason } = parsed as {
+    accessToken?: unknown; user?: unknown; workspace?: unknown; workspaceReason?: unknown;
+  };
   if (typeof accessToken !== 'string' || !accessToken) return null;
 
-  return { accessToken, user: normaliseTeamUser(user) };
+  const restored = normaliseWorkspace(workspace);
+  if (restored) {
+    return { accessToken, user: normaliseTeamUser(user), workspace: restored, workspaceReason: null };
+  }
+  return {
+    accessToken,
+    user: normaliseTeamUser(user),
+    workspace: null,
+    workspaceReason: normaliseWorkspaceReason(workspaceReason),
+  };
+}
+
+/**
+ * A session restored from a record that predates the workspace contract.
+ *
+ * The token is real authentication and is kept; the workspace is unknown and
+ * says so. `not-reported` rather than `no-membership`, because a bare token is
+ * evidence about the bundle that wrote it and no evidence at all about who the
+ * operator belongs to.
+ */
+function unresolvedWorkspaceSession(accessToken: string, user: TeamUser | null): TeamSession {
+  return { accessToken, user, workspace: null, workspaceReason: 'not-reported' };
 }
 
 /**

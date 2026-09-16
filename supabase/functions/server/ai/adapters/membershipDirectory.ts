@@ -109,6 +109,15 @@ export function toSubjectMemberships(rows: unknown): SubjectMembership[] {
     if (!isNullish(organization.deleted_at)) continue;
 
     const slug = organization.slug;
+
+    // The display name travels with the tenant id, out of the same verified
+    // row, so nothing downstream can name one organization while acting as
+    // another. Trimmed but NOT lower-cased — unlike a slug or a role key this
+    // is prose meant for a person to read, and `MARQ Network` is not `marq
+    // network`.
+    const nameValue = organization.name;
+    const name = typeof nameValue === 'string' ? nameValue.trim() : '';
+
     const roleKey = normalizedString(embedded(row.roles)?.key);
 
     // THE ROW'S OWN PROVENANCE (HIGH-1).
@@ -129,6 +138,7 @@ export function toSubjectMemberships(rows: unknown): SubjectMembership[] {
     admitted.push({
       organizationId: row.organization_id,
       slug: typeof slug === 'string' && slug !== '' ? slug : undefined,
+      ...(name === '' ? {} : { name }),
       roles: roleKey === '' ? [] : [roleKey],
       ...(teamRole === '' ? {} : { teamRole }),
     });
@@ -156,7 +166,7 @@ export interface MembershipQueryClient {
 /** The columns and embeds the query asks for, held as one string so the test
  *  and the call site cannot describe two different queries. */
 export const MEMBERSHIP_SELECT =
-  'organization_id, status, deleted_at, team_role, organizations!inner(slug, deleted_at), roles(key)';
+  'organization_id, status, deleted_at, team_role, organizations!inner(id, slug, name, deleted_at), roles(key)';
 
 export const MEMBERSHIP_TABLE = 'organization_memberships';
 
@@ -193,4 +203,67 @@ export async function listVerifiedMemberships(
 
   if (error) return [];
   return toSubjectMemberships(data);
+}
+
+/**
+ * WHY A SECOND READ LIVES IN THE MODULE THAT GRANTS NOTHING TWICE.
+ *
+ * `listVerifiedMemberships` answers one question — which tenants may this
+ * person act in — and answers `[]` to five different situations: no membership,
+ * a suspended one, a removed one, an erased organization, and a lookup that
+ * failed. That is exactly right for authority, where all five mean the same
+ * thing, and useless for telling a person what went wrong.
+ *
+ * So this read exists, and it is deliberately NOT a second answer to the
+ * authority question. It returns the raw presence of rows and nothing else:
+ * no role key, no organization identity, no slug. Nothing downstream can turn
+ * its result into a grant, because its result contains nothing to grant with.
+ *
+ * It lives HERE rather than beside its caller for one reason. The rule this
+ * codebase holds is that exactly ONE module names
+ * `public.organization_memberships` on the runtime path, enforced by
+ * `ai/__tests__/membershipResolution.test.ts`, so that "which tenant is this
+ * person in" can never have two implementations. A diagnostic query written in
+ * the workspace module would be a second place the table is read from, and the
+ * next one after that would be a second place it is FILTERED from. The rule is
+ * kept at strength one; the caller consumes this and writes no SQL.
+ *
+ * The join is a plain one, not `!inner`: an inner join drops a membership whose
+ * organization was erased, and that membership is precisely one of the states
+ * this read exists to recognise. The join that would be wrong for authority is
+ * the right one for diagnosis — which is another way of saying these two reads
+ * must never be merged.
+ */
+export const MEMBERSHIP_PRESENCE_SELECT = 'status, deleted_at, organizations(deleted_at)';
+
+/** One row's PRESENCE, carrying nothing that could be mistaken for authority. */
+export interface MembershipPresenceRow {
+  readonly status?: unknown;
+  readonly deleted_at?: unknown;
+  readonly organizations?: unknown;
+}
+
+/**
+ * Read whether this user has membership rows at all, and in what condition.
+ *
+ * Unlike `listVerifiedMemberships` this does NOT swallow its error, and that
+ * is the whole point: a caller has to be able to tell "the database said no
+ * rows" from "the database did not answer", or an outage renders as an empty
+ * organization. The error is returned rather than thrown so the caller decides
+ * what a refusal means versus a breakage.
+ *
+ * The user id is the only input, for the same reason it is upstream: there
+ * must be no parameter through which a caller could name a tenant.
+ */
+export async function listMembershipPresence(
+  client: MembershipQueryClient,
+  userId: string,
+): Promise<{ rows: MembershipPresenceRow[]; error: unknown }> {
+  const { data, error } = await client
+    .from(MEMBERSHIP_TABLE)
+    .select(MEMBERSHIP_PRESENCE_SELECT)
+    .eq('user_id', userId);
+
+  if (error) return { rows: [], error };
+  return { rows: Array.isArray(data) ? (data as MembershipPresenceRow[]) : [], error: null };
 }

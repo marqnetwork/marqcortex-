@@ -185,7 +185,7 @@ const ALWAYS = {
   'GET /ping': () => ({ success: true, message: 'pong', timestamp: new Date().toISOString(), server: 'fixture' }),
   'GET /health': () => ({ status: 'ok', timestamp: new Date().toISOString(), kvStore: 'fixture' }),
   'GET /test-auth': () => ({ success: true, message: 'ok', userId: 'fix-m-1', timestamp: new Date().toISOString() }),
-  'POST /auth/team/login': (body) => {
+  'POST /auth/team/login': (body, mode) => {
     if (body?.email !== 'admin@fixture.invalid' || body?.password !== 'fixture-password') {
       return { __status: 401, error: 'Invalid credentials.' };
     }
@@ -193,7 +193,48 @@ const ALWAYS = {
       success: true,
       accessToken: ACCESS_TOKEN,
       user: { id: 'fix-m-1', email: body.email, name: 'Fixture Admin', teamRole: 'admin' },
+      // CP-3 workspace context. Login keeps SUCCEEDING in every mode — a team
+      // account with no organization still has console access — so each mode
+      // drives a different one of the honest workspace states rather than a
+      // different authentication outcome.
+      ...WORKSPACE_BY_MODE[mode ?? 'populated'],
     };
+  },
+};
+
+/**
+ * What `/auth/team/login` says about the organization in each fixture mode.
+ *
+ * `populated` resolves a real workspace; the other three drive the three
+ * absent states the shell must tell apart — nobody to belong to, a refusal,
+ * and a breakage. The names match the rest of these fixtures ("Fixture
+ * Industries"), so a screenshot showing a real tenant name can still never be
+ * mistaken for production data.
+ */
+const WORKSPACE_BY_MODE = {
+  populated: {
+    organization: {
+      organizationId: 'fix-org-1',
+      organizationName: 'Fixture Industries',
+      organizationSlug: 'fixture-industries',
+    },
+    organizationUnavailableReason: null,
+    otherOrganizations: 0,
+  },
+  empty: {
+    organization: null,
+    organizationUnavailableReason: 'no-membership',
+    otherOrganizations: 0,
+  },
+  error: {
+    organization: null,
+    organizationUnavailableReason: 'lookup-failed',
+    otherOrganizations: 0,
+  },
+  forbidden: {
+    organization: null,
+    organizationUnavailableReason: 'permission-denied',
+    otherOrganizations: 0,
   },
 };
 
@@ -240,7 +281,10 @@ export function startFixtureBackend({ port = 0, mode = 'populated' } = {}) {
 
       const always = ALWAYS[key];
       if (always) {
-        const answer = always(body);
+        // The mode reaches the ALWAYS routes too. They answer in every mode —
+        // authentication has to keep working or nothing downstream can be
+        // observed — but WHAT they answer may still depend on it.
+        const answer = always(body, current);
         const { __status, ...rest } = answer;
         return send(__status ?? 200, rest);
       }

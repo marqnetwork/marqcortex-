@@ -19,6 +19,21 @@ import { AIError } from '../contracts/errors.ts';
 export interface SubjectMembership {
   readonly organizationId: string;
   readonly slug?: string;
+  /**
+   * The organization's display name, as `public.organizations.name` holds it.
+   *
+   * Carried for the same reason the slug is: the workspace a session resolves
+   * into has to be NAMEABLE to the operator looking at it, and the name must
+   * come from the same verified row the tenant id came from. A name assembled
+   * anywhere else — a client-supplied field, a second lookup keyed on an id the
+   * caller sent — would let the console display one organization while acting
+   * as another.
+   *
+   * Optional because this is a description of what a row MIGHT carry. Absent
+   * means the embed did not supply one, never a placeholder: `resolveWorkspace`
+   * decides what an unnamed organization means, and it does not guess.
+   */
+  readonly name?: string;
   readonly tier?: 'internal' | 'standard' | 'enterprise';
   readonly roles: readonly string[];
   /**

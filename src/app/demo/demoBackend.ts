@@ -75,6 +75,9 @@ export async function teamLogin(
   success: boolean;
   accessToken: string;
   user: { id: string; email: string; name: string; teamRole?: string };
+  organization?: unknown;
+  organizationUnavailableReason?: unknown;
+  otherOrganizations?: number;
 }> {
   log('Team login (demo mode)');
   if (email === demo.DEMO_TEAM_LOGIN.email && password === demo.DEMO_TEAM_LOGIN.password) {
@@ -85,6 +88,17 @@ export async function teamLogin(
       // stating the role here rather than leaving it to the fail-closed
       // default is what makes the demo show the admin experience it claims to.
       user: { id: 'user_001', email, name: 'Admin User', teamRole: 'admin' },
+      // The demo signs into a demo tenant, and the shell names it. A demo that
+      // reported "Workspace not reported" would be telling the truth about the
+      // wire and a lie about the experience — and the fabricated name belongs
+      // HERE, behind the demo boundary, which is the only place it may exist.
+      organization: {
+        organizationId: 'demo_org_001',
+        organizationName: 'MARQ Demo Workspace',
+        organizationSlug: 'marq-demo',
+      },
+      organizationUnavailableReason: null,
+      otherOrganizations: 0,
     };
   }
   throw new Error('Invalid credentials. Use demo credentials shown below.');

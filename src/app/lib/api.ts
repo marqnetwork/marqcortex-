@@ -242,10 +242,18 @@ export async function teamLogin(email: string, password: string) {
   // role-appropriate experience. It is declared as `string` here because this
   // is the untrusted wire shape; `normalizeTeamRole` narrows it at the session
   // boundary and fails closed to `viewer`.
+  //
+  // The organization fields are CP-3's workspace context: the server resolves
+  // them from the authenticated membership relationship, and they are declared
+  // here as loose wire types for the same reason `teamRole` is — narrowing
+  // happens once, at the session boundary, in `@/app/lib/session`.
   return data as {
     success: boolean;
     accessToken: string;
     user: { id: string; email: string; name: string; teamRole?: string };
+    organization?: unknown;
+    organizationUnavailableReason?: unknown;
+    otherOrganizations?: number;
   };
 }
 

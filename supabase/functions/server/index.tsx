@@ -126,6 +126,16 @@ import {
   listVerifiedMemberships,
   type MembershipQueryClient,
 } from "./ai/adapters/membershipDirectory.ts";
+import {
+  resolveWorkspaceForUser,
+  workspacePayload,
+} from "./organization/workspaceContext.ts";
+import {
+  OrganizationReadError,
+  readOrganizationStructure,
+  summariseStructure,
+  type SpineQueryClient,
+} from "./organization/organizationRepository.ts";
 import { createMembershipInvalidationSignal } from "./ai/adapters/supabaseAuthenticator.ts";
 import {
   deriveDealSnapshots,
@@ -1490,6 +1500,29 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
+    // WHICH ORGANIZATION THIS SESSION IS WORKING INSIDE (CP-3).
+    //
+    // Resolved here, from the authenticated membership relationship, and never
+    // from anything the caller sent: the login body holds an email and a
+    // password and no organization at all, so there is no tenant claim on this
+    // request to trust or distrust.
+    //
+    // An unresolved workspace does NOT fail the login. A team account with no
+    // membership row still has console access — `resolveTeamAuthority` already
+    // said so — and refusing the session would turn a missing organizational
+    // record into a lockout. It travels as a NAMED REASON instead, and the
+    // console shows that reason rather than a generic title, so "the database
+    // was unreachable" never renders as "you belong to nobody".
+    const workspace = await resolveWorkspaceForUser(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      data.user!.id,
+    );
+    if (!workspace.workspace) {
+      console.log(
+        `Team login: no workspace for ${data.user?.id} (${workspace.reason})`,
+      );
+    }
+
     return c.json({
       success: true,
       accessToken: data.session.access_token,
@@ -1499,6 +1532,7 @@ app.post("/make-server-324f4fbe/auth/team/login", async (c) => {
         name: data.user?.user_metadata?.name || 'Team Member',
         teamRole: authority.role,
       },
+      ...workspacePayload(workspace),
     });
   } catch (err) {
     console.log('Team login error:', err);
@@ -3573,6 +3607,104 @@ app.post("/make-server-324f4fbe/client/submission/:id/proposal/respond", async (
   } catch (err) {
     console.log('Client respond to proposal error:', err);
     return failureResponse(c, 'Failed to respond to proposal', err, 500);
+  }
+});
+
+// ============================================================================
+// ORGANIZATIONAL SPINE (CP-3)
+//
+// WHAT THESE TWO ROUTES ARE FOR, AND WHAT THEY DELIBERATELY ARE NOT.
+//
+// `/team/members` — right below this block — lists AUTHENTICATION ACCOUNTS: who
+// can sign into the console. That is a real and necessary list, and it is not
+// the organization. ONT 12.3 is explicit that not every Identity is an active
+// User, and the spine takes it at its word: a contractor with a department, a
+// reporting line and a team membership but no password is an ordinary member of
+// the organization, and `/team/members` will never show them.
+//
+// These routes answer the organizational question instead: who belongs, where,
+// under whom, in which team, in which department, in which business unit.
+//
+// NEITHER ROUTE ACCEPTS AN ORGANIZATION ID.
+//
+// There is no path parameter, no query parameter and no body field through
+// which a caller could name a tenant. The organization comes from
+// `resolveWorkspaceForUser`, which derives it from the authenticated membership
+// relationship and nothing else. "Act as organization X" is not a request these
+// routes can be asked to honour — and the database refuses the same crossings
+// underneath, proven by `scripts/organizational-spine-scenarios.mjs`.
+//
+// READ-ONLY, ON PURPOSE. CP-3 builds the spine and shows it. Writing to it —
+// hiring, moving a person between departments, re-pointing a reporting line —
+// is CP-4's, and shipping half a write surface would be worse than shipping
+// none. The console offers no control that implies otherwise.
+// ============================================================================
+
+// GET /organization/context — which organization this session is working inside
+//
+// The same answer the login response carries, re-read live. The login copy goes
+// stale the moment a membership changes, and a console that keeps naming an
+// organization the operator was removed from an hour ago is telling a lie with
+// a long tail.
+app.get("/make-server-324f4fbe/organization/context", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const workspace = await resolveWorkspaceForUser(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+    );
+    return c.json({ success: true, ...workspacePayload(workspace) });
+  } catch (err) {
+    console.log('Organization context error:', err);
+    return failureResponse(c, 'Failed to resolve the workspace', err, 500);
+  }
+});
+
+// GET /organization/structure — the spine of the resolved organization
+app.get("/make-server-324f4fbe/organization/structure", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    // THE MEMBERSHIP IS THE AUTHORIZATION.
+    //
+    // Not a second permission system — CP-3 forbids one, and there is no need:
+    // a verified, active membership in a live organization is exactly the
+    // condition `organization.structure.read` is granted on, and the same
+    // relationship is what decides WHICH organization is read. An account with
+    // no workspace has nothing to be shown, and is told why rather than shown
+    // an empty organization.
+    const workspace = await resolveWorkspaceForUser(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+    );
+    if (!workspace.workspace) {
+      return c.json({
+        error: "No organization is available for this account",
+        ...workspacePayload(workspace),
+      }, workspace.reason === 'permission-denied' ? 403 : 404);
+    }
+
+    const structure = await readOrganizationStructure(
+      supabaseAdmin as unknown as SpineQueryClient,
+      workspace.workspace.organizationId,
+    );
+
+    return c.json({
+      success: true,
+      ...workspacePayload(workspace),
+      structure,
+      summary: summariseStructure(structure),
+    });
+  } catch (err) {
+    if (err instanceof OrganizationReadError) {
+      console.log('Organization structure read failed:', err.message, err.failure);
+      return failureResponse(c, 'Failed to read the organization structure', err, 500);
+    }
+    console.log('Organization structure error:', err);
+    return failureResponse(c, 'Failed to read the organization structure', err, 500);
   }
 });
 
