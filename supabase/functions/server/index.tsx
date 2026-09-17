@@ -138,6 +138,16 @@ import {
   type SpineQueryClient,
 } from "./organization/organizationRepository.ts";
 import {
+  archiveStrategyRow,
+  createStrategyRow,
+  readStrategy,
+  StrategyReadError,
+  summariseStrategy,
+  updateStrategyRow,
+  type StrategyEntityName,
+  type StrategyQueryClient,
+} from "./organization/strategyRepository.ts";
+import {
   addTeamMember,
   archiveSpineRow,
   createSpineRow,
@@ -3730,6 +3740,139 @@ app.get("/make-server-324f4fbe/organization/structure", async (c) => {
     }
     console.log('Organization structure error:', err);
     return failureResponse(c, 'Failed to read the organization structure', err, 500);
+  }
+});
+
+// ── THE STRATEGIC LAYER (CP-4) ─────────────────────────────────────────────
+//
+// What the organization is trying to achieve (ONT 13.4), what it has decided
+// (ONT 14.8), and what threatens it (ONT 17.6).
+//
+// The same two shapes the spine uses, for the same two reasons: the READ runs
+// under the service key with an unconditional tenant filter, and the WRITE runs
+// under the caller's own JWT so `strategy.manage` is evaluated by PostgreSQL.
+//
+// Neither takes an organization id from the request.
+
+app.get("/make-server-324f4fbe/strategy", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const workspace = await resolveWorkspaceForUser(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+    );
+    if (!workspace.workspace) {
+      return c.json({
+        error: "No organization is available for this account",
+        ...workspacePayload(workspace),
+      }, workspace.reason === 'permission-denied' ? 403 : 404);
+    }
+
+    const organizationId = workspace.workspace.organizationId;
+    const records = await readStrategy(
+      supabaseAdmin as unknown as StrategyQueryClient,
+      organizationId,
+    );
+
+    // FOR DISPLAY ONLY, exactly as `canManageStructure` is: it decides whether
+    // the console OFFERS the controls, never whether the server permits them.
+    const canManageStrategy = await membershipHoldsPermission(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+      organizationId,
+      'strategy.manage',
+    );
+
+    // The people the surface needs in order to NAME an owner or a decider.
+    // Read here rather than by a second round trip, because a goals list that
+    // shows a uuid where a person's name belongs is not a goals list.
+    const structure = await readOrganizationStructure(
+      supabaseAdmin as unknown as SpineQueryClient,
+      organizationId,
+    );
+
+    return c.json({
+      success: true,
+      ...workspacePayload(workspace),
+      strategy: records,
+      summary: summariseStrategy(records),
+      people: structure.people.map((person) => ({ id: person.id, fullName: person.fullName })),
+      canManageStrategy,
+    });
+  } catch (err) {
+    if (err instanceof StrategyReadError) {
+      console.log('Strategy read failed:', err.message, err.failure);
+    } else {
+      console.log('Strategy error:', err);
+    }
+    return failureResponse(c, 'Failed to read the strategy', err, 500);
+  }
+});
+
+const STRATEGY_ROUTE_ENTITIES: Record<string, StrategyEntityName> = {
+  goals: 'goal',
+  decisions: 'decision',
+  risks: 'risk',
+};
+
+app.post("/make-server-324f4fbe/strategy/:entity", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await createStrategyRow(
+      context.client, entity, context.organizationId, parsed.body,
+    );
+    return c.json({ success: true, record }, 201);
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.patch("/make-server-324f4fbe/strategy/:entity/:id", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await updateStrategyRow(
+      context.client, entity, context.organizationId, c.req.param('id'), parsed.body,
+    );
+    return c.json({ success: true, record });
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.delete("/make-server-324f4fbe/strategy/:entity/:id", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    await archiveStrategyRow(context.client, entity, context.organizationId, c.req.param('id'));
+    return c.json({ success: true, archived: c.req.param('id') });
+  } catch (err) {
+    return writeFailureResponse(c, err);
   }
 });
 

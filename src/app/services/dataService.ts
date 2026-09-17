@@ -642,6 +642,40 @@ export async function getOrganizationStructure(accessToken: string) {
 }
 
 /**
+ * The strategic layer (CP-4) — goals, decisions and risks.
+ *
+ * No demo branch on the read either, unlike the spine. The demo experience
+ * shows a fixed organization; inventing a set of goals for it would be
+ * fabricating the organization's intent, which is the one kind of demo content
+ * that could be mistaken for a record of a real conversation.
+ */
+export async function getStrategy(accessToken: string) {
+  requireProductBackend();
+  return api.getStrategy(accessToken);
+}
+
+export async function createStrategyRecord(
+  entity: api.StrategyEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.createStrategyRecord(entity, payload, accessToken);
+}
+
+export async function updateStrategyRecord(
+  entity: api.StrategyEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.updateStrategyRecord(entity, id, payload, accessToken);
+}
+
+export async function archiveStrategyRecord(
+  entity: api.StrategyEntityPath, id: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.archiveStrategyRecord(entity, id, accessToken);
+}
+
+/**
  * The spine's write path (CP-4).
  *
  * `requireProductBackend()` and no demo branch, deliberately. CP-1's rule is

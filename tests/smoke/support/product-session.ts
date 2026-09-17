@@ -16,8 +16,16 @@ export const FIXTURE_LOGIN = {
   password: 'fixture-password',
 };
 
-/** How the backend answers every data route from now on. */
-export type BackendMode = 'populated' | 'empty' | 'error' | 'forbidden';
+/**
+ * How the backend answers from now on.
+ *
+ * `readonly` is CP-4's addition and it is not a failure mode: the reads answer
+ * normally and every WRITE is refused, which is the state a team viewer is
+ * actually in. It is what lets browser QA check that the console withholds its
+ * write controls from somebody who may not use them — and that the refusal is
+ * real underneath, not just hidden.
+ */
+export type BackendMode = 'populated' | 'empty' | 'error' | 'forbidden' | 'readonly';
 
 export async function setBackendMode(mode: BackendMode): Promise<void> {
   const res = await fetch(`${FIXTURE_BACKEND}/__mode`, {

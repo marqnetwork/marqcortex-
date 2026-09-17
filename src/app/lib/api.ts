@@ -1310,6 +1310,124 @@ export async function getOrganizationStructure(accessToken: string) {
   return data as OrganizationStructureResponse;
 }
 
+// ============================================================================
+// THE STRATEGIC LAYER (CP-4)
+//
+// ONT 13.4 Goal · ONT 14.8 Decision · ONT 17.6 Risk. Owned by people in the
+// organizational spine, scoped server-side to the resolved workspace, and
+// carrying no organization id on any request.
+// ============================================================================
+
+export interface StrategyGoal {
+  id: string;
+  statement: string;
+  measure: string | null;
+  targetValue: string | null;
+  currentValue: string | null;
+  dueOn: string | null;
+  status: string;
+  ownerPersonId: string | null;
+}
+
+export interface StrategyDecision {
+  id: string;
+  statement: string;
+  alternatives: string | null;
+  rationale: string | null;
+  goalId: string | null;
+  decidedByPersonId: string | null;
+  decidedOn: string | null;
+  reviewOn: string | null;
+  status: string;
+}
+
+export interface StrategyRisk {
+  id: string;
+  statement: string;
+  likelihood: string;
+  impact: string;
+  tolerance: string;
+  mitigation: string | null;
+  goalId: string | null;
+  ownerPersonId: string | null;
+  status: string;
+}
+
+export interface StrategyResponse {
+  success: boolean;
+  organization: OrganizationWorkspace | null;
+  organizationUnavailableReason: string | null;
+  strategy: {
+    goals: StrategyGoal[];
+    decisions: StrategyDecision[];
+    risks: StrategyRisk[];
+  };
+  summary: {
+    goals: number;
+    goalsInProgress: number;
+    goalsWithoutOwner: number;
+    decisions: number;
+    decisionsWithoutRationale: number;
+    risks: number;
+    risksOutsideTolerance: number;
+    risksUnassessed: number;
+  };
+  /** Just enough of each person to NAME an owner or a decider. */
+  people: { id: string; fullName: string }[];
+  /**
+   * Whether this account holds `strategy.manage`.
+   *
+   * DISPLAY AND AFFORDANCE ONLY, exactly as `canManageStructure` is. Every
+   * write runs under the caller's own JWT and is authorized by the RLS
+   * policies; a `true` here the database disagrees with produces a refused
+   * write, not a granted one.
+   */
+  canManageStrategy?: boolean;
+}
+
+export type StrategyEntityPath = 'goals' | 'decisions' | 'risks';
+
+export async function getStrategy(accessToken: string) {
+  const res = await fetch(`${BASE}/strategy`, { headers: headers(accessToken) });
+  const data = await res.json();
+  if (!res.ok) throw apiError(res, data.error || 'Failed to read the strategy');
+  return data as StrategyResponse;
+}
+
+async function strategyWrite(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  accessToken: string,
+  body?: unknown,
+) {
+  const res = await fetch(`${BASE}/strategy/${path}`, {
+    method,
+    headers: headers(accessToken),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw apiError(res, (data as { error?: string }).error || 'The change could not be saved.');
+  return data as { success: boolean; record: Record<string, unknown> };
+}
+
+export async function createStrategyRecord(
+  entity: StrategyEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  return strategyWrite(entity, 'POST', accessToken, payload);
+}
+
+export async function updateStrategyRecord(
+  entity: StrategyEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  return strategyWrite(`${entity}/${encodeURIComponent(id)}`, 'PATCH', accessToken, payload);
+}
+
+export async function archiveStrategyRecord(
+  entity: StrategyEntityPath, id: string, accessToken: string,
+) {
+  return strategyWrite(`${entity}/${encodeURIComponent(id)}`, 'DELETE', accessToken);
+}
+
 export async function getTeamMembers(accessToken: string) {
   const res = await fetch(`${BASE}/team/members`, { headers: headers(accessToken) });
   const data = await res.json();

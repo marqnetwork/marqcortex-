@@ -175,13 +175,27 @@ const PERSON_STATUSES = new Set(['active', 'invited', 'inactive']);
 
 // ── What each entity accepts ────────────────────────────────────────────────
 
-export interface SpineEntitySpec {
+/** One accepted body key: where it lands, and how it is cleaned on the way. */
+export interface FieldSpec {
+  readonly column: string;
+  readonly normalise: (value: unknown) => unknown;
+}
+
+/**
+ * What an entity accepts. Shared with `strategyRepository.ts`, because the
+ * ALLOW-LIST RULE is the thing worth having in one place: a body key that is
+ * not named never reaches the database, on any table, in either module.
+ */
+export interface EntityWriteSpec {
   readonly table: string;
   /** Required on create, in the order they are validated. */
   readonly required: readonly string[];
   /** Body key -> column, with its normaliser. Anything not here is dropped. */
-  readonly fields: Readonly<Record<string, { column: string; normalise: (v: unknown) => unknown }>>;
+  readonly fields: Readonly<Record<string, FieldSpec>>;
 }
+
+/** Retained name, so the spine's own specs read as they did. */
+export type SpineEntitySpec = EntityWriteSpec;
 
 const NAME_FIELD = { column: 'name', normalise: trimmed };
 const KEY_FIELD = { column: 'key', normalise: normalisedKey };
@@ -258,15 +272,14 @@ export type SpineEntityName = keyof typeof SPINE_ENTITIES;
  * what makes a PATCH partial. `null` means "clear this" and IS written — the
  * difference is how a reporting line gets removed.
  */
-export function buildSpineRow(
-  entity: SpineEntityName,
+export function buildAllowedRow(
+  spec: EntityWriteSpec,
   body: unknown,
   mode: 'create' | 'update',
 ): Record<string, unknown> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new OrganizationWriteError('invalid', 'A JSON object is required.');
   }
-  const spec: SpineEntitySpec = SPINE_ENTITIES[entity];
   const source = body as Record<string, unknown>;
   const row: Record<string, unknown> = {};
 
@@ -284,6 +297,24 @@ export function buildSpineRow(
         throw new OrganizationWriteError('invalid', `${key} is required.`);
       }
     }
+  }
+
+  if (mode === 'update' && Object.keys(row).length === 0) {
+    throw new OrganizationWriteError('invalid', 'No changeable field was supplied.');
+  }
+
+  return row;
+}
+
+export function buildSpineRow(
+  entity: SpineEntityName,
+  body: unknown,
+  mode: 'create' | 'update',
+): Record<string, unknown> {
+  const spec: SpineEntitySpec = SPINE_ENTITIES[entity];
+  const row = buildAllowedRow(spec, body, mode);
+
+  if (mode === 'create') {
     // A key that was not supplied is derived from the name rather than demanded.
     // Every table with a `key` has a `*_key_normalized` CHECK and a per-tenant
     // uniqueness index; an operator naming a department "Client Services"
@@ -302,10 +333,6 @@ export function buildSpineRow(
       'invalid',
       'status must be one of: active, invited, inactive.',
     );
-  }
-
-  if (mode === 'update' && Object.keys(row).length === 0) {
-    throw new OrganizationWriteError('invalid', 'No changeable field was supplied.');
   }
 
   return row;

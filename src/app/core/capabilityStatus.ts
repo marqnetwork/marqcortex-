@@ -116,6 +116,23 @@ export const CAPABILITY: Record<DestinationId, Capability> = {
     evidence: 'RevenueIntelligenceDashboard reads GET /analytics/revenue-snapshots; the aggregators are deterministic and the fixtures moved behind the demo boundary.',
   },
 
+  strategy: {
+    status: 'LIVE',
+    userCan:
+      'Read the organization\u2019s goals, decisions and risks \u2014 and, with '
+      + '`strategy.manage`, record and change them.',
+    evidence:
+      'StrategySurface reads GET /strategy and writes through the create, update and archive '
+      + 'routes. Reads are scoped server-side to the organization the authenticated membership '
+      + 'resolves; writes run under the caller\u2019s own JWT so the RLS policies on goals, '
+      + 'decisions and risks are the authorization. Fourteen tenancy, RBAC and integrity '
+      + 'properties are proven against real PostgreSQL by '
+      + 'scripts/organizational-spine-scenarios.mjs.',
+    needs:
+      'Objective and Initiative (ONT 13.3, 13.1) do not exist, so a goal has no parent. '
+      + 'Opportunity and Value are deferred \u2014 see MARQ_CORTEX_CP4_PREPARATION.md.',
+  },
+
   team: {
     status: 'LIVE',
     userCan:

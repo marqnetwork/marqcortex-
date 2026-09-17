@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 /**
- * CP-3 — the organizational spine's tenancy and RBAC, against a real Postgres.
+ * The organizational spine AND the strategic layer, against a real Postgres.
+ *
+ * CP-3 built the spine and proved ten properties here. CP-4 added goals,
+ * decisions and risks — three more tenant-owned tables, each an opportunity to
+ * forget a composite key — and EXTENDED this harness rather than starting a
+ * second one. The ten properties were the template; a separate script would
+ * have been a second place for them to be nearly right.
  *
  * ── WHY THIS EXISTS RATHER THAN A STATIC TEST ───────────────────────────────
  *
@@ -52,6 +58,12 @@ const STEPS = [
   ['platform grants', join(HARNESS, '06_platform_public_grants.sql')],
   ['fixture: two organizations', join(HARNESS, '200_spine_fixture.sql')],
   ['TENANCY AND RBAC', join(HARNESS, '201_assert_spine_tenancy.sql')],
+  // CP-4. The strategic tables reference `people` through composite keys, so
+  // they are applied after the spine and proven over the same two tenants.
+  ['strategic layer', join(MIGRATIONS, '20260918120000_cortex_strategic_layer.sql')],
+  ['strategic layer RLS', join(MIGRATIONS, '20260918120001_cortex_strategic_layer_rls.sql')],
+  ['fixture: strategy in both tenants', join(HARNESS, '210_strategic_fixture.sql')],
+  ['STRATEGIC TENANCY AND RBAC', join(HARNESS, '211_assert_strategic_tenancy.sql')],
 ];
 
 /**
@@ -71,6 +83,22 @@ const IDEMPOTENCY_STEPS = [
   ['platform grants', join(HARNESS, '06_platform_public_grants.sql')],
   ['fixture: two organizations', join(HARNESS, '200_spine_fixture.sql')],
   ['TENANCY AND RBAC, after a re-run', join(HARNESS, '201_assert_spine_tenancy.sql')],
+  ['strategic layer', join(MIGRATIONS, '20260918120000_cortex_strategic_layer.sql')],
+  ['strategic layer RLS', join(MIGRATIONS, '20260918120001_cortex_strategic_layer_rls.sql')],
+  ['strategic again (idempotency)', join(MIGRATIONS, '20260918120000_cortex_strategic_layer.sql')],
+  ['strategic RLS again (idempotency)', join(MIGRATIONS, '20260918120001_cortex_strategic_layer_rls.sql')],
+  ['fixture: strategy in both tenants', join(HARNESS, '210_strategic_fixture.sql')],
+  ['STRATEGIC TENANCY, after a re-run', join(HARNESS, '211_assert_strategic_tenancy.sql')],
+
+  // The strategic rollback runs FIRST, and its assertion checks that the spine
+  // survived it. Rolling the spine back first would drop `people` out from
+  // under `goals.owner_person_id`, which is not the order a real recovery
+  // takes and would hide whether the strategic rollback is self-contained.
+  ['strategic rollback', join(MIGRATIONS, 'rollbacks', '20260918120000_rollback_strategic_layer.sql')],
+  ['assert strategic rollback', join(HARNESS, '212_assert_strategic_rollback.sql')],
+  ['strategic rollback again (idempotency)', join(MIGRATIONS, 'rollbacks', '20260918120000_rollback_strategic_layer.sql')],
+  ['assert strategic rollback again', join(HARNESS, '212_assert_strategic_rollback.sql')],
+
   ['rollback', join(MIGRATIONS, 'rollbacks', '20260917120000_rollback_organizational_spine.sql')],
   ['assert rollback', join(HARNESS, '202_assert_spine_rollback.sql')],
   ['rollback again (idempotency)', join(MIGRATIONS, 'rollbacks', '20260917120000_rollback_organizational_spine.sql')],
