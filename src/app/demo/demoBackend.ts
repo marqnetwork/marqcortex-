@@ -75,6 +75,9 @@ export async function teamLogin(
   success: boolean;
   accessToken: string;
   user: { id: string; email: string; name: string; teamRole?: string };
+  organization?: unknown;
+  organizationUnavailableReason?: unknown;
+  otherOrganizations?: number;
 }> {
   log('Team login (demo mode)');
   if (email === demo.DEMO_TEAM_LOGIN.email && password === demo.DEMO_TEAM_LOGIN.password) {
@@ -85,6 +88,17 @@ export async function teamLogin(
       // stating the role here rather than leaving it to the fail-closed
       // default is what makes the demo show the admin experience it claims to.
       user: { id: 'user_001', email, name: 'Admin User', teamRole: 'admin' },
+      // The demo signs into a demo tenant, and the shell names it. A demo that
+      // reported "Workspace not reported" would be telling the truth about the
+      // wire and a lie about the experience — and the fabricated name belongs
+      // HERE, behind the demo boundary, which is the only place it may exist.
+      organization: {
+        organizationId: 'demo_org_001',
+        organizationName: 'MARQ Demo Workspace',
+        organizationSlug: 'marq-demo',
+      },
+      organizationUnavailableReason: null,
+      otherOrganizations: 0,
     };
   }
   throw new Error('Invalid credentials. Use demo credentials shown below.');
@@ -632,6 +646,37 @@ export async function saveBlockRegistry(
     updatedAt: new Date().toISOString(),
   };
   return { success: true, registry };
+}
+
+/** The demo workspace — the same organization the demo login resolves. */
+export async function getOrganizationContext(accessToken: string) {
+  log('Get organization context (demo mode)');
+  return {
+    success: true,
+    organization: demo.getDemoOrganization(),
+    organizationUnavailableReason: null,
+    otherOrganizations: 0,
+  };
+}
+
+/** The demo organizational spine. */
+export async function getOrganizationStructure(accessToken: string) {
+  log('Get organization structure (demo mode)');
+  const structure = demo.getDemoOrganizationStructure();
+  return {
+    success: true,
+    organization: demo.getDemoOrganization(),
+    organizationUnavailableReason: null,
+    structure,
+    summary: {
+      people: structure.people.length,
+      peopleWithoutConsoleAccess: structure.people.filter(p => !p.hasConsoleAccess).length,
+      departments: structure.departments.length,
+      teams: structure.teams.length,
+      businessUnits: structure.businessUnits.length,
+      unassignedPeople: structure.people.filter(p => p.departmentId === null).length,
+    },
+  };
 }
 
 export async function getTeamMembers(accessToken: string) {

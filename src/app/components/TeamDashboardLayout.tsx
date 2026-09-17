@@ -21,6 +21,7 @@ import {
 import { useDashboard } from '@/app/contexts/DashboardContext';
 import { useApp } from '@/app/contexts/AppContext';
 import { TEAM_ROLE_LABELS } from '@/app/lib/teamRole';
+import { workspaceDisplay } from '@/app/core/workspaceLabel';
 import {
   VISIBLE_NAV_GROUPS,
   SHORTCUT_DESTINATIONS,
@@ -101,7 +102,20 @@ function DashboardLayoutInner({
    * An em dash where a name would be is the honest rendering of "the session
    * has not resolved a name yet"; a plausible-looking invented one is not.
    */
-  const { teamUser, teamRole } = useApp();
+  const { teamUser, teamRole, workspace, workspaceReason, isRestoringSession } = useApp();
+
+  // WHICH ORGANIZATION THIS IS (CP-3).
+  //
+  // The header slot under "MARQ Cortex" read "Internal Dashboard" for every
+  // session in every tenant. It now names the organization the session
+  // resolved, or says honestly why it did not — see `@/app/core/workspaceLabel`
+  // for why all seven absent-reasons are kept apart instead of collapsing into
+  // one placeholder.
+  const workspaceView = workspaceDisplay({
+    isRestoring: isRestoringSession,
+    organizationName: workspace?.organizationName,
+    reason: workspaceReason,
+  });
   const accountName = teamUser?.name?.trim() || 'Signed in';
   const accountEmail = teamUser?.email?.trim() || '—';
   const accountRole = TEAM_ROLE_LABELS[teamRole] ?? teamRole;
@@ -349,7 +363,18 @@ function DashboardLayoutInner({
                 </div>
                 <div>
                   <h2 className="font-bold text-lg">MARQ Cortex</h2>
-                  <p className="text-xs text-gray-400">Internal Dashboard</p>
+                  <p
+                    data-testid="workspace-name"
+                    data-workspace-tone={workspaceView.tone}
+                    title={workspaceView.detail}
+                    className={
+                      workspaceView.tone === 'error'
+                        ? 'text-xs text-amber-300 truncate max-w-[10rem]'
+                        : 'text-xs text-gray-400 truncate max-w-[10rem]'
+                    }
+                  >
+                    {workspaceView.label}
+                  </p>
                 </div>
               </motion.div>
             )}

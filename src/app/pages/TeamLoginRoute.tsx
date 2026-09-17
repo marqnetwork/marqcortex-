@@ -13,13 +13,13 @@ export function TeamLoginRoute() {
 
   return (
     <TeamLogin
-      onLogin={(token, user) => {
+      onLogin={(token, user, loginResponse) => {
         // Only set state — do NOT call navigate() here.
         // The state update re-renders this component, hits the
         // teamAccessToken guard above, and declaratively renders
         // <Navigate to="/team/dashboard" />.  One clean navigation
         // avoids a double-nav race that can cancel lazy loading.
-        loginTeam(token, user);
+        loginTeam(token, user, loginResponse);
       }}
       onBack={() => navigate('/')}
     />

@@ -22,7 +22,11 @@ import {
   CLIENT_SESSION_KEY,
   LEGACY_TEAM_SESSION_KEYS,
   normaliseTeamUser,
+  normaliseWorkspace,
+  normaliseWorkspaceReason,
   type TeamUser,
+  type Workspace,
+  type WorkspaceUnavailableReason,
   type ClientSession,
 } from '@/app/lib/session';
 import { DEFAULT_TEAM_ROLE, type TeamRole } from '@/app/lib/teamRole';
@@ -38,6 +42,7 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
  */
 export type { ClientSession };
 export type { TeamUser };
+export type { Workspace, WorkspaceUnavailableReason };
 
 interface AppState {
   // Lead capture
@@ -66,7 +71,27 @@ interface AppState {
    * authorization; see `@/app/lib/teamRole`.
    */
   teamRole: TeamRole;
-  loginTeam: (token: string, user?: unknown) => void;
+  loginTeam: (token: string, user?: unknown, workspace?: unknown) => void;
+
+  /**
+   * The organization this session is working inside (CP-3).
+   *
+   * Resolved by the server from the authenticated membership relationship and
+   * carried on the login response; the browser never constructs one. Null when
+   * the server could not resolve one, and `workspaceReason` then says why.
+   */
+  workspace: Workspace | null;
+
+  /**
+   * Why there is no workspace. Null exactly when `workspace` is set.
+   *
+   * Every consumer must distinguish these rather than collapsing them into an
+   * empty state: `lookup-failed` and `permission-denied` are failures, and a
+   * failure answered with a plausible-looking blank is the defect CP-1 spent
+   * its whole sprint removing.
+   */
+  workspaceReason: WorkspaceUnavailableReason | null;
+
   isSessionExpired: boolean;
   /**
    * True until the mount-time session restore has finished.
@@ -114,6 +139,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [teamAccessToken, setTeamAccessToken] = useState<string | null>(null);
   const [teamUser, setTeamUser] = useState<TeamUser | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  // Null, not a reason, while nothing is known: `isRestoringSession` is what
+  // says "still loading", and a reason set before the restore has run would be
+  // a claim about the operator made before anything was read.
+  const [workspaceReason, setWorkspaceReason] = useState<WorkspaceUnavailableReason | null>(null);
   const [clientSession, setClientSession] = useState<ClientSession | null>(null);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [isClientSessionExpired, setIsClientSessionExpired] = useState(false);
@@ -151,6 +181,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setTeamAccessToken(restoredTeam.accessToken);
       setTeamUser(restoredTeam.user);
+      setWorkspace(restoredTeam.workspace);
+      setWorkspaceReason(restoredTeam.workspaceReason);
       return;
     }
     try {
@@ -195,17 +227,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [clientSession]);
 
-  // `user` is typed `unknown` because it comes straight off the login
-  // response — an untrusted wire shape. `normaliseTeamUser` is the one place
-  // that decides what a team identity is, so the value stored and the value
-  // restored on the next load go through identical narrowing.
-  const loginTeam = useCallback((token: string, user: unknown = null) => {
+  // `user` and `workspace` are typed `unknown` because they come straight off
+  // the login response — untrusted wire shapes. Both go through the narrowing
+  // in `@/app/lib/session`, which is also what `parseTeamSession` uses on the
+  // next cold load, so the value stored and the value restored can never be
+  // narrowed two different ways.
+  const loginTeam = useCallback((token: string, user: unknown = null, workspaceValue: unknown = null) => {
     const normalised = normaliseTeamUser(user);
+    const resolvedWorkspace = normaliseWorkspace(
+      (workspaceValue as { organization?: unknown } | null)?.organization ?? workspaceValue,
+    );
+    const reason = resolvedWorkspace
+      ? null
+      : normaliseWorkspaceReason(
+          (workspaceValue as { organizationUnavailableReason?: unknown } | null)
+            ?.organizationUnavailableReason,
+        );
+
     setTeamAccessToken(token);
     setTeamUser(normalised);
+    setWorkspace(resolvedWorkspace);
+    setWorkspaceReason(reason);
     setIsSessionExpired(false);
-    // Token and identity are one canonical record under one canonical key.
-    localStorage.setItem(TEAM_SESSION_KEY, serializeTeamSession({ accessToken: token, user: normalised }));
+    // Token, identity and workspace are one canonical record under one
+    // canonical key.
+    localStorage.setItem(TEAM_SESSION_KEY, serializeTeamSession({
+      accessToken: token,
+      user: normalised,
+      workspace: resolvedWorkspace,
+      workspaceReason: reason,
+    }));
     localStorage.setItem(TEAM_SESSION_EXPIRY_KEY, (Date.now() + SESSION_TTL_MS).toString());
   }, []);
 
@@ -225,6 +276,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setTeamAccessToken(null);
     setTeamUser(null);
+    setWorkspace(null);
+    setWorkspaceReason(null);
     setClientSession(null);
     setIsSessionExpired(false);
     setIsClientSessionExpired(false);
@@ -243,6 +296,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamUser,
         teamRole: teamUser?.teamRole ?? DEFAULT_TEAM_ROLE,
         loginTeam,
+        workspace,
+        workspaceReason,
         isSessionExpired,
         isRestoringSession,
         clientSession, setClientSession,
@@ -251,7 +306,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
       }), [
         contactInfo, scoreResult, lastIndustry, isSubmitting,
-        teamAccessToken, teamUser, loginTeam, isSessionExpired, isRestoringSession,
+        teamAccessToken, teamUser, workspace, workspaceReason,
+        loginTeam, isSessionExpired, isRestoringSession,
         clientSession, loginClient, isClientSessionExpired, logout,
       ])}
     >

@@ -15,7 +15,7 @@ interface TeamLoginProps {
    * owns what a team identity is (`normaliseTeamUser`), so this component
    * hands the response through rather than reshaping it on the way.
    */
-  onLogin: (accessToken: string, user?: unknown) => void;
+  onLogin: (accessToken: string, user?: unknown, loginResponse?: unknown) => void;
   onBack: () => void;
 }
 
@@ -55,7 +55,11 @@ export default function TeamLogin({ onLogin, onBack }: TeamLoginProps) {
       // name. Deleting the duplicate fixes that and removes a second copy of
       // the demo credentials from the source.
       const result = await teamLogin(email, password);
-      onLogin(result.accessToken, result.user ?? null);
+      // The whole response goes through, not a hand-picked workspace: the
+      // organization and the reason it is absent are two halves of one answer,
+      // and a component that forwarded only the first would turn every failure
+      // into "no organization".
+      onLogin(result.accessToken, result.user ?? null, result);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
     } finally {

@@ -118,8 +118,15 @@ export const CAPABILITY: Record<DestinationId, Capability> = {
 
   team: {
     status: 'LIVE',
-    userCan: 'See the roster, invite a colleague, change a role and remove a member.',
-    evidence: 'TeamManagement reads GET /team/members and writes through the invite, update and remove routes.',
+    userCan:
+      'See the organization — its people, departments, teams and reporting lines — '
+      + 'and manage who can sign into the console.',
+    evidence:
+      'OrganizationSpine reads GET /organization/structure, scoped server-side to the organization '
+      + 'the authenticated membership resolves; TeamManagement reads GET /team/members and writes '
+      + 'through the invite, update and remove routes. The spine is read-only in CP-3 and offers no '
+      + 'control that implies otherwise.',
+    needs: 'Writing to the spine — hiring, moving a person, re-pointing a reporting line — is CP-4.',
   },
 
   settings: {

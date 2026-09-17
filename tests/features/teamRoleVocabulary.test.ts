@@ -218,6 +218,8 @@ describe('the session boundary carries the role instead of dropping it', () => {
     const stored = serializeTeamSession({
       accessToken: 'tok',
       user: { id: 'u1', email: 'a@b.co', name: 'A B', teamRole: 'analyst' },
+      workspace: null,
+      workspaceReason: null,
     });
     const restored = parseTeamSession(stored);
     assert.equal(restored?.user?.teamRole, 'analyst');
@@ -225,7 +227,9 @@ describe('the session boundary carries the role instead of dropping it', () => {
 
   it('restores a bare-token session with no user at all', () => {
     const restored = parseTeamSession('legacy-bare-token');
-    assert.deepEqual(restored, { accessToken: 'legacy-bare-token', user: null });
+    assert.deepEqual(restored, {
+      accessToken: 'legacy-bare-token', user: null, workspace: null, workspaceReason: 'not-reported',
+    });
   });
 });
 

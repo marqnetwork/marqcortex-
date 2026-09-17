@@ -111,6 +111,66 @@ export function getDemoTeamFallback(): TeamMemberRecord[] {
 }
 
 // ============================================================================
+// DEMO ORGANIZATIONAL SPINE (CP-3)
+//
+// A small but STRUCTURALLY COMPLETE organization: two business units, three
+// departments, four teams, and people who sit inside them under a reporting
+// line. Two of the eight have no console login at all — which is the point.
+// ONT 12.3 says not every Identity is an active User, the schema makes
+// `people.user_id` nullable because of it, and a demo where everybody happens
+// to have a password would quietly teach the opposite.
+//
+// Behind the demo boundary, where every fabricated name in this product lives.
+// ============================================================================
+
+export function getDemoOrganization() {
+  return {
+    organizationId: 'demo_org_001',
+    organizationName: 'MARQ Demo Workspace',
+    organizationSlug: 'marq-demo',
+  };
+}
+
+export function getDemoOrganizationStructure() {
+  return {
+    businessUnits: [
+      { id: 'bu_001', key: 'delivery', name: 'Delivery', description: 'Client-facing engagements.' },
+      { id: 'bu_002', key: 'platform', name: 'Platform', description: 'The product and the systems under it.' },
+    ],
+    departments: [
+      { id: 'dep_001', key: 'consulting', name: 'Consulting', description: 'Diagnostics and advisory.', businessUnitId: 'bu_001', leadPersonId: 'per_001' },
+      { id: 'dep_002', key: 'engineering', name: 'Engineering', description: 'Cortex itself.', businessUnitId: 'bu_002', leadPersonId: 'per_003' },
+      { id: 'dep_003', key: 'operations', name: 'Operations', description: 'Scheduling, billing and support.', businessUnitId: null, leadPersonId: null },
+    ],
+    people: [
+      { id: 'per_001', fullName: 'Admin User', email: 'admin@marqcortex.com', positionTitle: 'Managing Partner', departmentId: 'dep_001', reportsToPersonId: null, status: 'active', hasConsoleAccess: true },
+      { id: 'per_002', fullName: 'Review Manager', email: 'reviewer@marqcortex.com', positionTitle: 'Principal Consultant', departmentId: 'dep_001', reportsToPersonId: 'per_001', status: 'active', hasConsoleAccess: true },
+      { id: 'per_003', fullName: 'Team Viewer', email: 'viewer@marqcortex.com', positionTitle: 'Head of Engineering', departmentId: 'dep_002', reportsToPersonId: 'per_001', status: 'active', hasConsoleAccess: true },
+      { id: 'per_004', fullName: 'Dana Okafor', email: 'dana@marqcortex.com', positionTitle: 'Senior Engineer', departmentId: 'dep_002', reportsToPersonId: 'per_003', status: 'active', hasConsoleAccess: false },
+      { id: 'per_005', fullName: 'Ravi Menon', email: null, positionTitle: 'Contract Data Engineer', departmentId: 'dep_002', reportsToPersonId: 'per_003', status: 'active', hasConsoleAccess: false },
+      { id: 'per_006', fullName: 'Priya Raman', email: 'priya@marqcortex.com', positionTitle: 'Operations Lead', departmentId: 'dep_003', reportsToPersonId: 'per_001', status: 'active', hasConsoleAccess: true },
+      { id: 'per_007', fullName: 'Tom Alvarez', email: 'tom@marqcortex.com', positionTitle: 'Analyst', departmentId: 'dep_001', reportsToPersonId: 'per_002', status: 'invited', hasConsoleAccess: false },
+      { id: 'per_008', fullName: 'Nia Brooks', email: 'nia@marqcortex.com', positionTitle: 'Advisor', departmentId: null, reportsToPersonId: null, status: 'active', hasConsoleAccess: false },
+    ],
+    teams: [
+      { id: 'tm_001', key: 'diagnostic-pod', name: 'Diagnostic Pod', description: 'Runs the assessment engagements.', departmentId: 'dep_001', leadPersonId: 'per_002' },
+      { id: 'tm_002', key: 'cortex-core', name: 'Cortex Core', description: 'The console and the edge runtime.', departmentId: 'dep_002', leadPersonId: 'per_003' },
+      { id: 'tm_003', key: 'data-platform', name: 'Data Platform', description: 'Ingestion and the warehouse.', departmentId: 'dep_002', leadPersonId: null },
+      { id: 'tm_004', key: 'client-ops', name: 'Client Operations', description: 'Onboarding and support.', departmentId: 'dep_003', leadPersonId: 'per_006' },
+    ],
+    teamMemberships: [
+      { teamId: 'tm_001', personId: 'per_002', isLead: true },
+      { teamId: 'tm_001', personId: 'per_007', isLead: false },
+      { teamId: 'tm_002', personId: 'per_003', isLead: true },
+      { teamId: 'tm_002', personId: 'per_004', isLead: false },
+      { teamId: 'tm_003', personId: 'per_004', isLead: false },
+      { teamId: 'tm_003', personId: 'per_005', isLead: false },
+      { teamId: 'tm_004', personId: 'per_006', isLead: true },
+    ],
+  };
+}
+
+// ============================================================================
 // DEMO SUBMISSIONS (Full-Featured Dashboard)
 // ============================================================================
 

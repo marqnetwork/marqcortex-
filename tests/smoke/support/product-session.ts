@@ -40,6 +40,32 @@ export async function signIn(page: Page): Promise<void> {
   await page.waitForURL(/#\/team\/dashboard/, { timeout: 20_000 });
 }
 
+/**
+ * Sign in with the backend ALREADY in a given mode.
+ *
+ * `signIn` deliberately signs in under `populated`, because a signed-out
+ * session observes nothing. But anything the LOGIN RESPONSE carries — the
+ * workspace, above all — is fixed at that moment, so a session established
+ * while healthy keeps naming an organization even after the backend starts
+ * refusing. Driving those states needs a session created under the failing
+ * mode, which is what this is for.
+ *
+ * The reload is load-bearing. Clearing storage does not unmount React, and a
+ * `goto` that differs only in the hash is same-document: without it the app
+ * stays on the dashboard it was already rendering, the login form never
+ * appears, and the test times out looking for a field that is not there.
+ */
+export async function signInUnder(page: Page, mode: BackendMode): Promise<void> {
+  await setBackendMode(mode);
+  await page.goto('/#/team/login');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.locator('#team-email').fill(FIXTURE_LOGIN.email);
+  await page.locator('#team-password').fill(FIXTURE_LOGIN.password);
+  await page.getByRole('button', { name: /sign in to marq cortex/i }).click();
+  await page.waitForURL(/#\/team\/dashboard/, { timeout: 20_000 });
+}
+
 /** The destination actually on screen, as the shell reports it. */
 export async function shownDestination(page: Page): Promise<string> {
   const main = page.locator('main[data-destination]');
