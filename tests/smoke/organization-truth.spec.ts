@@ -172,18 +172,33 @@ test.describe('the Organization destination shows the organization', () => {
     await expect(roster).toBeVisible();
   });
 
-  test('offers no control for a capability CP-3 does not have', async ({ page }) => {
+  test('every control it offers can actually do its job', async ({ page }) => {
+    // CP-3's version of this test asserted that the spine offered NO control,
+    // because it could not write. CP-4 gave it the write path, so the rule
+    // changes shape rather than going away: CP-2 said a control that cannot do
+    // its job must not be offered, and what that now means is that every
+    // control present is live and named.
+    //
+    // The withholding half — a member who may not write is offered nothing —
+    // is `organization-writes.spec.ts`, which drives a backend that refuses.
     await setBackendMode('populated');
     await visit(page, ORGANIZATION);
     await shownDestination(page);
 
     const spine = page.locator('[data-testid="organization-spine"]');
-    const text = await spine.innerText();
-    for (const forbidden of ['Add person', 'New department', 'Create team']) {
-      expect(text, `the read-only spine offers "${forbidden}"`).not.toContain(forbidden);
+    const buttons = spine.locator('button');
+    const count = await buttons.count();
+    expect(count, 'an admin should be offered the write controls').toBeGreaterThan(0);
+
+    for (let i = 0; i < count; i += 1) {
+      const button = buttons.nth(i);
+      // Not disabled: a disabled button here would be the dead-end control
+      // CP-2 removed, wearing a different excuse.
+      await expect(button).toBeEnabled();
+      // And named, so it is reachable by anything other than sight.
+      const name = (await button.getAttribute('aria-label')) ?? (await button.innerText());
+      expect(name.trim(), `a control at index ${i} has no accessible name`).not.toBe('');
     }
-    // And no button at all inside the spine, disabled or otherwise.
-    await expect(spine.locator('button')).toHaveCount(0);
   });
 
   test('renders at 390px without a horizontal scroll', async ({ page }) => {
