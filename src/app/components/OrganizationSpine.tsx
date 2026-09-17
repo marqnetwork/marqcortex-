@@ -17,22 +17,36 @@
  * organization where that number is a surprise is one whose records are wrong,
  * and the fastest way to find that out is to print it.
  *
- * READ-ONLY, AND IT DOES NOT PRETEND OTHERWISE.
+ * WRITABLE IN CP-4, AND ONLY FOR THOSE WHO MAY.
  *
- * CP-3 builds the spine and shows it; writing to it is CP-4's. There is no
- * disabled "Add person" button here and no menu that opens onto nothing —
- * CP-2's rule was that a control which cannot do its job must not be offered,
- * and a control offered for a capability that does not exist yet is the same
- * defect with a nicer excuse.
+ * CP-3 built the spine and showed it, which left it permanently empty against
+ * a live project — a capability whose data path did not exist. The controls
+ * are here now, and they appear ONLY when the server reports that this account
+ * holds `organization.structure.manage`. That flag decides what is OFFERED and
+ * nothing else: every write runs under the caller's own JWT and is authorized
+ * by the RLS policies on the spine tables, so a viewer who reached these
+ * controls some other way would be refused by PostgreSQL, not by this file.
+ *
+ * CP-2's rule still governs what may be shown: a control that cannot do its
+ * job must not be offered. So a viewer sees no buttons at all rather than
+ * disabled ones — a disabled button is a promise that signing in differently
+ * would help, and for a viewer it is the truth, while for somebody whose
+ * membership is suspended it is not.
  *
  * THE FIVE STATES ARE NOT OPTIONAL. Loading, real data, empty, error and
  * permission-denied all come from `ProductDataState`, so this surface cannot
  * answer a failure with a plausible-looking blank organization.
  */
 
-import { useMemo } from 'react';
-import { Building2, GitBranch, KeyRound, Users2, UserRound } from 'lucide-react';
-import { getOrganizationStructure } from '@/app/services/dataService';
+import { useCallback, useMemo, useState } from 'react';
+import { Archive, Building2, GitBranch, KeyRound, Pencil, Plus, Users2, UserRound } from 'lucide-react';
+import {
+  archiveOrganizationRecord,
+  createOrganizationRecord,
+  getOrganizationStructure,
+  updateOrganizationRecord,
+} from '@/app/services/dataService';
+import { OrganizationRecordForm, type SpineRecord } from '@/app/components/OrganizationRecordForm';
 import { useProductData } from '@/app/hooks/useProductData';
 import { ProductDataState } from '@/app/components/ProductDataState';
 import type {
@@ -40,6 +54,7 @@ import type {
   OrganizationPerson,
   OrganizationStructureResponse,
   OrganizationTeam,
+  SpineEntityPath,
 } from '@/app/lib/api';
 
 interface Props {
@@ -49,6 +64,20 @@ interface Props {
 const EMPTY_STRUCTURE: OrganizationStructureResponse['structure'] = {
   businessUnits: [], departments: [], people: [], teams: [], teamMemberships: [],
 };
+
+/**
+ * What can be added, in the order an organization is actually built.
+ *
+ * People first because they are the only one the others REFER to: a department
+ * with no candidate lead and a team with nobody on it are the shapes an
+ * operator gets if they start at the top, and both need a second pass.
+ */
+const ADDABLE: { entity: SpineEntityPath; label: string }[] = [
+  { entity: 'people', label: 'Add person' },
+  { entity: 'departments', label: 'Add department' },
+  { entity: 'teams', label: 'Add team' },
+  { entity: 'business-units', label: 'Add business unit' },
+];
 
 /**
  * "Nothing yet" for this surface means no PEOPLE.
@@ -83,9 +112,40 @@ function Tile({ icon: Icon, value, label, hint }: {
   );
 }
 
+/**
+ * Edit and archive for one row.
+ *
+ * Rendered only when `onEdit` is supplied, which the caller does only when the
+ * server reported manage authority — so a viewer gets a row with no controls
+ * rather than a row with dead ones.
+ */
+function RowActions({ label, onEdit, onArchive, busy }: {
+  label: string; onEdit: () => void; onArchive: () => void; busy?: boolean;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button" onClick={onEdit} aria-label={`Edit ${label}`}
+        className="p-1.5 rounded text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+      >
+        <Pencil className="size-3.5" aria-hidden="true" />
+      </button>
+      <button
+        type="button" onClick={onArchive} disabled={busy} aria-label={`Archive ${label}`}
+        className="p-1.5 rounded text-white/40 hover:text-cortex-danger hover:bg-white/5 transition-colors disabled:opacity-40"
+      >
+        <Archive className="size-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
 function PersonLine({
-  person, departmentName, managerName,
-}: { person: OrganizationPerson; departmentName: string; managerName: string }) {
+  person, departmentName, managerName, onEdit, onArchive, archiving,
+}: {
+  person: OrganizationPerson; departmentName: string; managerName: string;
+  onEdit?: () => void; onArchive?: () => void; archiving?: boolean;
+}) {
   return (
     <li
       data-testid="spine-person"
@@ -116,6 +176,11 @@ function PersonLine({
         <KeyRound className="size-3" aria-hidden="true" />
         {person.hasConsoleAccess ? 'Console access' : 'No console login'}
       </span>
+      {onEdit && onArchive && (
+        <RowActions
+          label={person.fullName} onEdit={onEdit} onArchive={onArchive} busy={archiving}
+        />
+      )}
     </li>
   );
 }
@@ -130,6 +195,49 @@ export function OrganizationSpine({ accessToken }: Props) {
   const structure = spine.data?.structure ?? EMPTY_STRUCTURE;
   const summary = spine.data?.summary;
   const organization = spine.data?.organization ?? null;
+  // Absent reads as FALSE. A backend that did not report the flag has not told
+  // us the operator may write, and offering controls on a maybe is how a
+  // dead-end button gets shipped.
+  const canManage = spine.data?.canManageStructure === true;
+
+  const [editor, setEditor] = useState<
+    { entity: SpineEntityPath; record: SpineRecord | null } | null
+  >(null);
+  const [archiving, setArchiving] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const save = useCallback(async (payload: Record<string, unknown>) => {
+    if (!editor || !accessToken) return;
+    if (editor.record) {
+      await updateOrganizationRecord(editor.entity, editor.record.id, payload, accessToken);
+    } else {
+      await createOrganizationRecord(editor.entity, payload, accessToken);
+    }
+    // Close first, then re-read. The list must come from the SERVER rather than
+    // from the record the write returned: a create can change more than the row
+    // it made — a new lead appears on a department, a reporting line moves —
+    // and patching one row into local state would show an organization that is
+    // nearly right, which is the worst of the three options.
+    setEditor(null);
+    spine.reload();
+  }, [editor, accessToken, spine]);
+
+  const archive = useCallback(async (entity: SpineEntityPath, record: SpineRecord, name: string) => {
+    if (!accessToken) return;
+    // A confirm, because archiving is the only destructive control here and it
+    // is one click away from an edit button.
+    if (!window.confirm(`Archive ${name}? It stops appearing in the organization.`)) return;
+    setArchiving(record.id);
+    setActionError(null);
+    try {
+      await archiveOrganizationRecord(entity, record.id, accessToken);
+      spine.reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'That record could not be archived.');
+    } finally {
+      setArchiving(null);
+    }
+  }, [accessToken, spine]);
 
   // Names, resolved once. An unresolved reference renders as an em dash rather
   // than as a blank or an id: a department that was deleted out from under a
@@ -159,6 +267,14 @@ export function OrganizationSpine({ accessToken }: Props) {
   const personName = (id: string | null) =>
     id === null ? '—' : peopleById.get(id)?.fullName ?? '—';
 
+  const rowActions: RowActionSet | null = canManage
+    ? {
+        edit: (entity, record) => setEditor({ entity, record }),
+        archive: (entity, record, name) => { void archive(entity, record, name); },
+        busyId: archiving,
+      }
+    : null;
+
   const departmentsByUnit = (unitId: string | null): OrganizationDepartment[] =>
     structure.departments.filter((d) => d.businessUnitId === unitId);
   const teamsOfDepartment = (departmentId: string): OrganizationTeam[] =>
@@ -168,15 +284,46 @@ export function OrganizationSpine({ accessToken }: Props) {
 
   return (
     <section data-testid="organization-spine" className="space-y-4">
-      <header>
-        <h2 className="text-2xl font-black text-white mb-1">
-          Organization{organization ? ` — ${organization.organizationName}` : ''}
-        </h2>
-        <p className="text-white/50 text-sm">
-          Who belongs to this organization, where they sit and who they report to.
-          Not everyone here has a console login — those who do are listed separately below.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-black text-white mb-1">
+            Organization{organization ? ` — ${organization.organizationName}` : ''}
+          </h2>
+          <p className="text-white/50 text-sm">
+            Who belongs to this organization, where they sit and who they report to.
+            Not everyone here has a console login — those who do are listed separately below.
+          </p>
+        </div>
+        {/* Offered only to an account the server says holds
+            `organization.structure.manage`. A viewer sees nothing here rather
+            than disabled buttons — see the header note on why. */}
+        {canManage && !spine.loading && spine.reason === null && (
+          <div className="flex flex-wrap gap-2" data-testid="spine-actions">
+            {ADDABLE.map(({ entity, label }) => (
+              <button
+                key={entity}
+                type="button"
+                onClick={() => setEditor({ entity, record: null })}
+                data-testid={`spine-add-${entity}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-cortex-md bg-cortex-raised border border-cortex-default text-white/80 hover:text-white hover:border-cortex-strong transition-colors"
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
+
+      {actionError && (
+        <p
+          role="alert"
+          data-testid="spine-action-error"
+          className="text-sm text-cortex-danger bg-cortex-danger/10 border border-cortex-danger/30 rounded-cortex-md px-3 py-2"
+        >
+          {actionError}
+        </p>
+      )}
 
       <ProductDataState
         loading={spine.loading}
@@ -220,6 +367,14 @@ export function OrganizationSpine({ accessToken }: Props) {
                 <p className="font-bold text-white flex items-center gap-2">
                   <Building2 className="size-4 text-cortex-accent" aria-hidden="true" />
                   {unit.name}
+                  {canManage && (
+                    <RowActions
+                      label={unit.name}
+                      onEdit={() => setEditor({ entity: 'business-units', record: unit })}
+                      onArchive={() => archive('business-units', unit, unit.name)}
+                      busy={archiving === unit.id}
+                    />
+                  )}
                 </p>
                 {unit.description && <p className="text-xs text-white/40 mt-1">{unit.description}</p>}
                 <DepartmentList
@@ -227,6 +382,7 @@ export function OrganizationSpine({ accessToken }: Props) {
                   teamsOfDepartment={teamsOfDepartment}
                   personName={personName}
                   membersByTeam={membersByTeam}
+                  actions={rowActions}
                 />
               </div>
             ))}
@@ -242,6 +398,7 @@ export function OrganizationSpine({ accessToken }: Props) {
                   teamsOfDepartment={teamsOfDepartment}
                   personName={personName}
                   membersByTeam={membersByTeam}
+                  actions={rowActions}
                 />
               </div>
             )}
@@ -278,23 +435,47 @@ export function OrganizationSpine({ accessToken }: Props) {
                   person={person}
                   departmentName={departmentName(person.departmentId)}
                   managerName={personName(person.reportsToPersonId)}
+                  onEdit={canManage ? () => setEditor({ entity: 'people', record: person }) : undefined}
+                  onArchive={() => archive('people', person, person.fullName)}
+                  archiving={archiving === person.id}
                 />
               ))}
             </ul>
           </div>
         </div>
       </ProductDataState>
+
+      {editor && (
+        <OrganizationRecordForm
+          open
+          entity={editor.entity}
+          editing={editor.record}
+          people={structure.people}
+          departments={structure.departments}
+          businessUnits={structure.businessUnits}
+          onClose={() => setEditor(null)}
+          onSubmit={save}
+        />
+      )}
     </section>
   );
 }
 
+/** What a row may do, or `null` when this account may do nothing. */
+interface RowActionSet {
+  edit: (entity: SpineEntityPath, record: SpineRecord) => void;
+  archive: (entity: SpineEntityPath, record: SpineRecord, name: string) => void;
+  busyId: string | null;
+}
+
 function DepartmentList({
-  departments, teamsOfDepartment, personName, membersByTeam,
+  departments, teamsOfDepartment, personName, membersByTeam, actions,
 }: {
   departments: OrganizationDepartment[];
   teamsOfDepartment: (id: string) => OrganizationTeam[];
   personName: (id: string | null) => string;
   membersByTeam: Map<string, OrganizationPerson[]>;
+  actions: RowActionSet | null;
 }) {
   if (departments.length === 0) {
     return <p className="text-xs text-white/30 mt-2">No departments recorded.</p>;
@@ -309,12 +490,28 @@ function DepartmentList({
             <span className="text-xs text-white/40">
               Lead: {personName(department.leadPersonId)}
             </span>
+            {actions && (
+              <RowActions
+                label={department.name}
+                onEdit={() => actions.edit('departments', department)}
+                onArchive={() => actions.archive('departments', department, department.name)}
+                busy={actions.busyId === department.id}
+              />
+            )}
           </p>
           <ul className="mt-1 space-y-0.5">
             {teamsOfDepartment(department.id).map((team) => (
               <li key={team.id} data-testid="spine-team" className="text-xs text-white/50 pl-5">
                 {team.name} · {(membersByTeam.get(team.id) ?? []).length} member(s)
                 {team.leadPersonId && <> · lead {personName(team.leadPersonId)}</>}
+                {actions && (
+                  <RowActions
+                    label={team.name}
+                    onEdit={() => actions.edit('teams', team)}
+                    onArchive={() => actions.archive('teams', team, team.name)}
+                    busy={actions.busyId === team.id}
+                  />
+                )}
               </li>
             ))}
           </ul>

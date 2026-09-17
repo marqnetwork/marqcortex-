@@ -41,6 +41,7 @@ const EmailNurturePanel          = lazy(() => import('@/app/components/EmailNurt
 const RevenueIntelligenceDashboard = lazy(() => import('@/app/components/RevenueIntelligenceDashboard').then(m => ({ default: m.RevenueIntelligenceDashboard })));
 const TeamHomeDashboard          = lazy(() => import('@/app/components/TeamHomeDashboard').then(m => ({ default: m.TeamHomeDashboard })));
 const MappingEnginePanel         = lazy(() => import('@/app/components/MappingEnginePanel').then(m => ({ default: m.MappingEnginePanel })));
+const StrategySurface            = lazy(() => import('@/app/components/StrategySurface').then(m => ({ default: m.StrategySurface })));
 // The AI Control Plane, as a first-class destination. This is the SAME console
 // the Settings "AI" tab mounts, not a copy: Ch. 21.4 wants many paths to one
 // canonical entity. It resolves the operator's role server-side and renders its
@@ -310,6 +311,12 @@ function TeamDashboardContent({ onLogout, accessToken }: TeamDashboardProps) {
             submissionId={selectedSubmissionId || undefined}
             accessToken={accessToken}
           />
+        </Suspense>
+      )}
+
+      {isDestinationVisible(currentPage) && currentPage === 'strategy' && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <StrategySurface key="strategy-page" accessToken={accessToken} />
         </Suspense>
       )}
 

@@ -84,7 +84,7 @@ export default defineConfig({
        '**/diagnostic-score-team-login.spec.ts', '**/release-headers.spec.ts',
        '**/accessibility-audit.spec.ts', '**/navigation-truth.spec.ts',
        '**/honest-states.spec.ts', '**/shell-truth.spec.ts',
-       '**/organization-truth.spec.ts']
+       '**/organization-truth.spec.ts', '**/organization-writes.spec.ts']
     : fixtureBackend
     ? // The real-data run. The demo suites are excluded because this build has
       // no demo — that is the point of it.
@@ -99,6 +99,7 @@ export default defineConfig({
         '**/honest-states.spec.ts',
         '**/shell-truth.spec.ts',
         '**/organization-truth.spec.ts',
+        '**/organization-writes.spec.ts',
         ...(releaseBuild ? [] : ['**/release-headers.spec.ts']),
       ],
   timeout: 60_000,

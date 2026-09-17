@@ -70,6 +70,28 @@ async function assertNothingFabricated(page: Page, where: string): Promise<void>
 }
 
 /**
+ * Values that only ever appear as a ROW, in any surface this suite walks.
+ *
+ * The sentinel used to be the bare string `Fixture Industries`, which was
+ * unambiguous when a submission was the only thing the fixture served. CP-3
+ * made `Fixture Industries` the WORKSPACE NAME, and the shell header shows the
+ * workspace on every screen in every state — correctly, because the workspace
+ * comes from the session and not from the request that just failed. The
+ * sentinel started matching the header and the assertion started failing for a
+ * reason that was not a defect.
+ *
+ * Narrowing it to `Fixture Industries 1` would have been enough. Listing one
+ * row from each surface instead makes it STRONGER than it was: CP-3 added an
+ * organization and CP-4 a strategy, and stale rows from either would have been
+ * invisible to a check that only knew about submissions.
+ */
+const ROWS_FROM_AN_EARLIER_LOAD = [
+  'Fixture Industries 1',   // a submission
+  'Fixture Contractor',     // a person in the organizational spine
+  'Ship the fixture rewrite', // a goal in the strategic layer
+];
+
+/**
  * Nothing from the workspace is on screen.
  *
  * Stronger than "no invented company", and the assertion that actually closes
@@ -77,13 +99,18 @@ async function assertNothingFabricated(page: Page, where: string): Promise<void>
  * successful load must be gone too. Data that is merely stale is still data the
  * operator will read as current, and a surface showing an error banner above a
  * populated table is the same lie in a politer font.
+ *
+ * The WORKSPACE NAME is deliberately not on the list. It is not a row: it comes
+ * from the session, it is still true when a request fails, and a header that
+ * blanked itself on every error would be less honest rather than more.
  */
 async function assertNoRowsAtAll(page: Page, where: string): Promise<void> {
   const text = await page.locator('body').innerText();
+  const found = ROWS_FROM_AN_EARLIER_LOAD.filter(row => text.includes(row));
   expect(
-    text.includes('Fixture Industries'),
-    `${where} is still showing rows from an earlier load`,
-  ).toBe(false);
+    found,
+    `${where} is still showing rows from an earlier load: ${found.join(', ')}`,
+  ).toEqual([]);
 }
 
 /**

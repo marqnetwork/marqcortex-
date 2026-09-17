@@ -641,6 +641,84 @@ export async function getOrganizationStructure(accessToken: string) {
   return api.getOrganizationStructure(accessToken);
 }
 
+/**
+ * The strategic layer (CP-4) — goals, decisions and risks.
+ *
+ * No demo branch on the read either, unlike the spine. The demo experience
+ * shows a fixed organization; inventing a set of goals for it would be
+ * fabricating the organization's intent, which is the one kind of demo content
+ * that could be mistaken for a record of a real conversation.
+ */
+export async function getStrategy(accessToken: string) {
+  requireProductBackend();
+  return api.getStrategy(accessToken);
+}
+
+export async function createStrategyRecord(
+  entity: api.StrategyEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.createStrategyRecord(entity, payload, accessToken);
+}
+
+export async function updateStrategyRecord(
+  entity: api.StrategyEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.updateStrategyRecord(entity, id, payload, accessToken);
+}
+
+export async function archiveStrategyRecord(
+  entity: api.StrategyEntityPath, id: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.archiveStrategyRecord(entity, id, accessToken);
+}
+
+/**
+ * The spine's write path (CP-4).
+ *
+ * `requireProductBackend()` and no demo branch, deliberately. CP-1's rule is
+ * that a failure is never answered with a fixture; a WRITE that appeared to
+ * succeed against demo data would be worse than that — it would report a
+ * change that no system anywhere made. The demo experience shows a fixed
+ * organization and offers no controls to change it.
+ */
+export async function createOrganizationRecord(
+  entity: api.SpineEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.createOrganizationRecord(entity, payload, accessToken);
+}
+
+export async function updateOrganizationRecord(
+  entity: api.SpineEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.updateOrganizationRecord(entity, id, payload, accessToken);
+}
+
+export async function archiveOrganizationRecord(
+  entity: api.SpineEntityPath, id: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.archiveOrganizationRecord(entity, id, accessToken);
+}
+
+export async function addOrganizationTeamMember(
+  payload: { teamId: string; personId: string; isLead?: boolean }, accessToken: string,
+) {
+  requireProductBackend();
+  return api.addOrganizationTeamMember(payload, accessToken);
+}
+
+export async function removeOrganizationTeamMember(
+  teamId: string, personId: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.removeOrganizationTeamMember(teamId, personId, accessToken);
+}
+
 export async function getTeamMembers(accessToken: string) {
   if (isDemoExperience()) return demoBackend(b => b.getTeamMembers(accessToken));
   requireProductBackend();

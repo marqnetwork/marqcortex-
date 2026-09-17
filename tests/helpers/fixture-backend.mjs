@@ -108,6 +108,155 @@ const EMPTY_SPINE = {
   businessUnits: [], departments: [], people: [], teams: [], teamMemberships: [],
 };
 
+// The organization's strategy (CP-4). One goal with a risk against it and a
+// decision serving it, plus a decision with NO RATIONALE — the state ONT 14.8
+// calls an incomplete record and the surface is required to flag.
+const STRATEGY = {
+  goals: [
+    { id: 'fix-g-1', statement: 'Ship the fixture rewrite', measure: 'Milestones completed',
+      targetValue: '8 of 8', currentValue: '3 of 8', dueOn: '2026-12-31',
+      status: 'in_progress', ownerPersonId: 'fix-p-1' },
+    // No owner. The summary counts it, and the count is the point.
+    { id: 'fix-g-2', statement: 'Halve the fixture build time', measure: 'p95 build duration',
+      targetValue: 'under 5 min', currentValue: null, dueOn: null,
+      status: 'planned', ownerPersonId: null },
+  ],
+  decisions: [
+    { id: 'fix-d-1', statement: 'Rewrite in place rather than migrating',
+      alternatives: 'Migrate; rewrite in place; do nothing',
+      rationale: 'Migrating would cost two quarters the rewrite does not have.',
+      goalId: 'fix-g-1', decidedByPersonId: 'fix-p-1', decidedOn: '2026-08-01',
+      reviewOn: null, status: 'decided' },
+    { id: 'fix-d-2', statement: 'Defer the contractor onboarding',
+      alternatives: null, rationale: null, goalId: null,
+      decidedByPersonId: null, decidedOn: null, reviewOn: null, status: 'proposed' },
+  ],
+  risks: [
+    { id: 'fix-r-1', statement: 'The rewrite slips past December',
+      likelihood: 'high', impact: 'high', tolerance: 'outside',
+      mitigation: 'Cut scope at the November checkpoint.',
+      goalId: 'fix-g-1', ownerPersonId: 'fix-p-1', status: 'mitigating' },
+    // Tolerance unset: not yet assessed, and the surface says so.
+    { id: 'fix-r-2', statement: 'Nobody has looked at the dependency licences',
+      likelihood: 'medium', impact: 'medium', tolerance: 'unset',
+      mitigation: null, goalId: null, ownerPersonId: null, status: 'open' },
+  ],
+};
+
+const EMPTY_STRATEGY = { goals: [], decisions: [], risks: [] };
+
+function strategySummary(s) {
+  return {
+    goals: s.goals.length,
+    goalsInProgress: s.goals.filter(g => g.status === 'in_progress').length,
+    goalsWithoutOwner: s.goals.filter(g => g.ownerPersonId === null).length,
+    decisions: s.decisions.length,
+    decisionsWithoutRationale: s.decisions.filter(d => d.rationale === null).length,
+    risks: s.risks.length,
+    risksOutsideTolerance: s.risks.filter(r => r.tolerance === 'outside').length,
+    risksUnassessed: s.risks.filter(r => r.tolerance === 'unset').length,
+  };
+}
+
+/**
+ * WHAT THE WRITE PATH NEEDS FROM A FIXTURE.
+ *
+ * CP-4 opened writes, and a browser QA that could only read would prove half
+ * the sprint. So this backend keeps a MUTABLE copy of the populated spine and
+ * strategy, and the write routes change it — which is what lets a test create a
+ * person and then find them in the next read, end to end, through the real
+ * client code.
+ *
+ * Reset between tests by `POST /__mode`, so one spec's new person cannot
+ * appear in another's count. Deep-cloned from the constants above, never
+ * aliased: a test that mutated the template would make every later run depend
+ * on the order the specs happened to run in.
+ */
+function freshState() {
+  return {
+    spine: JSON.parse(JSON.stringify(SPINE)),
+    strategy: JSON.parse(JSON.stringify(STRATEGY)),
+  };
+}
+
+/** Where each writable collection lives, by its URL segment. */
+const WRITE_COLLECTIONS = {
+  'business-units': ['spine', 'businessUnits'],
+  departments: ['spine', 'departments'],
+  teams: ['spine', 'teams'],
+  people: ['spine', 'people'],
+  goals: ['strategy', 'goals'],
+  decisions: ['strategy', 'decisions'],
+  risks: ['strategy', 'risks'],
+};
+
+let writeSequence = 0;
+
+/** A create, an update or an archive against the mutable state. */
+function applyWrite(state, collection, id, method, body) {
+  const target = WRITE_COLLECTIONS[collection];
+  if (!target) return { __status: 404, error: 'Unknown record type' };
+  const list = state[target[0]][target[1]];
+
+  if (method === 'POST') {
+    // The same refusal the server gives, so a QA that drives a blank name sees
+    // the real message rather than a fixture's improvisation.
+    const name = body?.fullName ?? body?.name ?? body?.statement;
+    if (typeof name !== 'string' || name.trim() === '') {
+      return { __status: 400, error: 'A name is required.' };
+    }
+    const record = {
+      id: `fix-new-${++writeSequence}`,
+      ...defaultsFor(collection),
+      ...body,
+      fullName: body?.fullName ?? undefined,
+    };
+    // Drop the undefined the spread may have introduced.
+    for (const key of Object.keys(record)) {
+      if (record[key] === undefined) delete record[key];
+    }
+    list.push(record);
+    return { success: true, record };
+  }
+
+  const index = list.findIndex(row => row.id === id);
+  if (index === -1) return { __status: 404, error: 'That record is not in this organization.' };
+
+  if (method === 'DELETE') {
+    list.splice(index, 1);
+    return { success: true, archived: id };
+  }
+
+  list[index] = { ...list[index], ...body };
+  return { success: true, record: list[index] };
+}
+
+/** The columns a real create would default, so a new row renders like the rest. */
+function defaultsFor(collection) {
+  switch (collection) {
+    case 'people':
+      return { email: null, positionTitle: null, departmentId: null,
+               reportsToPersonId: null, status: 'active', hasConsoleAccess: false };
+    case 'departments':
+      return { key: 'new', description: null, businessUnitId: null, leadPersonId: null };
+    case 'teams':
+      return { key: 'new', description: null, departmentId: null, leadPersonId: null };
+    case 'business-units':
+      return { key: 'new', description: null };
+    case 'goals':
+      return { measure: null, targetValue: null, currentValue: null, dueOn: null,
+               status: 'planned', ownerPersonId: null };
+    case 'decisions':
+      return { alternatives: null, rationale: null, goalId: null,
+               decidedByPersonId: null, decidedOn: null, reviewOn: null, status: 'proposed' };
+    case 'risks':
+      return { likelihood: 'medium', impact: 'medium', tolerance: 'unset', mitigation: null,
+               goalId: null, ownerPersonId: null, status: 'open' };
+    default:
+      return {};
+  }
+}
+
 function spineSummary(structure) {
   return {
     people: structure.people.length,
@@ -157,7 +306,7 @@ const REVENUE_SNAPSHOTS = [
 // 200s: an empty workspace is a working backend, and the product must render
 // it as "nothing yet" rather than as a failure.
 
-function dataRoutes(empty) {
+function dataRoutes(empty, state, canManage) {
   const list = (full) => (empty ? [] : full);
   return {
     'GET /submissions': () => ({ success: true, submissions: list(SUBMISSIONS), total: list(SUBMISSIONS).length }),
@@ -167,12 +316,29 @@ function dataRoutes(empty) {
       ...WORKSPACE_BY_MODE.populated,
     }),
     'GET /organization/structure': () => {
-      const structure = empty ? EMPTY_SPINE : SPINE;
+      const structure = empty ? EMPTY_SPINE : state.spine;
       return {
         success: true,
         ...WORKSPACE_BY_MODE.populated,
         structure,
         summary: spineSummary(structure),
+        // What the SERVER says about this account's authority, which is what
+        // decides whether the console offers the controls at all. `readonly`
+        // mode is a member who may read and not write — the state a team
+        // viewer is actually in.
+        canManageStructure: canManage,
+      };
+    },
+    'GET /strategy': () => {
+      const records = empty ? EMPTY_STRATEGY : state.strategy;
+      return {
+        success: true,
+        ...WORKSPACE_BY_MODE.populated,
+        strategy: records,
+        summary: strategySummary(records),
+        people: (empty ? EMPTY_SPINE : state.spine).people
+          .map(person => ({ id: person.id, fullName: person.fullName })),
+        canManageStrategy: canManage,
       };
     },
     'GET /analytics/overview': () => ({
@@ -288,10 +454,29 @@ const WORKSPACE_BY_MODE = {
   forbidden: { organization: null, organizationUnavailableReason: 'permission-denied', otherOrganizations: 0 },
 };
 
+/**
+ * Recognise a spine or strategy write from its path.
+ *
+ * `/organization/people`, `/organization/people/:id`, `/strategy/goals`,
+ * `/strategy/goals/:id`. A regex rather than a route table because the id is
+ * part of the path and the table is keyed on exact strings.
+ */
+function matchWrite(method, path) {
+  if (method !== 'POST' && method !== 'PATCH' && method !== 'DELETE') return null;
+  const match = /^\/(organization|strategy)\/([a-z-]+)(?:\/([^/]+))?$/.exec(path);
+  if (!match) return null;
+  const collection = match[2];
+  if (!(collection in WRITE_COLLECTIONS)) return null;
+  return { collection, id: match[3] ?? null };
+}
+
 // ── Server ──────────────────────────────────────────────────────────────────
 
 export function startFixtureBackend({ port = 0, mode = 'populated' } = {}) {
   let current = mode;
+  // Reset with the mode, so one spec's newly created person cannot appear in
+  // another spec's count.
+  let state = freshState();
 
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -318,6 +503,7 @@ export function startFixtureBackend({ port = 0, mode = 'populated' } = {}) {
       if (url.pathname === '/__mode') {
         if (req.method === 'POST') {
           try { current = JSON.parse(raw).mode; } catch { /* keep the current one */ }
+          state = freshState();
         }
         return send(200, { mode: current });
       }
@@ -343,7 +529,22 @@ export function startFixtureBackend({ port = 0, mode = 'populated' } = {}) {
       if (current === 'error') return send(500, { error: 'The fixture backend was told to fail.' });
       if (current === 'forbidden') return send(403, { error: 'Your account cannot read this workspace.' });
 
-      const handler = dataRoutes(current === 'empty')[key];
+      // CP-4 writes. Matched BEFORE the read table, because the read table is
+      // keyed on exact paths and these carry an id.
+      const write = matchWrite(req.method, path);
+      if (write) {
+        // `readonly` is the mode for a caller the server would refuse. The
+        // reads still answer, which is the point: a viewer sees the
+        // organization and is refused when they try to change it.
+        if (current === 'readonly') {
+          return send(403, { error: 'Your account cannot change this organization\u2019s structure.', code: 'forbidden' });
+        }
+        const answer = applyWrite(state, write.collection, write.id, req.method, body);
+        const { __status, ...rest } = answer;
+        return send(__status ?? (req.method === 'POST' ? 201 : 200), rest);
+      }
+
+      const handler = dataRoutes(current === 'empty', state, current !== 'readonly')[key];
       if (handler) return send(200, handler(body));
 
       // An unknown route answers 200 with an empty success rather than 404, so

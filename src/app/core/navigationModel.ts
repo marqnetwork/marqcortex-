@@ -41,6 +41,7 @@ import {
   Cpu,
   Sparkles,
   Activity,
+  Target,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -72,6 +73,7 @@ export type DestinationId =
   | 'emails'
   | 'control-plane'
   | 'operations'
+  | 'strategy'
   | 'team'
   | 'settings'
   | 'architecture';
@@ -211,6 +213,22 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         group: 'understand',
         tier: 'secondary',
         keywords: ['revenue', 'pipeline', 'forecast', 'money', 'value', 'rev intel'],
+      },
+      {
+        // CP-4. In `understand` rather than `administer`: goals, decisions and
+        // risks are what the organization is trying to do, which is something
+        // everybody reads — `strategy.read` follows `members.read` for exactly
+        // that reason. Only recording them is administrative.
+        id: 'strategy',
+        label: 'Strategy',
+        description: 'Goals, decisions and risks',
+        icon: Target,
+        group: 'understand',
+        tier: 'primary',
+        keywords: [
+          'goal', 'goals', 'objective', 'target', 'decision', 'decisions',
+          'risk', 'risks', 'strategy', 'intent', 'rationale',
+        ],
       },
     ],
   },

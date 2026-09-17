@@ -1,4 +1,4 @@
-import { Hono } from "npm:hono";
+import { Hono, type Context as HonoContext } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { createRequestRateLimiter } from "./security/requestRateLimit.ts";
 import { clientAddress } from "./security/clientAddress.ts";
@@ -124,6 +124,7 @@ import {
 } from "./membershipLifecycle.ts";
 import {
   listVerifiedMemberships,
+  membershipHoldsPermission,
   type MembershipQueryClient,
 } from "./ai/adapters/membershipDirectory.ts";
 import {
@@ -136,6 +137,27 @@ import {
   summariseStructure,
   type SpineQueryClient,
 } from "./organization/organizationRepository.ts";
+import {
+  archiveStrategyRow,
+  createStrategyRow,
+  readStrategy,
+  StrategyReadError,
+  summariseStrategy,
+  updateStrategyRow,
+  type StrategyEntityName,
+  type StrategyQueryClient,
+} from "./organization/strategyRepository.ts";
+import {
+  addTeamMember,
+  archiveSpineRow,
+  createSpineRow,
+  OrganizationWriteError,
+  removeTeamMember,
+  updateSpineRow,
+  WRITE_STATUS,
+  type SpineEntityName,
+  type WriteQueryClient,
+} from "./organization/organizationWrites.ts";
 import { createMembershipInvalidationSignal } from "./ai/adapters/supabaseAuthenticator.ts";
 import {
   deriveDealSnapshots,
@@ -3692,11 +3714,24 @@ app.get("/make-server-324f4fbe/organization/structure", async (c) => {
       workspace.workspace.organizationId,
     );
 
+    // FOR DISPLAY ONLY — see `membershipHoldsPermission`. The console needs to
+    // know whether to offer the write controls at all; a surface that offers
+    // "Add person" to somebody the database will refuse has built the dead-end
+    // control CP-2 spent a sprint removing. The authorization itself is the RLS
+    // policy, evaluated when the write happens, against the caller's own JWT.
+    const canManageStructure = await membershipHoldsPermission(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+      workspace.workspace.organizationId,
+      'organization.structure.manage',
+    );
+
     return c.json({
       success: true,
       ...workspacePayload(workspace),
       structure,
       summary: summariseStructure(structure),
+      canManageStructure,
     });
   } catch (err) {
     if (err instanceof OrganizationReadError) {
@@ -3705,6 +3740,327 @@ app.get("/make-server-324f4fbe/organization/structure", async (c) => {
     }
     console.log('Organization structure error:', err);
     return failureResponse(c, 'Failed to read the organization structure', err, 500);
+  }
+});
+
+// ── THE STRATEGIC LAYER (CP-4) ─────────────────────────────────────────────
+//
+// What the organization is trying to achieve (ONT 13.4), what it has decided
+// (ONT 14.8), and what threatens it (ONT 17.6).
+//
+// The same two shapes the spine uses, for the same two reasons: the READ runs
+// under the service key with an unconditional tenant filter, and the WRITE runs
+// under the caller's own JWT so `strategy.manage` is evaluated by PostgreSQL.
+//
+// Neither takes an organization id from the request.
+
+app.get("/make-server-324f4fbe/strategy", async (c) => {
+  try {
+    const userId = await verifyTeamToken(c.req.header('Authorization'));
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const workspace = await resolveWorkspaceForUser(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+    );
+    if (!workspace.workspace) {
+      return c.json({
+        error: "No organization is available for this account",
+        ...workspacePayload(workspace),
+      }, workspace.reason === 'permission-denied' ? 403 : 404);
+    }
+
+    const organizationId = workspace.workspace.organizationId;
+    const records = await readStrategy(
+      supabaseAdmin as unknown as StrategyQueryClient,
+      organizationId,
+    );
+
+    // FOR DISPLAY ONLY, exactly as `canManageStructure` is: it decides whether
+    // the console OFFERS the controls, never whether the server permits them.
+    const canManageStrategy = await membershipHoldsPermission(
+      supabaseAdmin as unknown as MembershipQueryClient,
+      userId,
+      organizationId,
+      'strategy.manage',
+    );
+
+    // The people the surface needs in order to NAME an owner or a decider.
+    // Read here rather than by a second round trip, because a goals list that
+    // shows a uuid where a person's name belongs is not a goals list.
+    const structure = await readOrganizationStructure(
+      supabaseAdmin as unknown as SpineQueryClient,
+      organizationId,
+    );
+
+    return c.json({
+      success: true,
+      ...workspacePayload(workspace),
+      strategy: records,
+      summary: summariseStrategy(records),
+      people: structure.people.map((person) => ({ id: person.id, fullName: person.fullName })),
+      canManageStrategy,
+    });
+  } catch (err) {
+    if (err instanceof StrategyReadError) {
+      console.log('Strategy read failed:', err.message, err.failure);
+    } else {
+      console.log('Strategy error:', err);
+    }
+    return failureResponse(c, 'Failed to read the strategy', err, 500);
+  }
+});
+
+const STRATEGY_ROUTE_ENTITIES: Record<string, StrategyEntityName> = {
+  goals: 'goal',
+  decisions: 'decision',
+  risks: 'risk',
+};
+
+app.post("/make-server-324f4fbe/strategy/:entity", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await createStrategyRow(
+      context.client, entity, context.organizationId, parsed.body,
+    );
+    return c.json({ success: true, record }, 201);
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.patch("/make-server-324f4fbe/strategy/:entity/:id", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await updateStrategyRow(
+      context.client, entity, context.organizationId, c.req.param('id'), parsed.body,
+    );
+    return c.json({ success: true, record });
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.delete("/make-server-324f4fbe/strategy/:entity/:id", async (c) => {
+  const entity = STRATEGY_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown strategy record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    await archiveStrategyRow(context.client, entity, context.organizationId, c.req.param('id'));
+    return c.json({ success: true, archived: c.req.param('id') });
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+// ── The spine's WRITE path (CP-4) ──────────────────────────────────────────
+//
+// THESE ROUTES DO NOT USE THE SERVICE KEY, AND THAT IS THE DESIGN.
+//
+// Every read above runs as `service_role`, which bypasses RLS, so the
+// repository's own `organization_id` filter is the boundary. That works for a
+// read because "which rows are this tenant's" is a question the server can
+// answer completely.
+//
+// A write asks a second question: MAY THIS PERSON RESHAPE THIS ORGANIZATION?
+// Answering it here would mean evaluating `organization.structure.manage`
+// against `role_permissions` in TypeScript — a second copy of an authority
+// model the database already implements and already has proven properties
+// about, and the copy that would drift. So a write runs under a client
+// carrying the CALLER'S OWN JWT, and the RLS policies are the authorization.
+//
+// A viewer's INSERT is refused by PostgreSQL. That is what "UI visibility is
+// not authorization" means when it is true rather than asserted.
+//
+// The caller's token has already been verified by `verifyTeamToken` before any
+// of this runs, so an unauthenticated request never reaches the database at
+// all — RLS is the authority check, not the authentication one.
+
+/** A Supabase client that acts AS THE CALLER, so RLS applies to what it does. */
+function callerScopedClient(authHeader: string | undefined) {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    {
+      global: { headers: { Authorization: authHeader ?? '' } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+}
+
+/**
+ * Everything a spine write needs, or the response that says why it cannot run.
+ *
+ * One helper because the alternative is nine routes each re-deciding what an
+ * unauthenticated caller gets and which organization to write into — and the
+ * ninth is where the tenant would come from a parameter.
+ */
+async function spineWriteContext(c: HonoContext): Promise<
+  | { ok: true; organizationId: string; client: WriteQueryClient }
+  | { ok: false; response: Response }
+> {
+  const authHeader = c.req.header('Authorization');
+  const userId = await verifyTeamToken(authHeader);
+  if (!userId) {
+    return { ok: false, response: c.json({ error: "Unauthorized" }, 401) };
+  }
+
+  const workspace = await resolveWorkspaceForUser(
+    supabaseAdmin as unknown as MembershipQueryClient,
+    userId,
+  );
+  if (!workspace.workspace) {
+    return {
+      ok: false,
+      response: c.json(
+        { error: "No organization is available for this account", ...workspacePayload(workspace) },
+        workspace.reason === 'permission-denied' ? 403 : 404,
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    organizationId: workspace.workspace.organizationId,
+    client: callerScopedClient(authHeader) as unknown as WriteQueryClient,
+  };
+}
+
+/** One place that turns a write failure into a status and a safe message. */
+function writeFailureResponse(c: HonoContext, err: unknown): Response {
+  if (err instanceof OrganizationWriteError) {
+    return c.json({ error: err.detail, code: err.failure }, WRITE_STATUS[err.failure]);
+  }
+  console.log('Organization write error:', err);
+  return c.json({ error: 'The change could not be saved.', code: 'failed' }, 500);
+}
+
+/**
+ * The five spine entities a route may address, and the URL segment for each.
+ *
+ * A map rather than a path parameter passed straight through: `:entity` reaching
+ * a table name is how a route grows an arbitrary-table write. An unknown
+ * segment is a 404 before anything is parsed.
+ */
+const SPINE_ROUTE_ENTITIES: Record<string, SpineEntityName> = {
+  'business-units': 'businessUnit',
+  departments: 'department',
+  teams: 'team',
+  people: 'person',
+};
+
+app.post("/make-server-324f4fbe/organization/:entity", async (c) => {
+  const entity = SPINE_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown organization record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await createSpineRow(context.client, entity, context.organizationId, parsed.body);
+    return c.json({ success: true, record }, 201);
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.patch("/make-server-324f4fbe/organization/:entity/:id", async (c) => {
+  const entity = SPINE_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown organization record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const record = await updateSpineRow(
+      context.client, entity, context.organizationId, c.req.param('id'), parsed.body,
+    );
+    return c.json({ success: true, record });
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+// Archive, not delete. The RLS policies refuse DELETE to everybody: a hard
+// delete would take reporting lines and team memberships with it through the
+// composite foreign keys, detaching people from a structure nobody asked to
+// change.
+app.delete("/make-server-324f4fbe/organization/:entity/:id", async (c) => {
+  const entity = SPINE_ROUTE_ENTITIES[c.req.param('entity')];
+  if (!entity) return c.json({ error: "Unknown organization record type" }, 404);
+
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    await archiveSpineRow(context.client, entity, context.organizationId, c.req.param('id'));
+    return c.json({ success: true, archived: c.req.param('id') });
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.post("/make-server-324f4fbe/organization/team-memberships", async (c) => {
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    const parsed = await readBoundedJson(c.req.raw);
+    if (!parsed.ok) {
+      const failure = bodyFailureResponse(parsed.reason);
+      return c.json({ error: failure.message }, failure.status);
+    }
+    const membership = await addTeamMember(context.client, context.organizationId, parsed.body);
+    return c.json({ success: true, membership }, 201);
+  } catch (err) {
+    return writeFailureResponse(c, err);
+  }
+});
+
+app.delete("/make-server-324f4fbe/organization/team-memberships/:teamId/:personId", async (c) => {
+  const context = await spineWriteContext(c);
+  if (!context.ok) return context.response;
+
+  try {
+    await removeTeamMember(
+      context.client, context.organizationId, c.req.param('teamId'), c.req.param('personId'),
+    );
+    return c.json({ success: true });
+  } catch (err) {
+    return writeFailureResponse(c, err);
   }
 });
 

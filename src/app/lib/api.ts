@@ -1215,6 +1215,80 @@ export interface OrganizationStructureResponse {
     businessUnits: number;
     unassignedPeople: number;
   };
+  /**
+   * Whether this account holds `organization.structure.manage`.
+   *
+   * DISPLAY AND AFFORDANCE ONLY. It decides whether the console OFFERS the
+   * write controls, so it cannot build a dead-end button. It decides nothing
+   * about what the server permits: every write runs under the caller's own JWT
+   * and is authorized by the RLS policies on the spine tables. A `true` here
+   * that the database disagrees with produces a refused write, not a granted
+   * one.
+   */
+  canManageStructure?: boolean;
+}
+
+/** The record a spine write returns, in the shape the read path uses. */
+export interface OrganizationWriteResult {
+  success: boolean;
+  record: Record<string, unknown>;
+}
+
+/** The four record types the spine write routes address. */
+export type SpineEntityPath = 'business-units' | 'departments' | 'teams' | 'people';
+
+async function spineWrite(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  accessToken: string,
+  body?: unknown,
+) {
+  const res = await fetch(`${BASE}/organization/${path}`, {
+    method,
+    headers: headers(accessToken),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  // The server's own message is repeated, because it is the useful one: "that
+  // key already exists" and "your account cannot change this organization" are
+  // the two things an operator needs, and a generic "request failed" is neither.
+  if (!res.ok) throw apiError(res, (data as { error?: string }).error || 'The change could not be saved.');
+  return data as OrganizationWriteResult;
+}
+
+export async function createOrganizationRecord(
+  entity: SpineEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  return spineWrite(entity, 'POST', accessToken, payload);
+}
+
+export async function updateOrganizationRecord(
+  entity: SpineEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  return spineWrite(`${entity}/${encodeURIComponent(id)}`, 'PATCH', accessToken, payload);
+}
+
+/** Archive, not delete. The spine soft-deletes; the RLS policies refuse DELETE. */
+export async function archiveOrganizationRecord(
+  entity: SpineEntityPath, id: string, accessToken: string,
+) {
+  return spineWrite(`${entity}/${encodeURIComponent(id)}`, 'DELETE', accessToken);
+}
+
+export async function addOrganizationTeamMember(
+  payload: { teamId: string; personId: string; isLead?: boolean }, accessToken: string,
+) {
+  return spineWrite('team-memberships', 'POST', accessToken, payload);
+}
+
+export async function removeOrganizationTeamMember(
+  teamId: string, personId: string, accessToken: string,
+) {
+  return spineWrite(
+    `team-memberships/${encodeURIComponent(teamId)}/${encodeURIComponent(personId)}`,
+    'DELETE',
+    accessToken,
+  );
 }
 
 export async function getOrganizationContext(accessToken: string) {
@@ -1234,6 +1308,124 @@ export async function getOrganizationStructure(accessToken: string) {
   const data = await res.json();
   if (!res.ok) throw apiError(res, data.error || 'Failed to read the organization structure');
   return data as OrganizationStructureResponse;
+}
+
+// ============================================================================
+// THE STRATEGIC LAYER (CP-4)
+//
+// ONT 13.4 Goal · ONT 14.8 Decision · ONT 17.6 Risk. Owned by people in the
+// organizational spine, scoped server-side to the resolved workspace, and
+// carrying no organization id on any request.
+// ============================================================================
+
+export interface StrategyGoal {
+  id: string;
+  statement: string;
+  measure: string | null;
+  targetValue: string | null;
+  currentValue: string | null;
+  dueOn: string | null;
+  status: string;
+  ownerPersonId: string | null;
+}
+
+export interface StrategyDecision {
+  id: string;
+  statement: string;
+  alternatives: string | null;
+  rationale: string | null;
+  goalId: string | null;
+  decidedByPersonId: string | null;
+  decidedOn: string | null;
+  reviewOn: string | null;
+  status: string;
+}
+
+export interface StrategyRisk {
+  id: string;
+  statement: string;
+  likelihood: string;
+  impact: string;
+  tolerance: string;
+  mitigation: string | null;
+  goalId: string | null;
+  ownerPersonId: string | null;
+  status: string;
+}
+
+export interface StrategyResponse {
+  success: boolean;
+  organization: OrganizationWorkspace | null;
+  organizationUnavailableReason: string | null;
+  strategy: {
+    goals: StrategyGoal[];
+    decisions: StrategyDecision[];
+    risks: StrategyRisk[];
+  };
+  summary: {
+    goals: number;
+    goalsInProgress: number;
+    goalsWithoutOwner: number;
+    decisions: number;
+    decisionsWithoutRationale: number;
+    risks: number;
+    risksOutsideTolerance: number;
+    risksUnassessed: number;
+  };
+  /** Just enough of each person to NAME an owner or a decider. */
+  people: { id: string; fullName: string }[];
+  /**
+   * Whether this account holds `strategy.manage`.
+   *
+   * DISPLAY AND AFFORDANCE ONLY, exactly as `canManageStructure` is. Every
+   * write runs under the caller's own JWT and is authorized by the RLS
+   * policies; a `true` here the database disagrees with produces a refused
+   * write, not a granted one.
+   */
+  canManageStrategy?: boolean;
+}
+
+export type StrategyEntityPath = 'goals' | 'decisions' | 'risks';
+
+export async function getStrategy(accessToken: string) {
+  const res = await fetch(`${BASE}/strategy`, { headers: headers(accessToken) });
+  const data = await res.json();
+  if (!res.ok) throw apiError(res, data.error || 'Failed to read the strategy');
+  return data as StrategyResponse;
+}
+
+async function strategyWrite(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  accessToken: string,
+  body?: unknown,
+) {
+  const res = await fetch(`${BASE}/strategy/${path}`, {
+    method,
+    headers: headers(accessToken),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw apiError(res, (data as { error?: string }).error || 'The change could not be saved.');
+  return data as { success: boolean; record: Record<string, unknown> };
+}
+
+export async function createStrategyRecord(
+  entity: StrategyEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  return strategyWrite(entity, 'POST', accessToken, payload);
+}
+
+export async function updateStrategyRecord(
+  entity: StrategyEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  return strategyWrite(`${entity}/${encodeURIComponent(id)}`, 'PATCH', accessToken, payload);
+}
+
+export async function archiveStrategyRecord(
+  entity: StrategyEntityPath, id: string, accessToken: string,
+) {
+  return strategyWrite(`${entity}/${encodeURIComponent(id)}`, 'DELETE', accessToken);
 }
 
 export async function getTeamMembers(accessToken: string) {

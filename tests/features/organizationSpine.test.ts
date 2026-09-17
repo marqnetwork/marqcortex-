@@ -282,8 +282,27 @@ describe('the surface tells the two lists apart', () => {
   it('renders the spine through the five honest states', () => {
     assert.match(spine, /ProductDataState/);
     assert.match(spine, /useProductData/);
-    // No catch that could substitute anything for a failure.
-    assert.ok(!/catch\s*\(/.test(stripComments(spine)), 'the surface holds no catch of its own');
+  });
+
+  it('never answers a failure with data of its own', () => {
+    // CP-4 added catches — a write that fails has to say so — so "no catch at
+    // all" is no longer the invariant. What still holds, and is the thing CP-1
+    // actually established, is that a catch here may set an ERROR and may
+    // never produce rows: the read path's one catch lives in `useProductData`,
+    // and every catch in this file assigns to an error state and nothing else.
+    const rendered = stripComments(spine);
+    const blocks = rendered.match(/catch\s*\([^)]*\)\s*\{[\s\S]*?\n    \}/g) ?? [];
+    assert.ok(blocks.length > 0, 'expected the write path to handle its own failures');
+    for (const block of blocks) {
+      assert.ok(
+        /setActionError|setError/.test(block),
+        `a catch in the spine surface must report the failure: ${block.slice(0, 80)}`,
+      );
+      assert.ok(
+        !/setEditor\(|structure\s*=|people\s*=/.test(block),
+        'a catch must never produce or alter organization data',
+      );
+    }
   });
 
   it('labels whether a person can sign in', () => {
@@ -291,13 +310,32 @@ describe('the surface tells the two lists apart', () => {
     assert.match(spine, /No console login/);
   });
 
-  it('offers no write control for a capability CP-3 does not have', () => {
-    // CP-2's rule: a control that cannot do its job must not be offered. A
-    // disabled "Add person" here would be the same defect with a nicer excuse.
+  it('offers its write controls only to an account the server says may write', () => {
+    // CP-2's rule, at CP-4: a control that cannot do its job must not be
+    // offered. The spine is writable now, so the rule becomes a GATE rather
+    // than an absence — and the gate has to be the server's answer, not the
+    // team role the browser happens to hold.
     const rendered = stripComments(spine);
-    for (const forbidden of ['Add person', 'New department', 'Create team', 'Edit person']) {
-      assert.ok(!rendered.includes(forbidden), `the read-only spine must not offer "${forbidden}"`);
-    }
+    assert.match(rendered, /canManageStructure === true/);
+    assert.match(rendered, /canManage && /, 'the add controls are gated on it');
+    // Absent reads as FALSE. A backend that did not report the flag has not
+    // said the operator may write, and `!== false` would offer the buttons on
+    // a maybe.
+    assert.ok(
+      !/canManageStructure\s*!==\s*false/.test(rendered),
+      'an absent flag must not be treated as permission',
+    );
+  });
+
+  it('renders no disabled write control for a viewer', () => {
+    // A disabled button is a promise that signing in differently would help.
+    // For a viewer that is true and for a suspended membership it is not, so
+    // the surface shows nothing rather than something greyed out.
+    const rendered = stripComments(spine);
+    assert.ok(
+      !/disabled=\{!canManage\}|disabled=\{!\s*canManage/.test(rendered),
+      'write controls are withheld, not disabled',
+    );
   });
 
   it('puts the organization above the console roster, and renames the roster', () => {
