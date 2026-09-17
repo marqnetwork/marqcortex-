@@ -267,3 +267,74 @@ export async function listMembershipPresence(
   if (error) return { rows: [], error };
   return { rows: Array.isArray(data) ? (data as MembershipPresenceRow[]) : [], error: null };
 }
+
+/**
+ * WHAT THIS MEMBERSHIP MAY DO — FOR DISPLAY, AND ONLY FOR DISPLAY.
+ *
+ * A surface that offers "Add person" to somebody whose write will be refused
+ * has built a dead-end control, which is the defect CP-2 spent a sprint
+ * removing. So the console needs to know, before it renders, whether this
+ * account holds `organization.structure.manage`.
+ *
+ * THIS IS NOT THE AUTHORIZATION, and nothing may treat it as one. The
+ * authorization is the RLS policy on the spine tables, evaluated by PostgreSQL
+ * against the caller's own JWT when the write actually happens — see
+ * `organization/organizationWrites.ts` for why writes deliberately do not use
+ * the service key. If this answer were wrong in the permissive direction, the
+ * console would offer a button and the database would refuse the click. That is
+ * a bad experience and it is not a breach, which is exactly the property that
+ * makes reading it here acceptable.
+ *
+ * Three flat reads rather than one nested embed. `organization_memberships ->
+ * roles -> role_permissions -> permissions` is four levels of PostgREST embed,
+ * and an embedded filter on a non-inner relation restricts nothing — the silent
+ * drop documented at the top of this file. Flat reads cannot have that failure.
+ *
+ * Fails CLOSED. Any error, any missing row, and the answer is `false`: a lookup
+ * that did not work is not evidence that somebody may reshape the organization.
+ */
+export async function membershipHoldsPermission(
+  client: MembershipQueryClient,
+  userId: string,
+  organizationId: string,
+  permissionKey: string,
+): Promise<boolean> {
+  try {
+    const membership = await client
+      .from(MEMBERSHIP_TABLE)
+      .select('role_id')
+      .eq('user_id', userId)
+      .eq('organization_id', organizationId)
+      .eq('status', 'active')
+      .is('deleted_at', null);
+    if (membership.error) return false;
+    const roleId = firstValue(membership.data, 'role_id');
+    if (!roleId) return false;
+
+    const permission = await client
+      .from('permissions')
+      .select('id')
+      .eq('key', permissionKey);
+    if (permission.error) return false;
+    const permissionId = firstValue(permission.data, 'id');
+    if (!permissionId) return false;
+
+    const grant = await client
+      .from('role_permissions')
+      .select('role_id')
+      .eq('role_id', roleId)
+      .eq('permission_id', permissionId);
+    if (grant.error) return false;
+    return Array.isArray(grant.data) && grant.data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function firstValue(rows: unknown, column: string): string | null {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const row = rows[0] as Record<string, unknown> | null;
+  if (!row || typeof row !== 'object') return null;
+  const value = row[column];
+  return typeof value === 'string' && value !== '' ? value : null;
+}

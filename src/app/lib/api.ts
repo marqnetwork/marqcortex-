@@ -1215,6 +1215,80 @@ export interface OrganizationStructureResponse {
     businessUnits: number;
     unassignedPeople: number;
   };
+  /**
+   * Whether this account holds `organization.structure.manage`.
+   *
+   * DISPLAY AND AFFORDANCE ONLY. It decides whether the console OFFERS the
+   * write controls, so it cannot build a dead-end button. It decides nothing
+   * about what the server permits: every write runs under the caller's own JWT
+   * and is authorized by the RLS policies on the spine tables. A `true` here
+   * that the database disagrees with produces a refused write, not a granted
+   * one.
+   */
+  canManageStructure?: boolean;
+}
+
+/** The record a spine write returns, in the shape the read path uses. */
+export interface OrganizationWriteResult {
+  success: boolean;
+  record: Record<string, unknown>;
+}
+
+/** The four record types the spine write routes address. */
+export type SpineEntityPath = 'business-units' | 'departments' | 'teams' | 'people';
+
+async function spineWrite(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  accessToken: string,
+  body?: unknown,
+) {
+  const res = await fetch(`${BASE}/organization/${path}`, {
+    method,
+    headers: headers(accessToken),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  // The server's own message is repeated, because it is the useful one: "that
+  // key already exists" and "your account cannot change this organization" are
+  // the two things an operator needs, and a generic "request failed" is neither.
+  if (!res.ok) throw apiError(res, (data as { error?: string }).error || 'The change could not be saved.');
+  return data as OrganizationWriteResult;
+}
+
+export async function createOrganizationRecord(
+  entity: SpineEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  return spineWrite(entity, 'POST', accessToken, payload);
+}
+
+export async function updateOrganizationRecord(
+  entity: SpineEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  return spineWrite(`${entity}/${encodeURIComponent(id)}`, 'PATCH', accessToken, payload);
+}
+
+/** Archive, not delete. The spine soft-deletes; the RLS policies refuse DELETE. */
+export async function archiveOrganizationRecord(
+  entity: SpineEntityPath, id: string, accessToken: string,
+) {
+  return spineWrite(`${entity}/${encodeURIComponent(id)}`, 'DELETE', accessToken);
+}
+
+export async function addOrganizationTeamMember(
+  payload: { teamId: string; personId: string; isLead?: boolean }, accessToken: string,
+) {
+  return spineWrite('team-memberships', 'POST', accessToken, payload);
+}
+
+export async function removeOrganizationTeamMember(
+  teamId: string, personId: string, accessToken: string,
+) {
+  return spineWrite(
+    `team-memberships/${encodeURIComponent(teamId)}/${encodeURIComponent(personId)}`,
+    'DELETE',
+    accessToken,
+  );
 }
 
 export async function getOrganizationContext(accessToken: string) {

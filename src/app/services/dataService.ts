@@ -641,6 +641,50 @@ export async function getOrganizationStructure(accessToken: string) {
   return api.getOrganizationStructure(accessToken);
 }
 
+/**
+ * The spine's write path (CP-4).
+ *
+ * `requireProductBackend()` and no demo branch, deliberately. CP-1's rule is
+ * that a failure is never answered with a fixture; a WRITE that appeared to
+ * succeed against demo data would be worse than that — it would report a
+ * change that no system anywhere made. The demo experience shows a fixed
+ * organization and offers no controls to change it.
+ */
+export async function createOrganizationRecord(
+  entity: api.SpineEntityPath, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.createOrganizationRecord(entity, payload, accessToken);
+}
+
+export async function updateOrganizationRecord(
+  entity: api.SpineEntityPath, id: string, payload: Record<string, unknown>, accessToken: string,
+) {
+  requireProductBackend();
+  return api.updateOrganizationRecord(entity, id, payload, accessToken);
+}
+
+export async function archiveOrganizationRecord(
+  entity: api.SpineEntityPath, id: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.archiveOrganizationRecord(entity, id, accessToken);
+}
+
+export async function addOrganizationTeamMember(
+  payload: { teamId: string; personId: string; isLead?: boolean }, accessToken: string,
+) {
+  requireProductBackend();
+  return api.addOrganizationTeamMember(payload, accessToken);
+}
+
+export async function removeOrganizationTeamMember(
+  teamId: string, personId: string, accessToken: string,
+) {
+  requireProductBackend();
+  return api.removeOrganizationTeamMember(teamId, personId, accessToken);
+}
+
 export async function getTeamMembers(accessToken: string) {
   if (isDemoExperience()) return demoBackend(b => b.getTeamMembers(accessToken));
   requireProductBackend();
