@@ -95,6 +95,18 @@ const REGISTRY_FREE_FILES = [
   // Migration normalizers — pure, and the place every mapping judgement lives.
   join(FUNCTIONS_ROOT, 'server', 'migration', 'parseJson.ts'),
   join(FUNCTIONS_ROOT, 'server', 'migration', 'submissionNormalizer.ts'),
+  // Platform authority (BP-001). Pure by construction and not merely by
+  // circumstance: the evaluator holds no store, no clock and no control plane,
+  // and imports nothing outside its own folder — which is what lets it decide
+  // for the AI subsystem without becoming part of it. A type regression here
+  // is a regression in the module that answers "may this action happen?", so
+  // it belongs in a boundary that blocks rather than one that reports.
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'contracts.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'consequence.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'evaluator.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'auditAdapter.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'approvalAdapter.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'index.ts'),
 ];
 
 /**

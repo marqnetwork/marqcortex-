@@ -1983,3 +1983,105 @@ describe('AI source hygiene', () => {
     assert.deepEqual(offenders(aiSources, RAW), []);
   });
 });
+
+/**
+ * BP-001 added a PLATFORM authority evaluator that sits above the AI subsystem
+ * and decides whether a consequential action may happen. Its entire
+ * architectural claim is a direction of dependency: the platform decides FOR
+ * the AI subsystem, and is not part of it.
+ *
+ * A behavioural test cannot assert a direction. It can show the evaluator
+ * returns the right answer while the evaluator quietly holds a control plane, a
+ * store and a Postgres client — at which point "one shared authority contract"
+ * and "a third AI governance module" have become the same thing, and BP-001's
+ * §2 instruction not to build a second governance engine has been violated in a
+ * way nothing would catch.
+ *
+ * So the claims below are about ABSENCE, and a source scan is the only thing
+ * that can make them.
+ */
+describe('platform authority boundary (BP-001)', () => {
+  const AUTHORITY_DIR = join(SERVER_ROOT, 'platform', 'authority') + sep;
+  const authoritySources = serverSources.filter(
+    (file) => file.path.startsWith(AUTHORITY_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty platform authority tree', () => {
+    assert.ok(
+      authoritySources.length >= 5,
+      `expected the authority tree, found ${authoritySources.length}`,
+    );
+  });
+
+  it('imports nothing outside its own folder', () => {
+    // THE WHOLE CLAIM, IN ONE ASSERTION. Every import in the module must be a
+    // sibling — `./something.ts`. A `../` of any depth would reach the AI tree,
+    // the repositories or the storage layer, and the evaluator would stop being
+    // something the AI subsystem consumes and start being part of it.
+    const RELATIVE_ESCAPE = /from\s+['"]\.\.\//;
+    const BARE_OR_REGISTRY = /from\s+['"](npm:|jsr:|https?:|[a-zA-Z@])/;
+    assert.deepEqual(strippedOffenders(authoritySources, RELATIVE_ESCAPE), []);
+    assert.deepEqual(strippedOffenders(authoritySources, BARE_OR_REGISTRY), []);
+  });
+
+  it('holds no store, no client, no clock and no control plane', () => {
+    // A pure evaluator cannot read a fact it was not given, which is what makes
+    // its returned evidence a COMPLETE account of the reasoning. Any of these
+    // would let a decision depend on something the audit record does not name.
+    const IMPURE =
+      /\b(createClient|supabase|Deno\.env|kv\.|fetch\s*\(|Date\.now\s*\(|new Date\s*\(|Math\.random)/;
+    assert.deepEqual(strippedOffenders(authoritySources, IMPURE), []);
+    const PLANE = /controlPlane|AIControlPlane|AgentOrchestrator|approvalGate/;
+    assert.deepEqual(strippedOffenders(authoritySources, PLANE), []);
+  });
+
+  it('re-implements no approval engine and no audit store', () => {
+    // BP-001 §2 and §7: the existing approval gate and the existing trails are
+    // reused. The platform module PROJECTS a decision into their shapes; a
+    // constructor here would be a second engine.
+    const DUPLICATED =
+      /createApprovalGate|createMemoryAuditStore|createAuditWriter|createAgentAuditWriter|createMemoryAgentAuditStore|createAdminAuditWriter|createPolicyEngine|createSpendLedger/;
+    assert.deepEqual(strippedOffenders(authoritySources, DUPLICATED), []);
+  });
+
+  it('exposes no mutation of a decision or an audit record', () => {
+    const MUTATION =
+      /\b(deleteDecision|updateDecision|overrideDecision|deleteAudit|clearAudit|purgeAudit|grantAuthority|widenEnvelope)\b/;
+    assert.deepEqual(strippedOffenders(authoritySources, MUTATION), []);
+  });
+
+  it('is entered through its index, never through an internal file', () => {
+    // The same rule `ai/index.ts` holds for the control plane. A caller that
+    // reached past the surface into `evaluator.ts` could later be handed a
+    // different evaluator without anybody noticing.
+    const DEEP = /from\s+['"][^'"]*platform\/authority\/(?!index\.ts)[a-zA-Z]+\.ts['"]/;
+    const consumers = serverSources.filter(
+      (file) => !file.path.startsWith(AUTHORITY_DIR) && !isTest(file),
+    );
+    assert.deepEqual(strippedOffenders(consumers, DEEP), []);
+  });
+
+  it('is translated into agent vocabulary in exactly one adapter', () => {
+    // The orchestrator ENFORCES the decision and the adapter BUILDS the input.
+    // A second translator would be a second opinion about what an agent's
+    // envelope is — which is the failure BP-001 exists to prevent, reappearing
+    // one level down.
+    const ADAPTER = join('ai', 'agents', 'authority', 'agentAuthorityAdapter.ts');
+    const builders = serverSources
+      .filter((file) => !isTest(file))
+      .filter((file) => /agentToolCallAuthorityInput\s*\(/.test(stripComments(file.text)))
+      .map((file) => relative(SERVER_ROOT, file.path))
+      .sort();
+    assert.deepEqual(builders, [
+      join('ai', 'agents', 'orchestrator', 'agentOrchestrator.ts'),
+      ADAPTER,
+    ].sort());
+
+    // And the evaluator itself is called from exactly one place in the server.
+    const callers = serverSources
+      .filter((file) => !isTest(file) && !file.path.startsWith(AUTHORITY_DIR))
+      .filter((file) => /\bevaluateAuthority\s*\(/.test(stripComments(file.text)))
+      .map((file) => relative(SERVER_ROOT, file.path));
+    assert.deepEqual(callers, [join('ai', 'agents', 'orchestrator', 'agentOrchestrator.ts')]);
+  });
+});

@@ -80,6 +80,18 @@ import type { ModelProfileRegistry, RoutingHealth } from '../runtime/modelRoutin
 import { isRoutingRefused, routeModelProfile } from '../runtime/modelRouting.ts';
 import type { AgentAuditWriter } from '../observability/agentAudit.ts';
 import { AGENT_AUDIT_EVENT } from '../observability/agentAudit.ts';
+// BP-001. The platform authority evaluator and the projections that carry its
+// answer into the approval and audit machinery this runtime already has. The
+// agent vocabulary is translated in `authority/agentAuthorityAdapter.ts` and
+// nowhere else, so this file holds no knowledge of the platform contracts
+// beyond the three calls below.
+import {
+  authorityApprovalProjection,
+  authorityAuditDetail,
+  authorityAuditOutcome,
+  evaluateAuthority,
+} from '../../../platform/authority/index.ts';
+import { agentToolCallAuthorityInput } from '../authority/agentAuthorityAdapter.ts';
 import { assertTransition, PAUSABLE_STATES } from '../runtime/stateMachine.ts';
 import {
   checkPreStepLimits,
@@ -1350,14 +1362,80 @@ export function createAgentOrchestrator(
       });
     }
 
+    // ── The platform authority decision (BP-001 pilot) ─────────────────────
+    //
+    // THE ONE ACTION ROUTED THROUGH THE SHARED EVALUATOR. Everything the
+    // orchestrator already checks still runs — the capability check and the
+    // tool allow-list at action-sealing time, the gateway's own capability
+    // demands, the run's limits and ledgers. This adds the platform's answer to
+    // "may this actor take this action in this tenant right now?" in front of
+    // the call, in the vocabulary every other consequential action will
+    // eventually use.
+    //
+    // THE ACTOR IS THE AGENT. Not the person driving the run: a tool call is
+    // something the AGENT proposed, and it is bounded by the agent's own
+    // certified envelope. The person appears in the decision as `initiatedBy`,
+    // which the evaluator records and refuses to treat as authority.
+    //
+    // IT DECIDES THE SAME WAY THE PREVIOUS PREDICATE DID. The rule that parks a
+    // run — `tools.requiresApproval` — is still the rule; it reaches the
+    // evaluator as a policy constraint rather than being re-derived. What the
+    // evaluator adds is tenant, envelope, tool-scope, data and spend checks
+    // that were previously spread across other layers or absent here, and a
+    // structured decision record for all of them.
+    const descriptor = tools.describe(action.toolId);
+    const authority = evaluateAuthority(
+      agentToolCallAuthorityInput({
+        record,
+        agent,
+        action,
+        descriptor,
+        requiresApproval: tools.requiresApproval(action.toolId, agent),
+        describe: (toolId) => tools.describe(toolId),
+        correlationId: input.correlationId,
+        requestId: input.requestId,
+        nowIso: clock.isoNow(),
+      }),
+    );
+
+    // EVERY DECISION IS RECORDED, including the allows. A trail that only holds
+    // refusals cannot answer "what was this agent permitted to do, and on what
+    // basis?" — which is the question an incident actually asks.
+    writeAudit(record, {
+      event: AGENT_AUDIT_EVENT.actionDecided,
+      outcome: authorityAuditOutcome(authority),
+      requestId: input.requestId,
+      correlationId: input.correlationId,
+      actorId: input.actor.actorId,
+      actionId: action.actionId,
+      actionType: action.actionType,
+      reason: authority.reason,
+      detail: authorityAuditDetail(authority),
+    });
+
+    if (authority.decision === 'DENY') {
+      throw agentFailure('tool_denied', authority.reason, {
+        runId: record.context.runId,
+        agentId: agent.agentId,
+        diagnostics:
+          `authority denied tool ${action.toolId}: ${authority.reasonCodes.join(',')}`,
+      });
+    }
+
     // An unapproved call to a tool that needs approval parks the run rather
-    // than failing it. The approval, once granted, replays this exact action.
-    if (tools.requiresApproval(action.toolId, agent) && record.pendingApprovalId === undefined) {
-      const descriptor = tools.describe(action.toolId);
+    // than failing it. The approval, once granted, replays this exact action —
+    // which is why a run that ALREADY holds a pending approval falls through
+    // here instead of parking itself a second time.
+    if (authority.decision === 'REQUIRE_APPROVAL' && record.pendingApprovalId === undefined) {
+      const projection = authorityApprovalProjection(authority);
       return parkForApproval(
         context,
-        `Run ${record.context.runId} wants to call ${action.toolId}.`,
-        [action.toolId, descriptor?.sideEffect ?? 'unknown_side_effect'],
+        projection?.impactSummary ??
+          `Run ${record.context.runId} wants to call ${action.toolId}.`,
+        projection?.dataAffected ?? [
+          action.toolId,
+          descriptor?.sideEffect ?? 'unknown_side_effect',
+        ],
         { tokens: 0, costMicroUsd: 0 },
       );
     }
@@ -1371,8 +1449,11 @@ export function createAgentOrchestrator(
     // The check reads BOTH the claim list and the persisted step history: the
     // claim covers a call that was authorised, and the history covers one that
     // completed, so a record written before claims existed is still honoured.
-    const toolDescriptor = tools.describe(action.toolId);
-    const repeatable = toolDescriptor?.idempotency === 'idempotent';
+    //
+    // The SAME descriptor the authority decision was made against. Reading the
+    // registry a second time here would let a mid-step registry change make the
+    // idempotency judgement disagree with the one the decision recorded.
+    const repeatable = descriptor?.idempotency === 'idempotent';
     if (!repeatable) {
       const claimed =
         record.claimedToolKeys.includes(action.idempotencyKey) ||
