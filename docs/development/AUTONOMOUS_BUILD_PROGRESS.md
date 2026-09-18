@@ -15,56 +15,68 @@ Companion authorities, unchanged by this file:
 
 ## CURRENT ROADMAP STAGE
 
-**PRODUCT/UI IMPLEMENTATION — UI Sprints 1-7, reconciled onto one branch.**
+**MARQ CORTEX TARGET PRODUCT BUILD — architecture migration sequence A0 → A10.**
 
-The documented AI-01 batch sequence ends at 4F and 4F is merged (PR #45,
-`04bdfba`). There is no Batch 5. The buildable stage is the product/UI surface,
-against `MARQ_CORTEX_PRODUCT_EXPERIENCE.md` — tracked in
-`docs/development/UI_IMPLEMENTATION_MAP.md`, which is the audit of the shipped
-UI against canon plus the sprint sequence.
+The prior V1/UI/pre-production work below remains historical evidence only. It no longer defines the next build task.
 
-Phase 6 — AI Platform: AI-01 Batch 4 complete through 4F. **Merged to `main`**
-(PR #45), together with every backend unit from the previous session.
-Phase 4 — Runtime Storage Gateway: shadow read delivered for both domains that
-have runtime reads; Phase 2 backfill and reconciliation delivered for every KV
-namespace that holds stored data.
-Gap register G5 — enterprise performance instrumentation: closed for the two
-sections the blueprint makes buildable.
+The active implementation sequence is defined by:
+- `architecture/MARQ_CORTEX_TARGET_ARCHITECTURE_v2.0.md`
+- `docs/generated/architecture/CURRENT_ARCHITECTURE_VS_TARGET_GAP_MAP.md`
+- the current bounded build packet under `docs/generated/build-packets/`
+
+### A0 — Platform Authority Foundation — COMPLETE
+
+BP-001 is implemented and security-reviewed on this branch.
+
+Verified implementation commits:
+- `f6e847a6005b9f341268baddb3c2129036c41c4b` — platform authority foundation, rebased onto the documentation baseline;
+- `b86c31465509702e24430e145fa76d43c0e3de87` — malformed-input fail-closed hardening;
+- `d722d60f58eb649df94af59b85315f0117a0c314` — final runtime-boundary hardening.
+
+Implemented outcome:
+`Actor → Tenant → Permission → Policy → Authority Envelope → Consequence → ALLOW | DENY | REQUIRE_APPROVAL → existing execution/approval/audit`.
+
+Pilot: existing agent `tool_call` path only. Existing approval, audit, tenancy, AI control plane and agent runtime were reused. No new repository, Supabase project, deployment, external infrastructure, database migration, or production action was created for A0.
+
+A0 test evidence at final review:
+- `verify:bp001` 270/270
+- `test:ai` 2200/2200
+- `test:security` 1110/1110
+- `test:features` 1430/1430
+- `test:system` 184/184
+- `test:lifecycle` 241/241
+- `test:database` 283/283
+- API AI/registry-free/server boundaries clean; tests typecheck clean.
+- Existing node-targeted migration checker advisory remains pre-existing and is not an A0 regression.
+
+Deferred intentionally from A0:
+- tenant-authored authority-envelope persistence;
+- carrying `membershipVerified` directly on `AgentRunContext`;
+- first-class tool data classification;
+- registry certification of contradictory `safetyClass` / `allowedTools`;
+- migration of additional actions through the evaluator.
+
+### A1 — Durable Runtime Foundation — NEXT
+
+The next bounded implementation packet is:
+
+`docs/generated/build-packets/BP-002_DURABLE_RUNTIME_FOUNDATION.md`
+
+A1 establishes durable jobs, scheduling, domain events, outbox/inbox delivery, idempotency, leases/retries and dead-letter recovery **inside the existing repository and existing Supabase project**. It must reuse the current workflow/agent runtime and BP-001 authority layer rather than creating a parallel orchestrator.
 
 ## CURRENT BATCH
 
-None in flight.
+**BP-002 — READY FOR CLAUDE IMPLEMENTATION. NOT STARTED.**
 
-### THE ONE CURRENT UI DEVELOPMENT BRANCH
-
-> **`claude/marq-cortex-ui-continuity-q1iiy3`** — and no other.
->
-> UI Sprints 1-6 and UI Sprint 7 were built on two branches that were both cut
-> from `main` and never from each other. Neither contained the other's work.
-> They are now integrated on the branch above, which is the only branch UI work
-> continues on. The two source branches are preserved, unmodified, as history:
->
-> | Branch | Cut from | Commits | Status |
-> |---|---|---|---|
-> | `claude/marq-cortex-product-complete-5d8hyz` | `04bdfba` (`main`) | 10 | superseded — integrated, kept for provenance |
-> | `claude/marq-cortex-ui-sprint-7-11jp3g` | `04bdfba` (`main`) | 20 | superseded — integrated, kept for provenance |
->
-> See **BRANCH CONTINUITY** below for the ancestry evidence and what the
-> integration had to reconcile.
-
-UI Sprints 1-7 are delivered. Sprints 1-6 made the product reachable — one
-navigation model, the AI Control Plane and Operations as first-class
-destinations, a responsive shell, honest empty states and URL-addressable
-destinations. Sprint 7 made it legible — one visual vocabulary, an onboarding
-the console derives rather than stores, and an accessibility sweep of every
-route.
-
-**The whole application has now been driven in a browser.** Every route — the
-four public funnel routes, the eight client-portal tabs, the console pages, the
-CORTEX overview and lead detail, the architecture and registry tools, and the
-404 — reports zero unnamed buttons and zero unlabelled inputs, and each has
-exactly one `h1`. Every `fixed inset-0` overlay in `src/app/components` either
-declares itself a dialog or says what it is instead.
+Hard rules:
+- same repository;
+- same Supabase project;
+- no new deployment/hosting/queue vendor;
+- no production deploy during the packet;
+- no UI work;
+- no A2 runtime-persistence migration;
+- no Tool Gateway, autonomous sales, graph/memory or self-forming workforce work;
+- stop at BP-002 acceptance and return for review.
 
 ## COMPLETED — PRIOR SESSION (Batch 4F, merged as PR #45)
 
