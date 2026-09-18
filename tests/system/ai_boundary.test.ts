@@ -2077,11 +2077,134 @@ describe('platform authority boundary (BP-001)', () => {
       ADAPTER,
     ].sort());
 
-    // And the evaluator itself is called from exactly one place in the server.
+    // And the evaluator itself is called from an ENUMERATED set of places.
+    //
+    // BP-001 shipped with one — the agent orchestrator — and the assertion said
+    // "exactly one". BP-002 adds the second: the durable runtime's own adapter,
+    // which decides whether a background job may cause its effect. The list is
+    // still exhaustive and still asserted by equality, so a THIRD caller
+    // appearing without anybody deciding it should still fails here. What
+    // changed is that there are now two subsystems that ask the platform, not
+    // that anybody may ask it.
     const callers = serverSources
       .filter((file) => !isTest(file) && !file.path.startsWith(AUTHORITY_DIR))
       .filter((file) => /\bevaluateAuthority\s*\(/.test(stripComments(file.text)))
-      .map((file) => relative(SERVER_ROOT, file.path));
-    assert.deepEqual(callers, [join('ai', 'agents', 'orchestrator', 'agentOrchestrator.ts')]);
+      .map((file) => relative(SERVER_ROOT, file.path))
+      .sort();
+    assert.deepEqual(
+      callers,
+      [
+        join('ai', 'agents', 'orchestrator', 'agentOrchestrator.ts'),
+        join('platform', 'durable', 'authority.ts'),
+      ].sort(),
+    );
+  });
+});
+
+/**
+ * BP-002 added a PLATFORM DURABLE RUNTIME that sits under the workflow and
+ * agent runtimes and gives work somewhere to wait. Its architectural claim is
+ * again a direction of dependency — the runtimes adapt ONTO the foundation, and
+ * the foundation never reaches back into them — plus two promises this packet
+ * made about what it would not do: not build a second workflow engine, and not
+ * deploy or schedule anything.
+ *
+ * A behavioural test cannot assert any of those. It can show a job running
+ * correctly while the durable folder quietly imports the agent orchestrator, at
+ * which point "the platform provides durability for the AI subsystem" and "the
+ * AI subsystem contains the durability" have become the same statement.
+ *
+ * So the claims below are about ABSENCE, and a source scan is the only thing
+ * that can make them.
+ */
+describe('durable runtime boundary (BP-002)', () => {
+  const DURABLE_DIR = join(SERVER_ROOT, 'platform', 'durable') + sep;
+  const durableSources = serverSources.filter(
+    (file) => file.path.startsWith(DURABLE_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty durable runtime tree', () => {
+    assert.ok(
+      durableSources.length >= 10,
+      `expected the durable runtime tree, found ${durableSources.length}`,
+    );
+  });
+
+  it('imports nothing outside itself but the platform authority surface', () => {
+    // THE WHOLE CLAIM, IN ONE ASSERTION. A `../` that is not `../authority/
+    // index.ts` reaches the AI tree, the repositories or the storage layer, and
+    // the direction of the dependency — which is the architectural claim of
+    // BP-002 — would be unprovable.
+    const ESCAPE = /from\s+['"]\.\.\/(?!authority\/index\.ts)/;
+    const BARE_OR_REGISTRY = /from\s+['"](npm:|jsr:|https?:|[a-zA-Z@])/;
+    assert.deepEqual(strippedOffenders(durableSources, ESCAPE), []);
+    assert.deepEqual(strippedOffenders(durableSources, BARE_OR_REGISTRY), []);
+  });
+
+  it('holds no database client, no environment and no wall clock', () => {
+    // Every instant the runtime uses arrives through a `nowIso` port, and every
+    // database call goes through `DurableSqlGateway`. A client here would put
+    // credentials and a network call inside the folder whose claim is that it
+    // is a set of rules.
+    const IMPURE = /(createClient|createServiceClient|Deno\.env|fetch\s*\(|Math\.random)/;
+    assert.deepEqual(strippedOffenders(durableSources, IMPURE), []);
+  });
+
+  it('reaches the AI subsystem through no name at all', () => {
+    const AI_INTERNALS =
+      /(AIControlPlane|controlPlane|AgentOrchestrator|createAgentOrchestrator|WorkflowOrchestrator|createWorkflowOrchestrator|workflowRuntime|agentRuntime)/;
+    assert.deepEqual(strippedOffenders(durableSources, AI_INTERNALS), []);
+  });
+
+  it('is not a second workflow engine', () => {
+    // BP-002 §16: "handler registry must not become a second workflow engine."
+    // The way one appears is gradual and reasonable at every step — a successor,
+    // then an ordering, then a condition — so the vocabulary is refused rather
+    // than the intent policed.
+    const PLAN_VOCABULARY =
+      /(workflowNode|nodeId|branchId|planDigest|WorkflowPlan|stepGraph|dependsOn|onSuccessJobType|nextJobType)/;
+    assert.deepEqual(strippedOffenders(durableSources, PLAN_VOCABULARY), []);
+  });
+
+  it('schedules nothing and deploys nothing', () => {
+    // BP-002 §10: implement the scheduler RUNTIME; do not configure production
+    // cron or stand up a scheduler service. A timer inside an Edge isolate is
+    // also exactly the thing that does not survive the isolate.
+    const SELF_SCHEDULING = /(Deno\.cron|setInterval|setTimeout|cron\.schedule)\s*\(/;
+    assert.deepEqual(strippedOffenders(serverSources.filter((f) => !isTest(f)), SELF_SCHEDULING), []);
+  });
+
+  it('is entered through its index, never through an internal file', () => {
+    const DEEP = /from\s+['"][^'"]*platform\/durable\/(?!index\.ts)[a-zA-Z]+\.ts['"]/;
+    const consumers = serverSources.filter(
+      (file) => !file.path.startsWith(DURABLE_DIR) && !isTest(file),
+    );
+    assert.deepEqual(strippedOffenders(consumers, DEEP), []);
+  });
+
+  it('is translated into job vocabulary in exactly one adapter', () => {
+    // The worker ENFORCES the decision and the adapter BUILDS the input — the
+    // same split the agent pilot holds, one level down.
+    const builders = serverSources
+      .filter((file) => !isTest(file))
+      .filter((file) => /jobAuthorityInput\s*\(/.test(stripComments(file.text)))
+      .map((file) => relative(SERVER_ROOT, file.path))
+      .sort();
+    assert.deepEqual(builders, [join('platform', 'durable', 'authority.ts')]);
+  });
+
+  it('routes the A1 pilot through the platform surface and nothing else', () => {
+    const PILOT = join(SERVER_ROOT, 'ai', 'workflows', 'durable', 'approvalExpirySweep.ts');
+    const pilot = serverSources.find((file) => file.path === PILOT);
+    assert.ok(pilot, 'the A1 pilot must exist');
+    const code = stripComments(pilot.text);
+
+    // It reaches the foundation only through the published surface.
+    assert.match(code, /from '\.\.\/\.\.\/\.\.\/platform\/durable\/index\.ts'/);
+    // AND IT NEVER DECIDES AN APPROVAL. The gate's invariant — expiry is never
+    // approval — must survive the pilot that automates expiry.
+    assert.equal(/\.decide\s*\(/.test(code), false, 'the sweep must never decide an approval');
+    assert.equal(/\.consume\s*\(/.test(code), false, 'the sweep must never spend an approval');
+    assert.equal(/approve/i.test(code.replace(/Approval|approval/g, '')), false);
   });
 });
