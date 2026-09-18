@@ -129,3 +129,95 @@ export function isNonEmptyString(value: unknown): value is string {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+/**
+ * A REAL boolean.
+ *
+ * `reversible` feeds the irreversibility floor, and that floor is applied with
+ * `if (!request.reversible)`. Truthiness is the wrong test for it: the STRING
+ * `"false"` is truthy, so a caller that serialised the flag through a form, a
+ * query string or a JSON round-trip that stringified it would suppress the
+ * floor entirely — an irreversible action classified as though it could be
+ * undone. `1` did the same. Only `true` and `false` are answers.
+ */
+export function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
+/**
+ * An ISO-8601 instant, strictly.
+ *
+ * `Date.parse` IS NOT A VALIDATOR, and treating "it returned a finite number"
+ * as proof of a timestamp is how the worst bug in this file's history got in:
+ *
+ *   Date.parse("99")          ->  year 99, a finite, entirely plausible instant
+ *   Date.parse("01/02/2030")  ->  a US-format date, finite, locale-dependent
+ *
+ * An envelope that EXPIRED in 2020, evaluated with `nowIso: "99"`, therefore
+ * looked live — "now" resolved to the year 99, which is before the expiry, so
+ * the validity window passed and the action was ALLOWED. A timestamp nobody
+ * meant reopened authority that had been deliberately closed.
+ *
+ * So the shape is checked before the value: `YYYY-MM-DDTHH:MM:SS`, optional
+ * fractional seconds, and a MANDATORY zone — `Z` or `±HH:MM`.
+ *
+ * THE ZONE IS NOT OPTIONAL, and that is a deliberate narrowing of what
+ * JavaScript would accept. A date-only or zone-less string is ambiguous by
+ * construction, and an ambiguous instant in a validity window is an envelope
+ * whose expiry moves with whoever is reading it. BP-001 says ISO-8601
+ * timestamps; this requires an unambiguous one.
+ *
+ * The regex bounds the FORM; `Date.parse` still bounds the VALUE, so an
+ * impossible date that matches the shape — month 13, the 32nd — is rejected by
+ * the parse rather than needing calendar arithmetic here.
+ */
+const ISO_INSTANT =
+  /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+
+/** Days in a month, with the Gregorian leap rule. */
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    return leap ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+export function isIsoInstant(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = ISO_INSTANT.exec(value);
+  if (!match) return false;
+
+  // THE CALENDAR IS CHECKED HERE, NOT LEFT TO `Date.parse`, because
+  // `Date.parse` SILENTLY ROLLS OVER an impossible day:
+  //
+  //   Date.parse("2026-02-30T00:00:00Z")  ->  2026-03-02
+  //   Date.parse("2026-04-31T00:00:00Z")  ->  2026-05-01
+  //
+  // It returns a finite number and the shape matches, so both would otherwise
+  // pass — as an instant two days away from the one written down. In a validity
+  // window that is an expiry silently moved, which is precisely the class of
+  // "malformed but parseable" this guard exists to refuse. Month 13 and day 32
+  // do yield NaN, so only the in-range-but-impossible days need this.
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > daysInMonth(year, month)) return false;
+
+  // The value still has to parse: this bounds the DATE, and `Date.parse` bounds
+  // the time-of-day and the offset.
+  return Number.isFinite(Date.parse(value));
+}
+
+/**
+ * The epoch milliseconds of a strict ISO instant, or `undefined`.
+ *
+ * One function so that "is it valid?" and "what is it?" can never disagree —
+ * two call sites doing their own `Date.parse` is how a value gets validated in
+ * one place and re-read differently in another.
+ */
+export function isoInstantMs(value: unknown): number | undefined {
+  if (!isIsoInstant(value)) return undefined;
+  return Date.parse(value);
+}

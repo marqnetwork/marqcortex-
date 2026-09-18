@@ -62,9 +62,12 @@ import {
 } from './contracts.ts';
 import { classifyConsequence } from './consequence.ts';
 import {
+  isBoolean,
   isConsequenceLevel,
   isDataClassification,
   isEnvelopeStatus,
+  isIsoInstant,
+  isoInstantMs,
   isNonEmptyString,
   isPolicyEffect,
   isRecord,
@@ -188,7 +191,14 @@ function policiesFor(input: AuthorityEvaluationInput): readonly PolicyConstraint
       isRecord(constraint) &&
       isNonEmptyString(constraint.policyId) &&
       isPolicyEffect(constraint.effect) &&
-      isStringList(constraint.actionTypes),
+      isStringList(constraint.actionTypes) &&
+      // `reason` IS NOT DECORATION. It is carried into `refuse(..., reason)`
+      // and into the approval summary, both of which call `.slice()` on it —
+      // so a constraint with `reason: 123` threw `reason.slice is not a
+      // function` out of the evaluator, on the DENY path, at the moment it was
+      // refusing. The structural check validated the three fields that decide
+      // and not the one that gets read.
+      typeof constraint.reason === 'string',
   );
   if (!readable) return [MALFORMED_POLICY];
 
@@ -317,8 +327,8 @@ function envelopeReadable(envelope: AuthorityEnvelope): boolean {
   if (envelope.maxCostMicroUsd !== undefined && !isSpendLimit(envelope.maxCostMicroUsd)) {
     return false;
   }
-  if (envelope.validFrom !== undefined && typeof envelope.validFrom !== 'string') return false;
-  if (envelope.validUntil !== undefined && typeof envelope.validUntil !== 'string') return false;
+  if (envelope.validFrom !== undefined && !isIsoInstant(envelope.validFrom)) return false;
+  if (envelope.validUntil !== undefined && !isIsoInstant(envelope.validUntil)) return false;
   return denyRulesReadable(envelope.explicitDeny);
 }
 
@@ -333,7 +343,55 @@ function isHuman(actor: ActorContext): boolean {
   return HUMAN_ACTOR_TYPES.has(actor.actorType);
 }
 
+/**
+ * The decision for an input that cannot even be destructured.
+ *
+ * Built from constants because there is nothing to read: no request, no actor,
+ * no envelope, no trace. It carries empty identifiers rather than invented ones
+ * — a fabricated action id in an audit trail is worse than an absent one,
+ * because somebody will eventually try to join on it.
+ *
+ * `evaluatedSteps` is empty and says so honestly: NOTHING was evaluated. That
+ * is exactly what distinguishes this record from every other refusal.
+ */
+function malformedInputDecision(): AuthorityDecision {
+  return {
+    decision: 'DENY',
+    reasonCodes: [AUTHORITY_REASON.requestMalformed],
+    reason: 'The authorization request could not be read.',
+    matchedPermissions: [],
+    matchedPolicies: [],
+    consequenceLevel: 'critical',
+    actionId: '',
+    correlationId: '',
+    evidence: {
+      actorType: 'unreadable' as ActorContext['actorType'],
+      organizationId: 'unreadable',
+      actionType: 'unreadable',
+      resourceType: 'unreadable',
+      requestedEffect: 'unreadable' as ActionRequest['requestedEffect'],
+      dataClassification: 'unreadable' as ActionRequest['dataClassification'],
+      membershipVerified: false,
+      evaluatedSteps: [],
+    },
+  };
+}
+
 export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDecision {
+  // ── THE INPUT OBJECT ITSELF, BEFORE IT IS DESTRUCTURED ───────────────────
+  //
+  // `const { request } = input` throws on `null` and `undefined` — a TypeError
+  // raised out of a security boundary before a single rule has run. A boundary
+  // must ANSWER, always: a caller catching broadly cannot tell an evaluator
+  // that refused from one that fell over, and the safe reading of "it fell
+  // over" is not something a caller should have to supply.
+  //
+  // Checked here rather than by giving the parameter a default, because a
+  // default would invent an empty input and evaluate it — the same silent
+  // substitution this hardening pass exists to remove.
+  if (!isRecord(input)) {
+    return malformedInputDecision();
+  }
   const { request } = input;
   const steps: string[] = [];
   const reasonCodes: AuthorityReasonCode[] = [];
@@ -423,15 +481,19 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   // A TIMESTAMP THAT CANNOT BE READ DENIES. It decides whether an envelope is
   // inside its validity window, so guessing would mean honouring an expired
   // envelope or refusing a live one, and only one of those is safe to get wrong.
-  // TYPE FIRST. `Date.parse` coerces its argument, and `Date.parse(99)` parses
-  // the STRING "99" as a year — a finite, entirely plausible timestamp built
-  // out of a number that was never a date. The finiteness check below would
-  // have passed it.
-  const nowMs = typeof input.nowIso === 'string' ? Date.parse(input.nowIso) : Number.NaN;
-  if (!Number.isFinite(nowMs)) {
+  // STRICT ISO, NOT "Date.parse RETURNED A NUMBER".
+  //
+  // The finiteness test was never a validator. `Date.parse("99")` yields the
+  // year 99 and `Date.parse("01/02/2030")` a US-format date, both finite, both
+  // accepted. That was not cosmetic: an envelope that EXPIRED in 2020,
+  // evaluated with `nowIso: "99"`, looked LIVE — "now" landed before the
+  // expiry, the window passed, and the action was ALLOWED. A timestamp nobody
+  // meant reopened authority that had been deliberately closed.
+  const nowMs = isoInstantMs(input.nowIso);
+  if (nowMs === undefined) {
     return refuse(
       AUTHORITY_REASON.contextIncomplete,
-      'The evaluation timestamp is missing or unreadable.',
+      'The evaluation timestamp is not a usable ISO-8601 instant.',
     );
   }
 
@@ -458,6 +520,17 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
     return refuse(
       AUTHORITY_REASON.requestMalformed,
       'The request names a tool that is not a tool identifier.',
+    );
+  }
+  // `reversible` DRIVES THE IRREVERSIBILITY FLOOR, and that floor is applied
+  // with `if (!request.reversible)`. Truthiness is the wrong test: the STRING
+  // `"false"` is truthy, so a flag that survived a form post or a JSON
+  // round-trip as text suppressed the floor entirely and an irreversible action
+  // classified as though it could be undone. `1` did the same.
+  if (!isBoolean(request.reversible)) {
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request does not state whether its effect can be undone.',
     );
   }
   if (
@@ -684,11 +757,15 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   if (envelope.status === 'expired') {
     return refuse(AUTHORITY_REASON.envelopeExpired, 'This actor’s authority has expired.');
   }
+  // The window bounds go through the SAME strict guard as `nowIso`. A bound
+  // that is merely `Date.parse`-able is a bound whose meaning depends on the
+  // engine's tolerance for loose formats, and a validity window is the wrong
+  // place to be tolerant.
   if (envelope.validFrom !== undefined) {
-    const fromMs = Date.parse(envelope.validFrom);
+    const fromMs = isoInstantMs(envelope.validFrom);
     // An unreadable bound denies, for the reason the header gives: a window
     // that cannot be read is not a window that can be honoured.
-    if (!Number.isFinite(fromMs) || nowMs < fromMs) {
+    if (fromMs === undefined || nowMs < fromMs) {
       return refuse(
         AUTHORITY_REASON.envelopeNotYetValid,
         'This actor’s authority is not yet in force.',
@@ -696,8 +773,8 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
     }
   }
   if (envelope.validUntil !== undefined) {
-    const untilMs = Date.parse(envelope.validUntil);
-    if (!Number.isFinite(untilMs) || nowMs >= untilMs) {
+    const untilMs = isoInstantMs(envelope.validUntil);
+    if (untilMs === undefined || nowMs >= untilMs) {
       return refuse(
         AUTHORITY_REASON.envelopeExpired,
         'This actor’s authority has expired.',

@@ -476,6 +476,239 @@ describe('a malformed actor never becomes an allow', () => {
   });
 });
 
+// ── `reversible` drives the irreversibility floor ───────────────────────────
+
+describe('a malformed `reversible` never suppresses the irreversibility floor', () => {
+  /** A ceiling of `medium`, so a genuinely irreversible write must refuse. */
+  function bounded(overrides: Record<string, unknown> = {}) {
+    return evaluate({
+      request: request({ requestedEffect: 'write', ...overrides }),
+      envelopes: { resolve: () => envelope({ consequenceCeiling: 'medium' }) },
+    });
+  }
+
+  it('refuses a genuinely irreversible write — the control', () => {
+    // Without this, every case below could pass for the wrong reason.
+    const decision = bounded({ reversible: false });
+    assert.equal(decision.decision, 'DENY');
+    assert.equal(decision.consequenceLevel, 'high');
+  });
+
+  it('allows a genuinely reversible write — the other control', () => {
+    assert.equal(bounded({ reversible: true }).decision, 'ALLOW');
+  });
+
+  it('denies the string "false", which is TRUTHY', () => {
+    // The floor is applied with `if (!request.reversible)`, and `!"false"` is
+    // false — so a flag that survived a form post or a JSON round-trip as text
+    // suppressed the floor entirely and the action was allowed at `medium`.
+    const decision = bounded({ reversible: 'false' });
+    assert.equal(decision.decision, 'DENY');
+    assert.ok(decision.reasonCodes.includes(AUTHORITY_REASON.requestMalformed));
+  });
+
+  it('denies "true", 0, 1, null and undefined alike', () => {
+    // `0`, `null` and `undefined` happened to be falsy, so they refused by
+    // accident rather than by validation — safe today and one refactor away
+    // from not being. Only `true` and `false` are answers.
+    for (const value of ['true', 'false', 0, 1, null, undefined, {}, []] as const) {
+      const decision = bounded({ reversible: value });
+      assert.equal(decision.decision, 'DENY', JSON.stringify(value));
+      assert.ok(
+        decision.reasonCodes.includes(AUTHORITY_REASON.requestMalformed),
+        JSON.stringify(value),
+      );
+    }
+  });
+});
+
+// ── A policy constraint's `reason` is read, so it must be readable ──────────
+
+describe('a malformed policy reason denies rather than throwing', () => {
+  function withReason(effect: string, reason: unknown) {
+    return evaluate({
+      policies: {
+        constraints: () =>
+          [{ policyId: 'halt', effect, reason, actionTypes: ['*'] }] as never,
+      },
+    });
+  }
+
+  it('denies a deny-constraint whose reason is not a string', () => {
+    // `reason` is carried into `refuse(..., reason)` and `.slice()` is called
+    // on it, so `reason: 123` threw `reason.slice is not a function` out of the
+    // evaluator — on the DENY path, at the moment it was refusing.
+    const decision = withReason('deny', 123);
+    assert.equal(decision.decision, 'DENY');
+    assert.ok(decision.matchedPolicies.includes(AUTHORITY_REASON.policyMalformed));
+  });
+
+  it('denies a require_approval constraint whose reason is not a string', () => {
+    // The same field reaches the approval summary, which slices it too.
+    const decision = withReason('require_approval', 123);
+    assert.equal(decision.decision, 'DENY');
+    assert.ok(decision.matchedPolicies.includes(AUTHORITY_REASON.policyMalformed));
+  });
+
+  it('denies every non-string reason on both effects, without throwing', () => {
+    for (const effect of ['deny', 'require_approval', 'allow']) {
+      for (const reason of [123, null, undefined, {}, [], true] as const) {
+        let decision;
+        assert.doesNotThrow(() => {
+          decision = withReason(effect, reason);
+        }, `${effect} + ${JSON.stringify(reason)}`);
+        assert.notEqual(
+          decision!.decision,
+          'ALLOW',
+          `${effect} + ${JSON.stringify(reason)}`,
+        );
+      }
+    }
+  });
+
+  it('still honours a well-formed reason', () => {
+    // The guard must not have broken the path it protects.
+    const decision = withReason('deny', 'The platform is halted.');
+    assert.equal(decision.decision, 'DENY');
+    assert.equal(decision.reason, 'The platform is halted.');
+  });
+});
+
+// ── The outermost input ─────────────────────────────────────────────────────
+
+describe('the evaluator is total at its outermost input', () => {
+  it('answers on null and undefined instead of failing to destructure', () => {
+    // `const { request } = input` threw a TypeError before a single rule ran.
+    // A caller catching broadly cannot tell an evaluator that REFUSED from one
+    // that FELL OVER, and only one of those is safe to assume.
+    for (const input of [null, undefined] as const) {
+      let decision;
+      assert.doesNotThrow(() => {
+        decision = evaluateAuthority(input as never);
+      }, String(input));
+      assert.equal(decision!.decision, 'DENY', String(input));
+      assert.ok(decision!.reasonCodes.includes(AUTHORITY_REASON.requestMalformed));
+    }
+  });
+
+  it('answers on a primitive input', () => {
+    for (const input of [42, 'input', true, Symbol('x')] as const) {
+      let decision;
+      assert.doesNotThrow(() => {
+        decision = evaluateAuthority(input as never);
+      }, String(input));
+      assert.equal(decision!.decision, 'DENY', String(input));
+    }
+  });
+
+  it('answers on an input with no request at all', () => {
+    const decision = evaluateAuthority({ nowIso: NOW } as never);
+    assert.equal(decision.decision, 'DENY');
+  });
+
+  it('reports honestly that nothing was evaluated', () => {
+    // The record for an unreadable input must not imply steps that never ran,
+    // and must not invent an action id somebody would later try to join on.
+    const decision = evaluateAuthority(null as never);
+    assert.deepEqual(decision.evidence.evaluatedSteps, []);
+    assert.equal(decision.actionId, '');
+    assert.equal(decision.correlationId, '');
+    assert.equal(decision.evidence.membershipVerified, false);
+  });
+});
+
+// ── Timestamps ──────────────────────────────────────────────────────────────
+
+describe('a timestamp must be a real ISO-8601 instant, not merely parseable', () => {
+  it('accepts a valid ISO instant — the control', () => {
+    assert.equal(evaluate({ nowIso: '2026-09-18T12:00:00.000Z' }).decision, 'ALLOW');
+    assert.equal(evaluate({ nowIso: '2026-09-18T12:00:00Z' }).decision, 'ALLOW');
+    assert.equal(evaluate({ nowIso: '2026-09-18T14:00:00+02:00' }).decision, 'ALLOW');
+  });
+
+  it('denies "99", which Date.parse reads as a YEAR', () => {
+    const decision = evaluate({ nowIso: '99' });
+    assert.equal(decision.decision, 'DENY');
+    assert.ok(decision.reasonCodes.includes(AUTHORITY_REASON.contextIncomplete));
+  });
+
+  it('denies "01/02/2030", a locale-dependent date Date.parse accepts', () => {
+    assert.equal(evaluate({ nowIso: '01/02/2030' }).decision, 'DENY');
+  });
+
+  it('denies "tomorrow" and every other unparseable string', () => {
+    for (const value of ['tomorrow', '', 'now', '2026', 'Sep 18 2026'] as const) {
+      assert.equal(evaluate({ nowIso: value }).decision, 'DENY', value);
+    }
+  });
+
+  it('denies a date with no time zone, which is an ambiguous instant', () => {
+    // Narrower than JavaScript would accept, deliberately: an expiry whose
+    // meaning shifts with the reader's zone is not an expiry.
+    for (const value of ['2026-09-18', '2026-09-18T12:00:00'] as const) {
+      assert.equal(evaluate({ nowIso: value }).decision, 'DENY', value);
+    }
+  });
+
+  it('denies an impossible date that still matches the shape', () => {
+    for (const value of ['2026-13-01T00:00:00Z', '2026-02-30T00:00:00Z'] as const) {
+      assert.equal(evaluate({ nowIso: value }).decision, 'DENY', value);
+    }
+  });
+
+  it('applies the same strictness to the envelope validity window', () => {
+    for (const patch of [
+      { validFrom: '99' },
+      { validUntil: '99' },
+      { validFrom: '01/02/2020' },
+      { validUntil: '01/02/2030' },
+      { validFrom: '2026-09-18' },
+      { validUntil: 'tomorrow' },
+    ]) {
+      const decision = evaluate({ envelopes: { resolve: () => envelope(patch) } });
+      assert.equal(decision.decision, 'DENY', JSON.stringify(patch));
+    }
+  });
+
+  it('still honours a well-formed window', () => {
+    const live = evaluate({
+      envelopes: {
+        resolve: () =>
+          envelope({
+            validFrom: '2026-01-01T00:00:00.000Z',
+            validUntil: '2027-01-01T00:00:00.000Z',
+          }),
+      },
+    });
+    assert.equal(live.decision, 'ALLOW');
+  });
+
+  it('AN INVALID nowIso CANNOT REVIVE AN EXPIRED ENVELOPE', () => {
+    // The case this whole fix exists for. `Date.parse("99")` is the year 99,
+    // which is before a 2020 expiry — so the window passed, the envelope looked
+    // live, and an authority that had been deliberately closed was ALLOWED.
+    const expired = envelope({ validUntil: '2020-01-01T00:00:00.000Z' });
+
+    // Expired under a real clock.
+    const honest = evaluate({ envelopes: { resolve: () => expired } });
+    assert.equal(honest.decision, 'DENY');
+    assert.ok(honest.reasonCodes.includes(AUTHORITY_REASON.envelopeExpired));
+
+    // And still refused under a clock that would have made it look live.
+    for (const bogus of ['99', '0001-01-01', '01/02/0099'] as const) {
+      const decision = evaluate({
+        nowIso: bogus,
+        envelopes: { resolve: () => expired },
+      });
+      assert.equal(decision.decision, 'DENY', bogus);
+      assert.ok(
+        decision.reasonCodes.includes(AUTHORITY_REASON.contextIncomplete),
+        `${bogus} must be refused as an unusable timestamp, not weighed`,
+      );
+    }
+  });
+});
+
 // ── The property, stated once over everything ───────────────────────────────
 
 describe('the evaluator never throws and never allows on a malformed fact', () => {
@@ -514,6 +747,19 @@ describe('the evaluator never throws and never allows on a malformed fact', () =
     ['policy throws', { policies: { constraints: () => { throw new Error('down'); } } }],
     ['nowIso type', { nowIso: 99 as never }],
     ['nowIso null', { nowIso: null as never }],
+    ['reversible string', { request: request({ reversible: 'false' }) }],
+    ['reversible number', { request: request({ reversible: 1 }) }],
+    ['reversible missing', { request: request({ reversible: undefined }) }],
+    ['policy reason', {
+      policies: {
+        constraints: () => [{ policyId: 'p', effect: 'deny', reason: 123, actionTypes: ['*'] }] as never,
+      },
+    }],
+    ['nowIso year-only', { nowIso: '99' }],
+    ['nowIso us-format', { nowIso: '01/02/2030' }],
+    ['nowIso prose', { nowIso: 'tomorrow' }],
+    ['validUntil loose', { envelopes: { resolve: () => envelope({ validUntil: '99' }) } }],
+    ['validFrom loose', { envelopes: { resolve: () => envelope({ validFrom: '01/02/2020' }) } }],
   ];
 
   for (const [name, mutation] of mutations) {

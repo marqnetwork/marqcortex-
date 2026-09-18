@@ -539,8 +539,12 @@ describe('§10.8 — absent or unusable context fails closed', () => {
       [{ status: 'expired' }, AUTHORITY_REASON.envelopeExpired],
       [{ validUntil: '2026-01-01T00:00:00.000Z' }, AUTHORITY_REASON.envelopeExpired],
       [{ validFrom: '2027-01-01T00:00:00.000Z' }, AUTHORITY_REASON.envelopeNotYetValid],
-      [{ validUntil: 'nonsense' }, AUTHORITY_REASON.envelopeExpired],
-      [{ validFrom: 'nonsense' }, AUTHORITY_REASON.envelopeNotYetValid],
+      // An UNREADABLE bound is now reported as `envelope.malformed` rather than
+      // as expired or not-yet-valid, and that is the more honest code: nobody
+      // established that this envelope had expired — its window could not be
+      // read at all. The refusal is unchanged; only the reason is sharper.
+      [{ validUntil: 'nonsense' }, AUTHORITY_REASON.envelopeMalformed],
+      [{ validFrom: 'nonsense' }, AUTHORITY_REASON.envelopeMalformed],
     ];
     for (const [patch, code] of cases) {
       const decision = evaluate({ envelopes: source(envelope(patch)) });
