@@ -647,10 +647,17 @@ describe('§10.10 — a data, tool or budget restriction forces deny or approval
   it('denies an unusable cost rather than letting it slip past the comparison', () => {
     // `NaN > limit` is false, so an uncomparable number would otherwise be the
     // cheapest way past a spend ceiling.
+    //
+    // The REASON is `request.malformed` rather than `budget.ceiling_exceeded`,
+    // and the distinction is the correct one: a cost of NaN is not an action
+    // that overspent, it is a caller that did not state a cost. The hardening
+    // pass moved the refusal to where the fact is first read, which is earlier
+    // than the ceiling comparison and more accurate about what went wrong. The
+    // outcome — DENY, never ALLOW — is what the ceiling test below still pins.
     for (const cost of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
       const decision = evaluate({ request: request({ estimatedCostMicroUsd: cost }) });
       assert.equal(decision.decision, 'DENY', String(cost));
-      assert.ok(decision.reasonCodes.includes(AUTHORITY_REASON.budgetExceeded), String(cost));
+      assert.ok(decision.reasonCodes.includes(AUTHORITY_REASON.requestMalformed), String(cost));
     }
   });
 

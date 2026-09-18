@@ -103,6 +103,7 @@ const REGISTRY_FREE_FILES = [
   // it belongs in a boundary that blocks rather than one that reports.
   join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'contracts.ts'),
   join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'consequence.ts'),
+  join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'guards.ts'),
   join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'evaluator.ts'),
   join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'auditAdapter.ts'),
   join(FUNCTIONS_ROOT, 'server', 'platform', 'authority', 'approvalAdapter.ts'),

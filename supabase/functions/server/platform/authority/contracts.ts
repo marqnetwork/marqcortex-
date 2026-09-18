@@ -155,18 +155,44 @@ const CONSEQUENCE_RANK: Readonly<Record<ConsequenceLevel, number>> = {
   critical: 3,
 };
 
-/** Rank of a level. Higher is more consequential. */
+const CRITICAL_RANK = CONSEQUENCE_RANK.critical;
+
+/**
+ * Rank of a level, with an UNREADABLE LEVEL RANKED AS THE MOST SEVERE.
+ *
+ * The guards in `guards.ts` already refuse a malformed level before the
+ * evaluator reaches a comparison, so this branch should be unreachable. It is
+ * here because of what the unguarded version did when it was reached:
+ * `CONSEQUENCE_RANK["catastrophic"]` is `undefined`, and `undefined > 0` and
+ * `undefined >= 0` are both FALSE. An unrecognised level therefore compared as
+ * though it were BELOW every real one — it did not exceed a ceiling, it did not
+ * reach a threshold, and `maxConsequence` picked the other operand over it.
+ * An invalid value made the action look safer than the safest valid value.
+ *
+ * Ranking the unreadable as `critical` inverts that: whatever a malformed level
+ * touches becomes maximally consequential, so the worst a bypassed guard can do
+ * is demand a human rather than skip one. These three functions are the last
+ * line, and a last line must never be the permissive one.
+ */
 export function consequenceRank(level: ConsequenceLevel): number {
-  return CONSEQUENCE_RANK[level];
+  return CONSEQUENCE_RANK[level] ?? CRITICAL_RANK;
 }
 
 /** True when `level` is strictly more consequential than `ceiling`. */
 export function exceedsConsequence(level: ConsequenceLevel, ceiling: ConsequenceLevel): boolean {
-  return CONSEQUENCE_RANK[level] > CONSEQUENCE_RANK[ceiling];
+  // An unreadable CEILING bounds nothing, so nothing is within it. An
+  // unreadable LEVEL is critical. Either way the answer is "exceeds", which is
+  // the direction that refuses.
+  if (CONSEQUENCE_RANK[ceiling] === undefined) return true;
+  return consequenceRank(level) > CONSEQUENCE_RANK[ceiling];
 }
 
 /** The more consequential of two levels. */
 export function maxConsequence(a: ConsequenceLevel, b: ConsequenceLevel): ConsequenceLevel {
+  // A malformed operand resolves to `critical` rather than being silently
+  // dropped in favour of the other one. This is the function the invalid
+  // classifier output flowed through, and dropping was exactly what it did.
+  if (CONSEQUENCE_RANK[a] === undefined || CONSEQUENCE_RANK[b] === undefined) return 'critical';
   return CONSEQUENCE_RANK[a] >= CONSEQUENCE_RANK[b] ? a : b;
 }
 
@@ -186,15 +212,21 @@ const DATA_RANK: Readonly<Record<DataClassification, number>> = {
   restricted: 3,
 };
 
-function dataRank(classification: DataClassification): number {
-  return DATA_RANK[classification];
-}
-
+/**
+ * True when `classification` is more sensitive than `ceiling`.
+ *
+ * Unreadable on either side means "exceeds", for the reason
+ * `exceedsConsequence` gives: a ceiling nobody can read bounds nothing, and a
+ * classification nobody can read is not evidence that the data is harmless.
+ */
 export function exceedsDataCeiling(
   classification: DataClassification,
   ceiling: DataClassification,
 ): boolean {
-  return DATA_RANK[classification] > DATA_RANK[ceiling];
+  const left = DATA_RANK[classification];
+  const right = DATA_RANK[ceiling];
+  if (left === undefined || right === undefined) return true;
+  return left > right;
 }
 
 /**
@@ -412,6 +444,16 @@ export const AUTHORITY_REASON = {
   // Step 8 — consequence
   consequenceCeilingExceeded: 'consequence.ceiling_exceeded',
   consequenceThresholdReached: 'consequence.approval_threshold_reached',
+
+  // Malformed facts (BP-001 hardening). A fact that cannot be READ cannot be
+  // HONOURED, and these say which one could not be read. They are separate from
+  // `contextIncomplete` — absent and unreadable are different defects, and a
+  // reviewer chasing a misbehaving subsystem needs to know which one happened.
+  requestMalformed: 'request.malformed',
+  actorMalformed: 'actor.malformed',
+  envelopeMalformed: 'envelope.malformed',
+  policyMalformed: 'policy.malformed',
+  consequenceMalformed: 'consequence.malformed',
 
   // Cross-cutting
   inheritedAuthorityRefused: 'authority.inheritance_refused',

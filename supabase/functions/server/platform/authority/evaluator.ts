@@ -61,6 +61,17 @@ import {
   HUMAN_ACTOR_TYPES,
 } from './contracts.ts';
 import { classifyConsequence } from './consequence.ts';
+import {
+  isConsequenceLevel,
+  isDataClassification,
+  isEnvelopeStatus,
+  isNonEmptyString,
+  isPolicyEffect,
+  isRecord,
+  isRequestedEffect,
+  isSpendLimit,
+  isStringList,
+} from './guards.ts';
 
 /** Wildcard in a scope list. Matches every value of that axis. */
 const WILDCARD = '*';
@@ -85,9 +96,38 @@ function nonEmpty(value: string | undefined): value is string {
  * the one that should be able to do least.
  */
 function scopeAdmits(scope: readonly string[], value: string): boolean {
+  // NOT AN ARRAY ADMITS NOTHING, and this is the check that matters most in
+  // the whole file. A scope that arrived as the string
+  // `"crm.lookup,payments.charge"` has `.length` and `.includes`, so every
+  // duck-typed test below would have passed — and `String.prototype.includes`
+  // matches SUBSTRINGS, which turned a malformed envelope into a wildcard that
+  // admitted `payments.charge`. `Array.isArray` is what tells the two apart.
+  if (!isStringList(scope)) return false;
   if (scope.length === 0) return false;
   if (scope.includes(WILDCARD)) return true;
   return scope.includes(value);
+}
+
+/**
+ * Is every deny rule in this list readable?
+ *
+ * A DENY RULE THAT CANNOT BE PARSED IS NOT A RULE THAT CAN BE SKIPPED. It is
+ * the containment primitive — the thing an operator adds to stop an actor that
+ * is already running — so "we could not read it, so we ignored it" is the one
+ * outcome it must never have. An unreadable rule makes the whole envelope
+ * malformed, and the request is refused rather than evaluated against the rules
+ * that happened to parse.
+ */
+function denyRulesReadable(rules: unknown): rules is readonly ExplicitDenyRule[] {
+  if (!Array.isArray(rules)) return false;
+  return rules.every((rule) => {
+    if (!isRecord(rule)) return false;
+    if (!isNonEmptyString(rule.ruleId)) return false;
+    if (!isStringList(rule.actionTypes)) return false;
+    if (rule.resourceTypes !== undefined && !isStringList(rule.resourceTypes)) return false;
+    if (rule.tools !== undefined && !isStringList(rule.tools)) return false;
+    return typeof rule.reason === 'string';
+  });
 }
 
 /** The first deny rule that matches, or undefined. */
@@ -132,10 +172,44 @@ function policiesFor(input: AuthorityEvaluationInput): readonly PolicyConstraint
       },
     ];
   }
+  // NOT AN ARRAY is a policy source that has malfunctioned, not one that had
+  // nothing to say. The unguarded version called `.filter` on it and threw.
+  if (!Array.isArray(constraints)) return [MALFORMED_POLICY];
+
+  // A CONSTRAINT WHOSE SHAPE CANNOT BE READ POISONS THE WHOLE SET.
+  //
+  // Dropping it was the original behaviour and it is indefensible: `effect:
+  // "DENY"` — the right word in the wrong case — matched neither `'deny'` nor
+  // `'require_approval'`, so a policy that meant to REFUSE was silently ignored
+  // and the action was allowed. A deny that can be misspelled into an allow is
+  // not a deny. One unreadable constraint therefore denies everything.
+  const readable = constraints.every(
+    (constraint) =>
+      isRecord(constraint) &&
+      isNonEmptyString(constraint.policyId) &&
+      isPolicyEffect(constraint.effect) &&
+      isStringList(constraint.actionTypes),
+  );
+  if (!readable) return [MALFORMED_POLICY];
+
   return constraints.filter((constraint) =>
     scopeAdmits(constraint.actionTypes, input.request.actionType),
   );
 }
+
+/**
+ * The constraint a malformed policy source is replaced by.
+ *
+ * A deny with a wildcard action scope, so it applies whatever was asked for.
+ * Named rather than inlined because it appears in an audit record and an
+ * operator reading `policy.malformed` needs it to mean one specific thing.
+ */
+const MALFORMED_POLICY: PolicyConstraint = {
+  policyId: AUTHORITY_REASON.policyMalformed,
+  effect: 'deny',
+  reason: 'A policy constraint could not be read, so it could not be honoured.',
+  actionTypes: [WILDCARD],
+};
 
 function resolveEnvelope(
   input: AuthorityEvaluationInput,
@@ -150,26 +224,102 @@ function resolveEnvelope(
   }
 }
 
+/**
+ * The evidence attached to a decision.
+ *
+ * IT REPORTS; IT NEVER DECIDES, AND IT MUST NEVER THROW. That second half was
+ * learned the hard way: this function dereferenced `request.actor.actorType`,
+ * so the refusal for "the actor could not be read" crashed while building its
+ * own evidence — the evaluator raised a TypeError at the exact moment it was
+ * supposed to be reporting a clean deny. A reporting path that can fail on the
+ * inputs it exists to describe is worse than no reporting at all.
+ *
+ * So every read here is defensive, and an unreadable field is recorded as the
+ * literal `'unreadable'` rather than guessed at or omitted. A reader of the
+ * record can then tell "this arrived malformed" from "this was not applicable",
+ * which is exactly the distinction someone debugging a misbehaving subsystem
+ * needs. `envelope?.` is already safe and stays as it is.
+ */
 function evidenceFor(
   request: ActionRequest,
   envelope: AuthorityEnvelope | undefined,
   steps: readonly string[],
 ): AuthorityEvidence {
+  const request_ = (isRecord(request) ? request : {}) as Partial<ActionRequest>;
+  const actor = (isRecord(request_.actor) ? request_.actor : {}) as Partial<ActorContext>;
+  const readable = <T,>(value: T, ok: boolean): T => (ok ? value : ('unreadable' as T));
+
   return {
-    actorType: request.actor.actorType,
-    organizationId: request.organizationId,
-    actionType: request.actionType,
-    resourceType: request.resourceType,
-    requestedEffect: request.requestedEffect,
-    dataClassification: request.dataClassification,
-    requestedTool: request.requestedTool,
-    estimatedCostMicroUsd: request.estimatedCostMicroUsd,
-    membershipVerified: request.actor.membershipVerified,
-    envelopeVersion: envelope?.version,
-    envelopeConsequenceCeiling: envelope?.consequenceCeiling,
-    envelopeApprovalThreshold: envelope?.approvalThreshold,
+    actorType: readable(actor.actorType as ActorContext['actorType'], typeof actor.actorType === 'string'),
+    organizationId: readable(
+      request_.organizationId as string,
+      typeof request_.organizationId === 'string',
+    ),
+    actionType: readable(request_.actionType as string, typeof request_.actionType === 'string'),
+    resourceType: readable(
+      request_.resourceType as string,
+      typeof request_.resourceType === 'string',
+    ),
+    requestedEffect: readable(
+      request_.requestedEffect as ActionRequest['requestedEffect'],
+      isRequestedEffect(request_.requestedEffect),
+    ),
+    dataClassification: readable(
+      request_.dataClassification as ActionRequest['dataClassification'],
+      isDataClassification(request_.dataClassification),
+    ),
+    requestedTool:
+      typeof request_.requestedTool === 'string' ? request_.requestedTool : undefined,
+    estimatedCostMicroUsd:
+      typeof request_.estimatedCostMicroUsd === 'number' && Number.isFinite(request_.estimatedCostMicroUsd)
+        ? request_.estimatedCostMicroUsd
+        : undefined,
+    // NOT coerced to a boolean. `Boolean('no')` is `true`, which would record a
+    // malformed membership flag as a VERIFIED one — a false statement in the
+    // one field an isolation review reads first.
+    membershipVerified: actor.membershipVerified === true,
+    envelopeVersion: typeof envelope?.version === 'number' ? envelope.version : undefined,
+    envelopeConsequenceCeiling: isConsequenceLevel(envelope?.consequenceCeiling)
+      ? envelope.consequenceCeiling
+      : undefined,
+    envelopeApprovalThreshold: isConsequenceLevel(envelope?.approvalThreshold)
+      ? envelope.approvalThreshold
+      : undefined,
     evaluatedSteps: steps,
   };
+}
+
+/**
+ * Is every security-critical field of this envelope readable?
+ *
+ * Structure only — this says nothing about whether the envelope PERMITS the
+ * action, which is step 6's job. It says whether step 6 is able to ask.
+ *
+ * `explicitDeny` is included even though it was consumed back at step 4,
+ * because `denyRulesReadable` gated that consumption: an envelope whose deny
+ * rules could not be parsed skipped the deny check, and reaching here with that
+ * still unreported would be the silent-skip this whole change exists to remove.
+ */
+function envelopeReadable(envelope: AuthorityEnvelope): boolean {
+  if (!isRecord(envelope)) return false;
+  if (!isNonEmptyString(envelope.envelopeId)) return false;
+  if (!isNonEmptyString(envelope.organizationId)) return false;
+  if (!isNonEmptyString(envelope.subjectActorId)) return false;
+  if (!isEnvelopeStatus(envelope.status)) return false;
+  if (!isStringList(envelope.allowedActionTypes)) return false;
+  if (!isStringList(envelope.allowedResourceTypes)) return false;
+  if (!isStringList(envelope.allowedTools)) return false;
+  if (!isDataClassification(envelope.dataClassificationCeiling)) return false;
+  if (!isConsequenceLevel(envelope.consequenceCeiling)) return false;
+  if (envelope.approvalThreshold !== undefined && !isConsequenceLevel(envelope.approvalThreshold)) {
+    return false;
+  }
+  if (envelope.maxCostMicroUsd !== undefined && !isSpendLimit(envelope.maxCostMicroUsd)) {
+    return false;
+  }
+  if (envelope.validFrom !== undefined && typeof envelope.validFrom !== 'string') return false;
+  if (envelope.validUntil !== undefined && typeof envelope.validUntil !== 'string') return false;
+  return denyRulesReadable(envelope.explicitDeny);
 }
 
 /**
@@ -219,12 +369,18 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
       reason: reason.slice(0, MAX_REASON),
       matchedPermissions,
       matchedPolicies,
-      matchedEnvelopeId: envelope?.envelopeId,
+      matchedEnvelopeId:
+        typeof envelope?.envelopeId === 'string' ? envelope.envelopeId : undefined,
       consequenceLevel,
       approvalRequirement,
-      actionId: request.actionId,
-      correlationId: request.correlationId,
-      traceId: request.traceId,
+      // READ DEFENSIVELY, for the same reason `evidenceFor` does: `refuse` is
+      // the path a malformed request takes OUT of the evaluator, so it is the
+      // one function that must survive a request that is null or not an object.
+      // It dereferenced `request.actionId` directly and threw on exactly the
+      // input it existed to refuse.
+      actionId: typeof request?.actionId === 'string' ? request.actionId : '',
+      correlationId: typeof request?.correlationId === 'string' ? request.correlationId : '',
+      traceId: typeof request?.traceId === 'string' ? request.traceId : undefined,
       evidence: evidenceFor(request, envelope, steps),
     };
   }
@@ -235,6 +391,23 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   // audited, and a decision nobody can later find the subject of is not
   // evidence of anything.
   steps.push('request');
+  // THE OBJECTS THEMSELVES, BEFORE ANY FIELD OF THEM IS READ. A null request or
+  // a missing actor threw a TypeError out of the evaluator — which is not a
+  // refusal but an exception the CALLER has to interpret, and a caller that
+  // catches broadly could interpret it as anything at all. An authorization
+  // boundary answers; it does not raise.
+  if (!isRecord(request)) {
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request could not be read.',
+    );
+  }
+  if (!isRecord(request.actor)) {
+    return refuse(
+      AUTHORITY_REASON.actorMalformed,
+      'The request carries no readable actor.',
+    );
+  }
   if (!nonEmpty(request.actionId) || !nonEmpty(request.correlationId)) {
     return refuse(
       AUTHORITY_REASON.contextIncomplete,
@@ -250,11 +423,64 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   // A TIMESTAMP THAT CANNOT BE READ DENIES. It decides whether an envelope is
   // inside its validity window, so guessing would mean honouring an expired
   // envelope or refusing a live one, and only one of those is safe to get wrong.
-  const nowMs = Date.parse(input.nowIso);
+  // TYPE FIRST. `Date.parse` coerces its argument, and `Date.parse(99)` parses
+  // the STRING "99" as a year — a finite, entirely plausible timestamp built
+  // out of a number that was never a date. The finiteness check below would
+  // have passed it.
+  const nowMs = typeof input.nowIso === 'string' ? Date.parse(input.nowIso) : Number.NaN;
   if (!Number.isFinite(nowMs)) {
     return refuse(
       AUTHORITY_REASON.contextIncomplete,
       'The evaluation timestamp is missing or unreadable.',
+    );
+  }
+
+  // ── THE REQUEST'S OWN ENUMS, CHECKED AT RUNTIME ──────────────────────────
+  //
+  // `requestedEffect` and `dataClassification` are declared as unions and
+  // arrive as whatever the caller actually built. Both feed rank comparisons,
+  // and a rank lookup that misses returns `undefined`, which loses every `>`
+  // it is on. So they are checked HERE, before anything compares them, rather
+  // than trusted because the type said so.
+  if (!isRequestedEffect(request.requestedEffect)) {
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request does not state a recognisable effect.',
+    );
+  }
+  if (!isDataClassification(request.dataClassification)) {
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request does not state a recognisable data classification.',
+    );
+  }
+  if (request.requestedTool !== undefined && typeof request.requestedTool !== 'string') {
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request names a tool that is not a tool identifier.',
+    );
+  }
+  if (
+    request.estimatedCostMicroUsd !== undefined &&
+    !isSpendLimit(request.estimatedCostMicroUsd)
+  ) {
+    // An unusable cost never reaches the ceiling comparison, where `cost > limit`
+    // would be false for NaN and let it through as the cheapest action possible.
+    return refuse(
+      AUTHORITY_REASON.requestMalformed,
+      'The request states a cost that is not a usable amount.',
+    );
+  }
+  // CHECKED HERE BECAUSE STEP 1 USES IT. Readability is a precondition of
+  // weighing a fact, not an authorization step of its own, so it belongs ahead
+  // of the ordered steps rather than inside them — and `membershipVerified` is
+  // read by the tenant step, before the actor step would otherwise reach it.
+  // Anything other than a boolean is not a membership answer: a truthy string
+  // would have read as "verified" and sailed through the tenant check.
+  if (typeof request.actor?.membershipVerified !== 'boolean') {
+    return refuse(
+      AUTHORITY_REASON.actorMalformed,
+      'The actor\u2019s membership state could not be read.',
     );
   }
 
@@ -294,6 +520,22 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   steps.push('actor');
   if (!nonEmpty(actor.actorId)) {
     return refuse(AUTHORITY_REASON.actorMissing, 'The request carries no actor identity.');
+  }
+  // PERMISSIONS MUST BE A REAL ARRAY. As a string, `.includes` matches
+  // substrings — an actor carrying the single string `'admin.superpower'`
+  // would satisfy a required permission of `'p'`, because `'p'` appears inside
+  // `'superpower'`. That is privilege escalation by punctuation.
+  if (!isStringList(actor.permissions)) {
+    return refuse(
+      AUTHORITY_REASON.actorMalformed,
+      'The actor\u2019s permissions could not be read.',
+    );
+  }
+  if (!isStringList(actor.roles)) {
+    return refuse(
+      AUTHORITY_REASON.actorMalformed,
+      'The actor\u2019s roles could not be read.',
+    );
   }
   if (!ACTOR_TYPES.includes(actor.actorType)) {
     // An unrecognised actor type is not a new kind of actor to be accommodated
@@ -336,6 +578,15 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
   // could overturn would not be a deny.
   steps.push('explicit_deny');
   if (envelope) {
+    // AN UNREADABLE DENY LIST REFUSES HERE, not at step 6. Waiting would mean
+    // the deny check was skipped and the request continued — briefly, but
+    // through the policy step — on an envelope already known to be broken.
+    if (!denyRulesReadable(envelope.explicitDeny)) {
+      return refuse(
+        AUTHORITY_REASON.envelopeMalformed,
+        'This actor\u2019s deny rules could not be read, so they could not be honoured.',
+      );
+    }
     const denied = matchingDeny(envelope.explicitDeny, request);
     if (denied) {
       return refuse(
@@ -372,6 +623,26 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
     return refuse(
       AUTHORITY_REASON.envelopeMissing,
       'No authority envelope covers this action.',
+    );
+  }
+  // ── THE ENVELOPE'S OWN FIELDS, CHECKED BEFORE ANY OF THEM IS TRUSTED ─────
+  //
+  // Every bound below this point is enforced by a comparison, and every one of
+  // those comparisons answered "no" when its operand was unreadable. Probed
+  // against the unhardened evaluator, an envelope with `status: "zombie"`,
+  // `consequenceCeiling: "nonsense"`, `dataClassificationCeiling: "nonsense"`
+  // or `approvalThreshold: "sometimes"` did not fail — it ALLOWED, because a
+  // status that is not `'suspended'` or `'expired'` read as active, and a rank
+  // lookup that misses loses every `>` it is on.
+  //
+  // So the whole envelope is validated as one object, and a single unreadable
+  // field refuses the request. NOT field-by-field with per-field fallbacks: a
+  // fallback here would mean the platform inventing a bound nobody configured,
+  // and an invented bound is indistinguishable in the record from a real one.
+  if (!envelopeReadable(envelope)) {
+    return refuse(
+      AUTHORITY_REASON.envelopeMalformed,
+      'This actor\u2019s authority could not be read.',
     );
   }
   if (envelope.organizationId !== request.organizationId) {
@@ -481,7 +752,24 @@ export function evaluateAuthority(input: AuthorityEvaluationInput): AuthorityDec
 
   // ── 8. Consequence ────────────────────────────────────────────────────────
   steps.push('consequence');
-  const consequenceLevel = classifyConsequence(request, input.consequence);
+  const verdict = classifyConsequence(request, input.consequence);
+  const consequenceLevel = verdict.level;
+
+  // A BROKEN CLASSIFIER REFUSES, RATHER THAN BEING RAISED TO `critical` AND
+  // WEIGHED. Raising alone looked sufficient and is not: an envelope whose
+  // ceiling is `critical` with no approval threshold would permit a `critical`
+  // action, so a subsystem returning nonsense would have been "handled" and
+  // then allowed anyway — on the widest envelopes, which are exactly the actors
+  // where a malfunctioning classifier matters most. A source that could not
+  // classify has not classified, and that is an unusable authorization fact.
+  if (verdict.malformed) {
+    return refuse(
+      AUTHORITY_REASON.consequenceMalformed,
+      'This action could not be classified, so it could not be authorised.',
+      'DENY',
+      consequenceLevel,
+    );
+  }
 
   if (exceedsConsequence(consequenceLevel, envelope.consequenceCeiling)) {
     // ABOVE THE CEILING IS A DENY, NOT AN ESCALATION.

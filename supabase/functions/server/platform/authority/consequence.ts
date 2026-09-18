@@ -27,6 +27,7 @@ import {
   type ConsequenceSource,
   maxConsequence,
 } from './contracts.ts';
+import { isConsequenceLevel, isDataClassification, isRequestedEffect } from './guards.ts';
 
 /**
  * The floor implied by what the action DOES to the world.
@@ -106,8 +107,19 @@ function costFloor(estimatedCostMicroUsd: number | undefined): ConsequenceLevel 
  * a subsystem port adds on top.
  */
 export function platformConsequenceFloor(request: ActionRequest): ConsequenceLevel {
-  let level: ConsequenceLevel = EFFECT_FLOOR[request.requestedEffect] ?? 'critical';
-  level = maxConsequence(level, DATA_FLOOR[request.dataClassification] ?? 'critical');
+  // AN UNRECOGNISED AXIS VALUE IS `critical`, NOT A MISSING FLOOR. The evaluator
+  // refuses a malformed request before it gets here, so this is the second lock
+  // — and it matters because this function is also exported and called directly
+  // by the agent adapter's ceiling probe, which is not behind that gate.
+  let level: ConsequenceLevel = isRequestedEffect(request.requestedEffect)
+    ? EFFECT_FLOOR[request.requestedEffect]
+    : 'critical';
+  level = maxConsequence(
+    level,
+    isDataClassification(request.dataClassification)
+      ? DATA_FLOOR[request.dataClassification]
+      : 'critical',
+  );
   level = maxConsequence(level, costFloor(request.estimatedCostMicroUsd));
 
   // IRREVERSIBILITY IS AT LEAST `high`.
@@ -125,26 +137,59 @@ export function platformConsequenceFloor(request: ActionRequest): ConsequenceLev
 }
 
 /**
+ * What the classification step concluded.
+ *
+ * `malformed` is carried separately from `level` because RAISING TO `critical`
+ * IS NOT ENOUGH on its own. An envelope whose ceiling is `critical` and which
+ * sets no approval threshold would happily allow a `critical` action — so a
+ * classifier returning nonsense would have been "handled" by pushing it to the
+ * top and then permitted anyway, on the widest envelopes, which are exactly the
+ * actors where a broken classifier matters most.
+ *
+ * A subsystem that could not classify has not classified. That is a malfunction
+ * in an authorization input, and BP-001's fail-closed rule makes it a DENY with
+ * a reason code, not a level to be weighed.
+ */
+export interface ConsequenceVerdict {
+  readonly level: ConsequenceLevel;
+  /** True when a source returned something unusable, or threw. */
+  readonly malformed: boolean;
+}
+
+/**
  * The enforced classification.
  *
  * `platformConsequenceFloor` combined with whatever the subsystem port offers,
- * taking the HIGHER. A port that throws is treated as a port that said
- * `critical`: a classifier that failed did not say the action was safe, and the
- * direction a failure pushes a security boundary is the direction that asks a
- * human.
+ * taking the HIGHER — and reporting separately whether the port answered at all.
  */
 export function classifyConsequence(
   request: ActionRequest,
   source?: ConsequenceSource,
-): ConsequenceLevel {
+): ConsequenceVerdict {
   const floor = platformConsequenceFloor(request);
-  if (!source) return floor;
+  if (!source) return { level: floor, malformed: false };
 
   let offered: ConsequenceLevel | undefined;
   try {
     offered = source.classify(request);
   } catch {
-    return 'critical';
+    // A classifier that threw did not say the action was safe. It said nothing.
+    return { level: 'critical', malformed: true };
   }
-  return offered === undefined ? floor : maxConsequence(floor, offered);
+
+  // An ABSENT opinion is legitimate and means "the platform floor stands".
+  // It is the one case here that is not a malfunction.
+  if (offered === undefined) return { level: floor, malformed: false };
+
+  // A LEVEL NOBODY RECOGNISES IS A BROKEN CLASSIFIER.
+  //
+  // Unguarded, an unrecognised string flowed straight into `maxConsequence`,
+  // where its rank lookup returned `undefined`, where `undefined >= 0` is
+  // false — so the invalid value LOST the comparison and the floor was kept.
+  // Worse, when the floor was the other operand the invalid value could replace
+  // a real level with a lower one. A classifier that malfunctioned made the
+  // action look SAFER than it was, and the action was allowed.
+  if (!isConsequenceLevel(offered)) return { level: 'critical', malformed: true };
+
+  return { level: maxConsequence(floor, offered), malformed: false };
 }
