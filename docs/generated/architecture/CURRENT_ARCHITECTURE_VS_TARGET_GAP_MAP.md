@@ -749,13 +749,13 @@ No deletion should leave broken references.
 
 The migration order is intentionally foundation-first while preserving current working product capability.
 
-### A0 — Platform Authority Foundation
+### A0 — Platform Authority Foundation — COMPLETE (BP-001)
 
-Generalize existing AI security/policy/approval primitives into universal actor + policy + authority-envelope contracts.
+Implemented and security-reviewed on `claude/affectionate-dirac-u3jdp0` through commit `d722d60f58eb649df94af59b85315f0117a0c314`. The shared deterministic authority path is live for the single agent `tool_call` pilot and reuses existing approval/audit/tenancy/runtime systems. No deployment or database migration was performed.
 
-### A1 — Durable Runtime Foundation
+### A1 — Durable Runtime Foundation — NEXT (BP-002)
 
-Introduce shared trace IDs, durable jobs/scheduler, domain-event envelope and outbox/inbox foundation.
+Introduce shared trace IDs, durable jobs/scheduler, domain-event envelope and outbox/inbox foundation inside the existing Supabase/Postgres architecture.
 
 ### A2 — Runtime Persistence
 
@@ -797,85 +797,29 @@ These stages are dependency order, not a commitment that each equals one sprint.
 
 ---
 
-## 17. First Claude/Codex Build Packet
+## 17. Build Packet Status
 
-# BP-001 — Platform Authority & Action Envelope Foundation
+### BP-001 — Platform Authority & Action Envelope Foundation — COMPLETE
 
-This should be the first implementation packet.
+A0 is implemented and accepted. The temporary BP-001 instruction packet is removed after this status is recorded; implementation truth now lives in code, tests, Git history and the active progress authority.
 
-### Why first
+### BP-002 — Durable Runtime Foundation — NEXT
 
-Almost every new Cortex capability depends on knowing:
+BP-002 is the only authorized next implementation packet. It covers the A1 execution substrate:
 
-- who/what is acting;
-- for which organization;
-- what permission it has;
-- what policy applies;
-- what authority/budget/risk limits apply;
-- whether execution is allowed, denied, or requires human approval;
-- how the action is traced and audited.
+- durable background jobs;
+- one-time, delayed and recurring scheduling;
+- domain-event contracts;
+- transactional outbox;
+- idempotent inbox/processed-event handling;
+- bounded retry/backoff;
+- leases/heartbeats/concurrency control;
+- cancellation/pause;
+- dead-letter and recovery paths;
+- correlation/causation propagation;
+- authority/audit/tenant enforcement.
 
-Without this foundation, self-forming agents, Tool Gateway, autonomous sales, Attention Required and self-improvement would each invent their own governance model.
-
-### BP-001 objective
-
-Create **generic platform-level authority contracts** by extracting/generalizing the strongest existing AI governance patterns, while preserving current AI behavior.
-
-### Core contracts
-
-```text
-ActorContext
-TenantContext
-ActionRequest
-PermissionDecision
-PolicyDecision
-AuthorityEnvelope
-ConsequenceClassification
-ApprovalRequirement
-ExecutionDecision
-ActionTraceContext
-AuditRecord reference
-```
-
-### Required execution result
-
-```text
-ALLOW
-DENY
-REQUIRE_APPROVAL
-```
-
-with machine-readable reason/policy/authority evidence.
-
-### Constraints
-
-- deny by default;
-- tenant isolation is non-bypassable;
-- server/runtime is authoritative;
-- no second parallel AI governance system;
-- existing AI control-plane behavior must continue to pass its tests;
-- no UI redesign in this packet;
-- no connector implementation in this packet;
-- no agent spawning in this packet;
-- no production data migration without a separate approved migration step.
-
-### Required tests
-
-- cross-tenant denial;
-- missing actor/tenant context denial;
-- allowed action inside authority envelope;
-- approval escalation when envelope exceeded;
-- policy denial overrides lower-level permission;
-- action trace/correlation propagation;
-- audit record produced for consequential decision;
-- existing AI provider/agent/workflow authorization behavior remains compatible;
-- budget/authority boundary cannot be bypassed through alternate entry points.
-
-### Definition of done
-
-BP-001 is complete when a human, agent, workflow or future tool invocation can pass through the same generic authority-decision contract without weakening existing AI governance or tenant isolation.
-
----
+It must extend the existing workflow/agent runtime and existing Supabase/Postgres deployment. It must not create a second workflow engine, another database, an external queue vendor or a new deployment stack.
 
 ## 18. Build-Packet Rule Going Forward
 
