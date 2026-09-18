@@ -753,9 +753,13 @@ The migration order is intentionally foundation-first while preserving current w
 
 Implemented and security-reviewed on `claude/affectionate-dirac-u3jdp0` through commit `d722d60f58eb649df94af59b85315f0117a0c314`. The shared deterministic authority path is live for the single agent `tool_call` pilot and reuses existing approval/audit/tenancy/runtime systems. No deployment or database migration was performed.
 
-### A1 — Durable Runtime Foundation — NEXT (BP-002)
+### A1 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW (BP-002)
 
 Introduce shared trace IDs, durable jobs/scheduler, domain-event envelope and outbox/inbox foundation inside the existing Supabase/Postgres architecture.
+
+Implemented on the current build branch. `supabase/functions/server/platform/durable/**` holds the runtime; migrations `20260919120000`–`20260919120002` hold the durable state and the five atomic SQL operations, with a rollback. Correlation and causation travel schedule → job → event → consumer. The pilot is the workflow approval expiry sweep, which calls the existing approval gate and has no external effect. Nothing was deployed, no migration was applied, and no production schedule was configured.
+
+The row in §2 that reads "Long-running jobs … BUILD NEW" is the gap this closed. The row that reads "KV runtime stores … REFACTOR" is **not** closed and is A2's: no existing agent, workflow, checkpoint or approval record was moved.
 
 ### A2 — Runtime Persistence
 
@@ -803,7 +807,7 @@ These stages are dependency order, not a commitment that each equals one sprint.
 
 A0 is implemented and accepted. The temporary BP-001 instruction packet is removed after this status is recorded; implementation truth now lives in code, tests, Git history and the active progress authority.
 
-### BP-002 — Durable Runtime Foundation — NEXT
+### BP-002 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW
 
 BP-002 is the only authorized next implementation packet. It covers the A1 execution substrate:
 

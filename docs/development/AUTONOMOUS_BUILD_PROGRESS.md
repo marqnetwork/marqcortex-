@@ -56,19 +56,71 @@ Deferred intentionally from A0:
 - registry certification of contradictory `safetyClass` / `allowedTools`;
 - migration of additional actions through the evaluator.
 
-### A1 — Durable Runtime Foundation — NEXT
+### A1 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW
 
-The next bounded implementation packet is:
+BP-002 is implemented on this branch. The packet
+`docs/generated/build-packets/BP-002_DURABLE_RUNTIME_FOUNDATION.md` remains in
+place until the review that accepts it; §21 of the packet is what removes it.
 
-`docs/generated/build-packets/BP-002_DURABLE_RUNTIME_FOUNDATION.md`
+Implemented outcome:
+`Existing workflow / agent runtime → durable job foundation → scheduler / lease / retry → BP-001 authority → existing capability execution → domain event / outbox → idempotent consumer → audit / metrics / recovery`.
 
-A1 establishes durable jobs, scheduling, domain events, outbox/inbox delivery, idempotency, leases/retries and dead-letter recovery **inside the existing repository and existing Supabase project**. It must reuse the current workflow/agent runtime and BP-001 authority layer rather than creating a parallel orchestrator.
+What A1 added, and nothing else:
+
+- **Durable SQL state** — `durable_jobs`, `durable_schedules`, `durable_outbox`,
+  `durable_inbox`, `durable_dead_letters`, plus five SECURITY DEFINER functions
+  (`durable_job_claim`, `durable_job_heartbeat`, `durable_job_settle`,
+  `durable_job_recover_leases`, `durable_schedule_materialize_due`). Additive,
+  inside the existing migration chain, with a rollback. **Not applied anywhere.**
+- **The platform runtime** — `supabase/functions/server/platform/durable/**`,
+  entered only through its `index.ts`, importing nothing outside itself but
+  `../authority/index.ts`.
+- **Pilot** — the workflow approval expiry sweep,
+  `ai/workflows/durable/approvalExpirySweep.ts`. It calls the EXISTING
+  `WorkflowApprovalGate.expireIfDue` on a schedule and does nothing else; it
+  closes the gap that file's own header names ("a sweeper that has to be
+  scheduled is a sweeper that is not running in the deployment where it
+  matters"). No external effect, no new capability, no production mutation.
+
+Reused rather than rebuilt: the workflow orchestrator and its state machine, the
+agent runtime, the workflow approval gate, `cortex.*` RLS helpers and composite
+tenancy keys, the BP-001 evaluator and its audit projection, the existing
+migration/rollback conventions and the existing test conventions. No new
+repository, Supabase project, database, queue or scheduler vendor, deployment
+stack or workflow engine was created.
+
+A1 test evidence at submission:
+- `verify:bp002` 278/278
+- `test:ai` 2215/2215
+- `test:security` 1141/1141
+- `test:features` 1430/1430
+- `test:system` 193/193
+- `test:lifecycle` 241/241
+- `test:database` 334/334 (2 skipped — no live PostgreSQL in the environment)
+- `test:migration` 244/244, `scan:boundaries` 123/123
+- `typecheck:api` clean across the AI, registry-free and server boundaries;
+  `typecheck:tests` clean.
+- The node-targeted migration checker advisory remains pre-existing and is not
+  an A1 regression.
+
+Deferred intentionally from A1:
+- applying the migration anywhere, and configuring any production schedule —
+  the sweep's schedule is a value a later authorized deployment installs;
+- executing the Postgres-backed stores, which no environment here can do; only
+  their row and argument contracts against the migration are proven;
+- migrating existing agent/workflow/approval runtime state out of the KV store
+  (that is A2);
+- tenant-authored authority envelopes and explicit-deny rules for job actors;
+- a consumer that retries itself after a failure — the dispatcher retries the
+  event, and a consumer's own failed inbox row is cleared by an operator;
+- cross-process event subscribers, priority ageing, tenant quotas and job
+  dependency graphs.
 
 ## CURRENT BATCH
 
-**BP-002 — READY FOR CLAUDE IMPLEMENTATION. NOT STARTED.**
+**BP-002 — IMPLEMENTED. AWAITING REVIEW. A2 / BP-003 NOT STARTED.**
 
-Hard rules:
+Hard rules, all observed:
 - same repository;
 - same Supabase project;
 - no new deployment/hosting/queue vendor;
