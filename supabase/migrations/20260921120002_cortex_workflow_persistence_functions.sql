@@ -555,12 +555,17 @@ COMMENT ON FUNCTION public.workflow_approval_list(UUID, TEXT, BOOLEAN, INTEGER) 
 -- 7. Privilege — the runtime writes, and nobody else executes
 -- ---------------------------------------------------------------------------
 --
--- SECURITY DEFINER lets these write tables on which `authenticated` holds
--- SELECT and nothing else. That is a statement about WHO WRITES and not about
--- authority: the BUSINESS question — may this actor start, advance, decide or
--- cancel this run — is answered before any of these is reached, by the
--- workflow service's own RBAC, and none of these functions can answer it or
--- override it.
+-- These three tables are INTERNAL RUNTIME PERSISTENCE. `20260921120001` leaves
+-- `anon` and `authenticated` with no privilege on them and no policy, so
+-- SECURITY DEFINER is what lets these functions reach rows nothing else can —
+-- and the grants below are what keep that reserved to the runtime: every one
+-- of them is revoked from PUBLIC and granted to `service_role` alone.
+--
+-- That is a statement about WHO WRITES and not about authority. The BUSINESS
+-- question — may this actor start, advance, decide or cancel this run — is
+-- answered before any of these is reached, by the workflow SERVICE, which
+-- remains the authorization surface for workflow state. None of these
+-- functions can answer it or override it.
 REVOKE ALL ON FUNCTION public.workflow_run_create(UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, TIMESTAMPTZ, TIMESTAMPTZ, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.workflow_run_save(UUID, TEXT, INTEGER, TEXT, INTEGER, INTEGER, TIMESTAMPTZ, JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.workflow_run_load(UUID, TEXT) FROM PUBLIC;

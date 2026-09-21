@@ -51,9 +51,11 @@
 -- It refuses UPDATE and not DELETE, and the asymmetry is deliberate rather
 -- than an omission: `organizations` cascades on delete, a run cascades to its
 -- checkpoints, and a DELETE trigger would make deleting an organization fail.
--- Removal is therefore held by privilege and by the absent port — `authenticated`
--- is granted SELECT and nothing else in `20260921120001` — while EDITING, the
--- thing the chain actually proves the absence of, is held by the database.
+-- Removal is therefore held by privilege and by the absent port: these tables
+-- are internal runtime persistence, `20260921120001` leaves `anon` and
+-- `authenticated` with no privilege on them at all, and the store contract has
+-- no delete. EDITING — the thing the chain actually proves the absence of —
+-- is held by the database itself.
 --
 -- ── WHAT IS DELIBERATELY NOT HERE ──────────────────────────────────────────
 --
