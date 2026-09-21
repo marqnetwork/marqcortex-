@@ -283,12 +283,43 @@ describe('BP-002 §8 — the lease is checked on every write', () => {
     assert.match(heartbeat[0], /AND lease_expires_at > p_now/);
   });
 
-  it('checks owner AND generation on settle, and writes nothing on a mismatch', () => {
+  it('checks owner, generation AND EXPIRY on settle, and writes nothing on a mismatch', () => {
+    // THE DEFECT THIS ASSERTION EXISTS FOR. The settle checked owner and
+    // generation but NOT expiry, so a worker whose lease had lapsed could still
+    // succeed, retry, dead-letter and emit events — purely because the recovery
+    // sweep had not happened to run yet. The heartbeat had the predicate and
+    // said why; the settle did not; the in-memory store did. Three places, two
+    // behaviours. This is what stops them drifting apart again.
     const settle = /durable_job_settle\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
     assert.ok(settle);
     assert.match(settle[0], /AND lease_owner\s+= p_worker/);
     assert.match(settle[0], /AND lease_generation = p_generation/);
+    assert.match(
+      settle[0],
+      /AND lease_expires_at > p_now/,
+      'an expired lease must not be able to settle',
+    );
     assert.match(settle[0], /IF NOT FOUND THEN[\s\S]*?RETURN false;/);
+  });
+
+  it('checks the live lease on EVERY settling function, not only the job one', () => {
+    // The same rule, everywhere it applies. An outbox settle, an inbox settle
+    // and a heartbeat each complete work somebody claimed, and each must refuse
+    // a claim that has lapsed.
+    for (const fn of [
+      'durable_job_settle',
+      'durable_job_heartbeat',
+      'durable_outbox_settle',
+      'durable_inbox_settle',
+    ]) {
+      const definition = new RegExp(`${fn}\\([\\s\\S]*?\\$\\$;`).exec(body(FUNCTIONS));
+      assert.ok(definition, `${fn} must exist`);
+      assert.match(
+        definition[0],
+        /lease_expires_at > p_now/,
+        `${fn} must refuse an expired lease`,
+      );
+    }
   });
 
   it('recovers an expired lease without spending an attempt', () => {
@@ -301,6 +332,121 @@ describe('BP-002 §8 — the lease is checked on every write', () => {
     );
     assert.match(recover[0], /AND j\.attempt >= j\.max_attempts/);
     assert.match(recover[0], /lease_abandoned/);
+  });
+});
+
+describe('the operator transitions are owned by the database', () => {
+  it('declares a transition function rather than leaving it to the adapter', () => {
+    // The adapter's gateway takes equality predicates only, so cancellation —
+    // legal from three source states — could not name its source and was
+    // issued UNCONDITIONED. A succeeded or dead-lettered job could be
+    // cancelled. The repair is not "read then update", which reintroduces the
+    // time-of-check-to-time-of-use window; it is one statement under one lock.
+    assert.match(body(FUNCTIONS), /CREATE OR REPLACE FUNCTION public\.durable_job_transition/);
+  });
+
+  it('enumerates the legal source states, and refuses everything else', () => {
+    const fn = /durable_job_transition\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn);
+    assert.match(fn[0], /ARRAY\['queued'\]/);
+    assert.match(fn[0], /ARRAY\['paused'\]/);
+    assert.match(fn[0], /ARRAY\['queued', 'paused', 'leased'\]/);
+    assert.match(fn[0], /c\.state\s+= ANY \(v_from\)/);
+  });
+
+  it('refuses to assert an outcome of running work', () => {
+    const fn = /durable_job_transition\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn);
+    // `succeeded` and `dead_letter` are outcomes, not operator actions. A
+    // function that could assert them would make the record a claim.
+    assert.match(fn[0], /p_to NOT IN \('paused', 'queued', 'cancelled'\)/);
+  });
+
+  it('clears the lease when it cancels, so the running worker cannot settle', () => {
+    const fn = /durable_job_transition\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn);
+    assert.match(fn[0], /lease_owner\s+= CASE WHEN p_to = 'cancelled' THEN NULL/);
+  });
+});
+
+describe('the outbox lease is durable', () => {
+  it('honours available_at, so backoff is real', () => {
+    // The adapter selected every `pending` row and never compared
+    // `available_at`, so a failed event was immediately re-claimable and the
+    // backoff on the row was a number nobody honoured.
+    const fn = /durable_outbox_claim\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn, 'durable_outbox_claim must exist');
+    assert.match(fn[0], /AND c\.available_at <= p_now/);
+    assert.match(fn[0], /FOR UPDATE SKIP LOCKED/);
+  });
+
+  it('settles an exhausted event and its dead-letter row in ONE function body', () => {
+    // A crash between "mark failed" and "insert the dead-letter row" left
+    // terminal undeliverable work with no monitored record.
+    const fn = /durable_outbox_settle\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn, 'durable_outbox_settle must exist');
+    assert.match(fn[0], /UPDATE public\.durable_outbox/);
+    assert.match(fn[0], /INSERT INTO public\.durable_dead_letters/);
+  });
+
+  it('recovers an abandoned dispatch lease', () => {
+    const fn = /durable_outbox_recover_leases\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn, 'durable_outbox_recover_leases must exist');
+    assert.match(fn[0], /dispatch_state = 'dispatching'/);
+    assert.match(fn[0], /lease_expires_at <= p_now/);
+    assert.match(fn[0], /dispatch_abandoned/);
+    assert.equal(
+      /attempt\s*=\s*\w*\.?attempt\s*\+\s*1/.test(fn[0]),
+      false,
+      'recovery must not spend an attempt',
+    );
+  });
+});
+
+describe('the inbox is a claim, not a claim of completion', () => {
+  it('has three states, and processing is one of them', () => {
+    // The old table had two, and the consumer wrote `processed` BEFORE running
+    // its handler — so a process that died in between left a permanent
+    // suppression for work that never happened.
+    assert.match(
+      body(TABLES),
+      /CHECK \(status IN \('processing', 'processed', 'failed'\)\)/,
+    );
+  });
+
+  it('carries a lease, so an abandoned claim is recoverable', () => {
+    const block = /CREATE TABLE IF NOT EXISTS public\.durable_inbox \(([\s\S]*?)\n\);/.exec(
+      TABLES,
+    );
+    assert.ok(block);
+    for (const column of ['attempt', 'lease_owner', 'lease_generation', 'lease_expires_at']) {
+      assert.match(block[1], new RegExp(`(^|\\n)\\s*${column}\\s`), `durable_inbox.${column}`);
+    }
+    assert.match(body(TABLES), /CONSTRAINT durable_inbox_claim_coherent CHECK \(/);
+  });
+
+  it('claims before the handler, and always returns the row as it stands', () => {
+    const fn = /durable_inbox_claim\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn, 'durable_inbox_claim must exist');
+    assert.match(fn[0], /'processing'/);
+    // Returning the row in every case is what lets the caller tell "already
+    // done" from "somebody else is doing it". The previous contract collapsed
+    // both into one undefined, and the dispatcher read both as success.
+    assert.match(fn[0], /RETURN NEXT v_row;/);
+    assert.match(fn[0], /v_row\.status = 'processed'/);
+  });
+
+  it('recovers an abandoned claim to failed, NEVER to processed', () => {
+    // Whether the effect happened is exactly what nobody knows when a consumer
+    // dies mid-handler, and guessing yes loses it permanently.
+    const fn = /durable_inbox_recover_claims\([\s\S]*?\$\$;/.exec(body(FUNCTIONS));
+    assert.ok(fn, 'durable_inbox_recover_claims must exist');
+    assert.match(fn[0], /SET status\s+= 'failed'/);
+    assert.equal(
+      /SET status\s*=\s*'processed'/.test(fn[0]),
+      false,
+      'an abandoned claim must never be recovered into processed',
+    );
   });
 });
 
@@ -453,6 +599,13 @@ describe('RLS is enabled, read-only, and never cross-tenant', () => {
       'durable_job_settle',
       'durable_job_recover_leases',
       'durable_schedule_materialize_due',
+      'durable_job_transition',
+      'durable_outbox_claim',
+      'durable_outbox_settle',
+      'durable_outbox_recover_leases',
+      'durable_inbox_claim',
+      'durable_inbox_settle',
+      'durable_inbox_recover_claims',
     ]) {
       assert.match(
         FUNCTIONS,
@@ -520,6 +673,13 @@ describe('the migration is additive, and the rollback is complete', () => {
       'durable_job_settle',
       'durable_job_recover_leases',
       'durable_schedule_materialize_due',
+      'durable_job_transition',
+      'durable_outbox_claim',
+      'durable_outbox_settle',
+      'durable_outbox_recover_leases',
+      'durable_inbox_claim',
+      'durable_inbox_settle',
+      'durable_inbox_recover_claims',
     ]) {
       assert.match(ROLLBACK, new RegExp(`DROP FUNCTION IF EXISTS public\\.${fn}\\(`));
     }
