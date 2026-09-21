@@ -160,6 +160,10 @@ import {
 } from "./organization/organizationWrites.ts";
 import { createMembershipInvalidationSignal } from "./ai/adapters/supabaseAuthenticator.ts";
 import {
+  durableRuntimeUnavailableReason,
+  getDurableRuntime,
+} from "./durableRuntimeComposition.ts";
+import {
   deriveDealSnapshots,
   summarizeSnapshots,
   type RawSubmission,
@@ -921,6 +925,39 @@ if (workflowRuntime) {
   });
 } else {
   console.error('[ai] workflow runtime unavailable — workflow routes are not mounted');
+}
+
+// ============================================================================
+// DURABLE RUNTIME — the A1 background-work foundation (BP-002)
+//
+// COMPOSED, NOT SCHEDULED. This builds the Postgres-backed stores over the
+// service client, registers the approval-expiry pilot against the SAME workflow
+// approval gate the operator surface uses, and stands up the worker, scheduler
+// and dispatcher. It does not start anything: `tick()` is a function the
+// environment can call when a deployment is authorized to run background work,
+// and BP-002 §10 explicitly forbids configuring production cron in this packet.
+//
+// NO ROUTE IS MOUNTED. An endpoint that drains a tenant's queue is an authority
+// surface — it decides when consequential background work happens — and
+// designing one belongs in a packet scoped to it. Until then the tick is an
+// internal service, reachable by code that already holds the server's trust.
+//
+// Composing it here, beside the agent and workflow surfaces, is what makes the
+// foundation part of the deployed server rather than a library with tests.
+// ============================================================================
+
+const durableRuntime = getDurableRuntime();
+if (durableRuntime) {
+  console.log(
+    `[durable] A1 foundation ready — handlers [${durableRuntime.registeredJobTypes.join(', ')}]; ` +
+      'no schedule is configured and no work runs until a tick is requested',
+  );
+} else {
+  console.error(
+    `[durable] runtime unavailable — background work is NOT composed: ${
+      durableRuntimeUnavailableReason() ?? 'unknown reason'
+    }`,
+  );
 }
 
 // ============================================================================
