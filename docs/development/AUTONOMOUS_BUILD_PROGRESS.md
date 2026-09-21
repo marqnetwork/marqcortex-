@@ -199,25 +199,51 @@ Deferred intentionally from A1:
 - cross-process event subscribers, priority ageing, tenant quotas and job
   dependency graphs.
 
-### A2 — Runtime Persistence — IN PROGRESS, FIRST SLICE READY
+### A2 — Runtime Persistence — IN PROGRESS
 
-A2 is intentionally split into bounded packets. **BP-003 does not perform a production cutover.** It creates and proves a SQL-backed implementation of the existing WORKFLOW persistence ports only — workflow runs, checkpoints and approvals — while current KV remains the production authority.
+#### BP-003 — Workflow Runtime SQL Persistence Foundation & Parity Gate — COMPLETE
 
-Active packet:
-`docs/generated/build-packets/BP-003_WORKFLOW_RUNTIME_SQL_PERSISTENCE_FOUNDATION.md`
+BP-003 is implemented, corrected, independently reviewed and accepted through commit `42a1b73bea4d12e9156333bb07a9635ecb144bed`.
 
-Locked sequence:
-1. prove SQL workflow persistence parity locally;
-2. review BP-003;
-3. only then design the KV shadow/backfill/cutover packet;
-4. migrate agent runtime persistence in its own later bounded packet;
-5. retire KV authority only after explicit parity/cutover evidence.
+What this accepted slice established:
+- SQL-backed implementations of the existing `WorkflowRunStore`, `WorkflowCheckpointStore` and `WorkflowApprovalStore`;
+- additive workflow persistence schema, tenant-safe composite references, forced RLS and service-role-only persistence RPCs;
+- optimistic-concurrency parity with the current KV workflow authority;
+- append-only checkpoint persistence and digest-chain compatibility;
+- approval lifecycle parity including pending, approved, rejected, expired, withdrawn and consumed;
+- NULL-safe JSON/relational agreement checks for tenant, identity, state and version authority fields;
+- memory/KV/live-PostgreSQL contract parity for UUID-backed tenants;
+- live local PostgreSQL concurrency/RLS/rollback verification;
+- diagnostic approval-authority shared-store invariant;
+- production bootstrap proven unable to import or select the SQL workflow stores.
 
-A2 is not complete and no cutover is authorized.
+**No production authority moved.** The existing KV workflow stores remain the production/bootstrap authority. No hosted migration, backfill, shadow write, deployment or KV deletion occurred.
+
+Known cutover blocker preserved deliberately:
+- current workflow tenancy can admit slug-like organization identifiers such as the default `marq-cortex`;
+- the SQL candidate requires a UUID present in `public.organizations`;
+- SQL fails closed for an unnameable tenant;
+- organization identity must be reconciled before any workflow cutover packet may move authority.
+
+BP-003 final verification evidence:
+- `verify:bp003` 480/480
+- `test:database:workflow-persistence` 122 live PostgreSQL assertions, exit 0
+- `verify:bp002` 338/338
+- `test:ai` 2306/2306
+- `test:security` 1141/1141
+- `test:features` 1441/1441
+- `test:system` 194/194
+- `test:lifecycle` 241/241
+- `test:database` 399/399 with `DATABASE_URL`
+- `test:migration` 244/244
+- `scan:boundaries` 124/124
+- API/test typechecks clean; pre-existing node-targeted migration advisory unchanged.
+
+A2 remains in progress. The next packet must be a separately reviewed **workflow cutover-readiness** slice, not an immediate production cutover and not agent persistence migration.
 
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE AND ACCEPTED. A2 / BP-003 — READY FOR IMPLEMENTATION, NO CUTOVER AUTHORIZED.**
+**A1 / BP-002 — COMPLETE. BP-003 WORKFLOW SQL PARITY SLICE — COMPLETE. A2 — IN PROGRESS. NEXT PACKET NOT STARTED.**
 
 Locked rules remain:
 - same repository and same Supabase project;
