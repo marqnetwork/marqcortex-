@@ -761,9 +761,9 @@ Implemented, corrected, live-PostgreSQL verified and accepted on the current bui
 
 The row in §2 that reads "Long-running jobs … BUILD NEW" is the gap this closed. The row that reads "KV runtime stores … REFACTOR" is **not** closed and is A2's: no existing agent, workflow, checkpoint or approval record was moved.
 
-### A2 — Runtime Persistence — NEXT
+### A2 — Runtime Persistence — IN PROGRESS
 
-Move authoritative agent/workflow/checkpoint/approval runtime state toward SQL-backed durable stores while preserving existing runtime behavior, tenant isolation, authority controls, A1 durability semantics and tests.
+A2 is split into bounded migration slices to avoid a broad KV rewrite. **BP-003 is the first slice and covers workflow persistence only:** SQL-backed implementations for the existing workflow run/checkpoint/approval stores plus live-local parity/concurrency proof. Current production KV remains authoritative; no backfill or cutover is authorized in BP-003. Agent runtime persistence remains a later A2 slice.
 
 ### A3 — Organizational AI Workforce
 
@@ -811,9 +811,9 @@ A0 is implemented and accepted. The temporary BP-001 instruction packet is remov
 
 A1 is implemented and accepted through `de62e09bfc09e0d2387e1834febc2a3b330e133d`. The temporary BP-002 packet is removed after acceptance. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
 
-### BP-003 — Runtime Persistence — NEXT, NOT STARTED
+### BP-003 — Workflow Runtime SQL Persistence Foundation & Parity Gate — READY
 
-BP-003 must be created before A2 implementation. It must migrate existing authoritative runtime state incrementally rather than inventing a replacement runtime, preserve the existing agent/workflow APIs where practical, keep rollback/cutover explicit, and reuse A0 authority plus A1 durable primitives.
+The packet is at `docs/generated/build-packets/BP-003_WORKFLOW_RUNTIME_SQL_PERSISTENCE_FOUNDATION.md`. It adds and proves a SQL implementation underneath the existing workflow persistence ports but explicitly forbids production cutover, hosted migration, KV deletion and agent-persistence migration. A later reviewed packet will own workflow shadow/backfill/cutover.
 
 ## 18. Build-Packet Rule Going Forward
 
