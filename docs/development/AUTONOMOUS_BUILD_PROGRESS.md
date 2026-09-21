@@ -199,13 +199,25 @@ Deferred intentionally from A1:
 - cross-process event subscribers, priority ageing, tenant quotas and job
   dependency graphs.
 
-### A2 — Runtime Persistence — NEXT
+### A2 — Runtime Persistence — IN PROGRESS, FIRST SLICE READY
 
-Move authoritative agent/workflow/checkpoint/approval runtime state from legacy KV authority toward SQL-backed durable stores while preserving current runtime behavior, tenant isolation, BP-001 authority, A1 durability semantics, rollback safety and existing tests. A2 has not started.
+A2 is intentionally split into bounded packets. **BP-003 does not perform a production cutover.** It creates and proves a SQL-backed implementation of the existing WORKFLOW persistence ports only — workflow runs, checkpoints and approvals — while current KV remains the production authority.
+
+Active packet:
+`docs/generated/build-packets/BP-003_WORKFLOW_RUNTIME_SQL_PERSISTENCE_FOUNDATION.md`
+
+Locked sequence:
+1. prove SQL workflow persistence parity locally;
+2. review BP-003;
+3. only then design the KV shadow/backfill/cutover packet;
+4. migrate agent runtime persistence in its own later bounded packet;
+5. retire KV authority only after explicit parity/cutover evidence.
+
+A2 is not complete and no cutover is authorized.
 
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE AND ACCEPTED. A2 / BP-003 — NEXT, NOT STARTED.**
+**A1 / BP-002 — COMPLETE AND ACCEPTED. A2 / BP-003 — READY FOR IMPLEMENTATION, NO CUTOVER AUTHORIZED.**
 
 Locked rules remain:
 - same repository and same Supabase project;
