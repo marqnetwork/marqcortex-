@@ -783,3 +783,207 @@ describe('the outbox lease is durable: backoff, ownership and recovery', () => {
     );
   });
 });
+
+describe('two overlapping deliveries on ONE runtime run the handler once', () => {
+  /**
+   * THE DEFECT THIS SUITE EXISTS FOR.
+   *
+   * The claim identity used to be the consumer instance's, for its whole life.
+   * Two overlapping `consume()` calls on one server therefore presented the
+   * SAME owner string, and the second found `status = processing` with
+   * `lease_owner` equal to its own identity, concluded it held the claim, and
+   * ran the handler again — against the first call's still-live lease, which
+   * its settle would then satisfy.
+   *
+   * Every existing concurrency test used two DIFFERENT workers, so none of them
+   * could see it. These use one.
+   */
+  function sameRuntimeConsumer(
+    clock: ReturnType<typeof createTestClock>,
+    inbox: ReturnType<typeof createMemoryDurableStores>['inbox'],
+  ) {
+    const effects: string[] = [];
+    let claimSeq = 0;
+    const consumer = createIdempotentConsumer({
+      inbox,
+      consumerKey: 'same-runtime',
+      eventTypes: ['test.happened'],
+      handle: async (event) => {
+        effects.push(event.eventId);
+        return { counted: true };
+      },
+      nowIso: () => clock.nowIso(),
+      // ONE base identity — the whole point. Both invocations come from the
+      // same server instance, exactly as two overlapping requests would.
+      workerId: 'edge:abc123',
+      newClaimId: () => {
+        claimSeq += 1;
+        return `claim-${claimSeq}`;
+      },
+    });
+    return { consumer, effects };
+  }
+
+  it('runs the handler exactly once, one processed and one in_flight', async () => {
+    const clock = createTestClock();
+    const harness = createHarness(clock);
+    await succeedWithEvents(harness, [{ eventId: 'ev-1', eventType: 'test.happened' }]);
+    const event = await harness.stores.outbox.load(ORG, 'ev-1');
+    assert.ok(event);
+
+    const { consumer, effects } = sameRuntimeConsumer(clock, harness.stores.inbox);
+
+    const [first, second] = await Promise.all([
+      consumer.consume(event),
+      consumer.consume(event),
+    ]);
+
+    const outcomes = [first.outcome, second.outcome].sort();
+    assert.deepEqual(
+      outcomes,
+      ['in_flight', 'processed'],
+      'one invocation owns the claim; the other must be told it does not',
+    );
+    assert.deepEqual(effects, ['ev-1'], 'THE HANDLER RUNS ONCE');
+    assert.equal(
+      await harness.stores.inbox.count(ORG, 'same-runtime'),
+      1,
+      'one inbox identity, not two',
+    );
+  });
+
+  it('suppresses a third delivery after completion, still one effect', async () => {
+    const clock = createTestClock();
+    const harness = createHarness(clock);
+    await succeedWithEvents(harness, [{ eventId: 'ev-1', eventType: 'test.happened' }]);
+    const event = await harness.stores.outbox.load(ORG, 'ev-1');
+    assert.ok(event);
+
+    const { consumer, effects } = sameRuntimeConsumer(clock, harness.stores.inbox);
+    await Promise.all([consumer.consume(event), consumer.consume(event)]);
+
+    const third = await consumer.consume(event);
+    assert.equal(third.outcome, 'suppressed');
+    assert.deepEqual(effects, ['ev-1'], 'the handler count stays at one');
+    assert.equal((await harness.stores.inbox.find(ORG, 'same-runtime', 'ev-1'))?.status, 'processed');
+  });
+
+  it('mints a distinct claim identity for every invocation', async () => {
+    // The invariant the owner comparison rests on. If two invocations ever
+    // shared an identity, the store would be told they are the same attempt
+    // and would believe them.
+    const clock = createTestClock();
+    const harness = createHarness(clock);
+    await succeedWithEvents(harness, [{ eventId: 'ev-1', eventType: 'test.happened' }]);
+    const event = await harness.stores.outbox.load(ORG, 'ev-1');
+    assert.ok(event);
+
+    const seen: string[] = [];
+    const recording = {
+      ...harness.stores.inbox,
+      claim: async (
+        org: string,
+        key: string,
+        e: typeof event,
+        worker: string,
+        ttl: number,
+        now: string,
+      ) => {
+        seen.push(worker);
+        return harness.stores.inbox.claim(org, key, e, worker, ttl, now);
+      },
+    };
+
+    const consumer = createIdempotentConsumer({
+      inbox: recording as unknown as typeof harness.stores.inbox,
+      consumerKey: 'identity',
+      eventTypes: ['test.happened'],
+      handle: async () => undefined,
+      nowIso: () => clock.nowIso(),
+      workerId: 'edge:abc123',
+    });
+
+    await consumer.consume(event);
+    await consumer.consume(event);
+    await consumer.consume(event);
+
+    assert.equal(new Set(seen).size, 3, 'every invocation must present a distinct identity');
+    for (const identity of seen) {
+      assert.match(identity, /^edge:abc123:/, 'the base worker stays readable in the owner');
+    }
+  });
+
+  it('still lets two DIFFERENT runtimes race correctly', async () => {
+    // The existing guarantee, kept. Two isolates, two base identities, one
+    // effect — the case every earlier test covered and this fix must not break.
+    const clock = createTestClock();
+    const harness = createHarness(clock);
+    await succeedWithEvents(harness, [{ eventId: 'ev-1', eventType: 'test.happened' }]);
+    const event = await harness.stores.outbox.load(ORG, 'ev-1');
+    assert.ok(event);
+
+    const effects: string[] = [];
+    const make = (worker: string) =>
+      createIdempotentConsumer({
+        inbox: harness.stores.inbox,
+        consumerKey: 'two-runtimes',
+        eventTypes: ['test.happened'],
+        handle: async (e) => {
+          effects.push(`${worker}:${e.eventId}`);
+          return undefined;
+        },
+        nowIso: () => clock.nowIso(),
+        workerId: worker,
+      });
+
+    const outcomes = await Promise.all([
+      make('edge:aaa').consume(event),
+      make('edge:bbb').consume(event),
+    ]);
+
+    assert.equal(outcomes.filter((o) => o.outcome === 'processed').length, 1);
+    assert.equal(outcomes.filter((o) => o.outcome === 'in_flight').length, 1);
+    assert.equal(effects.length, 1);
+  });
+});
+
+describe('the claim parity table holds in the reference store', () => {
+  // The five cases the contract names. Written as a table because the defect
+  // was a divergence between two implementations of exactly this, and a table
+  // is what makes "they agree" something a reader can check rather than infer.
+  //
+  // The live suite drives the same five against PostgreSQL.
+  it('answers each of the five cases the contract names', async () => {
+    const clock = createTestClock();
+    const harness = createHarness(clock);
+    await succeedWithEvents(harness, [{ eventId: 'ev-1', eventType: 'test.happened' }]);
+    const event = await harness.stores.outbox.load(ORG, 'ev-1');
+    assert.ok(event);
+    const inbox = harness.stores.inbox;
+
+    // 1. no row → claimed
+    const first = await inbox.claim(ORG, 'p', event, 'w:1', 60_000, clock.nowIso());
+    assert.equal(first.kind, 'claimed', 'no row → claimed');
+
+    // 2. live processing owned by another invocation → inFlight
+    const other = await inbox.claim(ORG, 'p', event, 'w:2', 60_000, clock.nowIso());
+    assert.equal(other.kind, 'inFlight', 'live claim held by another invocation → inFlight');
+
+    // 3. failed → claimed
+    assert.ok(first.kind === 'claimed');
+    await inbox.settle(first.lease, 'failed', { failureCode: 'x' }, clock.nowIso());
+    const afterFailure = await inbox.claim(ORG, 'p', event, 'w:3', 60_000, clock.nowIso());
+    assert.equal(afterFailure.kind, 'claimed', 'failed → claimed');
+
+    // 4. expired processing → claimed
+    clock.advance(61_000);
+    const afterExpiry = await inbox.claim(ORG, 'p', event, 'w:4', 60_000, clock.nowIso());
+    assert.equal(afterExpiry.kind, 'claimed', 'expired processing → claimed');
+
+    // 5. processed → suppressed
+    assert.ok(afterExpiry.kind === 'claimed');
+    await inbox.settle(afterExpiry.lease, 'processed', {}, clock.nowIso());
+    const done = await inbox.claim(ORG, 'p', event, 'w:5', 60_000, clock.nowIso());
+    assert.equal(done.kind, 'suppressed', 'processed → suppressed');
+  });
+});

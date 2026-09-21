@@ -218,6 +218,155 @@ BEGIN
 END
 $$;
 
+-- ── TWO OVERLAPPING DELIVERIES FROM ONE RUNTIME ────────────────────────────
+--
+-- THE DEFECT THIS BLOCK EXISTS FOR, at the layer where it was visible.
+--
+-- The claim identity used to be the consumer INSTANCE's, for its whole life.
+-- Two overlapping deliveries on one server therefore presented the same owner
+-- string, and `durable_inbox_claim` returned the live row — whose `lease_owner`
+-- equalled the caller's own identity. The adapter compares owner to decide
+-- whether it holds the claim, so it concluded yes and ran the handler a second
+-- time, against the first call's still-live lease.
+--
+-- The SQL was never wrong. It returns the live row unchanged, which is correct.
+-- What was wrong was inferring ownership from a string that two different
+-- attempts shared. These two assertions pin both halves: the shared string is
+-- ambiguous, and a unique one is not.
+DO $$
+DECLARE
+  v_alpha UUID := '11111111-1111-4111-8111-111111111111';
+  v_now   TIMESTAMPTZ := now();
+  v_event UUID;
+  v_a     public.durable_inbox%ROWTYPE;
+  v_b     public.durable_inbox%ROWTYPE;
+  v_count INTEGER;
+BEGIN
+  INSERT INTO public.durable_outbox (
+    organization_id, event_type, actor_id, actor_type, correlation_id, source
+  ) VALUES (v_alpha, 'test.same_runtime', 'service:test', 'service', 'c', 'test')
+  RETURNING id INTO v_event;
+
+  -- The OLD behaviour, reproduced: one base identity, two attempts. The second
+  -- call gets back a row whose owner is its own string — which is exactly the
+  -- ambiguity that let the adapter run the handler twice.
+  SELECT * INTO v_a FROM public.durable_inbox_claim(
+    v_alpha, 'shared', v_event, 'test.same_runtime', 'c', NULL, 'edge:abc123', 60000, v_now);
+  SELECT * INTO v_b FROM public.durable_inbox_claim(
+    v_alpha, 'shared', v_event, 'test.same_runtime', 'c', NULL, 'edge:abc123', 60000, v_now);
+
+  IF v_a.lease_owner IS DISTINCT FROM v_b.lease_owner
+     OR v_a.lease_generation IS DISTINCT FROM v_b.lease_generation THEN
+    RAISE EXCEPTION 'the shared-identity reproduction no longer reproduces';
+  END IF;
+  RAISE NOTICE '  ok  a SHARED claim identity is ambiguous — both calls see the same owner';
+
+  -- THE FIX, at this layer: a unique identity per invocation. The second call
+  -- now gets a row owned by somebody else, which is the truth.
+  INSERT INTO public.durable_outbox (
+    organization_id, event_type, actor_id, actor_type, correlation_id, source
+  ) VALUES (v_alpha, 'test.same_runtime2', 'service:test', 'service', 'c', 'test')
+  RETURNING id INTO v_event;
+
+  SELECT * INTO v_a FROM public.durable_inbox_claim(
+    v_alpha, 'unique', v_event, 'test.same_runtime2', 'c', NULL,
+    'edge:abc123:claim-1', 60000, v_now);
+  SELECT * INTO v_b FROM public.durable_inbox_claim(
+    v_alpha, 'unique', v_event, 'test.same_runtime2', 'c', NULL,
+    'edge:abc123:claim-2', 60000, v_now);
+
+  IF v_a.lease_owner <> 'edge:abc123:claim-1' THEN
+    RAISE EXCEPTION 'the first invocation did not take the claim';
+  END IF;
+  IF v_b.lease_owner <> 'edge:abc123:claim-1' THEN
+    RAISE EXCEPTION 'the second invocation TOOK a claim the first one holds';
+  END IF;
+  IF v_b.lease_generation <> v_a.lease_generation THEN
+    RAISE EXCEPTION 'the second invocation moved the generation on a live claim';
+  END IF;
+  RAISE NOTICE '  ok  with a unique identity the second invocation sees another owner';
+
+  -- One inbox identity, not two.
+  SELECT count(*) INTO v_count FROM public.durable_inbox
+   WHERE consumer_key = 'unique' AND event_id = v_event;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'two inbox identities for one (consumer, event)'; END IF;
+  RAISE NOTICE '  ok  one inbox identity for one consumer and one event';
+
+  -- The second invocation's identity cannot settle what it does not hold.
+  SELECT count(*) INTO v_count FROM public.durable_inbox_settle(
+    v_alpha, 'unique', v_event, 'edge:abc123:claim-2', v_a.lease_generation,
+    'processed', NULL, NULL, NULL, v_now);
+  IF v_count <> 0 THEN RAISE EXCEPTION 'the non-owning invocation settled the delivery'; END IF;
+
+  -- The holder can, and then a third delivery is suppressed.
+  SELECT count(*) INTO v_count FROM public.durable_inbox_settle(
+    v_alpha, 'unique', v_event, 'edge:abc123:claim-1', v_a.lease_generation,
+    'processed', NULL, NULL, NULL, v_now);
+  IF v_count <> 1 THEN RAISE EXCEPTION 'the holding invocation could not settle'; END IF;
+
+  SELECT * INTO v_b FROM public.durable_inbox_claim(
+    v_alpha, 'unique', v_event, 'test.same_runtime2', 'c', NULL,
+    'edge:abc123:claim-3', 60000, v_now);
+  IF v_b.status <> 'processed' THEN
+    RAISE EXCEPTION 'a third delivery after completion was not suppressed';
+  END IF;
+  RAISE NOTICE '  ok  only the holder settles, and a later delivery is suppressed';
+END
+$$;
+
+-- ── The five claim cases, exactly as the parity contract names them ─────────
+--
+-- The in-memory reference store is driven through the same five. The defect
+-- was a divergence between two implementations of this table, so it is written
+-- out in both places rather than inferred in either.
+DO $$
+DECLARE
+  v_alpha UUID := '11111111-1111-4111-8111-111111111111';
+  v_now   TIMESTAMPTZ := now();
+  v_event UUID;
+  v_row   public.durable_inbox%ROWTYPE;
+BEGIN
+  INSERT INTO public.durable_outbox (
+    organization_id, event_type, actor_id, actor_type, correlation_id, source
+  ) VALUES (v_alpha, 'test.parity', 'service:test', 'service', 'c', 'test')
+  RETURNING id INTO v_event;
+
+  -- 1. no row → claimed
+  SELECT * INTO v_row FROM public.durable_inbox_claim(
+    v_alpha, 'parity', v_event, 'test.parity', 'c', NULL, 'w:1', 60000, v_now);
+  IF v_row.lease_owner <> 'w:1' THEN RAISE EXCEPTION 'no row did not yield a claim'; END IF;
+
+  -- 2. live processing owned by another invocation → not ours
+  SELECT * INTO v_row FROM public.durable_inbox_claim(
+    v_alpha, 'parity', v_event, 'test.parity', 'c', NULL, 'w:2', 60000, v_now);
+  IF v_row.lease_owner <> 'w:1' THEN RAISE EXCEPTION 'a live claim was stolen'; END IF;
+
+  -- 3. failed → claimed
+  PERFORM public.durable_inbox_settle(
+    v_alpha, 'parity', v_event, 'w:1', 1, 'failed', 'x', NULL, NULL, v_now);
+  SELECT * INTO v_row FROM public.durable_inbox_claim(
+    v_alpha, 'parity', v_event, 'test.parity', 'c', NULL, 'w:3', 60000, v_now);
+  IF v_row.lease_owner <> 'w:3' THEN RAISE EXCEPTION 'failed did not yield a claim'; END IF;
+
+  -- 4. expired processing → claimed
+  SELECT * INTO v_row FROM public.durable_inbox_claim(
+    v_alpha, 'parity', v_event, 'test.parity', 'c', NULL, 'w:4', 60000,
+    v_now + interval '2 minutes');
+  IF v_row.lease_owner <> 'w:4' THEN RAISE EXCEPTION 'an expired claim was not re-claimable'; END IF;
+
+  -- 5. processed → suppressed
+  PERFORM public.durable_inbox_settle(
+    v_alpha, 'parity', v_event, 'w:4', v_row.lease_generation, 'processed',
+    NULL, NULL, NULL, v_now + interval '2 minutes');
+  SELECT * INTO v_row FROM public.durable_inbox_claim(
+    v_alpha, 'parity', v_event, 'test.parity', 'c', NULL, 'w:5', 60000,
+    v_now + interval '3 minutes');
+  IF v_row.status <> 'processed' THEN RAISE EXCEPTION 'processed did not suppress'; END IF;
+
+  RAISE NOTICE '  ok  the five claim cases answer as the parity contract says';
+END
+$$;
+
 -- ── A consumer that died mid-effect is recovered, never into `processed` ────
 DO $$
 DECLARE

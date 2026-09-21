@@ -127,6 +127,18 @@ problem:
    workflow approval gate. No cron, no timer, no HTTP route — `tick()` is an
    internal service a later authorized deployment calls.
 
+A sixth defect was found in review of the correction pass, in the fix itself:
+the inbox claim identity was the consumer INSTANCE's, held for its whole life.
+Two overlapping deliveries on ONE runtime therefore presented the same owner
+string, and the Postgres adapter — which reads ownership off the returned row —
+concluded the second call held the claim and ran the handler again, against the
+first call's still-live lease. Every concurrency test used two different
+workers, so none of them could see it. The claim identity is now minted per
+INVOCATION (`edge:abc123:<claim-id>`) and used for both the claim and the
+settle, and the in-memory store now compares owners the same way the adapter
+does, so the two implementations answer the five claim cases identically
+instead of diverging on exactly this one.
+
 The contract the inbox now offers is stated exactly, because the first version
 claimed more than it delivered: **durable at-least-once delivery, plus a durable
 idempotency identity per (consumer, event), giving one processed effect per
@@ -136,7 +148,7 @@ here can provide it.
 
 A1 test evidence at submission:
 Static suites:
-- `verify:bp002` 331/331
+- `verify:bp002` 337/337
 - `test:ai` 2215/2215
 - `test:security` 1141/1141
 - `test:features` 1440/1440
@@ -145,7 +157,7 @@ Static suites:
 - `test:database` 346/346 (2 skipped — those two need a linked Supabase project)
 - `test:migration` 244/244, `scan:boundaries` 123/123
 
-Live LOCAL PostgreSQL 16 (`npm run test:database:durable`, 52 distinct
+Live LOCAL PostgreSQL 16 (`npm run test:database:durable`, 57 distinct
 assertions plus 4 two-session concurrency probes):
 - the full migration chain applied to a fresh database, then rolled back,
   re-applied and rolled back again — with the KV store and the tenancy
@@ -163,6 +175,11 @@ assertions plus 4 two-session concurrency probes):
 - RLS as the `authenticated` role: own tenant readable, no other tenant's rows
   visible on any of the five tables, and no insert, update, delete or function
   execution available at all;
+- two overlapping deliveries from ONE runtime: the shared identity reproduced
+  as ambiguous, a unique one resolving it, one inbox identity, only the holder
+  able to settle, and a later delivery suppressed;
+- the five claim cases of the parity contract, driven against PostgreSQL and
+  against the in-memory reference store;
 - four two-session concurrency probes: two workers on one job, two schedulers
   on one occurrence, two dispatchers on one set of events, two consumers on one
   delivery.

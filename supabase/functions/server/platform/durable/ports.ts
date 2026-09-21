@@ -1170,11 +1170,26 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
         return { kind: 'suppressed', record: existing };
       }
 
-      // Somebody else owns a live claim. The caller must not run the handler
-      // AND must not report this delivery as done.
+      // A LIVE CLAIM THIS CALL DID NOT TAKE. The caller must not run the
+      // handler AND must not report this delivery as done.
+      //
+      // The owner is compared as well as the expiry, so this store answers the
+      // same question the Postgres adapter answers off the returned row —
+      // "is the live claim mine?" — rather than the weaker "is there a live
+      // claim at all?". The two used to differ: this store reported ANY live
+      // claim as in-flight while the adapter compared owners, so a second
+      // overlapping call on one runtime was refused here and ALLOWED there.
+      // Same contract, two answers, and the one that shipped ran the handler
+      // twice.
+      //
+      // Comparing owners is only sound because the claim identity is UNIQUE
+      // PER INVOCATION — see `consumer.ts`. A caller that reused an identity
+      // across two overlapping calls would be telling the store they are the
+      // same attempt, and it would believe them.
       if (
         existing?.status === 'processing' &&
-        (instantMs(existing.leaseExpiresAt) ?? 0) > nowMs
+        (instantMs(existing.leaseExpiresAt) ?? 0) > nowMs &&
+        existing.leaseOwner !== worker
       ) {
         return { kind: 'inFlight', record: existing };
       }

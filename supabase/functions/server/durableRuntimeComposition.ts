@@ -33,9 +33,22 @@
  * server's own trust. Adding an operator route is a real requirement and a real
  * security surface, and it belongs in a packet that is scoped to design it.
  *
- * NO EAGER CONSTRUCTION. Building this at module load would open a client on
- * every cold start of every request path, including the ones that never touch
- * background work. It is built on first use and memoised.
+ * BUILT ONCE PER ISOLATE, AT STARTUP, AND MEMOISED — and the earlier version of
+ * this comment claimed otherwise. It said "no eager construction ... built on
+ * first use", while `index.tsx` calls `getDurableRuntime()` during module
+ * initialisation. Both halves cannot be true, and the code was right: the
+ * server composes this at boot.
+ *
+ * Composing at boot is the intended behaviour, not an oversight to be made
+ * lazy. A missing service key or an unavailable workflow runtime then shows up
+ * in the startup log, once, where somebody is looking — rather than on the
+ * first tick, which in a deployment that has not enabled background work yet
+ * may be never. A misconfiguration nobody discovers is the failure mode this
+ * packet spent five defects learning to avoid.
+ *
+ * What the memoisation IS for: one client and one worker identity per isolate,
+ * however many times the runtime is asked for afterwards. `getDurableRuntime()`
+ * is safe to call from anywhere and will not open a second connection.
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -103,7 +116,9 @@ let unavailableReason: string | undefined;
  *                                  runtime writes it as the service role
  *   the workflow runtime           the pilot calls its approval gate; without
  *                                  it there is nothing to register
- *   nothing already built          memoised, so a cold start opens one client
+ *   nothing already built          memoised, so an isolate opens one client
+ *                                  and carries one worker identity, however
+ *                                  many callers ask for the runtime
  */
 export function getDurableRuntime(): DurableRuntime | undefined {
   if (runtime) return runtime;

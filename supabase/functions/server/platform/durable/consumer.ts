@@ -79,14 +79,24 @@ export interface IdempotentConsumerDependencies {
   readonly handle: EventHandler;
   readonly nowIso: () => string;
   /**
-   * This consumer instance's identity, for the claim.
+   * This consumer instance's BASE identity.
    *
    * Distinct from `consumerKey`: the KEY says which logical consumer this is
    * and is what idempotency is scoped by; the OWNER says which running copy of
    * it holds the current claim. Two isolates running the same consumer share a
    * key and must not share an owner, or the lease could not tell them apart.
+   *
+   * NOT THE CLAIM IDENTITY ITSELF — see `newClaimId`.
    */
   readonly workerId?: string;
+  /**
+   * The per-invocation suffix that makes a claim identity unique.
+   *
+   * Injectable ONLY so a test can make it deterministic. Production uses
+   * `crypto.randomUUID`, and nothing about the correctness argument depends on
+   * which generator it is — only that two overlapping calls never collide.
+   */
+  readonly newClaimId?: () => string;
   readonly leaseTtlMs?: number;
 }
 
@@ -104,17 +114,43 @@ export interface IdempotentConsumer extends EventSubscriber {
 export function createIdempotentConsumer(
   deps: IdempotentConsumerDependencies,
 ): IdempotentConsumer {
-  const workerId = deps.workerId ?? `consumer:${deps.consumerKey}`;
+  const baseWorkerId = deps.workerId ?? `consumer:${deps.consumerKey}`;
+  const newClaimId = deps.newClaimId ?? (() => crypto.randomUUID());
   const leaseTtlMs = deps.leaseTtlMs ?? 60_000;
 
   async function consume(event: DomainEventRecord): Promise<ConsumeResult> {
+    // ── ONE IDENTITY PER INVOCATION, NOT PER CONSUMER ────────────────────
+    //
+    // THE DEFECT THIS CLOSES. The identity used to be the consumer instance's
+    // for its whole life, so two overlapping `consume()` calls on ONE runtime
+    // presented the same owner string. The second call found
+    // `status = processing` with `lease_owner` equal to its own identity,
+    // concluded it held the claim, and RAN THE HANDLER A SECOND TIME — against
+    // the first call's still-live lease, which its settle would then happily
+    // satisfy.
+    //
+    // It only bit the Postgres path, because that adapter reads ownership off
+    // the returned row while the in-memory store reports any live claim as
+    // in-flight. Two implementations, two answers, and the one that shipped was
+    // the wrong one.
+    //
+    // A unique token per invocation is what makes the owner comparison mean
+    // "did I take this claim" rather than "is this claim held by something that
+    // looks like me". The base worker id is kept in front of it so an operator
+    // reading `lease_owner` can still see WHICH isolate is holding a delivery.
+    //
+    // This does not replace the generation or expiry checks and is not an
+    // alternative to them: they answer "is this claim still the live one", and
+    // this answers "is the live one mine". Both are needed.
+    const claimIdentity = `${baseWorkerId}:${newClaimId()}`;
+
     // CLAIM FIRST. Throws on a cross-tenant event, so a consumer cannot record
     // having processed another organization's fact.
     const claim = await deps.inbox.claim(
       event.organizationId,
       deps.consumerKey,
       event,
-      workerId,
+      claimIdentity,
       leaseTtlMs,
       deps.nowIso(),
     );

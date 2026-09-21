@@ -90,12 +90,38 @@ describe('the server actually composes the durable runtime', () => {
     assert.match(code, /return undefined/);
   });
 
-  it('opens no client at module load', () => {
-    // Building at import time would open a client on every cold start of every
-    // request path, including the ones that never touch background work.
+  it('opens one client per isolate, not one per caller', () => {
+    // The claim this asserts is memoisation, NOT laziness. The server composes
+    // the runtime during module initialisation — deliberately, so a missing
+    // service key shows up in the startup log rather than on a first tick that
+    // may never come — and an earlier version of the comment here said the
+    // opposite. What must hold is that `createClient` is reached through the
+    // memoised factory, so however many callers ask, an isolate opens one.
     const code = stripComments(COMPOSITION);
-    const topLevelCreate = /^const\s+\w+\s*=\s*createClient\s*\(/m.test(code);
-    assert.equal(topLevelCreate, false, 'the client must be built on first use');
+    assert.equal(
+      /^const\s+\w+\s*=\s*createClient\s*\(/m.test(code),
+      false,
+      'the client must be built inside the memoised factory, not at module scope',
+    );
+    assert.match(code, /if\s*\(runtime\)\s*return runtime;/, 'the factory must memoise');
+    assert.match(code, /runtime\s*=\s*\{/, 'and must store what it built');
+  });
+
+  it('says plainly that it is composed at startup', () => {
+    // The comment and the call site have to agree. They did not: the module
+    // claimed "no eager construction ... built on first use" while index.tsx
+    // called it during initialisation. Asserted so the two cannot drift apart
+    // again without a test noticing.
+    const doc = COMPOSITION;
+    assert.equal(
+      /NO EAGER CONSTRUCTION/.test(doc),
+      false,
+      'the module must not claim laziness it does not have',
+    );
+    assert.match(doc, /BUILT ONCE PER ISOLATE, AT STARTUP/);
+    // And the call site really is module-level, which is what makes that true.
+    const entry = stripComments(ENTRY);
+    assert.match(entry, /^const durableRuntime = getDurableRuntime\(\);$/m);
   });
 });
 
