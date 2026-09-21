@@ -823,9 +823,15 @@ A1 is implemented and accepted through `de62e09bfc09e0d2387e1834febc2a3b330e133d
 
 Implemented, corrected and accepted through `42a1b73bea4d12e9156333bb07a9635ecb144bed`. The temporary BP-003 packet is removed after this acceptance record. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
 
-### Next A2 packet — Workflow Cutover Readiness — NOT STARTED
+### BP-004 — Workflow Cutover Readiness & Migration Preflight — READY
 
-The next bounded packet must inspect and resolve the organization-identity precondition and design a safe shadow/backfill/parity/cutover path **without moving production authority during the readiness packet unless a later explicit packet authorizes it**. It must not migrate agent persistence at the same time.
+The packet is at `docs/generated/build-packets/BP-004_WORKFLOW_CUTOVER_READINESS_MIGRATION_PREFLIGHT.md`.
+
+BP-004 does not move production authority. It inventories and classifies workflow KV source data, validates explicit tenant mappings to canonical organization UUIDs, proves deterministic checkpoint re-chaining where a tenant identifier changes, simulates a backfill only against local PostgreSQL, and produces GO/NO-GO evidence plus the recommended next migration packet.
+
+A central migration fact is now explicit: workflow checkpoint digests include `organizationId`. Therefore a legacy slug→UUID tenant translation cannot be implemented as a simple foreign-key rewrite; every checkpoint in that run must be re-chained and the run's `checkpointDigest` pointer must move to the transformed tip. BP-004 proves that transformation locally or blocks the tenant.
+
+Hosted DB access, hosted backfill, shadow writes, bootstrap cutover and agent persistence remain out of scope.
 
 ## 18. Build-Packet Rule Going Forward
 
