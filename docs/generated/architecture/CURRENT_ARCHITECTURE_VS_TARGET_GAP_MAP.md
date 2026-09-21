@@ -763,7 +763,15 @@ The row in §2 that reads "Long-running jobs … BUILD NEW" is the gap this clos
 
 ### A2 — Runtime Persistence — IN PROGRESS
 
-A2 is split into bounded migration slices to avoid a broad KV rewrite. **BP-003 is the first slice and covers workflow persistence only:** SQL-backed implementations for the existing workflow run/checkpoint/approval stores plus live-local parity/concurrency proof. Current production KV remains authoritative; no backfill or cutover is authorized in BP-003. Agent runtime persistence remains a later A2 slice.
+A2 remains deliberately split into bounded migration slices.
+
+**BP-003 — Workflow Runtime SQL Persistence Foundation & Parity Gate — COMPLETE.** Accepted through `42a1b73bea4d12e9156333bb07a9635ecb144bed`.
+
+The first A2 slice now provides a proven SQL implementation underneath the existing workflow run/checkpoint/approval persistence contracts, with live-local PostgreSQL concurrency, tenant/RLS, rollback and parity verification. Production bootstrap remains on KV and cannot import the SQL stores.
+
+The accepted SQL candidate is intentionally stricter at the relational boundary: workflow organizations must be UUIDs backed by `public.organizations`. Current tenancy still admits slug-like identifiers, including the default `marq-cortex`. That is a **hard workflow-cutover prerequisite**, not something BP-003 silently translated.
+
+The next A2 slice must therefore establish cutover readiness and organization-identity compatibility before shadow/backfill/cutover is considered. Agent runtime persistence remains a later, separate A2 slice.
 
 ### A3 — Organizational AI Workforce
 
@@ -811,9 +819,13 @@ A0 is implemented and accepted. The temporary BP-001 instruction packet is remov
 
 A1 is implemented and accepted through `de62e09bfc09e0d2387e1834febc2a3b330e133d`. The temporary BP-002 packet is removed after acceptance. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
 
-### BP-003 — Workflow Runtime SQL Persistence Foundation & Parity Gate — READY
+### BP-003 — Workflow Runtime SQL Persistence Foundation & Parity Gate — COMPLETE
 
-The packet is at `docs/generated/build-packets/BP-003_WORKFLOW_RUNTIME_SQL_PERSISTENCE_FOUNDATION.md`. It adds and proves a SQL implementation underneath the existing workflow persistence ports but explicitly forbids production cutover, hosted migration, KV deletion and agent-persistence migration. A later reviewed packet will own workflow shadow/backfill/cutover.
+Implemented, corrected and accepted through `42a1b73bea4d12e9156333bb07a9635ecb144bed`. The temporary BP-003 packet is removed after this acceptance record. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
+
+### Next A2 packet — Workflow Cutover Readiness — NOT STARTED
+
+The next bounded packet must inspect and resolve the organization-identity precondition and design a safe shadow/backfill/parity/cutover path **without moving production authority during the readiness packet unless a later explicit packet authorizes it**. It must not migrate agent persistence at the same time.
 
 ## 18. Build-Packet Rule Going Forward
 
