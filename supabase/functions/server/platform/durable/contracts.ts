@@ -536,17 +536,37 @@ export const EVENT_BOUNDS = {
 
 // ── Inbox ───────────────────────────────────────────────────────────────────
 
-export type InboxStatus = 'processed' | 'failed';
+/**
+ * THREE STATES, and the first one is the correction.
+ *
+ * The first version had two — `processed` and `failed` — and the consumer
+ * inserted `processed` BEFORE running its handler. That made the row mean
+ * "somebody intends to do this" while claiming to mean "somebody has", and it
+ * lost effects two different ways:
+ *
+ *   A CONSUMER THAT DIED between the insert and the handler left a permanent
+ *   suppression for work that never happened. Every later delivery was
+ *   discarded, and nothing could detect it, because the ledger said fine.
+ *
+ *   A HANDLER THAT THREW left `failed`, and the next delivery still conflicted
+ *   on the unique key — so the failed consumer was never invoked again while
+ *   the dispatcher happily marked the event delivered.
+ *
+ * `processing` is a CLAIM with a lease, exactly as a job has. An owner that
+ * dies is recoverable; an owner that finishes is terminal.
+ */
+export const INBOX_STATUSES = ['processing', 'processed', 'failed'] as const;
+export type InboxStatus = (typeof INBOX_STATUSES)[number];
 
 /**
- * Proof that one consumer has already seen one event.
+ * One consumer's relationship to one event.
  *
  * PER CONSUMER, NOT PER EVENT. Two consumers of the same event must each get
  * their one effect; a single "processed" flag on the event would give the
  * second one nothing. The uniqueness that enforces this is
- * `(organizationId, consumerKey, eventId)`, and it is enforced by the database
- * rather than by a read-then-write in the runtime — so the suppression survives
- * two isolates racing on the same delivery, not merely two sequential ones.
+ * `(organizationId, consumerKey, eventId)`, enforced by the database rather
+ * than by a read-then-write — so it survives two isolates racing on one
+ * delivery, not merely two sequential ones.
  */
 export interface InboxRecord {
   readonly inboxId: string;
@@ -556,6 +576,10 @@ export interface InboxRecord {
   readonly eventType: string;
   readonly status: InboxStatus;
   readonly processedAt: string;
+  readonly attempt: number;
+  readonly leaseOwner?: string;
+  readonly leaseGeneration: number;
+  readonly leaseExpiresAt?: string;
   readonly correlationId?: string;
   readonly causationId?: string;
   readonly failureCode?: string;
@@ -563,17 +587,47 @@ export interface InboxRecord {
   readonly result?: Readonly<Record<string, unknown>>;
 }
 
+/** Proof that this consumer owns this delivery right now. */
+export interface InboxLease {
+  readonly organizationId: string;
+  readonly consumerKey: string;
+  readonly eventId: string;
+  readonly owner: string;
+  readonly generation: number;
+  readonly expiresAt: string;
+}
+
+/**
+ * What a claim attempt found.
+ *
+ * THREE ANSWERS, AND THE PREVIOUS CONTRACT HAD TWO. It returned a record or
+ * `undefined`, which collapsed "already done" and "somebody else is doing it"
+ * into one value — and the dispatcher read both as success, so an event whose
+ * consumer was still mid-flight got marked delivered.
+ *
+ *   claimed     run the handler; the lease is yours
+ *   suppressed  terminal `processed`; do nothing, and that IS success
+ *   inFlight    another owner holds a live claim; do nothing, and this
+ *               delivery accomplished nothing — say so upstream
+ */
+export type InboxClaim =
+  | { readonly kind: 'claimed'; readonly record: InboxRecord; readonly lease: InboxLease }
+  | { readonly kind: 'suppressed'; readonly record: InboxRecord }
+  | { readonly kind: 'inFlight'; readonly record: InboxRecord };
+
 /**
  * What a delivery did.
  *
- * `suppressed` is the one that matters: the event had already been processed by
- * this consumer, so the handler was NOT called and no second effect happened.
- * It is reported rather than hidden because "we suppressed 40,000 duplicates
- * today" and "we processed 40,000 events today" are different operational
- * facts, and a consumer that cannot tell them apart cannot tell a healthy
- * at-least-once producer from a broken one.
+ * `suppressed` matters because "we suppressed 40,000 duplicates today" and "we
+ * processed 40,000 events today" are different operational facts, and a
+ * consumer that cannot tell them apart cannot tell a healthy at-least-once
+ * producer from a broken one.
+ *
+ * `in_flight` is separate from both, and from `failed`: nothing went wrong and
+ * nothing was accomplished. Folding it into `suppressed` is what let a
+ * still-running consumer's event be marked dispatched.
  */
-export type ConsumeOutcome = 'processed' | 'suppressed' | 'failed';
+export type ConsumeOutcome = 'processed' | 'suppressed' | 'failed' | 'in_flight';
 
 export interface ConsumeResult {
   readonly outcome: ConsumeOutcome;
@@ -634,8 +688,13 @@ export const DURABLE_FAILURE = {
   eventInvalid: 'event.invalid',
   eventPayloadTooLarge: 'event.payload_too_large',
   consumerThrew: 'consumer.threw',
+  consumerInFlight: 'consumer.in_flight',
+  consumerAbandoned: 'consumer_abandoned',
   attemptsExhausted: 'attempts.exhausted',
   leaseAbandoned: 'lease_abandoned',
+  dispatchLeaseLost: 'dispatch.lease_lost',
+  dispatchAbandoned: 'dispatch_abandoned',
+  dispatchLeaseExpired: 'dispatch_lease_expired',
 } as const;
 
 export type DurableFailureCode = (typeof DURABLE_FAILURE)[keyof typeof DURABLE_FAILURE];

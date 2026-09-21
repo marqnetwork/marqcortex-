@@ -627,3 +627,195 @@ describe('another tenant is not visible', () => {
     );
   });
 });
+
+describe('an EXPIRED lease settles nothing, even before recovery has run', () => {
+  it('refuses success, retry and dead-letter, and writes no event', async () => {
+    // THE DEFECT THIS TEST EXISTS FOR. `durable_job_settle` checked owner and
+    // generation but not expiry, so a worker whose lease had lapsed could
+    // still settle — and emit events — purely because the recovery sweep had
+    // not happened to run yet. Recovery is a sweep on a timer, so "has it run"
+    // is a race, and a durability guarantee decided by a race is not one.
+    //
+    // RECOVERY IS DELIBERATELY NOT RUN in any of these. The point is that the
+    // lapsed lease is worthless on its own.
+    for (const settlement of [
+      { disposition: 'succeeded' as const, result: { by: 'zombie' } },
+      {
+        disposition: 'retry' as const,
+        failureCode: 'transient',
+        availableAt: '2026-09-18T13:00:00.000Z',
+      },
+      { disposition: 'dead_letter' as const, failureCode: 'terminal' },
+    ]) {
+      const clock = createTestClock();
+      const stores = createMemoryDurableStores();
+      await stores.jobs.enqueue(enqueueInput({ maxAttempts: 5 }), clock.nowIso());
+      const claim = await stores.jobs.claim(ORG, undefined, 'worker-a', 60_000, clock.nowIso());
+      assert.ok(claim);
+
+      clock.advance(61_000);
+
+      const settled = await stores.jobs.settle(
+        claim.lease,
+        {
+          ...settlement,
+          ...(settlement.disposition === 'retry'
+            ? {}
+            : { events: [{ eventId: 'ev-zombie', eventType: 'test.zombie' }] }),
+        },
+        clock.nowIso(),
+      );
+
+      assert.equal(settled, false, `${settlement.disposition} must be refused on a lapsed lease`);
+
+      const job = await stores.jobs.load(ORG, claim.job.jobId);
+      assert.equal(job?.state, 'leased', 'the job is still where it was, awaiting recovery');
+      assert.equal(job?.result, undefined);
+      assert.equal(job?.completedAt, undefined);
+      assert.equal(
+        await stores.outbox.load(ORG, 'ev-zombie'),
+        undefined,
+        'a refused settle publishes nothing',
+      );
+      assert.equal(
+        (await stores.jobs.deadLetters({ organizationId: ORG })).length,
+        0,
+        'and dead-letters nothing',
+      );
+    }
+  });
+
+  it('still refuses after recovery hands the job to somebody else', async () => {
+    const clock = createTestClock();
+    const stores = createMemoryDurableStores();
+    await stores.jobs.enqueue(enqueueInput({ maxAttempts: 5 }), clock.nowIso());
+    const stale = await stores.jobs.claim(ORG, undefined, 'worker-a', 60_000, clock.nowIso());
+    assert.ok(stale);
+
+    clock.advance(61_000);
+    await stores.jobs.recoverExpiredLeases(clock.nowIso(), 10);
+    const fresh = await stores.jobs.claim(ORG, undefined, 'worker-b', 60_000, clock.nowIso());
+    assert.ok(fresh);
+
+    assert.equal(
+      await stores.jobs.settle(stale.lease, { disposition: 'succeeded' }, clock.nowIso()),
+      false,
+    );
+    assert.equal(
+      await stores.jobs.settle(fresh.lease, { disposition: 'succeeded' }, clock.nowIso()),
+      true,
+    );
+  });
+});
+
+describe('the operator transition table, exhaustively', () => {
+  async function jobIn(
+    stores: ReturnType<typeof createMemoryDurableStores>,
+    clock: ReturnType<typeof createTestClock>,
+    state: 'queued' | 'paused' | 'leased' | 'succeeded' | 'dead_letter' | 'cancelled',
+  ) {
+    const enqueued = await stores.jobs.enqueue(enqueueInput(), clock.nowIso());
+    const jobId = enqueued.job.jobId;
+    if (state === 'queued') return jobId;
+    if (state === 'paused') {
+      await stores.jobs.transition(ORG, jobId, 'paused', clock.nowIso());
+      return jobId;
+    }
+    if (state === 'cancelled') {
+      await stores.jobs.transition(ORG, jobId, 'cancelled', clock.nowIso());
+      return jobId;
+    }
+    const claim = await stores.jobs.claim(ORG, undefined, 'w', 60_000, clock.nowIso());
+    assert.ok(claim);
+    if (state === 'leased') return jobId;
+    await stores.jobs.settle(
+      claim.lease,
+      state === 'succeeded'
+        ? { disposition: 'succeeded' }
+        : { disposition: 'dead_letter', failureCode: 'terminal' },
+      clock.nowIso(),
+    );
+    return jobId;
+  }
+
+  // The whole of the state machine an operator may drive. Written out rather
+  // than sampled, because the defect was a transition nobody had enumerated:
+  // the Postgres adapter could not express cancellation's three source states,
+  // so it cancelled unconditionally and a SUCCEEDED job could be cancelled.
+  const CASES: readonly [
+    'queued' | 'paused' | 'leased' | 'succeeded' | 'dead_letter' | 'cancelled',
+    'paused' | 'queued' | 'cancelled',
+    boolean,
+  ][] = [
+    ['queued', 'paused', true],
+    ['paused', 'queued', true],
+    ['queued', 'cancelled', true],
+    ['paused', 'cancelled', true],
+    ['leased', 'cancelled', true],
+    ['succeeded', 'cancelled', false],
+    ['dead_letter', 'cancelled', false],
+    ['cancelled', 'cancelled', false],
+    ['cancelled', 'queued', false],
+    ['succeeded', 'queued', false],
+    ['succeeded', 'paused', false],
+    ['dead_letter', 'queued', false],
+    ['leased', 'paused', false],
+    ['leased', 'queued', false],
+    ['queued', 'queued', false],
+    ['paused', 'paused', false],
+  ];
+
+  for (const [from, to, allowed] of CASES) {
+    it(`${from} -> ${to} is ${allowed ? 'allowed' : 'refused'}`, async () => {
+      const clock = createTestClock();
+      const stores = createMemoryDurableStores();
+      const jobId = await jobIn(stores, clock, from);
+      const moved = await stores.jobs.transition(ORG, jobId, to, clock.nowIso());
+
+      if (allowed) {
+        assert.ok(moved, `${from} -> ${to} should be allowed`);
+        assert.equal(moved.state, to);
+      } else {
+        assert.equal(moved, undefined, `${from} -> ${to} should be refused`);
+        assert.equal(
+          (await stores.jobs.load(ORG, jobId))?.state,
+          from,
+          'a refused transition leaves the job where it was',
+        );
+      }
+    });
+  }
+
+  it('cancelling a LEASED job invalidates the running worker\'s lease', async () => {
+    const clock = createTestClock();
+    const stores = createMemoryDurableStores();
+    await stores.jobs.enqueue(enqueueInput(), clock.nowIso());
+    const claim = await stores.jobs.claim(ORG, undefined, 'worker-a', 60_000, clock.nowIso());
+    assert.ok(claim);
+
+    const cancelled = await stores.jobs.transition(
+      ORG,
+      claim.job.jobId,
+      'cancelled',
+      clock.nowIso(),
+    );
+    assert.equal(cancelled?.state, 'cancelled');
+    assert.equal(cancelled?.leaseOwner, undefined);
+    assert.equal(
+      await stores.jobs.settle(claim.lease, { disposition: 'succeeded' }, clock.nowIso()),
+      false,
+      'the worker that was running it may not complete it',
+    );
+  });
+
+  it('refuses a transition from another tenant', async () => {
+    const clock = createTestClock();
+    const stores = createMemoryDurableStores();
+    const enqueued = await stores.jobs.enqueue(enqueueInput(), clock.nowIso());
+    assert.equal(
+      await stores.jobs.transition(OTHER_ORG, enqueued.job.jobId, 'cancelled', clock.nowIso()),
+      undefined,
+    );
+    assert.equal((await stores.jobs.load(ORG, enqueued.job.jobId))?.state, 'queued');
+  });
+});

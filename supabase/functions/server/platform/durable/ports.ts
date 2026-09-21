@@ -48,6 +48,8 @@ import {
   type DurableSchedule,
   type EnqueueJobInput,
   type EnqueueResult,
+  type InboxClaim,
+  type InboxLease,
   type InboxRecord,
   type InboxStatus,
   type JobLease,
@@ -234,6 +236,14 @@ export interface OutboxStore {
     nowIso: string,
     limit: number,
   ): Promise<readonly DomainEventRecord[]>;
+  /**
+   * Mark a leased event delivered.
+   *
+   * Refuses a wrong owner, a stale generation AND an expired lease. The last
+   * one is not redundant: without it a dispatcher whose lease lapsed could
+   * complete the event purely because the recovery sweep had not run yet,
+   * which makes the outcome depend on a timer.
+   */
   markDispatched(
     organizationId: string,
     eventId: string,
@@ -241,7 +251,14 @@ export interface OutboxStore {
     generation: number,
     nowIso: string,
   ): Promise<boolean>;
-  /** Record a failed dispatch. Dead-letters the event once attempts are spent. */
+  /**
+   * Record a failed dispatch, AND dead-letter the event in the same operation
+   * when its attempts are spent.
+   *
+   * One operation, not two. A crash between "mark failed" and "write the
+   * dead-letter row" leaves terminal undeliverable work with no monitored
+   * record — the exact outcome the dead-letter table exists to prevent.
+   */
   markFailed(
     organizationId: string,
     eventId: string,
@@ -252,6 +269,15 @@ export interface OutboxStore {
     availableAt: string,
     nowIso: string,
   ): Promise<{ readonly deadLettered: boolean } | undefined>;
+  /**
+   * Return abandoned dispatch leases to pending, or dead-letter the exhausted.
+   *
+   * CROSS-TENANT, like the job recovery sweep and for the same reason. Without
+   * it a dispatcher that crashed leaves an event `dispatching` forever: never
+   * delivered, never retried, never dead-lettered, and invisible to the
+   * backlog measure that exists to notice exactly this.
+   */
+  recoverExpiredDispatchLeases(nowIso: string, limit: number): Promise<LeaseRecoveryResult>;
   /** Oldest pending event across every tenant, for the backlog-age measure. */
   oldestPendingAt(): Promise<string | undefined>;
   pendingCount(organizationId?: string): Promise<number>;
@@ -259,25 +285,36 @@ export interface OutboxStore {
 
 export interface InboxStore {
   /**
-   * Claim the right to process this event, once.
+   * Claim the right to run this consumer on this event.
    *
-   * INSERT-FIRST, NOT READ-THEN-WRITE. Resolves undefined when this consumer
-   * has already seen this event. Two isolates racing on the same delivery: one
-   * gets a record, the other gets undefined, and only one effect happens.
-   * A read-then-write pair would let both read "not seen" before either wrote.
+   * CLAIM-FIRST, AND THE CLAIM IS NOT AN OUTCOME. The row is written as
+   * `processing` with a lease BEFORE the handler runs, so a consumer that dies
+   * mid-effect leaves a recoverable claim rather than a permanent "done".
+   *
+   * Always answers with one of three shapes — see `InboxClaim`. The previous
+   * contract returned a record or `undefined`, which collapsed "already done"
+   * and "somebody else is running it" into one value that the dispatcher read
+   * as success both times.
    */
   claim(
     organizationId: string,
     consumerKey: string,
     event: DomainEventRecord,
+    worker: string,
+    leaseTtlMs: number,
     nowIso: string,
-  ): Promise<InboxRecord | undefined>;
-  /** Record how processing went, on a record this consumer already claimed. */
+  ): Promise<InboxClaim>;
+  /**
+   * Record how processing went, under the claim that was issued.
+   *
+   * The lease is checked. A consumer settling under a lapsed claim could
+   * otherwise mark `processed` — which is terminal — an effect that a newer
+   * owner is still running, permanently suppressing the delivery that was
+   * going to work.
+   */
   settle(
-    organizationId: string,
-    consumerKey: string,
-    eventId: string,
-    status: InboxStatus,
+    lease: InboxLease,
+    status: Exclude<InboxStatus, 'processing'>,
     detail: {
       readonly failureCode?: string;
       readonly failureDetail?: string;
@@ -285,6 +322,14 @@ export interface InboxStore {
     },
     nowIso: string,
   ): Promise<InboxRecord | undefined>;
+  /**
+   * Release abandoned claims to `failed`, so the next delivery re-runs them.
+   *
+   * NEVER into `processed`. Whether the effect happened is exactly what nobody
+   * knows when a consumer dies mid-handler, and guessing yes is the guess that
+   * loses it permanently.
+   */
+  recoverExpiredClaims(nowIso: string, limit: number): Promise<number>;
   find(
     organizationId: string,
     consumerKey: string,
@@ -955,10 +1000,15 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
     },
 
     async markDispatched(organizationId, eventId, worker, generation, nowIso) {
+      const nowMs = requireInstant(nowIso, 'now');
       const event = state.events.get(eventId);
       if (!event || event.organizationId !== organizationId) return false;
       if (event.dispatchState !== 'dispatching') return false;
       if (event.leaseOwner !== worker || event.leaseGeneration !== generation) return false;
+      // AN EXPIRED DISPATCH LEASE COMPLETES NOTHING, for the reason
+      // `durable_job_heartbeat` gives: otherwise the outcome depends on
+      // whether the recovery sweep happened to have run.
+      if ((instantMs(event.leaseExpiresAt) ?? 0) <= nowMs) return false;
 
       state.events.set(eventId, {
         ...event,
@@ -981,10 +1031,12 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
       availableAt,
       nowIso,
     ) {
+      const nowMs = requireInstant(nowIso, 'now');
       const event = state.events.get(eventId);
       if (!event || event.organizationId !== organizationId) return undefined;
       if (event.dispatchState !== 'dispatching') return undefined;
       if (event.leaseOwner !== worker || event.leaseGeneration !== generation) return undefined;
+      if ((instantMs(event.leaseExpiresAt) ?? 0) <= nowMs) return undefined;
 
       const exhausted = event.attempt >= event.maxAttempts;
       state.events.set(eventId, {
@@ -1019,6 +1071,66 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
       return { deadLettered: exhausted };
     },
 
+    async recoverExpiredDispatchLeases(nowIso, limit) {
+      const nowMs = requireInstant(nowIso, 'now');
+      const expired = [...state.events.values()]
+        .filter((event) => event.dispatchState === 'dispatching')
+        .filter((event) => (instantMs(event.leaseExpiresAt) ?? 0) <= nowMs)
+        .sort((a, b) => (instantMs(a.leaseExpiresAt) ?? 0) - (instantMs(b.leaseExpiresAt) ?? 0))
+        .slice(0, boundedLimit(limit));
+
+      let recovered = 0;
+      let deadLettered = 0;
+
+      for (const event of expired) {
+        if (event.attempt >= event.maxAttempts) {
+          // Abandoned on its last attempt. Dead-letter rather than requeue, so
+          // it reaches the monitored path instead of becoming a row that is
+          // permanently `dispatching` and permanently undeliverable.
+          state.events.set(event.eventId, {
+            ...event,
+            dispatchState: 'failed',
+            leaseOwner: undefined,
+            leaseExpiresAt: undefined,
+            failureCode: DURABLE_FAILURE.dispatchAbandoned,
+            failureDetail:
+              'the dispatcher holding this event stopped reporting and no attempts remain',
+            updatedAt: nowIso,
+          });
+          recordDeadLetter(state, {
+            organizationId: event.organizationId,
+            originKind: 'event',
+            originId: event.eventId,
+            originType: event.eventType,
+            attempts: Math.max(event.attempt, 1),
+            failureCode: DURABLE_FAILURE.dispatchAbandoned,
+            failureDetail:
+              'the dispatcher holding this event stopped reporting and no attempts remain',
+            correlationId: event.correlationId,
+            ...(event.causationId === undefined ? {} : { causationId: event.causationId }),
+            firstFailedAt: event.createdAt,
+            lastFailedAt: nowIso,
+          });
+          deadLettered += 1;
+          continue;
+        }
+        state.events.set(event.eventId, {
+          ...event,
+          dispatchState: 'pending',
+          availableAt: nowIso,
+          leaseOwner: undefined,
+          leaseExpiresAt: undefined,
+          // NOT re-incremented — the claim that handed out the lapsed lease
+          // already spent the attempt.
+          failureCode: DURABLE_FAILURE.dispatchLeaseExpired,
+          failureDetail: 'the dispatcher holding this event stopped reporting',
+          updatedAt: nowIso,
+        });
+        recovered += 1;
+      }
+      return { recovered, deadLettered };
+    },
+
     async oldestPendingAt() {
       const pending = [...state.events.values()]
         .filter((e) => e.dispatchState === 'pending' || e.dispatchState === 'dispatching')
@@ -1036,7 +1148,7 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
   };
 
   const inbox: InboxStore = {
-    async claim(organizationId, consumerKey, event, nowIso) {
+    async claim(organizationId, consumerKey, event, worker, leaseTtlMs, nowIso) {
       if (event.organizationId !== organizationId) {
         // A consumer in one tenant may not record having processed another
         // tenant's event. Refused rather than ignored: this is the shape a
@@ -1047,41 +1159,112 @@ export function createMemoryDurableStores(): DurableStores & { reset(): void } {
           `event ${event.eventId} is owned by ${event.organizationId}, not ${organizationId}`,
         );
       }
+      const nowMs = requireInstant(nowIso, 'now');
+      const ttl = normalizeLeaseTtlMs(leaseTtlMs);
       const key = inboxIndexKey(organizationId, consumerKey, event.eventId);
-      // INSERT-IF-ABSENT, mirroring the unique constraint. Two isolates racing
-      // on one delivery: the first `set` wins, the second sees the key and
-      // gets undefined. A read-then-write would let both read "absent".
-      if (state.inbox.has(key)) return undefined;
+      const existing = state.inbox.get(key);
 
+      // TERMINAL. The effect happened; suppressing every later delivery is the
+      // guarantee rather than a failure.
+      if (existing?.status === 'processed') {
+        return { kind: 'suppressed', record: existing };
+      }
+
+      // Somebody else owns a live claim. The caller must not run the handler
+      // AND must not report this delivery as done.
+      if (
+        existing?.status === 'processing' &&
+        (instantMs(existing.leaseExpiresAt) ?? 0) > nowMs
+      ) {
+        return { kind: 'inFlight', record: existing };
+      }
+
+      // No row, a `failed` row, or a `processing` claim whose owner stopped
+      // reporting. All three are ours to take — which is precisely what makes
+      // a failed consumer run again on the dispatcher's next delivery.
       const record: InboxRecord = {
-        inboxId: nextId(state, 'inbox'),
+        inboxId: existing?.inboxId ?? nextId(state, 'inbox'),
         organizationId,
         consumerKey,
         eventId: event.eventId,
         eventType: event.eventType,
-        status: 'processed',
+        status: 'processing',
         processedAt: nowIso,
+        attempt: (existing?.attempt ?? 0) + 1,
+        leaseOwner: worker,
+        leaseGeneration: (existing?.leaseGeneration ?? 0) + 1,
+        leaseExpiresAt: new Date(nowMs + ttl).toISOString(),
         correlationId: event.correlationId,
         ...(event.causationId === undefined ? {} : { causationId: event.causationId }),
       };
       state.inbox.set(key, record);
-      return record;
+      return {
+        kind: 'claimed',
+        record,
+        lease: {
+          organizationId,
+          consumerKey,
+          eventId: event.eventId,
+          owner: worker,
+          generation: record.leaseGeneration,
+          expiresAt: record.leaseExpiresAt as string,
+        },
+      };
     },
 
-    async settle(organizationId, consumerKey, eventId, status, detail, nowIso) {
-      const key = inboxIndexKey(organizationId, consumerKey, eventId);
+    async settle(lease, status, detail, nowIso) {
+      const nowMs = requireInstant(nowIso, 'now');
+      const key = inboxIndexKey(lease.organizationId, lease.consumerKey, lease.eventId);
       const existing = state.inbox.get(key);
       if (!existing) return undefined;
+      // Owner, generation AND expiry — the same triple a job settle checks,
+      // for the same reason. See the port contract.
+      if (existing.status !== 'processing') return undefined;
+      if (existing.leaseOwner !== lease.owner) return undefined;
+      if (existing.leaseGeneration !== lease.generation) return undefined;
+      if ((instantMs(existing.leaseExpiresAt) ?? 0) <= nowMs) return undefined;
+
       const updated: InboxRecord = {
         ...existing,
         status,
         processedAt: nowIso,
+        leaseOwner: undefined,
+        leaseExpiresAt: undefined,
+        failureCode: undefined,
+        failureDetail: undefined,
         ...(detail.failureCode === undefined ? {} : { failureCode: detail.failureCode }),
         ...(detail.failureDetail === undefined ? {} : { failureDetail: detail.failureDetail }),
         ...(detail.result === undefined ? {} : { result: detail.result }),
       };
       state.inbox.set(key, updated);
       return updated;
+    },
+
+    async recoverExpiredClaims(nowIso, limit) {
+      const nowMs = requireInstant(nowIso, 'now');
+      const expired = [...state.inbox.entries()]
+        .filter(([, record]) => record.status === 'processing')
+        .filter(([, record]) => (instantMs(record.leaseExpiresAt) ?? 0) <= nowMs)
+        .sort(
+          (a, b) =>
+            (instantMs(a[1].leaseExpiresAt) ?? 0) - (instantMs(b[1].leaseExpiresAt) ?? 0),
+        )
+        .slice(0, boundedLimit(limit));
+
+      for (const [key, record] of expired) {
+        // RELEASED TO `failed`, NEVER TO `processed`. Whether the effect
+        // happened is exactly what nobody knows when a consumer dies
+        // mid-handler, and guessing yes loses it permanently.
+        state.inbox.set(key, {
+          ...record,
+          status: 'failed',
+          leaseOwner: undefined,
+          leaseExpiresAt: undefined,
+          failureCode: DURABLE_FAILURE.consumerAbandoned,
+          failureDetail: 'the consumer holding this delivery stopped reporting',
+        });
+      }
+      return expired.length;
     },
 
     async find(organizationId, consumerKey, eventId) {

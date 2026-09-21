@@ -60,6 +60,11 @@ export interface SchedulerTickResult {
   readonly organizationId: string;
   readonly recovered: number;
   readonly deadLetteredByRecovery: number;
+  /** Dispatch leases returned to pending by this tick. */
+  readonly dispatchRecovered: number;
+  readonly dispatchDeadLettered: number;
+  /** Abandoned consumer claims released to `failed` by this tick. */
+  readonly consumerClaimsRecovered: number;
   readonly occurrences: readonly ScheduleOccurrence[];
   readonly jobs: readonly JobPassResult[];
   readonly dispatched: readonly DispatchPassResult[];
@@ -85,8 +90,15 @@ export function createScheduler(deps: SchedulerDependencies): Scheduler {
     async tick(organizationId) {
       const at = deps.nowIso();
 
-      // 1. Recovery first — see the header.
+      // 1. Recovery first — see the header. All three sweeps, because a job,
+      //    a dispatch and a consumer claim are three different things that a
+      //    dying isolate can strand, and sweeping only the first leaves the
+      //    other two stranded forever.
       const recovery = await deps.worker.recover(recoverLimit);
+      const dispatchRecovery = deps.dispatcher
+        ? await deps.dispatcher.recover(recoverLimit)
+        : { recovered: 0, deadLettered: 0 };
+      const consumerRecovery = await deps.stores.inbox.recoverExpiredClaims(at, recoverLimit);
 
       // 2. Due occurrences become queued jobs.
       const occurrences = await deps.stores.schedules.materializeDue(
@@ -109,6 +121,9 @@ export function createScheduler(deps: SchedulerDependencies): Scheduler {
         organizationId,
         recovered: recovery.recovered,
         deadLetteredByRecovery: recovery.deadLettered,
+        dispatchRecovered: dispatchRecovery.recovered,
+        dispatchDeadLettered: dispatchRecovery.deadLettered,
+        consumerClaimsRecovered: consumerRecovery,
         occurrences,
         jobs,
         dispatched,

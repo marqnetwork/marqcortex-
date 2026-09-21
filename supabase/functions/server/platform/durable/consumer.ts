@@ -1,44 +1,68 @@
 /**
- * Idempotent consumption (BP-002 §6.5 and §12, CHECKPOINT 7).
+ * Idempotent consumption (BP-002 §6.5 and §12).
  *
- * THE ONE PROPERTY THIS FILE EXISTS FOR: the same event delivered twice
- * produces ONE logical effect.
+ * THE CONTRACT, STATED EXACTLY, because the first version of this file claimed
+ * more than it delivered:
  *
- * ── WHY THE CLAIM IS AN INSERT AND NOT A READ ─────────────────────────────
+ *     durable at-least-once delivery
+ *   + a durable idempotency identity per (consumer, event)
+ *   = one processed effect per consumer per event, WHEN THE HANDLER OBEYS THE
+ *     IDEMPOTENCY CONTRACT.
  *
- * The obvious implementation is: look up whether we have seen this event; if
- * not, do the work; then record that we have. It is wrong, and it is wrong in
- * the case that matters. Two isolates receive the same delivery at the same
- * instant. Both look up. Both find nothing. Both do the work. Both record it —
- * and the second record either overwrites the first or violates the constraint
- * AFTER the duplicate effect has already happened.
+ * That is not exactly-once execution and nothing here can provide it for an
+ * arbitrary external side effect. A handler that posts to a payment API and
+ * then has its process killed before settling has performed the effect, and no
+ * ledger this side of the boundary can know. What the platform guarantees is
+ * that the CLAIM is durable, single-owner and recoverable, so the handler is
+ * always told whether it is the owner, and a handler that makes its own writes
+ * conditional on that claim gets one effect.
  *
- * So the order here is inverted: CLAIM FIRST, by inserting the inbox row, and
- * do the work only if the insert succeeded. The unique key
- * `(organizationId, consumerKey, eventId)` is what arbitrates, in the database,
- * in one statement. The loser never calls the handler.
+ * ── WHY THE CLAIM IS WRITTEN BEFORE THE HANDLER, AND WHY IT IS NOT `processed`
  *
- * ── WHAT HAPPENS WHEN THE WORK THEN FAILS ─────────────────────────────────
+ * Both halves matter and the first version got the second one wrong.
  *
- * The row stays, marked `failed`, and the event is NOT retried by this
- * consumer. That is a real decision with a real cost and it is the right one
- * here: a consumer that retried on its own would have to un-claim first, which
- * reopens the window the claim exists to close. Retry belongs to the DISPATCHER
- * — it still holds the outbox lease, it marks the event for another attempt,
- * and the consumers that already succeeded suppress their duplicate. The failed
- * one gets another chance only if an operator clears its inbox row, which is
- * deliberate: silently re-running a consumer that failed for an unknown reason
- * is how one bad event becomes an unbounded number of side effects.
+ * Writing FIRST is what closes the concurrency window. The obvious
+ * implementation — look up whether we have seen this event, run if not, then
+ * record it — is wrong in the case that matters: two isolates receive the same
+ * delivery at the same instant, both look up, both find nothing, both run. The
+ * claim is an INSERT arbitrated by a unique key, in one statement, so the loser
+ * never calls the handler.
  *
- * The consequence is stated plainly in the BP-002 report as a known limitation
- * rather than hidden here.
+ * But the first version wrote `processed` as that claim, which meant the row
+ * said the effect had happened before it had. Two losses followed:
+ *
+ *   A CONSUMER THAT DIED between the claim and the handler left a permanent
+ *   suppression for work that never ran. Every later delivery was discarded,
+ *   undetectably, because the ledger said it was fine.
+ *
+ *   A HANDLER THAT THREW left `failed`, and the next delivery still conflicted
+ *   on the unique key — so the consumer that failed was never invoked again,
+ *   while the dispatcher marked the event delivered because `deliver()` read
+ *   the conflict as "already done".
+ *
+ * So the claim is `processing`, it carries a lease, and it is settled to
+ * `processed` or `failed` only after the handler returns or throws. A `failed`
+ * row and an expired `processing` row are both re-claimable, which is what
+ * makes the dispatcher's retry reach the consumer that actually needs it.
+ *
+ * ── WHAT `deliver()` TELLS THE DISPATCHER ─────────────────────────────────
+ *
+ * It throws unless THIS consumer is now settled `processed` — by this delivery
+ * or by an earlier one. A failure throws, so the dispatcher retries and
+ * eventually dead-letters. An in-flight claim throws too: nothing went wrong,
+ * but nothing was accomplished either, and reporting success would let the
+ * event be marked dispatched while the consumer holding it is still running.
+ *
+ * A suppressed duplicate does NOT throw. That is what lets the dispatcher
+ * retry a whole event safely when one of several subscribers failed: the ones
+ * that already succeeded suppress, the failed one runs again, and the event
+ * advances when all of them are done.
  */
 
 import {
   DURABLE_FAILURE,
   type ConsumeResult,
   type DomainEventRecord,
-  type InboxRecord,
 } from './contracts.ts';
 import type { InboxStore } from './ports.ts';
 import type { EventSubscriber } from './dispatcher.ts';
@@ -54,16 +78,25 @@ export interface IdempotentConsumerDependencies {
   readonly eventTypes: readonly string[];
   readonly handle: EventHandler;
   readonly nowIso: () => string;
+  /**
+   * This consumer instance's identity, for the claim.
+   *
+   * Distinct from `consumerKey`: the KEY says which logical consumer this is
+   * and is what idempotency is scoped by; the OWNER says which running copy of
+   * it holds the current claim. Two isolates running the same consumer share a
+   * key and must not share an owner, or the lease could not tell them apart.
+   */
+  readonly workerId?: string;
+  readonly leaseTtlMs?: number;
 }
 
 export interface IdempotentConsumer extends EventSubscriber {
   /**
-   * Deliver, exactly once per (consumer, event).
+   * Deliver, at most one processed effect per (consumer, event).
    *
-   * Reports `suppressed` for a duplicate rather than hiding it: "we suppressed
-   * forty thousand duplicates today" and "we processed forty thousand events
-   * today" are different operational facts, and a consumer that cannot tell
-   * them apart cannot tell a healthy at-least-once producer from a broken one.
+   * Reports which of the four things happened rather than collapsing them:
+   * processed, suppressed (already done), failed (the handler threw), or
+   * in_flight (another owner holds a live claim).
    */
   consume(event: DomainEventRecord): Promise<ConsumeResult>;
 }
@@ -71,59 +104,34 @@ export interface IdempotentConsumer extends EventSubscriber {
 export function createIdempotentConsumer(
   deps: IdempotentConsumerDependencies,
 ): IdempotentConsumer {
-  async function consume(event: DomainEventRecord): Promise<ConsumeResult> {
-    const at = deps.nowIso();
+  const workerId = deps.workerId ?? `consumer:${deps.consumerKey}`;
+  const leaseTtlMs = deps.leaseTtlMs ?? 60_000;
 
-    // CLAIM FIRST. See the header. `claim` throws on a cross-tenant event, so a
-    // consumer cannot record having processed another organization's fact.
-    const claimed = await deps.inbox.claim(
+  async function consume(event: DomainEventRecord): Promise<ConsumeResult> {
+    // CLAIM FIRST. Throws on a cross-tenant event, so a consumer cannot record
+    // having processed another organization's fact.
+    const claim = await deps.inbox.claim(
       event.organizationId,
       deps.consumerKey,
       event,
-      at,
+      workerId,
+      leaseTtlMs,
+      deps.nowIso(),
     );
 
-    if (claimed === undefined) {
-      const existing = await deps.inbox.find(
-        event.organizationId,
-        deps.consumerKey,
-        event.eventId,
-      );
-      return {
-        outcome: 'suppressed',
-        // The existing record is the truth about this delivery. The fallback
-        // exists only so the return type is total; `claim` returning undefined
-        // means a row is there.
-        record:
-          existing ??
-          ({
-            inboxId: `${deps.consumerKey}:${event.eventId}`,
-            organizationId: event.organizationId,
-            consumerKey: deps.consumerKey,
-            eventId: event.eventId,
-            eventType: event.eventType,
-            status: 'processed',
-            processedAt: at,
-          } satisfies InboxRecord),
-      };
+    if (claim.kind === 'suppressed') {
+      return { outcome: 'suppressed', record: claim.record };
+    }
+    if (claim.kind === 'inFlight') {
+      return { outcome: 'in_flight', record: claim.record };
     }
 
+    let result: Readonly<Record<string, unknown>> | void;
     try {
-      const result = await deps.handle(event);
-      const settled = await deps.inbox.settle(
-        event.organizationId,
-        deps.consumerKey,
-        event.eventId,
-        'processed',
-        result === undefined || result === null ? {} : { result },
-        deps.nowIso(),
-      );
-      return { outcome: 'processed', record: settled ?? claimed };
+      result = await deps.handle(event);
     } catch (error) {
       const settled = await deps.inbox.settle(
-        event.organizationId,
-        deps.consumerKey,
-        event.eventId,
+        claim.lease,
         'failed',
         {
           failureCode: DURABLE_FAILURE.consumerThrew,
@@ -131,35 +139,49 @@ export function createIdempotentConsumer(
         },
         deps.nowIso(),
       );
-      return { outcome: 'failed', record: settled ?? claimed };
+      // A settle that returns nothing means the claim lapsed while the handler
+      // ran and somebody else now owns it. Reported as `failed` either way —
+      // this delivery did not produce a processed effect, which is the only
+      // thing the dispatcher needs to know.
+      return { outcome: 'failed', record: settled ?? claim.record };
     }
+
+    const settled = await deps.inbox.settle(
+      claim.lease,
+      'processed',
+      result === undefined || result === null ? {} : { result },
+      deps.nowIso(),
+    );
+
+    if (settled === undefined) {
+      // THE HANDLER RAN AND THE CLAIM WAS GONE. The effect may well have
+      // happened, and the ledger cannot say so — this is the honest edge of
+      // the at-least-once contract, and it is reported rather than rounded up
+      // to success. A longer lease, or a handler that heartbeats, is the fix;
+      // pretending is not.
+      return { outcome: 'failed', record: claim.record };
+    }
+    return { outcome: 'processed', record: settled };
   }
 
   return {
     consumerKey: deps.consumerKey,
     eventTypes: deps.eventTypes,
     consume,
-    /**
-     * The dispatcher's view: deliver, and THROW when the handler failed.
-     *
-     * A failure has to reach the dispatcher as an exception, because that is
-     * how the dispatcher learns to retry the event and, eventually, to
-     * dead-letter it. Swallowing it here would make a broken consumer look
-     * exactly like a working one from every operational measure.
-     *
-     * A SUPPRESSED DUPLICATE IS NOT A FAILURE and does not throw. That is what
-     * lets the dispatcher retry a whole event safely when one of several
-     * subscribers failed: the ones that already succeeded suppress, the failed
-     * one is tried again, and the event advances when all of them are done.
-     */
     async deliver(event) {
       const outcome = await consume(event);
-      if (outcome.outcome === 'failed') {
+      if (outcome.outcome === 'processed' || outcome.outcome === 'suppressed') return;
+
+      if (outcome.outcome === 'in_flight') {
         throw new Error(
-          outcome.record.failureDetail ??
-            `consumer ${deps.consumerKey} failed on event ${event.eventId}`,
+          `consumer ${deps.consumerKey} could not take event ${event.eventId}: ` +
+            'another owner holds a live claim',
         );
       }
+      throw new Error(
+        outcome.record.failureDetail ??
+          `consumer ${deps.consumerKey} failed on event ${event.eventId}`,
+      );
     },
   };
 }

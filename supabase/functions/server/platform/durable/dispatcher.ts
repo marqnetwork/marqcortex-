@@ -75,6 +75,14 @@ export interface DispatchPassResult {
 
 export interface EventDispatcher {
   drain(organizationId: string, max: number): Promise<readonly DispatchPassResult[]>;
+  /**
+   * Return abandoned dispatch leases to pending, or dead-letter the exhausted.
+   *
+   * Cross-tenant, and exposed here so the scheduler's tick can run it beside
+   * the job recovery sweep rather than leaving events `dispatching` forever
+   * whenever a dispatcher dies.
+   */
+  recover(limit?: number): Promise<{ recovered: number; deadLettered: number }>;
   subscribersFor(eventType: string): readonly EventSubscriber[];
 }
 
@@ -93,6 +101,10 @@ export function createEventDispatcher(
   return {
     subscribersFor,
 
+    async recover(limit) {
+      return deps.outbox.recoverExpiredDispatchLeases(deps.nowIso(), limit ?? 100);
+    },
+
     async drain(organizationId, max) {
       const claimed = await deps.outbox.claimPending(
         organizationId,
@@ -109,6 +121,30 @@ export function createEventDispatcher(
         let delivered = 0;
         let failed = 0;
         let firstFailure: string | undefined;
+
+        // AN EVENT NOBODY SUBSCRIBES TO IS DISPATCHED, NOT FAILED. Nothing is
+        // wrong with a fact that has no listener yet, and retrying it five
+        // times before dead-lettering would fill the monitored failure path
+        // with events whose only defect is being early. The record remains, and
+        // a subscriber added later reads history rather than a backlog.
+        if (targets.length === 0) {
+          const ok = await deps.outbox.markDispatched(
+            organizationId,
+            event.eventId,
+            deps.workerId,
+            event.leaseGeneration,
+            deps.nowIso(),
+          );
+          results.push({
+            eventId: event.eventId,
+            eventType: event.eventType,
+            delivered: 0,
+            failed: 0,
+            outcome: ok ? 'dispatched' : 'retry',
+            ...(ok ? {} : { failureCode: DURABLE_FAILURE.dispatchLeaseLost }),
+          });
+          continue;
+        }
 
         for (const subscriber of targets) {
           try {
@@ -127,7 +163,7 @@ export function createEventDispatcher(
           }
         }
 
-        if (failed === 0) {
+        if (failed === 0 && targets.length > 0) {
           const ok = await deps.outbox.markDispatched(
             organizationId,
             event.eventId,
@@ -144,7 +180,7 @@ export function createEventDispatcher(
             // Reported as `retry` rather than as a success, because this
             // dispatcher did not durably complete anything.
             outcome: ok ? 'dispatched' : 'retry',
-            ...(ok ? {} : { failureCode: DURABLE_FAILURE.leaseLost }),
+            ...(ok ? {} : { failureCode: DURABLE_FAILURE.dispatchLeaseLost }),
           });
           continue;
         }

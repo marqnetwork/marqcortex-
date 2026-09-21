@@ -106,6 +106,13 @@ export const DURABLE_RPC = {
   settle: 'durable_job_settle',
   recover: 'durable_job_recover_leases',
   materialize: 'durable_schedule_materialize_due',
+  transition: 'durable_job_transition',
+  outboxClaim: 'durable_outbox_claim',
+  outboxSettle: 'durable_outbox_settle',
+  outboxRecover: 'durable_outbox_recover_leases',
+  inboxClaim: 'durable_inbox_claim',
+  inboxSettle: 'durable_inbox_settle',
+  inboxRecover: 'durable_inbox_recover_claims',
 } as const;
 
 // ── Row mapping ─────────────────────────────────────────────────────────────
@@ -334,6 +341,8 @@ export function toInboxRecord(row: Readonly<Record<string, unknown>>): InboxReco
   const failureCode = optionalText(row, 'failure_code');
   const failureDetail = optionalText(row, 'failure_detail');
   const result = row.result === null || row.result === undefined ? undefined : record(row, 'result');
+  const leaseOwner = optionalText(row, 'lease_owner');
+  const leaseExpiresAt = optionalText(row, 'lease_expires_at');
   return {
     inboxId: text(row, 'id'),
     organizationId: text(row, 'organization_id'),
@@ -342,6 +351,10 @@ export function toInboxRecord(row: Readonly<Record<string, unknown>>): InboxReco
     eventType: text(row, 'event_type'),
     status: text(row, 'status') as InboxRecord['status'],
     processedAt: text(row, 'processed_at'),
+    attempt: integer(row, 'attempt', 0),
+    ...(leaseOwner === undefined ? {} : { leaseOwner }),
+    leaseGeneration: integer(row, 'lease_generation', 0),
+    ...(leaseExpiresAt === undefined ? {} : { leaseExpiresAt }),
     ...(correlationId === undefined ? {} : { correlationId }),
     ...(causationId === undefined ? {} : { causationId }),
     ...(failureCode === undefined ? {} : { failureCode }),
@@ -590,34 +603,27 @@ export function createPostgresDurableStores(gateway: DurableSqlGateway): Durable
     },
 
     async transition(organizationId, jobId, to, nowIso) {
-      // The three operator transitions. Each one names the state it may come
-      // FROM, so the update is conditional in the database rather than after a
-      // read — which is what stops a pause from landing on a job that was
-      // claimed a millisecond earlier.
-      const from: readonly JobState[] =
-        to === 'paused' ? ['queued'] : to === 'queued' ? ['paused'] : ['queued', 'paused', 'leased'];
-
-      const updated = await gateway.update(
-        DURABLE_TABLE.jobs,
-        {
-          state: to,
-          updated_at: nowIso,
-          ...(to === 'cancelled'
-            ? { lease_owner: null, lease_expires_at: null, completed_at: nowIso }
-            : {}),
-        },
-        {
-          organization_id: organizationId,
-          id: jobId,
-          // Expressed as a match on the single legal source state where there
-          // is one. Cancellation's three are handled by the caller re-reading:
-          // `update` takes equality only, by design — a port that grew an `in`
-          // for writes would be a port that could express an unbounded update.
-          ...(from.length === 1 ? { state: from[0] } : {}),
-        },
+      // ONE STATEMENT, UNDER ONE ROW LOCK, IN THE DATABASE.
+      //
+      // This was a read-then-update pair built from the gateway's equality-only
+      // predicates, which could not express cancellation's three legal source
+      // states — so cancellation was issued UNCONDITIONED and a succeeded or
+      // dead-lettered job could be cancelled. Adding a read first would have
+      // reintroduced the time-of-check-to-time-of-use window the packet exists
+      // to close: the job can be claimed, settled or recovered in between.
+      //
+      // `durable_job_transition` owns the legal transitions now, and the
+      // in-memory store enforces the same table, so the two agree by being the
+      // same rules rather than by review.
+      const moved = rows(
+        await gateway.rpc(DURABLE_RPC.transition, {
+          p_job_id: jobId,
+          p_organization_id: organizationId,
+          p_to: to,
+          p_now: nowIso,
+        }),
       );
-      if (updated.length === 0) return undefined;
-      return toDurableJob(updated[0]);
+      return moved.length === 0 ? undefined : toDurableJob(moved[0]);
     },
 
     async recoverExpiredLeases(nowIso, limit) {
@@ -770,65 +776,39 @@ export function createPostgresDurableStores(gateway: DurableSqlGateway): Durable
     },
 
     async claimPending(organizationId, worker, leaseTtlMs, nowIso, limit) {
-      // No dedicated SQL function: an outbox claim needs no cross-row
-      // arbitration beyond the conditional update below, because the generation
-      // comparison in `markDispatched` is what makes a lost race harmless.
-      // A second dispatcher that leases the same event cannot complete it.
-      const pending = await gateway.select(DURABLE_TABLE.outbox, {
-        match: { organization_id: organizationId, dispatch_state: 'pending' },
-        order: { column: 'created_at', ascending: true },
-        limit: boundedLimit(limit),
-      });
-
-      const ttl = normalizeLeaseTtlMs(leaseTtlMs);
-      const claimed: DomainEventRecord[] = [];
-      for (const row of pending) {
-        const event = toEventRecord(row);
-        if (event.attempt >= event.maxAttempts) continue;
-        const updated = await gateway.update(
-          DURABLE_TABLE.outbox,
-          {
-            dispatch_state: 'dispatching',
-            lease_owner: worker,
-            lease_generation: event.leaseGeneration + 1,
-            lease_expires_at: new Date(Date.parse(nowIso) + ttl).toISOString(),
-            attempt: event.attempt + 1,
-            updated_at: nowIso,
-          },
-          {
-            organization_id: organizationId,
-            id: event.eventId,
-            // The conditional that arbitrates. Two dispatchers reading the same
-            // pending row: the first update moves it out of `pending`, the
-            // second matches nothing.
-            dispatch_state: 'pending',
-            lease_generation: event.leaseGeneration,
-          },
-        );
-        if (updated.length > 0) claimed.push(toEventRecord(updated[0]));
-      }
-      return claimed;
+      // THE CLAIM IS ONE STATEMENT NOW. It was a select followed by a
+      // conditional update per row, which had two defects: it never compared
+      // `available_at`, so a failed event was immediately re-claimable and the
+      // backoff written on the row was a number nobody honoured; and two
+      // dispatchers both picked the same rows and raced, paying a read and a
+      // write each on every loser.
+      const claimed = rows(
+        await gateway.rpc(DURABLE_RPC.outboxClaim, {
+          p_organization_id: organizationId,
+          p_worker: worker,
+          p_lease_ttl_ms: normalizeLeaseTtlMs(leaseTtlMs),
+          p_now: nowIso,
+          p_limit: boundedLimit(limit),
+        }),
+      );
+      return claimed.map(toEventRecord);
     },
 
     async markDispatched(organizationId, eventId, worker, generation, nowIso) {
-      const updated = await gateway.update(
-        DURABLE_TABLE.outbox,
-        {
-          dispatch_state: 'dispatched',
-          lease_owner: null,
-          lease_expires_at: null,
-          dispatched_at: nowIso,
-          updated_at: nowIso,
-        },
-        {
-          organization_id: organizationId,
-          id: eventId,
-          dispatch_state: 'dispatching',
-          lease_owner: worker,
-          lease_generation: generation,
-        },
+      const settled = rows(
+        await gateway.rpc(DURABLE_RPC.outboxSettle, {
+          p_organization_id: organizationId,
+          p_event_id: eventId,
+          p_worker: worker,
+          p_generation: generation,
+          p_dispatched: true,
+          p_failure_code: null,
+          p_failure_detail: null,
+          p_available_at: null,
+          p_now: nowIso,
+        }),
       );
-      return updated.length > 0;
+      return settled[0]?.settled === true;
     },
 
     async markFailed(
@@ -841,57 +821,40 @@ export function createPostgresDurableStores(gateway: DurableSqlGateway): Durable
       availableAt,
       nowIso,
     ) {
-      const current = await gateway.select(DURABLE_TABLE.outbox, {
-        match: { organization_id: organizationId, id: eventId },
-        limit: 1,
-      });
-      if (current.length === 0) return undefined;
-      const event = toEventRecord(current[0]);
-      const exhausted = event.attempt >= event.maxAttempts;
-
-      const updated = await gateway.update(
-        DURABLE_TABLE.outbox,
-        {
-          dispatch_state: exhausted ? 'failed' : 'pending',
-          lease_owner: null,
-          lease_expires_at: null,
-          ...(exhausted ? {} : { available_at: availableAt }),
-          failure_code: failureCode,
-          failure_detail: failureDetail ?? null,
-          updated_at: nowIso,
-        },
-        {
-          organization_id: organizationId,
-          id: eventId,
-          dispatch_state: 'dispatching',
-          lease_owner: worker,
-          lease_generation: generation,
-        },
+      // FAILURE AND DEAD-LETTER ARE ONE TRANSACTION NOW. They were a select,
+      // an update and then a separate insert; a crash between the update and
+      // the insert left terminal undeliverable work with no monitored record —
+      // the precise outcome the dead-letter table exists to make impossible.
+      const settled = rows(
+        await gateway.rpc(DURABLE_RPC.outboxSettle, {
+          p_organization_id: organizationId,
+          p_event_id: eventId,
+          p_worker: worker,
+          p_generation: generation,
+          p_dispatched: false,
+          p_failure_code: failureCode,
+          p_failure_detail: failureDetail ?? null,
+          p_available_at: availableAt,
+          p_now: nowIso,
+        }),
       );
-      if (updated.length === 0) return undefined;
+      const row = settled[0];
+      if (row?.settled !== true) return undefined;
+      return { deadLettered: row.dead_lettered === true };
+    },
 
-      if (exhausted) {
-        // AN UNDELIVERABLE EVENT IS NOT DROPPED. Same monitored path as an
-        // exhausted job, so one query answers "what is the platform losing".
-        await gateway.insert(
-          DURABLE_TABLE.deadLetters,
-          {
-            organization_id: organizationId,
-            origin_kind: 'event',
-            origin_id: eventId,
-            origin_type: event.eventType,
-            attempts: Math.max(event.attempt, 1),
-            failure_code: failureCode,
-            failure_detail: failureDetail ?? null,
-            correlation_id: event.correlationId,
-            causation_id: event.causationId ?? null,
-            first_failed_at: event.createdAt,
-            last_failed_at: nowIso,
-          },
-          { ignoreConflict: true },
-        );
-      }
-      return { deadLettered: exhausted };
+    async recoverExpiredDispatchLeases(nowIso, limit) {
+      const recovered = rows(
+        await gateway.rpc(DURABLE_RPC.outboxRecover, {
+          p_now: nowIso,
+          p_limit: boundedLimit(limit),
+        }),
+      );
+      const first = recovered[0] ?? {};
+      return {
+        recovered: typeof first.recovered === 'number' ? first.recovered : 0,
+        deadLettered: typeof first.dead_lettered === 'number' ? first.dead_lettered : 0,
+      };
     },
 
     async oldestPendingAt() {
@@ -916,7 +879,7 @@ export function createPostgresDurableStores(gateway: DurableSqlGateway): Durable
   };
 
   const inbox: DurableStores['inbox'] = {
-    async claim(organizationId, consumerKey, event, nowIso) {
+    async claim(organizationId, consumerKey, event, worker, leaseTtlMs, nowIso) {
       if (event.organizationId !== organizationId) {
         throw new DurableRuntimeError(
           DURABLE_FAILURE.tenantMismatch,
@@ -924,39 +887,77 @@ export function createPostgresDurableStores(gateway: DurableSqlGateway): Durable
           `event ${event.eventId} is owned by ${event.organizationId}, not ${organizationId}`,
         );
       }
-      // INSERT-FIRST. The unique constraint arbitrates; a conflict means this
-      // consumer has already seen this event and must not act again.
-      const inserted = await gateway.insert(
-        DURABLE_TABLE.inbox,
-        {
-          organization_id: organizationId,
-          consumer_key: consumerKey,
-          event_id: event.eventId,
-          event_type: event.eventType,
-          status: 'processed',
-          processed_at: nowIso,
-          correlation_id: event.correlationId,
-          causation_id: event.causationId ?? null,
-        },
-        { ignoreConflict: true },
+      // The function ALWAYS returns the row as it now stands, so the caller can
+      // tell "already done" from "somebody else is doing it". The previous
+      // adapter inserted `processed` with `ON CONFLICT DO NOTHING` and returned
+      // undefined for both, and the dispatcher read both as success.
+      const claimed = rows(
+        await gateway.rpc(DURABLE_RPC.inboxClaim, {
+          p_organization_id: organizationId,
+          p_consumer_key: consumerKey,
+          p_event_id: event.eventId,
+          p_event_type: event.eventType,
+          p_correlation_id: event.correlationId ?? null,
+          p_causation_id: event.causationId ?? null,
+          p_worker: worker,
+          p_lease_ttl_ms: normalizeLeaseTtlMs(leaseTtlMs),
+          p_now: nowIso,
+        }),
       );
-      return inserted.length === 0 ? undefined : toInboxRecord(inserted[0]);
+      if (claimed.length === 0) {
+        throw new DurableRuntimeError(
+          DURABLE_FAILURE.jobInvalid,
+          'This delivery could not be recorded.',
+          `durable_inbox_claim returned no row for ${consumerKey}/${event.eventId}`,
+        );
+      }
+      const record = toInboxRecord(claimed[0]);
+
+      if (record.status === 'processed') return { kind: 'suppressed', record };
+      if (record.leaseOwner !== worker || record.leaseExpiresAt === undefined) {
+        return { kind: 'inFlight', record };
+      }
+      return {
+        kind: 'claimed',
+        record,
+        lease: {
+          organizationId,
+          consumerKey,
+          eventId: event.eventId,
+          owner: worker,
+          generation: record.leaseGeneration,
+          expiresAt: record.leaseExpiresAt,
+        },
+      };
     },
 
-    async settle(organizationId, consumerKey, eventId, status, detail, nowIso) {
-      const updated = await gateway.update(
-        DURABLE_TABLE.inbox,
-        {
-          status,
-          processed_at: nowIso,
-          failure_code: detail.failureCode ?? null,
-          failure_detail: detail.failureDetail ?? null,
-          result: detail.result ?? null,
-          updated_at: nowIso,
-        },
-        { organization_id: organizationId, consumer_key: consumerKey, event_id: eventId },
+    async settle(lease, status, detail, nowIso) {
+      const settled = rows(
+        await gateway.rpc(DURABLE_RPC.inboxSettle, {
+          p_organization_id: lease.organizationId,
+          p_consumer_key: lease.consumerKey,
+          p_event_id: lease.eventId,
+          p_worker: lease.owner,
+          p_generation: lease.generation,
+          p_status: status,
+          p_failure_code: detail.failureCode ?? null,
+          p_failure_detail: detail.failureDetail ?? null,
+          p_result: detail.result ?? null,
+          p_now: nowIso,
+        }),
       );
-      return updated.length === 0 ? undefined : toInboxRecord(updated[0]);
+      return settled.length === 0 ? undefined : toInboxRecord(settled[0]);
+    },
+
+    async recoverExpiredClaims(nowIso, limit) {
+      const recovered = await gateway.rpc(DURABLE_RPC.inboxRecover, {
+        p_now: nowIso,
+        p_limit: boundedLimit(limit),
+      });
+      if (typeof recovered === 'number') return recovered;
+      const row = rows(recovered)[0];
+      const value = row?.durable_inbox_recover_claims ?? row?.recovered;
+      return typeof value === 'number' ? value : 0;
     },
 
     async find(organizationId, consumerKey, eventId) {
