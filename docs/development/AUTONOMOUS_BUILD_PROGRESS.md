@@ -56,7 +56,7 @@ Deferred intentionally from A0:
 - registry certification of contradictory `safetyClass` / `allowedTools`;
 - migration of additional actions through the evaluator.
 
-### A1 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW
+### A1 — Durable Runtime Foundation — CORRECTION PASS APPLIED, AWAITING REVIEW
 
 BP-002 is implemented on this branch. The packet
 `docs/generated/build-packets/BP-002_DURABLE_RUNTIME_FOUNDATION.md` remains in
@@ -89,30 +89,98 @@ migration/rollback conventions and the existing test conventions. No new
 repository, Supabase project, database, queue or scheduler vendor, deployment
 stack or workflow engine was created.
 
+Review of the first submission found five correctness gaps. All five are closed
+on this branch, and each one was a real defect rather than a documentation
+problem:
+
+1. **An expired lease could settle.** `durable_job_settle` checked owner and
+   generation but not `lease_expires_at > p_now`, so a worker whose lease had
+   lapsed could still succeed, retry, dead-letter and EMIT EVENTS — purely
+   because the recovery sweep had not happened to run yet. The heartbeat had
+   the predicate; the in-memory store had it; the settle did not.
+
+2. **Terminal jobs were not terminal in Postgres.** The adapter's gateway takes
+   equality predicates only, so cancellation — legal from three source states —
+   was issued unconditioned, and a succeeded or dead-lettered job could be
+   cancelled. Now `durable_job_transition` owns the legal transitions in one
+   statement under one row lock, rather than a read-then-update pair that would
+   have reintroduced the very race this packet exists to close.
+
+3. **The outbox retry path was not durable.** Four defects: `available_at` was
+   never compared, so backoff was a number nobody honoured; an abandoned
+   dispatch lease stranded the event forever; an expired dispatcher could still
+   complete it; and failure and dead-letter were two round trips, so a crash
+   between them left terminal undeliverable work with no monitored record.
+
+4. **The inbox lost effects.** It wrote `processed` BEFORE running the handler,
+   so a consumer that died in between left a permanent suppression for work
+   that never happened — undetectably. And a handler that threw left a `failed`
+   row that still conflicted on the unique key, so the failed consumer was
+   never invoked again while the dispatcher marked the event delivered. The
+   table now has a `processing` claim with a lease; `failed` and expired claims
+   are re-claimable; recovery releases to `failed` and NEVER to `processed`.
+
+5. **Nothing composed the runtime.** BP-002 shipped a library and a test suite;
+   no deployed code built a gateway or registered the pilot. The server now
+   composes the Postgres stores, the registry, the worker, the scheduler and
+   the dispatcher, and registers the approval-expiry pilot against the real
+   workflow approval gate. No cron, no timer, no HTTP route — `tick()` is an
+   internal service a later authorized deployment calls.
+
+The contract the inbox now offers is stated exactly, because the first version
+claimed more than it delivered: **durable at-least-once delivery, plus a durable
+idempotency identity per (consumer, event), giving one processed effect per
+consumer per event when the handler obeys the idempotency contract.** That is
+not exactly-once execution for an arbitrary external side effect, and nothing
+here can provide it.
+
 A1 test evidence at submission:
-- `verify:bp002` 278/278
+Static suites:
+- `verify:bp002` 331/331
 - `test:ai` 2215/2215
 - `test:security` 1141/1141
-- `test:features` 1430/1430
+- `test:features` 1440/1440
 - `test:system` 193/193
 - `test:lifecycle` 241/241
-- `test:database` 334/334 (2 skipped — no live PostgreSQL in the environment)
+- `test:database` 346/346 (2 skipped — those two need a linked Supabase project)
 - `test:migration` 244/244, `scan:boundaries` 123/123
+
+Live LOCAL PostgreSQL 16 (`npm run test:database:durable`, 52 distinct
+assertions plus 4 two-session concurrency probes):
+- the full migration chain applied to a fresh database, then rolled back,
+  re-applied and rolled back again — with the KV store and the tenancy
+  foundation proven intact afterwards;
+- schema constraints ENFORCED (human actor refused, duplicate idempotency key
+  refused, oversized payload refused, cross-tenant reference unrepresentable);
+- an expired lease settles nothing and publishes nothing, WITHOUT recovery
+  having run;
+- the transition table exhaustively, including succeeded/dead-lettered refusing
+  cancellation and cancel-mid-flight invalidating the worker's lease;
+- outbox backoff honoured, abandoned dispatch recovered, exhausted event and
+  its dead-letter row committing together;
+- inbox claim/suppress/fail/re-claim/recover, including that a FAILED delivery
+  is re-claimable and an abandoned claim is released to `failed`;
+- RLS as the `authenticated` role: own tenant readable, no other tenant's rows
+  visible on any of the five tables, and no insert, update, delete or function
+  execution available at all;
+- four two-session concurrency probes: two workers on one job, two schedulers
+  on one occurrence, two dispatchers on one set of events, two consumers on one
+  delivery.
 - `typecheck:api` clean across the AI, registry-free and server boundaries;
   `typecheck:tests` clean.
 - The node-targeted migration checker advisory remains pre-existing and is not
   an A1 regression.
 
 Deferred intentionally from A1:
-- applying the migration anywhere, and configuring any production schedule —
-  the sweep's schedule is a value a later authorized deployment installs;
-- executing the Postgres-backed stores, which no environment here can do; only
-  their row and argument contracts against the migration are proven;
+- applying the migration to any Supabase project, and configuring any
+  production schedule or HTTP route — the sweep's schedule is a value a later
+  authorized deployment installs, and `tick()` is an internal service;
+- a consumer that fails does not retry itself within one delivery; the
+  dispatcher retries the event and the failed consumer re-claims on the next
+  delivery, which is what the `flakyCalls === 2` regression asserts;
 - migrating existing agent/workflow/approval runtime state out of the KV store
   (that is A2);
 - tenant-authored authority envelopes and explicit-deny rules for job actors;
-- a consumer that retries itself after a failure — the dispatcher retries the
-  event, and a consumer's own failed inbox row is cleared by an operator;
 - cross-process event subscribers, priority ageing, tenant quotas and job
   dependency graphs.
 
