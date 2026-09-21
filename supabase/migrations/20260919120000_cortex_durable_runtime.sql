@@ -409,6 +409,12 @@ CREATE INDEX IF NOT EXISTS durable_outbox_backlog_idx
   WHERE dispatch_state IN ('pending', 'dispatching');
 CREATE INDEX IF NOT EXISTS durable_outbox_correlation_idx
   ON public.durable_outbox (organization_id, correlation_id);
+-- THE DISPATCH RECOVERY INDEX. A dispatcher that dies mid-delivery leaves an
+-- event `dispatching` forever unless something sweeps it. Cross-tenant, for the
+-- reason the job recovery index gives.
+CREATE INDEX IF NOT EXISTS durable_outbox_expired_lease_idx
+  ON public.durable_outbox (lease_expires_at)
+  WHERE dispatch_state = 'dispatching';
 
 DROP TRIGGER IF EXISTS durable_outbox_set_updated_at ON public.durable_outbox;
 CREATE TRIGGER durable_outbox_set_updated_at
@@ -432,10 +438,44 @@ CREATE TABLE IF NOT EXISTS public.durable_inbox (
   event_id                UUID NOT NULL,
   event_type              TEXT NOT NULL,
 
-  status                  TEXT NOT NULL DEFAULT 'processed'
+  -- ── THREE STATES, AND THE FIRST ONE IS WHY THIS TABLE WAS WRONG ──────────
+  --
+  -- The first version of this table had two: `processed` and `failed`. A
+  -- consumer inserted `processed` BEFORE running its handler, which made the
+  -- row mean "somebody intends to process this" while claiming to mean
+  -- "somebody has". Two consequences, both of them losses:
+  --
+  --   A PROCESS THAT DIED between the insert and the handler left a row
+  --   saying the work was done. Every later delivery was suppressed, forever,
+  --   and the effect never happened. Not a limitation — a lost effect that
+  --   nothing could detect, because the ledger said it was fine.
+  --
+  --   A HANDLER THAT THREW left `failed`, and the next delivery still
+  --   conflicted on the unique key, so the consumer was never invoked again.
+  --   The dispatcher retried the event and the failed consumer sat out every
+  --   retry while the event was marked delivered.
+  --
+  -- `processing` is a CLAIM, not an outcome. It carries a lease, exactly as a
+  -- job does, so an owner that dies is recoverable rather than permanent:
+  --
+  --   processing  somebody owns this and is running it, until the lease lapses
+  --   processed   TERMINAL. The effect happened; every later delivery is
+  --               suppressed on purpose.
+  --   failed      the handler said no. Re-claimable, because the dispatcher
+  --               will deliver again and the whole point is that it runs again.
+  status                  TEXT NOT NULL DEFAULT 'processing'
                           CONSTRAINT durable_inbox_status_check
-                          CHECK (status IN ('processed', 'failed')),
+                          CHECK (status IN ('processing', 'processed', 'failed')),
   processed_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- The same owner-plus-generation discipline `durable_jobs` uses, and for the
+  -- same reason: a consumer that stalls, loses its claim to expiry and claims
+  -- again must not be able to settle under the lapsed one. See the lease
+  -- comment on `durable_jobs`.
+  attempt                 INTEGER NOT NULL DEFAULT 0,
+  lease_owner             TEXT,
+  lease_generation        INTEGER NOT NULL DEFAULT 0,
+  lease_expires_at        TIMESTAMPTZ,
 
   correlation_id          TEXT,
   causation_id            TEXT,
@@ -454,6 +494,14 @@ CREATE TABLE IF NOT EXISTS public.durable_inbox (
   CONSTRAINT durable_inbox_once_uk UNIQUE (organization_id, consumer_key, event_id),
   CONSTRAINT durable_inbox_consumer_present CHECK (length(trim(consumer_key)) > 0),
   CONSTRAINT durable_inbox_result_bounded CHECK (result IS NULL OR pg_column_size(result) <= 16384),
+  -- A claim has an owner and an expiry; a settled row has neither. The same
+  -- coherence `durable_jobs` holds, so a row cannot be `processed` while still
+  -- carrying a live claim somebody might settle under.
+  CONSTRAINT durable_inbox_claim_coherent CHECK (
+    (status = 'processing') = (lease_owner IS NOT NULL)
+    AND (status = 'processing') = (lease_expires_at IS NOT NULL)
+  ),
+  CONSTRAINT durable_inbox_attempt_bounded CHECK (attempt >= 0 AND attempt <= 1000),
 
   CONSTRAINT durable_inbox_event_same_org
     FOREIGN KEY (event_id, organization_id)
@@ -463,6 +511,12 @@ CREATE TABLE IF NOT EXISTS public.durable_inbox (
 
 CREATE INDEX IF NOT EXISTS durable_inbox_consumer_idx
   ON public.durable_inbox (organization_id, consumer_key, processed_at DESC);
+-- THE RECOVERY INDEX. Expired processing claims, across tenants, because a
+-- consumer dying is a platform event rather than a tenant's — the same
+-- reasoning as `durable_jobs_expired_lease_idx`.
+CREATE INDEX IF NOT EXISTS durable_inbox_expired_claim_idx
+  ON public.durable_inbox (lease_expires_at)
+  WHERE status = 'processing';
 
 DROP TRIGGER IF EXISTS durable_inbox_set_updated_at ON public.durable_inbox;
 CREATE TRIGGER durable_inbox_set_updated_at
@@ -470,7 +524,9 @@ CREATE TRIGGER durable_inbox_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION cortex.set_updated_at();
 
 COMMENT ON TABLE public.durable_inbox IS
-  'BP-002 A1 — one row per (consumer, event). The unique key is what makes a duplicate delivery one logical effect.';
+  'BP-002 A1 — one row per (consumer, event), claimed before the handler runs. The unique key is the idempotency identity; the lease is what makes a dead consumer recoverable rather than permanently suppressed.';
+COMMENT ON COLUMN public.durable_inbox.status IS
+  'processing = claimed and running (leased); processed = TERMINAL, suppress every later delivery; failed = re-claimable on the next delivery.';
 
 -- ---------------------------------------------------------------------------
 -- 5. durable_dead_letters — work that failed for the last time
