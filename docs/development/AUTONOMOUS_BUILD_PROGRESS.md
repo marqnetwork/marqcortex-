@@ -56,11 +56,9 @@ Deferred intentionally from A0:
 - registry certification of contradictory `safetyClass` / `allowedTools`;
 - migration of additional actions through the evaluator.
 
-### A1 — Durable Runtime Foundation — CORRECTION PASS APPLIED, AWAITING REVIEW
+### A1 — Durable Runtime Foundation — COMPLETE
 
-BP-002 is implemented on this branch. The packet
-`docs/generated/build-packets/BP-002_DURABLE_RUNTIME_FOUNDATION.md` remains in
-place until the review that accepts it; §21 of the packet is what removes it.
+BP-002 is implemented, independently reviewed and accepted on this branch through commit `de62e09bfc09e0d2387e1834febc2a3b330e133d`. The temporary BP-002 packet is removed after this acceptance record; implementation truth now lives in code, tests, Git history and this progress authority.
 
 Implemented outcome:
 `Existing workflow / agent runtime → durable job foundation → scheduler / lease / retry → BP-001 authority → existing capability execution → domain event / outbox → idempotent consumer → audit / metrics / recovery`.
@@ -146,12 +144,12 @@ consumer per event when the handler obeys the idempotency contract.** That is
 not exactly-once execution for an arbitrary external side effect, and nothing
 here can provide it.
 
-A1 test evidence at submission:
+A1 test evidence at final acceptance:
 Static suites:
 - `verify:bp002` 337/337
 - `test:ai` 2215/2215
 - `test:security` 1141/1141
-- `test:features` 1440/1440
+- `test:features` 1441/1441
 - `test:system` 193/193
 - `test:lifecycle` 241/241
 - `test:database` 346/346 (2 skipped — those two need a linked Supabase project)
@@ -201,19 +199,20 @@ Deferred intentionally from A1:
 - cross-process event subscribers, priority ageing, tenant quotas and job
   dependency graphs.
 
+### A2 — Runtime Persistence — NEXT
+
+Move authoritative agent/workflow/checkpoint/approval runtime state from legacy KV authority toward SQL-backed durable stores while preserving current runtime behavior, tenant isolation, BP-001 authority, A1 durability semantics, rollback safety and existing tests. A2 has not started.
+
 ## CURRENT BATCH
 
-**BP-002 — IMPLEMENTED. AWAITING REVIEW. A2 / BP-003 NOT STARTED.**
+**A1 / BP-002 — COMPLETE AND ACCEPTED. A2 / BP-003 — NEXT, NOT STARTED.**
 
-Hard rules, all observed:
-- same repository;
-- same Supabase project;
-- no new deployment/hosting/queue vendor;
-- no production deploy during the packet;
-- no UI work;
-- no A2 runtime-persistence migration;
-- no Tool Gateway, autonomous sales, graph/memory or self-forming workforce work;
-- stop at BP-002 acceptance and return for review.
+Locked rules remain:
+- same repository and same Supabase project;
+- no new deployment/hosting/database/queue vendor;
+- no production deploy unless explicitly authorized;
+- no UI/Tool Gateway/autonomous-sales/graph-memory/self-forming-workforce drift;
+- create the bounded A2 packet before implementation begins.
 
 ## COMPLETED — PRIOR SESSION (Batch 4F, merged as PR #45)
 
