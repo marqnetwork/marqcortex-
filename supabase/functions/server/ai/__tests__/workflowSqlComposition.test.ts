@@ -30,6 +30,12 @@ import {
   type WorkflowSqlGateway,
 } from '../workflows/persistence/sqlWorkflowStores.ts';
 import { createWorkflowApprovalAuthorityPort } from '../business/diagnostic/persistence/authorityPort.ts';
+import {
+  ALPHA,
+  makeApproval,
+  makeCheckpoint,
+  makeRun,
+} from './workflowPersistenceContract.ts';
 
 const SERVER_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BOOTSTRAP = join(SERVER_ROOT, 'ai', 'bootstrap.ts');
@@ -161,5 +167,125 @@ describe('BP-003 did not cut production over', () => {
         );
       }
     }
+  });
+});
+
+
+/**
+ * THE CUTOVER PRECONDITION, ASSERTED SO A LATER PACKET CANNOT WALK PAST IT.
+ *
+ * `security/tenancy.ts` admits any organization identifier matching
+ * `[a-z0-9][a-z0-9._-]{0,63}`, and `AI_DEFAULT_ORGANIZATION_ID` ships with the
+ * slug-shaped default `marq-cortex`. The relational authority names tenants by
+ * `organizations.id`, a UUID. So there are identifiers the key-value store
+ * accepts and the SQL store structurally cannot.
+ *
+ * BP-003 does NOT solve that — production is still KV, so nothing is affected
+ * today, and inventing a slug-to-UUID mapping would be a tenancy change inside
+ * a persistence-parity packet. What BP-003 owes is that the candidate store
+ * FAILS CLOSED and SAYS SO, rather than appearing to write and silently
+ * storing nothing.
+ *
+ * Writes raise a typed `workflow_persistence_failed`. Reads return nothing,
+ * and the asymmetry is not a compromise: an organization with no row has no
+ * records either, so "nothing found" is the true answer to a read and "this
+ * cannot be written" is the true answer to a write.
+ *
+ * Every assertion below is reached WITHOUT touching the gateway — the guard is
+ * in front of it — which is what makes this a claim about the store rather
+ * than about a database's error message.
+ */
+describe('BP-003 fails closed for a tenant the relational authority cannot name', () => {
+  const UNNAMEABLE = 'marq-cortex';
+
+  function stores() {
+    const gateway = recordingGateway();
+    return { gateway, ...createSqlWorkflowStores({ gateway }) };
+  }
+
+  async function refusesWrite(call: () => Promise<unknown>, what: string) {
+    let raised: unknown;
+    try {
+      await call();
+    } catch (error) {
+      raised = error;
+    }
+    assert.ok(raised !== undefined, `${what}: the write was not refused`);
+    assert.equal(
+      (raised as { failure?: unknown }).failure,
+      'workflow_persistence_failed',
+      `${what}: the refusal was not a typed workflow failure`,
+    );
+    // The diagnostic names the actual problem, so a deployment that hits this
+    // gets a sentence it can act on rather than a UUID parse error three
+    // layers up.
+    assert.match(
+      String((raised as { diagnostics?: unknown }).diagnostics ?? ''),
+      /not a relational organization id/,
+      `${what}: the refusal does not say why`,
+    );
+  }
+
+  it('refuses every write path with a typed workflow failure', async () => {
+    const s = stores();
+    await refusesWrite(
+      () => s.runStore.create(makeRun({ organizationId: UNNAMEABLE })),
+      'run create',
+    );
+    await refusesWrite(
+      () => s.runStore.save(makeRun({ organizationId: UNNAMEABLE, runVersion: 2 }), 1),
+      'run save',
+    );
+    await refusesWrite(
+      () => s.checkpointStore.write(makeCheckpoint({ organizationId: UNNAMEABLE })),
+      'checkpoint write',
+    );
+    await refusesWrite(
+      () => s.approvalStore.create(makeApproval({ organizationId: UNNAMEABLE })),
+      'approval create',
+    );
+    await refusesWrite(
+      () => s.approvalStore.save(makeApproval({ organizationId: UNNAMEABLE, approvalVersion: 2 }), 1),
+      'approval save',
+    );
+  });
+
+  it('never reaches the database with an identifier it cannot represent', async () => {
+    const s = stores();
+    await s.runStore.create(makeRun({ organizationId: UNNAMEABLE })).catch(() => {});
+    await s.runStore.list({ organizationId: UNNAMEABLE });
+    await s.runStore.load(UNNAMEABLE, 'wfr_x');
+    await s.checkpointStore.history(UNNAMEABLE, 'wfr_x');
+    // THE GUARD IS IN FRONT OF THE GATEWAY. Not "the database rejects it" —
+    // the store never asks.
+    assert.deepEqual(s.gateway.calls, []);
+  });
+
+  it('answers reads honestly rather than raising', async () => {
+    const s = stores();
+    // An organization with no row has no records. "Nothing" is true.
+    assert.equal(await s.runStore.load(UNNAMEABLE, 'wfr_x'), undefined);
+    assert.deepEqual(await s.runStore.list({ organizationId: UNNAMEABLE }), []);
+    assert.equal(await s.checkpointStore.read(UNNAMEABLE, 'wfr_x', 1), undefined);
+    assert.equal(await s.checkpointStore.latest(UNNAMEABLE, 'wfr_x'), undefined);
+    assert.deepEqual(await s.checkpointStore.history(UNNAMEABLE, 'wfr_x'), []);
+    assert.equal(await s.approvalStore.load(UNNAMEABLE, 'wfa:x'), undefined);
+    assert.deepEqual(await s.approvalStore.list({ organizationId: UNNAMEABLE }), []);
+  });
+
+  it('accepts the same operations for a relational tenant', async () => {
+    // THE CONTROL. Without it, "everything is refused" would also pass this
+    // suite. The gateway answers `true` because that is what
+    // `workflow_run_create` returns when it inserts.
+    const calls: string[] = [];
+    const gateway: WorkflowSqlGateway = {
+      rpc(fn) {
+        calls.push(fn);
+        return Promise.resolve(true);
+      },
+    };
+    const { runStore } = createSqlWorkflowStores({ gateway });
+    await runStore.create(makeRun({ organizationId: ALPHA }));
+    assert.deepEqual(calls, ['workflow_run_create']);
   });
 });

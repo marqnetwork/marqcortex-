@@ -27,6 +27,23 @@
 --
 -- THE APPEND-ONLY TRIGGER FUNCTION GOES LAST, after the table whose trigger
 -- depends on it.
+--
+-- ── AND IT DELETES NOTHING IT CANNOT PROVE IT CREATED ─────────────────────
+--
+-- An earlier draft deleted the permission keys `workflows.read` and
+-- `workflows.operate` and their role grants. The forward migration created
+-- those with `WHERE NOT EXISTS`, so a row with that key may have been there
+-- first — and a rollback cannot tell the two apart. Run against a database
+-- where something else already owned the key, that DELETE would have removed a
+-- permission and every role grant hanging off it, to undo a packet that had
+-- not created them.
+--
+-- The forward migration no longer mints permission keys at all (see
+-- `20260921120001`), and this file no longer deletes any. What remains here is
+-- exactly what BP-003 brought into existence with an unconditional CREATE:
+-- three tables, twelve functions, one trigger function. Nothing else. A row
+-- this packet did not certainly create is a row its rollback has no business
+-- touching.
 -- ============================================================================
 
 BEGIN;
@@ -51,14 +68,7 @@ DROP TABLE IF EXISTS public.workflow_runs;
 -- After the table, because the trigger that used it is gone with it.
 DROP FUNCTION IF EXISTS cortex.refuse_checkpoint_mutation();
 
--- The permission keys and their grants go with the tables. A key with no table
--- behind it is a grant that looks meaningful and governs nothing.
-DELETE FROM public.role_permissions rp
-USING public.permissions p
-WHERE rp.permission_id = p.id
-  AND p.key IN ('workflows.read', 'workflows.operate');
-
-DELETE FROM public.permissions
-WHERE key IN ('workflows.read', 'workflows.operate');
+-- NO DELETE FROM public.permissions, public.role_permissions OR ANY OTHER
+-- PRE-EXISTING TABLE. See the header.
 
 COMMIT;

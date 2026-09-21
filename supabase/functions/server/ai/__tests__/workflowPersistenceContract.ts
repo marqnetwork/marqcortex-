@@ -36,6 +36,30 @@
  * does today and parity with production is the acceptance gate.
  */
 
+/*
+ * ── THE SCOPE OF THE PARITY CLAIM, STATED PRECISELY ───────────────────────
+ *
+ * These cases run against UUID-backed tenants, and the parity they prove is
+ * bounded by that:
+ *
+ *   PROVEN — memory, key-value and SQL return equivalent domain behaviour for
+ *   tenants whose organization identifier is a real `organizations.id`.
+ *
+ *   NOT PROVEN, AND A KNOWN CUTOVER BLOCKER — `security/tenancy.ts` admits any
+ *   identifier matching `[a-z0-9][a-z0-9._-]{0,63}`, and
+ *   `AI_DEFAULT_ORGANIZATION_ID` ships with the slug `marq-cortex`. The
+ *   key-value store accepts such a tenant; the relational authority cannot
+ *   name one. There is no parity across those identifiers and this suite does
+ *   not claim any.
+ *
+ *   UNAFFECTED TODAY — production persistence is still the key-value store, so
+ *   no current behaviour depends on the difference.
+ *
+ * `workflowSqlComposition.test.ts` asserts that the candidate SQL store fails
+ * closed with a typed persistence error for such a tenant, so a later cutover
+ * packet cannot skip the prerequisite by accident.
+ */
+
 import assert from 'node:assert/strict';
 
 import type { WorkflowRunRecord, WorkflowRunState } from '../workflows/contracts/run.ts';
@@ -50,6 +74,8 @@ import type {
   WorkflowRunStore,
 } from '../workflows/persistence/ports.ts';
 import type { WorkflowFailureCode } from '../workflows/contracts/failures.ts';
+import { createWorkflowApprovalGate } from '../workflows/approvals/workflowApprovalGate.ts';
+import { createTestClock } from '../runtime/clock.ts';
 
 // ── Tenants ─────────────────────────────────────────────────────────────────
 
@@ -814,6 +840,139 @@ const APPROVAL_CASES: readonly PersistenceCase[] = [
       assert.deepEqual(approvalIds(two), ['wfa:q1', 'wfa:q2']);
       assert.equal((await h.approvals.list({ organizationId: ALPHA, limit: 0 })).length, 1);
       assert.equal((await h.approvals.list({ organizationId: ALPHA, limit: 10_000 })).length, 5);
+    },
+  },
+  {
+    name: 'approval: a pending request EXPIRES through the real gate, carrying no decision',
+    async run(h) {
+      // DRIVEN THROUGH `createWorkflowApprovalGate`, not hand-built. The whole
+      // reason this case exists is that a hand-built fixture proved the wrong
+      // thing: a constraint that required every non-pending state to carry a
+      // decision stamp passed every test in this suite while making
+      // `expireIfDue()` impossible to persist. Only the real gate produces the
+      // record the real gate produces.
+      await h.seedRun(makeRun());
+      await h.approvals.create(makeApproval({ expiresAt: '2026-09-21T10:30:00.000Z' }));
+
+      const clock = createTestClock(Date.parse('2026-09-21T12:00:00.000Z'));
+      const gate = createWorkflowApprovalGate({ store: h.approvals, clock });
+
+      const stored = await h.approvals.load(ALPHA, 'wfa:wfr_contract1:gate:main:1');
+      assert.ok(stored, 'the pending request was not readable');
+      const expired = await gate.expireIfDue(stored);
+
+      assert.equal(expired.approvalState, 'expired');
+      // NEITHER CLOSURE IS A DECISION. A timed-out request must never be
+      // readable as one somebody answered.
+      assert.equal(expired.decidedAt, undefined);
+      assert.equal(expired.consumedAt, undefined);
+      assert.equal(expired.decision, undefined);
+      assert.equal(expired.decidedBy, undefined);
+
+      // And it is DURABLE — the half a storage layer can get wrong.
+      const reloaded = await h.approvals.load(ALPHA, 'wfa:wfr_contract1:gate:main:1');
+      assert.ok(reloaded, 'the expired request did not survive the write');
+      assert.equal(reloaded.approvalState, 'expired');
+      assert.equal(reloaded.approvalVersion, 2);
+      assert.equal(reloaded.decidedAt, undefined);
+      assert.equal(reloaded.consumedAt, undefined);
+      assert.equal(reloaded.failure, 'workflow_approval_expired');
+      assert.equal(reloaded.closureReason, 'The decision window closed.');
+      // The expiry stamp itself is preserved, not consumed by the closure.
+      assert.equal(reloaded.expiresAt, '2026-09-21T10:30:00.000Z');
+    },
+  },
+  {
+    name: 'approval: a pending request is WITHDRAWN through the real gate, carrying no decision',
+    async run(h) {
+      await h.seedRun(makeRun());
+      await h.approvals.create(makeApproval());
+
+      const clock = createTestClock(Date.parse('2026-09-21T10:10:00.000Z'));
+      const gate = createWorkflowApprovalGate({ store: h.approvals, clock });
+
+      const stored = await h.approvals.load(ALPHA, 'wfa:wfr_contract1:gate:main:1');
+      assert.ok(stored);
+      const withdrawn = await gate.withdraw(stored, 'The run was cancelled.');
+
+      assert.equal(withdrawn.approvalState, 'withdrawn');
+      assert.equal(withdrawn.decidedAt, undefined);
+      assert.equal(withdrawn.consumedAt, undefined);
+
+      const reloaded = await h.approvals.load(ALPHA, 'wfa:wfr_contract1:gate:main:1');
+      assert.ok(reloaded, 'the withdrawn request did not survive the write');
+      assert.equal(reloaded.approvalState, 'withdrawn');
+      assert.equal(reloaded.approvalVersion, 2);
+      assert.equal(reloaded.decidedAt, undefined);
+      assert.equal(reloaded.consumedAt, undefined);
+      assert.equal(reloaded.closureReason, 'The run was cancelled.');
+      // `withdrawn` rather than `expired` because the deadline had not passed,
+      // and rather than `rejected` because nobody rejected it — so it carries
+      // no failure at all.
+      assert.equal(reloaded.failure, undefined);
+    },
+  },
+  {
+    name: 'approval: a closed request leaves the operator queue',
+    async run(h) {
+      await h.seedRun(makeRun());
+      await h.approvals.create(
+        makeApproval({ workflowApprovalId: 'wfa:open', createdAt: '2026-09-21T10:00:00.000Z' }),
+      );
+      await h.approvals.create(
+        makeApproval({
+          workflowApprovalId: 'wfa:closing',
+          expiresAt: '2026-09-21T10:05:00.000Z',
+          createdAt: '2026-09-21T10:01:00.000Z',
+        }),
+      );
+
+      const gate = createWorkflowApprovalGate({
+        store: h.approvals,
+        clock: createTestClock(Date.parse('2026-09-21T12:00:00.000Z')),
+      });
+      const closing = await h.approvals.load(ALPHA, 'wfa:closing');
+      await gate.expireIfDue(closing!);
+
+      // An expired request is not decidable, so it is not work — it must fall
+      // out of the pending queue while staying readable as history.
+      const queue = await h.approvals.list({ organizationId: ALPHA, pendingOnly: true });
+      assert.deepEqual(approvalIds(queue), ['wfa:open']);
+      assert.equal((await h.approvals.list({ organizationId: ALPHA })).length, 2);
+    },
+  },
+  {
+    name: 'approval: every lifecycle state round-trips with the stamps it should carry',
+    async run(h) {
+      await h.seedRun(makeRun());
+      // The whole table from `contracts/approval.ts`, stored and read back.
+      // `pending`, `expired` and `withdrawn` carry neither stamp; `approved`
+      // and `rejected` carry a decision; `consumed` carries both.
+      const shapes = [
+        { id: 'wfa:l1', approvalState: 'pending' as const, decidedAt: undefined, consumedAt: undefined },
+        { id: 'wfa:l2', approvalState: 'expired' as const, decidedAt: undefined, consumedAt: undefined },
+        { id: 'wfa:l3', approvalState: 'withdrawn' as const, decidedAt: undefined, consumedAt: undefined },
+        { id: 'wfa:l4', approvalState: 'approved' as const, decidedAt: '2026-09-21T10:05:00.000Z', consumedAt: undefined },
+        { id: 'wfa:l5', approvalState: 'rejected' as const, decidedAt: '2026-09-21T10:05:00.000Z', consumedAt: undefined },
+        { id: 'wfa:l6', approvalState: 'consumed' as const, decidedAt: '2026-09-21T10:05:00.000Z', consumedAt: '2026-09-21T10:06:00.000Z' },
+      ];
+      for (const shape of shapes) {
+        await h.approvals.create(
+          makeApproval({
+            workflowApprovalId: shape.id,
+            approvalState: shape.approvalState,
+            ...(shape.decidedAt === undefined ? {} : { decidedAt: shape.decidedAt }),
+            ...(shape.consumedAt === undefined ? {} : { consumedAt: shape.consumedAt }),
+          }),
+        );
+      }
+      for (const shape of shapes) {
+        const loaded = await h.approvals.load(ALPHA, shape.id);
+        assert.ok(loaded, `${shape.approvalState} did not survive the write`);
+        assert.equal(loaded.approvalState, shape.approvalState);
+        assert.equal(loaded.decidedAt, shape.decidedAt);
+        assert.equal(loaded.consumedAt, shape.consumedAt);
+      }
     },
   },
   {

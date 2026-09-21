@@ -139,8 +139,60 @@ describe('the three workflow persistence tables exist', () => {
     assert.match(TABLES, /CONSTRAINT workflow_runs_record_agrees CHECK/);
     assert.match(TABLES, /CONSTRAINT workflow_checkpoints_record_agrees CHECK/);
     assert.match(TABLES, /CONSTRAINT workflow_approvals_record_agrees CHECK/);
-    assert.match(TABLES, /record ->> 'runVersion'\s*= run_version::text/);
-    assert.match(TABLES, /record ->> 'approvalVersion' = approval_version::text/);
+  });
+
+  it('compares every projected field NULL-safely, because a NULL CHECK PASSES', () => {
+    // THE DEFECT THIS ASSERTION EXISTS FOR. `record ->> 'k' = col` is NULL
+    // when the key is absent, and PostgreSQL treats a NULL CHECK as satisfied
+    // — so the agreement constraints, written with `=`, would have admitted a
+    // record with no identity, no tenant and no version at all. Every
+    // comparison must be `IS NOT DISTINCT FROM`, which is FALSE against a NOT
+    // NULL column.
+    const agreements = TABLES.match(
+      /CONSTRAINT workflow_\w+_record_agrees CHECK \(([\s\S]*?)\n  \),/g,
+    ) ?? [];
+    assert.equal(agreements.length, 3, 'all three agreement constraints must exist');
+    for (const block of agreements) {
+      const lines = body(block)
+        .split('\n')
+        .filter((line) => /record\s*(->>|->|#>>)/.test(line));
+      assert.ok(lines.length >= 6, `an agreement constraint compares only ${lines.length} fields`);
+      for (const line of lines) {
+        assert.match(
+          line,
+          /IS NOT DISTINCT FROM/,
+          `a projected field is compared with an operator that passes on a missing key: ${line.trim()}`,
+        );
+      }
+    }
+
+    // The specific fields the review named, each present and each NULL-safe.
+    for (const field of [
+      /record #>> '\{context,workflowRunId\}'\s+IS NOT DISTINCT FROM workflow_run_id/,
+      /record #>> '\{context,organizationId\}' IS NOT DISTINCT FROM organization_id::text/,
+      /record #>> '\{context,workflowId\}'\s+IS NOT DISTINCT FROM workflow_id/,
+      /record #>> '\{context,actorId\}'\s+IS NOT DISTINCT FROM actor_id/,
+      /record ->> 'runVersion'\s+IS NOT DISTINCT FROM run_version::text/,
+      /record ->> 'checkpointVersion'\s+IS NOT DISTINCT FROM checkpoint_version::text/,
+      /record ->> 'organizationId'\s+IS NOT DISTINCT FROM organization_id::text/,
+      /record ->> 'previousDigest' IS NOT DISTINCT FROM previous_digest/,
+      /record ->> 'branchId'\s+IS NOT DISTINCT FROM branch_id/,
+    ]) {
+      assert.match(TABLES, field, `a required projected field is not compared NULL-safely`);
+    }
+
+    // `singleUse` must be ACTUAL true. The `::text = 'true'` form is NULL for
+    // a missing key, so the one field stating a guarantee about itself could
+    // have been omitted entirely.
+    assert.match(TABLES, /record -> 'singleUse'\s+IS NOT DISTINCT FROM 'true'::jsonb/);
+    assert.doesNotMatch(body(TABLES), /\(record -> 'singleUse'\)::text = 'true'/);
+
+    // And no agreement comparison may be a bare equality anywhere.
+    assert.doesNotMatch(
+      body(TABLES),
+      /record\s*(->>|#>>)\s*'[^']*'\s*=\s*\w/,
+      'a projected field is still compared with bare equality',
+    );
   });
 
   it('bounds every payload', () => {
@@ -157,14 +209,47 @@ describe('the three workflow persistence tables exist', () => {
     }
   });
 
-  it('keeps the checkpoint chain coherent and the approval lifecycle honest', () => {
+  it('keeps the checkpoint chain coherent', () => {
     assert.match(TABLES, /CONSTRAINT workflow_checkpoints_chain_coherent[\s\S]{0,200}version = 1/);
-    assert.match(
-      TABLES,
-      /CONSTRAINT workflow_approvals_decision_coherent[\s\S]{0,400}consumed_at IS NULL OR decided_at IS NOT NULL/,
+  });
+
+  it('admits every approval state the gate can actually produce', () => {
+    // THE OTHER DEFECT THIS FILE EXISTS FOR. The first version of this
+    // constraint read "(state = 'pending') = (both stamps absent)", which
+    // quietly requires every NON-pending state to carry a stamp. `expired` and
+    // `withdrawn` carry neither — `workflowApprovalGate.close()` leaves both
+    // untouched because neither closure is a decision — so `expireIfDue()` and
+    // `withdraw()` could not be persisted at all.
+    const lifecycle =
+      /CONSTRAINT workflow_approvals_lifecycle_coherent CHECK \(([\s\S]*?)\n  \),/.exec(TABLES);
+    assert.ok(lifecycle, 'the approval lifecycle constraint must exist');
+    const block = lifecycle[1];
+
+    // The six states, each with the stamps `contracts/approval.ts` gives it.
+    for (const [state, shape] of [
+      ['pending', 'decided_at IS NULL     AND consumed_at IS NULL'],
+      ['expired', 'decided_at IS NULL     AND consumed_at IS NULL'],
+      ['withdrawn', 'decided_at IS NULL     AND consumed_at IS NULL'],
+      ['approved', 'decided_at IS NOT NULL AND consumed_at IS NULL'],
+      ['rejected', 'decided_at IS NOT NULL AND consumed_at IS NULL'],
+      ['consumed', 'decided_at IS NOT NULL AND consumed_at IS NOT NULL'],
+    ] as const) {
+      assert.ok(
+        new RegExp(`WHEN '${state}'\\s+THEN ${shape.replace(/\s+/g, '\\s+')}`).test(block),
+        `the lifecycle constraint does not admit ${state} with the stamps the gate gives it`,
+      );
+    }
+
+    // A state the table has not been taught is refused, not waved through.
+    assert.match(block, /ELSE FALSE/);
+
+    // And the broken formulation is gone for good.
+    assert.doesNotMatch(body(TABLES), /workflow_approvals_decision_coherent/);
+    assert.doesNotMatch(
+      body(TABLES),
+      /\(approval_state = 'pending'\) = \(decided_at IS NULL/,
+      'the constraint that refused expired and withdrawn is back',
     );
-    // `singleUse` is not advisory, and the database says so too.
-    assert.match(TABLES, /\(record -> 'singleUse'\)::text = 'true'/);
   });
 
   it('declares the append-only trigger, which the port\'s missing methods cannot', () => {
@@ -198,7 +283,7 @@ describe('the three workflow persistence tables exist', () => {
   });
 });
 
-describe('RLS is enabled, forced and read-only for people', () => {
+describe('the workflow tables have no client-facing path at all', () => {
   it('enables AND forces row level security on all three tables', () => {
     assert.match(RLS, /ENABLE ROW LEVEL SECURITY/);
     // FORCE, so the table owner is not silently exempt — without it the
@@ -210,19 +295,40 @@ describe('RLS is enabled, forced and read-only for people', () => {
     }
   });
 
-  it('gives authenticated SELECT and nothing else', () => {
-    assert.match(RLS, /FOR SELECT TO authenticated/);
-    assert.match(RLS, /REVOKE ALL ON public\.%I FROM authenticated/);
-    assert.match(RLS, /GRANT SELECT ON public\.%I TO authenticated/);
-    // THE ASSERTION THAT MATTERS. A write policy here would let a person write
-    // `approved` into a request nobody decided.
-    const rls = body(RLS);
-    assert.doesNotMatch(rls, /FOR (INSERT|UPDATE|DELETE|ALL)\s+TO\s+authenticated/);
+  it('creates no policy, of any kind, for any role', () => {
+    // BP-003 replaces storage under three existing ports. The workflow SERVICE
+    // is the authorization surface for workflow state; a second read path
+    // straight to the rows is an API decision, and it would have arrived
+    // inside a persistence-parity change nobody reviewed as an API change.
+    //
+    // With RLS forced and no policy present, the tables deny by default —
+    // there is nothing to get the predicate wrong in.
+    assert.doesNotMatch(body(RLS), /CREATE POLICY/);
+    // And the draft's policy is actively dropped, so re-running this migration
+    // over a database that received the earlier version cleans it up.
+    assert.match(RLS, /DROP POLICY IF EXISTS %I_select_workflows/);
   });
 
-  it('scopes every read by membership AND permission', () => {
-    assert.match(RLS, /cortex\.is_organization_member\(organization_id\)/);
-    assert.match(RLS, /cortex\.has_permission\(organization_id, 'workflows\.read'\)/);
+  it('grants anon and authenticated nothing, and the runtime everything', () => {
+    assert.match(RLS, /REVOKE ALL ON public\.%I FROM PUBLIC/);
+    assert.match(RLS, /REVOKE ALL ON public\.%I FROM anon/);
+    assert.match(RLS, /REVOKE ALL ON public\.%I FROM authenticated/);
+    assert.match(RLS, /GRANT ALL ON public\.%I TO service_role/);
+    // THE ASSERTION THAT MATTERS. Not "no write grant" — NO GRANT.
+    assert.doesNotMatch(
+      body(RLS),
+      /GRANT [^;]*\bTO (anon|authenticated)\b/,
+      'BP-003 grants a client role direct access to workflow state',
+    );
+  });
+
+  it('mints no permission key, so its rollback has none to delete', () => {
+    // A key with no policy behind it is a grant that looks meaningful and
+    // governs nothing — and a key created with `WHERE NOT EXISTS` is a key a
+    // rollback cannot prove it owns.
+    assert.doesNotMatch(body(RLS), /INSERT INTO public\.permissions/);
+    assert.doesNotMatch(body(RLS), /INSERT INTO public\.role_permissions/);
+    assert.doesNotMatch(body(RLS), /workflows\.read|workflows\.operate/);
   });
 });
 
@@ -405,7 +511,25 @@ describe('BP-003 is not a cutover, and the migrations say so', () => {
       assert.match(ROLLBACK, new RegExp(`DROP FUNCTION IF EXISTS public\\.${fn}\\(`));
     }
     assert.match(ROLLBACK, /DROP FUNCTION IF EXISTS cortex\.refuse_checkpoint_mutation\(\)/);
-    assert.match(ROLLBACK, /DELETE FROM public\.permissions\s*\n?WHERE key IN \('workflows\.read', 'workflows\.operate'\)/);
+  });
+
+  it('deletes no row it cannot prove it created', () => {
+    // THE THIRD DEFECT THIS FILE EXISTS FOR. An earlier draft deleted the
+    // permission keys `workflows.read` and `workflows.operate` and their role
+    // grants. The forward migration created those with `WHERE NOT EXISTS`, so
+    // a row with that key may have been there first — and a rollback cannot
+    // tell the two apart. Run against a database where something else already
+    // owned the key, it would have removed a permission and every grant
+    // hanging off it, to undo a packet that had not created them.
+    //
+    // What remains is exactly what BP-003 brings into existence with an
+    // unconditional CREATE: three tables, twelve functions, one trigger
+    // function.
+    const rollback = body(ROLLBACK);
+    assert.doesNotMatch(rollback, /\bDELETE\s+FROM\b/i, 'the rollback deletes rows');
+    assert.doesNotMatch(rollback, /\bUPDATE\b/i, 'the rollback mutates rows');
+    assert.doesNotMatch(rollback, /\bTRUNCATE\b/i);
+    assert.doesNotMatch(rollback, /public\.permissions|public\.role_permissions/);
   });
 
   it('never cascades, and never drops anything that holds live state', () => {

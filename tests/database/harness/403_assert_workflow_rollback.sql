@@ -31,10 +31,37 @@ BEGIN
   IF v_count <> 0 THEN RAISE EXCEPTION 'the append-only trigger function survived the rollback'; END IF;
   RAISE NOTICE '  ok  the append-only trigger function is gone';
 
+  -- ── AND IT REMOVED NOTHING IT DID NOT CREATE ────────────────────────────
+  --
+  -- An earlier draft of the rollback deleted the permission keys
+  -- `workflows.read` and `workflows.operate` and their role grants. The
+  -- forward migration created those with `WHERE NOT EXISTS`, so a row with
+  -- that key may have been there first — and a rollback cannot tell the two
+  -- apart. The fixture seeds all three of these as PRE-EXISTING rows, which is
+  -- exactly the case the draft could not distinguish from its own.
   SELECT count(*) INTO v_count
-    FROM public.permissions WHERE key IN ('workflows.read', 'workflows.operate');
-  IF v_count <> 0 THEN RAISE EXCEPTION 'the BP-003 permission keys survived the rollback'; END IF;
-  RAISE NOTICE '  ok  the two permission keys and their grants are gone';
+    FROM public.permissions
+   WHERE key IN ('bp003.sentinel.unrelated', 'workflows.read', 'workflows.operate');
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION
+      'the rollback deleted pre-existing permissions: % of 3 survived', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_count
+    FROM public.role_permissions rp
+    JOIN public.permissions p ON p.id = rp.permission_id
+   WHERE p.key = 'bp003.sentinel.unrelated';
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'the rollback deleted a role grant on a pre-existing permission';
+  END IF;
+  RAISE NOTICE '  ok  every pre-existing permission and role grant survived the rollback';
+
+  -- No policy can be left behind either, since none was created.
+  SELECT count(*) INTO v_count
+    FROM pg_policies
+   WHERE schemaname = 'public'
+     AND tablename IN ('workflow_runs', 'workflow_checkpoints', 'workflow_approvals');
+  IF v_count <> 0 THEN RAISE EXCEPTION '% workflow policies survived the rollback', v_count; END IF;
 
   -- ── AND THE EXISTING AUTHORITY IS UNTOUCHED ──────────────────────────────
   SELECT count(*) INTO v_count

@@ -416,6 +416,12 @@ async function contractSuite(database: string) {
   console.log(
     '      ok  the same assertions the memory and key-value suites run, on the same records',
   );
+  console.log(
+    '      ok  parity is proven for UUID-backed tenants; a slug-shaped tenant remains a',
+  );
+  console.log(
+    '          known cutover blocker, and the store fails closed on one rather than pretending',
+  );
 }
 
 // ── Two live sessions ───────────────────────────────────────────────────────
@@ -483,6 +489,9 @@ const RUN_RECORD = (version: number, state: string) =>
       },
       state,
       runVersion: version,
+      // Projected into a relational column, so the record must carry it or the
+      // agreement CHECK refuses the row.
+      checkpointVersion: version > 1 ? 1 : 0,
     }),
   );
 

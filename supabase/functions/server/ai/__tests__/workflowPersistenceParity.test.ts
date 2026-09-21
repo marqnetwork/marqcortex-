@@ -19,6 +19,16 @@
  * The compare-and-swap harness is `createFakeKv` — the same deterministic
  * field-keyed conditional writer the agent and financial suites use, and the
  * same contract `kv_compare_and_swap_field` implements.
+ *
+ * ── WHAT THIS PROVES, AND WHAT IT DOES NOT ────────────────────────────────
+ *
+ * Equivalent domain behaviour for UUID-backed tenants. It is NOT a claim of
+ * parity across every organization identifier the current tenancy grammar
+ * permits: a slug-shaped tenant is storable in the key-value store and
+ * unnameable in the relational one, which is a known cutover blocker rather
+ * than a divergence this packet resolves. Production is still the key-value
+ * store, so nothing in service today depends on the difference. See the header
+ * of `workflowPersistenceContract.ts`.
  */
 
 import { describe, it } from 'node:test';

@@ -1,109 +1,66 @@
 -- ============================================================================
--- BP-003 / A2 — WORKFLOW RUNTIME PERSISTENCE: RLS AND PERMISSIONS
+-- BP-003 / A2 — WORKFLOW RUNTIME PERSISTENCE: ISOLATION AND PRIVILEGE
 --
--- Same helpers, same shape and same reasoning as the durable runtime's RLS,
--- restated rather than shared for the reason that file gives: a policy read
--- out of another migration is a policy nobody reads at all.
+-- THESE THREE TABLES HAVE NO CLIENT-FACING READ PATH, AND THAT IS THE WHOLE
+-- OF THIS FILE.
 --
--- ── THE ASYMMETRY, AGAIN, AND SHARPER HERE ─────────────────────────────────
+-- ── WHY THERE IS NO POLICY HERE AT ALL ────────────────────────────────────
 --
--- These three tables are READ by people and WRITTEN by the workflow engine.
--- Not mostly — exclusively, and the consequence of getting it wrong is worse
--- than it was for a job queue.
+-- An earlier draft of this migration did what the durable runtime's RLS does:
+-- minted two permission keys, copied role grants from the settings keys, and
+-- gave `authenticated` a tenant-scoped SELECT policy on all three tables.
+-- That was wrong for this packet, for two separate reasons.
 --
---   A person with UPDATE on `workflow_runs` can set `state` to `completed` on
---   a run that never executed a node, or move `run_version` and make the next
---   legitimate compare-and-swap lose to nobody.
+--   IT IS NOT THIS PACKET'S DECISION TO MAKE. BP-003 replaces the storage
+--   under three existing ports. The workflow SERVICE is, and remains, the
+--   authorization surface for workflow state: it resolves the actor, applies
+--   workflow RBAC and decides what a caller may see. Opening a second read
+--   path straight to the rows — one the service does not mediate and whose
+--   rules live in a different file — is an API design decision, and it would
+--   have arrived inside a persistence-parity change nobody reviewed as an API
+--   change.
 --
---   A person with UPDATE on `workflow_approvals` can write `approved` into a
---   request nobody decided. `contracts/approval.ts` opens by stating that
---   there is no automatic approval and no configuration that bypasses one; a
---   write policy here would be exactly such a configuration.
+--   THE ROWS ARE NOT SHAPED FOR IT. A `workflow_runs.record` is the whole run:
+--   its plan binding, its step history, its transitions, its usage ledger and
+--   its validated INPUT. `contracts/run.ts` argues that the input is the one
+--   content field a run record may carry, and it is carried on the
+--   understanding that the read models project it and never return it. A raw
+--   SELECT on this table hands a browser the column the read models exist to
+--   avoid handing it.
 --
---   A person with UPDATE on `workflow_checkpoints` can rewrite the state a run
---   resumes from. The append-only trigger in `20260921120000` already refuses
---   that, and this file makes it unreachable as well as refused, because two
---   independent reasons a thing cannot happen is the correct number for the
---   record an auditor is entitled to believe was not edited.
+-- So: RLS is enabled and FORCED, `anon` and `authenticated` hold no privilege
+-- on any of the three tables and no policy grants them any, and every read and
+-- write goes through the runtime as `service_role`. With RLS forced and no
+-- policy present, the tables deny by default — there is nothing to get the
+-- predicate wrong in.
 --
--- So there is NO INSERT, UPDATE OR DELETE POLICY FOR `authenticated` on any of
--- the three. RLS is enabled and FORCED, a SELECT policy exists, and every
--- write path is the service role through the SECURITY DEFINER functions in
--- `20260921120002`. That is not a gap for a later packet to fill: it is the
--- statement that the workflow engine owns its own state machine.
+-- A future product requirement for direct database reads belongs in its own
+-- reviewed API and security packet, which can add the keys, the policies and
+-- the projection it decides on. Nothing here has to be undone first.
 --
--- ── WHY `workflows.read` FOLLOWS `settings.read` ───────────────────────────
+-- ── WHAT `FORCE` IS FOR, AND WHY THE FUNCTIONS STILL WORK ─────────────────
 --
--- The durable runtime argued that a job queue is machinery and its audience is
--- whoever administers the platform. A workflow run is the same kind of thing
--- one layer up: what it exposes is which automated work is running, waiting,
--- stuck or failed. The strategic layer's keys follow membership because goals
--- are organizational INTENT and every member may see what their organization
--- is trying to do; a run record is not intent, it is execution.
+-- FORCE, so the table owner is not silently exempt. Without it a migration or
+-- a psql session as the owner reads every tenant's rows, and the isolation
+-- this file claims would hold for everybody except the one connection most
+-- likely to be used to check it.
 --
--- `workflows.operate` exists on the same terms `runtime.operate` does: so that
--- "who may pause, resume or cancel a run" is a decision an organization can
--- make later without a schema change. Nothing here grants a write policy on
--- the strength of it — the workflow SERVICE is the authorization surface, it
--- already enforces workflow RBAC, and this packet does not touch it.
+-- The SECURITY DEFINER functions in `20260921120002` are unaffected: they run
+-- as the migration owner, which holds BYPASSRLS on this platform, and every
+-- one of them scopes every predicate by `p_organization_id` in its own body.
+-- Tenant isolation for the runtime is enforced by those predicates, not by a
+-- policy — which is the correct place for it, because the runtime is the thing
+-- that knows which tenant it is acting for. `402_assert_workflow_rls.sql`
+-- proves both halves live: `authenticated` cannot read, write or execute
+-- anything, and `service_role` can do the runtime's work.
 --
--- NO DIRECT DATABASE API FOR THE BROWSER. A tenant member may SELECT these
--- rows under their organization's policy; every mutation goes through the
--- service, which resolves the actor, checks the role and drives the engine.
+-- NO PERMISSION KEYS ARE MINTED HERE. A key with no policy behind it is a
+-- grant that looks meaningful and governs nothing — and a key this packet did
+-- not create is a key its rollback must not delete.
 -- ============================================================================
 
 BEGIN;
 
--- ---------------------------------------------------------------------------
--- 1. Two permission keys, following the settings keys at the same level
--- ---------------------------------------------------------------------------
-DO $$
-DECLARE
-  v_role RECORD;
-  v_pair RECORD;
-BEGIN
-  INSERT INTO public.permissions (key, name, description)
-  SELECT v.key, v.name, v.description
-  FROM (
-    VALUES
-      ('workflows.read',
-       'Read Workflow Runtime',
-       'View workflow runs, checkpoints and approval requests for the organization'),
-      ('workflows.operate',
-       'Operate Workflow Runtime',
-       'Pause, resume and cancel the organization''s workflow runs')
-  ) AS v(key, name, description)
-  WHERE NOT EXISTS (SELECT 1 FROM public.permissions p WHERE p.key = v.key);
-
-  FOR v_pair IN
-    SELECT * FROM (VALUES
-      ('settings.read',   'workflows.read'),
-      ('settings.manage', 'workflows.operate')
-    ) AS t(source_key, target_key)
-  LOOP
-    FOR v_role IN
-      SELECT DISTINCT r.id
-      FROM public.roles r
-      JOIN public.role_permissions rp ON rp.role_id = r.id
-      JOIN public.permissions p ON p.id = rp.permission_id
-      WHERE p.key = v_pair.source_key
-    LOOP
-      INSERT INTO public.role_permissions (role_id, permission_id)
-      SELECT v_role.id, p.id
-      FROM public.permissions p
-      WHERE p.key = v_pair.target_key
-        AND NOT EXISTS (
-          SELECT 1 FROM public.role_permissions rp
-          WHERE rp.role_id = v_role.id AND rp.permission_id = p.id
-        );
-    END LOOP;
-  END LOOP;
-END
-$$;
-
--- ---------------------------------------------------------------------------
--- 2. RLS — enabled and forced everywhere, SELECT only, never cross-tenant
--- ---------------------------------------------------------------------------
 DO $$
 DECLARE
   v_table TEXT;
@@ -115,27 +72,21 @@ BEGIN
   ]
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_table);
-    -- FORCE, so the table owner is not silently exempt. Without it a migration
-    -- or a psql session as the owner reads every tenant's rows, and the
-    -- isolation this file claims would hold for everybody except the one
-    -- connection most likely to be used to check it.
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', v_table);
 
+    -- Idempotent, and it also cleans up after the draft described in the
+    -- header: a re-run of this migration over a database that received the
+    -- earlier version removes the policy that version created.
     EXECUTE format('DROP POLICY IF EXISTS %I_select_workflows ON public.%I', v_table, v_table);
-    EXECUTE format($f$
-      CREATE POLICY %I_select_workflows ON public.%I
-        FOR SELECT TO authenticated
-        USING (
-          cortex.is_organization_member(organization_id)
-          AND cortex.has_permission(organization_id, 'workflows.read')
-        )
-    $f$, v_table, v_table);
 
-    -- Deliberately no INSERT, UPDATE or DELETE policy. See the header.
-    -- `authenticated` gets SELECT and nothing else; the engine writes as
-    -- `service_role`, which RLS does not apply to.
+    -- NO POLICY IS CREATED. With RLS forced and none present, every role
+    -- without BYPASSRLS is denied by default.
+
+    EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC', v_table);
+    EXECUTE format('REVOKE ALL ON public.%I FROM anon', v_table);
     EXECUTE format('REVOKE ALL ON public.%I FROM authenticated', v_table);
-    EXECUTE format('GRANT SELECT ON public.%I TO authenticated', v_table);
+
+    -- The runtime, and only the runtime.
     EXECUTE format('GRANT ALL ON public.%I TO service_role', v_table);
   END LOOP;
 END

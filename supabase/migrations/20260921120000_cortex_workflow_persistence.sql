@@ -136,13 +136,29 @@ CREATE TABLE IF NOT EXISTS public.workflow_runs (
   -- THE PROJECTION AND THE PAYLOAD AGREE, OR THE ROW DOES NOT EXIST. See the
   -- header. `->>` on a missing key yields NULL and the comparison fails, so a
   -- record that lost its context fails this too.
+  -- EVERY COMPARISON IS `IS NOT DISTINCT FROM`, AND THAT IS THE WHOLE POINT.
+  --
+  -- `record ->> 'k' = col` is NULL when the key is missing, and a CHECK that
+  -- evaluates to NULL PASSES. Written that way, this constraint would have
+  -- admitted exactly the records it exists to refuse: one with no identity at
+  -- all. `IS NOT DISTINCT FROM` is FALSE against a NOT NULL column, so a
+  -- missing key is a refusal rather than a shrug.
+  --
+  -- The tenant is compared, not merely required to exist. A record whose JSON
+  -- says one organization while the row says another is the single most
+  -- dangerous shape this table could hold, and "organizationId IS NOT NULL"
+  -- would have let every one of them through.
   CONSTRAINT workflow_runs_record_agrees CHECK (
-    record #>> '{context,workflowRunId}'   = workflow_run_id
-    AND record #>> '{context,organizationId}' IS NOT NULL
-    AND record #>> '{context,workflowId}'  = workflow_id
-    AND record #>> '{context,actorId}'     = actor_id
-    AND record ->> 'state'                 = state
-    AND record ->> 'runVersion'            = run_version::text
+    record #>> '{context,workflowRunId}'      IS NOT DISTINCT FROM workflow_run_id
+    AND record #>> '{context,organizationId}' IS NOT DISTINCT FROM organization_id::text
+    AND record #>> '{context,workflowId}'     IS NOT DISTINCT FROM workflow_id
+    AND record #>> '{context,actorId}'        IS NOT DISTINCT FROM actor_id
+    AND record ->> 'state'                    IS NOT DISTINCT FROM state
+    AND record ->> 'runVersion'               IS NOT DISTINCT FROM run_version::text
+    -- The recovery pointer is projected, so it is checked. A row claiming a
+    -- chain position its own record does not is a run that resumes from the
+    -- wrong link.
+    AND record ->> 'checkpointVersion'        IS NOT DISTINCT FROM checkpoint_version::text
   ),
 
   -- BOUNDED, for the reason `durable_outbox.payload` is bounded: durable
@@ -224,12 +240,20 @@ CREATE TABLE IF NOT EXISTS public.workflow_checkpoints (
   CONSTRAINT workflow_checkpoints_chain_coherent
     CHECK ((version = 1) = (previous_digest IS NULL)),
 
+  -- NULL-safe throughout, for the reason `workflow_runs_record_agrees` states
+  -- at length. The tenant is compared here too: a checkpoint's own record
+  -- names the organization it belongs to, and a chain whose links disagree
+  -- with their rows about whose run they describe is not a chain anything
+  -- should verify against.
   CONSTRAINT workflow_checkpoints_record_agrees CHECK (
-    record ->> 'workflowRunId' = workflow_run_id
-    AND record ->> 'version'   = version::text
-    AND record ->> 'digest'    = digest
-    AND record ->> 'nodeId'    = node_id
-    AND record ->> 'state'     = state
+    record ->> 'organizationId'     IS NOT DISTINCT FROM organization_id::text
+    AND record ->> 'workflowRunId'  IS NOT DISTINCT FROM workflow_run_id
+    AND record ->> 'version'        IS NOT DISTINCT FROM version::text
+    AND record ->> 'digest'         IS NOT DISTINCT FROM digest
+    AND record ->> 'nodeId'         IS NOT DISTINCT FROM node_id
+    AND record ->> 'state'          IS NOT DISTINCT FROM state
+    -- Nullable on both sides, and the parity is exact: absent in the record
+    -- iff absent in the column.
     AND record ->> 'previousDigest' IS NOT DISTINCT FROM previous_digest
   ),
 
@@ -321,25 +345,60 @@ CREATE TABLE IF NOT EXISTS public.workflow_approvals (
   CONSTRAINT workflow_approvals_node_present CHECK (length(trim(node_id)) > 0),
   CONSTRAINT workflow_approvals_version_positive CHECK (approval_version >= 1),
 
-  -- A consumed approval was decided; a pending one was neither decided nor
-  -- consumed. Nothing in the gate can produce a row that breaks this, and a
-  -- row that broke it would be an approval spent without anyone saying yes.
-  CONSTRAINT workflow_approvals_decision_coherent CHECK (
-    (approval_state = 'pending') = (decided_at IS NULL AND consumed_at IS NULL)
-    AND (consumed_at IS NULL OR decided_at IS NOT NULL)
-    AND (approval_state = 'consumed') = (consumed_at IS NOT NULL)
+  -- ── THE LIFECYCLE, ALL SIX STATES, AS `workflowApprovalGate` WRITES THEM ──
+  --
+  -- Stated as a truth table over the state rather than as a set of clever
+  -- equalities, because the clever version got it wrong: it read
+  -- "(state = 'pending') = (both stamps absent)", which quietly requires every
+  -- NON-pending state to carry a stamp — and `expired` and `withdrawn` carry
+  -- neither.
+  --
+  -- THAT IS NOT AN EDGE CASE. `close()` in `approvals/workflowApprovalGate.ts`
+  -- deliberately leaves `decidedAt` and `consumedAt` untouched for both,
+  -- because NEITHER CLOSURE IS A DECISION — the header of that function says
+  -- so, and `contracts/approval.ts` opens by arguing that a timed-out request
+  -- must never be readable as one somebody answered. A constraint that demands
+  -- a decision stamp on `expired` is a constraint that refuses
+  -- `expireIfDue()`, and a workflow whose approval window closes would have
+  -- failed to persist that fact.
+  --
+  --   pending    neither        the request is open
+  --   expired    neither        the window closed; nobody answered
+  --   withdrawn  neither        the run ended; nobody answered
+  --   approved   decided        somebody said yes
+  --   rejected   decided        somebody said no
+  --   consumed   decided+spent  the yes was spent, once
+  --
+  -- `ELSE FALSE` rather than `ELSE TRUE`: a state this table has not been
+  -- taught is refused, not waved through.
+  CONSTRAINT workflow_approvals_lifecycle_coherent CHECK (
+    CASE approval_state
+      WHEN 'pending'   THEN decided_at IS NULL     AND consumed_at IS NULL
+      WHEN 'expired'   THEN decided_at IS NULL     AND consumed_at IS NULL
+      WHEN 'withdrawn' THEN decided_at IS NULL     AND consumed_at IS NULL
+      WHEN 'approved'  THEN decided_at IS NOT NULL AND consumed_at IS NULL
+      WHEN 'rejected'  THEN decided_at IS NOT NULL AND consumed_at IS NULL
+      WHEN 'consumed'  THEN decided_at IS NOT NULL AND consumed_at IS NOT NULL
+      ELSE FALSE
+    END
   ),
 
+  -- NULL-safe throughout, and the tenant is compared. See
+  -- `workflow_runs_record_agrees`.
   CONSTRAINT workflow_approvals_record_agrees CHECK (
-    record ->> 'workflowApprovalId' = workflow_approval_id
-    AND record ->> 'workflowRunId'  = workflow_run_id
-    AND record ->> 'workflowId'     = workflow_id
-    AND record ->> 'nodeId'         = node_id
-    AND record ->> 'approvalState'  = approval_state
-    AND record ->> 'approvalVersion' = approval_version::text
-    AND record ->> 'branchId' IS NOT DISTINCT FROM branch_id
-    -- The guarantee the record states about itself, checked rather than read.
-    AND (record -> 'singleUse')::text = 'true'
+    record ->> 'organizationId'      IS NOT DISTINCT FROM organization_id::text
+    AND record ->> 'workflowApprovalId' IS NOT DISTINCT FROM workflow_approval_id
+    AND record ->> 'workflowRunId'   IS NOT DISTINCT FROM workflow_run_id
+    AND record ->> 'workflowId'      IS NOT DISTINCT FROM workflow_id
+    AND record ->> 'nodeId'          IS NOT DISTINCT FROM node_id
+    AND record ->> 'approvalState'   IS NOT DISTINCT FROM approval_state
+    AND record ->> 'approvalVersion' IS NOT DISTINCT FROM approval_version::text
+    AND record ->> 'branchId'        IS NOT DISTINCT FROM branch_id
+    -- ACTUAL true, not merely "not false". `(record -> 'singleUse')::text =
+    -- 'true'` is NULL when the key is absent, and a NULL CHECK passes — so the
+    -- one field on this record that states a guarantee about itself could have
+    -- been omitted entirely.
+    AND record -> 'singleUse'        IS NOT DISTINCT FROM 'true'::jsonb
   ),
 
   -- `contracts/approval.ts` forbids a payload: identifiers, a digest, two

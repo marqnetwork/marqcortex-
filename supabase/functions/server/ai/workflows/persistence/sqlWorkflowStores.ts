@@ -70,6 +70,14 @@
  * recorded only in a report is a precondition nobody reads: before any packet
  * moves authority here, every organization identifier the workflow runtime
  * resolves has to be a real `organizations.id`.
+ *
+ * So the parity this packet proves is bounded, and the bound is stated rather
+ * than glossed: EQUIVALENT DOMAIN BEHAVIOUR FOR UUID-BACKED TENANTS. Not
+ * parity across every identifier the tenancy grammar admits — there is none,
+ * and there cannot be one until that prerequisite is met. Production is still
+ * the key-value store, so nothing in service today depends on the difference.
+ * `workflowSqlComposition.test.ts` pins the fail-closed behaviour so a later
+ * cutover cannot pass over the prerequisite quietly.
  */
 
 import type { WorkflowRunRecord } from '../contracts/run.ts';

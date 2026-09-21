@@ -6,6 +6,38 @@
 -- table is not a claim about isolation.
 -- ============================================================================
 
+-- ── ROWS THAT WERE HERE FIRST ─────────────────────────────────────────────
+--
+-- Three permissions that BP-003 does not create and must not delete. Two of
+-- them carry the exact keys an earlier draft of this packet minted and then
+-- removed on rollback — seeded here as PRE-EXISTING rows, which is precisely
+-- the case that draft could not distinguish from its own. `403` proves all
+-- three survive apply -> rollback.
+INSERT INTO public.permissions (key, name, description)
+SELECT v.key, v.name, v.description
+FROM (
+  VALUES
+    ('bp003.sentinel.unrelated', 'Unrelated Sentinel',
+     'Seeded before BP-003. Must survive its rollback.'),
+    ('workflows.read', 'Read Workflow Runtime',
+     'Seeded before BP-003 by something else. Must survive its rollback.'),
+    ('workflows.operate', 'Operate Workflow Runtime',
+     'Seeded before BP-003 by something else. Must survive its rollback.')
+) AS v(key, name, description)
+WHERE NOT EXISTS (SELECT 1 FROM public.permissions p WHERE p.key = v.key);
+
+-- And a role grant hanging off one of them, because the draft deleted grants
+-- as well as keys.
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM public.roles r, public.permissions p
+WHERE p.key = 'bp003.sentinel.unrelated'
+  AND r.key = 'org_admin'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.role_permissions rp
+    WHERE rp.role_id = r.id AND rp.permission_id = p.id
+  );
+
 INSERT INTO public.organizations (id, name, slug)
 VALUES
   ('11111111-1111-4111-8111-111111111111', 'Alpha', 'alpha'),
@@ -17,7 +49,7 @@ SELECT public.workflow_run_create(
   '11111111-1111-4111-8111-111111111111', 'wfr_alpha', 'wf.review', 'user_alpha',
   'waiting_for_approval', 2, 1,
   '2026-09-21T10:00:00.000Z', '2026-09-21T10:01:00.000Z',
-  '{"context":{"workflowRunId":"wfr_alpha","organizationId":"11111111-1111-4111-8111-111111111111","workflowId":"wf.review","actorId":"user_alpha"},"state":"waiting_for_approval","runVersion":2}'::jsonb
+  '{"context":{"workflowRunId":"wfr_alpha","organizationId":"11111111-1111-4111-8111-111111111111","workflowId":"wf.review","actorId":"user_alpha"},"state":"waiting_for_approval","runVersion":2,"checkpointVersion":1}'::jsonb
 );
 
 SELECT public.workflow_checkpoint_append(
@@ -39,5 +71,5 @@ SELECT public.workflow_run_create(
   '22222222-2222-4222-8222-222222222222', 'wfr_beta', 'wf.intake', 'user_beta',
   'running', 1, 0,
   '2026-09-21T10:00:00.000Z', '2026-09-21T10:00:00.000Z',
-  '{"context":{"workflowRunId":"wfr_beta","organizationId":"22222222-2222-4222-8222-222222222222","workflowId":"wf.intake","actorId":"user_beta"},"state":"running","runVersion":1}'::jsonb
+  '{"context":{"workflowRunId":"wfr_beta","organizationId":"22222222-2222-4222-8222-222222222222","workflowId":"wf.intake","actorId":"user_beta"},"state":"running","runVersion":1,"checkpointVersion":0}'::jsonb
 );
