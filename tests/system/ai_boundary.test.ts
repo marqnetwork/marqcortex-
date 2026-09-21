@@ -628,12 +628,62 @@ describe('workflow engine boundary', () => {
     // checkpoint port would make the digest chain a statement about intent.
     const stores = workflowSources.filter((file) =>
       file.path.includes(join('persistence', 'ports.ts')) ||
-      file.path.includes(join('persistence', 'kvWorkflowStores.ts')),
+      file.path.includes(join('persistence', 'kvWorkflowStores.ts')) ||
+      // BP-003 added a third implementation of the same three ports. It is in
+      // this list rather than exempt from it: a scan that named only the two
+      // stores that existed when it was written would let the newest one be
+      // the one that acquires a writer.
+      file.path.includes(join('persistence', 'sqlWorkflowStores.ts')),
     );
-    assert.equal(stores.length, 2, 'both persistence modules must exist');
+    assert.equal(stores.length, 3, 'all three persistence modules must exist');
     const MUTATION =
       /\b(deleteCheckpoint|removeCheckpoint|updateCheckpoint|clearCheckpoint|purgeCheckpoint)\b/;
     assert.deepEqual(offenders(stores, MUTATION), []);
+
+    // AND THE SQL STORE HOLDS NO CLIENT. It declares a one-verb gateway port
+    // and the composition hands it the real one — the same shape the key-value
+    // store takes. A client here would put credentials and a network call
+    // inside the workflow tree.
+    const sql = stores.find((file) => file.path.includes('sqlWorkflowStores.ts'));
+    assert.ok(sql, 'the SQL workflow store must exist');
+    assert.deepEqual(
+      // `Deno.env.get(` rather than `Deno.env`: the module's own header
+      // explains why there is no client here, and a scan that a file fails for
+      // saying what it does not do is a scan nobody can write a comment near.
+      offenders([sql], /from\s+['"][^'"]*supabase|createClient\s*\(|Deno\.env\s*\.\s*get\s*\(/),
+      [],
+      'the SQL workflow store holds a database client instead of taking a port',
+    );
+    // Its gateway offers `rpc` and nothing else, so a cross-tenant query is
+    // unexpressible rather than merely unwritten.
+    assert.doesNotMatch(
+      sql.text,
+      /interface WorkflowSqlGateway \{[\s\S]*?\b(select|insert|update|delete|query)\s*\(/,
+      'the SQL gateway offers a verb beyond rpc',
+    );
+  });
+
+  it('never makes SQL the production workflow authority', () => {
+    // THE BP-003 SAFETY POSITION, AS A SCAN. The packet built a replacement
+    // candidate and proved it; it did not cut over. The production assembly
+    // must therefore be unable to reach the SQL stores at all — not "SQL is off
+    // by default", which is a setting, but "there is no import", which is not.
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap, 'the AI bootstrap must exist');
+    assert.doesNotMatch(
+      bootstrap.text,
+      /sqlWorkflowStores|createSqlWorkflow/,
+      'the production assembly reaches the SQL workflow stores',
+    );
+    // And it still constructs the key-value stores that hold every workflow
+    // record the platform actually has.
+    for (const constructor of [
+      'createKvWorkflowRunStore',
+      'createKvWorkflowCheckpointStore',
+      'createKvWorkflowApprovalStore',
+    ]) {
+      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
+    }
   });
 
   it('creates and drives every parallel branch through the same agent port', () => {
