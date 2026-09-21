@@ -241,9 +241,26 @@ BP-003 final verification evidence:
 
 A2 remains in progress. The next packet must be a separately reviewed **workflow cutover-readiness** slice, not an immediate production cutover and not agent persistence migration.
 
+#### BP-004 — Workflow Cutover Readiness & Migration Preflight — READY
+
+Active packet:
+`docs/generated/build-packets/BP-004_WORKFLOW_CUTOVER_READINESS_MIGRATION_PREFLIGHT.md`
+
+BP-004 is a **readiness/proof packet only**. It must:
+- classify every current organization-resolution path;
+- keep `marq-cortex` as an unresolved/default identifier unless explicit evidence maps it;
+- inventory workflow KV source shapes without mutating them;
+- require explicit source-tenant → canonical UUID mapping;
+- account for the fact that `organizationId` is inside the workflow checkpoint digest;
+- deterministically re-chain checkpoints in local simulation when tenant identity changes;
+- prove transformed run checkpoint pointers, approvals and counts against the BP-003 SQL candidate;
+- produce GO/NO-GO readiness evidence and the safest next cutover packet shape.
+
+BP-004 is forbidden from connecting to hosted production/staging databases, shadow writing, backfilling hosted data, changing bootstrap authority, deploying, or starting agent persistence. Current KV remains production authority.
+
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE. BP-003 WORKFLOW SQL PARITY SLICE — COMPLETE. A2 — IN PROGRESS. NEXT PACKET NOT STARTED.**
+**A1 / BP-002 — COMPLETE. BP-003 WORKFLOW SQL PARITY SLICE — COMPLETE. A2 — IN PROGRESS. BP-004 CUTOVER READINESS — READY FOR IMPLEMENTATION.**
 
 Locked rules remain:
 - same repository and same Supabase project;
