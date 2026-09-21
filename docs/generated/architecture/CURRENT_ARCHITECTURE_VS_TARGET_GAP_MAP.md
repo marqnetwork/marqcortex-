@@ -753,17 +753,17 @@ The migration order is intentionally foundation-first while preserving current w
 
 Implemented and security-reviewed on `claude/affectionate-dirac-u3jdp0` through commit `d722d60f58eb649df94af59b85315f0117a0c314`. The shared deterministic authority path is live for the single agent `tool_call` pilot and reuses existing approval/audit/tenancy/runtime systems. No deployment or database migration was performed.
 
-### A1 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW (BP-002)
+### A1 — Durable Runtime Foundation — COMPLETE (BP-002)
 
 Introduce shared trace IDs, durable jobs/scheduler, domain-event envelope and outbox/inbox foundation inside the existing Supabase/Postgres architecture.
 
-Implemented on the current build branch. `supabase/functions/server/platform/durable/**` holds the runtime; migrations `20260919120000`–`20260919120002` hold the durable state and the five atomic SQL operations, with a rollback. Correlation and causation travel schedule → job → event → consumer. The pilot is the workflow approval expiry sweep, which calls the existing approval gate and has no external effect. Nothing was deployed, no migration was applied, and no production schedule was configured.
+Implemented, corrected, live-PostgreSQL verified and accepted on the current build branch through `de62e09bfc09e0d2387e1834febc2a3b330e133d`. `supabase/functions/server/platform/durable/**` holds the runtime; migrations `20260919120000`–`20260919120002` hold the durable state and atomic job/schedule/outbox/inbox operations, with rollback. Correlation and causation travel schedule → job → event → consumer. The pilot is the workflow approval-expiry sweep against the existing approval gate. Nothing was deployed, no hosted migration was applied, and no production schedule/route was configured.
 
 The row in §2 that reads "Long-running jobs … BUILD NEW" is the gap this closed. The row that reads "KV runtime stores … REFACTOR" is **not** closed and is A2's: no existing agent, workflow, checkpoint or approval record was moved.
 
-### A2 — Runtime Persistence
+### A2 — Runtime Persistence — NEXT
 
-Move authoritative agent/workflow/job state toward SQL-backed durable stores while preserving existing runtime behavior and tests.
+Move authoritative agent/workflow/checkpoint/approval runtime state toward SQL-backed durable stores while preserving existing runtime behavior, tenant isolation, authority controls, A1 durability semantics and tests.
 
 ### A3 — Organizational AI Workforce
 
@@ -807,23 +807,13 @@ These stages are dependency order, not a commitment that each equals one sprint.
 
 A0 is implemented and accepted. The temporary BP-001 instruction packet is removed after this status is recorded; implementation truth now lives in code, tests, Git history and the active progress authority.
 
-### BP-002 — Durable Runtime Foundation — IMPLEMENTED, AWAITING REVIEW
+### BP-002 — Durable Runtime Foundation — COMPLETE
 
-BP-002 is the only authorized next implementation packet. It covers the A1 execution substrate:
+A1 is implemented and accepted through `de62e09bfc09e0d2387e1834febc2a3b330e133d`. The temporary BP-002 packet is removed after acceptance. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
 
-- durable background jobs;
-- one-time, delayed and recurring scheduling;
-- domain-event contracts;
-- transactional outbox;
-- idempotent inbox/processed-event handling;
-- bounded retry/backoff;
-- leases/heartbeats/concurrency control;
-- cancellation/pause;
-- dead-letter and recovery paths;
-- correlation/causation propagation;
-- authority/audit/tenant enforcement.
+### BP-003 — Runtime Persistence — NEXT, NOT STARTED
 
-It must extend the existing workflow/agent runtime and existing Supabase/Postgres deployment. It must not create a second workflow engine, another database, an external queue vendor or a new deployment stack.
+BP-003 must be created before A2 implementation. It must migrate existing authoritative runtime state incrementally rather than inventing a replacement runtime, preserve the existing agent/workflow APIs where practical, keep rollback/cutover explicit, and reuse A0 authority plus A1 durable primitives.
 
 ## 18. Build-Packet Rule Going Forward
 
