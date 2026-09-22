@@ -23,11 +23,11 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: IN PROGRESS — P05 HOSTED READ-ONLY EVIDENCE COMPLETE; LOCAL P06 UNBLOCKED
+MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P06
-LAST_COMPLETED_CHECKPOINT: A2-P05-C05
-LAST_VERIFIED_COMMIT: e6e3086d12c7df27c030b08dd901974374867208
-NEXT_CHECKPOINT: A2-P06-C01
+LAST_COMPLETED_CHECKPOINT: A2-P06-C01
+LAST_VERIFIED_COMMIT: 7d42035 (P05 record); P06-C01 = this commit
+NEXT_CHECKPOINT: A2-P06-C02
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -47,6 +47,20 @@ COMPLETED_PHASES:
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 
 CHECKPOINT_EVIDENCE:
+- A2-P06-C01 TRANSITION CONTROLLER (pure): ai/persistence/
+  runtimePersistenceAuthority.ts. Per-domain (workflow|agent) modes kv |
+  kv_frozen | sql_frozen | sql; exactly one authority per mode; only kv/sql
+  write. Env AI_WORKFLOW_PERSISTENCE / AI_AGENT_PERSISTENCE: unset => kv,
+  unknown => REFUSED (no default, no fallback). Edges: kv<->kv_frozen,
+  sql->sql_frozen always; kv_frozen->sql_frozen needs KV AND SQL estate zero
+  (else ABORT_ZERO_BACKFILL_STRATEGY — rows never dropped/copied), schema
+  present, tenant config safe (default org OFF or a UUID); sql_frozen->sql
+  needs post-cutover verification; ROLLBACK sql_frozen->kv_frozen only while
+  SQL estate is zero (else ROLLBACK_WINDOW_CLOSED); all other edges refused;
+  same-mode = idempotent no-op. Authority never changes into/out of a writing
+  mode. Evidence: runtimePersistenceAuthority.test 44/44 (full 16-edge matrix
+  x 2 domains, abort cases, rollback window, hosted config marq-cortex+OFF
+  accepted, determinism).
 - A2-P05-C01..C05 HOSTED READ-ONLY ESTATE + STRATEGY (2026-09-23):
   * User explicitly authorized RESTORE of the EXISTING Cortex Supabase project.
     Project ref oqybniefkbppptfatoae ("cortex", ap-southeast-1) moved
