@@ -104,47 +104,30 @@ describe('BP-003 composition seam', () => {
 });
 
 describe('BP-003 did not cut production over', () => {
-  it('bootstrap still constructs the KEY-VALUE workflow stores', () => {
-    for (const constructor of [
-      'createKvWorkflowRunStore',
-      'createKvWorkflowCheckpointStore',
-      'createKvWorkflowApprovalStore',
-    ]) {
-      assert.match(
-        bootstrap,
-        new RegExp(`${constructor}\\(`),
-        `bootstrap no longer constructs ${constructor}`,
-      );
-    }
+  it('bootstrap builds the workflow stores only through the runtime persistence composition', () => {
+    // A2-P06 RESTATEMENT. BP-003's claim was "bootstrap constructs the KV
+    // stores and cannot reach SQL". Since A2-P06 the one constructor is
+    // `composeRuntimePersistence`, whose DEFAULT is KV — proven behaviourally in
+    // `runtimePersistenceComposition.test.ts`, not by a regex over this file —
+    // and which reaches SQL only for an explicit `sql_frozen`/`sql` mode.
+    assert.equal((bootstrap.match(/composeRuntimePersistence\(/g) ?? []).length, 1);
+    assert.doesNotMatch(bootstrap, /createKvWorkflow(Run|Checkpoint|Approval)Store\(/, 'a second, uncomposed workflow store');
   });
 
-  it('bootstrap imports nothing from the SQL workflow stores', () => {
-    // THE LOAD-BEARING ASSERTION OF THIS PACKET. Not "SQL is off by default" —
-    // the production assembly cannot reach the SQL stores at all, so there is
-    // no flag to set by accident, no environment variable to mistype and no
-    // branch to fall through into.
-    assert.doesNotMatch(
-      bootstrap,
-      /sqlWorkflowStores/,
-      'the production assembly imports the SQL workflow stores',
-    );
-    assert.doesNotMatch(
-      bootstrap,
-      /createSqlWorkflow/,
-      'the production assembly constructs a SQL workflow store',
-    );
+  it('bootstrap imports nothing from the SQL workflow stores directly', () => {
+    // Still load-bearing: the ONLY route from the production assembly to the SQL
+    // stores is the composition, where it is gated by an explicit mode.
+    assert.doesNotMatch(bootstrap, /sqlWorkflowStores/, 'the production assembly imports the SQL workflow stores');
+    assert.doesNotMatch(bootstrap, /createSqlWorkflow/, 'the production assembly constructs a SQL workflow store');
   });
 
   it('bootstrap still hands the diagnostic authority the engine\'s own stores', () => {
     // The shared-store invariant, at the one place it actually has to hold.
     assert.match(bootstrap, /runs:\s*workflowStores\.runStore/);
     assert.match(bootstrap, /approvals:\s*workflowStores\.approvalStore/);
-    // And the trio is built exactly once.
-    assert.equal(
-      (bootstrap.match(/createKvWorkflowRunStore\(/g) ?? []).length,
-      1,
-      'the workflow run store is constructed more than once in the assembly',
-    );
+    // And the trio is built exactly once — by the one composition — and handed
+    // to the engine and the authority port alike.
+    assert.match(bootstrap, /const workflowStores = runtimePersistence\.workflow\.stores;/);
   });
 
   it('no migration in this packet touches the key-value store', () => {

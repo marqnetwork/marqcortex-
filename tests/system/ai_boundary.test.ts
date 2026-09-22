@@ -681,15 +681,11 @@ describe('workflow engine boundary', () => {
       /sqlWorkflowStores|createSqlWorkflow/,
       'the production assembly reaches the SQL workflow stores',
     );
-    // And it still constructs the key-value stores that hold every workflow
-    // record the platform actually has.
-    for (const constructor of [
-      'createKvWorkflowRunStore',
-      'createKvWorkflowCheckpointStore',
-      'createKvWorkflowApprovalStore',
-    ]) {
-      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
-    }
+    // A2-P06 RESTATEMENT. The assembly builds runtime stores through ONE
+    // composition whose unset mode is KV (behaviour proven in
+    // runtimePersistenceComposition.test.ts); SQL is reachable only there, by an
+    // explicit mode. See 'runtime persistence composition boundary (A2-P06)'.
+    assert.equal((bootstrap.text.match(/composeRuntimePersistence\(/g) ?? []).length, 1);
   });
 
   it('keeps the agent SQL candidate a port-taking, append-only store — and out of production', () => {
@@ -730,13 +726,7 @@ describe('workflow engine boundary', () => {
       /sqlAgentStores|createSqlAgent/,
       'the production assembly reaches the SQL agent stores',
     );
-    for (const constructor of [
-      'createKvAgentRunStore',
-      'createKvAgentCheckpointStore',
-      'createKvAgentApprovalStore',
-    ]) {
-      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
-    }
+    assert.match(bootstrap.text, /runtimePersistence\.agent\.stores/);
   });
 
   it('creates and drives every parallel branch through the same agent port', () => {
@@ -2350,14 +2340,9 @@ describe('workflow cutover readiness boundary (BP-004)', () => {
       /persistence\/migration|runWorkflowCutoverPreflight|inventoryWorkflowSource|transformTenant|resolveTenantMappings|classifyDatabaseTarget/,
       'the production assembly reaches the BP-004 preflight',
     );
-    // And it still constructs the key-value stores, which remain the authority.
-    for (const constructor of [
-      'createKvWorkflowRunStore',
-      'createKvWorkflowCheckpointStore',
-      'createKvWorkflowApprovalStore',
-    ]) {
-      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
-    }
+    // And it builds its workflow stores through the A2-P06 composition, whose
+    // default is the key-value authority.
+    assert.match(bootstrap.text, /composeRuntimePersistence\(/);
   });
 
   it('39b. is not imported by the workflow runtime, engine or services either', () => {
@@ -2543,5 +2528,55 @@ describe('agent migration readiness boundary (A2-P08)', () => {
       ),
       [],
     );
+  });
+});
+
+/**
+ * A2-P06 — the runtime persistence composition is the ONLY road to SQL.
+ *
+ * BP-003 and A2-P07 held production on KV by the ABSENCE of an import. A2-P06
+ * builds the transition machinery, so the road now exists; what holds instead is
+ * that there is exactly one, that it is gated by an explicit mode whose default
+ * is KV, and that no other module can open a second one.
+ */
+describe('runtime persistence composition boundary (A2-P06)', () => {
+  const COMPOSITION = join(SERVER_ROOT, 'ai', 'persistence', 'runtimePersistenceComposition.ts');
+  const AUTHORITY = join(SERVER_ROOT, 'ai', 'persistence', 'runtimePersistenceAuthority.ts');
+  const GATEWAY = join(SERVER_ROOT, 'runtimePersistenceSqlGateway.ts');
+
+  it('lets only the composition construct the SQL runtime stores', () => {
+    const constructors = serverSources.filter(
+      (file) => !isTest(file) && /\bcreateSql(Workflow|Agent)(Stores|RunStore|CheckpointStore|ApprovalStore)\s*\(/.test(file.text),
+    );
+    const outside = constructors
+      .map((file) => file.path)
+      .filter((path) => path !== COMPOSITION && !path.endsWith(join('persistence', 'sqlWorkflowStores.ts')) && !path.endsWith(join('persistence', 'sqlAgentStores.ts')));
+    assert.deepEqual(outside, [], 'a module other than the composition constructs SQL runtime stores');
+  });
+
+  it('defaults every domain to KV and refuses an unrecognised mode', () => {
+    const authority = serverSources.find((file) => file.path === AUTHORITY);
+    assert.ok(authority, 'the transition controller must exist');
+    assert.match(authority.text, /if \(raw === undefined \|\| raw\.trim\(\) === ''\) return \{ ok: true, mode: 'kv' \};/);
+    assert.match(authority.text, /AI_WORKFLOW_PERSISTENCE/);
+    assert.match(authority.text, /AI_AGENT_PERSISTENCE/);
+  });
+
+  it('holds no client, environment read, clock or network in the ai-tree persistence modules', () => {
+    for (const path of [COMPOSITION, AUTHORITY]) {
+      const file = serverSources.find((candidate) => candidate.path === path);
+      assert.ok(file, `${path} must exist`);
+      assert.deepEqual(
+        strippedOffenders([file], /(createClient|Deno\.env|process\.env|fetch\s*\(|Date\.now|new Date\s*\(|supabase)/i),
+        [],
+      );
+    }
+  });
+
+  it('keeps the server gateway to an allowlist of the runtime persistence functions', () => {
+    const gateway = serverSources.find((file) => file.path === GATEWAY);
+    assert.ok(gateway, 'the runtime persistence gateway must exist');
+    assert.match(gateway.text, /if \(!RUNTIME_PERSISTENCE_FUNCTIONS\.has\(fn\)\)/);
+    assert.doesNotMatch(gateway.text, /\.from\s*\(/, 'the runtime gateway offers table access');
   });
 });

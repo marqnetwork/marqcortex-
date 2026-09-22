@@ -50,10 +50,11 @@ function recordingGateway(answer: (fn: string) => unknown = () => []): AgentSqlG
 const SLUG = 'marq-cortex';
 
 describe('A2-P07 did not cut production over', () => {
-  it('bootstrap still constructs the KEY-VALUE agent stores', () => {
-    for (const constructor of ['createKvAgentRunStore', 'createKvAgentCheckpointStore', 'createKvAgentApprovalStore']) {
-      assert.match(bootstrap, new RegExp(`${constructor}\\(`));
-    }
+  it('bootstrap builds the agent stores only through the runtime persistence composition (default KV)', () => {
+    // A2-P06 restatement; the default-is-KV proof is behavioural, in
+    // `runtimePersistenceComposition.test.ts`.
+    assert.match(bootstrap, /runtimePersistence\.agent\.stores/);
+    assert.doesNotMatch(bootstrap, /createKvAgent(Run|Checkpoint|Approval)Store\(/);
   });
 
   it('bootstrap imports nothing from the SQL agent stores', () => {

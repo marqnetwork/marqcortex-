@@ -49,15 +49,9 @@ import { createWorkflowRuntime } from './workflows/workflowRuntime.ts';
 import { createKvFinancialEventStore } from './financial/persistence/kvFinancialEventStore.ts';
 import { createKvReusableResultStore } from './reuse/persistence/kvReusableResultStore.ts';
 import {
-  createKvWorkflowApprovalStore,
-  createKvWorkflowCheckpointStore,
-  createKvWorkflowRunStore,
-} from './workflows/persistence/kvWorkflowStores.ts';
-import {
-  createKvAgentApprovalStore,
-  createKvAgentCheckpointStore,
-  createKvAgentRunStore,
-} from './agents/persistence/kvAgentStores.ts';
+  composeRuntimePersistence,
+  type RuntimeSqlGateway,
+} from './persistence/runtimePersistenceComposition.ts';
 import { createKvAgentAuditStore } from './agents/observability/agentAudit.ts';
 import { DETERMINISTIC_TOOLS } from './agents/tools/mockTools.ts';
 import { createControlPlane } from './controlPlane.ts';
@@ -128,6 +122,16 @@ export interface BootstrapDependencies {
   readonly kvCompareAndSwapField?: KvAgentConditionalWriter;
   /** Durable prefix scan, required for listing runs and approvals. */
   readonly kvReadByPrefix?: KvAgentPrefixReader;
+  /**
+   * The runtime persistence SQL gateway (A2-P06): `rpc` over the service
+   * client, restricted to the workflow and agent persistence functions.
+   *
+   * SUPPLYING IT IS NOT ACTIVATION. It is used only for a domain whose
+   * `AI_WORKFLOW_PERSISTENCE` / `AI_AGENT_PERSISTENCE` mode is `sql_frozen` or
+   * `sql`, and both default to `kv`. See
+   * `persistence/runtimePersistenceComposition.ts`.
+   */
+  readonly runtimePersistenceGateway?: RuntimeSqlGateway;
   /**
    * The submission source the certified diagnostic review capability reads
    * (AI-01 Batch 3B, Part 7E).
@@ -724,19 +728,56 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
         }
       : undefined;
 
-  // The workflow stores, built once. The engine writes them and the diagnostic
-  // capability's approval-authority port READS them — that shared pair is the
-  // whole binding by which a commit learns which workflow run owns its agent
-  // run, and building a second set here would give the two halves different
-  // rows to look at.
-  const workflowStores =
-    financialStorageOptions === undefined
-      ? undefined
-      : {
-          runStore: createKvWorkflowRunStore(financialStorageOptions),
-          checkpointStore: createKvWorkflowCheckpointStore(financialStorageOptions),
-          approvalStore: createKvWorkflowApprovalStore(financialStorageOptions),
-        };
+  // ── Workflow and agent runtime persistence (A2-P06) ──────────────────────
+  //
+  // ONE composition decides, per domain, which store is the authority:
+  // `AI_WORKFLOW_PERSISTENCE` and `AI_AGENT_PERSISTENCE`, each one of
+  // kv | kv_frozen | sql_frozen | sql, and each defaulting to `kv` — the key-
+  // value stores this file has always built, over the same ports. An
+  // unrecognised value, SQL without the gateway, or SQL with a tenant
+  // configuration it cannot store yields stores that REFUSE, never a quiet
+  // fallback. The transition rules live in `runtimePersistenceAuthority.ts`.
+  //
+  // The workflow stores are still built exactly once. The engine writes them
+  // and the diagnostic capability's approval-authority port READS them — that
+  // shared pair is the whole binding by which a commit learns which workflow
+  // run owns its agent run, and building a second set would give the two
+  // halves different rows to look at.
+  const runtimePersistence = composeRuntimePersistence({
+    env,
+    kv: {
+      ...(financialStorageOptions === undefined
+        ? {}
+        : {
+            workflow: {
+              ...financialStorageOptions,
+              onCorrupt: (key: string, detail: string) =>
+                console.error(`[ai] workflow record at ${key} is unreadable: ${detail}`),
+            },
+          }),
+      ...(agentStorageOptions === undefined ? {} : { agent: agentStorageOptions }),
+    },
+    ...(deps.runtimePersistenceGateway === undefined ? {} : { sqlGateway: deps.runtimePersistenceGateway }),
+    tenant: {
+      defaultOrganizationId: config.defaultOrganizationId,
+      allowDefaultOrganization: config.allowDefaultOrganization,
+    },
+    onSqlCorrupt: (location, detail) =>
+      console.error(`[ai] runtime record at ${location} is unreadable: ${detail}`),
+  });
+  for (const domain of ['workflow', 'agent'] as const) {
+    const composed = runtimePersistence[domain];
+    for (const problem of composed.problems) {
+      console.error(`[ai] ${domain} runtime persistence REFUSED: ${problem}`);
+    }
+    if (composed.frozen) {
+      console.error(
+        `[ai] ${domain} runtime persistence is FROZEN (${composed.mode}): reads are served from ` +
+          `${composed.authority}, every write is refused until the cutover step completes.`,
+      );
+    }
+  }
+  const workflowStores = runtimePersistence.workflow.stores;
 
   // ── The certified diagnostic review capability (AI-01 Batch 3B, Part 7E) ──
   //
@@ -808,13 +849,7 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     tools: (readBool(env, 'AGENT_MOCK_TOOLS_ENABLED', false) ? DETERMINISTIC_TOOLS : []).concat(
       diagnostic?.tools ?? [],
     ),
-    ...(agentStorageOptions === undefined
-      ? {}
-      : {
-          runStore: createKvAgentRunStore(agentStorageOptions),
-          checkpointStore: createKvAgentCheckpointStore(agentStorageOptions),
-          approvalStore: createKvAgentApprovalStore(agentStorageOptions),
-        }),
+    ...(runtimePersistence.agent.stores === undefined ? {} : runtimePersistence.agent.stores),
     auditStores: agentAuditStores,
     auditBufferSize: config.audit.bufferSize,
     clock: systemClock,

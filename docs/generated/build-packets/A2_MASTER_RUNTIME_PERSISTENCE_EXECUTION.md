@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P06
-LAST_COMPLETED_CHECKPOINT: A2-P06-C02
-LAST_VERIFIED_COMMIT: ef34da1 (P06-C01); P06-C02 = this commit
-NEXT_CHECKPOINT: A2-P06-C03
+LAST_COMPLETED_CHECKPOINT: A2-P06-C03
+LAST_VERIFIED_COMMIT: 3b51a8f (P06-C02); P06-C03 = this commit
+NEXT_CHECKPOINT: A2-P06-C04
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -47,6 +47,42 @@ COMPLETED_PHASES:
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 
 CHECKPOINT_EVIDENCE:
+- A2-P06-C03 FREEZE MECHANISM + ONE-AUTHORITY COMPOSITION (local code; NOT
+  deployed): ai/persistence/runtimePersistenceComposition.ts builds exactly
+  one store set per domain from AI_WORKFLOW_PERSISTENCE / AI_AGENT_PERSISTENCE
+  (default kv = today's KV stores over the same ports). FREEZE AT THE STORE
+  SEAM: frozen modes wrap create/save/write of runs, checkpoints, approvals and
+  refuse with the domain's typed failure (workflow_persistence_failed /
+  persistence_failed); reads pass. Covers by construction every mutation path
+  (HTTP, workflow->child agent, approval decide/consume/expire/withdraw,
+  durable expiry sweep). REFUSING (reads too), never fallback: unknown mode,
+  SQL without gateway, SQL with enabled non-UUID default org, frozen KV
+  without KV ports. Only `kv` with no KV ports keeps today's in-memory
+  behaviour. server/runtimePersistenceSqlGateway.ts: rpc over the service
+  client, ALLOWLIST of the 24 runtime persistence functions, PostgREST errors
+  thrown. bootstrap.ts: builds workflow+agent stores ONLY via the composition
+  (diagnostic authority still reads the same trio); logs REFUSED/FROZEN loudly;
+  new dep runtimePersistenceGateway supplied by index.tsx (supplying it is not
+  activation). Test fixtures gained tenantId for the workflow runtime.
+  SELF-REVIEW DEFECTS FOUND+FIXED: (1) composition indexed bootstrap's
+  EnvSource as a record => every mode read as unset, `sql` would silently stay
+  KV — caught by typecheck:api, fixed to env.get(), pinned by a real-bootstrap
+  test (reintroducing the bug fails 4/5); (2) my own "no provider call"
+  assertion read a non-existent health field (vacuous) — replaced with
+  provider success/failure counters + positive control; (3) freeze snapshot
+  compared keys only — now keys+values; (4) removed one vacuous case.
+  Boundary restated (BP-003/BP-004/P07 "bootstrap constructs KV" -> "bootstrap
+  builds stores only via the composition, default KV, SQL only by explicit
+  mode"); new block 'runtime persistence composition boundary (A2-P06)': only
+  the composition constructs SQL runtime stores, default kv pinned, no client/
+  env/clock in ai-tree modules, gateway allowlisted and table-free.
+  Evidence: runtimePersistenceComposition 13/13, runtimePersistenceBootstrap
+  5/5 (unset->KV, kv_frozen refuses writes via the REAL bootstrap, sql->gateway
+  only, sql w/o gateway refused, slug default ON refused), verify:a2-transition
+  233/233, verify:a2-agent 351/351, verify:bp003 498/498, verify:bp004
+  338/338, verify:bp002 356/356, test:ai 2562/2562, test:security 1141/1141,
+  test:features 1441/1441, test:system 212/212, scan:boundaries 142/142,
+  typecheck:tests clean, typecheck:api ai/registry-free/server clean.
 - A2-P06-C02 ZERO-ESTATE CENSUS (strategy A: replaces backfill/catch-up):
   ai/persistence/runtimeEstateCensus.ts — KEYS ONLY (never opens a value);
   every key in the six runtime namespaces counts, corrupt/orphan/slug/terminal

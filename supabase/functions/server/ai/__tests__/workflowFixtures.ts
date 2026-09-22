@@ -350,6 +350,12 @@ export interface TestWorkflowRuntimeOptions {
    * isolate to mint ids the first one did not, exactly as a real one does.
    */
   readonly idSeed?: string;
+  /**
+   * Rename the fixture tenant `acme` (A2-P06). The SQL runtime stores accept
+   * only a canonical organization UUID, so a rehearsal of the real engine over
+   * them needs the same subjects in a UUID-named tenant.
+   */
+  readonly tenantId?: string;
 
   // ── Live financial evidence (AI-01 Batch 3B, Integration Pass) ────────────
 
@@ -391,6 +397,7 @@ export function buildTestWorkflowRuntime(
   const agentRuntime = buildTestAgentRuntime({
     agents: options.agents ?? WORKFLOW_NODE_AGENTS,
     clock,
+    ...(options.tenantId === undefined ? {} : { tenantId: options.tenantId }),
     ...(options.idSeed === undefined ? {} : { idSeed: options.idSeed }),
     ...(options.agentRunStore === undefined ? {} : { runStore: options.agentRunStore }),
     ...(options.agentCheckpointStore === undefined
@@ -408,9 +415,9 @@ export function buildTestWorkflowRuntime(
 
   const workflows = createWorkflowRuntime({
     agentRuntime: agentRuntime.runtime,
-    authenticator: agentAuthenticator(),
+    authenticator: agentAuthenticator(options.tenantId),
     organizationOptions: {
-      defaultOrganizationId: 'acme',
+      defaultOrganizationId: options.tenantId ?? 'acme',
       allowList: [],
       allowDefaultOrganization: true,
     },

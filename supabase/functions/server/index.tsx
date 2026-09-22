@@ -163,6 +163,7 @@ import {
   durableRuntimeUnavailableReason,
   getDurableRuntime,
 } from "./durableRuntimeComposition.ts";
+import { createSupabaseRuntimePersistenceGateway } from "./runtimePersistenceSqlGateway.ts";
 import {
   deriveDealSnapshots,
   summarizeSnapshots,
@@ -774,6 +775,12 @@ const controlPlane = initializeControlPlane({
     return data === true;
   },
   kvReadByPrefix: async (prefix: string) => kv.getByPrefix(prefix),
+  // THE RUNTIME PERSISTENCE SQL GATEWAY (A2-P06). `rpc` over the service
+  // client, restricted to the twenty-four workflow and agent persistence
+  // functions. Supplying it is NOT a cutover: it is used only for a domain whose
+  // AI_WORKFLOW_PERSISTENCE / AI_AGENT_PERSISTENCE mode is `sql_frozen` or
+  // `sql`, and both default to `kv`.
+  runtimePersistenceGateway: createSupabaseRuntimePersistenceGateway(supabaseAdmin),
   // THE SUBMISSION SOURCE, over the submissions this deployment already holds.
   //
   // The certified capability reads a dossier: a submission, its answers, and
