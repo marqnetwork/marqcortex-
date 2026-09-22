@@ -692,6 +692,53 @@ describe('workflow engine boundary', () => {
     }
   });
 
+  it('keeps the agent SQL candidate a port-taking, append-only store — and out of production', () => {
+    // A2-P07, the agent counterpart of the two scans above. The SQL agent
+    // stores are a proven CANDIDATE; production agent authority is still the
+    // key-value store, and that is held here as the absence of an import.
+    const agentPersistence = serverSources.filter((file) =>
+      file.path.includes(join('agents', 'persistence', 'ports.ts')) ||
+      file.path.includes(join('agents', 'persistence', 'kvAgentStores.ts')) ||
+      file.path.includes(join('agents', 'persistence', 'sqlAgentStores.ts')),
+    );
+    assert.equal(agentPersistence.length, 3, 'all three agent persistence modules must exist');
+    assert.deepEqual(
+      offenders(
+        agentPersistence,
+        /\b(deleteCheckpoint|removeCheckpoint|updateCheckpoint|clearCheckpoint|purgeCheckpoint)\b/,
+      ),
+      [],
+    );
+
+    const sql = agentPersistence.find((file) => file.path.includes('sqlAgentStores.ts'));
+    assert.ok(sql, 'the SQL agent store must exist');
+    assert.deepEqual(
+      offenders([sql], /from\s+['"][^'"]*supabase|createClient\s*\(|Deno\.env\s*\.\s*get\s*\(/),
+      [],
+      'the SQL agent store holds a database client instead of taking a port',
+    );
+    assert.doesNotMatch(
+      sql.text,
+      /interface AgentSqlGateway \{[\s\S]*?\b(select|insert|update|delete|query)\s*\(/,
+      'the SQL agent gateway offers a verb beyond rpc',
+    );
+
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap, 'the AI bootstrap must exist');
+    assert.doesNotMatch(
+      bootstrap.text,
+      /sqlAgentStores|createSqlAgent/,
+      'the production assembly reaches the SQL agent stores',
+    );
+    for (const constructor of [
+      'createKvAgentRunStore',
+      'createKvAgentCheckpointStore',
+      'createKvAgentApprovalStore',
+    ]) {
+      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
+    }
+  });
+
   it('creates and drives every parallel branch through the same agent port', () => {
     // AI-01 Batch 3B Part 4 multiplied the number of agent runs a single
     // workflow node can produce. The claim that ONE module reaches the agent

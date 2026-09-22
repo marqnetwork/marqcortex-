@@ -52,6 +52,7 @@ import type {
 import {
   boundedLimit,
   byNewest,
+  byNewestRun,
   matchesApprovalQuery,
   matchesRunQuery,
 } from './ports.ts';
@@ -234,13 +235,7 @@ export function createKvAgentRunStore(options: KvAgentStoreOptions): AgentRunSto
         const record = parse(row, prefix);
         if (record && matchesRunQuery(record, query)) records.push(record);
       }
-      return records
-        .sort(
-          (a, b) =>
-            b.createdAt.localeCompare(a.createdAt) ||
-            b.context.runId.localeCompare(a.context.runId),
-        )
-        .slice(0, boundedLimit(query.limit));
+      return records.sort(byNewestRun).slice(0, boundedLimit(query.limit));
     },
   };
 }

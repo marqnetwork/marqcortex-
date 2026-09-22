@@ -193,7 +193,7 @@ export function createMemoryAgentRunStore(
       const limit = boundedLimit(query.limit);
       const matched = [...records.values()]
         .filter((record) => matchesRunQuery(record, query))
-        .sort(byNewest2)
+        .sort(byNewestRun)
         .slice(0, limit);
       return Promise.resolve(matched);
     },
@@ -203,8 +203,14 @@ export function createMemoryAgentRunStore(
   };
 }
 
-/** Runs sort on their creation stamp, which lives on the record, not the context. */
-function byNewest2(a: AgentRunRecord, b: AgentRunRecord): number {
+/**
+ * Runs sort on their creation stamp, which lives on the record, not the context.
+ *
+ * Exported so every store — memory, key-value and SQL — sorts with this one
+ * function. PostgreSQL collation cannot reproduce `localeCompare`, so the SQL
+ * store returns a tie-inclusive candidate set and lets this decide the order.
+ */
+export function byNewestRun(a: AgentRunRecord, b: AgentRunRecord): number {
   return b.createdAt.localeCompare(a.createdAt) || b.context.runId.localeCompare(a.context.runId);
 }
 

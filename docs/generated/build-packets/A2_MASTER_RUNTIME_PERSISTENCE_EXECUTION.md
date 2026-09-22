@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
 ACTIVE_PHASE: A2-P07
-LAST_COMPLETED_CHECKPOINT: A2-P07-C03
-LAST_VERIFIED_COMMIT: 27d8ebf (C02); C03 = this commit
-NEXT_CHECKPOINT: A2-P07-C04
+LAST_COMPLETED_CHECKPOINT: A2-P07-C04
+LAST_VERIFIED_COMMIT: 2be2de1 (C03); C04 = this commit
+NEXT_CHECKPOINT: A2-P07-C05
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -63,6 +63,24 @@ COMPLETED_PHASES:
 - BP-004
 
 CHECKPOINT_EVIDENCE:
+- A2-P07-C04 SQL ADAPTERS + SHARED PARITY: agents/persistence/sqlAgentStores.ts
+  (one-verb AgentSqlGateway port, no client; fail-closed persistence_failed
+  on non-UUID tenant writes, empty reads; DB errors -> persistence_failed with
+  bounded server-side diagnostics; `missing` collapsed to stale_run_version =
+  KV parity; shared domain predicates/comparators). ports.ts exports
+  byNewestRun (memory/KV/SQL use one comparator; behaviour unchanged).
+  __tests__/agentPersistenceContract.ts = 33 cases (runs, checkpoints incl.
+  one-ahead tip + non-adjacent predecessor, approvals, REAL approvalGate over
+  each store incl. expiry and expired-after-spent). Finding pinned: production
+  treats `states: []` as match-nothing; SQL matches via domain re-filter.
+  Evidence: agentPersistenceParity (memory+KV) 68/68; live PG SQL harness
+  33/33 cases; agentSqlComposition 10/10 (bootstrap KV-only, no SQL import;
+  slug tenant never reaches DB); ai_boundary 133/133 (new agent SQL scan);
+  verify:a2-agent 308/308; agentPersistence 43/43; typecheck:api ai/
+  registry-free/server clean (node-targeted server/migration/* advisory
+  pre-existing, none in new files); typecheck:tests clean.
+  New scripts: verify:a2-agent, test:database:agent-persistence; static agent
+  migration test added to test:database.
 - A2-P07-C03 ATOMIC SQL AGENT OPERATIONS: migration
   20260922120002_cortex_agent_persistence_functions.sql — 12 SECURITY DEFINER
   fns (run create/save/load/list, checkpoint append/read/latest/history,
