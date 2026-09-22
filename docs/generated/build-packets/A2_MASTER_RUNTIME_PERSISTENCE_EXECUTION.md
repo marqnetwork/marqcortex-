@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
 ACTIVE_PHASE: A2-P07
-LAST_COMPLETED_CHECKPOINT: A2-P07-C02
-LAST_VERIFIED_COMMIT: 7f537ca (C01 audit); C02 = this commit
-NEXT_CHECKPOINT: A2-P07-C03
+LAST_COMPLETED_CHECKPOINT: A2-P07-C03
+LAST_VERIFIED_COMMIT: 27d8ebf (C02); C03 = this commit
+NEXT_CHECKPOINT: A2-P07-C04
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -63,6 +63,21 @@ COMPLETED_PHASES:
 - BP-004
 
 CHECKPOINT_EVIDENCE:
+- A2-P07-C03 ATOMIC SQL AGENT OPERATIONS: migration
+  20260922120002_cortex_agent_persistence_functions.sql — 12 SECURITY DEFINER
+  fns (run create/save/load/list, checkpoint append/read/latest/history,
+  approval create/save/load/list); create = INSERT..ON CONFLICT DO NOTHING;
+  save = single UPDATE..WHERE version = expected, then classify
+  saved|stale|missing; NULL tenant refused; every predicate org-scoped;
+  listings bounded 50/200 with FETCH..WITH TIES (domain sorts); EXECUTE revoked
+  from PUBLIC, granted to service_role only. Harness 410-413 (fixture, schema,
+  RLS/privilege incl. cross-tenant service calls -> 'missing', rollback leaves
+  workflow tables + workflow trigger fn + KV + durable intact).
+  Evidence: static test 26/26 (+3 fn mutations caught: dropped CAS predicate,
+  upsert, authenticated grant); live PG16 scenarios exit 0 (schema, RLS, two-
+  session races: create 1/1, save 1 winner + late stale refused, checkpoint
+  1/1 + UPDATE refused, 2 deciders -> 1 decider recorded, spend exactly once,
+  held-lock waits then stale; idempotent re-apply, rollback x2, re-apply).
 - A2-P07-C02 AGENT RELATIONAL SCHEMA (additive, local only): migrations
   20260922120000_cortex_agent_persistence.sql (agent_runs/agent_checkpoints/
   agent_approvals; tenant in every PK; composite FKs; NULL-safe record

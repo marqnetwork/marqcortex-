@@ -209,3 +209,80 @@ describe('A2-P07 is not a cutover, and the migrations say so', () => {
     assert.doesNotMatch(rb, /workflow_|refuse_checkpoint_mutation\(|durable_|DELETE FROM|kv_/);
   });
 });
+
+const FUNCTIONS = read('supabase/migrations/20260922120002_cortex_agent_persistence_functions.sql');
+
+const FUNCTION_NAMES = [
+  'agent_run_create', 'agent_run_save', 'agent_run_load', 'agent_run_list',
+  'agent_checkpoint_append', 'agent_checkpoint_read', 'agent_checkpoint_latest',
+  'agent_checkpoint_history', 'agent_approval_create', 'agent_approval_save',
+  'agent_approval_load', 'agent_approval_list',
+];
+
+function fnBody(name: string): string {
+  const start = FUNCTIONS.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+  assert.ok(start >= 0, `${name} is not declared`);
+  const end = FUNCTIONS.indexOf('$$;', FUNCTIONS.indexOf('AS $$', start));
+  return FUNCTIONS.slice(start, end);
+}
+
+describe('the agent operations are atomic and tenant-scoped', () => {
+  it('declares all twelve functions', () => {
+    for (const name of FUNCTION_NAMES) fnBody(name);
+  });
+
+  it('refuses a NULL organization and scopes every predicate by it', () => {
+    for (const name of FUNCTION_NAMES) {
+      const fn = fnBody(name);
+      assert.match(fn, /IF p_organization_id IS NULL THEN\s+RAISE EXCEPTION/, `${name} accepts a NULL tenant`);
+      assert.match(fn, /organization_id\s+=\s+p_organization_id|VALUES \(\s*p_organization_id/, `${name} is not tenant-scoped`);
+    }
+  });
+
+  it('makes both saves a compare-and-swap in ONE statement, not a read-then-write', () => {
+    assert.match(fnBody('agent_run_save'), /UPDATE public\.agent_runs[\s\S]*?AND r\.run_version\s+= p_expected_version;/);
+    assert.match(fnBody('agent_approval_save'), /UPDATE public\.agent_approvals[\s\S]*?AND a\.approval_version\s+= p_expected_version;/);
+    for (const name of ['agent_run_save', 'agent_approval_save']) {
+      const fn = body(fnBody(name));
+      assert.ok(fn.indexOf('UPDATE') < fn.indexOf('SELECT'), `${name} reads before it writes`);
+      assert.doesNotMatch(fn, /FOR UPDATE/);
+    }
+  });
+
+  it('makes creation insert-if-absent, never an upsert', () => {
+    for (const name of ['agent_run_create', 'agent_checkpoint_append', 'agent_approval_create']) {
+      const fn = fnBody(name);
+      assert.match(fn, /ON CONFLICT \([^)]*\) DO NOTHING/);
+      assert.doesNotMatch(fn, /DO UPDATE/);
+    }
+  });
+
+  it('bounds listings at the ports\' ceiling and leaves the final sort to the domain', () => {
+    for (const name of ['agent_run_list', 'agent_approval_list']) {
+      const fn = fnBody(name);
+      assert.match(fn, /LEAST\(GREATEST\(COALESCE\(p_limit, 50\), 1\), 200\)/);
+      assert.match(fn, /ORDER BY [a-z]\.created_at DESC\s+FETCH FIRST v_limit ROWS WITH TIES/);
+    }
+  });
+
+  it('runs as the definer and is executable by the runtime alone', () => {
+    for (const name of FUNCTION_NAMES) {
+      const fn = fnBody(name);
+      assert.match(fn, /SECURITY DEFINER\s+SET search_path = public/);
+      assert.match(FUNCTIONS, new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^)]*\\) FROM PUBLIC;`));
+      assert.match(FUNCTIONS, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^)]*\\) TO service_role;`));
+    }
+    assert.doesNotMatch(body(FUNCTIONS), /TO (anon|authenticated)/);
+  });
+
+  it('drops every function it creates, with the same signature, on rollback', () => {
+    for (const name of FUNCTION_NAMES) {
+      const grant = FUNCTIONS.match(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}(\\([^)]*\\))`));
+      assert.ok(grant, `${name} has no grant`);
+      assert.ok(
+        ROLLBACK.includes(`DROP FUNCTION IF EXISTS public.${name}${grant[1]};`),
+        `the rollback does not drop ${name}${grant[1]}`,
+      );
+    }
+  });
+});
