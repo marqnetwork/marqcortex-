@@ -241,26 +241,48 @@ BP-003 final verification evidence:
 
 A2 remains in progress. The next packet must be a separately reviewed **workflow cutover-readiness** slice, not an immediate production cutover and not agent persistence migration.
 
-#### BP-004 — Workflow Cutover Readiness & Migration Preflight — READY
+#### BP-004 — Workflow Cutover Readiness & Migration Preflight — COMPLETE
 
-Active packet:
-`docs/generated/build-packets/BP-004_WORKFLOW_CUTOVER_READINESS_MIGRATION_PREFLIGHT.md`
+BP-004 is implemented, hardened, independently reviewed and accepted through commit `aac5a3fa03646c2efde05ca73437a9c553eb27f8`.
 
-BP-004 is a **readiness/proof packet only**. It must:
-- classify every current organization-resolution path;
-- keep `marq-cortex` as an unresolved/default identifier unless explicit evidence maps it;
-- inventory workflow KV source shapes without mutating them;
-- require explicit source-tenant → canonical UUID mapping;
-- account for the fact that `organizationId` is inside the workflow checkpoint digest;
-- deterministically re-chain checkpoints in local simulation when tenant identity changes;
-- prove transformed run checkpoint pointers, approvals and counts against the BP-003 SQL candidate;
-- produce GO/NO-GO readiness evidence and the safest next cutover packet shape.
+What this accepted slice established:
+- exact audit of workflow organization-resolution paths: verified membership paths produce canonical organization UUIDs; the optional default path may still produce a slug/non-UUID such as `marq-cortex`;
+- read-only workflow KV inventory for runs, checkpoints and approvals with object/JSON-string coercion parity and explicit corruption/orphan/identity classifications;
+- explicit source-tenant → canonical UUID mapping rules with no fuzzy/name/prefix inference and no automatic `marq-cortex → marq` assumption;
+- deterministic tenant remapping that verifies source checkpoint chains first, re-chains every checkpoint with the existing `computeCheckpointDigest`, and moves the run's `checkpointDigest` pointer to the transformed tip;
+- exact vs migration-semantic fingerprints that permit only tenant/digest fields forced to change;
+- local PostgreSQL dry-run backfill simulation against the real BP-003 SQL stores, with source KV rows proven unchanged;
+- GO/NO-GO vocabulary that tops out at `GO_FOR_LATER_BACKFILL_PACKET`, never "cut over";
+- active-run census and explicit reporting of pending-node/retry/approval states;
+- fail-closed local-only database targeting hardened against libpq location selectors, multi-hosts, service files and hidden host-address overrides;
+- sanitized child `psql` environment and fixed, validated Cortex-only scratch database name;
+- production bootstrap boundary proving migration/preflight code cannot become runtime authority.
 
-BP-004 is forbidden from connecting to hosted production/staging databases, shadow writing, backfilling hosted data, changing bootstrap authority, deploying, or starting agent persistence. Current KV remains production authority.
+BP-004 final verification evidence:
+- `verify:bp004` 328/328
+- `verify:bp003` 488/488
+- `verify:bp002` 346/346
+- `test:ai` 2380/2380
+- `test:security` 1141/1141
+- `test:features` 1441/1441
+- `test:system` 202/202
+- `test:lifecycle` 241/241
+- `test:migration` 244/244
+- `scan:boundaries` 132/132
+- API/test typechecks clean
+- `test:database:workflow-cutover-readiness` exit 0 against local PostgreSQL
+- BP-003 live workflow-persistence regression exit 0.
 
+**No hosted system was accessed and no production authority moved.** KV remains the workflow production/bootstrap authority. No hosted inventory, migration, backfill, shadow/dual write, deployment or agent-persistence work occurred.
+
+Two cutover findings are intentionally preserved for the next packet:
+1. `organizationId` is a workflow condition metadata field. A tenant remap can therefore change the result of a FUTURE workflow condition that compares organization identity, even though stored workflow facts remain migration-semantically equivalent. Registered workflow definitions must be scanned before a remapped tenant can cut over.
+2. The engine writes a checkpoint before saving the run pointer. A source snapshot can therefore legitimately contain a checkpoint tip exactly one version ahead of the run pointer after a crash. BP-004 conservatively reports that as a pointer mismatch. A future hosted preflight/cutover packet must explicitly classify and prove whether the one-ahead, correctly chained case is recoverable rather than treating every mismatch as corruption.
+
+A2 remains in progress. The next bounded workflow packet is a **read-only hosted estate inventory / cutover-strategy preflight**, and it must not be run against any hosted environment without explicit user authorization naming the allowed read-only scope.
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE. BP-003 WORKFLOW SQL PARITY SLICE — COMPLETE. A2 — IN PROGRESS. BP-004 CUTOVER READINESS — READY FOR IMPLEMENTATION.**
+**A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 CUTOVER READINESS — COMPLETE. A2 — IN PROGRESS. NEXT HOSTED READ-ONLY PREFLIGHT NOT STARTED.**
 
 Locked rules remain:
 - same repository and same Supabase project;
