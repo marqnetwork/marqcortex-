@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P06
-LAST_COMPLETED_CHECKPOINT: A2-P06-C01
-LAST_VERIFIED_COMMIT: 7d42035 (P05 record); P06-C01 = this commit
-NEXT_CHECKPOINT: A2-P06-C02
+LAST_COMPLETED_CHECKPOINT: A2-P06-C02
+LAST_VERIFIED_COMMIT: ef34da1 (P06-C01); P06-C02 = this commit
+NEXT_CHECKPOINT: A2-P06-C03
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -47,6 +47,26 @@ COMPLETED_PHASES:
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 
 CHECKPOINT_EVIDENCE:
+- A2-P06-C02 ZERO-ESTATE CENSUS (strategy A: replaces backfill/catch-up):
+  ai/persistence/runtimeEstateCensus.ts — KEYS ONLY (never opens a value);
+  every key in the six runtime namespaces counts, corrupt/orphan/slug/terminal
+  alike ("zero" = zero keys, an abort rule not a filter).
+  scripts/a2-zero-estate-recheck.sql — hosted twin: SET
+  default_transaction_read_only=on + BEGIN READ ONLY; KV key counts by the same
+  six patterns + counts of the six SQL tables when present (absent => null);
+  verdict ZERO_ESTATE | ABORT_ZERO_BACKFILL_STRATEGY | INCONCLUSIVE_ROW_SECURITY.
+  SELF-REVIEW DEFECT FOUND+FIXED: forced RLS would make a non-BYPASSRLS role
+  count 0 rows (false ZERO_ESTATE); script now reports INCONCLUSIVE unless the
+  session role is superuser or BYPASSRLS.
+  No backfill/catch-up code built: under A there is nothing to copy; on ABORT
+  BP-004/P08 inventory+transform machinery remains the re-entry point.
+  Evidence: runtimeEstateCensus.test 8/8 (decoy namespaces ignored, every row
+  kind counted, real-runtime KV estate counted and aborts the controller,
+  pinned to store key builders and to the SQL patterns, SQL has no write
+  keyword). Live PG16: tables absent -> ZERO_ESTATE (6 absent); tables empty ->
+  ZERO_ESTATE; 1 agent checkpoint key + 2 decoys -> ABORT (count 1); injected
+  INSERT -> "cannot execute INSERT in a read-only transaction", 0 rows written;
+  SET ROLE non-bypass role -> INCONCLUSIVE_ROW_SECURITY.
 - A2-P06-C01 TRANSITION CONTROLLER (pure): ai/persistence/
   runtimePersistenceAuthority.ts. Per-domain (workflow|agent) modes kv |
   kv_frozen | sql_frozen | sql; exactly one authority per mode; only kv/sql
