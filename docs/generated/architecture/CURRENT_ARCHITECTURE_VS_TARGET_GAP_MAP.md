@@ -845,7 +845,7 @@ BP-004 performed no hosted inventory, no hosted backfill, no shadow/dual write, 
 
 The temporary BP-004 packet is removed after this acceptance record.
 
-### A2 Master Runtime Persistence Execution — READY
+### A2 Master Runtime Persistence Execution — IN PROGRESS
 
 The remainder of A2 is now governed by one resumable temporary packet:
 `docs/generated/build-packets/A2_MASTER_RUNTIME_PERSISTENCE_EXECUTION.md`.
@@ -861,6 +861,10 @@ Sequence:
 6. only after explicit later approval: controlled hosted workflow SQL cutover, controlled hosted agent SQL cutover, legacy-authority retirement, full verification and A2 cleanup.
 
 The master packet may inspect the existing hosted Cortex estate read-only for A2 evidence. It may not mutate hosted state, apply migrations, deploy or move authority before its hard write gate is explicitly approved.
+
+P05 hosted read-only preflight is complete against the restored existing Cortex Supabase. The real estate currently contains zero workflow runtime KV rows and zero agent runtime KV rows. One active canonical organization exists (`marq`, UUID `9c96dbbd-b389-4f8b-811f-1815c4f8a9e0`). The deployed production workflow-definition scan found no `organizationId` metadata-condition dependency.
+
+This evidence selects the minimum-risk workflow transition: **short mutation freeze → immediate zero-estate recheck → approved schema/deployment changes → SQL authority**. Historical backfill, catch-up and shadow/dual write are not justified while the real runtime estate is empty. If the final pre-cutover read-only recheck finds any new workflow rows, this strategy must abort and be re-evaluated rather than dropping those rows.
 
 A2 remains incomplete until both workflow and agent runtime persistence are SQL-authoritative and verified, KV is no longer authoritative for those domains, and temporary transition architecture is cleaned.
 
