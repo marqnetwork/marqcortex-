@@ -312,6 +312,16 @@ Status 2026-09-22 (the packet's EXECUTION CURSOR is the detailed record):
   local translated-estate rehearsal) are COMPLETE, locally.
 - Production agent and workflow authority are both still KV. Nothing was
   deployed, migrated, shadowed or cut over. A2 remains IN PROGRESS.
+
+Status 2026-09-23: P05 hosted read-only estate recorded (0 workflow, 0 agent
+runtime rows); strategy = short freeze + final zero-estate recheck +
+approved migrations/deploy + SQL authority. A2-P06 (transition controller,
+zero-estate census + read-only recheck SQL, store-seam freeze, single
+composition wired into bootstrap with default kv, cutover verifier, local
+adversarial rehearsal) and A2-P08 (agent strategy, fail-closed 7-state
+workflow/agent corridor, combined rehearsal) are COMPLETE locally. A2 is
+STOPPED AT GATE W with the hosted-write dossier in the master packet cursor.
+No hosted write, migration or deployment has occurred.
 ## CURRENT BATCH
 
 **A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 — COMPLETE. A2-P05 HOSTED READ-ONLY PREFLIGHT — COMPLETE. A2-P07 + P08-C01/C02 — COMPLETE LOCALLY. A2 — IN PROGRESS; NEXT A2-P06.**

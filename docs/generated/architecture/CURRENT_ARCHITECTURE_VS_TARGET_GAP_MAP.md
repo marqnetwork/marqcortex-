@@ -866,6 +866,8 @@ P05 hosted read-only preflight is complete against the restored existing Cortex 
 
 This evidence selects the minimum-risk workflow transition: **short mutation freeze → immediate zero-estate recheck → approved schema/deployment changes → SQL authority**. Historical backfill, catch-up and shadow/dual write are not justified while the real runtime estate is empty. If the final pre-cutover read-only recheck finds any new workflow rows, this strategy must abort and be re-evaluated rather than dropping those rows.
 
+Local transition architecture now exists (A2-P06/P08, not deployed): the production bootstrap builds workflow and agent stores only through `ai/persistence/runtimePersistenceComposition.ts`, selected by `AI_WORKFLOW_PERSISTENCE` / `AI_AGENT_PERSISTENCE` (default `kv`, so current behaviour is unchanged). SQL stores are reachable only through that composition and only for an explicit mode; the workflow/agent mode pair must lie on one enforced seven-state corridor (workflow freezes first, agent authority moves and unfreezes first), otherwise mutation is refused in both domains. The earlier statement that bootstrap "cannot import the SQL stores" is superseded by this. Hosted authority is still KV in both domains; A2 is stopped at its hosted-write gate.
+
 A2 remains incomplete until both workflow and agent runtime persistence are SQL-authoritative and verified, KV is no longer authoritative for those domains, and temporary transition architecture is cleaned.
 
 ## 18. Build-Packet Rule Going Forward

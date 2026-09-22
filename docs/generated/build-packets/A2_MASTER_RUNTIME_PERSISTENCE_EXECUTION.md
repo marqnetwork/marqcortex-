@@ -23,11 +23,11 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
-ACTIVE_PHASE: A2-P08
-LAST_COMPLETED_CHECKPOINT: A2-P08-C04
-LAST_VERIFIED_COMMIT: 1e6cddd (P08-C03); P08-C04 = this commit
-NEXT_CHECKPOINT: A2-P08-C05
+MASTER_STATUS: STOPPED AT GATE W — all local/read-only A2 preparation complete; no hosted write performed
+ACTIVE_PHASE: GATE W (stopped before A2-P09)
+LAST_COMPLETED_CHECKPOINT: A2-P08-C05 (A2-P08 COMPLETE)
+LAST_VERIFIED_COMMIT: ed9a3c5 (P08-C04); P08-C05 = this commit
+NEXT_CHECKPOINT: GATE W — STOPPED. Awaiting explicit user approval; then A2-P09-C01 (re-run read-only preflight)
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -46,8 +46,171 @@ COMPLETED_PHASES:
 - A2-P07 (agent SQL persistence foundation; local only; production still KV)
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 - A2-P06 (workflow transition machinery + local cutover rehearsal; local only; production still KV)
+- A2-P08 (agent readiness, transition strategy, cross-domain corridor, combined rehearsal; local only)
+
+GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
+
+ W0 SCOPE OF WHAT IS BEING APPROVED
+  * Target: existing Supabase project oqybniefkbppptfatoae only; existing
+    Edge Function make-server-324f4fbe (hosted v15). No new infra.
+  * Hosted migration head: 20260901120000_ai_customer_byok. Deploying this
+    branch deploys main (388a4cc: CP-2..CP-4 organizational spine/strategy
+    code, A1 durable runtime composition) PLUS A2. That code needs the
+    unhosted prerequisites below; the approval therefore covers those
+    already-merged, never-deployed changes too. Flagged, not assumed.
+  * Frontend (Vercel) is NOT part of this gate.
+
+ W1 PRE-MUTATION (read-only; abort on any surprise)
+  1. Record branch head + migration list; confirm hosted head is still
+     20260901120000 (supabase_migrations.schema_migrations, SELECT only).
+  2. Backup: confirm project PITR/daily backup exists AND take a
+     pg_dump --schema-only + data-only dump of public.kv_store_324f4fbe,
+     organizations, organization_memberships, permissions, role_permissions
+     to operator-controlled storage (never Git).
+  3. Run the 20260910120000 composite-key refusal precheck (Readiness §11.2,
+     read-only). Any cross-tenant finding => STOP (no data repair in A2).
+  4. Run scripts/a2-zero-estate-recheck.sql as a BYPASSRLS/superuser role
+     (postgres). Required: verdict ZERO_ESTATE, role_sees_every_row=true.
+     INCONCLUSIVE_* or ABORT_* => STOP; ABORT re-enters strategy selection
+     (P08-C01/C02 + BP-004 machinery), nothing dropped.
+  5. Confirm secrets: AI_ALLOW_DEFAULT_ORGANIZATION unset/false (hosted
+     truth), AI_WORKFLOW_PERSISTENCE and AI_AGENT_PERSISTENCE unset.
+
+ W2 MIGRATIONS — exact order, each idempotent, each with its rollback
+  1 20260903120000_ai_self_hosted_providers
+  2 20260910120000_cortex_tenancy_composite_keys   (may REFUSE — see W1.3)
+  3 20260911120000_cortex_tenant_list_indexes
+  4 20260917120000_cortex_organizational_spine
+  5 20260917120001_cortex_organizational_spine_rls
+  6 20260918120000_cortex_strategic_layer
+  7 20260918120001_cortex_strategic_layer_rls
+  8 20260919120000_cortex_durable_runtime
+  9 20260919120001_cortex_durable_runtime_rls
+ 10 20260919120002_cortex_durable_runtime_functions
+ 11 20260921120000_cortex_workflow_persistence
+ 12 20260921120001_cortex_workflow_persistence_rls
+ 13 20260921120002_cortex_workflow_persistence_functions
+ 14 20260922120000_cortex_agent_persistence
+ 15 20260922120001_cortex_agent_persistence_rls
+ 16 20260922120002_cortex_agent_persistence_functions
+  Order note: 1-10 are unhosted prerequisites of the code being deployed;
+  11-16 are A2. Applying them changes NO authority (tables stay empty;
+  nothing calls them while modes are kv).
+
+ W3 DEPLOYMENT — code (this branch) with modes UNSET = kv/kv
+  * Deploy make-server-324f4fbe from this branch. Changes: bootstrap builds
+    workflow+agent stores ONLY via ai/persistence/runtimePersistence-
+    Composition (default kv = today's KV stores); index.tsx supplies
+    runtimePersistenceGateway (rpc allowlist of the 24 A2 functions);
+    corridor/freeze/refusal logic; migrations' SQL stores reachable only via
+    explicit modes. Proven: unset env == KV behaviour (real-bootstrap tests).
+  * Smoke (read-only): health endpoint; startup log shows no
+    "runtime persistence REFUSED" line.
+
+ W4 FREEZE — workflow FIRST, then agent (secrets + redeploy each time)
+  1 supabase secrets set AI_WORKFLOW_PERSISTENCE=kv_frozen; redeploy.
+    Pair kv_frozen/kv. Observe: startup log "workflow runtime persistence is
+    FROZEN"; a workflow start returns the maintenance failure.
+  2 supabase secrets set AI_AGENT_PERSISTENCE=kv_frozen; redeploy.
+    Pair kv_frozen/kv_frozen.
+  3 FREEZE OBSERVED: wait until no isolate of any earlier version can be
+    serving (>=10 min after the redeploy), then run the recheck TWICE >=5 min
+    apart; both ZERO_ESTATE and identical kv.inspected-independent runtime
+    counts. This is the FINAL zero-estate recheck — only after BOTH freezes.
+    Any runtime row => ABORT: set both modes back to kv (corridor reverse),
+    re-enter strategy selection; drop nothing.
+
+ W5 AUTHORITY SWITCH (while frozen) — agent FIRST
+  1 Verify PRE GO for agent and workflow (verifier over recheck JSON +
+    tenant config): 3 tables RLS forced, 12/12 functions each, estates zero.
+  2 AI_AGENT_PERSISTENCE=sql_frozen; redeploy. Pair kv_frozen/sql_frozen.
+  3 AI_WORKFLOW_PERSISTENCE=sql_frozen; redeploy. Pair sql_frozen/sql_frozen.
+  4 POST verification (both): mode sql_frozen; an authenticated read through
+    the runtime (list runs / approval queue) succeeds; recheck still
+    ZERO_ESTATE (no KV, no SQL rows).
+  5 AI_AGENT_PERSISTENCE=sql; redeploy. Pair sql_frozen/sql (agent live
+    FIRST).
+  6 AI_WORKFLOW_PERSISTENCE=sql; redeploy. Pair sql/sql (workflow live LAST).
+  Every intermediate pair is on the enforced corridor; any other pair
+  refuses mutation in both domains (a typo cannot open a split authority).
+
+ W6 POST-CUTOVER VERIFICATION (hosted, separate from local tests)
+  Read-only: recheck => kv runtime counts still 0; SQL counts only what the
+  smoke wrote; startup log has no REFUSED/FROZEN lines.
+  Operator smoke (the ONLY runtime writes this gate expects), with the
+  canonical organization 9c96dbbd-b389-4f8b-811f-1815c4f8a9e0 (slug marq):
+   - one certified diagnostic readiness-review workflow run (only if
+     AI_DIAGNOSTIC_REVIEW_ENABLED is already on; otherwise one direct agent
+     run of a registered agent) taken to its approval gate and approved;
+   - verify: workflow_runs 1, workflow_checkpoints >=1, workflow_approvals 1
+     (pending -> approved -> consumed), agent_runs = child count, agent
+     checkpoints >=1, all rows organization_id = canonical UUID; a second
+     identity from another organization sees none; KV runtime namespaces 0.
+  LIVE GO for both domains closes the gate. Hosted results recorded in the
+  cursor as hosted evidence only if actually run.
+
+ W7 ROLLBACK
+  * Before any SQL runtime row (through W5.4): reverse corridor via secrets +
+    redeploy: sql_frozen/sql_frozen -> kv_frozen/sql_frozen ->
+    kv_frozen/kv_frozen -> kv_frozen/kv -> kv/kv. Controller permits each
+    SQL->KV edge only with that domain's SQL estate zero.
+  * After agent SQL rows exist (W5.5+): agent rollback CLOSED
+    (ROLLBACK_WINDOW_CLOSED); workflow can only step back to kv_frozen/
+    sql_frozen (both frozen). Recovery = fix forward on SQL. Nothing is ever
+    copied back to KV.
+  * Code rollback: redeploy hosted v15 is SAFE ONLY while both modes are kv
+    (v15 reads KV). After SQL authority it would orphan SQL rows => forbidden.
+  * Schema rollback: rollbacks/ in reverse order (agent, workflow, durable,
+    strategic, spine, indexes, composite keys, self-hosted) — only while
+    their tables are empty/unused; KV untouched (proven locally).
+
+ W8 EVERY EXPECTED HOSTED WRITE
+  * DDL from the 16 migrations (tables, indexes, constraints, triggers,
+    functions, RLS enable+force, grants/revokes, comments).
+  * Data at apply: permissions rows (WHERE NOT EXISTS) organization.
+    structure.read, organization.structure.manage, strategy.read,
+    strategy.manage, runtime.read, runtime.operate + role_permissions grants
+    copied from existing roles' settings.* grants.
+  * supabase_migrations ledger rows for the 16 migrations (if applied via
+    the CLI).
+  * Edge Function deployments (one per W3/W4/W5 step) and secrets
+    AI_WORKFLOW_PERSISTENCE, AI_AGENT_PERSISTENCE.
+  * W6 smoke rows only (listed above). NO backfill, NO KV write, NO KV delete.
+
+ W9 GO / NO-GO CONDITIONS
+  GO only if: W1 all clean; every migration applied without refusal; PRE GO
+  both; POST GO both; LIVE GO both. Any NO_GO => stop at the current corridor
+  state (always a safe, enforced pair) and roll back per W7 if the window is
+  open.
+
+ W10 CARRIED FINDINGS (unchanged by this gate)
+  1 Agent AUDIT KV log (createKvAgentAuditStore) is non-authoritative and
+    outside the three runtime stores; it stays on KV.
+  2 run.claimedToolKeys is the durable tool-idempotency state and moves with
+    runs; the tool idempotency store itself is memory-only.
+  3 approvalGate consume() of a consumed, past-due approval rewrites it to
+    expired (pre-existing); SQL admits it for parity — not an A2 rewrite.
+  4 AI_DEFAULT_ORGANIZATION_ID stays "marq-cortex" with the fallback OFF;
+    enabling the fallback requires the default to be the canonical UUID
+    first — enforced by the composition (SQL refuses otherwise).
+
+ EXACT APPROVAL REQUIRED:
+  "APPROVE A2 HOSTED WRITE GATE: apply migrations W2.1-W2.16, deploy
+   make-server-324f4fbe from claude/stoic-hypatia-o7ihgj, and execute the
+   W4-W6 freeze/switch/verify corridor with W7 rollback"
 
 CHECKPOINT_EVIDENCE:
+- A2-P08-C05 BROAD REGRESSION (2026-09-23, machine to itself, 0 failures):
+  verify:bp002 356/356, verify:bp003 498/498, verify:bp004 338/338,
+  verify:a2-agent 351/351, verify:a2-transition 283/283, test:ai 2612/2612,
+  test:security 1141/1141, test:features 1441/1441, test:system 212/212,
+  test:lifecycle 241/241, test:database 425/425 (with local DATABASE_URL,
+  0 skipped), test:migration 244/244, scan:boundaries 142/142; live PG16:
+  workflow-persistence, workflow-cutover-readiness, agent-persistence,
+  runtime-cutover (scenarios A-F) all exit 0; typecheck:tests clean;
+  typecheck:api ai/registry-free/server clean (node-targeted
+  server/migration/* advisory pre-existing). HOSTED post-cutover checks have
+  NOT been run (Gate W closed) and are not represented as passed.
 - A2-P08-C04 COMBINED LOCAL A2 REHEARSAL (dependency-safe corridor, real
   engines, real PG16, real kv_store + kv_compare_and_swap_field, server
   gateway allowlist, local-only guard): scripts/runtime-cutover-rehearsal.ts
