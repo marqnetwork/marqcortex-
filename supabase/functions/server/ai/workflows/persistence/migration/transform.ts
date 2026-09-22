@@ -46,6 +46,21 @@
  * `fingerprint.ts` is the runtime backstop for exactly that: a dropped field
  * changes the fingerprint and the tenant is refused.
  *
+ * ── CARRIED FINDING: A REMAP CAN CHANGE A FUTURE BRANCH ───────────────────
+ *
+ * `contracts/expression.ts` lists `organizationId` in `WORKFLOW_METADATA_FIELDS`,
+ * so a workflow CONDITION may branch on it. Nothing stored changes shape
+ * because of that — the records this module emits are proven equivalent by the
+ * migration-semantic fingerprint, and already-recorded outputs are identical —
+ * but a definition that compares `organizationId` to a literal would evaluate
+ * DIFFERENTLY after a remap, on the next node it reaches.
+ *
+ * That is outside what a record transformation can fix, and BP-004 does not
+ * attempt it. It is recorded here because the packet that performs a cutover
+ * has to scan the registered definitions for that reference before remapping
+ * any tenant, and a finding that lives only in a report is a finding the next
+ * author does not have.
+ *
  * ── APPROVALS KEEP THEIR IDENTIFIERS ───────────────────────────────────────
  *
  * `workflowApprovalIdFor` derives an approval id from the run id, the node, the

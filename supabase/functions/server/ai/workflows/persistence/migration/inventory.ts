@@ -492,6 +492,25 @@ export function inventoryWorkflowSource(
         problems.push(`invalid_checkpoint_chain: ${verdict.problem}`);
       }
 
+      // ── CARRIED FINDING, FOR THE PACKET THAT DECIDES THE CUTOVER ────────
+      //
+      // The rule below is STRICTER than "the data is intact", deliberately, and
+      // the next packet has to classify the difference before a hosted
+      // preflight runs against a live estate.
+      //
+      // `workflowOrchestrator.ts` writes a checkpoint BEFORE it saves the run
+      // carrying the new pointer. An isolate that dies between the two leaves
+      // checkpoint vN stored with the run still pointing at vN-1 — which is a
+      // RECOVERABLE state, not corruption: the engine's next pass recomputes
+      // the same checkpoint and adopts the stored one when the digests match.
+      //
+      // BP-004 refuses it anyway, because the packet's gate is that a run's
+      // pointer equals its chain tip, and a preflight that guessed which
+      // mismatches were benign would be guessing about the one field restart
+      // recovery trusts. A hosted preflight will meet this state, so the next
+      // packet should decide explicitly whether "the tip is exactly one ahead
+      // AND its `previousDigest` is the run's pointer" is acceptable — and say
+      // so in code rather than relaxing the check by feel.
       const tip = checkpoints[checkpoints.length - 1];
       let pointerValid: boolean;
       if (tip === undefined) {

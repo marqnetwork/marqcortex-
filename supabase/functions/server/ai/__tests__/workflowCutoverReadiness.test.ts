@@ -37,9 +37,14 @@ import type {
   WorkflowTenantMappingEntry,
 } from '../workflows/persistence/migration/index.ts';
 import {
+  BP004_SCRATCH_DATABASE,
+  REFUSED_LOCATION_VARIABLES,
   SCHEMA_MARKER_FIELD,
+  STRIPPED_LOCATION_VARIABLES,
   WORKFLOW_SOURCE_SCHEMA,
   classifyDatabaseTarget,
+  classifyScratchDatabaseName,
+  localDatabaseEnvironment,
   compareFingerprints,
   fingerprintBundles,
   inventoryWorkflowSource,
@@ -1159,6 +1164,19 @@ describe('BP-004 readiness verdict', () => {
 // ── Safety ──────────────────────────────────────────────────────────────────
 
 describe('BP-004 local-only safety', () => {
+  /**
+   * NOTHING HERE CONNECTS TO ANYTHING.
+   *
+   * Every case below is the classifier being asked a question about an
+   * environment that exists only inside the test. A suite that proved a remote
+   * refusal by attempting a remote connection would be a suite that attempts
+   * remote connections.
+   *
+   * `203.0.113.10` is TEST-NET-3 (RFC 5737): reserved for documentation, and
+   * routable to nothing.
+   */
+  const REMOTE = '203.0.113.10';
+
   it('40. refuses a non-local database URL and says so rather than warning', () => {
     for (const url of [
       'postgresql://user:pw@db.abcdefgh.supabase.co:5432/postgres',
@@ -1180,6 +1198,8 @@ describe('BP-004 local-only safety', () => {
       { DATABASE_URL: 'postgresql:///scratch?host=/var/run/postgresql' },
       { PGHOST: '/var/run/postgresql' },
       { PGHOST: 'localhost' },
+      { PGHOST: '127.0.0.1' },
+      { PGHOST: '::1' },
       {},
     ];
     for (const env of accepted) {
@@ -1199,5 +1219,201 @@ describe('BP-004 local-only safety', () => {
       DATABASE_URL: 'postgresql:///scratch?host=db.abcdefgh.supabase.co',
     });
     assert.equal(verdict.ok, false);
+  });
+
+  // ── The libpq selectors a hostname check does not see ────────────────────
+
+  it('43. refuses PGHOSTADDR even when PGHOST reads as loopback', () => {
+    // THE ONE THAT MATTERS MOST. `PGHOSTADDR` is the network address and it
+    // WINS; `PGHOST` is then only used for authentication. A guard that read
+    // `PGHOST` would have approved a connection to TEST-NET-3.
+    const verdict = classifyDatabaseTarget({ PGHOST: 'localhost', PGHOSTADDR: REMOTE });
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok ? '' : verdict.problem, /PGHOSTADDR/);
+  });
+
+  it('43b. refuses PGHOSTADDR even when it is itself loopback', () => {
+    // BP-004 has no use for naming an address separately from a host, so the
+    // variable is refused rather than interpreted. A feature that is refused
+    // cannot be misunderstood.
+    assert.equal(classifyDatabaseTarget({ PGHOSTADDR: '127.0.0.1' }).ok, false);
+  });
+
+  it('44. refuses PGSERVICE and PGSERVICEFILE', () => {
+    // A service stanza supplies host, port, database and user wholesale, so the
+    // environment can name no host at all and the connection still goes
+    // somewhere. There is nothing to check, which is why there is nothing to
+    // allow.
+    const service = classifyDatabaseTarget({ PGSERVICE: 'production' });
+    assert.equal(service.ok, false);
+    assert.match(service.ok ? '' : service.problem, /PGSERVICE/);
+
+    const file = classifyDatabaseTarget({ PGSERVICEFILE: '/tmp/pg_service.conf' });
+    assert.equal(file.ok, false);
+    assert.match(file.ok ? '' : file.problem, /PGSERVICEFILE/);
+
+    // And they are refused even beside a target that would otherwise pass.
+    assert.equal(
+      classifyDatabaseTarget({ DATABASE_URL: 'postgresql://localhost/scratch', PGSERVICE: 'production' }).ok,
+      false,
+    );
+  });
+
+  it('45. refuses the URI spellings of the same two selectors', () => {
+    const hostaddr = classifyDatabaseTarget({
+      DATABASE_URL: `postgresql://localhost/db?hostaddr=${REMOTE}`,
+    });
+    assert.equal(hostaddr.ok, false);
+    assert.match(hostaddr.ok ? '' : hostaddr.problem, /hostaddr=/);
+
+    const service = classifyDatabaseTarget({ DATABASE_URL: 'postgresql:///db?service=production' });
+    assert.equal(service.ok, false);
+    assert.match(service.ok ? '' : service.problem, /service=/);
+  });
+
+  it('46. refuses a host list in every spelling', () => {
+    // libpq tries each entry in turn, so one local entry proves nothing about
+    // where the connection ends up.
+    const cases: Readonly<Record<string, string | undefined>>[] = [
+      { PGHOST: '/var/run/postgresql,remote.example.com' },
+      { PGHOST: 'localhost,remote.example.com' },
+      { DATABASE_URL: 'postgresql://localhost,remote.example.com/db' },
+      { DATABASE_URL: 'postgresql:///db?host=/var/run/postgresql,remote.example.com' },
+      { DATABASE_URL: 'postgresql:///db?host=localhost,remote.example.com' },
+    ];
+    for (const env of cases) {
+      const verdict = classifyDatabaseTarget(env);
+      assert.equal(verdict.ok, false, `${JSON.stringify(env)} was accepted`);
+    }
+
+    // A multi-host URI carrying ports does not parse at all, which is the right
+    // answer for the right reason.
+    const ported = classifyDatabaseTarget({
+      DATABASE_URL: 'postgresql://host1:5432,host2:5432/db',
+    });
+    assert.equal(ported.ok, false);
+  });
+
+  it('47. a URI naming no host does not mean the socket', () => {
+    // libpq falls back to PGHOST here, so "a URL is present" was never a reason
+    // to stop reading the environment.
+    const redirected = classifyDatabaseTarget({
+      DATABASE_URL: 'postgresql:///scratch',
+      PGHOST: 'remote.example.com',
+    });
+    assert.equal(redirected.ok, false, 'a hostless URI let PGHOST through unchecked');
+
+    // And the same shape with a local PGHOST is still fine.
+    assert.equal(
+      classifyDatabaseTarget({ DATABASE_URL: 'postgresql:///scratch', PGHOST: '/var/run/postgresql' }).ok,
+      true,
+    );
+    assert.equal(classifyDatabaseTarget({ DATABASE_URL: 'postgresql:///scratch' }).ok, true);
+  });
+
+  it('47b. refuses exotic spellings of loopback rather than resolving them', () => {
+    // Both of these reach 127.0.0.1 through libpq. An allow-list that tried to
+    // recognise them would be an allow-list that has to recognise the next one
+    // too, so they are refused: the cost is that somebody types `localhost`.
+    for (const host of ['127.0.0.1.', '0x7f.1', '2130706433', '127.1']) {
+      assert.equal(classifyDatabaseTarget({ PGHOST: host }).ok, false, `${host} was accepted`);
+    }
+  });
+
+  // ── The child environment ────────────────────────────────────────────────
+
+  it('48. strips every selector the guard refuses to reason about', () => {
+    const raw = {
+      DATABASE_URL: 'postgresql://localhost/scratch',
+      PGHOST: 'localhost',
+      PGHOSTADDR: REMOTE,
+      PGSERVICE: 'production',
+      PGSERVICEFILE: '/tmp/pg_service.conf',
+      PGSYSCONFDIR: '/etc/postgresql-common',
+      PGPASSWORD: 'local-only',
+      PGUSER: 'postgres',
+      PATH: '/usr/bin',
+    };
+    const sanitized = localDatabaseEnvironment(raw);
+
+    for (const name of ['PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE', 'PGSYSCONFDIR']) {
+      assert.equal(name in sanitized, false, `${name} reached the child`);
+    }
+    assert.deepEqual(STRIPPED_LOCATION_VARIABLES.slice().sort(), [
+      'PGHOSTADDR',
+      'PGSERVICE',
+      'PGSERVICEFILE',
+      'PGSYSCONFDIR',
+    ]);
+
+    // AUTHENTICATION IS NOT LOCATION. Removing these would break a legitimate
+    // local setup for the appearance of tidiness, and none of them can choose a
+    // different target.
+    assert.equal(sanitized.PGPASSWORD, 'local-only');
+    assert.equal(sanitized.PGUSER, 'postgres');
+    assert.equal(sanitized.PATH, '/usr/bin');
+    // The validated mechanism travels through untouched.
+    assert.equal(sanitized.DATABASE_URL, 'postgresql://localhost/scratch');
+    assert.equal(sanitized.PGHOST, 'localhost');
+
+    // And the caller's own environment is not mutated on the way past.
+    assert.equal(raw.PGHOSTADDR, REMOTE);
+  });
+
+  it('48b. every refused variable is also a stripped one', () => {
+    // A selector that could refuse a run but still reach the child would be a
+    // selector nobody validated, in a process nobody guarded.
+    for (const name of REFUSED_LOCATION_VARIABLES) {
+      assert.equal(
+        STRIPPED_LOCATION_VARIABLES.includes(name),
+        true,
+        `${name} is refused but not stripped`,
+      );
+      assert.equal(classifyDatabaseTarget({ [name]: 'anything' }).ok, false);
+    }
+  });
+
+  // ── The scratch database ─────────────────────────────────────────────────
+
+  it('49. accepts only the BP-004 scratch database name', () => {
+    const verdict = classifyScratchDatabaseName(BP004_SCRATCH_DATABASE);
+    assert.equal(verdict.ok, true);
+    assert.equal(verdict.ok && verdict.quoted, `"${BP004_SCRATCH_DATABASE}"`);
+  });
+
+  it('49b. refuses the protected databases', () => {
+    for (const name of ['postgres', 'template0', 'template1']) {
+      assert.equal(classifyScratchDatabaseName(name).ok, false, `${name} was accepted`);
+    }
+  });
+
+  it('49c. refuses anything that is not a Cortex scratch name', () => {
+    for (const name of [
+      'marqcortex_production',
+      'app_production',
+      'cortex',
+      '',
+      'Cortex_Workflow',
+      'cortex_workflow-readiness',
+      'cortex_workflow readiness',
+      `cortex_a${'b'.repeat(60)}`,
+    ]) {
+      assert.equal(classifyScratchDatabaseName(name).ok, false, `${JSON.stringify(name)} was accepted`);
+    }
+  });
+
+  it('49d. refuses input built to carry a statement', () => {
+    // The name is interpolated into CREATE DATABASE and DROP DATABASE. None of
+    // these reaches the quoting, because none of them reaches the pattern.
+    for (const name of [
+      'cortex_x"; DROP DATABASE postgres; --',
+      'cortex_x; DROP DATABASE postgres',
+      'postgres" WITH (FORCE); --',
+      'cortex_a,cortex_b',
+      'cortex_x\nDROP DATABASE postgres',
+      "cortex_x' OR '1'='1",
+    ]) {
+      assert.equal(classifyScratchDatabaseName(name).ok, false, `${JSON.stringify(name)} was accepted`);
+    }
   });
 });

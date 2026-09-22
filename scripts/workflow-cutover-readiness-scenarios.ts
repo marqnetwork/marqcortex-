@@ -25,6 +25,15 @@
  * `workflows/persistence/migration/localOnly.ts` so it is unit-tested rather
  * than merely written here.
  *
+ * The verdict is only half of it. `psql` is libpq, and libpq reads the
+ * environment it is given — so the child is spawned with a SANITIZED copy from
+ * which every connection selector the guard refuses to reason about has been
+ * removed. A verdict about this process's environment would mean nothing if the
+ * child then inherited a `PGHOSTADDR` nobody looked at.
+ *
+ * And the target is proven after the fact as well as before it: the first thing
+ * the rehearsal asks the database is where the connection came from.
+ *
  * ── IT CREATES AND DROPS ITS OWN SCRATCH DATABASE ─────────────────────────
  *
  * Nothing is written to the database named in the connection string, and the
@@ -68,17 +77,35 @@ import type {
   WorkflowTenantMappingEntry,
 } from '../supabase/functions/server/ai/workflows/persistence/migration/index.ts';
 import {
+  BP004_SCRATCH_DATABASE,
   SCHEMA_MARKER_FIELD,
+  STRIPPED_LOCATION_VARIABLES,
   WORKFLOW_SOURCE_SCHEMA,
   classifyDatabaseTarget,
+  classifyScratchDatabaseName,
   inventoryWorkflowSource,
+  localDatabaseEnvironment,
   resolveTenantMappings,
   runWorkflowCutoverPreflight,
   transformTenant,
 } from '../supabase/functions/server/ai/workflows/persistence/migration/index.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SCRATCH_DB = process.env.WORKFLOW_CUTOVER_SCENARIO_DB ?? 'cortex_workflow_cutover_readiness';
+/**
+ * FIXED, not configurable.
+ *
+ * This name is interpolated into `CREATE DATABASE` and `DROP DATABASE ... WITH
+ * (FORCE)`. When it came from the environment, a mistyped variable was a
+ * dropped database. It is validated anyway — the constant has to be safe, and a
+ * check that runs is worth more than a constant that looks right.
+ */
+const SCRATCH = classifyScratchDatabaseName(BP004_SCRATCH_DATABASE);
+if (!SCRATCH.ok) {
+  console.error(`✗ REFUSED: ${SCRATCH.problem}`);
+  process.exit(1);
+}
+const SCRATCH_DB = SCRATCH.name;
+const SCRATCH_SQL = SCRATCH.quoted;
 
 const HARNESS = join(ROOT, 'tests', 'database', 'harness');
 const MIGRATIONS = join(ROOT, 'supabase', 'migrations');
@@ -116,7 +143,23 @@ if (!target.ok) {
   console.error('  BP-004 is readiness only. It runs against a local PostgreSQL and nothing else.');
   process.exit(1);
 }
+
+/**
+ * What every `psql` child gets, and the only thing it gets.
+ *
+ * Built once, here, so there is no route by which a child is spawned with the
+ * raw environment — the raw one is not in scope below this line by convention,
+ * and `psql()` is the single place a child is created.
+ */
+const PSQL_ENV = localDatabaseEnvironment(process.env);
+const stripped = STRIPPED_LOCATION_VARIABLES.filter(
+  (name) => process.env[name] !== undefined && process.env[name] !== '',
+);
+
 console.log(`BP-004 cutover readiness — target: ${target.host} (${target.reason})`);
+console.log(
+  `  child environment sanitized: ${stripped.length === 0 ? 'nothing to strip' : `removed ${stripped.join(', ')}`}`,
+);
 
 // ── psql plumbing ───────────────────────────────────────────────────────────
 
@@ -126,10 +169,16 @@ function withDatabase(url: string, database: string): string {
   return parsed.toString();
 }
 
+/**
+ * Read from the SANITIZED environment, not the raw one.
+ *
+ * Below the guard there is exactly one source of connection facts. Reaching
+ * past it to `process.env` here would reintroduce the whole problem one line at
+ * a time.
+ */
 function connectionArgs(database?: string): readonly string[] {
-  if (process.env.DATABASE_URL) {
-    return ['-d', database ? withDatabase(process.env.DATABASE_URL, database) : process.env.DATABASE_URL];
-  }
+  const url = PSQL_ENV.DATABASE_URL;
+  if (url) return ['-d', database ? withDatabase(url, database) : url];
   return database ? ['-d', database] : [];
 }
 
@@ -137,12 +186,12 @@ function psql(args: readonly string[], options: { database?: string; input?: str
   return spawnSync(
     'psql',
     [...connectionArgs(options.database), '-v', 'ON_ERROR_STOP=1', '-X', '-q', ...args],
-    { encoding: 'utf8', input: options.input, env: process.env },
+    { encoding: 'utf8', input: options.input, env: PSQL_ENV },
   );
 }
 
 function dropScratch(): void {
-  psql(['-c', `DROP DATABASE IF EXISTS ${SCRATCH_DB} WITH (FORCE)`]);
+  psql(['-c', `DROP DATABASE IF EXISTS ${SCRATCH_SQL} WITH (FORCE)`]);
 }
 
 function fail(message: string): never {
@@ -503,7 +552,7 @@ function check(label: string, condition: boolean, detail = ''): void {
 function applyChain(database: string): void {
   console.log(`\nmigrations — scratch database "${database}"`);
   dropScratch();
-  const create = psql(['-c', `CREATE DATABASE ${database}`]);
+  const create = psql(['-c', `CREATE DATABASE ${SCRATCH_SQL}`]);
   if (create.status !== 0) fail(`could not create ${database}:\n${create.stderr}`);
   for (const [step, file] of CHAIN) {
     const run = psql(['-f', file], { database });
@@ -600,6 +649,17 @@ async function rehearse(database: string): Promise<void> {
   const runs = createSqlWorkflowRunStore(options);
   const checkpoints = createSqlWorkflowCheckpointStore(options);
   const approvals = createSqlWorkflowApprovalStore(options);
+
+  // WHERE DID THIS CONNECTION ACTUALLY COME FROM? The guard is a statement
+  // about the environment; this is a statement about the socket. They are
+  // different claims, and only the database can make the second one.
+  const origin = scalar(database, `SELECT coalesce(host(inet_client_addr()), 'unix-socket')`);
+  console.log('\nconnection origin, as the server sees it');
+  check(
+    `the server reports the client at ${origin}`,
+    origin === 'unix-socket' || origin === '127.0.0.1' || origin === '::1',
+    'a BP-004 rehearsal may only reach a local socket or a loopback address',
+  );
 
   console.log('\nsource inventory — read out of the real key-value table');
   const before = kvDigest(database);

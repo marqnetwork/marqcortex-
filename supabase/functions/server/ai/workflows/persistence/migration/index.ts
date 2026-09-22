@@ -58,5 +58,13 @@ export { compareFingerprints, fingerprintBundles } from './fingerprint.ts';
 export type { PreflightInput, PreflightResult, TransformedTenantPlan } from './readiness.ts';
 export { runWorkflowCutoverPreflight } from './readiness.ts';
 
-export type { LocalDatabaseVerdict } from './localOnly.ts';
-export { LOCAL_DATABASE_HOSTS, classifyDatabaseTarget } from './localOnly.ts';
+export type { LocalDatabaseVerdict, ScratchDatabaseVerdict } from './localOnly.ts';
+export {
+  BP004_SCRATCH_DATABASE,
+  LOCAL_DATABASE_HOSTS,
+  REFUSED_LOCATION_VARIABLES,
+  STRIPPED_LOCATION_VARIABLES,
+  classifyDatabaseTarget,
+  classifyScratchDatabaseName,
+  localDatabaseEnvironment,
+} from './localOnly.ts';
