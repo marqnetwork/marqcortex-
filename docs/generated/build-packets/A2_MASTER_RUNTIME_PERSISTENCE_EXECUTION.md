@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
 ACTIVE_PHASE: A2-P07
-LAST_COMPLETED_CHECKPOINT: A2-P07-C01
-LAST_VERIFIED_COMMIT: 863124bb (reorder authorization; C01 is audit-only, no code)
-NEXT_CHECKPOINT: A2-P07-C02
+LAST_COMPLETED_CHECKPOINT: A2-P07-C02
+LAST_VERIFIED_COMMIT: 7f537ca (C01 audit); C02 = this commit
+NEXT_CHECKPOINT: A2-P07-C03
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -63,6 +63,21 @@ COMPLETED_PHASES:
 - BP-004
 
 CHECKPOINT_EVIDENCE:
+- A2-P07-C02 AGENT RELATIONAL SCHEMA (additive, local only): migrations
+  20260922120000_cortex_agent_persistence.sql (agent_runs/agent_checkpoints/
+  agent_approvals; tenant in every PK; composite FKs; NULL-safe record
+  agreement incl. tenant; bounded JSONB 2MiB/512KiB/64KiB; own append-only
+  trigger fn cortex.refuse_agent_checkpoint_mutation; NO workflow chain rule —
+  agent previousDigest is latest-at-write, not version-1; approval lifecycle
+  from approvalGate.ts: expired => decided NOT NULL, consumed any; no FK into
+  workflow tables), 20260922120001_..._rls.sql (RLS enabled+FORCED, no policy,
+  anon/authenticated revoked, service_role only), rollback
+  20260922120000_rollback_agent_persistence.sql (no CASCADE; agent assets only).
+  Evidence: static_agent_persistence_migration.test.ts 19/19; 4 mutations
+  (NULL-unsafe compare, tightened expired rule, dropped state, borrowed
+  workflow trigger fn) each caught. Live PG16: chain applied twice
+  (idempotent), RLS t/t on 3 tables, rollback -> 0 agent tables, 3 workflow
+  tables + workflow trigger fn intact, re-apply OK.
 - A2-P07-C01 AGENT BASELINE AUDIT (2026-09-22, no code change):
   PORTS agents/persistence/ports.ts: AgentRunStore load/create/save/list;
     AgentCheckpointStore write/latest/read/history; AgentApprovalStore
