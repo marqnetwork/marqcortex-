@@ -23,30 +23,15 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: IN PROGRESS — AUTHORIZED LOCAL REORDER EXHAUSTED; WAITING ON GATE R PROJECT RESTORE
-ACTIVE_PHASE: A2-P08 (reordered local-only work complete through C02)
-LAST_COMPLETED_CHECKPOINT: A2-P08-C02
-LAST_VERIFIED_COMMIT: b9fa17aec2f15d4495a0c8c7a4e213dbfd219322
-NEXT_CHECKPOINT: A2-P05-C01 (hosted read-only access proof) — BLOCKED BY EXISTING CORTEX SUPABASE PROJECT STATUS INACTIVE.
-  After P05 completes: A2-P06-C01, then A2-P08-C03 onward. Nothing else in
-  A2 is executable without P05 evidence or the GATE W approval.
-REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
-BLOCKERS:
-- GATE_R_PROJECT_INACTIVE (2026-09-23): a connected Supabase management capability
-  can now identify the exact existing Cortex project:
-  project ref oqybniefkbppptfatoae, name "cortex", region ap-southeast-1.
-  The project reports status INACTIVE. A read-only SQL/table probe times out while
-  the project is inactive.
-  This supersedes the earlier assumption that no usable project identity/connector
-  existed in this environment. No hosted row was read and no hosted write occurred.
-  UNBLOCK: restore the EXISTING Cortex Supabase project, then resume P05 under the
-  already-open read-only inventory gate. Restoring the project changes hosted
-  infrastructure state and therefore requires explicit user approval before execution.
-  The safe local reorder is already exhausted: A2-P07 and A2-P08-C01/C02 are complete.
-  DO NOT start A2-P06, A2-P08-C03+, hosted migration, deployment, shadow write,
-  backfill or authority cutover until P05 is completed from real hosted evidence.
+MASTER_STATUS: IN PROGRESS — P05 HOSTED READ-ONLY EVIDENCE COMPLETE; LOCAL P06 UNBLOCKED
+ACTIVE_PHASE: A2-P06
+LAST_COMPLETED_CHECKPOINT: A2-P05-C05
+LAST_VERIFIED_COMMIT: e6e3086d12c7df27c030b08dd901974374867208
+NEXT_CHECKPOINT: A2-P06-C01
+REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
+BLOCKERS: NONE
 
-HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY — PROJECT IDENTIFIED BUT CURRENTLY INACTIVE
+HOSTED_READ_ONLY_GATE: COMPLETE FOR P05 AGAINST EXISTING CORTEX SUPABASE PROJECT oqybniefkbppptfatoae
 HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 DEPLOYMENT_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 PRODUCTION_WORKFLOW_AUTHORITY: KV
@@ -57,9 +42,53 @@ COMPLETED_PHASES:
 - A1
 - BP-003
 - BP-004
+- A2-P05 (hosted read-only workflow estate + strategy)
 - A2-P07 (agent SQL persistence foundation; local only; production still KV)
+- A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 
 CHECKPOINT_EVIDENCE:
+- A2-P05-C01..C05 HOSTED READ-ONLY ESTATE + STRATEGY (2026-09-23):
+  * User explicitly authorized RESTORE of the EXISTING Cortex Supabase project.
+    Project ref oqybniefkbppptfatoae ("cortex", ap-southeast-1) moved
+    INACTIVE -> COMING_UP/RESTORING -> ACTIVE_HEALTHY. No new project created.
+  * All estate SQL was SELECT-only inside BEGIN READ ONLY / COMMIT. No hosted
+    INSERT/UPDATE/DELETE/DDL/RPC mutation/backfill/deploy/cutover occurred.
+  * Hosted truth: organizations=1, organization_memberships=1, KV rows=73.
+    Canonical organization: 9c96dbbd-b389-4f8b-811f-1815c4f8a9e0,
+    slug=marq, status=active, not deleted.
+  * WORKFLOW ESTATE: 0 workflow_run, 0 workflow_checkpoint, 0 workflow_approval,
+    0 bytes of historical workflow-runtime payload. Therefore active runs=0,
+    terminal runs=0, pending approvals=0, chain defects=0, pointer mismatches=0,
+    recoverable one-ahead candidates=0. No historical workflow tenant mapping
+    is required because no workflow runtime rows exist.
+  * SUPPLEMENTAL AGENT ESTATE: 0 agent_run, 0 agent_checkpoint, 0 agent_approval,
+    0 bytes of historical agent-runtime payload. Existing agent audit KV rows are
+    separate non-authoritative evidence and are not agent runtime authority.
+  * Deployed Edge Function make-server-324f4fbe is ACTIVE, version 15. Its only
+    production business workflow definition is
+    business/diagnostic/workflow/readinessReviewWorkflow.ts. A scan of the
+    deployed function found ZERO workflow expression references to metadata
+    organizationId; the readiness workflow itself has none.
+  * Deployed runtime config still defaults AI_DEFAULT_ORGANIZATION_ID to
+    "marq-cortex", but AI_ALLOW_DEFAULT_ORGANIZATION defaults false. Historical
+    workflow data therefore needs no slug->UUID rewrite; before SQL authority,
+    the cutover must prove default fallback remains disabled OR set the default
+    to the canonical marq UUID so no future non-UUID workflow/agent row can be
+    created.
+  * Hosted migration history ends at 20260901120000_ai_customer_byok. Repo
+    migrations after that (self-hosted providers, tenancy composite/indexes,
+    organizational/strategic spine, A1 durable runtime, BP-003 workflow SQL,
+    P07 agent SQL) are NOT yet hosted. This is Gate W deployment evidence, not
+    authorization to apply them.
+  * P05 STRATEGY DECISION: choose A — SHORT MUTATION FREEZE + FINAL READ-ONLY
+    ZERO-ESTATE RECHECK + APPROVED MIGRATIONS/DEPLOY + SQL AUTHORITY. Because the
+    real workflow estate is empty, historical backfill, catch-up and shadow/dual
+    write add risk without preserving any existing workflow state. P06 must build
+    a fail-closed freeze/cutover controller and local rehearsal. Gate W must
+    re-run the zero-estate census immediately before mutation; if any workflow
+    runtime row appears, ABORT this zero-backfill strategy and re-enter strategy
+    selection rather than dropping the new row.
+  * No raw workflow/business payload was copied into Git or the cursor.
 - A2-P08-C02 AGENT TRANSFORMATION + FINGERPRINT: migration/transform.ts
   (verify first: blocking pointer, foreign tenant, or progress not hashing to
   its digest => REFUSED, never adjusted; rewrites ONLY run.context.
@@ -86,11 +115,13 @@ CHECKPOINT_EVIDENCE:
   typecheck:api ai/registry-free/server clean.
   OPEN SCOPE ITEMS FOR THE GATE W DOSSIER (found, not acted on):
   (1) the agent AUDIT store is a separate KV log (createKvAgentAuditStore)
-      outside the three agent ports — decide whether A2 migrates it or it stays
-      a non-authoritative log; (2) tool idempotency is memory-only (the durable
-      non-idempotent-tool guard is run.claimedToolKeys, which IS migrated);
-  (3) pre-existing approvalGate behaviour: consume() of a consumed, past-due
-      approval rewrites it to `expired` (SQL admits it for parity).
+      outside the three agent ports — it remains a non-authoritative audit log
+      for A2 unless a later audit-governance packet migrates it; A2 must not
+      silently treat it as agent runtime authority; (2) tool idempotency is
+      memory-only (the durable non-idempotent-tool guard is run.claimedToolKeys,
+      which IS migrated); (3) pre-existing approvalGate behaviour: consume() of
+      a consumed, past-due approval rewrites it to `expired` (SQL admits it for
+      parity).
 - A2-P08-C01 AGENT SOURCE INVENTORY + TENANT MAPPING (pure, in-memory, no
   repair): ai/agents/persistence/migration/{contracts,inventory,readiness}.ts.
   REUSED from BP-004: resolveTenantMappings + CanonicalOrganization + manifest
@@ -230,12 +261,9 @@ CHECKPOINT_EVIDENCE:
   WORKFLOW LINK: WorkflowRunRecord.childAgentRunIds + pendingNode.agentRunId
     reference agent runs by id (same org); agent context.parentRunId /
     workflowId. No cross-domain FK (agent and workflow cut over separately).
-- A2-P05-C01 (partial, 2026-09-22): branch claude/stoic-hypatia-o7ihgj @ 2d00ba6,
-  clean tree; BP-003 42a1b73, BP-004 aac5a3f, packet lineage 5556eef all
-  ancestors of HEAD; branch is main (388a4cc) + 51 A2 commits.
-  verify:bp004 328/328, verify:bp003 488/488. No code/bootstrap change needed
-  for inventory. Hosted access proof FAILED (see BLOCKERS). No hosted contact
-  beyond refused CONNECTs; no hosted read or write performed.
+- A2-P05-C01 INITIAL ATTEMPT (2026-09-22): local baseline passed but that
+  execution environment could not reach hosted Supabase. This was later
+  superseded by the connected Supabase read-only P05 evidence above.
 ```
 
 ### Cursor rule
