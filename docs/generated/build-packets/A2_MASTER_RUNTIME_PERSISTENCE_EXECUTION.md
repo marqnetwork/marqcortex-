@@ -23,36 +23,30 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: IN PROGRESS — AUTHORIZED LOCAL REORDER EXHAUSTED; WAITING ON GATE R (P05) ACCESS
-ACTIVE_PHASE: A2-P08 (reordered, local-only)
+MASTER_STATUS: IN PROGRESS — AUTHORIZED LOCAL REORDER EXHAUSTED; WAITING ON GATE R PROJECT RESTORE
+ACTIVE_PHASE: A2-P08 (reordered local-only work complete through C02)
 LAST_COMPLETED_CHECKPOINT: A2-P08-C02
-LAST_VERIFIED_COMMIT: b1d1a00 (P08-C01); P08-C02 = this commit
-NEXT_CHECKPOINT: A2-P05-C01 (hosted read-only access proof) — BLOCKED, see BLOCKERS.
+LAST_VERIFIED_COMMIT: b9fa17aec2f15d4495a0c8c7a4e213dbfd219322
+NEXT_CHECKPOINT: A2-P05-C01 (hosted read-only access proof) — BLOCKED BY EXISTING CORTEX SUPABASE PROJECT STATUS INACTIVE.
   After P05 completes: A2-P06-C01, then A2-P08-C03 onward. Nothing else in
   A2 is executable without P05 evidence or the GATE W approval.
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
-- GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
-  the existing Cortex Supabase (project ref oqybniefkbppptfatoae, from
-  supabase/config.toml) even read-only:
-  1. egress proxy refuses CONNECT to oqybniefkbppptfatoae.supabase.co:443 and
-     api.supabase.com:443 with 403 (organization network policy); not worked around;
-  2. db.oqybniefkbppptfatoae.supabase.co does not resolve; no pooler reachable;
-  3. no Supabase credential/DB URL present in the environment (names checked,
-     no values read); no Supabase CLI installed.
-  Same root cause as Checkpoint A / CP-1 / CP-2 records. No guessed data substituted.
-  UNBLOCK (any one): (a) environment network policy allowing *.supabase.co +
-  pooler host, plus a READ-ONLY Postgres role/URL for the Cortex project supplied
-  as an env secret; or (b) run P05-C01..C04 from an operator machine with that
-  access and supply the sanitized inventory output.
-  REORDER AUTHORIZED: while this blocker remains, execute A2-P07 completely.
-  After P07, A2-P08-C01 and A2-P08-C02 may also proceed because they are local-only
-  and do not require hosted workflow-estate evidence.
-  DO NOT start A2-P06, A2-P08-C03+, any hosted workflow strategy implementation,
-  hosted migration, deployment, shadow write, or cutover until P05 is unblocked
-  and its real-estate strategy evidence exists.
+- GATE_R_PROJECT_INACTIVE (2026-09-23): a connected Supabase management capability
+  can now identify the exact existing Cortex project:
+  project ref oqybniefkbppptfatoae, name "cortex", region ap-southeast-1.
+  The project reports status INACTIVE. A read-only SQL/table probe times out while
+  the project is inactive.
+  This supersedes the earlier assumption that no usable project identity/connector
+  existed in this environment. No hosted row was read and no hosted write occurred.
+  UNBLOCK: restore the EXISTING Cortex Supabase project, then resume P05 under the
+  already-open read-only inventory gate. Restoring the project changes hosted
+  infrastructure state and therefore requires explicit user approval before execution.
+  The safe local reorder is already exhausted: A2-P07 and A2-P08-C01/C02 are complete.
+  DO NOT start A2-P06, A2-P08-C03+, hosted migration, deployment, shadow write,
+  backfill or authority cutover until P05 is completed from real hosted evidence.
 
-HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY — BUT NOT REACHABLE FROM THIS ENVIRONMENT (see BLOCKERS)
+HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY — PROJECT IDENTIFIED BUT CURRENTLY INACTIVE
 HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 DEPLOYMENT_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 PRODUCTION_WORKFLOW_AUTHORITY: KV
