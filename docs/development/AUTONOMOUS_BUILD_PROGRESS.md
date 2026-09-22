@@ -280,9 +280,26 @@ Two cutover findings are intentionally preserved for the next packet:
 2. The engine writes a checkpoint before saving the run pointer. A source snapshot can therefore legitimately contain a checkpoint tip exactly one version ahead of the run pointer after a crash. BP-004 conservatively reports that as a pointer mismatch. A future hosted preflight/cutover packet must explicitly classify and prove whether the one-ahead, correctly chained case is recoverable rather than treating every mismatch as corruption.
 
 A2 remains in progress. The next bounded workflow packet is a **read-only hosted estate inventory / cutover-strategy preflight**, and it must not be run against any hosted environment without explicit user authorization naming the allowed read-only scope.
+
+#### A2 MASTER RUNTIME PERSISTENCE EXECUTION — READY
+
+Active temporary execution authority:
+`docs/generated/build-packets/A2_MASTER_RUNTIME_PERSISTENCE_EXECUTION.md`
+
+This single resumable packet now owns the remainder of A2 instead of spawning separate BP-005/BP-006/BP-007 instruction documents. It carries an execution cursor and checkpoint protocol so Claude can resume across session/token limits from repository state rather than chat memory.
+
+Planned remainder:
+1. hosted read-only workflow estate inventory and cutover-strategy decision;
+2. workflow transition/backfill/catch-up machinery and full local cutover/rollback rehearsal;
+3. agent SQL persistence foundation with live-local parity/concurrency/RLS proof;
+4. agent migration readiness and combined local workflow+agent rehearsal;
+5. HARD GATE before any hosted write/migration/deployment/cutover;
+6. after explicit later approval: hosted workflow migration/cutover, hosted agent migration/cutover, authority consolidation, regression and cleanup.
+
+Hosted read-only A2 inventory is limited to the existing Cortex Supabase and may not mutate or persist raw business payloads. Hosted writes, migrations, deployment and authority cutover remain blocked until the packet's later explicit user-approval gate.
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 CUTOVER READINESS — COMPLETE. A2 — IN PROGRESS. NEXT HOSTED READ-ONLY PREFLIGHT NOT STARTED.**
+**A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 — COMPLETE. A2 MASTER EXECUTION — READY. A2 — IN PROGRESS.**
 
 Locked rules remain:
 - same repository and same Supabase project;
