@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P08
-LAST_COMPLETED_CHECKPOINT: A2-P08-C03
-LAST_VERIFIED_COMMIT: 80e2917 (P06-C05); P08-C03 = this commit
-NEXT_CHECKPOINT: A2-P08-C04
+LAST_COMPLETED_CHECKPOINT: A2-P08-C04
+LAST_VERIFIED_COMMIT: 1e6cddd (P08-C03); P08-C04 = this commit
+NEXT_CHECKPOINT: A2-P08-C05
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -48,6 +48,35 @@ COMPLETED_PHASES:
 - A2-P06 (workflow transition machinery + local cutover rehearsal; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P08-C04 COMBINED LOCAL A2 REHEARSAL (dependency-safe corridor, real
+  engines, real PG16, real kv_store + kv_compare_and_swap_field, server
+  gateway allowlist, local-only guard): scripts/runtime-cutover-rehearsal.ts
+  scenarios D/E/F added to A/B/C (npm test:database:runtime-cutover, exit 0).
+  D walks COMBINED_CUTOVER_SEQUENCE state by state, composing every pair
+  (none refusing/pairUnsafe/downgraded): kv/kv zero -> kv_frozen/kv (workflow
+  start refused, agent still writable) -> kv_frozen/kv_frozen (standalone
+  agent refused; FINAL recheck ZERO_ESTATE only now; migrations; PRE GO
+  agent+workflow) -> kv_frozen/sql_frozen (agent authority moved first) ->
+  sql_frozen/sql_frozen (workflow moved; POST GO both) -> sql_frozen/sql
+  (agent live FIRST: standalone agent run completed in SQL; workflow start
+  still refused) -> sql/sql (workflow live LAST: parked on approval, decided
+  by a restarted runtime, driven to completion; every child agent run in SQL
+  agent authority and completed; 0 KV runtime rows on the whole corridor;
+  LIVE GO both).
+  E: standalone agent run completes AFTER the workflow freeze (snapshot then
+  ZERO) -> FINAL recheck after both freezes ABORTs (1 agent run, 3
+  checkpoints) — the first freeze snapshot is not the final estate.
+  F: reverse corridor sql_frozen/sql_frozen -> kv_frozen/sql_frozen ->
+  kv_frozen/kv_frozen -> kv_frozen/kv -> kv/kv, every pair composed and every
+  SQL->KV edge permitted by the controller; KV authority works again, SQL
+  empty. Partial window: after agent SQL writes, agent rollback
+  ROLLBACK_WINDOW_CLOSED; workflow can only step back to kv_frozen/sql_frozen
+  (both frozen) — kv_frozen/sql and kv/sql are off-corridor — the one exit is
+  forward to SQL. (SELF-REVIEW: first draft overstated the workflow's
+  rollback room; corrected and asserted.)
+  A2 end-state proven locally: workflow SQL authority, agent SQL authority,
+  A1 durable runtime untouched, tenant isolation green, restart/recovery
+  green, approvals green, no duplicate authority. typecheck:tests clean.
 - A2-P08-C03 AGENT TRANSITION STRATEGY + CROSS-DOMAIN PAIR INVARIANT:
   STRATEGY: agent estate is also 0 (P05) => same zero-estate shape (no
   backfill/shadow/catch-up), BUT agent adds a dependency: workflow nodes create

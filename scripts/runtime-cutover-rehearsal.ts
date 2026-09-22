@@ -25,6 +25,14 @@
  *   B  the empty-estate cutover of BOTH domains (workflow first, then agent),
  *      with every adversarial case the packet lists that applies to it
  *   C  rollback while the window is open; refused once it has closed
+ *   D  A2-P08-C04: the COMPLETE dependency-safe corridor, state by state —
+ *      workflow freezes first, agent authority moves first, agent unfreezes
+ *      first — ending in real workflow→agent execution on SQL
+ *   E  a standalone agent run that lands between the workflow freeze and the
+ *      agent freeze is caught by the FINAL recheck (the first freeze snapshot
+ *      is not the final estate)
+ *   F  the exact reverse corridor as a rollback, and the partial window once
+ *      the agent domain holds SQL rows
  *
  * Exit codes: 0 passed, 1 failed, 2 no local database.
  */
@@ -55,7 +63,12 @@ import {
 } from '../supabase/functions/server/ai/persistence/runtimeCutoverVerifier.ts';
 import { recordEnv } from '../supabase/functions/server/ai/runtime/env.ts';
 import { createSupabaseRuntimePersistenceGateway } from '../supabase/functions/server/runtimePersistenceSqlGateway.ts';
-import { AGENT_TOKEN } from '../supabase/functions/server/ai/__tests__/agentFixtures.ts';
+import { AGENT_ID, AGENT_TOKEN, buildTestAgentRuntime } from '../supabase/functions/server/ai/__tests__/agentFixtures.ts';
+import {
+  COMBINED_CUTOVER_SEQUENCE,
+  COMBINED_ROLLBACK_SEQUENCE,
+  runtimePersistencePairProblem,
+} from '../supabase/functions/server/ai/persistence/runtimeCutoverPlan.ts';
 import { PART5, buildPart5Runtime } from '../supabase/functions/server/ai/__tests__/workflowFixtures.ts';
 
 // ── Local only, before anything else ────────────────────────────────────────
@@ -507,6 +520,188 @@ async function scenarioRollback() {
   ok('schema rollback (agent, then workflow) removes the runtime tables only; KV byte-identical; PRE is NO_GO again');
 }
 
+// ── Scenario D — the complete dependency-safe corridor (A2-P08-C04) ─────────
+
+type Pair = { readonly workflow: RuntimePersistenceMode; readonly agent: RuntimePersistenceMode };
+
+function composePair(pair: Pair) {
+  if (runtimePersistencePairProblem(pair.workflow, pair.agent) !== undefined) fail(`rehearsal asked for an off-corridor pair ${pair.workflow}/${pair.agent}`);
+  const composed = compose(SCRATCH, pair);
+  for (const domain of ['workflow', 'agent'] as const) {
+    expect(!composed[domain].refusing && composed[domain].pairUnsafe !== true, `${domain} did not compose cleanly at ${pair.workflow}/${pair.agent}: ${composed[domain].problems.join('; ')}`);
+    expect(composed[domain].mode === pair[domain], `${domain} mode was changed at ${pair.workflow}/${pair.agent}`);
+  }
+  return composed;
+}
+
+/** A standalone agent run through the REAL agent runtime over a composed pair. */
+async function standaloneAgentRun(composed: ReturnType<typeof compose>, seed: string) {
+  const harness = buildTestAgentRuntime({ tenantId: ORG, idSeed: seed, ...composed.agent.stores! });
+  const meta = harness.meta(AGENT_TOKEN.consultant);
+  return harness.runtime.service.createRun(await harness.runtime.service.authorize(meta),
+    { agentId: AGENT_ID.primary, objective: 'A standalone agent run.', input: { topic: 'Standalone', script: 'model_then_complete' } }, meta);
+}
+
+async function scenarioCorridor() {
+  console.log('\nD — the complete dependency-safe corridor, state by state (A2-P08-C04)');
+  freshDatabase();
+  const states = COMBINED_CUTOVER_SEQUENCE;
+  const at = (index: number) => ({ workflow: states[index].workflow, agent: states[index].agent });
+  const workflowStart = (composed: ReturnType<typeof compose>, seed: string) => {
+    const r = runtimeOver(composed, seed);
+    return r.workflows.service.startRun({ ...r.meta(AGENT_TOKEN.consultant), workflowId: PART5.approval.workflowId, input: TOPIC });
+  };
+
+  // 0 kv/kv — production today, nothing written.
+  composePair(at(0));
+  expect(recheck(SCRATCH).verdict === 'ZERO_ESTATE', 'the corridor did not start from a zero estate');
+
+  // 1 kv_frozen/kv — the workflow freezes FIRST. Workflow mutation refused;
+  //   the agent domain is still writable (asserted by composition, not by a
+  //   write, so the estate stays zero for the main path — E proves the write).
+  expect(planTransition('workflow', 'kv', 'kv_frozen').allowed, 'workflow freeze refused');
+  const s1 = composePair(at(1));
+  await refuses(() => workflowStart(s1, 'd1'), 'workflow_persistence_failed', 'a workflow start after the workflow freeze');
+  expect(!s1.agent.frozen && s1.agent.authority === 'kv', 'the agent domain was frozen early');
+  ok('kv_frozen/kv: workflow frozen first; agent still writable on KV; nothing written');
+
+  // 2 kv_frozen/kv_frozen — the agent freezes. FINAL recheck only now.
+  expect(planTransition('agent', 'kv', 'kv_frozen').allowed, 'agent freeze refused');
+  const s2 = composePair(at(2));
+  await refuses(() => standaloneAgentRun(s2, 'd2'), 'persistence_failed', 'a standalone agent run after both freezes');
+  const finalRecheck = recheck(SCRATCH);
+  expect(finalRecheck.verdict === 'ZERO_ESTATE', `the FINAL recheck is ${finalRecheck.verdict}`);
+  applyFiles(SCRATCH, RUNTIME_MIGRATIONS);
+  for (const domain of ['agent', 'workflow'] as const) {
+    const pre = verifyCutover({ domain, stage: 'pre', mode: 'kv_frozen', tenantConfiguration: TENANT, ...observe(SCRATCH, domain) });
+    expect(pre.verdict === 'GO', `${domain} PRE is ${pre.verdict}`);
+  }
+  ok('kv_frozen/kv_frozen: both frozen; FINAL recheck ZERO_ESTATE only now; migrations applied; PRE GO both');
+
+  // 3 kv_frozen/sql_frozen — the AGENT authority moves first.
+  const o3 = observe(SCRATCH, 'agent');
+  expect(planTransition('agent', 'kv_frozen', 'sql_frozen', { kvEstate: o3.kvEstate, sqlEstate: o3.sqlEstate, sqlSchemaPresent: true, tenantConfiguration: TENANT }).allowed, 'agent switch refused');
+  const s3 = composePair(at(3));
+  const agentRead = await Promise.allSettled([s3.agent.stores!.runStore.list({ organizationId: ORG })]);
+  expect(s3.workflow.authority === 'kv' && s3.agent.authority === 'sql', 'authorities are wrong at kv_frozen/sql_frozen');
+  await refuses(() => standaloneAgentRun(s3, 'd3'), 'persistence_failed', 'an agent run while the agent is sql_frozen');
+  ok('kv_frozen/sql_frozen: agent authority moved to SQL while frozen; workflow still KV-frozen');
+
+  // 4 sql_frozen/sql_frozen — the workflow authority moves.
+  const o4 = observe(SCRATCH, 'workflow');
+  expect(planTransition('workflow', 'kv_frozen', 'sql_frozen', { kvEstate: o4.kvEstate, sqlEstate: o4.sqlEstate, sqlSchemaPresent: true, tenantConfiguration: TENANT }).allowed, 'workflow switch refused');
+  const s4 = composePair(at(4));
+  const workflowRead = await Promise.allSettled([s4.workflow.stores!.runStore.list({ organizationId: ORG })]);
+  for (const [domain, read] of [['agent', agentRead[0]], ['workflow', workflowRead[0]]] as const) {
+    const post = verifyCutover({ domain, stage: 'post', mode: 'sql_frozen', sqlReadSucceeded: read.status === 'fulfilled', ...observe(SCRATCH, domain) });
+    expect(post.verdict === 'GO', `${domain} POST is ${post.verdict}: ${JSON.stringify(post.checks.filter((c) => !c.ok))}`);
+  }
+  await refuses(() => workflowStart(s4, 'd4'), 'workflow_persistence_failed', 'a workflow start at sql_frozen/sql_frozen');
+  ok('sql_frozen/sql_frozen: workflow authority moved; POST GO for both domains');
+
+  // 5 sql_frozen/sql — the AGENT goes live first. A standalone agent run lands
+  //   in SQL; the workflow is still frozen, so no workflow can drive an agent
+  //   across authorities.
+  expect(planTransition('agent', 'sql_frozen', 'sql', { postCutoverVerified: true }).allowed, 'agent unfreeze refused');
+  const s5 = composePair(at(5));
+  const standalone = await standaloneAgentRun(s5, 'd5');
+  expect(standalone.state === 'completed', `the standalone agent run on SQL ended ${standalone.state}`);
+  expect(scalar(SCRATCH, `SELECT count(*) FROM public.agent_runs WHERE agent_run_id = ${dq(standalone.runId)}`) === '1', 'the standalone agent run is not in SQL');
+  await refuses(() => workflowStart(s5, 'd5w'), 'workflow_persistence_failed', 'a workflow start while only the agent is live');
+  ok('sql_frozen/sql: agent live on SQL first (a standalone run completed in SQL); workflow still frozen');
+
+  // 6 sql/sql — the workflow goes live LAST: real workflow→agent execution.
+  expect(planTransition('workflow', 'sql_frozen', 'sql', { postCutoverVerified: true }).allowed, 'workflow unfreeze refused');
+  const s6 = composePair(at(6));
+  const liveness: LivenessStep[] = [];
+  const first = runtimeOver(s6, 'd6');
+  let run = await first.workflows.service.startRun({ ...first.meta(AGENT_TOKEN.consultant), workflowId: PART5.approval.workflowId, input: TOPIC });
+  liveness.push({ step: 'workflow parked on an approval in SQL', ok: run.state === 'waiting_for_approval' });
+  const restarted = runtimeOver(compose(SCRATCH, at(6)), 'd7');
+  await restarted.workflows.service.decideApproval({ ...restarted.meta(AGENT_TOKEN.reviewer), workflowApprovalId: run.pendingApproval!.workflowApprovalId, decision: 'approve', reason: 'Approved on the corridor.' });
+  for (let i = 0; i < 8 && !['completed', 'failed', 'cancelled', 'expired', 'policy_denied'].includes(run.state); i += 1) {
+    run = await restarted.workflows.service.advanceRun({ ...restarted.meta(AGENT_TOKEN.consultant), workflowRunId: run.workflowRunId });
+  }
+  liveness.push({ step: 'a restarted runtime decided and drove the workflow to completion', ok: run.state === 'completed' });
+  const childRows = Number(scalar(SCRATCH, `SELECT count(*) FROM public.agent_runs WHERE agent_run_id IN (${run.childAgentRunIds.map(dq).join(', ') || "''"})`));
+  liveness.push({ step: 'every child agent run the workflow drove is in the SQL agent authority', ok: run.childAgentRunIds.length > 0 && childRows === run.childAgentRunIds.length });
+  const childCompleted = await Promise.all(run.childAgentRunIds.map(async (id) => (await s6.agent.stores!.runStore.load(ORG, id))?.state));
+  liveness.push({ step: 'every child agent run completed', ok: childCompleted.every((state) => state === 'completed') });
+  liveness.push({ step: 'no runtime row was written to KV anywhere on the corridor', ok: (() => { const kv = recheck(SCRATCH).kv; return [kv.workflow, kv.agent].every((d: Record<string, number>) => d.runs + d.checkpoints + d.approvals === 0); })() });
+  for (const domain of ['workflow', 'agent'] as const) {
+    const live = verifyCutover({ domain, stage: 'live', mode: 'sql', liveness });
+    expect(live.verdict === 'GO', `${domain} LIVE is NO_GO: ${JSON.stringify(liveness.filter((l) => !l.ok))}`);
+  }
+  ok(`sql/sql: workflow live LAST; real workflow→agent execution on SQL; LIVE GO both (${run.childAgentRunIds.length} child agent runs)`,
+    liveness.map((l) => l.step).join('\n          '));
+}
+
+// ── Scenario E — the first freeze snapshot is not the final estate ──────────
+
+async function scenarioLateAgentWrite() {
+  console.log('\nE — an agent run between the two freezes is caught by the FINAL recheck');
+  freshDatabase();
+  const s1 = composePair({ workflow: 'kv_frozen', agent: 'kv' });
+  const early = recheck(SCRATCH);
+  expect(early.verdict === 'ZERO_ESTATE', 'the estate was not zero at the workflow freeze');
+  const late = await standaloneAgentRun(s1, 'e1');
+  expect(late.state === 'completed', `the in-window agent run ended ${late.state}`);
+  composePair({ workflow: 'kv_frozen', agent: 'kv_frozen' });
+  applyFiles(SCRATCH, RUNTIME_MIGRATIONS);
+  const final = recheck(SCRATCH);
+  const o = observe(SCRATCH, 'agent');
+  const plan = planTransition('agent', 'kv_frozen', 'sql_frozen', { kvEstate: o.kvEstate, sqlEstate: o.sqlEstate, sqlSchemaPresent: true, tenantConfiguration: TENANT });
+  expect(final.verdict === 'ABORT_ZERO_BACKFILL_STRATEGY' && !plan.allowed && plan.code === 'ABORT_ZERO_BACKFILL_STRATEGY', 'a late agent write was not caught by the final recheck');
+  ok('a standalone agent run completed after the workflow froze; the snapshot then was ZERO, the FINAL recheck ABORTs',
+    `agent KV ${o.kvEstate?.runs} run(s), ${o.kvEstate?.checkpoints} checkpoint(s): the strategy re-enters selection; nothing is dropped`);
+}
+
+// ── Scenario F — the reverse corridor as a rollback ─────────────────────────
+
+async function scenarioReverseCorridor() {
+  console.log('\nF — rollback along the exact reverse corridor');
+  freshDatabase();
+  applyFiles(SCRATCH, RUNTIME_MIGRATIONS);
+  // Walk forward to sql_frozen/sql_frozen with nothing written.
+  for (const pair of COMBINED_CUTOVER_SEQUENCE.slice(0, 5)) composePair(pair);
+  // Roll back from there: every pair composed, every SQL->KV edge judged by the controller.
+  const back = COMBINED_ROLLBACK_SEQUENCE.slice(2); // sql_frozen/sql_frozen … kv/kv
+  for (const [index, pair] of back.entries()) {
+    composePair(pair);
+    if (index === 0) continue;
+    const previous = back[index - 1];
+    for (const domain of ['workflow', 'agent'] as const) {
+      if (previous[domain] === pair[domain]) continue;
+      const verdict = planTransition(domain, previous[domain], pair[domain], { sqlEstate: observe(SCRATCH, domain).sqlEstate });
+      expect(verdict.allowed, `rollback ${domain} ${previous[domain]} -> ${pair[domain]} refused: ${JSON.stringify(verdict)}`);
+    }
+  }
+  const restored = runtimeOver(compose(SCRATCH, {}), 'f1');
+  const run = await restored.workflows.service.startRun({ ...restored.meta(AGENT_TOKEN.consultant), workflowId: PART5.approval.workflowId, input: TOPIC });
+  expect(run.state === 'waiting_for_approval' && scalar(SCRATCH, 'SELECT count(*) FROM public.workflow_runs') === '0', 'KV authority did not resume cleanly after the rollback');
+  ok('sql_frozen/sql_frozen → kv_frozen/sql_frozen → kv_frozen/kv_frozen → kv_frozen/kv → kv/kv, each edge permitted; KV works again');
+
+  // The partial window: once the agent is live and has written, the AGENT can
+  // no longer go back — the workflow still can.
+  freshDatabase();
+  applyFiles(SCRATCH, RUNTIME_MIGRATIONS);
+  const live = composePair({ workflow: 'sql_frozen', agent: 'sql' });
+  await standaloneAgentRun(live, 'f2');
+  const agentBack = planTransition('agent', 'sql_frozen', 'kv_frozen', { sqlEstate: observe(SCRATCH, 'agent').sqlEstate });
+  const workflowBack = planTransition('workflow', 'sql_frozen', 'kv_frozen', { sqlEstate: observe(SCRATCH, 'workflow').sqlEstate });
+  expect(!agentBack.allowed && agentBack.code === 'ROLLBACK_WINDOW_CLOSED', 'the agent rolled back over its own SQL rows');
+  expect(workflowBack.allowed, 'the workflow could not roll back though its SQL estate is zero');
+  // …and the PAIR corridor says where that leaves the system. The workflow may
+  // only return once the agent is refrozen, which lands on kv_frozen/sql_frozen:
+  // BOTH frozen, the agent unable to go further back. kv_frozen/sql (workflow on
+  // KV beside a writing SQL agent) is off the corridor. The only exit is forward.
+  expect(runtimePersistencePairProblem('kv_frozen', 'sql') !== undefined, 'kv_frozen/sql was allowed');
+  expect(runtimePersistencePairProblem('kv', 'sql') !== undefined, 'kv/sql was allowed');
+  const parked = composePair({ workflow: 'kv_frozen', agent: 'sql_frozen' });
+  expect(parked.workflow.frozen && parked.agent.frozen, 'the post-rollback state is writable');
+  ok('after agent SQL writes: agent rollback is ROLLBACK_WINDOW_CLOSED; the workflow can only step back to kv_frozen/sql_frozen (both frozen) — the one exit is forward to SQL');
+}
+
 // ── Run ─────────────────────────────────────────────────────────────────────
 
 const probe = psql(['-c', 'SELECT 1']);
@@ -518,5 +713,8 @@ console.log(`A2 cutover rehearsal — target: ${target.host} (${target.reason})`
 await scenarioAbort();
 await scenarioCutover();
 await scenarioRollback();
+await scenarioCorridor();
+await scenarioLateAgentWrite();
+await scenarioReverseCorridor();
 psql(['-c', `DROP DATABASE IF EXISTS ${SCRATCH} WITH (FORCE)`]);
-console.log('\n✓ the A2 local cutover rehearsal passed: abort, freeze, recheck, migrate, switch, verify, live, outage, rollback');
+console.log('\n✓ the A2 local cutover rehearsal passed: abort, freeze, recheck, migrate, switch, verify, live, outage, rollback, corridor, late write, reverse corridor');
