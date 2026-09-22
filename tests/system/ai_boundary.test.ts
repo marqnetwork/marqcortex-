@@ -2364,8 +2364,18 @@ describe('workflow cutover readiness boundary (BP-004)', () => {
     // The bootstrap is the assembly, but a preflight reached from a node driver
     // or a read model would be just as much a live dependency. Nothing outside
     // the folder may name it.
+    // ONE EXEMPTION, and it is another preflight rather than a consumer:
+    // A2-P08's agent migration readiness reuses BP-004's tenant resolver so a
+    // workflow run and the agent run it spawned cannot resolve to different
+    // organizations. That folder is held to the same absences below, in
+    // 'agent migration readiness boundary (A2-P08)'.
+    const AGENT_MIGRATION_DIR =
+      join(SERVER_ROOT, 'ai', 'agents', 'persistence', 'migration') + sep;
     const consumers = serverSources.filter(
-      (file) => !file.path.startsWith(MIGRATION_DIR) && !isTest(file),
+      (file) =>
+        !file.path.startsWith(MIGRATION_DIR) &&
+        !file.path.startsWith(AGENT_MIGRATION_DIR) &&
+        !isTest(file),
     );
     assert.deepEqual(
       strippedOffenders(consumers, /from\s+['"][^'"]*persistence\/migration\//),
@@ -2458,6 +2468,80 @@ describe('workflow cutover readiness boundary (BP-004)', () => {
       strippedOffenders(migrationSources, /\b(agentRun|agent_run|AgentCheckpoint|agentRunId|agents\/runtime\/(?!digest))/),
       [],
       'the workflow preflight has begun reaching into agent persistence',
+    );
+  });
+});
+
+/**
+ * A2-P08 — the agent migration readiness tree, held to BP-004's absences.
+ *
+ * Inventory and tenant mapping only. It reads a snapshot a caller supplies,
+ * classifies it, and says whether a LATER, separately approved backfill could
+ * be written. It must not be reachable from anything that runs, and must not be
+ * able to write, connect or say "cut over".
+ */
+describe('agent migration readiness boundary (A2-P08)', () => {
+  const AGENT_MIGRATION_DIR =
+    join(SERVER_ROOT, 'ai', 'agents', 'persistence', 'migration') + sep;
+  const agentMigration = serverSources.filter(
+    (file) => file.path.startsWith(AGENT_MIGRATION_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty readiness tree', () => {
+    assert.ok(agentMigration.length >= 3, `expected the agent readiness tree, found ${agentMigration.length}`);
+  });
+
+  it('is unreachable from the production assembly and from every non-test module', () => {
+    const consumers = serverSources.filter((file) => !file.path.startsWith(AGENT_MIGRATION_DIR) && !isTest(file));
+    assert.deepEqual(
+      strippedOffenders(consumers, /from\s+['"][^'"]*agents\/persistence\/migration\/|from\s+['"]\.\/migration\//),
+      [],
+      'a production module imports the agent migration readiness tree',
+    );
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap);
+    assert.doesNotMatch(bootstrap.text, /inventoryAgentSource|runAgentMigrationPreflight|transformAgentTenant/);
+  });
+
+  it('holds no database client, environment, clock, randomness, transport or SQL', () => {
+    const IMPURE =
+      /(createClient|createServiceClient|Deno\.env|process\.env|fetch\s*\(|Math\.random|Date\.now|new Date\s*\(|supabase)/i;
+    assert.deepEqual(strippedOffenders(agentMigration, IMPURE), []);
+    assert.deepEqual(
+      strippedOffenders(agentMigration, /\b(INSERT INTO|UPDATE\s+public\.|DELETE FROM|psql|pg_|rpc\s*\()/),
+      [],
+    );
+    assert.deepEqual(strippedOffenders(agentMigration, /supabase\.co|supabase\.com|https?:\/\//), []);
+  });
+
+  it('offers no way to write, delete or repair a source row, and reaches no store writer', () => {
+    const WRITER =
+      /\b(write|save|delete|remove|update|repair|fix|upsert|put|set)[A-Z]?[a-zA-Z]*\s*\([^)]*\bAgentSourceRow\b/;
+    assert.deepEqual(strippedOffenders(agentMigration, WRITER), []);
+    assert.deepEqual(
+      strippedOffenders(agentMigration, /\b(compareAndSwap|readByPrefix|createKvAgent|createSqlAgent|AgentSqlGateway)/),
+      [],
+      'the agent readiness tree reaches a store',
+    );
+    const contracts = agentMigration.find((file) => file.path.endsWith('contracts.ts'));
+    assert.ok(contracts);
+    const shape = /export interface AgentSourceRow \{([\s\S]*?)\}/.exec(contracts.text);
+    assert.ok(shape);
+    const fields = shape[1].split('\n').map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('*') && !line.startsWith('/'));
+    assert.deepEqual(fields, ['readonly key: string;', 'readonly value: unknown;']);
+  });
+
+  it('cannot say that production authority may move, and names no shadow or dual writer', () => {
+    const contracts = agentMigration.find((file) => file.path.endsWith('contracts.ts'));
+    assert.ok(contracts);
+    assert.match(contracts.text, /'GO_FOR_LATER_BACKFILL_PACKET' \| 'NO_GO'/);
+    assert.deepEqual(
+      strippedOffenders(
+        agentMigration,
+        /\b(GO_FOR_CUTOVER|CUTOVER_[A-Z_]+|[A-Z][A-Z_]*_CUTOVER|SHADOW_?WRITE|DUAL_?WRITE|shadowWrite|dualWrite)\b/,
+      ),
+      [],
     );
   });
 });

@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
 ACTIVE_PHASE: A2-P08 (reordered, local-only)
-LAST_COMPLETED_CHECKPOINT: A2-P07-C05 (A2-P07 COMPLETE)
-LAST_VERIFIED_COMMIT: 02b5a29 (C04); C05 = this commit
-NEXT_CHECKPOINT: A2-P08-C01
+LAST_COMPLETED_CHECKPOINT: A2-P08-C01
+LAST_VERIFIED_COMMIT: 55205e4 (P07-C05); P08-C01 = this commit
+NEXT_CHECKPOINT: A2-P08-C02
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -64,6 +64,32 @@ COMPLETED_PHASES:
 - A2-P07 (agent SQL persistence foundation; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P08-C01 AGENT SOURCE INVENTORY + TENANT MAPPING (pure, in-memory, no
+  repair): ai/agents/persistence/migration/{contracts,inventory,readiness}.ts.
+  REUSED from BP-004: resolveTenantMappings + CanonicalOrganization + manifest
+  entry shape + GO_FOR_LATER_BACKFILL_PACKET|NO_GO vocabulary (one resolver so
+  a workflow run and its child agent run cannot resolve differently).
+  AGENT-SPECIFIC: key grammar/coercion/structural checks mirrored from
+  kvAgentStores (pinned by test); row classes incl. progress_digest_mismatch
+  (blocking: stored progress must hash to its progressDigest — the one
+  integrity fact an agent checkpoint proves); pointer classes EMPTY_CHAIN |
+  EXACT_TIP_MATCH | RECOVERABLE_ONE_AHEAD_CANDIDATE (tip = pointer+1 and links
+  to the named checkpoint; NON-blocking: faithful copy reproduces the exact
+  KV state, never repaired) | ACTUAL_POINTER_MISMATCH | POINTER_WITHOUT_CHAIN
+  (blocking); chain linkage CONTIGUOUS_LINKED|IRREGULAR = evidence only (agent
+  contract never promised a chain); dangling pendingApprovalId = evidence;
+  census: terminal/active/byState, waitingForApproval, pendingAction,
+  workflowLinked, childRuns, claimedToolKeys. Manifest reports tenantChanges
+  and constant integrityRewriteRequired=false; carries no business content.
+  Boundary: BP-004 test 39b exempts ONLY the agent migration folder; new block
+  'agent migration readiness boundary (A2-P08)' (unreachable from any non-
+  test module/bootstrap; no client/env/clock/random/SQL/host; no writer or
+  store reach; no cutover/shadow/dual vocabulary) — 2 mutations caught.
+  Evidence: agentMigrationReadiness 23/23 (estate written by the REAL runtime
+  into KV rows; planted defects each classified; secret business marker absent
+  from manifest; snapshot unmodified); verify:a2-agent 336/336; verify:bp004
+  334/334; scan:boundaries 138/138; typecheck:tests clean; typecheck:api ai/
+  registry-free/server clean.
 - A2-P07-C05 LIVE LOCAL PG CONCURRENCY/RLS/ROLLBACK + REAL RUNTIME OVER SQL:
   test:database:agent-persistence exit 0 (117 ok lines): two-session races
   (create, save, stale-late, checkpoint dup + UPDATE refused, approval
