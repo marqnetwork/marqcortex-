@@ -823,15 +823,42 @@ A1 is implemented and accepted through `de62e09bfc09e0d2387e1834febc2a3b330e133d
 
 Implemented, corrected and accepted through `42a1b73bea4d12e9156333bb07a9635ecb144bed`. The temporary BP-003 packet is removed after this acceptance record. Implementation truth now lives in code, migrations, live PostgreSQL tests, Git history and the active progress authority.
 
-### BP-004 — Workflow Cutover Readiness & Migration Preflight — READY
+### BP-004 — Workflow Cutover Readiness & Migration Preflight — COMPLETE
 
-The packet is at `docs/generated/build-packets/BP-004_WORKFLOW_CUTOVER_READINESS_MIGRATION_PREFLIGHT.md`.
+Implemented, hardened and accepted through `aac5a3fa03646c2efde05ca73437a9c553eb27f8`.
 
-BP-004 does not move production authority. It inventories and classifies workflow KV source data, validates explicit tenant mappings to canonical organization UUIDs, proves deterministic checkpoint re-chaining where a tenant identifier changes, simulates a backfill only against local PostgreSQL, and produces GO/NO-GO evidence plus the recommended next migration packet.
+The accepted readiness layer now:
+- inventories workflow KV data without mutation;
+- requires explicit mapping for any noncanonical tenant identifier;
+- proves deterministic checkpoint re-chaining when organization identity changes;
+- compares source/target domain facts with exact or migration-semantic fingerprints;
+- rehearses the backfill only against local PostgreSQL;
+- fails closed on corrupt chains, unresolved mappings, tenant collisions, or semantic drift;
+- keeps production bootstrap on KV and structurally isolates migration/preflight code from runtime assembly;
+- hardens local-only database execution against libpq redirectors, service configuration and multi-host targets.
 
-A central migration fact is now explicit: workflow checkpoint digests include `organizationId`. Therefore a legacy slug→UUID tenant translation cannot be implemented as a simple foreign-key rewrite; every checkpoint in that run must be re-chained and the run's `checkpointDigest` pointer must move to the transformed tip. BP-004 proves that transformation locally or blocks the tenant.
+Two findings constrain every later workflow cutover:
+1. `organizationId` is available to workflow condition expressions, so registered definitions must be scanned for organization-sensitive branching before a remapped tenant moves.
+2. Checkpoint append precedes run-pointer save. A tip exactly one version ahead of the run pointer may represent the engine's legitimate crash window; hosted preflight must distinguish a correctly chained recoverable one-ahead state from actual pointer corruption.
 
-Hosted DB access, hosted backfill, shadow writes, bootstrap cutover and agent persistence remain out of scope.
+BP-004 performed no hosted inventory, no hosted backfill, no shadow/dual write, no deployment and no authority cutover.
+
+The temporary BP-004 packet is removed after this acceptance record.
+
+### Next A2 workflow packet — Hosted Read-Only Estate Inventory & Cutover Strategy — NOT STARTED
+
+The next packet should be strictly read-only against any hosted environment. Its purpose is to measure the actual workflow estate before choosing a cutover mechanism:
+- per-tenant KV workflow counts and tenant-identifier census;
+- mapping candidates requiring explicit operator evidence;
+- active/terminal workflow census;
+- pending approvals and mutation exposure;
+- checkpoint-chain health;
+- exact pointer mismatch rate, with explicit detection of the legitimate one-ahead crash-window shape;
+- registered workflow definitions that reference `organizationId`;
+- data-size/backfill-duration evidence;
+- recommendation between shadow/catch-up, drain/freeze, or another bounded cutover mechanism.
+
+**Hosted access requires explicit user authorization before that packet is executed.** The readiness packet itself must not write, deploy, backfill, shadow-write, change bootstrap authority or migrate agent persistence.
 
 ## 18. Build-Packet Rule Going Forward
 
