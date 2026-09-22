@@ -297,6 +297,19 @@ Planned remainder:
 6. after explicit later approval: hosted workflow migration/cutover, hosted agent migration/cutover, authority consolidation, regression and cleanup.
 
 Hosted read-only A2 inventory is limited to the existing Cortex Supabase and may not mutate or persist raw business payloads. Hosted writes, migrations, deployment and authority cutover remain blocked until the packet's later explicit user-approval gate.
+
+Status 2026-09-22 (the packet's EXECUTION CURSOR is the detailed record):
+- A2-P05 hosted read-only inventory is BLOCKED — this execution environment
+  cannot reach the Cortex Supabase (egress 403, no credential). No hosted
+  system was read or written.
+- Under the user's safe local reorder: A2-P07 (agent SQL persistence
+  foundation — schema, forced RLS, twelve atomic functions, SQL stores behind
+  the existing ports, one memory/KV/live-PostgreSQL parity contract, the real
+  agent runtime proven over SQL) and A2-P08-C01/C02 (agent source inventory,
+  BP-004 tenant resolution reused, tenant transformation and fingerprints,
+  local translated-estate rehearsal) are COMPLETE, locally.
+- Production agent and workflow authority are both still KV. Nothing was
+  deployed, migrated, shadowed or cut over. A2 remains IN PROGRESS.
 ## CURRENT BATCH
 
 **A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 — COMPLETE. A2 MASTER EXECUTION — READY. A2 — IN PROGRESS.**

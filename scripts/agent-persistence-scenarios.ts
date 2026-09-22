@@ -17,7 +17,14 @@
  *   4. THE REAL AGENT RUNTIME over the SQL stores: a run to completion, a
  *      process restart, an approval parked in one runtime and decided in
  *      another, and a second tenant that sees none of it
- *   5. idempotency, rollback, rollback again, re-apply (harness 413)
+ *   5. A2-P08-C02: an estate the runtime wrote into KV, translated from a slug
+ *      tenant under an explicit mapping, loaded through the SQL stores, read
+ *      back fingerprint-identical and readable by the runtime — LOCAL ONLY
+ *   6. idempotency, rollback, rollback again, re-apply (harness 413)
+ *
+ * LOCAL ONLY, ENFORCED. BP-004's `classifyDatabaseTarget` runs before anything
+ * else and every child `psql` gets `localDatabaseEnvironment`, because this
+ * script now loads translated agent state into whatever it connects to.
  *
  * Usage:
  *   node --experimental-strip-types scripts/agent-persistence-scenarios.ts
@@ -46,13 +53,38 @@ import {
   AGENT_ID,
   AGENT_TOKEN,
   buildTestAgentRuntime,
+  createFakeKv,
 } from '../supabase/functions/server/ai/__tests__/agentFixtures.ts';
+import {
+  createKvAgentApprovalStore,
+  createKvAgentCheckpointStore,
+  createKvAgentRunStore,
+} from '../supabase/functions/server/ai/agents/persistence/kvAgentStores.ts';
+import { runAgentMigrationPreflight } from '../supabase/functions/server/ai/agents/persistence/migration/readiness.ts';
+import {
+  transformAgentTenant,
+  type TransformedAgentBundle,
+} from '../supabase/functions/server/ai/agents/persistence/migration/transform.ts';
+import { compareAgentFingerprints } from '../supabase/functions/server/ai/agents/persistence/migration/fingerprint.ts';
+import type { CanonicalOrganization } from '../supabase/functions/server/ai/workflows/persistence/migration/contracts.ts';
+import {
+  classifyDatabaseTarget,
+  localDatabaseEnvironment,
+} from '../supabase/functions/server/ai/workflows/persistence/migration/localOnly.ts';
 import {
   AGENT_ALPHA,
   AGENT_BETA,
   AGENT_PERSISTENCE_CASES,
   type AgentPersistenceHarness,
 } from '../supabase/functions/server/ai/__tests__/agentPersistenceContract.ts';
+
+const target = classifyDatabaseTarget(process.env);
+if (!target.ok) {
+  console.error(`✗ REFUSED: ${target.problem}`);
+  console.error('  The agent persistence scenarios run against a local PostgreSQL and nothing else.');
+  process.exit(1);
+}
+const PSQL_ENV = localDatabaseEnvironment(process.env);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRATCH_DB = process.env.AGENT_SCENARIO_DB ?? 'cortex_agent_persistence';
@@ -134,7 +166,7 @@ function psql(args: readonly string[], options: { database?: string; input?: str
   return spawnSync(
     'psql',
     [...connectionArgs(options.database), '-v', 'ON_ERROR_STOP=1', '-X', '-q', ...args],
-    { encoding: 'utf8', input: options.input, env: process.env },
+    { encoding: 'utf8', input: options.input, env: PSQL_ENV },
   );
 }
 
@@ -326,7 +358,7 @@ function openSession(database: string) {
   const child = spawn(
     'psql',
     [...connectionArgs(database), '-v', 'ON_ERROR_STOP=1', '-X', '-q', '-A', '-t'],
-    { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] },
+    { env: PSQL_ENV, stdio: ['pipe', 'pipe', 'pipe'] },
   );
   let out = '';
   child.stdout.on('data', (chunk) => {
@@ -358,7 +390,7 @@ function race(database: string, sql: string): Promise<string> {
     const child = spawn(
       'psql',
       [...connectionArgs(database), '-v', 'ON_ERROR_STOP=1', '-X', '-q', '-A', '-t', '-c', sql],
-      { env: process.env },
+      { env: PSQL_ENV },
     );
     let out = '';
     child.stdout.on('data', (chunk) => {
@@ -673,12 +705,147 @@ async function runtimeOverSql(database: string) {
   console.log('  ✓ another tenant reads no run and no approval through the runtime');
 }
 
+// ── A2-P08-C02: a translated estate, accepted by the SQL authority ──────────
+
+/**
+ * LOCAL ONLY. An estate the real runtime wrote into the key-value agent stores
+ * under the slug tenant `acme` is inventoried, translated under an EXPLICIT
+ * mapping to a canonical organization, loaded through the SQL agent stores,
+ * and read back. The claims:
+ *
+ *   the relational constraints accept every translated record;
+ *   the read-back is EXACTLY the translated set (exact fingerprint);
+ *   the read-back is migration-semantically the source (only tenant moved);
+ *   a second load changes nothing — create is insert-if-absent, so an older
+ *     copy can never overwrite what is already there;
+ *   the real runtime, over SQL, reads the translated runs;
+ *   the source rows are byte-for-byte unchanged.
+ *
+ * This is transformation evidence, not a backfill mechanism: there is no
+ * catch-up, no shadowing and no authority change anywhere in it.
+ */
+async function translatedEstateOverSql(database: string) {
+  console.log('\nagent persistence: A2-P08-C02 — a translated estate, accepted by SQL (local only)');
+  await sqlHarness(database).reset();
+  seedTenants(database);
+
+  // The source: the real runtime, the real key-value stores, the slug tenant.
+  const kv = createFakeKv();
+  const kvOptions = { read: kv.read, readByPrefix: kv.readByPrefix, compareAndSwap: kv.compareAndSwap };
+  const source = buildTestAgentRuntime({
+    runStore: createKvAgentRunStore(kvOptions),
+    checkpointStore: createKvAgentCheckpointStore(kvOptions),
+    approvalStore: createKvAgentApprovalStore(kvOptions),
+  });
+  const meta = source.meta(AGENT_TOKEN.consultant);
+  const actor = await source.runtime.service.authorize(meta);
+  for (const script of ['model_then_complete', 'approved_tool_then_complete', 'handoff_then_complete']) {
+    await source.runtime.service.createRun(
+      actor,
+      { agentId: AGENT_ID.primary, objective: `Translate ${script}.`, input: { topic: 'Translation', script } },
+      meta,
+    );
+  }
+  const rows = await Promise.all(kv.keys().map(async (key) => ({ key, value: await kv.read(key) })));
+  const before = JSON.stringify(rows);
+
+  // The catalog, READ from the scratch database rather than invented.
+  const catalogRows = scalar(
+    database,
+    `SELECT coalesce(json_agg(json_build_object('id', id, 'slug', slug, 'status', status,
+       'deleted', deleted_at IS NOT NULL)), '[]') FROM public.organizations`,
+  );
+  const catalog = JSON.parse(catalogRows) as CanonicalOrganization[];
+  const preflight = runAgentMigrationPreflight({
+    rows,
+    catalog,
+    mappings: [{ sourceTenantId: 'acme', targetOrganizationId: AGENT_ALPHA, expectedTargetSlug: 'alpha', reason: 'local rehearsal' }],
+    generatedAt: '2026-09-22T00:00:00.000Z',
+  });
+  const [tenantInventory] = preflight.inventory.tenants;
+  const [readiness] = preflight.manifest.tenants;
+  if (preflight.manifest.verdict !== 'GO_FOR_LATER_BACKFILL_PACKET' || readiness.tenantClassification !== 'EXPLICIT_MAPPING_RESOLVED') {
+    fail(`the rehearsal estate was not cleared: ${JSON.stringify(readiness.blockers)}`);
+  }
+  const translated = transformAgentTenant(tenantInventory, readiness);
+  if (!translated.ok) fail(`the translation was refused: ${translated.problems.join('; ')}`);
+
+  // Load through the SQL stores — the constraints are the judge.
+  const load = async () => {
+    const stores = createSqlAgentStores({ gateway: psqlGateway(database) });
+    let refused = 0;
+    for (const bundle of translated.bundles) {
+      try { await stores.runStore.create(bundle.run); } catch { refused += 1; }
+      for (const checkpoint of bundle.checkpoints) {
+        try { await stores.checkpointStore.write(checkpoint); } catch { refused += 1; }
+      }
+      for (const approval of bundle.approvals) {
+        try { await stores.approvalStore.create(approval); } catch { refused += 1; }
+      }
+    }
+    return refused;
+  };
+  const firstRefusals = await load();
+  if (firstRefusals !== 0) fail(`the SQL authority refused ${firstRefusals} translated record(s)`);
+  const recordCount = translated.bundles.reduce((n, b) => n + 1 + b.checkpoints.length + b.approvals.length, 0);
+  console.log(`  ✓ every translated record accepted by the relational constraints (${recordCount} records)`);
+
+  // Read back through the same stores.
+  const stores = createSqlAgentStores({ gateway: psqlGateway(database) });
+  const readBack: TransformedAgentBundle[] = [];
+  for (const bundle of translated.bundles) {
+    const runId = bundle.run.context.runId;
+    const run = await stores.runStore.load(AGENT_ALPHA, runId);
+    if (!run) fail(`translated run ${runId} did not read back`);
+    readBack.push({
+      run,
+      checkpoints: await stores.checkpointStore.history(AGENT_ALPHA, runId),
+      approvals: await stores.approvalStore.list({ organizationId: AGENT_ALPHA, runId, limit: 200 }),
+    });
+  }
+  const exact = compareAgentFingerprints(translated.bundles, readBack, false);
+  if (!exact.equivalent) fail('the SQL read-back is not exactly the translated set');
+  const semantic = compareAgentFingerprints(
+    tenantInventory.bundles.map(({ run, checkpoints, approvals }) => ({ run, checkpoints, approvals })),
+    readBack,
+    true,
+  );
+  if (!semantic.equivalent) fail('the SQL read-back is not migration-semantically the source');
+  console.log('  ✓ the read-back is EXACTLY the translated set and migration-semantically the source');
+
+  // A second load: every create is refused, nothing is overwritten.
+  const secondRefusals = await load();
+  if (secondRefusals !== recordCount) fail(`a repeated load was accepted for ${recordCount - secondRefusals} record(s)`);
+  const again = compareAgentFingerprints(translated.bundles, await Promise.all(translated.bundles.map(async (b) => ({
+    run: (await stores.runStore.load(AGENT_ALPHA, b.run.context.runId))!,
+    checkpoints: await stores.checkpointStore.history(AGENT_ALPHA, b.run.context.runId),
+    approvals: await stores.approvalStore.list({ organizationId: AGENT_ALPHA, runId: b.run.context.runId, limit: 200 }),
+  }))), false);
+  if (!again.equivalent) fail('a repeated load changed the stored records');
+  console.log('  ✓ a repeated load is refused record by record and changes nothing');
+
+  // The real runtime, over SQL, in the canonical tenant, reads what was moved.
+  const reader = buildTestAgentRuntime({ tenantId: AGENT_ALPHA, ...(() => {
+    const s = createSqlAgentStores({ gateway: psqlGateway(database) });
+    return { runStore: s.runStore, checkpointStore: s.checkpointStore, approvalStore: s.approvalStore };
+  })(), idSeed: 'translated' });
+  const readerActor = await reader.runtime.service.authorize(reader.meta(AGENT_TOKEN.consultant));
+  for (const bundle of translated.bundles) {
+    const detail = await reader.runtime.service.getRun(readerActor, bundle.run.context.runId);
+    if (detail.state !== bundle.run.state) fail(`the runtime read ${detail.state} for a ${bundle.run.state} run`);
+  }
+  if (JSON.stringify(rows) !== before) fail('the source rows changed during the rehearsal');
+  console.log(`  ✓ the runtime over SQL reads all ${translated.bundles.length} translated runs; the source rows are unchanged`);
+  console.log(`      ok  integrity values recomputed: 0; residual source-tenant mentions left verbatim: ${translated.residualSourceTenantReferences}`);
+}
+
 // ── Run ─────────────────────────────────────────────────────────────────────
 
 runSteps('agent persistence: schema, constraints, RLS', SCRATCH_DB, [...CHAIN, ...ASSERTIONS]);
 await concurrencyProbes(SCRATCH_DB);
 await contractSuite(SCRATCH_DB);
 await runtimeOverSql(SCRATCH_DB);
+await translatedEstateOverSql(SCRATCH_DB);
 psql(['-c', `DROP DATABASE IF EXISTS ${SCRATCH_DB} WITH (FORCE)`]);
 
 runSteps('agent persistence: idempotency, rollback and re-apply', `${SCRATCH_DB}_idem`, IDEMPOTENCY);

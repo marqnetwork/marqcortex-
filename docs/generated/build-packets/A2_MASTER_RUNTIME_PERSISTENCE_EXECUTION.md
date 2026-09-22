@@ -23,11 +23,13 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
+MASTER_STATUS: IN PROGRESS — AUTHORIZED LOCAL REORDER EXHAUSTED; WAITING ON GATE R (P05) ACCESS
 ACTIVE_PHASE: A2-P08 (reordered, local-only)
-LAST_COMPLETED_CHECKPOINT: A2-P08-C01
-LAST_VERIFIED_COMMIT: 55205e4 (P07-C05); P08-C01 = this commit
-NEXT_CHECKPOINT: A2-P08-C02
+LAST_COMPLETED_CHECKPOINT: A2-P08-C02
+LAST_VERIFIED_COMMIT: b1d1a00 (P08-C01); P08-C02 = this commit
+NEXT_CHECKPOINT: A2-P05-C01 (hosted read-only access proof) — BLOCKED, see BLOCKERS.
+  After P05 completes: A2-P06-C01, then A2-P08-C03 onward. Nothing else in
+  A2 is executable without P05 evidence or the GATE W approval.
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -64,6 +66,37 @@ COMPLETED_PHASES:
 - A2-P07 (agent SQL persistence foundation; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P08-C02 AGENT TRANSFORMATION + FINGERPRINT: migration/transform.ts
+  (verify first: blocking pointer, foreign tenant, or progress not hashing to
+  its digest => REFUSED, never adjusted; rewrites ONLY run.context.
+  organizationId, checkpoint.organizationId, approval.organizationId;
+  recomputes ZERO integrity values — none binds the tenant; business content
+  mentioning the old id left verbatim and counted as
+  residualSourceTenantReferences; all-or-nothing per tenant),
+  migration/fingerprint.ts (exact | migration-semantic eliding only those 3
+  fields; order-independent; refuses unserializable input).
+  Evidence: agentMigrationTransform 11/11 (identity for canonical tenant under
+  EXACT; slug->UUID under explicit mapping: restore-3-fields == source,
+  digests/step fingerprints unchanged and verifying, semantic equal + exact
+  different, deterministic, source unmodified, refusals, drift in version/
+  state/digest detected). LOCAL PG rehearsal (agent scenarios section 5, now
+  behind BP-004 classifyDatabaseTarget + localDatabaseEnvironment; hosted URL
+  and PGHOSTADDR both refused pre-connect): real-runtime KV estate under slug
+  `acme` -> catalog READ from scratch organizations -> explicit mapping ->
+  12 translated records accepted by SQL constraints -> read-back EXACT ==
+  translated and SEMANTIC == source -> second load refused 12/12, nothing
+  changed -> runtime over SQL reads all 3 runs -> source rows unchanged;
+  integrity values recomputed 0, residual mentions 1 (left verbatim).
+  verify:a2-agent 347/347, verify:bp004 334/334, verify:bp003 494/494,
+  scan:boundaries 138/138, test:ai 2492/2492, typecheck:tests clean,
+  typecheck:api ai/registry-free/server clean.
+  OPEN SCOPE ITEMS FOR THE GATE W DOSSIER (found, not acted on):
+  (1) the agent AUDIT store is a separate KV log (createKvAgentAuditStore)
+      outside the three agent ports — decide whether A2 migrates it or it stays
+      a non-authoritative log; (2) tool idempotency is memory-only (the durable
+      non-idempotent-tool guard is run.claimedToolKeys, which IS migrated);
+  (3) pre-existing approvalGate behaviour: consume() of a consumed, past-due
+      approval rewrites it to `expired` (SQL admits it for parity).
 - A2-P08-C01 AGENT SOURCE INVENTORY + TENANT MAPPING (pure, in-memory, no
   repair): ai/agents/persistence/migration/{contracts,inventory,readiness}.ts.
   REUSED from BP-004: resolveTenantMappings + CanonicalOrganization + manifest
