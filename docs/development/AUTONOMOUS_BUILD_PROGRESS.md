@@ -281,7 +281,7 @@ Two cutover findings are intentionally preserved for the next packet:
 
 A2 remains in progress. The next bounded workflow packet is a **read-only hosted estate inventory / cutover-strategy preflight**, and it must not be run against any hosted environment without explicit user authorization naming the allowed read-only scope.
 
-#### A2 MASTER RUNTIME PERSISTENCE EXECUTION — READY
+#### A2 MASTER RUNTIME PERSISTENCE EXECUTION — IN PROGRESS
 
 Active temporary execution authority:
 `docs/generated/build-packets/A2_MASTER_RUNTIME_PERSISTENCE_EXECUTION.md`
@@ -298,6 +298,8 @@ Planned remainder:
 
 Hosted read-only A2 inventory is limited to the existing Cortex Supabase and may not mutate or persist raw business payloads. Hosted writes, migrations, deployment and authority cutover remain blocked until the packet's later explicit user-approval gate.
 
+P05 hosted read-only evidence is now complete against the restored existing Cortex project. The real hosted estate contains **zero workflow runtime rows** and **zero agent runtime rows** in the KV authority. The only active canonical organization is `marq` at UUID `9c96dbbd-b389-4f8b-811f-1815c4f8a9e0`. The deployed production workflow definition scan found no `organizationId` metadata condition dependency. Therefore the selected workflow transition is a short mutation freeze plus an immediate zero-estate recheck and direct SQL-authority cutover, with no historical backfill/shadow/catch-up unless the final pre-cutover recheck finds new rows. Hosted write/deployment authority remains CLOSED.
+
 Status 2026-09-22 (the packet's EXECUTION CURSOR is the detailed record):
 - A2-P05 hosted read-only inventory is BLOCKED — this execution environment
   cannot reach the Cortex Supabase (egress 403, no credential). No hosted
@@ -312,7 +314,7 @@ Status 2026-09-22 (the packet's EXECUTION CURSOR is the detailed record):
   deployed, migrated, shadowed or cut over. A2 remains IN PROGRESS.
 ## CURRENT BATCH
 
-**A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 — COMPLETE. A2 MASTER EXECUTION — READY. A2 — IN PROGRESS.**
+**A1 / BP-002 — COMPLETE. BP-003 — COMPLETE. BP-004 — COMPLETE. A2-P05 HOSTED READ-ONLY PREFLIGHT — COMPLETE. A2-P07 + P08-C01/C02 — COMPLETE LOCALLY. A2 — IN PROGRESS; NEXT A2-P06.**
 
 Locked rules remain:
 - same repository and same Supabase project;
