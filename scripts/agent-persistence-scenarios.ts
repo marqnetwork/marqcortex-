@@ -14,7 +14,10 @@
  *                                                a held row lock)
  *   3. THE AGENT CONTRACT SUITE against the SQL stores — the same cases the
  *      memory and key-value stores run in `agentPersistenceParity.test.ts`
- *   4. idempotency, rollback, rollback again, re-apply (harness 413)
+ *   4. THE REAL AGENT RUNTIME over the SQL stores: a run to completion, a
+ *      process restart, an approval parked in one runtime and decided in
+ *      another, and a second tenant that sees none of it
+ *   5. idempotency, rollback, rollback again, re-apply (harness 413)
  *
  * Usage:
  *   node --experimental-strip-types scripts/agent-persistence-scenarios.ts
@@ -36,8 +39,14 @@ import {
   createSqlAgentApprovalStore,
   createSqlAgentCheckpointStore,
   createSqlAgentRunStore,
+  createSqlAgentStores,
   type AgentSqlGateway,
 } from '../supabase/functions/server/ai/agents/persistence/sqlAgentStores.ts';
+import {
+  AGENT_ID,
+  AGENT_TOKEN,
+  buildTestAgentRuntime,
+} from '../supabase/functions/server/ai/__tests__/agentFixtures.ts';
 import {
   AGENT_ALPHA,
   AGENT_BETA,
@@ -528,11 +537,148 @@ async function contractSuite(database: string) {
   console.log('      ok  the same assertions the memory and key-value suites run, on the same records');
 }
 
+
+// ── The real agent runtime, over the SQL stores ─────────────────────────────
+
+/**
+ * The contract suite proves the stores; this proves the RUNTIME works on them.
+ *
+ * Every runtime below is built fresh over a fresh gateway — nothing in memory
+ * carries from one to the next, which is what an isolate restart is. The
+ * approval is requested by one runtime and decided by another, so the only
+ * thing connecting the two halves of that decision is PostgreSQL.
+ */
+async function runtimeOverSql(database: string) {
+  console.log('\nagent persistence: THE REAL AGENT RUNTIME, over the SQL stores');
+  await sqlHarness(database).reset();
+  seedTenants(database);
+
+  const build = (idSeed: string) => {
+    const stores = createSqlAgentStores({ gateway: psqlGateway(database) });
+    return buildTestAgentRuntime({
+      tenantId: AGENT_ALPHA,
+      runStore: stores.runStore,
+      checkpointStore: stores.checkpointStore,
+      approvalStore: stores.approvalStore,
+      idSeed,
+    });
+  };
+
+  // ── A run to completion, then a restart that finds it ────────────────────
+  const first = build('a');
+  const meta = first.meta(AGENT_TOKEN.consultant);
+  const actor = await first.runtime.service.authorize(meta);
+  const done = await first.runtime.service.createRun(
+    actor,
+    {
+      agentId: AGENT_ID.primary,
+      objective: 'Run entirely over the SQL agent stores.',
+      input: { topic: 'Durability', script: 'model_then_complete' },
+    },
+    meta,
+  );
+  if (done.state !== 'completed') fail(`a run over SQL ended ${done.state}, not completed`);
+
+  const restarted = build('b');
+  const reader = await restarted.runtime.service.authorize(restarted.meta(AGENT_TOKEN.consultant));
+  const recovered = await restarted.runtime.service.getRun(reader, done.runId);
+  if (recovered.state !== 'completed' || recovered.stepCount !== 2) {
+    fail(`after a restart the run read ${recovered.state}/${recovered.stepCount}`);
+  }
+  const steps = await restarted.runtime.service.getRunSteps(reader, done.runId);
+  if (steps.length !== 2) fail(`after a restart the run had ${steps.length} steps`);
+  const history = await restarted.runtime.checkpoints.history(AGENT_ALPHA, done.runId);
+  const pointer = scalar(
+    database,
+    `SELECT checkpoint_version || ':' || (SELECT max(version) FROM public.agent_checkpoints c
+       WHERE c.organization_id = r.organization_id AND c.agent_run_id = r.agent_run_id)
+     FROM public.agent_runs r WHERE r.agent_run_id = '${done.runId}'`,
+  );
+  if (history.length < 3 || pointer !== `${history.length}:${history.length}`) {
+    fail(`checkpoint history ${history.length}, pointer:tip ${pointer} — the run pointer must name the chain tip`);
+  }
+  console.log('  ✓ a run completes over SQL and a restarted runtime reads it back');
+  console.log(`      ok  ${steps.length} steps, ${history.length} checkpoints, run pointer = chain tip`);
+
+  // ── An approval parked in one runtime and decided in another ─────────────
+  const parker = build('c');
+  const parkMeta = parker.meta(AGENT_TOKEN.consultant);
+  const parkActor = await parker.runtime.service.authorize(parkMeta);
+  const parked = await parker.runtime.service.createRun(
+    parkActor,
+    {
+      agentId: AGENT_ID.primary,
+      objective: 'Park on an approval over SQL.',
+      input: { topic: 'Approvals', script: 'approved_tool_then_complete' },
+    },
+    parkMeta,
+  );
+  if (parked.state !== 'waiting_for_approval' || !parked.pendingApprovalId) {
+    fail(`the run did not park on an approval: ${parked.state}`);
+  }
+  const pendingRow = scalar(
+    database,
+    `SELECT approval_state || ':' || approval_version FROM public.agent_approvals
+      WHERE agent_approval_id = '${parked.pendingApprovalId}'`,
+  );
+  if (pendingRow !== 'pending:1') fail(`the parked approval row reads ${pendingRow}`);
+
+  const decider = build('d');
+  const ownerMeta = decider.meta(AGENT_TOKEN.owner);
+  const owner = await decider.runtime.service.authorize(ownerMeta);
+  const queue = await decider.runtime.service.listPendingApprovals(owner);
+  if (!queue.some((entry) => entry.approvalId === parked.pendingApprovalId)) {
+    fail('a restarted runtime could not see the pending approval in its queue');
+  }
+  const released = await decider.runtime.service.submitApproval(
+    owner,
+    { runId: parked.runId, approvalId: parked.pendingApprovalId, decision: 'approve', reason: 'approved over SQL' },
+    ownerMeta,
+  );
+  if (released.state !== 'completed') fail(`the approved run ended ${released.state}`);
+  const spentRow = scalar(
+    database,
+    `SELECT approval_state || ':' || approval_version || ':' || (consumed_at IS NOT NULL)
+       FROM public.agent_approvals WHERE agent_approval_id = '${parked.pendingApprovalId}'`,
+  );
+  if (spentRow !== 'consumed:3:true') fail(`the approval row after release reads ${spentRow}`);
+  console.log('  ✓ an approval requested by one runtime is decided and spent by another');
+  console.log('      ok  pending:1 -> consumed:3, the run completed, only PostgreSQL connected the two');
+
+  // ── And a second tenant sees none of it ──────────────────────────────────
+  const outsider = build('e');
+  const otherMeta = outsider.meta(AGENT_TOKEN.otherTenant);
+  const other = await outsider.runtime.service.authorize(otherMeta);
+  let leaked = false;
+  try {
+    await outsider.runtime.service.getRun(other, done.runId);
+    leaked = true;
+  } catch {
+    // Refused: the run does not exist for that tenant.
+  }
+  if (leaked) fail('TENANT BREACH: another tenant read an agent run over SQL');
+  // Asserted at the rows rather than through the other tenant's queue: a
+  // consultant may not read a queue at all, and a refusal counted as "empty"
+  // would be a pass for the wrong reason.
+  const foreignApprovals = scalar(
+    database,
+    `SELECT count(*) FROM public.agent_approvals WHERE organization_id <> '${AGENT_ALPHA}'`,
+  );
+  if (foreignApprovals !== '0') fail(`agent approvals were written outside the acting tenant: ${foreignApprovals}`);
+  const foreignRows = scalar(
+    database,
+    `SELECT count(*) FROM public.agent_runs WHERE organization_id <> '${AGENT_ALPHA}'`,
+  );
+  if (foreignRows !== '0') fail(`agent rows were written outside the acting tenant: ${foreignRows}`);
+  console.log('  ✓ another tenant reads no run and no approval through the runtime');
+}
+
 // ── Run ─────────────────────────────────────────────────────────────────────
 
 runSteps('agent persistence: schema, constraints, RLS', SCRATCH_DB, [...CHAIN, ...ASSERTIONS]);
 await concurrencyProbes(SCRATCH_DB);
 await contractSuite(SCRATCH_DB);
+await runtimeOverSql(SCRATCH_DB);
 psql(['-c', `DROP DATABASE IF EXISTS ${SCRATCH_DB} WITH (FORCE)`]);
 
 runSteps('agent persistence: idempotency, rollback and re-apply', `${SCRATCH_DB}_idem`, IDEMPOTENCY);

@@ -97,13 +97,28 @@ const SUBJECTS: Readonly<Record<string, AuthenticatedSubject>> = {
   },
 };
 
-export function agentAuthenticator(): AIAuthenticator {
+/**
+ * `tenantId` renames the fixture tenant `acme` for every subject. The SQL
+ * persistence suites need it: the relational stores accept only a real
+ * `organizations.id` UUID and rightly refuse the slug, so driving the REAL
+ * runtime over them means the same subjects in a UUID-named tenant. `globex`
+ * is left alone so cross-tenant assertions keep a second tenant.
+ */
+export function agentAuthenticator(tenantId?: string): AIAuthenticator {
   return {
     authenticate(authorization) {
       if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
         return Promise.resolve(null);
       }
-      return Promise.resolve(SUBJECTS[authorization.slice('Bearer '.length)] ?? null);
+      const subject = SUBJECTS[authorization.slice('Bearer '.length)];
+      if (!subject) return Promise.resolve(null);
+      if (tenantId === undefined) return Promise.resolve(subject);
+      return Promise.resolve({
+        ...subject,
+        memberships: subject.memberships.map((membership) =>
+          membership.organizationId === 'acme' ? { ...membership, organizationId: tenantId } : membership,
+        ),
+      });
     },
   };
 }
@@ -455,6 +470,8 @@ export interface TestAgentRuntimeOptions {
   readonly approvalStore?: Parameters<typeof createAgentRuntime>[0]['approvalStore'];
   readonly costApprovalThresholdMicroUsd?: number;
   readonly clock?: MutableClock;
+  /** Rename the fixture tenant `acme`. See `agentAuthenticator`. */
+  readonly tenantId?: string;
   /**
    * Distinguishes the identifiers TWO runtimes over ONE store may mint.
    *
@@ -472,7 +489,7 @@ export function buildTestAgentRuntime(
 ): TestAgentRuntime {
   const clock = options.clock ?? createTestClock();
   const sink = createMemorySink();
-  const authenticator = agentAuthenticator();
+  const authenticator = agentAuthenticator(options.tenantId);
 
   const config = loadControlPlaneConfig(
     recordEnv({
@@ -480,7 +497,7 @@ export function buildTestAgentRuntime(
       AI_LOG_LEVEL: 'debug',
       AI_RETRY_BASE_DELAY_MS: '0',
       AI_RETRY_JITTER_PERCENT: '0',
-      AI_DEFAULT_ORGANIZATION_ID: 'acme',
+      AI_DEFAULT_ORGANIZATION_ID: options.tenantId ?? 'acme',
       ...options.env,
     }),
   );

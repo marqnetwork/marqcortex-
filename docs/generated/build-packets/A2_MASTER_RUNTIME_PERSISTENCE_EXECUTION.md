@@ -24,10 +24,10 @@
 
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
-ACTIVE_PHASE: A2-P07
-LAST_COMPLETED_CHECKPOINT: A2-P07-C04
-LAST_VERIFIED_COMMIT: 2be2de1 (C03); C04 = this commit
-NEXT_CHECKPOINT: A2-P07-C05
+ACTIVE_PHASE: A2-P08 (reordered, local-only)
+LAST_COMPLETED_CHECKPOINT: A2-P07-C05 (A2-P07 COMPLETE)
+LAST_VERIFIED_COMMIT: 02b5a29 (C04); C05 = this commit
+NEXT_CHECKPOINT: A2-P08-C01
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -61,8 +61,28 @@ COMPLETED_PHASES:
 - A1
 - BP-003
 - BP-004
+- A2-P07 (agent SQL persistence foundation; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P07-C05 LIVE LOCAL PG CONCURRENCY/RLS/ROLLBACK + REAL RUNTIME OVER SQL:
+  test:database:agent-persistence exit 0 (117 ok lines): two-session races
+  (create, save, stale-late, checkpoint dup + UPDATE refused, approval
+  decide, approval spend-once, held row lock), cross-tenant service calls
+  read nothing / save 'missing', authenticated+anon no read/write/execute,
+  service_role works, apply x2 -> rollback x2 -> re-apply (agent assets only;
+  workflow tables + their trigger fn, KV, CAS, durable, tenancy intact), 33/33
+  contract cases on SQL, AND the real agent runtime (buildTestAgentRuntime,
+  new test-only `tenantId` fixture option) over SQL: run completes; restarted
+  runtime reads 2 steps/3 checkpoints, pointer = chain tip; approval parked by
+  runtime c, decided+spent by runtime d (pending:1 -> consumed:3, run
+  completed); other tenant reads nothing; no foreign-tenant rows.
+  P07 PHASE BATTERY: verify:a2-agent 308/308, verify:bp003 489/489,
+  verify:bp004 329/329, verify:bp002 347/347, test:ai 2458/2458,
+  test:security 1141/1141, scan:boundaries 133/133, test:database 403 pass
+  (2 skipped: need DATABASE_URL), test:migration 244/244, test:system 203/203,
+  test:features 1441/1441, test:lifecycle 241/241, live workflow-persistence +
+  workflow-cutover-readiness exit 0, typecheck:tests clean, typecheck:api
+  ai/registry-free/server clean. Production agent bootstrap: KV (asserted).
 - A2-P07-C04 SQL ADAPTERS + SHARED PARITY: agents/persistence/sqlAgentStores.ts
   (one-verb AgentSqlGateway port, no client; fail-closed persistence_failed
   on non-UUID tenant writes, empty reads; DB errors -> persistence_failed with
