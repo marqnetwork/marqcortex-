@@ -24,10 +24,10 @@
 
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
-ACTIVE_PHASE: A2-P06
-LAST_COMPLETED_CHECKPOINT: A2-P06-C04
-LAST_VERIFIED_COMMIT: 3a843b0 (P06-C03); P06-C04 = this commit
-NEXT_CHECKPOINT: A2-P06-C05
+ACTIVE_PHASE: A2-P08
+LAST_COMPLETED_CHECKPOINT: A2-P06-C05 (A2-P06 COMPLETE)
+LAST_VERIFIED_COMMIT: 4abf4c3 (P06-C04); P06-C05 = this commit
+NEXT_CHECKPOINT: A2-P08-C03
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -45,8 +45,42 @@ COMPLETED_PHASES:
 - A2-P05 (hosted read-only workflow estate + strategy)
 - A2-P07 (agent SQL persistence foundation; local only; production still KV)
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
+- A2-P06 (workflow transition machinery + local cutover rehearsal; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P06-C05 LOCAL ADVERSARIAL CUTOVER REHEARSAL (A2-P06 COMPLETE):
+  scripts/runtime-cutover-rehearsal.ts (npm test:database:runtime-cutover),
+  behind BP-004's local-only guard. KV side is the REAL kv_store_324f4fbe +
+  kv_compare_and_swap_field driven exactly as index.tsx does (double-encoded
+  jsonb); SQL side through the SERVER gateway allowlist; runtime migrations
+  applied MID-rehearsal as in Gate W; the hosted recheck SQL counts the DB.
+  A: real KV workflow run (1 run/1 approval) -> recheck SQL ABORT, verifier
+     NO_GO(kv_estate_zero), controller ABORT_ZERO_BACKFILL_STRATEGY; KV md5
+     unchanged; 0 SQL rows.
+  B: KV zero -> freeze both (start during freeze refused, nothing written) ->
+     PRE NO_GO for exactly the missing schema -> migrations applied TWICE ->
+     PRE GO both domains, switch permitted + deterministic on re-run ->
+     sql_frozen: reads reach SQL, writes refused, POST GO both -> sql LIVE GO
+     both, 12 real-engine steps: run parked in SQL; pending approval row;
+     restarted runtime reads it; a second decision from another runtime
+     refused; crash between checkpoint append and run save => tip = pointer+1;
+     fresh runtime recovers and completes; approval consumed:3 (spent once);
+     workflow drove child agents through SQL agent authority; pointer = tip;
+     stale save refused by DB; other tenant sees nothing; 0 KV runtime writes
+     after switch. SQL outage => typed failures both domains, KV md5
+     unchanged, recovers. Enabled slug default => SQL refused. SQL rows
+     present => rollback ROLLBACK_WINDOW_CLOSED.
+  C: sql_frozen -> kv_frozen -> kv while SQL empty; KV authority works again,
+     SQL stays empty; schema rollback (agent then workflow) removes runtime
+     tables only, KV byte-identical, PRE NO_GO again.
+  SELF-REVIEW FIXES: rehearsal step passed a read-model to save (my bug, fixed
+  to replay the real stored record at an older version); "concurrent
+  decisions" relabelled — spawnSync serialises them, so it proves gate
+  refusal; true two-session races are the P07/BP-003 live suites.
+  P06 PHASE BATTERY: runtime-cutover, agent-persistence, workflow-persistence,
+  workflow-cutover-readiness live suites all exit 0; verify:a2-transition 244,
+  verify:a2-agent 351, verify:bp003 498, verify:bp004 338, scan:boundaries
+  142, test:ai 2573, test:database 403 (2 skipped: DATABASE_URL) — 0 fail.
 - A2-P06-C04 CUTOVER VERIFIER (pure GO/NO_GO, never a percentage):
   ai/persistence/runtimeCutoverVerifier.ts. Stages per domain: PRE
   (kv_frozen: KV+SQL estate zero, 3 tables RLS enabled+forced, 12/12

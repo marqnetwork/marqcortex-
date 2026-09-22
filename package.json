@@ -52,6 +52,7 @@
     "test:database:workflow-persistence": "node --experimental-strip-types scripts/workflow-persistence-scenarios.ts",
     "test:database:workflow-cutover-readiness": "node --experimental-strip-types scripts/workflow-cutover-readiness-scenarios.ts",
     "test:database:agent-persistence": "node --experimental-strip-types scripts/agent-persistence-scenarios.ts",
+    "test:database:runtime-cutover": "node --experimental-strip-types scripts/runtime-cutover-rehearsal.ts",
     "test:database:cutover": "deno run --allow-all --config supabase/functions/deno.json --node-modules-dir=none scripts/cutover-scenarios.mjs",
     "test:database:cutover:submission": "deno run --allow-all --config supabase/functions/deno.json --node-modules-dir=none scripts/submission-cutover-scenarios.mjs",
     "test:database:rehearsal": "deno run --allow-all --config tests/database/harness/rehearsal.deno.json --node-modules-dir=none scripts/cutover-rehearsal.mjs",
