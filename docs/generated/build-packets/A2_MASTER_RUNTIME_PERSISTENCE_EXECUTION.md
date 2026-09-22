@@ -23,14 +23,29 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: READY
+MASTER_STATUS: BLOCKED AT GATE R (hosted read-only access unavailable)
 ACTIVE_PHASE: A2-P05
 LAST_COMPLETED_CHECKPOINT: BP-004-ACCEPTED
-LAST_VERIFIED_COMMIT: 5556eef7a48a07d519cafea688f9fdf00607e960
-NEXT_CHECKPOINT: A2-P05-C01
-BLOCKERS: NONE
+LAST_VERIFIED_COMMIT: 2d00ba6e443f3acd6e24625e48aa46d710b796bb
+NEXT_CHECKPOINT: A2-P05-C01 (access proof only; local baseline part done — see evidence)
+BLOCKERS:
+- GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
+  the existing Cortex Supabase (project ref oqybniefkbppptfatoae, from
+  supabase/config.toml) even read-only:
+  1. egress proxy refuses CONNECT to oqybniefkbppptfatoae.supabase.co:443 and
+     api.supabase.com:443 with 403 (organization network policy); not worked around;
+  2. db.oqybniefkbppptfatoae.supabase.co does not resolve; no pooler reachable;
+  3. no Supabase credential/DB URL present in the environment (names checked,
+     no values read); no Supabase CLI installed.
+  Same root cause as Checkpoint A / CP-1 / CP-2 records. No guessed data substituted.
+  UNBLOCK (any one): (a) environment network policy allowing *.supabase.co +
+  pooler host, plus a READ-ONLY Postgres role/URL for the Cortex project supplied
+  as an env secret; or (b) run P05-C01..C04 from an operator machine with that
+  access and supply the sanitized inventory output.
+  NOTE: A2-P07 (agent SQL foundation, local-only) has no dependency on hosted
+  estate data and could run before P05 if the user authorizes that reordering.
 
-HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY
+HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY — BUT NOT REACHABLE FROM THIS ENVIRONMENT (see BLOCKERS)
 HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 DEPLOYMENT_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
 PRODUCTION_WORKFLOW_AUTHORITY: KV
@@ -43,7 +58,12 @@ COMPLETED_PHASES:
 - BP-004
 
 CHECKPOINT_EVIDENCE:
-- none yet
+- A2-P05-C01 (partial, 2026-09-22): branch claude/stoic-hypatia-o7ihgj @ 2d00ba6,
+  clean tree; BP-003 42a1b73, BP-004 aac5a3f, packet lineage 5556eef all
+  ancestors of HEAD; branch is main (388a4cc) + 51 A2 commits.
+  verify:bp004 328/328, verify:bp003 488/488. No code/bootstrap change needed
+  for inventory. Hosted access proof FAILED (see BLOCKERS). No hosted contact
+  beyond refused CONNECTs; no hosted read or write performed.
 ```
 
 ### Cursor rule
