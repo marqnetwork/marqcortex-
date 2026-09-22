@@ -845,20 +845,24 @@ BP-004 performed no hosted inventory, no hosted backfill, no shadow/dual write, 
 
 The temporary BP-004 packet is removed after this acceptance record.
 
-### Next A2 workflow packet — Hosted Read-Only Estate Inventory & Cutover Strategy — NOT STARTED
+### A2 Master Runtime Persistence Execution — READY
 
-The next packet should be strictly read-only against any hosted environment. Its purpose is to measure the actual workflow estate before choosing a cutover mechanism:
-- per-tenant KV workflow counts and tenant-identifier census;
-- mapping candidates requiring explicit operator evidence;
-- active/terminal workflow census;
-- pending approvals and mutation exposure;
-- checkpoint-chain health;
-- exact pointer mismatch rate, with explicit detection of the legitimate one-ahead crash-window shape;
-- registered workflow definitions that reference `organizationId`;
-- data-size/backfill-duration evidence;
-- recommendation between shadow/catch-up, drain/freeze, or another bounded cutover mechanism.
+The remainder of A2 is now governed by one resumable temporary packet:
+`docs/generated/build-packets/A2_MASTER_RUNTIME_PERSISTENCE_EXECUTION.md`.
 
-**Hosted access requires explicit user authorization before that packet is executed.** The readiness packet itself must not write, deploy, backfill, shadow-write, change bootstrap authority or migrate agent persistence.
+It replaces separate BP-005/BP-006/BP-007 instruction documents and uses a repository execution cursor so session limits do not restart work.
+
+Sequence:
+1. hosted **read-only** workflow estate inventory and strategy selection;
+2. local workflow transition/backfill/catch-up implementation and adversarial cutover/rollback rehearsal;
+3. agent SQL persistence foundation and live-local parity/concurrency/RLS proof;
+4. agent migration readiness and combined local workflow+agent authority rehearsal;
+5. mandatory hosted-write/deployment/cutover stop;
+6. only after explicit later approval: controlled hosted workflow SQL cutover, controlled hosted agent SQL cutover, legacy-authority retirement, full verification and A2 cleanup.
+
+The master packet may inspect the existing hosted Cortex estate read-only for A2 evidence. It may not mutate hosted state, apply migrations, deploy or move authority before its hard write gate is explicitly approved.
+
+A2 remains incomplete until both workflow and agent runtime persistence are SQL-authoritative and verified, KV is no longer authoritative for those domains, and temporary transition architecture is cleaned.
 
 ## 18. Build-Packet Rule Going Forward
 
