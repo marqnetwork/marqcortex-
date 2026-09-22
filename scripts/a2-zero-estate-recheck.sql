@@ -52,6 +52,33 @@ sql AS (
   FROM unnest(ARRAY['workflow_runs', 'workflow_checkpoints', 'workflow_approvals',
                     'agent_runs', 'agent_checkpoints', 'agent_approvals']) AS t(name)
 ),
+-- SCHEMA READINESS, from the catalog: which runtime tables exist with RLS
+-- enabled AND forced, and how many of each domain's twelve functions exist.
+schema AS (
+  SELECT jsonb_build_object(
+    'tables_rls_forced', (
+      SELECT COALESCE(jsonb_agg(c.relname ORDER BY c.relname), '[]'::jsonb)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname IN ('workflow_runs', 'workflow_checkpoints', 'workflow_approvals',
+                          'agent_runs', 'agent_checkpoints', 'agent_approvals')
+        AND c.relrowsecurity AND c.relforcerowsecurity),
+    'workflow_functions', (
+      SELECT count(DISTINCT p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname IN (
+        'workflow_run_create', 'workflow_run_save', 'workflow_run_load', 'workflow_run_list',
+        'workflow_checkpoint_append', 'workflow_checkpoint_read', 'workflow_checkpoint_latest',
+        'workflow_checkpoint_history', 'workflow_approval_create', 'workflow_approval_save',
+        'workflow_approval_load', 'workflow_approval_list')),
+    'agent_functions', (
+      SELECT count(DISTINCT p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname IN (
+        'agent_run_create', 'agent_run_save', 'agent_run_load', 'agent_run_list',
+        'agent_checkpoint_append', 'agent_checkpoint_read', 'agent_checkpoint_latest',
+        'agent_checkpoint_history', 'agent_approval_create', 'agent_approval_save',
+        'agent_approval_load', 'agent_approval_list'))
+  ) AS readiness
+),
 who AS (
   SELECT (r.rolsuper OR r.rolbypassrls) AS sees_every_row
   FROM pg_roles r WHERE r.rolname = current_user
@@ -71,6 +98,7 @@ SELECT jsonb_build_object(
     'inspected', kv.inspected),
   'sql', sql_counts.counts,
   'sql_tables_absent', sql_counts.absent,
+  'schema', schema.readiness,
   'role', current_user,
   'role_sees_every_row', who.sees_every_row,
   'verdict', CASE
@@ -81,6 +109,6 @@ SELECT jsonb_build_object(
     ELSE 'ABORT_ZERO_BACKFILL_STRATEGY'
   END
 )::text AS recheck
-FROM kv, sql_counts, who;
+FROM kv, sql_counts, who, schema;
 
 COMMIT;

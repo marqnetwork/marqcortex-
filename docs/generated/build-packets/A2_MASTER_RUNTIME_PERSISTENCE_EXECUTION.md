@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P06
-LAST_COMPLETED_CHECKPOINT: A2-P06-C03
-LAST_VERIFIED_COMMIT: 3b51a8f (P06-C02); P06-C03 = this commit
-NEXT_CHECKPOINT: A2-P06-C04
+LAST_COMPLETED_CHECKPOINT: A2-P06-C04
+LAST_VERIFIED_COMMIT: 3a843b0 (P06-C03); P06-C04 = this commit
+NEXT_CHECKPOINT: A2-P06-C05
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -47,6 +47,24 @@ COMPLETED_PHASES:
 - A2-P08-C01/C02 (agent migration readiness + transform/fingerprint; local only)
 
 CHECKPOINT_EVIDENCE:
+- A2-P06-C04 CUTOVER VERIFIER (pure GO/NO_GO, never a percentage):
+  ai/persistence/runtimeCutoverVerifier.ts. Stages per domain: PRE
+  (kv_frozen: KV+SQL estate zero, 3 tables RLS enabled+forced, 12/12
+  functions, tenant config safe), POST (sql_frozen: SQL reached through the
+  composed stores, KV+SQL still zero), LIVE (sql: every liveness step of a
+  real-engine lifecycle passed). Supplied fingerprints must be identical — no
+  divergence allow-list exists. Unobserved facts FAIL. observationFromRecheck()
+  turns the hosted recheck JSON into observations; INCONCLUSIVE_ROW_SECURITY
+  or any malformed count => unobserved => NO_GO. Recheck SQL extended
+  (read-only) with schema readiness: tables with RLS forced + function counts
+  per domain (live: partial apply correctly reported agent 0 fns, not forced).
+  SELF-REVIEW DEFECT FIXED: null->0 coercion applied to KV/function counts
+  (a null would have read as zero); now only an absent SQL table maps to 0.
+  Evidence: runtimeCutoverVerifier 11/11 (each check fails alone and is
+  named; blind observation fails every check; agent tables not inferred from
+  workflow ones; fingerprint divergence NO_GO; recheck parsing incl.
+  inconclusive/malformed/null); verify:a2-transition 244 pass; typecheck:tests
+  clean; typecheck:api ai/registry-free/server clean.
 - A2-P06-C03 FREEZE MECHANISM + ONE-AUTHORITY COMPOSITION (local code; NOT
   deployed): ai/persistence/runtimePersistenceComposition.ts builds exactly
   one store set per domain from AI_WORKFLOW_PERSISTENCE / AI_AGENT_PERSISTENCE
