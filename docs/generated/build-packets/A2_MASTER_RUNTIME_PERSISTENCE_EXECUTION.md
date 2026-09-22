@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
 ACTIVE_PHASE: A2-P07
-LAST_COMPLETED_CHECKPOINT: BP-004-ACCEPTED
-LAST_VERIFIED_COMMIT: a2a4382f84e551c96352c9189d90734daaddae18
-NEXT_CHECKPOINT: A2-P07-C01
+LAST_COMPLETED_CHECKPOINT: A2-P07-C01
+LAST_VERIFIED_COMMIT: 863124bb (reorder authorization; C01 is audit-only, no code)
+NEXT_CHECKPOINT: A2-P07-C02
 REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
@@ -63,6 +63,52 @@ COMPLETED_PHASES:
 - BP-004
 
 CHECKPOINT_EVIDENCE:
+- A2-P07-C01 AGENT BASELINE AUDIT (2026-09-22, no code change):
+  PORTS agents/persistence/ports.ts: AgentRunStore load/create/save/list;
+    AgentCheckpointStore write/latest/read/history; AgentApprovalStore
+    load/create/save/list. Memory impls in ports.ts; KV impls kvAgentStores.ts
+    over kv_compare_and_swap_field. Bootstrap (ai/bootstrap.ts ~L814) builds
+    KV stores when kvRead/kvReadByPrefix/kvCompareAndSwapField are injected,
+    else agentRuntime.ts L189-191 falls back to memory. SQL agent stores: none.
+  KV KEYS: org:{org}:ai:agent_run:{runId} | agent_checkpoint:{runId}:{v pad6}
+    | agent_approval:{approvalId}; stored value gets `_schema`
+    ai.agent.{run,checkpoint,approval}.v1 (leaks into loaded records; P08
+    transform must strip it).
+  CAS: runs/approvals: create = expected 0 insert-if-absent (dup ->
+    persistence_failed); save = CAS on runVersion/approvalVersion (lost ->
+    stale_run_version). Save on MISSING record: memory run_not_found, KV
+    stale_run_version (pre-existing divergence; SQL must declare KV's answer).
+    Checkpoint write = insert-if-absent per version (dup -> checkpoint_conflict).
+  INTEGRITY: progressDigest = digestValue(progress) (sha256/128 of canonical
+    progress); previousDigest = latest().progressDigest. Chain binds ONLY
+    progress content — NOT organizationId/runId/version/state (differs from
+    workflow). No chain verification on read (readProgress takes latest).
+    => tenant remap needs no digest recomputation unless progress embeds org id.
+  WRITE ORDER: runs.create(v1,cp0) -> checkpoint v1 -> runs.save(v2,cp1);
+    every step writes checkpoint BEFORE run pointer => one-ahead crash window
+    exists for agents too.
+  ORDERING: runs newest-first createdAt desc, tie runId desc (localeCompare);
+    approvals newest-first createdAt desc with NO tiebreak (workflow approvals
+    are oldest-first); history numeric asc; limit default 50, max 200.
+  IDENTITY: context.organizationId / checkpoint.organizationId /
+    approval.organizationId; tenancy grammar admits slugs (default
+    marq-cortex) => same BP-003 fail-closed-on-non-UUID rule applies.
+  CORRUPTION: object/JSON-string coerce, structural check, onCorrupt, treat as
+    absent; load refuses record whose org disagrees with key.
+  APPROVAL LIFECYCLE (approvalGate.ts, actual): pending(no stamps) ->
+    approved|rejected (decidedAt) -> consumed (decidedAt+consumedAt);
+    expire() stamps decidedAt=now and runs whenever due in decide()/consume()
+    REGARDLESS of state, so approved/rejected/consumed/expired can become
+    expired; consumed->expired keeps consumedAt. No `withdrawn`. SQL lifecycle
+    CHECK must admit exactly this (expired: decided NOT NULL, consumed any).
+    PRE-EXISTING DOMAIN FINDING (not fixed; product semantics, out of A2
+    persistence scope): consume() of an already-consumed, past-due approval
+    rewrites state to `expired`, hiding that it was spent (consumedAt kept).
+  BOUNDS: maxTotalSteps<=64, handoffs<=16, retries<=8; progress<=32KiB,
+    output<=128KiB, action input<=64KiB; 1 checkpoint per step + entry.
+  WORKFLOW LINK: WorkflowRunRecord.childAgentRunIds + pendingNode.agentRunId
+    reference agent runs by id (same org); agent context.parentRunId /
+    workflowId. No cross-domain FK (agent and workflow cut over separately).
 - A2-P05-C01 (partial, 2026-09-22): branch claude/stoic-hypatia-o7ihgj @ 2d00ba6,
   clean tree; BP-003 42a1b73, BP-004 aac5a3f, packet lineage 5556eef all
   ancestors of HEAD; branch is main (388a4cc) + 51 A2 commits.
