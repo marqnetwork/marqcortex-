@@ -577,8 +577,14 @@ describe('workflow engine boundary', () => {
     // free of behaviour. `runtime/digest.ts` is the one non-contract exception
     // and it is a bounded, side-effect-free serializer — duplicating it would
     // give the platform two canonical forms to keep in step.
-    const ALLOWED = /^\.\.\/\.\.\/agents\/(contracts\/[a-zA-Z]+\.ts|runtime\/digest\.ts)$/;
-    const IMPORT = /from\s+['"](\.\.\/\.\.\/agents\/[^'"]+)['"]/g;
+    //
+    // BOTH PATTERNS COUNT THE `../` RATHER THAN SPELLING TWO OF THEM. The tree
+    // is no longer two levels deep everywhere — `persistence/migration/` is
+    // three — and a scan that matched only `../../agents/` would have stopped
+    // seeing a module the moment it moved down a directory. Depth is not the
+    // rule; WHAT is imported is.
+    const ALLOWED = /^(?:\.\.\/)+agents\/(contracts\/[a-zA-Z]+\.ts|runtime\/digest\.ts)$/;
+    const IMPORT = /from\s+['"]((?:\.\.\/)+agents\/[^'"]+)['"]/g;
     const offending: string[] = [];
     for (const file of workflowSources) {
       if (file.path.endsWith(PORT) || file.path.endsWith(ASSEMBLY)) continue;
@@ -2256,5 +2262,155 @@ describe('durable runtime boundary (BP-002)', () => {
     assert.equal(/\.decide\s*\(/.test(code), false, 'the sweep must never decide an approval');
     assert.equal(/\.consume\s*\(/.test(code), false, 'the sweep must never spend an approval');
     assert.equal(/approve/i.test(code.replace(/Approval|approval/g, '')), false);
+  });
+});
+
+/**
+ * BP-004 added a workflow CUTOVER PREFLIGHT: an inventory of the key-value
+ * source, an explicit tenant-mapping validator, a deterministic transformation
+ * that re-chains checkpoint digests when a tenant identifier moves, and a
+ * readiness verdict.
+ *
+ * Its entire safety position is a set of absences. It does not connect to
+ * anything, it does not write anything, it is not reachable from the production
+ * assembly, and it cannot be handed a source row it could modify. None of those
+ * is a behaviour a test can observe happening — they are things that must never
+ * happen — so a source scan is the only instrument that can make the claim.
+ */
+describe('workflow cutover readiness boundary (BP-004)', () => {
+  const MIGRATION_DIR =
+    join(SERVER_ROOT, 'ai', 'workflows', 'persistence', 'migration') + sep;
+  const migrationSources = serverSources.filter(
+    (file) => file.path.startsWith(MIGRATION_DIR) && !isTest(file),
+  );
+
+  it('scans a non-empty preflight tree', () => {
+    assert.ok(
+      migrationSources.length >= 6,
+      `expected the BP-004 preflight tree, found ${migrationSources.length}`,
+    );
+  });
+
+  it('39. is unreachable from the production assembly', () => {
+    // THE PACKET'S SAFETY POSITION, AS A SCAN. BP-004 is readiness only, so the
+    // thing that builds the running platform must not be able to reach it at
+    // all — not "the preflight is off by default", which is a setting, but
+    // "there is no import", which is not.
+    const bootstrap = serverSources.find((file) => file.path.endsWith(join('ai', 'bootstrap.ts')));
+    assert.ok(bootstrap, 'the AI bootstrap must exist');
+    assert.doesNotMatch(
+      bootstrap.text,
+      /persistence\/migration|runWorkflowCutoverPreflight|inventoryWorkflowSource|transformTenant|resolveTenantMappings|classifyDatabaseTarget/,
+      'the production assembly reaches the BP-004 preflight',
+    );
+    // And it still constructs the key-value stores, which remain the authority.
+    for (const constructor of [
+      'createKvWorkflowRunStore',
+      'createKvWorkflowCheckpointStore',
+      'createKvWorkflowApprovalStore',
+    ]) {
+      assert.match(bootstrap.text, new RegExp(`${constructor}\\(`));
+    }
+  });
+
+  it('39b. is not imported by the workflow runtime, engine or services either', () => {
+    // The bootstrap is the assembly, but a preflight reached from a node driver
+    // or a read model would be just as much a live dependency. Nothing outside
+    // the folder may name it.
+    const consumers = serverSources.filter(
+      (file) => !file.path.startsWith(MIGRATION_DIR) && !isTest(file),
+    );
+    assert.deepEqual(
+      strippedOffenders(consumers, /from\s+['"][^'"]*persistence\/migration\//),
+      [],
+      'a production module imports the BP-004 preflight',
+    );
+  });
+
+  it('41. holds no database client, no environment, no clock and no randomness', () => {
+    // A preflight that could reach a database is a preflight that could reach
+    // the WRONG one. There is no hosted connection helper here because there is
+    // no connection helper here: the modules are pure functions over rows a
+    // caller supplies, and `generatedAt` is an input.
+    const IMPURE =
+      /(createClient|createServiceClient|Deno\.env|process\.env|fetch\s*\(|Math\.random|Date\.now|new Date\s*\(|supabase)/i;
+    assert.deepEqual(strippedOffenders(migrationSources, IMPURE), []);
+    // No transport, and no SQL either — this folder decides, it does not write.
+    assert.deepEqual(
+      strippedOffenders(migrationSources, /\b(INSERT INTO|UPDATE\s+public\.|DELETE FROM|psql|pg_|rpc\s*\()/),
+      [],
+    );
+  });
+
+  it('41b. names no hosted host and cannot be switched off by configuration', () => {
+    // The local-only rule is a refusal, not a preference. A bypass would be a
+    // flag, an override or an "unsafe" escape hatch, and none exists.
+    assert.deepEqual(
+      strippedOffenders(migrationSources, /supabase\.co|supabase\.com|https?:\/\//),
+      [],
+    );
+    const guard = migrationSources.find((file) => file.path.endsWith('localOnly.ts'));
+    assert.ok(guard, 'the local-only guard must exist');
+    assert.deepEqual(
+      strippedOffenders([guard], /(ALLOW_REMOTE|SKIP_LOCAL|FORCE|UNSAFE|bypass|override)/i),
+      [],
+      'the local-only guard offers a way around itself',
+    );
+  });
+
+  it('42. offers no way to write, delete or repair a source row', () => {
+    // The inventory's input is EVIDENCE. A method that could change one would
+    // make every finding a statement about a snapshot that no longer exists —
+    // and would put a writer against the key-value store inside the one module
+    // that is allowed to read all of it.
+    const WRITER =
+      /\b(write|save|delete|remove|update|repair|fix|upsert|put|set)[A-Z]?[a-zA-Z]*\s*\([^)]*\bWorkflowSourceRow\b/;
+    assert.deepEqual(strippedOffenders(migrationSources, WRITER), []);
+    assert.deepEqual(
+      strippedOffenders(migrationSources, /\b(compareAndSwap|readByPrefix|KvWorkflowConditionalWriter|createKvWorkflow)/),
+      [],
+      'the preflight reaches a key-value store writer',
+    );
+
+    // `WorkflowSourceRow` itself is two readonly fields and nothing else.
+    const contracts = migrationSources.find((file) => file.path.endsWith('contracts.ts'));
+    assert.ok(contracts, 'the preflight contracts must exist');
+    const shape = /export interface WorkflowSourceRow \{([\s\S]*?)\}/.exec(contracts.text);
+    assert.ok(shape, 'WorkflowSourceRow must be declared');
+    const fields = shape[1]
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('*') && !line.startsWith('/'));
+    assert.deepEqual(fields, ['readonly key: string;', 'readonly value: unknown;']);
+  });
+
+  it('42b. verdicts cannot say that production authority may move', () => {
+    // The vocabulary tops out at "a later backfill packet may be written". A
+    // value that could be read as "cut over now" would eventually be quoted as
+    // though it were one.
+    const contracts = migrationSources.find((file) => file.path.endsWith('contracts.ts'));
+    assert.ok(contracts);
+    assert.match(contracts.text, /'GO_FOR_LATER_BACKFILL_PACKET' \| 'NO_GO'/);
+    // Constant-shaped, deliberately: the folder is ALLOWED to be named after
+    // the cutover it prepares for — `bp004-workflow-cutover-preflight` is what
+    // the evidence is stamped with. What it may not carry is a VALUE that
+    // authorises one, or a shadow/dual writer of any spelling.
+    assert.deepEqual(
+      strippedOffenders(
+        migrationSources,
+        /\b(GO_FOR_CUTOVER|CUTOVER_[A-Z_]+|[A-Z][A-Z_]*_CUTOVER|SHADOW_?WRITE|DUAL_?WRITE|shadowWrite|dualWrite)\b/,
+      ),
+      [],
+    );
+  });
+
+  it('42c. starts no agent persistence migration', () => {
+    // A2's agent runtime slice is a LATER packet. A preflight that had already
+    // grown agent vocabulary would be that packet, started quietly.
+    assert.deepEqual(
+      strippedOffenders(migrationSources, /\b(agentRun|agent_run|AgentCheckpoint|agentRunId|agents\/runtime\/(?!digest))/),
+      [],
+      'the workflow preflight has begun reaching into agent persistence',
+    );
   });
 });
