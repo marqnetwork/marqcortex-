@@ -23,11 +23,12 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: BLOCKED AT GATE R (hosted read-only access unavailable)
-ACTIVE_PHASE: A2-P05
+MASTER_STATUS: IN PROGRESS — GATE R BLOCKED, SAFE LOCAL REORDER AUTHORIZED
+ACTIVE_PHASE: A2-P07
 LAST_COMPLETED_CHECKPOINT: BP-004-ACCEPTED
-LAST_VERIFIED_COMMIT: 2d00ba6e443f3acd6e24625e48aa46d710b796bb
-NEXT_CHECKPOINT: A2-P05-C01 (access proof only; local baseline part done — see evidence)
+LAST_VERIFIED_COMMIT: a2a4382f84e551c96352c9189d90734daaddae18
+NEXT_CHECKPOINT: A2-P07-C01
+REORDER_AUTHORIZATION: USER AUTHORIZED SAFE LOCAL-ONLY A2 WORK TO PROCEED WHILE P05 HOSTED READ-ONLY ACCESS IS BLOCKED
 BLOCKERS:
 - GATE_R_ACCESS_UNAVAILABLE (2026-09-22): this execution environment cannot reach
   the existing Cortex Supabase (project ref oqybniefkbppptfatoae, from
@@ -42,8 +43,12 @@ BLOCKERS:
   pooler host, plus a READ-ONLY Postgres role/URL for the Cortex project supplied
   as an env secret; or (b) run P05-C01..C04 from an operator machine with that
   access and supply the sanitized inventory output.
-  NOTE: A2-P07 (agent SQL foundation, local-only) has no dependency on hosted
-  estate data and could run before P05 if the user authorizes that reordering.
+  REORDER AUTHORIZED: while this blocker remains, execute A2-P07 completely.
+  After P07, A2-P08-C01 and A2-P08-C02 may also proceed because they are local-only
+  and do not require hosted workflow-estate evidence.
+  DO NOT start A2-P06, A2-P08-C03+, any hosted workflow strategy implementation,
+  hosted migration, deployment, shadow write, or cutover until P05 is unblocked
+  and its real-estate strategy evidence exists.
 
 HOSTED_READ_ONLY_GATE: OPEN FOR THE EXISTING CORTEX HOSTED SUPABASE, READ-ONLY A2 INVENTORY ONLY — BUT NOT REACHABLE FROM THIS ENVIRONMENT (see BLOCKERS)
 HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
@@ -222,6 +227,23 @@ Two BP-004 findings are load-bearing:
 
 1. `organizationId` is available to workflow condition expressions. Tenant remapping may change FUTURE condition evaluation.
 2. The workflow engine appends a checkpoint before saving the run pointer. A chain tip exactly one version ahead of the run pointer can be a legitimate recoverable crash window.
+
+---
+
+# 5A. SAFE REORDER RULE WHEN GATE R IS BLOCKED
+
+If the existing Cortex hosted Supabase cannot be reached read-only from the execution environment, do **not** idle A2 and do **not** guess hosted data.
+
+Authorized reordering while GATE R remains blocked:
+
+1. execute **A2-P07** completely (agent SQL persistence foundation; local/code only);
+2. then execute **A2-P08-C01** (agent source inventory / tenant-mapping mechanics, local fixtures/code only);
+3. then execute **A2-P08-C02** (agent transformation/fingerprint mechanics, local fixtures/code only);
+4. stop before **A2-P08-C03** unless P05 has been completed, because final transition strategy must not be chosen as if real hosted estate evidence existed;
+5. do not execute A2-P06 before P05 strategy selection;
+6. preserve the P05 blocker in the cursor until real hosted read-only evidence is supplied.
+
+This reorder changes scheduling only. It does not weaken any acceptance gate and does not mark P05 complete.
 
 ---
 
