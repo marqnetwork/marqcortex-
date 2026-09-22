@@ -117,7 +117,7 @@ describe('A2-P06-C03 — the freeze is at the store seam, so it covers every mut
 
   it('a frozen agent runtime refuses a new run BEFORE any model call, and writes nothing', async () => {
     const { kv, ports } = kvPorts();
-    const composed = compose({ AI_AGENT_PERSISTENCE: 'kv_frozen' }, ports);
+    const composed = compose({ AI_WORKFLOW_PERSISTENCE: 'kv_frozen', AI_AGENT_PERSISTENCE: 'kv_frozen' }, ports);
     const harness = buildTestAgentRuntime(composed.agent.stores!);
     const meta = harness.meta(AGENT_TOKEN.consultant);
     const actor = await harness.runtime.service.authorize(meta);
@@ -199,12 +199,13 @@ describe('A2-P06-C03 — refusing, never falling back', () => {
   it('SQL modes use the gateway and only the gateway', async () => {
     const { kv, ports } = kvPorts();
     const gateway = recordingGateway();
-    const composed = compose({ AI_WORKFLOW_PERSISTENCE: 'sql', AI_AGENT_PERSISTENCE: 'sql_frozen' }, ports, gateway);
+    const composed = compose({ AI_WORKFLOW_PERSISTENCE: 'sql_frozen', AI_AGENT_PERSISTENCE: 'sql' }, ports, gateway);
     assert.equal(composed.workflow.authority, 'sql');
-    assert.equal(composed.agent.frozen, true);
+    assert.equal(composed.workflow.frozen, true);
+    assert.equal(composed.agent.frozen, false);
     await composed.workflow.stores!.runStore.list({ organizationId: '9c96dbbd-b389-4f8b-811f-1815c4f8a9e0' });
     await composed.agent.stores!.runStore.list({ organizationId: '9c96dbbd-b389-4f8b-811f-1815c4f8a9e0' });
-    await assert.rejects(() => composed.agent.stores!.runStore.create({} as never), failedWith('persistence_failed'));
+    await assert.rejects(() => composed.workflow.stores!.runStore.create({} as never), failedWith('workflow_persistence_failed'));
     assert.deepEqual(gateway.calls, [WORKFLOW_RPC.runList, AGENT_RPC.runList]);
     assert.equal(kv.writes, 0);
   });

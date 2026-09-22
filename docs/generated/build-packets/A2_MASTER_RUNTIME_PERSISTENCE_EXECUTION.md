@@ -25,9 +25,9 @@
 ```text
 MASTER_STATUS: IN PROGRESS — P06 LOCAL TRANSITION MACHINERY
 ACTIVE_PHASE: A2-P08
-LAST_COMPLETED_CHECKPOINT: A2-P06-C05 (A2-P06 COMPLETE)
-LAST_VERIFIED_COMMIT: 4abf4c3 (P06-C04); P06-C05 = this commit
-NEXT_CHECKPOINT: A2-P08-C03
+LAST_COMPLETED_CHECKPOINT: A2-P08-C03
+LAST_VERIFIED_COMMIT: 80e2917 (P06-C05); P08-C03 = this commit
+NEXT_CHECKPOINT: A2-P08-C04
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
 BLOCKERS: NONE
 
@@ -48,6 +48,39 @@ COMPLETED_PHASES:
 - A2-P06 (workflow transition machinery + local cutover rehearsal; local only; production still KV)
 
 CHECKPOINT_EVIDENCE:
+- A2-P08-C03 AGENT TRANSITION STRATEGY + CROSS-DOMAIN PAIR INVARIANT:
+  STRATEGY: agent estate is also 0 (P05) => same zero-estate shape (no
+  backfill/shadow/catch-up), BUT agent adds a dependency: workflow nodes create
+  and drive child agent runs (childAgentRunIds, pendingNode.agentRunId). So
+  workflow mutation must never be live while agent persistence is frozen,
+  refusing or under another authority. WORKFLOW FREEZES FIRST, AGENT
+  AUTHORITY MOVES FIRST, AGENT UNFREEZES FIRST. FINAL zero-estate recheck only
+  after BOTH are frozen (standalone agent runs may finish after workflow
+  freeze).
+  ai/persistence/runtimeCutoverPlan.ts: runtimePersistencePairProblem(wf,ag)
+  — SAFE only on the 7-state corridor kv/kv, kv_frozen/kv, kv_frozen/kv_frozen,
+  kv_frozen/sql_frozen, sql_frozen/sql_frozen, sql_frozen/sql, sql/sql; every
+  other pair fails closed with the exact reason. COMBINED_CUTOVER_SEQUENCE
+  (with per-state requirements) and COMBINED_ROLLBACK_SEQUENCE (exact reverse;
+  SQL->KV edges still need that domain's SQL estate zero =>
+  ROLLBACK_WINDOW_CLOSED; nothing copied back). sequenceProblems(): each step
+  on corridor, exactly one domain moves, each move a P06-permitted edge.
+  Composition applies the pair check BEFORE returning stores: unsafe pair (or
+  a domain whose own mode is unusable) => mutation refused in BOTH domains,
+  modes NOT downgraded (reads stay on each configured authority), never a KV
+  fallback, reason in problems (bootstrap logs it). No second controller —
+  reuses P06 planTransition.
+  Evidence: runtimeCutoverPlan.test 39/39 — explicit 4x4 expected table
+  (7 SAFE = corridor, 9 UNSAFE incl. every pair the review named), forward +
+  rollback corridors walkable, recheck placed after both freezes, all 16
+  pairs through the REAL bootstrap (safe: each domain writes iff its mode
+  writes, to its own authority only; unsafe: both refused, no KV key, no SQL
+  create; reads on configured authority). MUTATION TESTS: corridor widened by
+  kv/kv_frozen -> 7 fail; validator hole sql/kv -> 2 fail; composition skips
+  pair check -> 8 fail. Two P06 composition cases moved onto corridor pairs.
+  verify:a2-transition 283/283, verify:a2-agent 351/351, test:ai 2612/2612,
+  scan:boundaries 142/142, typecheck:tests clean, typecheck:api ai/
+  registry-free/server clean, runtime-cutover rehearsal exit 0.
 - A2-P06-C05 LOCAL ADVERSARIAL CUTOVER REHEARSAL (A2-P06 COMPLETE):
   scripts/runtime-cutover-rehearsal.ts (npm test:database:runtime-cutover),
   behind BP-004's local-only guard. KV side is the REAL kv_store_324f4fbe +
