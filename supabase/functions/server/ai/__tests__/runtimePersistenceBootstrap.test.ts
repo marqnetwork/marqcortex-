@@ -8,7 +8,7 @@
  * deployment reads them — the seam where the first draft silently read nothing.
  */
 
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -22,6 +22,7 @@ import { recordEnv } from '../runtime/env.ts';
 import { createFakeKv } from './agentFixtures.ts';
 import { makeAgentRun } from './agentPersistenceContract.ts';
 import { makeRun } from './workflowPersistenceContract.ts';
+import { RUNTIME_PERSISTENCE_CORRIDOR } from '../persistence/runtimeCutoverPlan.ts';
 
 const ORG = '9c96dbbd-b389-4f8b-811f-1815c4f8a9e0';
 
@@ -96,5 +97,62 @@ describe('A2-P06-C03 — the real bootstrap honours the runtime persistence mode
   it('sql with the default-organization fallback ON for a slug: refused at boot', async () => {
     const { workflows } = boot({ AI_WORKFLOW_PERSISTENCE: 'sql', AI_ALLOW_DEFAULT_ORGANIZATION: 'true' });
     await assert.rejects(() => workflows.runs.list({ organizationId: ORG }), (e) => failure(e) === 'workflow_persistence_failed');
+  });
+});
+
+/**
+ * Gate W prerequisite 2: after each `secrets set` + redeploy the operator
+ * observes the composed state in the Edge Function log. The line must name the
+ * mode each domain actually composed to — not the one that was intended.
+ */
+describe('A2 Gate W — the boot log names the composed corridor state', () => {
+  function bootLines(env: Record<string, string>): string[] {
+    const logged = mock.method(console, 'log', () => undefined);
+    const errors = mock.method(console, 'error', () => undefined);
+    try {
+      boot(env);
+      return logged.mock.calls
+        .map((call) => String(call.arguments[0]))
+        .filter((line) => line.startsWith('[ai] runtime persistence:'));
+    } finally {
+      logged.mock.restore();
+      errors.mock.restore();
+    }
+  }
+
+  it('every corridor pair: exactly one line, both modes, on_corridor', () => {
+    for (const pair of RUNTIME_PERSISTENCE_CORRIDOR) {
+      const lines = bootLines({ AI_WORKFLOW_PERSISTENCE: pair.workflow, AI_AGENT_PERSISTENCE: pair.agent });
+      assert.equal(lines.length, 1, `${pair.workflow}/${pair.agent}`);
+      assert.match(lines[0], new RegExp(`workflow=${pair.workflow} \\(`));
+      assert.match(lines[0], new RegExp(`agent=${pair.agent} \\(`));
+      assert.match(lines[0], / pair=on_corridor$/);
+      for (const [name, mode] of [['workflow', pair.workflow], ['agent', pair.agent]] as const) {
+        const state = mode.endsWith('_frozen') ? 'frozen' : 'writable';
+        const authority = mode.startsWith('sql') ? 'sql' : 'kv';
+        assert.match(lines[0], new RegExp(`${name}=${mode} \\(authority ${authority}, ${state}\\)`));
+      }
+    }
+  });
+
+  it('unset is reported as kv/kv — the production baseline', () => {
+    const [line] = bootLines({});
+    assert.equal(
+      line,
+      '[ai] runtime persistence: workflow=kv (authority kv, writable) agent=kv (authority kv, writable) pair=on_corridor',
+    );
+  });
+
+  it('an off-corridor pair is reported OFF_CORRIDOR, both domains mutation-refused (reads stay)', () => {
+    const [line] = bootLines({ AI_WORKFLOW_PERSISTENCE: 'sql', AI_AGENT_PERSISTENCE: 'kv' });
+    assert.match(line, /workflow=sql \(authority sql, frozen\)/);
+    assert.match(line, /agent=kv \(authority kv, frozen\)/);
+    assert.match(line, / pair=OFF_CORRIDOR$/);
+  });
+
+  it('an unrecognised value is reported, never echoed', () => {
+    const [line] = bootLines({ AI_WORKFLOW_PERSISTENCE: 'sq1-typo', AI_AGENT_PERSISTENCE: 'kv' });
+    assert.match(line, /workflow=UNRECOGNISED \(authority none, refusing\)/);
+    assert.ok(!line.includes('sq1-typo'));
   });
 });

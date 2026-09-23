@@ -50,6 +50,7 @@ import { createKvFinancialEventStore } from './financial/persistence/kvFinancial
 import { createKvReusableResultStore } from './reuse/persistence/kvReusableResultStore.ts';
 import {
   composeRuntimePersistence,
+  describeRuntimePersistence,
   type RuntimeSqlGateway,
 } from './persistence/runtimePersistenceComposition.ts';
 import { createKvAgentAuditStore } from './agents/observability/agentAudit.ts';
@@ -765,6 +766,7 @@ export function initializeControlPlane(deps: BootstrapDependencies = {}): AICont
     onSqlCorrupt: (location, detail) =>
       console.error(`[ai] runtime record at ${location} is unreadable: ${detail}`),
   });
+  console.log(describeRuntimePersistence(runtimePersistence));
   for (const domain of ['workflow', 'agent'] as const) {
     const composed = runtimePersistence[domain];
     for (const problem of composed.problems) {

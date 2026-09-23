@@ -337,3 +337,23 @@ function closeMutation<S>(
     problems: [...composed.problems, problem],
   };
 }
+
+/**
+ * Gate W observation (A2 Gate W prerequisite 2). One line, logged at every
+ * boot, naming the mode each domain actually composed to — so the operator who
+ * set a secret and redeployed can SEE the resulting corridor state in the
+ * Edge Function log instead of inferring it from the absence of a warning.
+ * It reports; it decides nothing. An unrecognised configured value is never
+ * echoed (it is operator input, not a mode).
+ */
+export function describeRuntimePersistence(composition: RuntimePersistenceComposition): string {
+  const domain = (name: string, composed: DomainComposition<unknown>) => {
+    const state = composed.refusing ? 'refusing' : composed.frozen ? 'frozen' : 'writable';
+    return `${name}=${composed.mode ?? 'UNRECOGNISED'} (authority ${composed.authority ?? 'none'}, ${state})`;
+  };
+  const offCorridor = composition.workflow.pairUnsafe === true || composition.agent.pairUnsafe === true;
+  return (
+    `[ai] runtime persistence: ${domain('workflow', composition.workflow)} ` +
+    `${domain('agent', composition.agent)} pair=${offCorridor ? 'OFF_CORRIDOR' : 'on_corridor'}`
+  );
+}
