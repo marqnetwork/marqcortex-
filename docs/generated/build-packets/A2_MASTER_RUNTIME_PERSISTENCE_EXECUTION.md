@@ -40,6 +40,9 @@ BLOCKERS: STOP D (2026-09-23) — required production access unavailable in the
   db push) and env A2_BACKUP_SOURCE_URL (postgres role, session pooler :5432
   or direct). Supabase CLI installs in-session via npm (proven: 2.117.0).
   Then "CONTINUE MARQ CORTEX A2 MASTER" resumes at W1.
+  RE-VERIFIED on resume (2026-09-23 ~16:00Z): still 403 for all three hosts,
+  no Supabase env vars, no Supabase connector — settings changes reach only a
+  NEW session; this one predates them.
 HOSTED_READ_ONLY_GATE: COMPLETE FOR P05 AGAINST EXISTING CORTEX SUPABASE PROJECT oqybniefkbppptfatoae
 HOSTED_WRITE_GATE: APPROVED 2026-09-23 (Gate W plan W1-W8) — NOT YET EXECUTED (STOP D)
 DEPLOYMENT_GATE: APPROVED 2026-09-23 (existing make-server-324f4fbe only) — NOT YET EXECUTED (STOP D)
