@@ -220,10 +220,20 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
      do not apply migrations/deploy until an operator-capable secret path is
      explicitly available, otherwise the corridor could not be completed or
      rolled back as designed.
+  3. HOSTED LIVENESS-SMOKE EXECUTION PATH. W6 assumes at least one registered
+     production agent/workflow can perform a real runtime write. The deployed
+     code's only business agent/workflow is the certified diagnostic review
+     capability, whose AI_DIAGNOSTIC_REVIEW_ENABLED deployment switch defaults
+     OFF. The connected management surface cannot read Edge Function secrets,
+     so current activation is unknown. Before W2/W3, establish a deterministic
+     smoke path: either prove the diagnostic capability is already enabled and
+     has a safe operator-owned test subject, or separately authorize a bounded
+     temporary activation/test plan. Do not invent a production agent, enable a
+     product capability silently, or declare LIVE GO from read-only list calls.
 
-  Do NOT partially execute W2/W3 while either prerequisite remains unresolved.
-  Once both are proven, re-run W1 read-only checks and ask for the exact Gate W
-  approval again.
+  Do NOT partially execute W2/W3 while any prerequisite remains unresolved.
+  Once all three are proven, re-run W1 read-only checks and ask for the exact
+  Gate W approval again.
 
  EXACT APPROVAL REQUIRED:
   "APPROVE A2 HOSTED WRITE GATE: apply migrations W2.1-W2.16, deploy
