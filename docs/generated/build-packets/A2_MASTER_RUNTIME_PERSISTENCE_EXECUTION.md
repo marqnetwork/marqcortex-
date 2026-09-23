@@ -194,6 +194,37 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
     enabling the fallback requires the default to be the canonical UUID
     first — enforced by the composition (SQL refuses otherwise).
 
+ W10A INDEPENDENT GATE W REVIEW (2026-09-23; READ-ONLY)
+  * Re-verified existing project oqybniefkbppptfatoae is ACTIVE_HEALTHY.
+  * Re-verified hosted migration head is still 20260901120000_ai_customer_byok.
+  * Re-verified hosted runtime estate is still exactly zero:
+    workflow run/checkpoint/approval = 0/0/0; agent = 0/0/0.
+  * Re-ran the 14-relation composite-tenancy PRECHECK as SELECT-only; every
+    relation reports 0 cross-tenant rows.
+  * Repo migration list after hosted head matches W2 exactly: 16 files, no gap.
+  * Hosted Edge Function currently has verify_jwt=false, and
+    supabase/config.toml explicitly pins [functions.make-server-324f4fbe]
+    verify_jwt=false. Any deployment must preserve that existing posture; this
+    review does not authorize changing auth behavior.
+
+  GATE W REMAINS CLOSED because TWO execution prerequisites are not yet proven:
+  1. BACKUP EXECUTION PATH. W1.2 requires verified hosted backup/recovery and a
+     logical pg_dump outside Git. The currently connected Supabase management
+     surface exposes neither backup/PITR inspection nor pg_dump/raw-connection
+     capability, so this requirement has not been satisfied.
+  2. SECRET MUTATION EXECUTION PATH. W4/W5 require changing
+     AI_WORKFLOW_PERSISTENCE / AI_AGENT_PERSISTENCE between corridor states.
+     The currently connected Supabase tool surface can apply migrations and
+     deploy the Edge Function, but exposes no secret-management action. The
+     prior Claude environment also could not reach Supabase directly. Therefore
+     do not apply migrations/deploy until an operator-capable secret path is
+     explicitly available, otherwise the corridor could not be completed or
+     rolled back as designed.
+
+  Do NOT partially execute W2/W3 while either prerequisite remains unresolved.
+  Once both are proven, re-run W1 read-only checks and ask for the exact Gate W
+  approval again.
+
  EXACT APPROVAL REQUIRED:
   "APPROVE A2 HOSTED WRITE GATE: apply migrations W2.1-W2.16, deploy
    make-server-324f4fbe from claude/stoic-hypatia-o7ihgj, and execute the
