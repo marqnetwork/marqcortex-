@@ -26,10 +26,13 @@
 MASTER_STATUS: STOPPED AT GATE W — all local/read-only A2 preparation complete; no hosted write performed
 ACTIVE_PHASE: GATE W (stopped before A2-P09)
 LAST_COMPLETED_CHECKPOINT: A2-P08-C05 (A2-P08 COMPLETE)
-LAST_VERIFIED_COMMIT: ed9a3c5 (P08-C04); P08-C05 = this commit
-NEXT_CHECKPOINT: GATE W — STOPPED. Awaiting explicit user approval; then A2-P09-C01 (re-run read-only preflight)
+LAST_VERIFIED_COMMIT: 0d10093 (Gate W prerequisite execution paths); cursor = this commit
+NEXT_CHECKPOINT: GATE W — STOPPED. Prerequisites 1-3 resolved as operator paths (W10B). Awaiting the EXACT APPROVAL below; execution starts with W1 (read-only, abort on any change)
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
-BLOCKERS: NONE
+BLOCKERS: NONE for approval. Execution needs an operator (or a session whose
+  environment allows *.supabase.co + api.supabase.com and holds a Supabase
+  access token + DB URL as environment variables): this session reaches
+  neither (network policy 403, no credential), so W1 was NOT re-run here.
 
 HOSTED_READ_ONLY_GATE: COMPLETE FOR P05 AGAINST EXISTING CORTEX SUPABASE PROJECT oqybniefkbppptfatoae
 HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
@@ -63,18 +66,30 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
  W1 PRE-MUTATION (read-only; abort on any surprise)
   1. Record branch head + migration list; confirm hosted head is still
      20260901120000 (supabase_migrations.schema_migrations, SELECT only).
-  2. Backup: confirm project PITR/daily backup exists AND take a
-     pg_dump --schema-only + data-only dump of public.kv_store_324f4fbe,
-     organizations, organization_memberships, permissions, role_permissions
-     to operator-controlled storage (never Git).
+  2. Backup (W10B.1 — operator):
+     a. Dashboard -> Database -> Backups: RECORD plan tier, daily backups
+        (latest timestamp) and PITR on/off. Assume nothing: the earlier pause
+        suggests the Free plan, which has no platform backups.
+     b. npm run gatew:backup -- <absolute dir OUTSIDE Git>, with
+        A2_BACKUP_SOURCE_URL = Dashboard -> Connect session-pooler (:5432) or
+        direct URL (never the :6543 transaction pooler) and
+        A2_BACKUP_VERIFY_URL = a LOCAL PostgreSQL; pg_dump >= server major.
+        Required: exit 0; restore-verify.txt RESTORED; source.txt
+        migration_head 20260901120000; keep SHA256SUMS with the dump.
+     c. Recovery path of record = (b) (plus platform backups if (a) shows
+        them). No verified (b) => STOP.
   3. Run the 20260910120000 composite-key refusal precheck (Readiness §11.2,
      read-only). Any cross-tenant finding => STOP (no data repair in A2).
   4. Run scripts/a2-zero-estate-recheck.sql as a BYPASSRLS/superuser role
      (postgres). Required: verdict ZERO_ESTATE, role_sees_every_row=true.
      INCONCLUSIVE_* or ABORT_* => STOP; ABORT re-enters strategy selection
      (P08-C01/C02 + BP-004 machinery), nothing dropped.
-  5. Confirm secrets: AI_ALLOW_DEFAULT_ORGANIZATION unset/false (hosted
-     truth), AI_WORKFLOW_PERSISTENCE and AI_AGENT_PERSISTENCE unset.
+  5. Confirm secrets: npm run gatew:corridor -- status => kv/kv (both
+     unset). supabase secrets list: AI_ALLOW_DEFAULT_ORGANIZATION absent or
+     sha256("false"); RECORD whether AI_DIAGNOSTIC_REVIEW_ENABLED and
+     AI_ALLOW_REAL_REQUESTS are present (digest vs sha256("true")).
+  6. Record deployed make-server-324f4fbe version (15) and verify_jwt=false;
+     record branch head sha = the <approved sha> every step below deploys.
 
  W2 MIGRATIONS — exact order, each idempotent, each with its rollback
   1 20260903120000_ai_self_hosted_providers
@@ -104,10 +119,17 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
     runtimePersistenceGateway (rpc allowlist of the 24 A2 functions);
     corridor/freeze/refusal logic; migrations' SQL stores reachable only via
     explicit modes. Proven: unset env == KV behaviour (real-bootstrap tests).
-  * Smoke (read-only): health endpoint; startup log shows no
-    "runtime persistence REFUSED" line.
+  * Command: supabase functions deploy make-server-324f4fbe --project-ref
+    oqybniefkbppptfatoae --no-verify-jwt (from <approved sha>).
+  * Smoke: GET /health (note: pre-existing probe does KV set+del of
+    health_check_test — not runtime state); the new version's log shows
+    "[ai] runtime persistence: workflow=kv (authority kv, writable)
+    agent=kv (authority kv, writable) pair=on_corridor" and no REFUSED.
 
- W4 FREEZE — workflow FIRST, then agent (secrets + redeploy each time)
+ W4 FREEZE — workflow FIRST, then agent. EVERY corridor move in W4/W5/W7 is
+  npm run gatew:corridor -- step <workflow>/<agent> --execute --commit <approved sha>
+  (W10B.2: one secret, one redeploy of the same function, re-read, then
+  OBSERVE the printed boot line in the new version's log before the next).
   1 supabase secrets set AI_WORKFLOW_PERSISTENCE=kv_frozen; redeploy.
     Pair kv_frozen/kv. Observe: startup log "workflow runtime persistence is
     FROZEN"; a workflow start returns the maintenance failure.
@@ -134,20 +156,38 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
   Every intermediate pair is on the enforced corridor; any other pair
   refuses mutation in both domains (a typo cannot open a split authority).
 
- W6 POST-CUTOVER VERIFICATION (hosted, separate from local tests)
-  Read-only: recheck => kv runtime counts still 0; SQL counts only what the
-  smoke wrote; startup log has no REFUSED/FROZEN lines.
-  Operator smoke (the ONLY runtime writes this gate expects), with the
-  canonical organization 9c96dbbd-b389-4f8b-811f-1815c4f8a9e0 (slug marq):
-   - one certified diagnostic readiness-review workflow run (only if
-     AI_DIAGNOSTIC_REVIEW_ENABLED is already on; otherwise one direct agent
-     run of a registered agent) taken to its approval gate and approved;
-   - verify: workflow_runs 1, workflow_checkpoints >=1, workflow_approvals 1
-     (pending -> approved -> consumed), agent_runs = child count, agent
-     checkpoints >=1, all rows organization_id = canonical UUID; a second
-     identity from another organization sees none; KV runtime namespaces 0.
-  LIVE GO for both domains closes the gate. Hosted results recorded in the
-  cursor as hosted evidence only if actually run.
+ W6 POST-CUTOVER VERIFICATION — the bounded smoke of W10B.3
+  Read-only first: recheck => KV runtime counts 0, SQL counts 0; log shows
+  the sql/sql boot line, no REFUSED/FROZEN.
+  1 SUBJECT: one operator-owned test submission through the normal public
+    intake POST /make-server-324f4fbe/submissions, company "MARQ Gate W
+    smoke test (operator-owned, not a customer)", an operator-controlled
+    email. Writes sub:<id>, sub_email:<email>, an in-app notification, and
+    the usual team new-submission email. No customer record is read/touched.
+  2 ACTIVATE (only if W1.5 found it absent): supabase secrets set
+    AI_DIAGNOSTIC_REVIEW_ENABLED=true --project-ref oqybniefkbppptfatoae;
+    redeploy (W3 command). Registers the certified review for authorized
+    roles (owner, reviewer) of the marq org only, for this window.
+  3 RUN (one owner-role marq operator, team token): POST
+    /ai/workflows/runs {workflowId:"workflow.diagnostic.readiness_review",
+    input:{submissionId:<id>}}; POST .../runs/<run>/advance until
+    waiting_for_approval; POST /ai/workflows/approvals/<approval>
+    {decision:"reject", reason:"A2 Gate W smoke: rejected by design; no
+    commit."}; advance until terminal => failed. n_commit never runs.
+  4 DISABLE (if 2 ran): supabase secrets unset AI_DIAGNOSTIC_REVIEW_ENABLED
+    --project-ref oqybniefkbppptfatoae --yes (BY NAME); redeploy; a new
+    start is refused; the smoke run stays readable.
+  5 VERIFY (exact, measured locally by npm run test:database:gatew-smoke
+    through the real bootstrap, sql/sql, mock provider):
+    SQL workflow_runs 1, workflow_checkpoints 2, workflow_approvals 1
+    (rejected), agent_runs 1, agent_checkpoints 6, agent_approvals 0; every
+    row organization_id = 9c96dbbd-b389-4f8b-811f-1815c4f8a9e0; KV runtime
+    namespaces 0; NO diagnostic_review (committed business record); KV
+    non-runtime: 1 diagnostic_draft, 2 financial_event, 1 ai audit,
+    ~19 ai:agent:audit (W10.1 non-authoritative log; count follows steps).
+    A second identity from another organization sees none of the runs.
+  LIVE GO for both domains closes the gate. Hosted results enter the cursor
+  as hosted evidence only if actually run.
 
  W7 ROLLBACK
   * Before any SQL runtime row (through W5.4): reverse corridor via secrets +
@@ -173,9 +213,12 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
     copied from existing roles' settings.* grants.
   * supabase_migrations ledger rows for the 16 migrations (if applied via
     the CLI).
-  * Edge Function deployments (one per W3/W4/W5 step) and secrets
-    AI_WORKFLOW_PERSISTENCE, AI_AGENT_PERSISTENCE.
-  * W6 smoke rows only (listed above). NO backfill, NO KV write, NO KV delete.
+  * Edge Function deployments: W3 1 + W4 2 + W5 4 + W6 2 = 9 (each the same
+    <approved sha>, verify_jwt=false); secrets AI_WORKFLOW_PERSISTENCE,
+    AI_AGENT_PERSISTENCE, and AI_DIAGNOSTIC_REVIEW_ENABLED set then unset.
+  * W6 smoke writes only (W6.1 intake + W6.5 list). NO backfill, NO runtime
+    KV write, NO KV delete, no customer record touched.
+  * Off Supabase: the W1.2 dump files (operator storage, never Git).
 
  W9 GO / NO-GO CONDITIONS
   GO only if: W1 all clean; every migration applied without refusal; PRE GO
@@ -235,10 +278,66 @@ GATE_W_DOSSIER (prepared at A2-P08-C05; NOTHING below has been executed):
   Once all three are proven, re-run W1 read-only checks and ask for the exact
   Gate W approval again.
 
+ W10B GATE W PREREQUISITES — RESOLVED AS OPERATOR EXECUTION PATHS (2026-09-23)
+  Local proof only; nothing hosted was read or written in this checkpoint.
+  1 BACKUP: scripts/a2-gatew-backup.ts (npm run gatew:backup). Read-only
+    source (every query in BEGIN READ ONLY, required; session default
+    read-only requested; pg_dump's own read-only snapshot); URL/password via
+    libpq env, never argv/printed; pg_dump >= server major; outputs
+    public-full.dump (public schema+data), critical-tables.dump (data-only,
+    --strict-names: kv_store_324f4fbe, organizations,
+    organization_memberships, roles, permissions, role_permissions,
+    supabase_migrations.schema_migrations), row counts, migration head,
+    restore list, SHA256SUMS; restore check ONLY into a LOCAL scratch DB
+    (BP-004 guard, checked before any dump); refuses output inside Git or
+    non-empty. Rehearsal (npm run test:database:gatew-backup) on a
+    hosted-shaped local DB: restore reproduces every row count; source
+    content digests unchanged; refusals hold (Git, non-empty, non-local
+    restore, missing table). Mutation: read-only guard removed => refused.
+    Platform backup/PITR status is NOT visible from any surface here: it is
+    the W1.2a operator record, never assumed.
+  2 SECRETS: scripts/a2-gatew-corridor.ts (npm run gatew:corridor) over the
+    existing Supabase CLI (A2_SUPABASE_CLI may point at
+    scripts/supabase-cli.ps1). status reads the pair from secret digests
+    (sha256; absent = kv; any other value => STOP). step allows ONLY the
+    adjacent corridor state (imported from runtimeCutoverPlan.ts), sets ONE
+    secret or unsets it BY NAME (bare `secrets unset` deletes all), redeploys
+    make-server-324f4fbe --no-verify-jwt from the approved clean HEAD,
+    re-reads, prints the boot line. Refuses config.toml with
+    [edge_runtime.secrets] or without verify_jwt=false. OBSERVATION: new boot
+    log line "[ai] runtime persistence: workflow=<mode> (authority <a>,
+    <writable|frozen|refusing>) agent=... pair=<on_corridor|OFF_CORRIDOR>"
+    (reports only; unrecognised values never echoed). Tests:
+    a2_gatew_corridor_script 7/7 (fake CLI: full forward walk + full reverse
+    walk to kv/kv with other secrets untouched, dry run changes nothing,
+    non-adjacent/off-corridor/wrong-commit refused before mutation,
+    unrecognised value refused, failed redeploy stops and leaves a corridor
+    state; the printed boot line equals the runtime's for all 7 pairs);
+    bootstrap boot-line 4 cases. Mutations: adjacency widened => 1 fail;
+    unset without name => 1 fail; pair ignored in boot line => 1 fail.
+    Mixed isolates during a step serve two ADJACENT states — safe by the
+    corridor (one domain, one edge).
+  3 LIVE SMOKE: AI_DIAGNOSTIC_REVIEW_ENABLED hosted value is UNKNOWN from any
+    surface here; it is NOT enabled by this work. Bounded proposal = W6.1-6.5
+    (operator-owned intake subject, temporary activation only at sql/sql,
+    one run rejected by design so no committed business record, disable by
+    name + redeploy). Rehearsed through the real bootstrap
+    (npm run test:database:gatew-smoke): exact writes in W6.5; switch OFF =>
+    start refused, run readable, nothing further written. If hosted
+    AI_ALLOW_REAL_REQUESTS is on, the one agent step is a real, budgeted
+    model call on the synthetic subject (recorded at W1.5); otherwise mock.
+  W1 RE-RUN: NOT performed — no hosted reach from this session. Latest W1
+  evidence is W10A (same day, clean). W1 is the first executed step and
+  aborts on any change (head, estate, tenancy, secrets, version).
+
  EXACT APPROVAL REQUIRED:
-  "APPROVE A2 HOSTED WRITE GATE: apply migrations W2.1-W2.16, deploy
-   make-server-324f4fbe from claude/stoic-hypatia-o7ihgj, and execute the
-   W4-W6 freeze/switch/verify corridor with W7 rollback"
+  "APPROVE A2 HOSTED WRITE GATE: run W1 read-only and abort on any change;
+   take the W1.2 verified logical backup as the recovery path of record;
+   apply migrations W2.1-W2.16; deploy make-server-324f4fbe from
+   claude/stoic-hypatia-o7ihgj at the W1.6 head with verify_jwt=false;
+   execute the W4-W5 corridor with scripts/a2-gatew-corridor.ts and W7
+   rollback; and for W6 temporarily enable AI_DIAGNOSTIC_REVIEW_ENABLED for
+   one operator-owned smoke review that is rejected, then disable it"
 
 CHECKPOINT_EVIDENCE:
 - A2-P08-C05 BROAD REGRESSION (2026-09-23, machine to itself, 0 failures):
