@@ -23,20 +23,26 @@
 # 0. EXECUTION CURSOR — UPDATE IN EVERY COMPLETED CHECKPOINT COMMIT
 
 ```text
-MASTER_STATUS: STOPPED AT GATE W — all local/read-only A2 preparation complete; no hosted write performed
+MASTER_STATUS: GATE W APPROVED; BLOCKED BEFORE W1 (no production access in session) — no hosted write performed
 ACTIVE_PHASE: GATE W (stopped before A2-P09)
 LAST_COMPLETED_CHECKPOINT: A2-P08-C05 (A2-P08 COMPLETE)
 LAST_VERIFIED_COMMIT: 0d10093 (Gate W prerequisite execution paths); cursor = this commit
-NEXT_CHECKPOINT: GATE W — STOPPED. Prerequisites 1-3 resolved as operator paths (W10B). Awaiting the EXACT APPROVAL below; execution starts with W1 (read-only, abort on any change)
+NEXT_CHECKPOINT: A2-P09 via Gate W — APPROVED by the user (2026-09-23, "FINISH A2"); execution starts at W1 (read-only, abort on any change) and continues W1-W6, then consolidation/cleanup/acceptance
 REORDER_AUTHORIZATION: A2-P07 AND A2-P08-C01/C02 WERE COMPLETED EARLY WHILE GATE R WAS BLOCKED; THEIR EVIDENCE REMAINS VALID
-BLOCKERS: NONE for approval. Execution needs an operator (or a session whose
-  environment allows *.supabase.co + api.supabase.com and holds a Supabase
-  access token + DB URL as environment variables): this session reaches
-  neither (network policy 403, no credential), so W1 was NOT re-run here.
-
+BLOCKERS: STOP D (2026-09-23) — required production access unavailable in the
+  executing session. *.supabase.co and api.supabase.com are denied by the
+  environment network policy (proxy 403); no SUPABASE_ACCESS_TOKEN, no
+  database URL, no Supabase connector. NOTHING hosted was read or written;
+  production is unchanged (KV/KV, hosted head 20260901120000, v15).
+  TO RESUME, the session environment needs: network access allowing
+  oqybniefkbppptfatoae.supabase.co, *.pooler.supabase.com and api.supabase.com;
+  env SUPABASE_ACCESS_TOKEN (write-capable: secrets, functions deploy,
+  db push) and env A2_BACKUP_SOURCE_URL (postgres role, session pooler :5432
+  or direct). Supabase CLI installs in-session via npm (proven: 2.117.0).
+  Then "CONTINUE MARQ CORTEX A2 MASTER" resumes at W1.
 HOSTED_READ_ONLY_GATE: COMPLETE FOR P05 AGAINST EXISTING CORTEX SUPABASE PROJECT oqybniefkbppptfatoae
-HOSTED_WRITE_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
-DEPLOYMENT_GATE: CLOSED — EXPLICIT LATER USER APPROVAL REQUIRED
+HOSTED_WRITE_GATE: APPROVED 2026-09-23 (Gate W plan W1-W8) — NOT YET EXECUTED (STOP D)
+DEPLOYMENT_GATE: APPROVED 2026-09-23 (existing make-server-324f4fbe only) — NOT YET EXECUTED (STOP D)
 PRODUCTION_WORKFLOW_AUTHORITY: KV
 PRODUCTION_AGENT_AUTHORITY: KV
 
